@@ -24,6 +24,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, TYPE_CHECKING, AsyncIterator
 
 if TYPE_CHECKING:
@@ -541,6 +542,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize readiness event for optional parallel services
     app.state.singletons_ready_event = asyncio.Event()
+
+    # Cache VERSION_TEAMS_WEBHOOK at startup (read once, use many times)
+    # This avoids reading from disk on every request
+    _version_file = Path(__file__).parent.parent / "VERSION_TEAMS_WEBHOOK.txt"
+    try:
+        if _version_file.exists():
+            app.state.teams_webhook_version = _version_file.read_text().strip()
+            logger.info("teams_webhook_version_loaded", version=app.state.teams_webhook_version)
+        else:
+            app.state.teams_webhook_version = "unknown"
+            logger.warning("teams_webhook_version_file_not_found")
+    except Exception as e:
+        app.state.teams_webhook_version = "error"
+        logger.error("teams_webhook_version_load_error", error=str(e))
 
     try:
         settings = get_settings()
