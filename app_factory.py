@@ -4,24 +4,17 @@ Application factory for creating and configuring the FastAPI application.
 This module is imported by resync/main.py and provides the actual application
 initialization logic following the factory pattern.
 
-Global State:
-    This module creates a module-level ``_factory`` singleton (line ~end) used
-    by ``create_app()`` for ASGI server compatibility.  The ``ApplicationFactory``
-    class itself holds no mutable state after ``create_application()`` returns;
-    all runtime state lives on ``app.state``.
+No Global State:
+    The ``create_app()`` function creates a new ApplicationFactory instance
+    per call to avoid state contamination between tests. All runtime state
+    lives on ``app.state``.
 """
 
 import asyncio
 import hashlib
-import os
-import contextlib
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from resync.core.types.app_state import enterprise_state_from_app
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -100,8 +93,9 @@ class CachedStaticFiles(StarletteStaticFiles):
                     response.headers["ETag"] = f'"{digest}"'
             except Exception as exc:
                 logger.warning("failed_to_generate_etag", error=str(exc))
-                # Fallback to simple hash of path if metadata fails
-                response.headers["ETag"] = f'"{hash(path)}"'
+                # Fallback to deterministic hash of path if metadata fails
+                digest = hashlib.md5(path.encode("utf-8")).hexdigest()[:16]
+                response.headers["ETag"] = f'"{digest}"'
 
         return response
 
@@ -541,7 +535,12 @@ class ApplicationFactory:
         logger.info("routers_registered", count=len(routers))
 
     def _mount_static_files(self) -> None:
-        """Mount static file directories with caching."""
+        """Mount static file directory with caching.
+        
+        All static assets are served from /static prefix.
+        Legacy submounts (/css, /js, /img, /fonts, /assets) removed - 
+        use /static/{subdir}/... instead.
+        """
         static_dir = settings.base_dir / "static"
 
         if not static_dir.exists():
@@ -551,21 +550,7 @@ class ApplicationFactory:
         # Mount main static directory with caching
         self.app.mount("/static", CachedStaticFiles(directory=str(static_dir)), name="static")
 
-        # Mount subdirectories if they exist
-        subdirs = ["assets", "css", "js", "img", "fonts"]
-        mounted = 1
-
-        for subdir in subdirs:
-            subdir_path = static_dir / subdir
-            if subdir_path.exists():
-                self.app.mount(
-                    f"/{subdir}",
-                    CachedStaticFiles(directory=str(subdir_path)),
-                    name=subdir,
-                )
-                mounted += 1
-
-        logger.info("static_files_mounted", count=mounted, directory=str(static_dir))
+        logger.info("static_files_mounted", directory=str(static_dir))
 
     def _register_special_endpoints(self) -> None:
         """Register special endpoints (frontend, CSP, etc.)."""
@@ -602,19 +587,29 @@ class ApplicationFactory:
 
         Returns:
             Rendered HTML response
+        
+        Raises:
+            HTTPException: 500 if CSP nonce is missing in production (fail-closed)
         """
         if not self.templates:
             raise HTTPException(status_code=500, detail="Template engine not configured")
 
+        # Hardening: fail-closed in production if nonce missing
+        nonce = getattr(request.state, "csp_nonce", None)
+        
+        if settings.is_production and not nonce:
+            logger.critical("csp_nonce_missing_prod", template=template_name)
+            raise HTTPException(status_code=500, detail="Security middleware failed")
+
         try:
             from resync.core.csp_template_response import CSPTemplateResponse
 
-            nonce = getattr(request.state, "csp_nonce", "")
+            nonce_value = nonce or ""
             return CSPTemplateResponse(
                 template_name,
                 {
                     "request": request,
-                    "nonce": nonce,
+                    "nonce": nonce_value,
                     "settings": {
                         "project_name": settings.project_name,
                         "version": settings.project_version,
@@ -631,49 +626,6 @@ class ApplicationFactory:
         except Exception as e:
             logger.error("template_render_error", template=template_name, error=str(e))
             raise HTTPException(status_code=500, detail="Internal server error") from None
-
-    @staticmethod
-    async def _shutdown_services(app: FastAPI) -> None:
-        """Tear down all services with a global timeout."""
-        # Global graceful shutdown timeout (prevents hangs)
-        # Defaults to 30s or env var
-        default_timeout = float(getattr(settings, "graceful_timeout", 30))
-        with contextlib.suppress(Exception):
-            default_timeout = float(os.getenv("GRACEFUL_SHUTDOWN_TIMEOUT", str(default_timeout)))
-
-        async def _shutdown_inner() -> None:
-            await ApplicationFactory._shutdown_services_inner(app)
-
-        try:
-            await asyncio.wait_for(_shutdown_inner(), timeout=default_timeout)
-        except asyncio.TimeoutError:
-            app_logger.error(
-                "application_shutdown_timeout",
-                timeout_seconds=default_timeout,
-                hint="Shutdown exceeded timeout; forcing exit may leak resources",
-            )
-        except Exception as exc:
-            app_logger.error("application_shutdown_error", error=str(exc))
-
-    @staticmethod
-    async def _shutdown_services_inner(app: FastAPI) -> None:
-        """Tear down all services in reverse initialisation order."""
-        app_logger.info("application_shutdown_initiated")
-        
-        from resync.core.health import shutdown_unified_health_service
-        from resync.core.redis_init import close_redis_connections
-        from resync.core.wiring import shutdown_container
-
-        # 1. Shutdown Health Service (stops polling)
-        await shutdown_unified_health_service()
-
-        # 2. Shutdown DI Container (closes dependencies)
-        await shutdown_container()
-
-        # 3. Close Redis Connections (final cleanup)
-        await close_redis_connections()
-
-        app_logger.info("application_shutdown_completed")
 
     async def _handle_csp_report(self, request: Request) -> JSONResponse:
         """
@@ -717,18 +669,13 @@ class ApplicationFactory:
             return JSONResponse(content={"status": "received"}, status_code=200)
 
 
-# Module-level factory instance
-_factory = ApplicationFactory()
-
-
 def create_app() -> FastAPI:
-    """
-    Create and configure the FastAPI application.
-
-    This is the main entry point for application creation,
-    providing a fully configured FastAPI instance.
-
+    """Entry point para Uvicorn e Pytest.
+    
+    Creates a new ApplicationFactory instance per call to avoid
+    state contamination between tests.
+    
     Returns:
         Configured FastAPI application
     """
-    return _factory.create_application()
+    return ApplicationFactory().create_application()
