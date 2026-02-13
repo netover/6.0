@@ -45,6 +45,18 @@ logger = structlog.get_logger(__name__)
 # =============================================================================
 
 
+# =============================================================================
+# ACTION TRIGGERS (GAP B: Inteligência em STATUS/MONITORING)
+# =============================================================================
+
+ACTION_TRIGGERS = [
+    "por que", "porque", "causa", "root cause", "motivo",
+    "ajuda", "help", "como resolver", "resolver", "corrigir", "fix",
+    "o que faço", "o que fazer", "recomenda", "recomendação",
+    "investigar", "analisar", "análise", "diagnosticar"
+]
+
+
 class RoutingMode(str, Enum):
     """
     Routing modes for hybrid agent system.
@@ -329,18 +341,32 @@ class IntentClassifier:
             else:
                 suggested_routing = RoutingMode.AGENTIC
 
-        # Map Intent to Skills (gerúndio)
+        # Map Intent to Skills (gerúndio) - with validation (GAP A: Safe Mapping)
+        from resync.core.skill_manager import get_skill_manager
+        
         matched_skills: list[str] = []
+        
+        # Obter skills disponíveis
+        sm = get_skill_manager()
+        available = {s.name for s in sm.skills_metadata}
+        
+        def add_if_exists(skill_name: str) -> None:
+            if skill_name in available:
+                matched_skills.append(skill_name)
+            else:
+                logger.warning("mapped_skill_missing_in_classifier", skill=skill_name)
+        
+        # Mapear intents para skills (com validação)
         if primary_intent == Intent.TROUBLESHOOTING:
-            matched_skills.append("analyzing-job-logs")
+            add_if_exists("analyzing-job-logs")
         elif primary_intent == Intent.MONITORING:
-            matched_skills.append("monitoring-workstations")
+            add_if_exists("monitoring-workstations")
         elif primary_intent == Intent.JOB_MANAGEMENT:
-            matched_skills.append("managing-jobs")
+            add_if_exists("managing-jobs")
         elif primary_intent == Intent.STATUS:
-            matched_skills.append("checking-status")
+            add_if_exists("checking-status")
         elif primary_intent == Intent.ANALYSIS:
-            matched_skills.append("analyzing-performance")
+            add_if_exists("analyzing-performance")
 
         return IntentClassification(
             primary_intent=primary_intent,
@@ -473,6 +499,11 @@ class BaseHandler(ABC):
 
         joined = "\n\n".join(chunks)
         return joined[:6000]  # Limit to avoid prompt bloat
+
+    def _needs_agent_interpretation(self, message: str) -> bool:
+        """Detecta se a mensagem requer interpretação/ação do agente."""
+        msg = message.lower()
+        return any(t in msg for t in ACTION_TRIGGERS)
 
 
 # =============================================================================
@@ -700,7 +731,29 @@ class AgenticHandler(BaseHandler):
 
         response_parts.append(f"\n_Consultados {len(responses)} recursos em paralelo_")
 
-        return "\n".join(response_parts)
+        # GAP B: Se precisa de interpretação, elevar para agente
+        raw = "\n".join(response_parts)
+
+        if self._needs_agent_interpretation(message):
+            skill_context = self._build_skill_context(classification)
+
+            agent_prompt = f"""
+Você é um especialista TWS. Interprete o status abaixo e responda com:
+1) O que está acontecendo (resumo)
+2) Possíveis problemas/risco (se houver)
+3) Próximos passos recomendados (priorizados)
+4) Se precisar de mais dados, diga exatamente quais
+
+STATUS OBSERVADO:
+{raw}
+
+PERGUNTA DO USUÁRIO:
+{message}
+""".strip()
+
+            return await self._get_agent_response("tws-general", agent_prompt, skill_context=skill_context)
+
+        return raw
 
     async def _handle_monitoring(
         self,
@@ -737,6 +790,25 @@ class AgenticHandler(BaseHandler):
                 response += f"Taxa de erros: {m.get('error_rate', 0) * 100:.1f}%\n"
 
         response += "\n💡 Use o dashboard para monitoramento em tempo real."
+
+        # GAP B: Se precisa de interpretação, elevar para agente
+        if self._needs_agent_interpretation(message):
+            skill_context = self._build_skill_context(classification)
+
+            agent_prompt = f"""
+Você é um especialista TWS. Interprete as métricas abaixo e responda com:
+1) Diagnóstico do cenário (normal vs degradado)
+2) Hipóteses prováveis
+3) Ações recomendadas (com segurança)
+
+MÉTRICAS OBSERVADAS:
+{response}
+
+PERGUNTA DO USUÁRIO:
+{message}
+""".strip()
+
+            return await self._get_agent_response("tws-general", agent_prompt, skill_context=skill_context)
 
         return response
 
@@ -876,9 +948,13 @@ class DiagnosticHandler(BaseHandler):
             # Try to use LangGraph diagnostic
             from resync.core.langgraph.diagnostic_graph import diagnose_problem
 
+            # GAP C: Build skill context for diagnostic injection
+            skill_context = self._build_skill_context(classification)
+
             result = await diagnose_problem(
                 problem_description=message,
                 tws_instance_id=context.get("tws_instance_id"),
+                skill_context=skill_context,
             )
 
             if result.get("success"):

@@ -97,6 +97,7 @@ class DiagnosticState(TypedDict, total=False):
     user_id: str | None
     session_id: str | None
     tws_instance_id: str | None
+    skill_context: str  # GAP C: Skill injection for diagnostic
 
     # Current phase
     phase: DiagnosticPhase
@@ -582,6 +583,10 @@ class ProposeNode:
             # Build context
             context_parts = []
 
+            # Skill Knowledge (GAP C: Skill Injection)
+            if state.get("skill_context"):
+                context_parts.append(f"Skill Knowledge:\n{state['skill_context'][:2000]}")
+
             # Root cause
             if state.get("root_cause"):
                 context_parts.append(f"Root Cause: {state['root_cause']}")
@@ -763,6 +768,7 @@ def create_diagnostic_graph(
 async def diagnose_problem(
     problem_description: str,
     tws_instance_id: str | None = None,
+    skill_context: str = "",
     config: DiagnosticConfig | None = None,
 ) -> dict[str, Any]:
     """
@@ -782,6 +788,7 @@ async def diagnose_problem(
     initial_state: DiagnosticState = {
         "problem_description": problem_description,
         "tws_instance_id": tws_instance_id,
+        "skill_context": skill_context,
         "phase": DiagnosticPhase.DIAGNOSE,
         "iteration": 0,
         "max_iterations": config.max_iterations,
