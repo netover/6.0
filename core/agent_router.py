@@ -781,7 +781,7 @@ class AgenticHandler(BaseHandler):
                 skill_text += f"\n\n=== {skill_name.upper()} ===\n{content}"
 
         # Quando for chamar o agente, passe a skill
-        return await self._get_agent_response("job-analyst", message, skill_context=skill_text)
+        return await self._get_agent_response("tws-troubleshooting", message, skill_context=skill_text)
 
     async def _handle_job_management(
         self,
