@@ -113,6 +113,7 @@ class IntentClassification:
     entities: dict[str, Any] = field(default_factory=dict)
     requires_tools: bool = False
     suggested_routing: RoutingMode = RoutingMode.RAG_ONLY
+    matched_skills: list[str] = field(default_factory=list)  # Maps Intent to Skill names
 
     @property
     def is_high_confidence(self) -> bool:
@@ -328,6 +329,19 @@ class IntentClassifier:
             else:
                 suggested_routing = RoutingMode.AGENTIC
 
+        # Map Intent to Skills (gerúndio)
+        matched_skills: list[str] = []
+        if primary_intent == Intent.TROUBLESHOOTING:
+            matched_skills.append("analyzing-job-logs")
+        elif primary_intent == Intent.MONITORING:
+            matched_skills.append("monitoring-workstations")
+        elif primary_intent == Intent.JOB_MANAGEMENT:
+            matched_skills.append("managing-jobs")
+        elif primary_intent == Intent.STATUS:
+            matched_skills.append("checking-status")
+        elif primary_intent == Intent.ANALYSIS:
+            matched_skills.append("analyzing-performance")
+
         return IntentClassification(
             primary_intent=primary_intent,
             confidence=confidence,
@@ -335,6 +349,7 @@ class IntentClassifier:
             entities=entities,
             requires_tools=requires_tools,
             suggested_routing=suggested_routing,
+            matched_skills=matched_skills,
         )
 
     def _extract_entities(self, message: str) -> dict[str, list[str]]:
@@ -428,12 +443,12 @@ class BaseHandler(ABC):
             return result
         return None
 
-    async def _get_agent_response(self, agent_id: str, message: str) -> str:
-        """Get response from a specific agent."""
+    async def _get_agent_response(self, agent_id: str, message: str, skill_context: str = "") -> str:
+        """Get response from a specific agent injecting skill context."""
         if self.agent_manager:
             agent = await self.agent_manager.get_agent(agent_id)
             if agent and hasattr(agent, "arun"):
-                return await agent.arun(message)
+                return await agent.arun(message, skill_context=skill_context)
         return ""
 
 
@@ -755,7 +770,18 @@ class AgenticHandler(BaseHandler):
                 f"Tendência: {history.get('trend', 'estável')}"
             )
 
-        return await self._get_agent_response("job-analyst", message)
+        # NOVO: Buscar o conteúdo das skills (Deep Loading)
+        from resync.core.skill_manager import get_skill_manager
+        
+        skill_mgr = get_skill_manager()
+        skill_text = ""
+        for skill_name in classification.matched_skills:
+            content = skill_mgr.get_skill_content(skill_name)
+            if content:
+                skill_text += f"\n\n=== {skill_name.upper()} ===\n{content}"
+
+        # Quando for chamar o agente, passe a skill
+        return await self._get_agent_response("job-analyst", message, skill_context=skill_text)
 
     async def _handle_job_management(
         self,

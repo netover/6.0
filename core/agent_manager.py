@@ -19,6 +19,7 @@ import structlog
 import yaml
 
 from resync.core.interfaces import ITWSClient
+from resync.core.skill_manager import get_skill_manager
 from resync.tools.definitions.tws import (
     tws_status_tool,
     tws_troubleshooting_tool,
@@ -62,16 +63,21 @@ class Agent:
         self.goal = "Assist with TWS operations"
         self.backstory = description
 
-    async def arun(self, message: str) -> str:
+    async def arun(self, message: str, skill_context: str = "") -> str:
         """Process *message* via LiteLLM (async)."""
         try:
             import litellm
 
             litellm.suppress_debug_info = True
 
+            # Injeção dinâmica da Skill no prompt do sistema
+            full_instructions = self.instructions
+            if skill_context:
+                full_instructions += f"\n\n--- CONHECIMENTO ESPECÍFICO APLICÁVEL ---\n{skill_context}"
+
             system_prompt = (
                 f"You are {self.name}.\n"
-                f"{self.instructions}\n\n"
+                f"{full_instructions}\n\n"  # Use full_instructions em vez de self.instructions
                 f"Available tools: "
                 f"{', '.join(str(t) for t in self.tools) if self.tools else 'None'}\n\n"
                 "Respond in Portuguese (Brazilian) unless the user writes in English."
