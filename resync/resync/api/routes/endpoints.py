@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from resync.api.security import require_role
-from resync.services.tws_client_factory import get_tws_client
+from resync.core.factories import get_tws_client as get_client
 from resync.services.tws_service import OptimizedTWSClient
 from resync.settings import get_settings
 

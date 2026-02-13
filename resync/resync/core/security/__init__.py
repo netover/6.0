@@ -51,6 +51,23 @@ def verify_api_key(api_key: str, hashed_key: str) -> bool:
     return hmac.compare_digest(computed_hash, hashed_key)
 
 
+async def verify_metrics_api_key(api_key: str) -> bool:
+    """
+    Verify the metrics API key against the configured hash.
+    
+    This is used by the workstation metrics endpoint.
+    """
+    from resync.settings import get_settings
+    settings = get_settings()
+    
+    if not settings.metrics_api_key_hash:
+        # If no hash is configured, reject all (default secure)
+        # In development, use a dummy hash if needed
+        return False
+        
+    return verify_api_key(api_key, settings.metrics_api_key_hash)
+
+
 def verify_admin_token(token: str) -> dict[str, Any] | None:
     """Verify an admin token and return payload if valid."""
     try:
@@ -60,7 +77,7 @@ def verify_admin_token(token: str) -> dict[str, Any] | None:
             if payload.get("role") == "admin":
                 return payload
         return None
-    except Exception:
+    except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -90,6 +107,7 @@ __all__ = [
     # API Key functions
     "hash_api_key",
     "verify_api_key",
+    "verify_metrics_api_key",
     "verify_admin_token",
     "generate_api_key",
     # Type aliases

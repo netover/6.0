@@ -698,6 +698,12 @@ class Settings(BaseSettings, SettingsValidators):
         description="Access token expiration time in minutes",
     )
 
+    metrics_api_key_hash: str = Field(
+        default="",
+        description="SHA-256 hash of the API key for workstation metrics collection",
+        exclude=True,
+    )
+
     # Debug mode
     debug: bool = Field(
         default=False,
