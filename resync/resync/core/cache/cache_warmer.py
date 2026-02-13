@@ -59,14 +59,14 @@ class CacheWarmer:
 
     # Most common static queries - TWS Operations
     STATIC_QUERIES: list[WarmingQuery] = [
-        # Job Status (alta prioridade)
+        # Job Status (high priority)
         WarmingQuery("qual o status do job", "job_status", 1, "job_details"),
         WarmingQuery("job está rodando", "job_status", 1, "job_details"),
         WarmingQuery("último run do job", "job_status", 1, "job_details"),
         WarmingQuery("próxima execução do job", "job_status", 1, "job_details"),
         WarmingQuery("job finalizou com sucesso", "job_status", 1, "job_details"),
         WarmingQuery("job terminou", "job_status", 1, "job_details"),
-        # Troubleshooting (alta prioridade)
+        # Troubleshooting (high priority)
         WarmingQuery("job falhou o que fazer", "troubleshooting", 1, "troubleshooting"),
         WarmingQuery("como resolver RC 12", "troubleshooting", 1, "error_lookup"),
         WarmingQuery("job abendou", "troubleshooting", 1, "troubleshooting"),
@@ -74,34 +74,34 @@ class CacheWarmer:
         WarmingQuery("como reiniciar job", "troubleshooting", 1, "troubleshooting"),
         WarmingQuery("job travado", "troubleshooting", 1, "troubleshooting"),
         WarmingQuery("timeout no job", "troubleshooting", 1, "troubleshooting"),
-        # Error Codes (alta prioridade)
+        # Error Codes (high priority)
         WarmingQuery("o que significa RC 8", "error_codes", 1, "error_lookup"),
         WarmingQuery("código de erro 12", "error_codes", 1, "error_lookup"),
         WarmingQuery("AWKR0001", "error_codes", 1, "error_lookup"),
         WarmingQuery("erro AWSBCT001I", "error_codes", 1, "error_lookup"),
         WarmingQuery("return code 4", "error_codes", 1, "error_lookup"),
-        # Dependências (média prioridade)
+        # Dependencies (medium priority)
         WarmingQuery("quais as dependências do job", "dependency", 2, "dependency_chain"),
         WarmingQuery("jobs predecessores", "dependency", 2, "dependency_chain"),
         WarmingQuery("cadeia de dependências", "dependency", 2, "dependency_chain"),
         WarmingQuery("jobs que rodam antes", "dependency", 2, "dependency_chain"),
         WarmingQuery("sequência de execução", "dependency", 2, "dependency_chain"),
-        # Impacto (média prioridade)
+        # Impact (medium priority)
         WarmingQuery("impacto se job falhar", "impact", 2, "impact_analysis"),
         WarmingQuery("quantos jobs afetados", "impact", 2, "impact_analysis"),
         WarmingQuery("análise de impacto", "impact", 2, "impact_analysis"),
         WarmingQuery("jobs dependentes", "impact", 2, "impact_analysis"),
-        # Recursos (média prioridade)
+        # Resources (medium priority)
         WarmingQuery("recursos do job", "resources", 2, "resource_conflict"),
         WarmingQuery("conflito de recursos", "resources", 2, "resource_conflict"),
         WarmingQuery("workstation do job", "resources", 2, "job_details"),
-        # Documentação (baixa prioridade)
+        # Documentation (low priority)
         WarmingQuery("documentação TWS", "documentation", 3, "documentation"),
         WarmingQuery("manual de operação", "documentation", 3, "documentation"),
         WarmingQuery("boas práticas TWS", "documentation", 3, "documentation"),
         WarmingQuery("como usar TWS", "documentation", 3, "documentation"),
         WarmingQuery("guia de referência", "documentation", 3, "documentation"),
-        # Jobs Críticos (média prioridade)
+        # Critical Jobs (medium priority)
         WarmingQuery("jobs críticos do dia", "critical", 2, "critical_jobs"),
         WarmingQuery("jobs prioritários", "critical", 2, "critical_jobs"),
         WarmingQuery("SLA críticos", "critical", 2, "critical_jobs"),
@@ -194,7 +194,7 @@ class CacheWarmer:
             limit: Maximum number of queries
 
         Returns:
-            Número de queries cacheadas
+            Number of cached queries
         """
         if not self.db:
             logger.warning("Database session not available for history")
@@ -216,7 +216,7 @@ class CacheWarmer:
 
     async def _process_queries(self, queries: list[WarmingQuery]) -> int:
         """
-        Processa lista de queries para warming.
+        Process list of queries for warming.
 
         Args:
             queries: WarmingQuery list
@@ -304,16 +304,16 @@ class CacheWarmer:
 
     async def full_warm(self, include_history: bool = False) -> dict[str, Any]:
         """
-        Executa warming completo do cache.
+        Executes full cache warming.
 
-        Ordem de execução:
-        1. Queries estáticas (prioridade alta)
-        2. Jobs críticos
-        3. Queries estáticas (todas)
-        4. Histórico (se habilitado)
+        Execution order:
+        1. Static queries (high priority)
+        2. Critical jobs
+        3. Static queries (all)
+        4. History (if enabled)
 
         Args:
-            include_history: Se deve incluir queries do histórico
+            include_history: If should include queries from history
 
         Returns:
             Warming statistics
@@ -406,7 +406,7 @@ async def warm_cache_on_startup(priority: int = 1) -> dict[str, Any]:
     Warms only high priority queries to avoid slowing down boot too much.
 
     Args:
-        priority: Nível máximo de prioridade (1-3)
+        priority: Maximum priority level (1-3)
 
     Returns:
         Warming statistics

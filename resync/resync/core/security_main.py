@@ -219,7 +219,7 @@ class InputSanitizer:
             job_name: Job name to sanitize.
 
         Returns:
-            Nome do job sanitizado ou string vazia se inválido.
+            Sanitized job name or empty string if invalid.
         """
         if not job_name:
             return ""
@@ -238,7 +238,7 @@ class InputSanitizer:
             workstation: Workstation name.
 
         Returns:
-            Workstation sanitizada.
+            Sanitized workstation.
         """
         if not workstation:
             return ""
@@ -256,7 +256,7 @@ class InputSanitizer:
             email: Email string to validate.
 
         Returns:
-            True se o email é válido, False caso contrário.
+            True if the email is valid, False otherwise.
         """
         if not email or len(email) > 254:
             return False
@@ -271,7 +271,7 @@ class InputSanitizer:
             email: Email string.
 
         Returns:
-            Email sanitizado ou string vazia se inválido.
+            Sanitized email or empty string if invalid.
         """
         if not email:
             return ""
@@ -364,7 +364,7 @@ def sanitize_input(text: str, strip_dangerous: bool = True) -> str:
         strip_dangerous: If True, strips dangerous chars. If False, rejects entirely.
 
     Returns:
-        A string sanitizada.
+        The sanitized string.
     """
     return InputSanitizer.sanitize_string(text, strip_dangerous=strip_dangerous)
 
@@ -380,7 +380,7 @@ def validate_input(text: str, max_length: int = 1000) -> ValidationResult:
         max_length: Maximum allowed length.
 
     Returns:
-        ValidationResult com is_valid, value, error e invalid_chars.
+        ValidationResult with is_valid, value, error and invalid_chars.
     """
     return InputSanitizer.validate_string(text, max_length)
 
@@ -394,7 +394,7 @@ def sanitize_input_strict(text: str) -> str:
         text: The input string.
 
     Returns:
-        String sanitizada.
+        Sanitized string.
     """
     return InputSanitizer.sanitize_string_strict(text)
 
@@ -407,7 +407,7 @@ def sanitize_tws_job_name(job_name: str) -> str:
         job_name: Job name.
 
     Returns:
-        Nome sanitizado.
+        Sanitized name.
     """
     return InputSanitizer.sanitize_tws_job_name(job_name)
 
@@ -420,7 +420,7 @@ def sanitize_tws_workstation(workstation: str) -> str:
         workstation: Workstation name.
 
     Returns:
-        Workstation sanitizada.
+        Sanitized workstation.
     """
     return InputSanitizer.sanitize_tws_workstation(workstation)
 
@@ -433,23 +433,23 @@ def validate_email(email: str) -> bool:
         email: Email string.
 
     Returns:
-        True se válido.
+        True if valid.
     """
     return InputSanitizer.validate_email(email)
 
 
-# Tipo anotado para IDs, garantindo que eles sigam um formato seguro.
+# Annotated type for IDs, ensuring they follow a safe format.
 SafeAgentID = Annotated[str, Path(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")]
 
-# Tipo anotado para emails
+# Annotated type for emails
 SafeEmail = Annotated[
     str, Path(max_length=254, pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 ]
 
-# Tipo anotado para nomes de job TWS (v5.4.0)
+# Annotated type for TWS job names (v5.4.0)
 SafeTWSJobName = Annotated[str, Path(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9_\-]+$")]
 
-# Tipo anotado para workstations TWS (v5.4.0)
+# Annotated type for TWS workstations (v5.4.0)
 SafeTWSWorkstation = Annotated[str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9_\-]+$")]
 
 
