@@ -141,6 +141,7 @@ def init_domain_singletons(app: FastAPI) -> None:
     from resync.services.llm_fallback import get_llm_service
     from resync.services.mock_tws_service import MockTWSClient
     from resync.services.tws_unified import get_tws_client as get_resilient_tws
+    from resync.services.rag_client import get_rag_client_singleton
 
     settings = get_settings()
 
@@ -197,6 +198,9 @@ def init_domain_singletons(app: FastAPI) -> None:
 
     # LLM service with automatic fallback and circuit breakers
     llm_service = get_llm_service()
+
+    # RAG client singleton (initializes and validates Config/URL)
+    rag_client = get_rag_client_singleton()
 
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # redis_available is set based on IdempotencyManager initialization above.

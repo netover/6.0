@@ -126,18 +126,14 @@ class AutoRecovery:
         results = {}
 
         # Check TWS circuit breakers
-        from resync.core.circuit_breaker import (
+        from resync.core.resilience_singletons import (
             adaptive_llm_api_breaker,
             adaptive_tws_api_breaker,
-            llm_api_breaker,
-            tws_api_breaker,
         )
 
         breakers = {
             "adaptive_tws_api": adaptive_tws_api_breaker,
             "adaptive_llm_api": adaptive_llm_api_breaker,
-            "traditional_tws_api": tws_api_breaker,
-            "traditional_llm_api": llm_api_breaker,
         }
 
         for name, breaker in breakers.items():

@@ -523,7 +523,7 @@ class SmokeTestRunner:
 
     async def _test_circuit_breaker(self) -> None:
         """Test circuit breaker functionality."""
-        from resync.core.circuit_breaker import CircuitBreaker
+        from resync.core.resilience import CircuitBreaker
 
         cb = CircuitBreaker(failure_threshold=2, recovery_timeout=1)
 

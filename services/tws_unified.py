@@ -465,6 +465,20 @@ _tws_client_lock: asyncio.Lock | None = None
 _tws_client_lock_loop: asyncio.AbstractEventLoop | None = None
 
 
+def _get_tws_client_lock() -> asyncio.Lock:
+    """Get the async lock for TWS client singleton, ensuring loop safety."""
+    global _tws_client_lock, _tws_client_lock_loop
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if _tws_client_lock is None or _tws_client_lock_loop != loop:
+        _tws_client_lock = asyncio.Lock()
+        _tws_client_lock_loop = loop
+    return _tws_client_lock
+
+
 async def get_tws_client() -> UnifiedTWSClient:
     """
     Get the singleton TWS client instance.
@@ -491,7 +505,7 @@ async def reset_tws_client() -> None:
 
     async with _get_tws_client_lock():
         if _tws_client_instance is not None:
-            _tws_client_instance.disconnect()
+            await _tws_client_instance.disconnect()
             _tws_client_instance = None
 
 

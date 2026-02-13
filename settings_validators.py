@@ -38,36 +38,12 @@ class SettingsValidators:
     @field_validator("redis_pool_max_size")
     @classmethod
     def validate_redis_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Valida que max_size >= min_size e aplica fallback de legado."""
+        """Valida que max_size >= min_size."""
         min_size = info.data.get("redis_pool_min_size", 0)
         if v < min_size:
             raise ValueError(
                 f"redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
             )
-
-        # Aplicar fallback de legado com warning
-        legacy_min_size = info.data.get("redis_min_connections")
-        legacy_max_size = info.data.get("redis_max_connections")
-
-        if (
-            legacy_min_size is not None
-            and legacy_max_size is not None
-            and info.data.get("redis_pool_min_size") == 5
-            and v == 20
-        ):
-            # Se os defaults ainda estão ativos, permite fallback de compat.
-            warnings.warn(
-                "redis_min/max_connections are deprecated. "
-                "Use redis_pool_min/max_size instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            min_size = legacy_min_size
-            v = legacy_max_size
-            if v < min_size:
-                raise ValueError(
-                    f"redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
-                )
         return v
 
     @field_validator("redis_url", "rate_limit_storage_uri")

@@ -327,7 +327,11 @@ def rate_limit_auth(func):
     if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
         return func
 
-    return limiter.limit(get_auth_limit(), key_func=get_remote_address)(func)
+    def exempt_condition(request: Request) -> bool:
+        """Bypass rate limit for health endpoints, docs, and CORS preflight."""
+        return _is_bypass_path(request) or _is_cors_preflight(request)
+
+    return limiter.limit(get_auth_limit(), key_func=get_remote_address, exempt_when=exempt_condition)(func)
 
 
 def rate_limit_strict(func):
@@ -345,7 +349,11 @@ def rate_limit_strict(func):
     if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
         return func
 
-    return limiter.limit(get_strict_limit(), key_func=get_remote_address)(func)
+    def exempt_condition(request: Request) -> bool:
+        """Bypass rate limit for health endpoints, docs, and CORS preflight."""
+        return _is_bypass_path(request) or _is_cors_preflight(request)
+
+    return limiter.limit(get_strict_limit(), key_func=get_remote_address, exempt_when=exempt_condition)(func)
 
 
 def rate_limit_by_user(limit: str | None = None):
@@ -366,8 +374,12 @@ def rate_limit_by_user(limit: str | None = None):
         if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
             return func
 
+        def exempt_condition(request: Request) -> bool:
+            """Bypass rate limit for health endpoints, docs, and CORS preflight."""
+            return _is_bypass_path(request) or _is_cors_preflight(request)
+
         limit_str = limit or get_default_limit()
-        return limiter.limit(limit_str, key_func=get_user_identifier)(func)
+        return limiter.limit(limit_str, key_func=get_user_identifier, exempt_when=exempt_condition)(func)
 
     return decorator
 
@@ -462,40 +474,6 @@ class RateLimitMiddleware:
         # Pass-through — no actual rate limiting is performed.
         await self.app(scope, receive, send)
 
-
-# =============================================================================
-# Utility Functions (DEPRECATED — no-ops)
-# =============================================================================
-
-
-def get_rate_limit_headers(request: Request) -> dict[str, str]:
-    """Get rate limit headers for response.
-
-    .. deprecated::
-        Always returns ``{}``.  Headers are managed by slowapi when
-        ``setup_rate_limiting()`` is used.
-    """
-    _warnings.warn(
-        "get_rate_limit_headers() always returns {} and will be removed in v7.0.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return {}
-
-
-def check_rate_limit(request: Request, limit: str) -> bool:
-    """Check if request would exceed rate limit.
-
-    .. deprecated::
-        Always returns ``True`` (never blocks).  Rate limiting is handled
-        by slowapi via ``setup_rate_limiting()``.
-    """
-    _warnings.warn(
-        "check_rate_limit() always returns True and will be removed in v7.0.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return True
 
 
 # =============================================================================

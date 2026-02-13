@@ -291,6 +291,56 @@ async def _check_llm(settings: Settings, *, critical: bool, deadline: float, pol
     )
 
 
+async def _check_rag(settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]) -> StartupCheck:
+    start = time.monotonic()
+    url = getattr(settings, "rag_service_url", None)
+    timeout = float(getattr(settings, "RAG_SERVICE_TIMEOUT", 5.0))
+
+    if not url:
+        status: Status = "skipped"
+        return StartupCheck(
+            name="rag_service",
+            status=status,
+            critical=critical,
+            reason_code="not_configured",
+            detail="RAG service URL not configured",
+            duration_ms=int((time.monotonic() - start) * 1000),
+        )
+
+    async def attempt_fn(attempt: int) -> StartupCheck:
+        # Check if URL is valid by trying to connect/ping
+        ok, reason, status_code, _ = await _http_healthy(str(url), timeout)
+        dur_ms = int((time.monotonic() - start) * 1000)
+        if ok:
+            return StartupCheck(
+                name="rag_service",
+                status="ok",
+                critical=critical,
+                reason_code="healthy",
+                attempts=attempt,
+                duration_ms=dur_ms,
+            )
+
+        return StartupCheck(
+            name="rag_service",
+            status="fail",
+            critical=critical,
+            reason_code=reason or "unhealthy",
+            detail=f"HTTP {status_code}" if status_code else reason,
+            attempts=attempt,
+            duration_ms=dur_ms,
+        )
+
+    return await _retry(
+        "rag_service",
+        attempt_fn,
+        retries=int(policy["service_retries"]),
+        base_delay=float(policy["retry_base_delay"]),
+        max_delay=float(policy["retry_max_delay"]),
+        deadline=deadline,
+    )
+
+
 async def _check_redis(
     settings: Settings, *, deadline: float, logger: Any
 ) -> StartupCheck:
@@ -438,6 +488,8 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
         critical_services.append("tws_reachability")
     if getattr(settings_obj, "require_llm_at_boot", False):
         critical_services.append("llm_service")
+    if getattr(settings_obj, "require_rag_at_boot", False):
+        critical_services.append("rag_service")
 
     logger.info(
         "startup_checks_begin",
@@ -469,11 +521,17 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                 deadline=deadline,
                 policy=policy,
             )
-            # Cap gather by the global remaining budget.
-            tws_res, llm_res = await asyncio.wait_for(
-                asyncio.gather(tws_task, llm_task), timeout=remaining
+            rag_task = _check_rag(
+                settings_obj,
+                critical=getattr(settings_obj, "require_rag_at_boot", False),
+                deadline=deadline,
+                policy=policy,
             )
-            results.extend([tws_res, llm_res])
+            # Cap gather by the global remaining budget.
+            tws_res, llm_res, rag_res = await asyncio.wait_for(
+                asyncio.gather(tws_task, llm_task, rag_task), timeout=remaining
+            )
+            results.extend([tws_res, llm_res, rag_res])
         except asyncio.TimeoutError:
             # Budget exhausted while waiting for parallel checks.
             results.extend(
@@ -491,6 +549,13 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         critical=getattr(settings_obj, "require_llm_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during LLM check",
+                    ),
+                    StartupCheck(
+                        name="rag_service",
+                        status="fail" if getattr(settings_obj, "require_rag_at_boot", False) else "skipped",
+                        critical=getattr(settings_obj, "require_rag_at_boot", False),
+                        reason_code="startup_budget_exhausted",
+                        detail="Startup budget exhausted during RAG check",
                     ),
                 ]
             )

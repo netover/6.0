@@ -1449,6 +1449,10 @@ class Settings(BaseSettings, SettingsValidators):
         default=False,
         description="If True, TWS must be reachable for startup to succeed",
     )
+    require_rag_at_boot: bool = Field(
+        default=False,
+        description="If True, RAG service must be reachable for startup to succeed",
+    )
 
     # ============================================================================
     # APP FACTORY & LIFESPAN

@@ -10,7 +10,7 @@ from typing import Any
 
 import structlog
 
-from resync.core.circuit_breaker import CircuitBreaker
+from resync.core.resilience import CircuitBreaker
 from resync.core.connection_pool_manager import get_advanced_connection_pool_manager
 
 logger = structlog.get_logger(__name__)
@@ -170,18 +170,14 @@ class ProactiveMonitoringSystem:
 
         # Check TWS circuit breakers
         try:
-            from resync.core.circuit_breaker import (
+            from resync.core.resilience_singletons import (
                 adaptive_llm_api_breaker,
                 adaptive_tws_api_breaker,
-                llm_api_breaker,
-                tws_api_breaker,
             )
 
             breakers = {
                 "adaptive_tws_api": adaptive_tws_api_breaker,
                 "adaptive_llm_api": adaptive_llm_api_breaker,
-                "traditional_tws_api": tws_api_breaker,
-                "traditional_llm_api": llm_api_breaker,
             }
 
             for name, breaker in breakers.items():

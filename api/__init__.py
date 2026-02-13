@@ -35,15 +35,3 @@ def create_app():
     factory = ApplicationFactory()
     return factory.create_app()
 
-
-# For backward compatibility with fastapi_app imports
-# Deprecated since v6.0 — will be removed in v7.0
-def get_app():
-    """Get the FastAPI application (deprecated - use create_app)."""
-    import warnings
-    warnings.warn(
-        "get_app() is deprecated, use create_app() instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return create_app()

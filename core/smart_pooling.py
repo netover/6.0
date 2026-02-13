@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from typing import Any
 
-from resync.core.circuit_breaker import adaptive_tws_api_breaker
+from resync.core.resilience_singletons import adaptive_tws_api_breaker
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)

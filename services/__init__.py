@@ -36,7 +36,7 @@ from resync.services.llm_fallback import (
     get_llm_service,
     reset_llm_service,
 )
-from resync.services.tws_client_factory import get_tws_client as get_tws_client_factory
+from resync.core.factories.tws_factory import get_tws_client as get_tws_client_factory
 from resync.services.tws_graph_service import (
     TwsGraphService,
     build_job_graph,

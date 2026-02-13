@@ -349,21 +349,21 @@ class ApplicationFactory:
         v5.8.0: Unified API structure - all routes under resync/api/routes/
         """
         # =================================================================
-        # CORE ROUTERS (from resync/api/ - backward compatible)
+        # CORE ROUTERS (v7.0: canonical paths under resync/api/routes/)
         # =================================================================
         from resync.api.admin import admin_router
         from resync.api.routes.admin.prompts import prompt_router
         from resync.api.agents import agents_router
-        from resync.api.audit import router as audit_router
-        from resync.api.cache import cache_router
+        from resync.api.routes.audit import router as audit_router
+        from resync.api.routes.cache import router as cache_router
         from resync.api.chat import chat_router
-        from resync.api.cors_monitoring import cors_monitor_router
+        from resync.api.routes.cors_monitoring import router as cors_monitor_router
         from resync.api.health import router as health_router
-        from resync.api.performance import performance_router
+        from resync.api.routes.performance import router as performance_router
 
         # Additional routers from main_improved
         try:
-            from resync.api.endpoints import router as api_router
+            from resync.api.routes.endpoints import router as api_router
             from resync.api.health import config_router
             from resync.api.routes.rag.upload import router as rag_upload_router
 

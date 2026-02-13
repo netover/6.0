@@ -64,8 +64,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "unified_health_service",
         "shutdown_unified_health_service",
     ),
-    # Health check service (refactored, delegates to checkers)
-    "HealthCheckService": ("health_check_service", "HealthCheckService"),
+    # Health check service (legacy alias → UnifiedHealthService)
+    "HealthCheckService": ("unified_health_service", "UnifiedHealthService"),
     # Facade (public API)
     "HealthServiceFacade": ("health_service_facade", "HealthServiceFacade"),
     # Configuration
@@ -192,7 +192,7 @@ if TYPE_CHECKING:
     from .component_cache_manager import ComponentCacheManager  # noqa: F401
     from .health_alerting import HealthAlerting  # noqa: F401
     from .health_check_retry import HealthCheckRetry  # noqa: F401
-    from .health_check_service import HealthCheckService  # noqa: F401
+    HealthCheckService = UnifiedHealthService  # legacy alias
     from .health_check_utils import HealthCheckUtils  # noqa: F401
     from .health_config_manager import HealthCheckConfigurationManager  # noqa: F401
     from .health_history_manager import HealthHistoryManager  # noqa: F401

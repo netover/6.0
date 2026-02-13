@@ -32,7 +32,7 @@ import aiohttp
 import jwt
 from aiohttp import web
 
-from resync.core.circuit_breaker import (
+from resync.core.resilience_singletons import (
     adaptive_llm_api_breaker,
     adaptive_tws_api_breaker,
 )
