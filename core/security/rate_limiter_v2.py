@@ -121,6 +121,25 @@ def get_strict_limit() -> str:
     return os.getenv("RATE_LIMIT_STRICT", "3/minute").strip()
 
 
+def get_bypass_paths() -> list[str]:
+    """Get list of paths that bypass rate limiting."""
+    default_paths = ["/health", "/health/", "/metrics", "/docs", "/redoc", "/openapi.json"]
+    raw = os.getenv("RATE_LIMIT_BYPASS_PATHS", ",".join(default_paths))
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+def _is_bypass_path(request: Request) -> bool:
+    """Check if request path should bypass rate limiting."""
+    path = request.url.path
+    bypass_paths = get_bypass_paths()
+    return any(path.startswith(p) for p in bypass_paths)
+
+
+def _is_cors_preflight(request: Request) -> bool:
+    """Check if request is a CORS preflight (OPTIONS)."""
+    return request.method == "OPTIONS"
+
+
 # =============================================================================
 # Key Functions
 # =============================================================================
@@ -280,10 +299,15 @@ def rate_limit(limit: str | None = None, key_func: Callable | None = None):
         if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
             return func
 
-        # Apply slowapi limiter
+        # Apply slowapi limiter with bypass for health/docs paths and CORS preflight
         limit_str = limit or get_default_limit()
         key = key_func or get_remote_address
-        return limiter.limit(limit_str, key_func=key)(func)
+
+        def exempt_condition(request: Request) -> bool:
+            """Bypass rate limit for health endpoints, docs, and CORS preflight."""
+            return _is_bypass_path(request) or _is_cors_preflight(request)
+
+        return limiter.limit(limit_str, key_func=key, exempt_when=exempt_condition)(func)
 
     return decorator
 
@@ -487,5 +511,6 @@ __all__ = [
     "setup_rate_limiting",
     "get_remote_address",
     "get_user_identifier",
+    "get_bypass_paths",
     "SLOWAPI_AVAILABLE",
 ]

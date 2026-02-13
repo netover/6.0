@@ -480,7 +480,7 @@ async def get_tws_client() -> UnifiedTWSClient:
         async with _get_tws_client_lock():
             if _tws_client_instance is None:
                 _tws_client_instance = UnifiedTWSClient()
-                _tws_client_instance.connect()
+                await _tws_client_instance.connect()
 
     return _tws_client_instance
 
