@@ -1,11 +1,11 @@
 """
-Integração do Sistema de Monitoramento Proativo
+Proactive Monitoring System Integration
 
-Este módulo integra o sistema de monitoramento proativo com a aplicação FastAPI,
-registrando rotas, inicializando componentes e configurando WebSockets.
+This module integrates the proactive monitoring system with the FastAPI application,
+registering routes, initializing components, and configuring WebSockets.
 
-Autor: Resync Team
-Versão: 5.2
+Author: Resync Team
+Version: 5.2
 """
 
 from typing import Any
@@ -18,16 +18,16 @@ logger = structlog.get_logger(__name__)
 
 async def initialize_proactive_monitoring(app: FastAPI) -> None:
     """
-    Inicializa o sistema de monitoramento proativo.
+    Initialize the proactive monitoring system.
 
-    Esta função deve ser chamada durante o startup da aplicação.
+    This function should be called during application startup.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI application instance
     """
     from resync.settings import settings
 
-    # Verifica se o polling está habilitado
+    # Check if polling is enabled
     if not getattr(settings, "tws_polling_enabled", True):
         logger.info("proactive_monitoring_disabled")
         return
@@ -35,20 +35,20 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
     try:
         logger.info("initializing_proactive_monitoring")
 
-        # 1. Importa componentes
+        # 1. Import components
         from resync.core.proactive_monitoring_manager import (
             setup_proactive_monitoring,
         )
         from resync.core.tws_history_rag import init_tws_history_rag
 
-        # 2. Obtém cliente TWS
+        # 2. Get TWS client
         tws_client = _get_tws_client(app)
 
         if not tws_client:
             logger.warning("tws_client_not_available_using_mock")
             tws_client = _create_mock_tws_client()
 
-        # 3. Prepara configuração
+        # 3. Prepare configuration
         monitoring_config = {
             "polling_interval_seconds": getattr(settings, "tws_polling_interval_seconds", 30),
             "polling_mode": getattr(settings, "tws_polling_mode", "fixed"),
@@ -80,21 +80,21 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
             "dashboard_refresh_seconds": getattr(settings, "tws_dashboard_refresh_seconds", 5),
         }
 
-        # 4. Inicializa sistema de monitoramento
+        # 4. Initialize monitoring system
         manager = await setup_proactive_monitoring(
             tws_client=tws_client,
             config=monitoring_config,
             auto_start=True,
         )
 
-        # 5. Inicializa RAG de histórico
+        # 5. Initialize history RAG
         if manager and manager.status_store:
             init_tws_history_rag(
                 status_store=manager.status_store,
                 llm_client=_get_llm_client(),
             )
 
-        # 6. Armazena referência no app state
+        # 6. Store reference in app state
         app.state.monitoring_manager = manager
 
         logger.info(
@@ -105,17 +105,17 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
 
     except Exception as e:
         logger.error("proactive_monitoring_initialization_failed", error=str(e))
-        # Não falha o startup, apenas loga o erro
+        # Do not fail startup, just log the error
 
 
 async def shutdown_proactive_monitoring(app: FastAPI) -> None:
     """
-    Finaliza o sistema de monitoramento proativo.
+    Shut down the proactive monitoring system.
 
-    Esta função deve ser chamada durante o shutdown da aplicação.
+    This function should be called during application shutdown.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI application instance
     """
     try:
         from resync.core.proactive_monitoring_manager import shutdown_proactive_monitoring
@@ -136,10 +136,10 @@ async def shutdown_proactive_monitoring(app: FastAPI) -> None:
 
 def register_monitoring_routes(app: FastAPI) -> None:
     """
-    Registra as rotas de monitoramento na aplicação.
+    Registers the monitoring routes in the application.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI instance
     """
     try:
         from resync.api.routes.monitoring.routes import monitoring_router
@@ -154,10 +154,10 @@ def register_monitoring_routes(app: FastAPI) -> None:
 
 def register_dashboard_route(app: FastAPI) -> None:
     """
-    Registra a rota do dashboard de monitoramento em tempo real.
+    Registers the route for the real-time monitoring dashboard.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI instance
     """
     from fastapi import Request
     from fastapi.responses import HTMLResponse
@@ -175,7 +175,7 @@ def register_dashboard_route(app: FastAPI) -> None:
 
     @app.get("/dashboard/realtime", response_class=HTMLResponse, tags=["Dashboard"])
     def realtime_dashboard(request: Request):
-        """Dashboard de monitoramento TWS em tempo real."""
+        """TWS real-time monitoring dashboard."""
         from resync.core.monitoring_config import get_monitoring_config
 
         config = get_monitoring_config()
@@ -190,7 +190,7 @@ def register_dashboard_route(app: FastAPI) -> None:
 
     @app.get("/dashboard/tws", response_class=HTMLResponse, tags=["Dashboard"])
     def tws_dashboard(request: Request):
-        """Alias para dashboard de monitoramento TWS."""
+        """Alias for TWS monitoring dashboard."""
         from resync.core.monitoring_config import get_monitoring_config
 
         config = get_monitoring_config()
@@ -212,7 +212,7 @@ def register_dashboard_route(app: FastAPI) -> None:
 
 
 def _get_tws_client(app: "FastAPI") -> Any | None:
-    """Obtém cliente TWS do container de dependências."""
+    """Get TWS client from the dependency container."""
     try:
         
         from resync.core.wiring import STATE_TWS_CLIENT
@@ -227,7 +227,7 @@ def _get_tws_client(app: "FastAPI") -> Any | None:
 
 
 def _get_llm_client(app: "FastAPI") -> Any | None:
-    """Obtém cliente LLM do container de dependências."""
+    """Get LLM client from the dependency container."""
     try:
         
         from resync.core.wiring import STATE_LLM_SERVICE
@@ -242,19 +242,19 @@ def _get_llm_client(app: "FastAPI") -> Any | None:
 
 
 def _create_mock_tws_client() -> Any:
-    """Cria um cliente TWS mock para desenvolvimento."""
+    """Create a mock TWS client for development."""
 
     class MockTWSClient:
-        """Cliente TWS mock para desenvolvimento e testes."""
+        """Mock TWS client for development and testing."""
 
         def query_workstations(self, limit: int = 100) -> dict[str, Any]:
-            """Retorna workstations mock."""
+            """Returns mock workstations."""
             import random
 
             workstations = []
             for i in range(5):
                 ws = {
-                    "name": "WS{i + 1:03d}",
+                    "name": f"WS{i + 1:03d}",
                     "status": random.choice(["LINKED", "LINKED", "LINKED", "UNLINKED"]),
                     "agentStatus": "RUNNING",
                     "jobsRunning": random.randint(0, 10),
@@ -269,7 +269,7 @@ def _create_mock_tws_client() -> Any:
             status: list = None,
             limit: int = 500,
         ) -> dict[str, Any]:
-            """Retorna jobs mock."""
+            """Returns mock jobs."""
             import random
             from datetime import datetime, timedelta, timezone
 
@@ -282,9 +282,9 @@ def _create_mock_tws_client() -> Any:
 
                 job = {
                     "id": f"job_{i}",
-                    "name": "JOB_{random.choice(['BATCH', 'REPORT', 'BACKUP', 'SYNC'])}_{i:04d}",
+                    "name": f"JOB_{random.choice(['BATCH', 'REPORT', 'BACKUP', 'SYNC'])}_{i:04d}",
                     "jobStream": f"STREAM_{random.randint(1, 5)}",
-                    "workstation": "WS{random.randint(1, 5):03d}",
+                    "workstation": f"WS{random.randint(1, 5):03d}",
                     "status": job_status,
                     "returnCode": 0
                     if job_status == "SUCC"
@@ -293,7 +293,7 @@ def _create_mock_tws_client() -> Any:
                     "endTime": (start_time + timedelta(minutes=random.randint(1, 30))).isoformat()
                     if job_status in ["SUCC", "ABEND"]
                     else None,
-                    "errorMessage": "Erro de conexão com banco de dados"
+                    "errorMessage": "Database connection error"
                     if job_status == "ABEND"
                     else None,
                 }
@@ -311,30 +311,30 @@ def _create_mock_tws_client() -> Any:
 
 def setup_monitoring_system(app: FastAPI) -> None:
     """
-    Configura todo o sistema de monitoramento.
+    Configures the entire monitoring system.
 
-    Esta é a função principal a ser chamada pelo app_factory.
+    This is the main function to be called by app_factory.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI instance
     """
-    # 1. Registra rotas
+    # 1. Register routes
     register_monitoring_routes(app)
     register_dashboard_route(app)
 
-    # 2. Inicializa sistema (será chamado no startup)
-    # A inicialização real ocorre no lifespan
+    # 2. Initialize system (will be called in startup)
+    # The actual initialization occurs in the lifespan
 
 
 def get_monitoring_startup_handler(app: FastAPI):
     """
-    Retorna handler de startup para o sistema de monitoramento.
+    Returns the startup handler for the monitoring system.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI instance
 
     Returns:
-        Coroutine para inicialização
+        Coroutine for initialization
     """
 
     async def startup():
@@ -345,13 +345,13 @@ def get_monitoring_startup_handler(app: FastAPI):
 
 def get_monitoring_shutdown_handler(app: FastAPI):
     """
-    Retorna handler de shutdown para o sistema de monitoramento.
+    Returns the shutdown handler for the monitoring system.
 
     Args:
-        app: Instância do FastAPI
+        app: FastAPI instance
 
     Returns:
-        Coroutine para finalização
+        Coroutine for finalization
     """
 
     async def shutdown():

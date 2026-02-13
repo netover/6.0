@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.interfaces import ITWSClient
-    from resync.services.llm_service import LLMService
+    from resync.services.llm_fallback import LLMService
 
 logger = get_logger(__name__)
 
@@ -138,9 +138,9 @@ def init_domain_singletons(app: FastAPI) -> None:
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.redis_init import get_redis_client
-    from resync.services.llm_service import LLMService
+    from resync.services.llm_fallback import get_llm_service
     from resync.services.mock_tws_service import MockTWSClient
-    from resync.core.factories.tws_factory import get_tws_client_singleton
+    from resync.services.tws_unified import get_tws_client as get_resilient_tws
 
     settings = get_settings()
 
@@ -155,8 +155,20 @@ def init_domain_singletons(app: FastAPI) -> None:
         tws = MockTWSClient()
         logger.info("tws_client_mode", mode="mock")
     else:
-        tws = get_tws_client_singleton()
-        logger.info("tws_client_mode", mode="optimized")
+        # Use the resilient, unified client (async)
+        # Note: wiring.py is mostly called in lifespan; we wrap it for consistency
+        try:
+            # We use an internal helper to get it synchronously if needed or 
+            # ensure it's initialized. UnifiedTWSClient manages its own connection.
+            from resync.services.tws_unified import UnifiedTWSClient
+            tws = UnifiedTWSClient()
+            logger.info("tws_client_mode", mode="unified_resilient")
+        except Exception as e:
+            logger.error("resilient_tws_init_failed", error=str(e))
+            # Fallback to standard optimized client if unified fails to init
+            from resync.core.factories.tws_factory import get_tws_client_singleton
+            tws = get_tws_client_singleton()
+            logger.info("tws_client_mode", mode="optimized_fallback")
 
     # Agent manager depends on settings + TWS reference
     agent_manager = initialize_agent_manager(
@@ -182,8 +194,8 @@ def init_domain_singletons(app: FastAPI) -> None:
         )
         idempotency_manager = IdempotencyManager(None)  # type: ignore[arg-type]
 
-    # LLM service
-    llm_service = LLMService()
+    # LLM service with automatic fallback and circuit breakers
+    llm_service = get_llm_service()
 
     # Flags initialised to safe defaults; lifespan will flip them.
     enterprise_state = EnterpriseState(

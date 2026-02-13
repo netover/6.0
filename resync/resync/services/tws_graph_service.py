@@ -154,53 +154,73 @@ class TwsGraphService:
     async def _build_job_dependencies(
         self,
         graph: nx.DiGraph,
-        job_id: str,
+        root_job_id: str,
         visited: set[str],
-        depth: int,
+        max_depth: int,
     ):
-        """Recursively build job dependency graph."""
-        if depth <= 0 or job_id in visited:
-            return
-
-        visited.add(job_id)
-
-        # Add node if not exists
-        if job_id not in graph:
-            graph.add_node(job_id)
-
-        if not self.tws_client:
-            logger.warning("no_tws_client", job_id=job_id)
-            return
-
-        try:
-            # Get predecessors (jobs this job depends on)
-            preds = await self.tws_client.get_current_plan_job_predecessors(job_id)
-            if preds:
-                for pred in preds:
-                    pred_id = pred.get("jobId") or pred.get("id") or str(pred)
-                    if pred_id:
-                        graph.add_edge(pred_id, job_id, relation="DEPENDS_ON")
-                        await self._build_job_dependencies(
-                            graph, pred_id, visited, depth - 1
-                        )
-
-            # Get successors (jobs that depend on this job)
-            succs = await self.tws_client.get_current_plan_job_successors(job_id)
-            if succs:
-                for succ in succs:
-                    succ_id = succ.get("jobId") or succ.get("id") or str(succ)
-                    if succ_id:
-                        graph.add_edge(job_id, succ_id, relation="DEPENDS_ON")
-                        await self._build_job_dependencies(
-                            graph, succ_id, visited, depth - 1
-                        )
-
-        except Exception as e:
-            logger.warning(
-                "api_call_failed",
-                job_id=job_id,
-                error=str(e),
-            )
+        """
+        Build job dependency graph using parallel BFS level-fetching.
+        
+        This implementation resolves the N+1 query pattern by fetching all 
+        successors/predecessors for a given level in parallel using asyncio.gather.
+        """
+        current_level = {root_job_id}
+        
+        for depth in range(max_depth):
+            if not current_level:
+                break
+                
+            # Filter out jobs we've already visited to avoid redundant API calls
+            to_fetch = [jid for jid in current_level if jid not in visited]
+            if not to_fetch:
+                break
+                
+            visited.update(to_fetch)
+            
+            # Prepare parallel tasks for the current level
+            tasks = []
+            for jid in to_fetch:
+                if jid not in graph:
+                    graph.add_node(jid)
+                
+                # Fetch predecessors and successors in parallel for each job
+                tasks.append(self.tws_client.get_current_plan_job_predecessors(jid))
+                tasks.append(self.tws_client.get_current_plan_job_successors(jid))
+            
+            if not tasks:
+                break
+                
+            # Execute all level queries in parallel
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            next_level = set()
+            
+            # Process results (results are alternating preds, succs, preds, succs...)
+            for i, jid in enumerate(to_fetch):
+                preds_result = results[i * 2]
+                succs_result = results[i * 2 + 1]
+                
+                # Predecessors
+                if isinstance(preds_result, list):
+                    for pred in preds_result:
+                        pred_id = pred.get("jobId") or pred.get("id") or str(pred)
+                        if pred_id:
+                            graph.add_edge(pred_id, jid, relation="DEPENDS_ON")
+                            next_level.add(pred_id)
+                elif isinstance(preds_result, Exception):
+                    logger.warning("api_preds_failed", job_id=jid, error=str(preds_result))
+                
+                # Successors
+                if isinstance(succs_result, list):
+                    for succ in succs_result:
+                        succ_id = succ.get("jobId") or succ.get("id") or str(succ)
+                        if succ_id:
+                            graph.add_edge(jid, succ_id, relation="DEPENDS_ON")
+                            next_level.add(succ_id)
+                elif isinstance(succs_result, Exception):
+                    logger.warning("api_succs_failed", job_id=jid, error=str(succs_result))
+            
+            current_level = next_level
 
     async def get_jobstream_graph(
         self,

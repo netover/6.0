@@ -179,19 +179,16 @@ class LLMService:
         max_tokens: int | None = None,
     ) -> str:
         """
-        Gera resposta com suporte a tools (function calling).
+        Generates a response with tool support (function calling).
 
         Args:
-            messages: Mensagens da conversa
-            user_role: Role do usuário (para permissões)
-            user_id: ID do usuário (para audit)
-            session_id: ID da sessão
-            max_tool_iterations: Máximo de iterações tool → LLM
-            temperature: Temperatura (padrão: 0.3 para tool calls)
-            max_tokens: Tokens máximos
-
-        Returns:
-            Resposta final do LLM
+            messages: Conversation messages
+            user_role: User role (for permissions)
+            user_id: User ID (for audit)
+            session_id: Session ID
+            max_tool_iterations: Maximum tool → LLM iterations
+            temperature: Temperature (default: 0.3 for tool calls)
+            max_tokens: Maximum tokens
         """
         try:
             import json
@@ -199,7 +196,7 @@ class LLMService:
             from resync.tools.llm_tools import execute_tool_call, get_llm_tools
             from resync.tools.registry import UserRole
 
-            # Mapear string role para UserRole enum
+            # Map string role to UserRole enum
             role_map = {
                 "viewer": UserRole.VIEWER,
                 "operator": UserRole.OPERATOR,
@@ -208,7 +205,7 @@ class LLMService:
             }
             user_role_enum = role_map.get(user_role.lower(), UserRole.OPERATOR)
 
-            # Obter tools disponíveis para este user role
+            # Get available tools for this user role
             tools = get_llm_tools(user_role=user_role_enum)
 
             logger.info(
@@ -220,7 +217,7 @@ class LLMService:
             max_tok = max_tokens if max_tokens is not None else self.default_max_tokens
 
             for iteration in range(max_tool_iterations):
-                # Chamada ao LLM com tools
+                # LLM call with tools
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=current_messages,
@@ -231,16 +228,16 @@ class LLMService:
 
                 message = response.choices[0].message
 
-                # Se não tem tool calls, retornar resposta
+                # If no tool calls, return response
                 if not message.tool_calls:
                     return message.content or ""
 
-                # Processar tool calls
+                # Process tool calls
                 logger.debug(
                     f"LLM requested {len(message.tool_calls)} tool calls at iteration {iteration}"
                 )
 
-                # Adicionar mensagem do assistant aos messages
+                # Add assistant message to messages
                 current_messages.append(
                     {
                         "role": "assistant",
@@ -256,7 +253,7 @@ class LLMService:
                     }
                 )
 
-                # Executar cada tool call
+                # Execute each tool call
                 for tool_call in message.tool_calls:
                     result = await execute_tool_call(
                         tool_call,
@@ -265,7 +262,7 @@ class LLMService:
                         session_id=session_id,
                     )
 
-                    # Adicionar resultado como tool message
+                    # Add result as tool message
                     current_messages.append(
                         {
                             "role": "tool",
@@ -275,10 +272,10 @@ class LLMService:
                         }
                     )
 
-            # Se chegou aqui, atingiu max_tool_iterations
+            # If reached here, max_tool_iterations hit
             logger.warning("Max tool iterations (%s) reached", max_tool_iterations)
 
-            return "Desculpe, atingi o limite de iterações. Por favor, reformule sua pergunta de forma mais específica."
+            return "Sorry, I reached the tool iteration limit. Please rephrase your question more specifically."
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, KeyError, AttributeError, IndexError)):
@@ -517,9 +514,9 @@ class LLMService:
         # Fallback to hardcoded prompt
         if not system_message:
             system_message = (
-                f"Você é {agent_name}, {agent_description}. "
-                "Responda de forma útil e profissional em português brasileiro. "
-                "Seja conciso e forneça informações precisas."
+                f"You are {agent_name}, {agent_description}. "
+                "Respond in a helpful and professional manner in Brazilian Portuguese. "
+                "Be concise and provide accurate information."
             )
 
         messages: list[dict[str, str]] = [{"role": "system", "content": system_message}]
@@ -609,11 +606,11 @@ class LLMService:
             # Fallback to hardcoded prompt
             if not system_message:
                 system_message = (
-                    "Você é um assistente de IA especializado em responder perguntas "
-                    "baseado no contexto fornecido. Use as informações do contexto para "
-                    "responder de forma precisa e útil. Se o contexto não contiver "
-                    "informações suficientes, diga que não sabe. Responda em português brasileiro.\n\n"
-                    f"Contexto relevante:\n{context}"
+                    "You are an AI assistant specialized in answering questions "
+                    "based on the provided context. Use the context information to "
+                    "respond accurately and helpfully. If the context does not contain "
+                    "enough information, state that you don't know. Respond in Brazilian Portuguese.\n\n"
+                    f"Relevant Context:\n{context}"
                 )
 
             messages: list[dict[str, str]] = [{"role": "system", "content": system_message}]

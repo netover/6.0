@@ -50,26 +50,18 @@ def _get_settings() -> "AppSettings":
     return AppSettings()
 
 
-def _create_tws_client(settings: "AppSettings") -> "OptimizedTWSClient":
+def _create_tws_client(settings: "AppSettings") -> Any:
     """
-    Create a new TWS client instance.
+    Create a new resilient TWS client instance.
     
     Args:
         settings: Application settings
         
     Returns:
-        OptimizedTWSClient: Configured TWS client
+        UnifiedTWSClient: Resilient TWS client
     """
-    from resync.services.tws_service import OptimizedTWSClient
-    
-    base_url = f"http://{settings.tws_host}:{settings.tws_port}"
-    return OptimizedTWSClient(
-        base_url=base_url,
-        username=settings.tws_username,
-        password=settings.tws_password,
-        engine_name=settings.tws_engine_name,
-        engine_owner=settings.tws_engine_owner,
-    )
+    from resync.services.tws_unified import UnifiedTWSClient
+    return UnifiedTWSClient()
 
 
 def get_tws_client_singleton(

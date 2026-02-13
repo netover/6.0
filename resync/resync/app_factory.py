@@ -389,6 +389,7 @@ class ApplicationFactory:
                 "graphrag_initialization_failed",
                 error=str(exc),
                 hint="GraphRAG features will be disabled, but system will continue normally",
+                exc_info=True,
             )
 
     @staticmethod
@@ -413,6 +414,7 @@ class ApplicationFactory:
                 "unified_config_initialization_failed",
                 error=str(exc),
                 hint="Config hot reload disabled, but system will use static configs",
+                exc_info=True,
             )
 
     # -----------------------------------------------------------------

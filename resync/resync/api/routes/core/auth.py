@@ -21,6 +21,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
+from resync.core.redis_init import get_redis_client
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 
@@ -88,13 +89,12 @@ def get_jwt_secret_key() -> str:
 
 
 class SecureAuthenticator:
-    """Authenticator resistente a timing attacks."""
+    """Authenticator resistant to timing attacks."""
 
     def __init__(self) -> None:
-        self._failed_attempts: dict[str, list[datetime]] = {}
-        self._lockout_duration = timedelta(minutes=15)
+        self._lockout_duration_seconds = 15 * 60  # 15 minutes
         self._max_attempts = 5
-        self._lockout_lock = asyncio.Lock()
+        self._redis_prefix = "resync:auth:lockout"
 
     async def verify_credentials(
         self, username: str, password: str, request_ip: str
@@ -107,20 +107,18 @@ class SecureAuthenticator:
         - Audit logging
         """
         # Check if IP is locked out
-        async with self._lockout_lock:
-            if await self._is_locked_out(request_ip):
-                logger.warning(
-                    "Authentication attempt from locked out IP",
-                    extra={"ip": request_ip},
-                )
-                # Still perform full verification to maintain constant time
-                # but will return failure regardless
-                lockout_remaining = await self._get_lockout_remaining(request_ip)
-                await asyncio.sleep(0.5)  # Artificial delay
-                return (
-                    False,
-                    f"Too many failed attempts. Try again in {lockout_remaining} minutes",
-                )
+        is_locked, remaining = await self._check_lockout_state(request_ip)
+        if is_locked:
+            logger.warning(
+                "Authentication attempt from locked out IP",
+                extra={"ip": request_ip, "lockout_remaining_minutes": remaining},
+            )
+            # Artificial delay to maintain constant-time-ish appearance
+            await asyncio.sleep(0.5)
+            return (
+                False,
+                f"Too many failed attempts. Try again in {remaining} minutes",
+            )
 
         # Always hash both provided and expected values to maintain constant time
         provided_username_hash = self._hash_credential(username)
@@ -154,10 +152,13 @@ class SecureAuthenticator:
 
             return False, "Invalid credentials"
 
-        # Success - clear failed attempts
-        async with self._lockout_lock:
-            if request_ip in self._failed_attempts:
-                del self._failed_attempts[request_ip]
+        # Success - clear failed attempts (distributed)
+        try:
+            redis = get_redis_client()
+            await redis.delete(f"{self._redis_prefix}:{request_ip}")
+        except Exception:
+            # Non-fatal: if Redis is down, we just can't clear the lockout
+            pass
 
         logger.info(
             "Successful authentication",
@@ -172,54 +173,55 @@ class SecureAuthenticator:
         secret_key = getattr(settings, "secret_key", get_jwt_secret_key()).encode("utf-8")
         return hmac.new(secret_key, credential.encode("utf-8"), hashlib.sha256).digest()
 
+    async def _check_lockout_state(self, ip: str) -> tuple[bool, int]:
+        """Check if IP is locked out and return remaining time."""
+        try:
+            redis = get_redis_client()
+            key = f"{self._redis_prefix}:{ip}"
+            
+            now = time.time()
+            cutoff = now - self._lockout_duration_seconds
+            
+            # Remove old attempts
+            await redis.zremrangebyscore(key, "-inf", cutoff)
+            
+            # Get current attempt count
+            attempt_count = await redis.zcard(key)
+            
+            if attempt_count >= self._max_attempts:
+                # Calculate remaining time from the oldest attempt still in window
+                oldest = await redis.zrange(key, 0, 0, withscores=True)
+                if oldest:
+                    _, ts = oldest[0]
+                    remaining = int((ts + self._lockout_duration_seconds - now) / 60)
+                    return True, max(1, remaining)
+                return True, 1
+            
+            return False, 0
+        except Exception as e:
+            logger.error("redis_lockout_check_failed", error=str(e))
+            return False, 0
+
     async def _record_failed_attempt(self, ip: str) -> None:
-        """Record failed authentication attempt."""
-        async with self._lockout_lock:
-            now = datetime.now(timezone.utc)
-
-            if ip not in self._failed_attempts:
-                self._failed_attempts[ip] = []
-
-            # Add current attempt
-            self._failed_attempts[ip].append(now)
-
-            # Remove attempts outside lockout window
-            cutoff = now - self._lockout_duration
-            self._failed_attempts[ip] = [
-                attempt for attempt in self._failed_attempts[ip] if attempt > cutoff
-            ]
-
-            # Log if approaching lockout
-            attempt_count = len(self._failed_attempts[ip])
-            if attempt_count >= self._max_attempts - 1:
+        """Record failed authentication attempt in Redis."""
+        try:
+            redis = get_redis_client()
+            key = f"{self._redis_prefix}:{ip}"
+            now = time.time()
+            
+            # Add current attempt with TTL
+            await redis.zadd(key, {str(now): now})
+            await redis.expire(key, self._lockout_duration_seconds * 2)
+            
+            # Count recent attempts for warning
+            count = await redis.zcard(key)
+            if count >= self._max_attempts - 1:
                 logger.warning(
-                    f"IP approaching lockout: {attempt_count}/{self._max_attempts} attempts",
-                    extra={"ip": ip},
+                    "ip_approaching_lockout",
+                    extra={"ip": ip, "count": count, "max": self._max_attempts}
                 )
-
-    async def _is_locked_out(self, ip: str) -> bool:
-        """Check if IP is currently locked out."""
-        if ip not in self._failed_attempts:
-            return False
-
-        now = datetime.now(timezone.utc)
-        cutoff = now - self._lockout_duration
-
-        # Count recent attempts
-        recent_attempts = [attempt for attempt in self._failed_attempts[ip] if attempt > cutoff]
-
-        return len(recent_attempts) >= self._max_attempts
-
-    async def _get_lockout_remaining(self, ip: str) -> int:
-        """Get remaining lockout time in minutes."""
-        if ip not in self._failed_attempts or not self._failed_attempts[ip]:
-            return 0
-
-        oldest_attempt = min(self._failed_attempts[ip])
-        unlock_time = oldest_attempt + self._lockout_duration
-        remaining = (unlock_time - datetime.now(timezone.utc)).total_seconds() / 60
-
-        return max(0, int(remaining))
+        except Exception as e:
+            logger.error("redis_record_fail_failed", error=str(e))
 
 
 # Global authenticator singleton (lazy init; avoids import-time asyncio.Lock binding)
