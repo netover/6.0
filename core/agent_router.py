@@ -451,6 +451,29 @@ class BaseHandler(ABC):
                 return await agent.arun(message, skill_context=skill_context)
         return ""
 
+    def _build_skill_context(self, classification: IntentClassification) -> str:
+        """Build skill context from matched_skills for agent injection."""
+        from resync.core.skill_manager import get_skill_manager
+
+        skills = getattr(classification, "matched_skills", None) or []
+        if not skills:
+            return ""
+
+        sm = get_skill_manager()
+        available = {s.name for s in sm.skills_metadata}
+
+        chunks = []
+        for name in skills[:3]:  # Top-3
+            if name not in available:
+                logger.warning("mapped_skill_missing", skill=name)
+                continue
+            content = sm.get_skill_content(name)
+            if content:
+                chunks.append(f"# Skill: {name}\n{content}")
+
+        joined = "\n\n".join(chunks)
+        return joined[:6000]  # Limit to avoid prompt bloat
+
 
 # =============================================================================
 # RAG-ONLY HANDLER (Path 1)
@@ -580,7 +603,8 @@ class AgenticHandler(BaseHandler):
                 return await handler(message, context, classification)
 
             # Default: use general agent
-            return await self._get_agent_response("tws-general", message)
+            skill_context = self._build_skill_context(classification)
+            return await self._get_agent_response("tws-general", message, skill_context=skill_context)
 
         except Exception as e:
             logger.error("Agentic handler error: %s", e)
@@ -770,18 +794,11 @@ class AgenticHandler(BaseHandler):
                 f"Tendência: {history.get('trend', 'estável')}"
             )
 
-        # NOVO: Buscar o conteúdo das skills (Deep Loading)
-        from resync.core.skill_manager import get_skill_manager
-        
-        skill_mgr = get_skill_manager()
-        skill_text = ""
-        for skill_name in classification.matched_skills:
-            content = skill_mgr.get_skill_content(skill_name)
-            if content:
-                skill_text += f"\n\n=== {skill_name.upper()} ===\n{content}"
+        # Buscar o conteúdo das skills (Deep Loading) usando helper
+        skill_context = self._build_skill_context(classification)
 
         # Quando for chamar o agente, passe a skill
-        return await self._get_agent_response("tws-troubleshooting", message, skill_context=skill_text)
+        return await self._get_agent_response("tws-troubleshooting", message, skill_context=skill_context)
 
     async def _handle_job_management(
         self,
@@ -831,7 +848,7 @@ class AgenticHandler(BaseHandler):
                 f"'Confirmo {message.lower()}'"
             )
 
-        return await self._get_agent_response("tws-general", message)
+        return await self._get_agent_response("tws-general", message, skill_context=self._build_skill_context(classification))
 
 
 # =============================================================================

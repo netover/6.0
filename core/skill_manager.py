@@ -14,8 +14,20 @@ class SkillMetadata:
     folder_path: Path
 
 class SkillManager:
-    def __init__(self, skills_dir: str = "resync/skills"):
-        self.skills_dir = Path(skills_dir)
+    def __init__(self, skills_dir: str | None = None):
+        # 1) override por env
+        env_dir = os.getenv("RESYNC_SKILLS_DIR")
+
+        # 2) escolher dir
+        candidate = skills_dir or env_dir or "skills"
+        self.skills_dir = Path(candidate)
+
+        # 3) fallback automático para estrutura antiga
+        if not self.skills_dir.exists():
+            fallback = Path("resync/skills")
+            if fallback.exists():
+                self.skills_dir = fallback
+
         self.skills_metadata: List[SkillMetadata] = []
         self._load_all_metadata()
 
@@ -38,7 +50,12 @@ class SkillManager:
                                 folder_path=skill_folder
                             )
                         )
-        logger.info("skills_loaded", count=len(self.skills_metadata))
+        logger.info(
+            "skills_loaded",
+            path=str(self.skills_dir),
+            count=len(self.skills_metadata),
+            skills=[s.name for s in self.skills_metadata],
+        )
 
     def _parse_frontmatter(self, file_path: Path) -> dict:
         """Extrai o bloco YAML entre '---' no topo do arquivo."""
