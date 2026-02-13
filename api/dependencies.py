@@ -257,74 +257,24 @@ async def _get_rate_limit_redis():
     return _rate_limit_redis
 
 
+import warnings
+
+
 async def check_rate_limit(request: Request) -> None:
     """Verifica rate limit usando Redis com sliding window e TTL automático.
 
-    v5.9.4: Migrado de memória RAM para Redis para evitar memory leak
-    em cenários de DDoS com IP spoofing. Chaves expiram automaticamente
-    via TTL, eliminando necessidade de garbage collection manual.
-
-    Args:
-        request: Request object
-
-    Raises:
-        RateLimitError: Se o limite de taxa for excedido.
+    .. deprecated::
+        Esta função está depreciada. Use o rate limiting via slowapi
+        (resync.core.security.rate_limiter_v2) com decorators @rate_limit.
     """
-    import time
-
-    client_ip = request.client.host if request.client else "unknown"
-    redis_client = await _get_rate_limit_redis()
-
-    # Fallback para rate limiting básico se Redis indisponível
-    if redis_client is None:
-        await _check_rate_limit_fallback(request)
-        return
-
-    try:
-        now = time.time()
-        window_start = now - RATE_LIMIT_WINDOW
-        key = f"ratelimit:{client_ip}"
-
-        # Usar pipeline para atomicidade
-        async with redis_client.pipeline(transaction=True) as pipe:
-            # Remove timestamps antigos (fora da janela)
-            await pipe.zremrangebyscore(key, 0, window_start)
-            # Conta requests na janela atual
-            await pipe.zcard(key)
-            # Adiciona timestamp atual
-            await pipe.zadd(key, {str(now): now})
-            # Define TTL para limpeza automática (evita memory leak)
-            await pipe.expire(key, RATE_LIMIT_WINDOW + 10)
-            results = await pipe.execute()
-
-        request_count = results[1]  # Resultado do ZCARD
-
-        if request_count >= RATE_LIMIT_REQUESTS:
-            # Calcular tempo até próxima janela disponível
-            async with redis_client.pipeline() as pipe:
-                await pipe.zrange(key, 0, 0, withscores=True)
-                oldest = await pipe.execute()
-
-            retry_after = RATE_LIMIT_WINDOW
-            if oldest and oldest[0]:
-                oldest_ts = oldest[0][0][1]
-                retry_after = max(1, int(oldest_ts + RATE_LIMIT_WINDOW - now))
-
-            raise RateLimitError(
-                message="Rate limit exceeded",
-                details={
-                    "retry_after": retry_after,
-                    "limit": RATE_LIMIT_REQUESTS,
-                    "window": RATE_LIMIT_WINDOW,
-                },
-            )
-
-    except RateLimitError:
-        raise
-    except Exception as e:
-        # Em caso de erro Redis, permite requisição (fail-open)
-        # mas loga para monitoramento
-        logger.warning("rate_limit_redis_error", error=str(e), client_ip=client_ip)
+    warnings.warn(
+        "check_rate_limit() from dependencies.py is deprecated and not used. "
+        "Use slowapi-based rate limiting (rate_limiter_v2.py) with @rate_limit decorators.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    # No-op: slowapi handles rate limiting at the application level
+    return
 
 
 async def _check_rate_limit_fallback(request: Request) -> None:
