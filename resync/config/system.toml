@@ -1,0 +1,100 @@
+# System Configuration
+# Controls system-wide settings, rate limits, and resources
+
+[system]
+environment = "production"  # development | staging | production
+debug = false
+timezone = "UTC"
+
+[system.performance]
+max_workers = 4
+worker_timeout_seconds = 300
+keepalive_timeout = 65
+
+[system.rate_limiting]
+enabled = true
+default_requests_per_minute = 60
+burst_size = 10
+
+[system.rate_limiting.endpoints]
+"/api/chat" = 30
+"/api/admin" = 100
+"/api/graphrag" = 20
+
+[system.cache]
+enabled = true
+backend = "redis"  # redis | memory
+default_ttl_seconds = 3600
+max_size_mb = 512
+
+[system.cache.redis]
+host = "localhost"
+port = 6379
+db = 0
+password = ""
+ssl = false
+socket_timeout = 5
+
+[system.database]
+pool_size = 10
+max_overflow = 20
+pool_timeout = 30
+pool_recycle = 3600
+
+[system.timeouts]
+http_connect = 10
+http_read = 30
+http_write = 30
+database_query = 30
+llm_request = 60
+
+[system.resources]
+max_memory_mb = 4096
+max_cpu_percent = 80.0
+max_disk_percent = 85.0
+
+[security]
+enabled = true
+
+[security.api]
+require_authentication = true
+require_https = false  # Set true in production
+cors_enabled = true
+cors_origins = ["*"]
+
+[security.session]
+secret_key = "CHANGE_ME_IN_PRODUCTION"
+session_lifetime_hours = 24
+secure_cookies = false  # Set true in production
+same_site = "lax"  # strict | lax | none
+
+[security.headers]
+hsts_enabled = false  # Set true in production
+hsts_max_age = 31536000
+content_security_policy = ""
+
+[security.rate_limiting]
+login_attempts = 5
+login_window_minutes = 15
+lockout_duration_minutes = 30
+
+[backup]
+enabled = true
+schedule = "daily"  # daily | weekly | hourly
+time = "02:00"
+retention_days = 7
+
+[backup.locations]
+database = "backups/database"
+configs = "backups/configs"
+knowledge_graph = "backups/knowledge_graph"
+
+[maintenance]
+enabled = false
+message = "System under maintenance"
+allowed_ips = ["127.0.0.1"]
+
+[metadata]
+last_updated = ""
+updated_by = ""
+version = "5.9.9"

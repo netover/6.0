@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resync Monitoring Dashboard</title>
+    
+    <!-- Chart.js (100KB, zero dependências) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #1a1b26;
+            --bg-secondary: #24283b;
+            --bg-card: #1f2335;
+            --text-primary: #c0caf5;
+            --text-secondary: #565f89;
+            --text-muted: #414868;
+            --accent-blue: #7aa2f7;
+            --accent-green: #9ece6a;
+            --accent-yellow: #e0af68;
+            --accent-red: #f7768e;
+            --accent-purple: #bb9af7;
+            --accent-cyan: #7dcfff;
+            --border-color: #292e42;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .logo i {
+            font-size: 1.75rem;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .status-badge.online {
+            background: rgba(158, 206, 106, 0.15);
+            color: var(--accent-green);
+        }
+        
+        .status-badge.degraded {
+            background: rgba(224, 175, 104, 0.15);
+            color: var(--accent-yellow);
+        }
+        
+        .status-badge.offline {
+            background: rgba(247, 118, 142, 0.15);
+            color: var(--accent-red);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.online { background: var(--accent-green); }
+        .status-dot.degraded { background: var(--accent-yellow); }
+        .status-dot.offline { background: var(--accent-red); }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .refresh-info {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        /* Grid Layout */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Card Styles */
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .card-title i {
+            font-size: 1rem;
+        }
+        
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+        
+        .card-value.small {
+            font-size: 1.75rem;
+        }
+        
+        .card-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        .trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .trend.up {
+            color: var(--accent-green);
+            background: rgba(158, 206, 106, 0.1);
+        }
+        
+        .trend.down {
+            color: var(--accent-red);
+            background: rgba(247, 118, 142, 0.1);
+        }
+        
+        .trend.neutral {
+            color: var(--text-secondary);
+            background: rgba(86, 95, 137, 0.1);
+        }
+        
+        /* Chart Cards */
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .chart-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+        
+        /* Stat Row */
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        /* Alerts Section */
+        .alerts-section {
+            margin-top: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 0.75rem;
+        }
+        
+        .alert-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+        
+        .alert-icon.warning {
+            background: rgba(224, 175, 104, 0.15);
+            color: var(--accent-yellow);
+        }
+        
+        .alert-icon.critical {
+            background: rgba(247, 118, 142, 0.15);
+            color: var(--accent-red);
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-message {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .alert-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        .no-alerts {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Progress Bar */
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.75rem;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-fill.green { background: var(--accent-green); }
+        .progress-fill.blue { background: var(--accent-blue); }
+        .progress-fill.yellow { background: var(--accent-yellow); }
+        .progress-fill.red { background: var(--accent-red); }
+        
+        /* Connection Status */
+        .connection-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .connection-indicator.connected {
+            color: var(--accent-green);
+        }
+        
+        .connection-indicator.disconnected {
+            color: var(--accent-red);
+        }
+        
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            color: var(--text-secondary);
+        }
+        
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--border-color);
+            margin-top: 2rem;
+        }
+        
+        /* Donut Chart Container */
+        .donut-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+        }
+        
+        .donut-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .donut-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        
+        .donut-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fas fa-chart-line"></i>
+                <span>Resync Monitoring</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div id="status-badge" class="status-badge online">
+                <span class="status-dot online"></span>
+                <span id="status-text">Sistema Online</span>
+            </div>
+            <div class="refresh-info">
+                <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                <span>Atualização: <span id="last-update">--:--:--</span></span>
+            </div>
+            <div class="connection-indicator connected" id="ws-status">
+                <i class="fas fa-plug"></i>
+                <span>Conectado</span>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Key Metrics Cards -->
+        <div class="metrics-grid">
+            <!-- Status Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-heartbeat"></i> Status</span>
+                </div>
+                <div class="card-value" id="system-status">●</div>
+                <div class="card-subtitle">
+                    Uptime: <span id="uptime">--</span>
+                </div>
+            </div>
+            
+            <!-- Requests/sec Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-tachometer-alt"></i> Requests/sec</span>
+                    <span class="trend neutral" id="requests-trend">
+                        <i class="fas fa-minus"></i> 0%
+                    </span>
+                </div>
+                <div class="card-value" id="requests-sec">0</div>
+                <div class="card-subtitle">
+                    Total: <span id="requests-total">0</span>
+                </div>
+            </div>
+            
+            <!-- Error Rate Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-exclamation-triangle"></i> Error Rate</span>
+                    <span class="trend neutral" id="error-trend">
+                        <i class="fas fa-minus"></i> 0%
+                    </span>
+                </div>
+                <div class="card-value" id="error-rate">0%</div>
+                <div class="card-subtitle">
+                    Erros: <span id="error-count">0</span>
+                </div>
+            </div>
+            
+            <!-- Response Time Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-clock"></i> Response Time</span>
+                </div>
+                <div class="card-value small" id="response-time">0ms</div>
+                <div class="card-subtitle">
+                    P50: <span id="response-p50">0ms</span> | P95: <span id="response-p95">0ms</span>
+                </div>
+            </div>
+            
+            <!-- Cache Hit Ratio Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-database"></i> Cache Hit Ratio</span>
+                    <span class="trend neutral" id="cache-trend">
+                        <i class="fas fa-minus"></i> 0%
+                    </span>
+                </div>
+                <div class="card-value" id="cache-ratio">0%</div>
+                <div class="progress-bar">
+                    <div class="progress-fill green" id="cache-progress" style="width: 0%"></div>
+                </div>
+                <div class="card-subtitle" style="margin-top: 0.5rem">
+                    Hits: <span id="cache-hits">0</span> | Misses: <span id="cache-misses">0</span>
+                </div>
+            </div>
+            
+            <!-- Active Agents Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-robot"></i> Agentes Ativos</span>
+                    <span class="trend neutral" id="agents-trend">
+                        <i class="fas fa-minus"></i> 0
+                    </span>
+                </div>
+                <div class="card-value" id="agents-active">0</div>
+                <div class="card-subtitle">
+                    Criados: <span id="agents-created">0</span> | Falhas: <span id="agents-failed">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="charts-grid">
+            <!-- Response Time Chart -->
+            <div class="chart-card">
+                <h3><i class="fas fa-chart-area"></i> Response Time (últimas 2 horas)</h3>
+                <div class="chart-container">
+                    <canvas id="responseTimeChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Requests Chart -->
+            <div class="chart-card">
+                <h3><i class="fas fa-chart-line"></i> Requests/sec (últimas 2 horas)</h3>
+                <div class="chart-container">
+                    <canvas id="requestsChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Cache Performance Chart -->
+            <div class="chart-card">
+                <h3><i class="fas fa-chart-bar"></i> Cache Performance</h3>
+                <div class="chart-container">
+                    <canvas id="cacheChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- System Health Chart -->
+            <div class="chart-card">
+                <h3><i class="fas fa-heartbeat"></i> TWS Status</h3>
+                <div class="chart-container">
+                    <canvas id="twsChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TWS & System Info -->
+        <div class="metrics-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <!-- TWS Status -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-server"></i> TWS Status</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Conexão</span>
+                    <span class="stat-value" id="tws-status">
+                        <i class="fas fa-circle" style="color: var(--accent-red)"></i> Offline
+                    </span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Latência</span>
+                    <span class="stat-value" id="tws-latency">0ms</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Requisições OK</span>
+                    <span class="stat-value" id="tws-success">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Requisições Falhas</span>
+                    <span class="stat-value" id="tws-failed">0</span>
+                </div>
+            </div>
+            
+            <!-- System Info -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-info-circle"></i> Sistema</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Versão</span>
+                    <span class="stat-value" id="version">5.1.0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Disponibilidade</span>
+                    <span class="stat-value" id="availability">100%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Operações Async</span>
+                    <span class="stat-value" id="async-ops">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Correlation IDs</span>
+                    <span class="stat-value" id="correlation-ids">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alerts Section -->
+        <div class="alerts-section">
+            <h2 class="section-title">
+                <i class="fas fa-bell"></i> Alertas Recentes
+                <span id="alert-count" style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; margin-left: 0.5rem;">0</span>
+            </h2>
+            <div id="alerts-container">
+                <div class="no-alerts">
+                    <i class="fas fa-check-circle" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; color: var(--accent-green);"></i>
+                    Nenhum alerta ativo
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Resync Monitoring Dashboard v5.1 | Auto-refresh: 5s | <a href="/" style="color: var(--accent-blue);">Voltar ao Chat</a></p>
+    </footer>
+    
+    <script>
+        // =============================================
+        // Configuration
+        // =============================================
+        const API_BASE = '/api/monitoring';
+        const WS_URL = `ws://${window.location.host}/api/monitoring/ws`;
+        const REFRESH_INTERVAL = 5000;
+        
+        // =============================================
+        // Chart Instances
+        // =============================================
+        let responseTimeChart, requestsChart, cacheChart, twsChart;
+        
+        // =============================================
+        // Initialize Charts
+        // =============================================
+        function initCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 500 },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#c0caf5', font: { size: 11 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#292e42' },
+                        ticks: { color: '#565f89', maxTicksLimit: 8 }
+                    },
+                    y: {
+                        grid: { color: '#292e42' },
+                        ticks: { color: '#565f89' },
+                        beginAtZero: true
+                    }
+                }
+            };
+            
+            // Response Time Chart
+            responseTimeChart = new Chart(document.getElementById('responseTimeChart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'P95',
+                            data: [],
+                            borderColor: '#f7768e',
+                            backgroundColor: 'rgba(247, 118, 142, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'P50',
+                            data: [],
+                            borderColor: '#7aa2f7',
+                            backgroundColor: 'rgba(122, 162, 247, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: { ...chartOptions, plugins: { ...chartOptions.plugins, title: { display: false } } }
+            });
+            
+            // Requests Chart
+            requestsChart = new Chart(document.getElementById('requestsChart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Requests/sec',
+                        data: [],
+                        borderColor: '#9ece6a',
+                        backgroundColor: 'rgba(158, 206, 106, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: chartOptions
+            });
+            
+            // Cache Chart
+            cacheChart = new Chart(document.getElementById('cacheChart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Hit Ratio %',
+                        data: [],
+                        borderColor: '#bb9af7',
+                        backgroundColor: 'rgba(187, 154, 247, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { ...chartOptions, scales: { ...chartOptions.scales, y: { ...chartOptions.scales.y, max: 100 } } }
+            });
+            
+            // TWS Chart
+            twsChart = new Chart(document.getElementById('twsChart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Latência (ms)',
+                        data: [],
+                        borderColor: '#7dcfff',
+                        backgroundColor: 'rgba(125, 207, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: chartOptions
+            });
+        }
+        
+        // =============================================
+        // Update Functions
+        // =============================================
+        function updateMetrics(data) {
+            // Status
+            const statusEl = document.getElementById('system-status');
+            const statusBadge = document.getElementById('status-badge');
+            const statusText = document.getElementById('status-text');
+            const statusDot = statusBadge.querySelector('.status-dot');
+            
+            if (data.status === 'ok') {
+                statusEl.innerHTML = '<span style="color: var(--accent-green)">● OK</span>';
+                statusBadge.className = 'status-badge online';
+                statusDot.className = 'status-dot online';
+                statusText.textContent = 'Sistema Online';
+            } else {
+                statusEl.innerHTML = '<span style="color: var(--accent-yellow)">● Degradado</span>';
+                statusBadge.className = 'status-badge degraded';
+                statusDot.className = 'status-dot degraded';
+                statusText.textContent = 'Sistema Degradado';
+            }
+            
+            // Uptime
+            document.getElementById('uptime').textContent = data.uptime;
+            document.getElementById('last-update').textContent = data.last_update;
+            
+            // API Metrics
+            document.getElementById('requests-sec').textContent = data.api.requests_per_sec.toFixed(1);
+            document.getElementById('requests-total').textContent = data.api.requests_total.toLocaleString();
+            document.getElementById('error-rate').textContent = data.api.error_rate.toFixed(2) + '%';
+            document.getElementById('error-count').textContent = data.api.error_count;
+            document.getElementById('response-time').textContent = data.api.response_time_p95.toFixed(0) + 'ms';
+            document.getElementById('response-p50').textContent = data.api.response_time_p50.toFixed(0) + 'ms';
+            document.getElementById('response-p95').textContent = data.api.response_time_p95.toFixed(0) + 'ms';
+            
+            updateTrend('requests-trend', data.api.trend);
+            
+            // Cache Metrics
+            document.getElementById('cache-ratio').textContent = data.cache.hit_ratio.toFixed(1) + '%';
+            document.getElementById('cache-hits').textContent = data.cache.hits.toLocaleString();
+            document.getElementById('cache-misses').textContent = data.cache.misses.toLocaleString();
+            document.getElementById('cache-progress').style.width = data.cache.hit_ratio + '%';
+            
+            const cacheProgress = document.getElementById('cache-progress');
+            if (data.cache.hit_ratio >= 90) {
+                cacheProgress.className = 'progress-fill green';
+            } else if (data.cache.hit_ratio >= 70) {
+                cacheProgress.className = 'progress-fill yellow';
+            } else {
+                cacheProgress.className = 'progress-fill red';
+            }
+            
+            updateTrend('cache-trend', data.cache.trend);
+            
+            // Agent Metrics
+            document.getElementById('agents-active').textContent = data.agents.active;
+            document.getElementById('agents-created').textContent = data.agents.created_total;
+            document.getElementById('agents-failed').textContent = data.agents.failed_total;
+            updateTrend('agents-trend', data.agents.trend, true);
+            
+            // TWS Status
+            const twsStatusEl = document.getElementById('tws-status');
+            if (data.tws.connected) {
+                twsStatusEl.innerHTML = '<i class="fas fa-circle" style="color: var(--accent-green)"></i> Online';
+            } else {
+                twsStatusEl.innerHTML = '<i class="fas fa-circle" style="color: var(--accent-red)"></i> Offline';
+            }
+            document.getElementById('tws-latency').textContent = data.tws.latency_ms.toFixed(1) + 'ms';
+            document.getElementById('tws-success').textContent = data.tws.requests_success;
+            document.getElementById('tws-failed').textContent = data.tws.requests_failed;
+            
+            // System Info
+            document.getElementById('version').textContent = data.version;
+            document.getElementById('availability').textContent = data.system.availability.toFixed(2) + '%';
+            document.getElementById('async-ops').textContent = data.system.async_operations;
+            document.getElementById('correlation-ids').textContent = data.system.correlation_ids;
+            
+            // Alerts
+            updateAlerts(data.alerts);
+        }
+        
+        function updateTrend(elementId, value, isAbsolute = false) {
+            const el = document.getElementById(elementId);
+            const icon = el.querySelector('i');
+            
+            if (value > 0) {
+                el.className = 'trend up';
+                icon.className = 'fas fa-arrow-up';
+                el.innerHTML = `<i class="fas fa-arrow-up"></i> ${isAbsolute ? '+' + value : '+' + value.toFixed(1) + '%'}`;
+            } else if (value < 0) {
+                el.className = 'trend down';
+                icon.className = 'fas fa-arrow-down';
+                el.innerHTML = `<i class="fas fa-arrow-down"></i> ${isAbsolute ? value : value.toFixed(1) + '%'}`;
+            } else {
+                el.className = 'trend neutral';
+                el.innerHTML = '<i class="fas fa-minus"></i> 0%';
+            }
+        }
+        
+        function updateAlerts(alerts) {
+            const container = document.getElementById('alerts-container');
+            const countEl = document.getElementById('alert-count');
+            
+            countEl.textContent = alerts.length;
+            
+            if (alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="no-alerts">
+                        <i class="fas fa-check-circle" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; color: var(--accent-green);"></i>
+                        Nenhum alerta ativo
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = alerts.map(alert => `
+                <div class="alert-item">
+                    <div class="alert-icon ${alert.severity}">
+                        <i class="fas fa-${alert.severity === 'critical' ? 'exclamation-circle' : 'exclamation-triangle'}"></i>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-message">${alert.message}</div>
+                        <div class="alert-time">${alert.timestamp}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateCharts(history) {
+            // Limitar labels para não sobrecarregar
+            const labels = history.timestamps.filter((_, i) => i % 6 === 0); // A cada 30s
+            const filterData = (arr) => arr.filter((_, i) => i % 6 === 0);
+            
+            // Response Time Chart
+            responseTimeChart.data.labels = labels;
+            responseTimeChart.data.datasets[0].data = filterData(history.api.response_time_p95);
+            responseTimeChart.data.datasets[1].data = filterData(history.api.response_time_p50);
+            responseTimeChart.update('none');
+            
+            // Requests Chart
+            requestsChart.data.labels = labels;
+            requestsChart.data.datasets[0].data = filterData(history.api.requests_per_sec);
+            requestsChart.update('none');
+            
+            // Cache Chart
+            cacheChart.data.labels = labels;
+            cacheChart.data.datasets[0].data = filterData(history.cache.hit_ratio);
+            cacheChart.update('none');
+            
+            // TWS Chart
+            twsChart.data.labels = labels;
+            twsChart.data.datasets[0].data = filterData(history.tws.latency);
+            twsChart.update('none');
+        }
+        
+        // =============================================
+        // API Functions
+        // =============================================
+        async function fetchMetrics() {
+            try {
+                const response = await fetch(`${API_BASE}/current`);
+                const data = await response.json();
+                updateMetrics(data);
+            } catch (error) {
+                console.error('Erro ao buscar métricas:', error);
+            }
+        }
+        
+        async function fetchHistory() {
+            try {
+                const response = await fetch(`${API_BASE}/history?minutes=120`);
+                const data = await response.json();
+                updateCharts(data);
+            } catch (error) {
+                console.error('Erro ao buscar histórico:', error);
+            }
+        }
+        
+        // =============================================
+        // WebSocket Connection
+        // =============================================
+        let ws = null;
+        let reconnectAttempts = 0;
+        
+        function connectWebSocket() {
+            const wsStatusEl = document.getElementById('ws-status');
+            
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket conectado');
+                    wsStatusEl.className = 'connection-indicator connected';
+                    wsStatusEl.innerHTML = '<i class="fas fa-plug"></i> <span>Conectado</span>';
+                    reconnectAttempts = 0;
+                };
+                
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    updateMetrics(data);
+                    
+                    // Atualizar ícone de refresh
+                    const refreshIcon = document.getElementById('refresh-icon');
+                    refreshIcon.style.transform = 'rotate(360deg)';
+                    setTimeout(() => refreshIcon.style.transform = '', 200);
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket desconectado');
+                    wsStatusEl.className = 'connection-indicator disconnected';
+                    wsStatusEl.innerHTML = '<i class="fas fa-plug"></i> <span>Desconectado</span>';
+                    
+                    // Tentar reconectar
+                    if (reconnectAttempts < 5) {
+                        reconnectAttempts++;
+                        setTimeout(connectWebSocket, 2000 * reconnectAttempts);
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket erro:', error);
+                };
+            } catch (error) {
+                console.error('Erro ao conectar WebSocket:', error);
+                // Fallback para polling
+                setInterval(fetchMetrics, REFRESH_INTERVAL);
+            }
+        }
+        
+        // =============================================
+        // Initialize
+        // =============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            fetchMetrics();
+            fetchHistory();
+            connectWebSocket();
+            
+            // Atualizar histórico a cada 30 segundos
+            setInterval(fetchHistory, 30000);
+            
+            // Fallback polling se WebSocket não conectar
+            setTimeout(() => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    console.log('WebSocket indisponível, usando polling');
+                    setInterval(fetchMetrics, REFRESH_INTERVAL);
+                }
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# Prefect Deployment Configuration
+# File: config/prefect_deployments.yaml
+
+# Predictive Maintenance - Daily at 2 AM
+predictive_maintenance:
+  name: "Predictive Maintenance - Daily"
+  flow: "workflow_predictive_maintenance.py:run_predictive_maintenance"
+  schedule:
+    cron: "0 2 * * *"
+    timezone: "America/Sao_Paulo"
+  parameters:
+    lookback_days: 30
+  work_queue_name: "default"
+  tags:
+    - production
+    - predictive-maintenance
+    - daily
+
+# Capacity Forecasting - Weekly on Sunday at 1 AM
+capacity_forecasting:
+  name: "Capacity Forecasting - Weekly"
+  flow: "workflow_capacity_forecasting.py:run_capacity_forecast"
+  schedule:
+    cron: "0 1 * * 0"
+    timezone: "America/Sao_Paulo"
+  parameters:
+    lookback_days: 30
+    forecast_days: 90
+  work_queue_name: "default"
+  tags:
+    - production
+    - capacity-forecasting
+    - weekly
+
+# Decision Support - On-demand only
+decision_support:
+  name: "Decision Support - On Demand"
+  flow: "workflow_decision_support.py:run_decision_support"
+  schedule: null  # Manual trigger only
+  work_queue_name: "default"
+  tags:
+    - production
+    - decision-support
+    - on-demand

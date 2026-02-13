@@ -1,0 +1,38 @@
+# GraphRAG Configuration
+# This file persists GraphRAG settings across restarts
+
+[graphrag]
+enabled = true
+
+[graphrag.budget]
+max_discoveries_per_day = 5
+max_discoveries_per_hour = 2
+
+[graphrag.cache]
+ttl_days = 90
+
+[graphrag.triggers]
+min_failures_to_trigger = 3
+discover_on_new_error = true
+discover_on_recurring_failure = true
+
+[graphrag.validation]
+validate_on_abend = true
+validate_on_failed = true
+validate_on_late = false
+validate_on_stuck = false
+trust_cache_days = 7
+quick_validate_days = 30
+full_validate_days = 90
+auto_invalidate = true
+auto_rediscover = true
+
+[graphrag.critical_jobs]
+# List of critical jobs that trigger auto-discovery
+# Edit this list to match your environment
+jobs = [
+    "PAYROLL_NIGHTLY",
+    "BACKUP_DB",
+    "ETL_CUSTOMER",
+    "REPORT_SALES",
+]

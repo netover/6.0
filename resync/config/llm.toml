@@ -1,0 +1,117 @@
+# LLM Configuration
+# Central configuration for all LLM usage in Resync
+
+[llm]
+# Primary provider: litellm, openai, anthropic, ollama
+provider = "litellm"
+
+# Default model - ALL agents/specialists use this
+# No hardcoded models anywhere!
+default_model = "ollama/llama3.2"
+
+# Fallback model if default fails
+fallback_model = "ollama/llama3.2"
+
+# LiteLLM settings
+[llm.litellm]
+enabled = true
+base_url = "http://localhost:11434"  # Ollama default
+api_key = "dummy"  # Not needed for Ollama
+timeout = 60
+max_retries = 3
+
+# Available models (for reference/validation)
+[llm.litellm.available_models]
+# Format: "provider/model_name"
+primary = "ollama/llama3.2"
+alternative = "ollama/mistral"
+fast = "ollama/phi"
+large = "ollama/llama3.2:70b"
+
+# Ollama-specific settings
+[llm.ollama]
+base_url = "http://localhost:11434"
+timeout = 120
+# Models to ensure are pulled
+models_to_pull = [
+    "llama3.2",
+    "mistral",
+]
+
+# OpenAI (disabled by default - only for fallback)
+[llm.openai]
+enabled = false
+api_key = ""
+organization = ""
+model = "gpt-4o"  # Only used if enabled
+
+# Temperature settings per task type
+# Specialists/agents inherit from here
+[llm.temperatures]
+analysis = 0.2        # Job analysis, diagnostics
+dependencies = 0.1    # Dependency tracing (deterministic)
+resources = 0.2       # Resource analysis
+knowledge = 0.4       # Knowledge retrieval
+chat = 0.7           # User interaction
+creative = 0.8       # Report generation, summaries
+
+# Token limits per task type
+[llm.token_limits]
+analysis = 2048
+dependencies = 2048
+resources = 1536
+knowledge = 3072
+chat = 4096
+creative = 4096
+
+# Rate limiting (per model)
+[llm.rate_limits]
+requests_per_minute = 100
+requests_per_hour = 1000
+concurrent_requests = 10
+
+# Retry settings
+[llm.retry]
+max_attempts = 3
+base_backoff = 1.0
+max_backoff = 10.0
+exponential = true
+
+# Model routing rules
+[llm.routing]
+# Route specific tasks to specific models
+enabled = false
+
+# Example rules (disabled by default):
+# [llm.routing.rules.heavy_analysis]
+# task_types = ["dependency_analysis", "root_cause"]
+# model = "ollama/llama3.2:70b"
+# 
+# [llm.routing.rules.quick_queries]
+# task_types = ["simple_query", "status_check"]
+# model = "ollama/phi"
+
+# Caching
+[llm.cache]
+enabled = true
+ttl_seconds = 3600
+# Cache identical prompts to save LLM calls
+cache_identical_prompts = true
+
+# Monitoring
+[llm.monitoring]
+enabled = true
+log_prompts = false  # Set true for debugging (verbose!)
+log_responses = false
+track_latency = true
+track_token_usage = true
+
+# Cost tracking (even for free Ollama, useful for metrics)
+[llm.cost_tracking]
+enabled = true
+# Ollama is free, but track "virtual cost" for capacity planning
+virtual_cost_per_1k_tokens = 0.0  # Free!
+
+[metadata]
+last_updated = ""
+updated_by = ""

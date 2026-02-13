@@ -1,0 +1,228 @@
+# =============================================================================
+# Redis Stack Configuration Template for Semantic Cache
+# Resync v5.3.16
+# =============================================================================
+#
+# This is a template configuration for Redis Stack optimized for semantic caching.
+# Copy this file and adjust values according to your environment.
+#
+# Installation:
+#   1. Install Redis Stack: ./scripts/setup_redis_stack.sh
+#   2. Or manually: https://redis.io/docs/install/install-stack/linux/
+#
+# Usage:
+#   redis-stack-server /path/to/this/config.conf
+#
+# =============================================================================
+
+# =============================================================================
+# NETWORK
+# =============================================================================
+
+# Bind to localhost only (secure default)
+# Change to 0.0.0.0 only if you need external access (not recommended)
+bind 127.0.0.1
+
+# Default port
+port 6379
+
+# Protected mode (requires password when binding to all interfaces)
+protected-mode yes
+
+# TCP backlog
+tcp-backlog 511
+
+# Close connection after client is idle for N seconds (0 = never)
+timeout 0
+
+# TCP keepalive
+tcp-keepalive 300
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+
+# IMPORTANT: Set a strong password!
+# Generate with: openssl rand -base64 32
+# requirepass your-strong-password-here
+
+# Rename dangerous commands (optional, for extra security)
+# rename-command FLUSHDB ""
+# rename-command FLUSHALL ""
+# rename-command DEBUG ""
+# rename-command CONFIG ""
+
+# =============================================================================
+# MEMORY MANAGEMENT
+# =============================================================================
+
+# Maximum memory Redis can use
+# Adjust based on your server RAM
+# For semantic cache with 100k entries: 2-4GB recommended
+maxmemory 4gb
+
+# Eviction policy when maxmemory is reached
+# allkeys-lru: Evict least recently used keys (recommended for cache)
+# volatile-lru: Only evict keys with TTL set
+# noeviction: Return errors when memory limit is reached
+maxmemory-policy allkeys-lru
+
+# Number of samples to use for LRU approximation
+maxmemory-samples 10
+
+# =============================================================================
+# PERSISTENCE - RDB SNAPSHOTS
+# =============================================================================
+
+# Save the dataset to disk:
+# save <seconds> <changes>
+# save after 900 seconds if at least 1 key changed
+# save after 300 seconds if at least 10 keys changed
+# save after 60 seconds if at least 10000 keys changed
+save 900 1
+save 300 10
+save 60 10000
+
+# RDB filename
+dbfilename dump.rdb
+
+# Working directory for RDB and AOF files
+dir /var/lib/redis
+
+# Compress RDB files
+rdbcompression yes
+
+# Checksum RDB files
+rdbchecksum yes
+
+# =============================================================================
+# PERSISTENCE - AOF (Append Only File)
+# =============================================================================
+
+# Enable AOF for better durability
+appendonly yes
+
+# AOF filename
+appendfilename "appendonly.aof"
+
+# Fsync policy:
+# always: fsync after every write (slow, safest)
+# everysec: fsync once per second (good balance)
+# no: let OS decide when to fsync (fast, less safe)
+appendfsync everysec
+
+# Don't fsync during rewrites (better performance during BGSAVE)
+no-appendfsync-on-rewrite no
+
+# Auto-rewrite AOF when it grows by this percentage
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+# Log level: debug, verbose, notice, warning
+loglevel notice
+
+# Log file path (empty = stdout)
+logfile /var/log/redis/redis-stack.log
+
+# Log queries slower than N microseconds
+slowlog-log-slower-than 10000
+
+# Maximum length of slow log
+slowlog-max-len 128
+
+# =============================================================================
+# CLIENTS
+# =============================================================================
+
+# Maximum number of connected clients
+maxclients 10000
+
+# =============================================================================
+# PERFORMANCE TUNING
+# =============================================================================
+
+# Rehash the hash table to use less memory
+activerehashing yes
+
+# Server tick frequency (higher = more responsive, more CPU)
+hz 10
+
+# Dynamic hz based on clients
+dynamic-hz yes
+
+# Lazy freeing (background deletion for large keys)
+lazyfree-lazy-eviction yes
+lazyfree-lazy-expire yes
+lazyfree-lazy-server-del yes
+
+# =============================================================================
+# MODULES (Redis Stack)
+# =============================================================================
+# Redis Stack automatically loads these modules:
+# - RediSearch (search and vector similarity)
+# - ReJSON (native JSON support)
+# - RedisGraph (graph database) - optional
+# - RedisTimeSeries (time series data) - optional
+# - RedisBloom (probabilistic data structures) - optional
+
+# If using standalone Redis, load modules manually:
+# loadmodule /path/to/redisearch.so
+# loadmodule /path/to/rejson.so
+
+# =============================================================================
+# LATENCY MONITORING
+# =============================================================================
+
+# Log operations taking longer than N milliseconds
+latency-monitor-threshold 100
+
+# =============================================================================
+# REPLICATION (if using replicas)
+# =============================================================================
+
+# Uncomment and configure if this is a replica
+# replicaof <masterip> <masterport>
+# masterauth <master-password>
+
+# Read-only replica (recommended)
+replica-read-only yes
+
+# =============================================================================
+# CLUSTER MODE (if using Redis Cluster)
+# =============================================================================
+
+# Uncomment to enable cluster mode
+# cluster-enabled yes
+# cluster-config-file nodes.conf
+# cluster-node-timeout 5000
+
+# =============================================================================
+# SEMANTIC CACHE SPECIFIC RECOMMENDATIONS
+# =============================================================================
+#
+# For optimal semantic cache performance:
+#
+# 1. Memory: Allocate at least 2GB for 50k cached entries
+#    Each entry ~50KB (query + embedding + response)
+#    
+# 2. Persistence: AOF with everysec provides good durability
+#    without significant performance impact
+#
+# 3. Eviction: allkeys-lru ensures old cache entries are
+#    automatically removed when memory is full
+#
+# 4. Vector Search (RediSearch):
+#    - HNSW index for fast approximate nearest neighbor
+#    - Cosine distance metric for semantic similarity
+#    - Default M=16, EF_CONSTRUCTION=200 for good recall
+#
+# 5. Connection Pool:
+#    - Use 5-20 connections per application instance
+#    - Enable health check intervals
+#    - Set reasonable socket timeouts (5-10s)
+#
+# =============================================================================

@@ -1,0 +1,378 @@
+# Resync Agent Configuration
+# v5.4.1 - Enhanced with guardrails and hybrid routing
+#
+# This file defines the AI agents available in the system.
+# Changes to this file are loaded automatically on startup.
+#
+# v5.4.1 Enhancements (PR-2):
+# - tool_call_limit for loop/cost control
+# - max_tool_calls_from_history for context management
+# - session_state for memory and traceability
+# - HITL policies for write actions
+# - Agentic RAG configuration
+
+# =============================================================================
+# ROUTING MODES (PR-3)
+# =============================================================================
+# The system routes queries through 3 paths:
+#   1. RAG-only: Quick, low-risk questions (uses knowledge base only)
+#   2. Agentic: Multi-step tasks requiring tool use (Agno Team)
+#   3. Diagnostic: Sensitive troubleshooting with HITL (LangGraph)
+
+routing:
+  # Default mode when intent is unclear
+  default_mode: rag_only
+  
+  # Confidence threshold for automatic routing
+  min_confidence: 0.7
+  
+  # Intent to routing mode mapping
+  intent_mapping:
+    greeting: rag_only
+    general: rag_only
+    status: agentic
+    troubleshooting: diagnostic
+    job_management: agentic
+    monitoring: agentic
+    analysis: agentic
+    reporting: rag_only
+
+# =============================================================================
+# GLOBAL GUARDRAILS
+# =============================================================================
+
+guardrails:
+  # Maximum tool calls per request (prevents loops)
+  tool_call_limit: 10
+  
+  # Maximum tool calls from history to include
+  max_tool_calls_from_history: 5
+  
+  # Maximum steps in agentic execution
+  max_steps: 15
+  
+  # Cost limits (approximate tokens)
+  max_tokens_per_request: 8000
+  
+  # Time limits
+  timeout_seconds: 120
+  
+  # RAG content is untrusted (anti prompt injection)
+  treat_rag_as_untrusted: true
+  
+  # HITL policies
+  hitl:
+    # Always require approval for these operations
+    require_approval_for:
+      - db_write
+      - execute_command
+      - modify_schedule
+      - external_api_write
+    
+    # Auto-approve low-risk read operations
+    auto_approve_read: true
+    
+    # Timeout for pending approvals (minutes)
+    approval_timeout_minutes: 30
+
+# =============================================================================
+# MEMORY CONFIGURATION
+# =============================================================================
+
+memory:
+  # Enable conversation memory
+  enabled: true
+  
+  # Maximum turns to remember
+  max_turns: 20
+  
+  # Session persistence
+  persist_sessions: true
+  session_ttl_hours: 24
+  
+  # Operational memory (incidents/resolutions)
+  operational_memory:
+    enabled: true
+    search_similar_incidents: true
+    days_to_search: 30
+
+# =============================================================================
+# AGENT DEFINITIONS
+# =============================================================================
+
+agents:
+  # TWS Troubleshooting Specialist (uses Diagnostic Graph)
+  - id: tws-troubleshooting
+    name: TWS Troubleshooting Agent
+    type: specialist
+    role: TWS Troubleshooting Specialist
+    goal: Help users identify and resolve TWS system issues
+    backstory: >
+      I am an expert AI assistant specialized in IBM Workload Automation (TWS) 
+      troubleshooting and system monitoring. I can analyze job failures, 
+      identify dependency issues, and recommend corrective actions.
+    tools:
+      - get_job_log
+      - analyze_return_code
+      - analyze_abend_code
+      - get_job_history
+      - search_knowledge_base
+      - search_history
+      - get_system_metrics
+    model: tongyi-deepresearch
+    temperature: 0.3  # Lower for diagnostic accuracy
+    
+    # Memory settings
+    memory: true
+    session_state: true
+    
+    # Tool limits
+    tool_call_limit: 8
+    max_tool_calls_from_history: 3
+    
+    # Routing preference
+    preferred_routing: diagnostic
+    
+    # HITL policy
+    hitl_policy:
+      require_approval_for_write: true
+      
+    verbose: false
+
+  # TWS General Assistant (uses RAG primarily)
+  - id: tws-general
+    name: TWS General Assistant
+    type: chat
+    role: TWS General Assistant
+    goal: Provide general assistance for TWS operations and monitoring
+    backstory: >
+      I am a helpful AI assistant for IBM Workload Automation (TWS) operations,
+      providing information about system status and job execution. I can answer
+      questions about TWS concepts, best practices, and operational procedures.
+    tools:
+      - get_workstation_status
+      - search_knowledge_base
+      - get_calendar_schedule
+    model: openrouter-fallback
+    temperature: 0.5
+    
+    # Memory settings
+    memory: true
+    session_state: true
+    
+    # Tool limits
+    tool_call_limit: 5
+    max_tool_calls_from_history: 2
+    
+    # Routing preference
+    preferred_routing: rag_only
+    
+    verbose: false
+
+  # Job Analyst Agent (uses Agentic mode)
+  - id: job-analyst
+    name: Job Analyst Agent
+    type: specialist
+    role: Job Execution Analyst
+    goal: Analyze job execution patterns and performance metrics
+    backstory: >
+      I specialize in analyzing TWS job execution data, identifying patterns,
+      and providing insights about job performance, resource utilization,
+      and scheduling optimization opportunities.
+    tools:
+      - get_job_log
+      - get_job_history
+      - analyze_return_code
+      - analyze_abend_code
+      - search_knowledge_base
+      - get_system_metrics
+    model: gpt-4o-mini
+    temperature: 0.3
+    
+    # Memory settings
+    memory: true
+    session_state: true
+    
+    # Tool limits
+    tool_call_limit: 10
+    max_tool_calls_from_history: 4
+    
+    # Routing preference
+    preferred_routing: agentic
+    
+    verbose: false
+
+  # Dependency Specialist Agent
+  - id: dependency-specialist
+    name: Dependency Specialist
+    type: specialist
+    role: Dependency Chain Analyzer
+    goal: Analyze and optimize job dependencies and scheduling chains
+    backstory: >
+      I am an expert in TWS job dependencies and scheduling chains. I can
+      trace dependency paths, identify circular dependencies, and recommend
+      scheduling optimizations to improve throughput.
+    tools:
+      - get_predecessors
+      - get_successors
+      - analyze_impact
+      - search_knowledge_base
+    model: claude-3-haiku-20240307
+    temperature: 0.4
+    
+    # Memory settings
+    memory: true
+    session_state: true
+    
+    # Tool limits
+    tool_call_limit: 8
+    max_tool_calls_from_history: 3
+    
+    # Routing preference
+    preferred_routing: agentic
+    
+    verbose: false
+
+  # Resource Specialist Agent
+  - id: resource-specialist
+    name: Resource Specialist
+    type: specialist
+    role: Resource Allocation Expert
+    goal: Monitor and optimize TWS resource allocation and capacity
+    backstory: >
+      I specialize in TWS resource management, including workstation capacity,
+      job slots, and resource contention. I can recommend optimal resource
+      allocation strategies and identify bottlenecks.
+    tools:
+      - get_workstation_status
+      - check_resource_availability
+      - search_knowledge_base
+      - get_system_metrics
+    model: gpt-4o-mini
+    temperature: 0.4
+    
+    # Memory settings
+    memory: true
+    session_state: true
+    
+    # Tool limits
+    tool_call_limit: 6
+    max_tool_calls_from_history: 2
+    
+    # Routing preference
+    preferred_routing: agentic
+    
+    verbose: false
+
+  # Knowledge Specialist (RAG-focused)
+  - id: knowledge-specialist
+    name: Knowledge Specialist
+    type: research
+    role: Documentation and Knowledge Expert
+    goal: Search and provide relevant documentation and troubleshooting guides
+    backstory: >
+      I am an expert at finding relevant documentation, runbooks, and 
+      troubleshooting guides from the TWS knowledge base. I use hybrid
+      search to find the most relevant information.
+    tools:
+      - search_knowledge_base
+      - search_history
+    model: gpt-4o-mini
+    temperature: 0.2
+    
+    # Memory settings
+    memory: false  # Stateless for RAG queries
+    session_state: false
+    
+    # Tool limits
+    tool_call_limit: 3
+    max_tool_calls_from_history: 0
+    
+    # Routing preference
+    preferred_routing: rag_only
+    
+    # Enable Agentic RAG (agent decides when to search)
+    agentic_rag: true
+    
+    verbose: false
+
+# =============================================================================
+# TEAM CONFIGURATION (Agno Team)
+# =============================================================================
+
+team:
+  name: TWS Specialist Team
+  
+  # Members (agent IDs)
+  members:
+    - job-analyst
+    - dependency-specialist
+    - resource-specialist
+    - knowledge-specialist
+  
+  # Orchestrator (synthesizes responses)
+  orchestrator: tws-troubleshooting
+  
+  # Execution settings
+  parallel_execution: true
+  max_parallel_specialists: 3
+  
+  # Synthesis settings
+  synthesis_model: gpt-4o-mini
+  synthesis_temperature: 0.3
+  
+  # Team guardrails
+  team_tool_call_limit: 20
+  team_max_steps: 30
+
+# =============================================================================
+# MODEL ALIASES AND FALLBACKS
+# =============================================================================
+
+model_aliases:
+  tongyi-deepresearch: tongyi/qwen-plus
+  openrouter-fallback: openrouter/mistralai/mistral-7b-instruct
+  gpt-4o-mini: gpt-4o-mini
+  claude-3-haiku-20240307: claude-3-haiku-20240307
+
+model_fallbacks:
+  - primary: tongyi-deepresearch
+    fallback: gpt-4o-mini
+  - primary: claude-3-haiku-20240307
+    fallback: gpt-4o-mini
+
+# =============================================================================
+# DEFAULT SETTINGS
+# =============================================================================
+
+defaults:
+  temperature: 0.5
+  memory: true
+  session_state: true
+  verbose: false
+  max_tokens: 4096
+  timeout_seconds: 30
+  tool_call_limit: 10
+  max_tool_calls_from_history: 3
+
+# =============================================================================
+# OBSERVABILITY (PR-7)
+# =============================================================================
+
+observability:
+  # Trace all executions
+  trace_enabled: true
+  
+  # Log tool calls
+  log_tool_calls: true
+  
+  # Metrics collection
+  collect_metrics: true
+  
+  # Dashboard integration
+  dashboard_enabled: true
+  
+  # Langfuse integration
+  langfuse:
+    enabled: false
+    project: resync

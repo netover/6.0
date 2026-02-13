@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Python\GITHUB\resync\6.0\resync\resync\main.py", line 39, in <module>
+    app = _factory.create_application()
+  File "D:\Python\GITHUB\resync\6.0\resync\resync\app_factory.py", line 504, in create_application
+    self._validate_critical_settings()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python\GITHUB\resync\6.0\resync\resync\app_factory.py", line 539, in _validate_critical_settings
+    if settings.redis_pool_min_size > settings.redis_pool_max_size:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python\GITHUB\resync\6.0\resync\resync\settings.py", line 1504, in __getattr__
+    return getattr(get_settings(), name)
+                   ~~~~~~~~~~~~^^
+  File "D:\Python\GITHUB\resync\6.0\resync\resync\settings.py", line 1492, in get_settings
+    return Settings()
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic_settings\main.py", line 193, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        **__pydantic_self__._settings_build_values(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<27 lines>...
+        )
+        ^
+    )
+    ^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\main.py", line 253, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+ADMIN_PASSWORD
+  Value error, Senha deve ter no mÝnimo 8 caracteres [type=value_error, input_value='admin', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.11/v/value_error

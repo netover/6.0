@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resync - TWS Monitor em Tempo Real</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            /* Light Theme */
+            --bg-primary: #f5f7fa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e8ecf1;
+            --text-primary: #1a1a2e;
+            --text-secondary: #4a4a6a;
+            --text-muted: #8888a0;
+            --border-color: #e0e0e0;
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-error: #ef4444;
+            --accent-critical: #dc2626;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f0f1a;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #252540;
+            --text-primary: #f0f0f5;
+            --text-secondary: #b0b0c0;
+            --text-muted: #6a6a80;
+            --border-color: #3a3a50;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            --header-bg: linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Header */
+        .header {
+            background: var(--header-bg);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            background: rgba(255,255,255,0.15);
+        }
+
+        .connection-status.connected { background: rgba(16, 185, 129, 0.3); }
+        .connection-status.disconnected { background: rgba(239, 68, 68, 0.3); }
+        .connection-status.connecting { background: rgba(245, 158, 11, 0.3); }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .connected .status-dot { background: #10b981; }
+        .disconnected .status-dot { background: #ef4444; }
+        .connecting .status-dot { background: #f59e0b; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-toggle, .settings-btn, .notifications-btn {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .theme-toggle:hover, .settings-btn:hover, .notifications-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--accent-error);
+            color: white;
+            font-size: 0.7rem;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .summary-card .label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .summary-card .trend {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .trend.up { color: var(--accent-success); }
+        .trend.down { color: var(--accent-error); }
+
+        .summary-card.success .value { color: var(--accent-success); }
+        .summary-card.warning .value { color: var(--accent-warning); }
+        .summary-card.error .value { color: var(--accent-error); }
+        .summary-card.running .value { color: var(--accent-primary); }
+
+        /* Main Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-tertiary);
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .card-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .card-btn:hover {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+        }
+
+        .card-body {
+            padding: 1rem 1.25rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Workstations Grid */
+        .workstations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .ws-card {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .ws-card:hover {
+            transform: scale(1.02);
+        }
+
+        .ws-status-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .ws-card.online .ws-status-icon { color: var(--accent-success); }
+        .ws-card.offline .ws-status-icon { color: var(--accent-error); }
+        .ws-card.unlinked .ws-status-icon { color: var(--accent-warning); }
+
+        .ws-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .ws-details {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Events Timeline */
+        .events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .event-item {
+            display: flex;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border-left: 4px solid var(--border-color);
+            transition: background 0.2s;
+        }
+
+        .event-item:hover {
+            background: var(--bg-primary);
+        }
+
+        .event-item.critical { border-left-color: var(--accent-critical); }
+        .event-item.error { border-left-color: var(--accent-error); }
+        .event-item.warning { border-left-color: var(--accent-warning); }
+        .event-item.info { border-left-color: var(--accent-primary); }
+
+        .event-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .event-item.critical .event-icon { background: rgba(220, 38, 38, 0.15); color: var(--accent-critical); }
+        .event-item.error .event-icon { background: rgba(239, 68, 68, 0.15); color: var(--accent-error); }
+        .event-item.warning .event-icon { background: rgba(245, 158, 11, 0.15); color: var(--accent-warning); }
+        .event-item.info .event-icon { background: rgba(59, 130, 246, 0.15); color: var(--accent-primary); }
+
+        .event-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .event-message {
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .event-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Jobs Table */
+        .jobs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .jobs-table th,
+        .jobs-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .jobs-table th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .jobs-table tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-badge.running {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-primary);
+        }
+
+        .status-badge.success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-success);
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-error);
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-warning);
+        }
+
+        /* Patterns Card */
+        .patterns-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .pattern-item {
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .pattern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .pattern-type {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--accent-primary);
+            color: white;
+            border-radius: 4px;
+        }
+
+        .pattern-confidence {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .pattern-description {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .pattern-suggestion {
+            font-size: 0.8rem;
+            color: var(--accent-success);
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: var(--bg-secondary);
+            box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+            z-index: 200;
+            transition: right 0.3s;
+            overflow-y: auto;
+        }
+
+        .settings-panel.open {
+            right: 0;
+        }
+
+        .settings-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .settings-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .settings-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .settings-body {
+            padding: 1.5rem;
+        }
+
+        .setting-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .setting-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .setting-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .setting-slider {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .setting-value {
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--accent-primary);
+        }
+
+        .setting-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .toggle-switch {
+            width: 50px;
+            height: 26px;
+            background: var(--border-color);
+            border-radius: 13px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-switch.active {
+            background: var(--accent-success);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.2s;
+        }
+
+        .toggle-switch.active::after {
+            left: 26px;
+        }
+
+        .save-settings-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .save-settings-btn:hover {
+            background: #2563eb;
+        }
+
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s;
+        }
+
+        .overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Notifications Panel */
+        .notifications-panel {
+            position: fixed;
+            right: -350px;
+            top: 70px;
+            width: 350px;
+            max-height: calc(100vh - 100px);
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 150;
+            transition: right 0.3s;
+            overflow: hidden;
+        }
+
+        .notifications-panel.open {
+            right: 20px;
+        }
+
+        .notifications-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notifications-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .notification-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .notification-item.unread {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        /* System Health Gauge */
+        .health-gauge {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .gauge-circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: conic-gradient(
+                var(--gauge-color, var(--accent-success)) var(--gauge-percent, 0%),
+                var(--bg-tertiary) var(--gauge-percent, 0%)
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .gauge-inner {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .gauge-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .logo {
+                font-size: 1.2rem;
+            }
+
+            .header-right {
+                gap: 0.5rem;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .summary-card .value {
+                font-size: 1.5rem;
+            }
+
+            .card-body {
+                max-height: 300px;
+            }
+
+            .workstations-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .settings-panel {
+                width: 100%;
+                right: -100%;
+            }
+
+            .notifications-panel {
+                width: calc(100% - 40px);
+                right: -100%;
+            }
+
+            .notifications-panel.open {
+                right: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .workstations-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-left {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .event-item {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toast.success { background: var(--accent-success); }
+        .toast.error { background: var(--accent-error); }
+        .toast.warning { background: var(--accent-warning); }
+        .toast.info { background: var(--accent-primary); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fas fa-robot"></i>
+                Resync TWS Monitor
+            </div>
+            <div class="connection-status connecting" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span id="connectionText">Conectando...</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="notifications-btn" id="notificationsBtn" title="Notificações">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            <button class="theme-toggle" id="themeToggle" title="Alternar Tema">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+            <button class="settings-btn" id="settingsBtn" title="Configurações">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+            <div class="summary-card running">
+                <div class="label">Jobs em Execução</div>
+                <div class="value" id="jobsRunning">-</div>
+                <div class="trend" id="runningTrend"></div>
+            </div>
+            <div class="summary-card success">
+                <div class="label">Jobs Completados</div>
+                <div class="value" id="jobsCompleted">-</div>
+                <div class="trend up" id="completedTrend"></div>
+            </div>
+            <div class="summary-card error">
+                <div class="label">Jobs com Falha</div>
+                <div class="value" id="jobsFailed">-</div>
+                <div class="trend" id="failedTrend"></div>
+            </div>
+            <div class="summary-card warning">
+                <div class="label">Jobs Pendentes</div>
+                <div class="value" id="jobsPending">-</div>
+                <div class="trend" id="pendingTrend"></div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Workstations Online</div>
+                <div class="value" id="wsOnline">-</div>
+                <div class="trend" id="wsTrend"></div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Última Atualização</div>
+                <div class="value" id="lastUpdate" style="font-size: 1rem;">-</div>
+                <div class="trend" id="pollingInfo"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Workstations Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-server"></i>
+                        Workstations
+                    </div>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="refreshWorkstations()">
+                            <i class="fas fa-sync-alt"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="workstations-grid" id="workstationsGrid">
+                        <div class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Carregando workstations...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events Timeline Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-stream"></i>
+                        Eventos em Tempo Real
+                    </div>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="clearEvents()">
+                            <i class="fas fa-trash"></i> Limpar
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="events-list" id="eventsList">
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>Nenhum evento recente</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Critical Jobs Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Jobs Críticos / ABEND
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table class="jobs-table" id="criticalJobsTable">
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Status</th>
+                                <th>Workstation</th>
+                                <th>Erro</th>
+                            </tr>
+                        </thead>
+                        <tbody id="criticalJobsBody">
+                            <tr>
+                                <td colspan="4" class="empty-state">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhum job crítico</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Patterns Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-brain"></i>
+                        Padrões Detectados
+                    </div>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="detectPatterns()">
+                            <i class="fas fa-search"></i> Detectar
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="patterns-list" id="patternsList">
+                        <div class="empty-state">
+                            <i class="fas fa-lightbulb"></i>
+                            <p>Nenhum padrão detectado</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Panel -->
+    <div class="overlay" id="overlay"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <span class="settings-title">Configurações</span>
+            <button class="settings-close" id="settingsClose">&times;</button>
+        </div>
+        <div class="settings-body">
+            <!-- Polling Interval -->
+            <div class="setting-group">
+                <label class="setting-label">Intervalo de Polling (segundos)</label>
+                <div class="setting-value" id="pollingValue">30</div>
+                <input type="range" class="setting-slider" id="pollingSlider" 
+                       min="5" max="120" value="30" step="5">
+            </div>
+
+            <!-- Theme -->
+            <div class="setting-group">
+                <label class="setting-label">Tema</label>
+                <select class="setting-input" id="themeSelect">
+                    <option value="auto">Automático</option>
+                    <option value="light">Claro</option>
+                    <option value="dark">Escuro</option>
+                </select>
+            </div>
+
+            <!-- Notifications -->
+            <div class="setting-group">
+                <label class="setting-label">Notificações</label>
+                <div class="setting-toggle">
+                    <span>Notificações do Browser</span>
+                    <div class="toggle-switch active" id="browserNotifToggle"></div>
+                </div>
+                <div class="setting-toggle">
+                    <span>Alertas Sonoros</span>
+                    <div class="toggle-switch" id="soundToggle"></div>
+                </div>
+            </div>
+
+            <!-- Dashboard Refresh -->
+            <div class="setting-group">
+                <label class="setting-label">Atualização do Dashboard (segundos)</label>
+                <div class="setting-value" id="refreshValue">5</div>
+                <input type="range" class="setting-slider" id="refreshSlider" 
+                       min="1" max="30" value="5" step="1">
+            </div>
+
+            <!-- Alerts -->
+            <div class="setting-group">
+                <label class="setting-label">Alertas</label>
+                <div class="setting-toggle">
+                    <span>Alertas Habilitados</span>
+                    <div class="toggle-switch active" id="alertsToggle"></div>
+                </div>
+            </div>
+
+            <button class="save-settings-btn" id="saveSettingsBtn">
+                <i class="fas fa-save"></i> Salvar Configurações
+            </button>
+        </div>
+    </div>
+
+    <!-- Notifications Panel -->
+    <div class="notifications-panel" id="notificationsPanel">
+        <div class="notifications-header">
+            <span class="settings-title">Notificações</span>
+            <button class="card-btn" onclick="clearNotifications()">Limpar</button>
+        </div>
+        <div class="notifications-list" id="notificationsList">
+            <div class="empty-state">
+                <i class="fas fa-bell-slash"></i>
+                <p>Nenhuma notificação</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // =================================================================
+        // CONFIGURATION
+        // =================================================================
+        const CONFIG = {
+            wsUrl: `ws://${window.location.host}/api/v1/monitoring/ws`,
+            apiBase: '/api/v1/monitoring',
+            pollingInterval: 30,
+            dashboardRefresh: 5,
+            browserNotifications: true,
+            soundAlerts: false,
+            alertsEnabled: true,
+            theme: 'auto'
+        };
+
+        // =================================================================
+        // STATE
+        // =================================================================
+        let ws = null;
+        let reconnectAttempts = 0;
+        let events = [];
+        let notifications = [];
+        let snapshot = null;
+
+        // =================================================================
+        // THEME MANAGEMENT
+        // =================================================================
+        function initTheme() {
+            const saved = localStorage.getItem('theme') || 'auto';
+            CONFIG.theme = saved;
+            document.getElementById('themeSelect').value = saved;
+            applyTheme(saved);
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'auto') {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+            
+            const icon = document.getElementById('themeIcon');
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            CONFIG.theme = next;
+            document.getElementById('themeSelect').value = next;
+            
+            const icon = document.getElementById('themeIcon');
+            icon.className = next === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        // =================================================================
+        // WEBSOCKET CONNECTION
+        // =================================================================
+        function connectWebSocket() {
+            updateConnectionStatus('connecting');
+            
+            ws = new WebSocket(CONFIG.wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                updateConnectionStatus('connected');
+                reconnectAttempts = 0;
+                showToast('Conectado ao servidor', 'success');
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateConnectionStatus('disconnected');
+                scheduleReconnect();
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus('disconnected');
+            };
+        }
+
+        function scheduleReconnect() {
+            reconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+            console.log(`Reconnecting in ${delay}ms...`);
+            setTimeout(connectWebSocket, delay);
+        }
+
+        function updateConnectionStatus(status) {
+            const el = document.getElementById('connectionStatus');
+            const text = document.getElementById('connectionText');
+            
+            el.className = `connection-status ${status}`;
+            
+            switch(status) {
+                case 'connected':
+                    text.textContent = 'Conectado';
+                    break;
+                case 'disconnected':
+                    text.textContent = 'Desconectado';
+                    break;
+                case 'connecting':
+                    text.textContent = 'Conectando...';
+                    break;
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'connected':
+                    console.log('Client ID:', data.client_id);
+                    if (data.config) {
+                        applyServerConfig(data.config);
+                    }
+                    break;
+                    
+                case 'recent_events':
+                    events = data.events || [];
+                    renderEvents();
+                    break;
+                    
+                case 'event':
+                    handleNewEvent(data.event);
+                    break;
+                    
+                case 'status':
+                    if (data.snapshot) {
+                        snapshot = data.snapshot;
+                        updateDashboard();
+                    }
+                    break;
+                    
+                case 'notification':
+                    handleNotification(data);
+                    break;
+                    
+                case 'pong':
+                    // Keep-alive response
+                    break;
+            }
+        }
+
+        function handleNewEvent(event) {
+            events.unshift(event);
+            if (events.length > 100) events.pop();
+            
+            renderEvents();
+            
+            // Show notification for critical/error events
+            if (['critical', 'error'].includes(event.severity)) {
+                addNotification(event);
+                
+                if (CONFIG.browserNotifications) {
+                    showBrowserNotification(event);
+                }
+                
+                if (CONFIG.soundAlerts) {
+                    playAlertSound();
+                }
+            }
+            
+            // Update dashboard if relevant
+            if (['job_abend', 'job_completed', 'workstation_offline'].includes(event.event_type)) {
+                requestStatus();
+            }
+        }
+
+        function requestStatus() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'get_status' }));
+            }
+        }
+
+        // =================================================================
+        // DASHBOARD UPDATES
+        // =================================================================
+        function updateDashboard() {
+            if (!snapshot) return;
+            
+            const summary = snapshot.summary || {};
+            
+            document.getElementById('jobsRunning').textContent = summary.jobs_running || 0;
+            document.getElementById('jobsCompleted').textContent = summary.jobs_completed || 0;
+            document.getElementById('jobsFailed').textContent = summary.jobs_failed || 0;
+            document.getElementById('jobsPending').textContent = summary.jobs_pending || 0;
+            
+            const wsOnline = (snapshot.workstations || [])
+                .filter(ws => ws.status === 'LINKED').length;
+            const wsTotal = (snapshot.workstations || []).length;
+            document.getElementById('wsOnline').textContent = `${wsOnline}/${wsTotal}`;
+            
+            document.getElementById('lastUpdate').textContent = 
+                new Date(snapshot.timestamp).toLocaleTimeString('pt-BR');
+            document.getElementById('pollingInfo').innerHTML = 
+                `<i class="fas fa-clock"></i> Polling: ${CONFIG.pollingInterval}s`;
+            
+            renderWorkstations(snapshot.workstations || []);
+            renderCriticalJobs(snapshot.jobs || []);
+        }
+
+        function renderWorkstations(workstations) {
+            const grid = document.getElementById('workstationsGrid');
+            
+            if (workstations.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-server"></i>
+                        <p>Nenhuma workstation encontrada</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = workstations.map(ws => {
+                const statusClass = ws.status === 'LINKED' ? 'online' : 
+                                   ws.status === 'UNLINKED' ? 'unlinked' : 'offline';
+                const icon = ws.status === 'LINKED' ? 'fa-check-circle' :
+                            ws.status === 'UNLINKED' ? 'fa-exclamation-circle' : 'fa-times-circle';
+                
+                return `
+                    <div class="ws-card ${statusClass}">
+                        <div class="ws-status-icon">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div class="ws-name">${ws.name}</div>
+                        <div class="ws-details">
+                            ${ws.jobs_running || 0} jobs rodando
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderEvents() {
+            const list = document.getElementById('eventsList');
+            
+            if (events.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <p>Nenhum evento recente</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = events.slice(0, 50).map(event => {
+                const icon = getEventIcon(event.event_type);
+                const time = new Date(event.timestamp).toLocaleTimeString('pt-BR');
+                
+                return `
+                    <div class="event-item ${event.severity}">
+                        <div class="event-icon">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div class="event-content">
+                            <div class="event-message">${event.message}</div>
+                            <div class="event-meta">
+                                <span><i class="fas fa-tag"></i> ${event.source}</span>
+                                <span><i class="fas fa-clock"></i> ${time}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCriticalJobs(jobs) {
+            const tbody = document.getElementById('criticalJobsBody');
+            const criticalJobs = jobs.filter(j => j.status === 'ABEND');
+            
+            if (criticalJobs.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                            <i class="fas fa-check-circle"></i> Nenhum job em ABEND
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = criticalJobs.map(job => `
+                <tr>
+                    <td><strong>${job.job_name}</strong></td>
+                    <td><span class="status-badge error"><i class="fas fa-times"></i> ABEND</span></td>
+                    <td>${job.workstation}</td>
+                    <td>${job.error_message || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function getEventIcon(eventType) {
+            const icons = {
+                'job_started': 'fa-play',
+                'job_completed': 'fa-check',
+                'job_abend': 'fa-times',
+                'job_late': 'fa-clock',
+                'job_stuck': 'fa-hourglass-half',
+                'workstation_online': 'fa-server',
+                'workstation_offline': 'fa-server',
+                'workstation_linked': 'fa-link',
+                'workstation_unlinked': 'fa-unlink',
+                'system_healthy': 'fa-heart',
+                'system_degraded': 'fa-exclamation',
+                'system_critical': 'fa-skull',
+                'anomaly_detected': 'fa-search',
+                'pattern_detected': 'fa-brain'
+            };
+            return icons[eventType] || 'fa-info';
+        }
+
+        // =================================================================
+        // PATTERNS
+        // =================================================================
+        async function loadPatterns() {
+            try {
+                const response = await fetch(`${CONFIG.apiBase}/patterns`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderPatterns(data.patterns);
+                }
+            } catch (e) {
+                console.error('Error loading patterns:', e);
+            }
+        }
+
+        async function detectPatterns() {
+            try {
+                showToast('Detectando padrões...', 'info');
+                const response = await fetch(`${CONFIG.apiBase}/patterns/detect`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderPatterns(data.patterns);
+                    showToast(`${data.patterns_detected} padrões detectados`, 'success');
+                }
+            } catch (e) {
+                showToast('Erro ao detectar padrões', 'error');
+            }
+        }
+
+        function renderPatterns(patterns) {
+            const list = document.getElementById('patternsList');
+            
+            if (!patterns || patterns.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-lightbulb"></i>
+                        <p>Nenhum padrão detectado</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = patterns.map(p => `
+                <div class="pattern-item">
+                    <div class="pattern-header">
+                        <span class="pattern-type">${p.pattern_type}</span>
+                        <span class="pattern-confidence">${(p.confidence * 100).toFixed(0)}% confiança</span>
+                    </div>
+                    <div class="pattern-description">${p.description}</div>
+                    ${p.suggested_action ? `
+                        <div class="pattern-suggestion">
+                            <i class="fas fa-lightbulb"></i>
+                            ${p.suggested_action}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // =================================================================
+        // NOTIFICATIONS
+        // =================================================================
+        function addNotification(event) {
+            notifications.unshift({
+                id: Date.now(),
+                title: event.source,
+                message: event.message,
+                severity: event.severity,
+                timestamp: event.timestamp,
+                read: false
+            });
+            
+            updateNotificationBadge();
+            renderNotifications();
+        }
+
+        function updateNotificationBadge() {
+            const badge = document.getElementById('notificationBadge');
+            const unread = notifications.filter(n => !n.read).length;
+            
+            if (unread > 0) {
+                badge.style.display = 'flex';
+                badge.textContent = unread > 9 ? '9+' : unread;
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        function renderNotifications() {
+            const list = document.getElementById('notificationsList');
+            
+            if (notifications.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-bell-slash"></i>
+                        <p>Nenhuma notificação</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = notifications.map(n => {
+                const time = new Date(n.timestamp).toLocaleTimeString('pt-BR');
+                return `
+                    <div class="notification-item ${n.read ? '' : 'unread'}" onclick="markAsRead(${n.id})">
+                        <div class="event-message">${n.title}</div>
+                        <div class="pattern-description">${n.message}</div>
+                        <div class="event-meta">
+                            <span><i class="fas fa-clock"></i> ${time}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function markAsRead(id) {
+            const notif = notifications.find(n => n.id === id);
+            if (notif) notif.read = true;
+            updateNotificationBadge();
+            renderNotifications();
+        }
+
+        function clearNotifications() {
+            notifications = [];
+            updateNotificationBadge();
+            renderNotifications();
+        }
+
+        function showBrowserNotification(event) {
+            if (!('Notification' in window)) return;
+            
+            if (Notification.permission === 'granted') {
+                new Notification(`Resync: ${event.source}`, {
+                    body: event.message,
+                    icon: '/favicon.ico',
+                    tag: event.event_id
+                });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+        }
+
+        function playAlertSound() {
+            // Create a simple beep using Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            gainNode.gain.value = 0.3;
+            
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), 200);
+        }
+
+        // =================================================================
+        // SETTINGS
+        // =================================================================
+        function initSettings() {
+            const pollingSlider = document.getElementById('pollingSlider');
+            const refreshSlider = document.getElementById('refreshSlider');
+            
+            pollingSlider.addEventListener('input', (e) => {
+                document.getElementById('pollingValue').textContent = e.target.value;
+            });
+            
+            refreshSlider.addEventListener('input', (e) => {
+                document.getElementById('refreshValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('themeSelect').addEventListener('change', (e) => {
+                CONFIG.theme = e.target.value;
+                applyTheme(e.target.value);
+                localStorage.setItem('theme', e.target.value);
+            });
+            
+            // Toggle switches
+            document.querySelectorAll('.toggle-switch').forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    toggle.classList.toggle('active');
+                });
+            });
+            
+            // Save button
+            document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+        }
+
+        async function saveSettings() {
+            const newConfig = {
+                polling_interval_seconds: parseInt(document.getElementById('pollingSlider').value),
+                dashboard_refresh_seconds: parseInt(document.getElementById('refreshSlider').value),
+                browser_notifications_enabled: document.getElementById('browserNotifToggle').classList.contains('active'),
+                alerts_enabled: document.getElementById('alertsToggle').classList.contains('active'),
+                dashboard_theme: document.getElementById('themeSelect').value
+            };
+            
+            try {
+                const response = await fetch(`${CONFIG.apiBase}/config`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newConfig)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    CONFIG.pollingInterval = newConfig.polling_interval_seconds;
+                    CONFIG.dashboardRefresh = newConfig.dashboard_refresh_seconds;
+                    CONFIG.browserNotifications = newConfig.browser_notifications_enabled;
+                    CONFIG.alertsEnabled = newConfig.alerts_enabled;
+                    
+                    showToast('Configurações salvas!', 'success');
+                    closeSettings();
+                } else {
+                    showToast('Erro ao salvar configurações', 'error');
+                }
+            } catch (e) {
+                showToast('Erro ao salvar configurações', 'error');
+            }
+        }
+
+        function applyServerConfig(config) {
+            if (config.polling) {
+                CONFIG.pollingInterval = config.polling.interval;
+                document.getElementById('pollingSlider').value = config.polling.interval;
+                document.getElementById('pollingValue').textContent = config.polling.interval;
+            }
+            
+            if (config.dashboard) {
+                CONFIG.dashboardRefresh = config.dashboard.refreshSeconds;
+                document.getElementById('refreshSlider').value = config.dashboard.refreshSeconds;
+                document.getElementById('refreshValue').textContent = config.dashboard.refreshSeconds;
+                
+                if (config.dashboard.theme && config.dashboard.theme !== 'auto') {
+                    CONFIG.theme = config.dashboard.theme;
+                    applyTheme(config.dashboard.theme);
+                }
+            }
+            
+            if (config.notifications) {
+                CONFIG.browserNotifications = config.notifications.browser;
+                const toggle = document.getElementById('browserNotifToggle');
+                toggle.classList.toggle('active', config.notifications.browser);
+            }
+        }
+
+        // =================================================================
+        // UI INTERACTIONS
+        // =================================================================
+        function openSettings() {
+            document.getElementById('settingsPanel').classList.add('open');
+            document.getElementById('overlay').classList.add('visible');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsPanel').classList.remove('open');
+            document.getElementById('overlay').classList.remove('visible');
+        }
+
+        function toggleNotifications() {
+            const panel = document.getElementById('notificationsPanel');
+            panel.classList.toggle('open');
+            
+            if (panel.classList.contains('open')) {
+                // Mark all as read
+                notifications.forEach(n => n.read = true);
+                updateNotificationBadge();
+                renderNotifications();
+            }
+        }
+
+        function clearEvents() {
+            events = [];
+            renderEvents();
+        }
+
+        function refreshWorkstations() {
+            requestStatus();
+            showToast('Atualizando...', 'info');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : 'info'}"></i> ${message}`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // =================================================================
+        // INITIALIZATION
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            initSettings();
+            
+            // Event listeners
+            document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+            document.getElementById('settingsBtn').addEventListener('click', openSettings);
+            document.getElementById('settingsClose').addEventListener('click', closeSettings);
+            document.getElementById('overlay').addEventListener('click', closeSettings);
+            document.getElementById('notificationsBtn').addEventListener('click', toggleNotifications);
+            
+            // Request notification permission
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            
+            // Connect WebSocket
+            connectWebSocket();
+            
+            // Load initial data
+            loadPatterns();
+            
+            // Periodic refresh
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    requestStatus();
+                }
+            }, CONFIG.dashboardRefresh * 1000);
+            
+            // Keep-alive ping
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

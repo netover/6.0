@@ -1,0 +1,96 @@
+# AI Configuration
+# Controls specialist team, LLM models, and monitoring
+
+[specialists]
+enabled = true
+execution_mode = "coordinate"  # coordinate | parallel | sequential
+parallel_execution = true
+max_parallel_specialists = 4
+timeout_seconds = 45
+
+# ✅ NO MODEL HARDCODING!
+# All specialists use central LLM config from config/llm.toml
+# Model is set ONCE in llm.toml, used by ALL agents/specialists
+use_central_llm_config = true
+
+# Orchestrator/Synthesizer also use central model
+# No need to specify model here!
+orchestrator_use_central_model = true
+synthesizer_use_central_model = true
+
+fallback_to_general = true
+
+[specialists.job_analyst]
+enabled = true
+# ❌ REMOVED: model_name = "gpt-4o"  (was hardcoded!)
+# ✅ Uses: config/llm.toml → default_model
+temperature = 0.2  # Overrides llm.temperatures.analysis if set
+max_tokens = 2048
+timeout_seconds = 30
+retry_attempts = 3
+custom_instructions = ""
+
+[specialists.dependency_specialist]
+enabled = true
+# ❌ REMOVED: model_name = "gpt-4o"
+# ✅ Uses: config/llm.toml → default_model
+temperature = 0.1  # Overrides llm.temperatures.dependencies if set
+max_tokens = 2048
+timeout_seconds = 30
+retry_attempts = 3
+custom_instructions = ""
+
+[specialists.resource_specialist]
+enabled = true
+# ❌ REMOVED: model_name = "gpt-4o"
+# ✅ Uses: config/llm.toml → default_model
+temperature = 0.2
+max_tokens = 1536
+timeout_seconds = 25
+retry_attempts = 3
+custom_instructions = ""
+
+[specialists.knowledge_specialist]
+enabled = true
+# ❌ REMOVED: model_name = "gpt-4o"
+# ✅ Uses: config/llm.toml → default_model
+temperature = 0.4
+max_tokens = 3072
+timeout_seconds = 35
+retry_attempts = 3
+custom_instructions = ""
+
+# Note: To change LLM model for ALL specialists:
+# Edit config/llm.toml → default_model = "ollama/your-model"
+# Hot reload applies to all specialists instantly!
+
+[monitoring]
+enabled = true
+
+[monitoring.schedule]
+type = "daily"  # daily | weekly | hourly
+time = "03:00"  # HH:MM format
+day_of_week = ""  # monday, tuesday, etc (for weekly)
+
+[monitoring.drift_detection]
+data_drift_enabled = true
+prediction_drift_enabled = true
+target_drift_enabled = true
+drift_threshold = 0.15
+alert_threshold = 0.25
+reference_window_days = 7
+current_window_hours = 24
+
+[monitoring.resource_limits]
+max_cpu_percent = 25.0
+max_memory_mb = 512
+max_execution_time_seconds = 300
+nice_level = 10
+
+[monitoring.reports]
+path = "data/evidently_reports"
+max_stored = 30
+
+[metadata]
+last_updated = ""
+updated_by = ""

@@ -1,0 +1,201 @@
+# =============================================================================
+# Redis FAIL-FAST Strategy Configuration
+# Resync v5.4.2 - Production Ready
+# =============================================================================
+# 
+# Este arquivo define a estratégia de dependência Redis por endpoint.
+#
+# TIERS:
+# - READ_ONLY: Nunca precisa Redis (ex: /health)
+# - BEST_EFFORT: Cache opcional, degrada se Redis down (ex: GET /tws/status)
+# - CRITICAL: Redis obrigatório, retorna 503 se down (ex: POST /tws/execute)
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# STARTUP CONFIGURATION
+# -----------------------------------------------------------------------------
+startup:
+  # FAIL-FAST: App não sobe se Redis estiver down
+  # PRODUÇÃO: true (garante consistência)
+  # DESENVOLVIMENTO: false (permite trabalhar offline)
+  fail_fast: true
+  
+  # Retry configuration
+  max_retries: 3
+  backoff_seconds: 0.5
+
+# -----------------------------------------------------------------------------
+# RUNTIME CONFIGURATION
+# -----------------------------------------------------------------------------
+runtime:
+  # Default policy para endpoints não especificados
+  # Opções: "fail_fast" (CRITICAL) ou "best_effort"
+  default_policy: fail_fast
+  
+  # -----------------------------------------------------------------------------
+  # TIER 1: READ_ONLY (Nunca precisa Redis)
+  # -----------------------------------------------------------------------------
+  exceptions:
+    read_only:
+      # Health checks (Kubernetes probes)
+      - pattern: "GET /health"
+      - pattern: "GET /health/liveness"
+      - pattern: "GET /health/readiness"
+      - pattern: "GET /health/summary"
+      - pattern: "GET /health/core"
+      
+      # Observability
+      - pattern: "GET /metrics"
+      
+      # Documentation
+      - pattern: "GET /docs"
+      - pattern: "GET /redoc"
+      - pattern: "GET /openapi.json"
+      
+      # Static files
+      - pattern: "/static/*"
+    
+    # ---------------------------------------------------------------------------
+    # TIER 2: BEST_EFFORT (Cache opcional, pode degradar)
+    # ---------------------------------------------------------------------------
+    best_effort:
+      # TWS Status Queries (Cache for performance)
+      - pattern: "GET /tws/job-status/*"
+        degraded_behavior: query_tws_direct
+        warning_message: "Cache unavailable - querying TWS directly (higher latency)"
+        cost_impact: null
+      
+      - pattern: "GET /tws/job-log/*"
+        degraded_behavior: query_tws_direct
+        warning_message: "Cache unavailable - fetching logs directly from TWS"
+      
+      - pattern: "GET /tws/workstation-status"
+        degraded_behavior: query_tws_direct
+        warning_message: "Real-time data from TWS (cache unavailable)"
+      
+      - pattern: "GET /tws/calendar"
+        degraded_behavior: query_tws_direct
+      
+      - pattern: "GET /api/v1/status/jobs"
+        degraded_behavior: query_tws_direct
+      
+      - pattern: "GET /api/v1/status/workstations"
+        degraded_behavior: query_tws_direct
+      
+      # RAG Queries (Semantic cache for cost reduction)
+      - pattern: "POST /api/v1/rag/query"
+        degraded_behavior: call_llm_direct
+        warning_message: "Semantic cache unavailable - calling LLM directly (higher cost)"
+        cost_impact: "3x"
+      
+      - pattern: "GET /api/v1/rag/similar"
+        degraded_behavior: call_llm_direct
+        cost_impact: "3x"
+      
+      # Dashboards (Real-time updates disabled)
+      - pattern: "GET /monitoring/dashboard"
+        degraded_behavior: disable_realtime_updates
+        warning_message: "Real-time updates disabled - showing cached data"
+        refresh_interval_seconds: 30
+      
+      - pattern: "GET /admin/metrics-dashboard"
+        degraded_behavior: disable_realtime_updates
+      
+      # Chat read-only mode
+      - pattern: "POST /api/v1/chat"
+        degraded_behavior: readonly_mode
+        warning_message: "TWS operations disabled - read-only mode"
+  
+  # -----------------------------------------------------------------------------
+  # TIER 3: CRITICAL (Redis OBRIGATÓRIO - retorna 503 se down)
+  # -----------------------------------------------------------------------------
+  critical:
+    # -----------------
+    # Idempotency Required (Operações TWS)
+    # -----------------
+    - pattern: "POST /tws/execute/*"
+      reason: "Idempotency required - prevents duplicate job executions"
+      http_status: 503
+      retry_after: 60
+    
+    - pattern: "POST /tws/schedule"
+      reason: "Idempotency required for job scheduling"
+    
+    - pattern: "PUT /tws/reschedule/*"
+      reason: "Idempotency required to prevent duplicate reschedules"
+    
+    - pattern: "DELETE /tws/job/*"
+      reason: "Idempotency required for safe job deletion"
+    
+    - pattern: "POST /tws/command"
+      reason: "Idempotency required for TWS commands"
+    
+    # -----------------
+    # Agent Operations (State management required)
+    # -----------------
+    - pattern: "POST /api/v1/agents/tools/execute"
+      reason: "State management and idempotency required"
+    
+    - pattern: "POST /api/v1/agents/tools/execute-parallel"
+      reason: "Coordination state required for parallel execution"
+    
+    - pattern: "POST /api/v1/agents/sub-agents/dispatch"
+      reason: "Sub-agent state tracking required"
+    
+    - pattern: "POST /api/v1/agents/sub-agents/dispatch-parallel"
+      reason: "Parallel sub-agent coordination required"
+    
+    # -----------------
+    # Undo/Rollback Operations (State persistence required)
+    # -----------------
+    - pattern: "POST /api/v1/agents/undo/*"
+      reason: "Operation state must be persisted for rollback"
+    
+    - pattern: "GET /api/v1/agents/undo/available"
+      reason: "Undo history requires Redis persistence"
+    
+    # -----------------
+    # Active Runs Tracking
+    # -----------------
+    - pattern: "GET /api/v1/agents/runs/active"
+      reason: "Real-time run tracking requires Redis"
+    
+    - pattern: "POST /api/v1/agents/runs/*/cancel"
+      reason: "Run cancellation state requires Redis"
+    
+    # -----------------
+    # Rate Limiting Critical
+    # -----------------
+    - pattern: "POST /llm/*"
+      reason: "Rate limiting required to control LLM costs"
+    
+    # -----------------
+    # Authentication & Sessions
+    # -----------------
+    - pattern: "POST /auth/login"
+      reason: "Session management requires Redis"
+    
+    - pattern: "POST /auth/refresh"
+      reason: "Token refresh requires session state"
+    
+    - pattern: "POST /auth/logout"
+      reason: "Session invalidation requires Redis"
+
+# -----------------------------------------------------------------------------
+# MONITORING CONFIGURATION
+# -----------------------------------------------------------------------------
+monitoring:
+  # Alert if degraded mode is active
+  alert_on_degraded: true
+  
+  # Alert if >5% of requests are degraded
+  alert_threshold_percent: 5
+  
+  # Metrics to track
+  metrics:
+    - redis_unavailable_duration_seconds
+    - requests_degraded_total
+    - requests_503_total
+    - cache_miss_rate_during_degradation
+    - llm_cost_increase_during_degradation

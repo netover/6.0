@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revisão de Memórias | Resync v5.3</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style-neumorphic.css">
+    <style>
+        .review-item {
+            background: var(--neuro-bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-md);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-normal);
+        }
+        .review-item:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        .review-item pre {
+            background: var(--neuro-bg-primary);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-shadow: var(--shadow-inset-sm);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .review-item .label {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+        }
+        .review-item .actions {
+            margin-top: var(--space-lg);
+            display: flex;
+            gap: var(--space-sm);
+        }
+        #status-message {
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            margin-top: var(--space-md);
+            text-align: center;
+        }
+        #status-message.success {
+            background: var(--status-success-light);
+            color: var(--status-success);
+        }
+        #status-message.error {
+            background: var(--status-error-light);
+            color: var(--status-error);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER COM NAVEGAÇÃO HORIZONTAL -->
+        <header class="header-card">
+            <div class="brand-section">
+                <div class="brand-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="brand-text">Resync</div>
+                <div class="version-badge">v5.3.0</div>
+            </div>
+            <nav class="nav-buttons">
+                <a href="/" class="nav-button">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/tws-monitor" class="nav-button">
+                    <i class="fas fa-chart-line"></i> TWS Monitor
+                </a>
+                <a href="/admin" class="nav-button">
+                    <i class="fas fa-cog"></i> Admin
+                </a>
+                <a href="/monitoring" class="nav-button">
+                    <i class="fas fa-heartbeat"></i> Health
+                </a>
+            </nav>
+        </header>
+
+        <!-- TOOLBAR -->
+        <div class="toolbar-card">
+            <nav class="breadcrumb">
+                <div class="breadcrumb-item">
+                    <a href="/"><i class="fas fa-home"></i></a>
+                </div>
+                <div class="breadcrumb-separator">/</div>
+                <div class="breadcrumb-item active">
+                    <span>Revisão de Memórias</span>
+                </div>
+            </nav>
+            <div class="toolbar-actions">
+                <button class="toolbar-btn" id="refreshPage" title="Atualizar">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="toolbar-btn" id="toggleTheme" title="Modo Escuro">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+
+        <main>
+            <!-- DESCRIÇÃO -->
+            <section class="card">
+                <h2><i class="fas fa-clipboard-check" style="color: var(--brand-primary);"></i> Revisão de Memórias Sinalizadas</h2>
+                <p style="color: var(--text-muted);">Revise as memórias que a IA marcou como potencialmente incorretas para aprovação ou rejeição.</p>
+            </section>
+
+            <!-- MÉTRICAS -->
+            <section class="card">
+                <h2><i class="fas fa-chart-pie" style="color: var(--brand-primary);"></i> Métricas de Auditoria</h2>
+                <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <div class="status-card">
+                        <div class="status-icon warning">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="status-value" id="metric-pending">0</div>
+                        <div class="status-label">Pendentes</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-icon success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="status-value" id="metric-approved">0</div>
+                        <div class="status-label">Aprovados</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-icon error">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="status-value" id="metric-rejected">0</div>
+                        <div class="status-label">Rejeitados</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CONTROLES DE FILTRO -->
+            <section class="card">
+                <h2><i class="fas fa-filter" style="color: var(--brand-primary);"></i> Filtros</h2>
+                <div style="display: flex; gap: var(--space-md); flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 150px;">
+                        <label class="form-label"><i class="fas fa-tasks"></i> Status:</label>
+                        <select id="filter-status" class="form-select">
+                            <option value="pending">Pendentes</option>
+                            <option value="approved">Aprovados</option>
+                            <option value="rejected">Rejeitados</option>
+                            <option value="all">Todos</option>
+                        </select>
+                    </div>
+                    <div style="flex: 2; min-width: 200px;">
+                        <label class="form-label"><i class="fas fa-search"></i> Buscar:</label>
+                        <input type="text" id="search-query" class="neuro-input" placeholder="Buscar por query ou resposta">
+                    </div>
+                    <button id="apply-filters" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> Aplicar Filtros
+                    </button>
+                </div>
+            </section>
+
+            <!-- LISTA DE REVISÕES -->
+            <section class="card">
+                <h2><i class="fas fa-list" style="color: var(--brand-primary);"></i> Itens para Revisão</h2>
+                <div id="review-list">
+                    <!-- Itens de revisão serão inseridos aqui pelo JavaScript -->
+                    <div class="review-item" style="text-align: center; color: var(--text-muted);">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: var(--space-sm);"></i>
+                        <p>Carregando itens de revisão...</p>
+                    </div>
+                </div>
+                <div id="status-message"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p><i class="fas fa-robot"></i> Resync v5.3.0 &copy; 2025 - Monitoramento Inteligente para HCL Workload Automation</p>
+        </footer>
+    </div>
+
+    <script>
+        // Theme Toggle
+        document.getElementById('toggleTheme')?.addEventListener('click', function() {
+            const body = document.body;
+            const icon = this.querySelector('i');
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                icon.className = 'fas fa-moon';
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+            }
+        });
+
+        // Refresh button
+        document.getElementById('refreshPage')?.addEventListener('click', function() {
+            this.querySelector('i').classList.add('fa-spin');
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        });
+    </script>
+    <script src="/static/js/revisao.js" nonce="{{ request.state.csp_nonce if request and request.state.csp_nonce else '' }}"></script>
+</body>
+</html>

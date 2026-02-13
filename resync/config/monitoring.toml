@@ -1,0 +1,83 @@
+# Monitoring Configuration
+# Controls monitoring, alerting, and performance tracking
+
+[monitoring]
+enabled = true
+interval_seconds = 60
+retention_days = 30
+
+[monitoring.metrics]
+collect_system = true
+collect_application = true
+collect_business = true
+
+[monitoring.performance]
+slow_query_threshold_ms = 1000
+slow_llm_threshold_ms = 5000
+api_timeout_seconds = 30
+
+[monitoring.health_checks]
+enabled = true
+interval_seconds = 30
+endpoints = [
+    "/health",
+    "/api/health",
+]
+
+[alerting]
+enabled = true
+channels = ["email", "slack"]
+
+[alerting.thresholds]
+cpu_percent = 80.0
+memory_percent = 85.0
+disk_percent = 90.0
+error_rate_percent = 5.0
+response_time_ms = 3000
+
+[alerting.email]
+enabled = false
+smtp_host = ""
+smtp_port = 587
+from_address = ""
+to_addresses = []
+
+[alerting.slack]
+enabled = false
+webhook_url = ""
+channel = "#alerts"
+
+[logging]
+level = "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+format = "json"  # json | text
+rotation_mb = 100
+backup_count = 10
+
+[logging.destinations]
+console = true
+file = true
+syslog = false
+
+[logging.file]
+path = "logs/resync.log"
+max_bytes = 104857600  # 100MB
+backup_count = 10
+
+[tracing]
+enabled = true
+sample_rate = 0.1  # 10% of requests
+export_interval_seconds = 30
+
+[tracing.jaeger]
+enabled = false
+agent_host = "localhost"
+agent_port = 6831
+
+[metrics]
+enabled = true
+port = 9090
+path = "/metrics"
+
+[metadata]
+last_updated = ""
+updated_by = ""

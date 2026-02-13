@@ -1,0 +1,29 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "TID"]
+ignore = ["ANN101", "ANN102", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"resync/**" = ["ANN401"]
+"resync/core/wiring.py" = []
+"resync/core/fastapi_di.py" = []
+"resync/api/dependencies.py" = []
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"resync.core.di_container".msg = "Não importe di_container no caminho HTTP. Use FastAPI Depends/yield e providers em resync.core.wiring."
+"resync.core.di_container.DIContainer".msg = "DIContainer está em quarentena para não-HTTP. Para HTTP, use Depends/yield."
+
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-m \"not integration\""
+testpaths = ["resync/tests"]
+asyncio_mode = "auto"

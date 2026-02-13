@@ -1,0 +1,40 @@
+[Unit]
+Description=Resync Self-Healing System
+Documentation=https://docs.resync.dev/automation
+After=network.target resync-api.service
+
+[Service]
+Type=simple
+User=resync
+Group=resync
+WorkingDirectory=/opt/resync
+
+# Environment
+Environment="API_URL=http://localhost:8000/health"
+Environment="CHECK_INTERVAL=30"
+Environment="ALERT_EMAIL=ops@company.com"
+
+# Command
+ExecStart=/usr/bin/uv run python -m resync.tools.self_healing
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/resync/self-healing.log
+StandardError=append:/var/log/resync/self-healing-error.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+
+# Installation:
+# 1. Copy to /etc/systemd/system/resync-self-healing.service
+# 2. sudo systemctl daemon-reload
+# 3. sudo systemctl enable resync-self-healing
+# 4. sudo systemctl start resync-self-healing
+# 5. sudo systemctl status resync-self-healing
