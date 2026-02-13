@@ -1,0 +1,6 @@
+{
+  "collection": "RAG_BASE",
+  "chunk_size": 1000,
+  "chunk_overlap": 150,
+  "priority": 100
+}
