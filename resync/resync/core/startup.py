@@ -577,10 +577,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             # 3. Optional services (failures are non-fatal, except programming errors)
             results = await asyncio.gather(
                 _init_proactive_monitoring(app),
-                _init_metrics_collector(),
-                _init_cache_warmup(),
-                _init_graphrag(),
-                _init_config_system(),
+                _init_metrics_collector(app),
+                _init_cache_warmup(app),
+                _init_graphrag(app),
+                _init_config_system(app),
                 return_exceptions=True
             )
 
@@ -701,6 +701,14 @@ async def _init_config_system(app: FastAPI) -> None:
         get_logger("resync.startup").warning("unified_config_initialization_failed", error=str(exc))
 
 async def _shutdown_services(app: FastAPI) -> None:
+    """Shutdown services in correct order with individual timeouts.
+    
+    Order:
+    1. Cancel background tasks first (prevents tasks from using closing resources)
+    2. Shutdown domain singletons and TWS monitor in parallel (independent)
+    
+    Each step has individual timeout to prevent hanging.
+    """
     logger = get_logger("resync.lifespan")
     logger.info("application_shutdown_initiated")
     
@@ -709,19 +717,38 @@ async def _shutdown_services(app: FastAPI) -> None:
     from resync.core.wiring import shutdown_domain_singletons
     from resync.core.tws_monitor import shutdown_tws_monitor
     
-    # 1. Background tasks
-    try:
-        await cancel_all_tasks(timeout=5.0)
-    except Exception as e: logger.warning("task_cancel_error", error=str(e))
+    # 1. Cancel background tasks FIRST (priority: stop active work)
+    async def _cancel_tasks():
+        try:
+            await asyncio.wait_for(cancel_all_tasks(timeout=5.0), timeout=7.0)
+            logger.info("background_tasks_cancelled")
+        except asyncio.TimeoutError:
+            logger.warning("task_cancel_timeout", hint="Some tasks did not cancel within 7s")
+        except Exception as e:
+            logger.warning("task_cancel_error", error=str(e))
     
-    # 2. Domain singletons
-    try:
-        await shutdown_domain_singletons(app)
-    except Exception as e: logger.error("domain_shutdown_error", error=str(e))
+    # 2. Shutdown domain singletons (connections, clients)
+    async def _shutdown_singletons():
+        try:
+            await asyncio.wait_for(shutdown_domain_singletons(app), timeout=10.0)
+            logger.info("domain_singletons_shutdown")
+        except asyncio.TimeoutError:
+            logger.error("singleton_shutdown_timeout", hint="Singleton shutdown exceeded 10s")
+        except Exception as e:
+            logger.error("domain_shutdown_error", error=str(e))
     
-    # 3. TWS monitor
-    try:
-        await shutdown_tws_monitor()
-    except Exception as e: logger.warning("tws_monitor_shutdown_error", error=str(e))
+    # 3. Shutdown TWS monitor
+    async def _shutdown_tws():
+        try:
+            await asyncio.wait_for(shutdown_tws_monitor(), timeout=5.0)
+            logger.info("tws_monitor_shutdown")
+        except asyncio.TimeoutError:
+            logger.warning("tws_monitor_shutdown_timeout")
+        except Exception as e:
+            logger.warning("tws_monitor_shutdown_error", error=str(e))
+    
+    # Execute: tasks first, then resources in parallel
+    await _cancel_tasks()
+    await asyncio.gather(_shutdown_singletons(), _shutdown_tws(), return_exceptions=True)
     
     logger.info("application_shutdown_completed")

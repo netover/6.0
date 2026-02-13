@@ -562,6 +562,6 @@ class _LazyTWSMonitorInterface:
 tws_monitor = _LazyTWSMonitorInterface()
 
 
-def get_tws_monitor() -> TWSMonitorInterface:
+def get_tws_monitor_sync() -> TWSMonitorInterface:
     """Return the singleton instance (preferred over using the proxy directly)."""
     return tws_monitor.get_instance()

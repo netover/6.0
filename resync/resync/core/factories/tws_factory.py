@@ -47,7 +47,7 @@ def _get_settings() -> "AppSettings":
         AppSettings: Application settings singleton
     """
     from resync.settings import settings
-    return settings
+    return settings  # type: ignore[return-value]
 
 
 def _create_tws_client(settings: "AppSettings") -> Any:

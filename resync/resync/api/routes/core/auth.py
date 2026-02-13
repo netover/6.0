@@ -107,8 +107,9 @@ class SecureAuthenticator:
         - Account lockout
         - Audit logging
         """
-        # Check if IP is locked out
-        is_locked, remaining = await self._check_lockout_state(request_ip)
+        # Atomically check lockout and prepare to record attempt
+        # Note: We check first with success=True to see if locked, then record actual result
+        is_locked, remaining, _ = await self._check_and_record_attempt(request_ip, success=True)
         if is_locked:
             logger.warning(
                 "Authentication attempt from locked out IP",
@@ -140,7 +141,8 @@ class SecureAuthenticator:
         await asyncio.sleep(secrets.randbelow(100) / 1000)  # 0-100ms random delay
 
         if not credentials_valid:
-            await self._record_failed_attempt(request_ip)
+            # Record failed attempt atomically (already checked lockout above)
+            await self._check_and_record_attempt(request_ip, success=False)
 
             logger.warning(
                 "Failed authentication attempt",
@@ -203,26 +205,95 @@ class SecureAuthenticator:
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0
 
-    async def _record_failed_attempt(self, ip: str) -> None:
-        """Record failed authentication attempt in Redis."""
+
+    # Removed: _record_failed_attempt is now part of _check_and_record_attempt
+    # to prevent TOCTOU race conditions
+
+    async def _check_and_record_attempt(self, ip: str, success: bool) -> tuple[bool, int, int]:
+        """Atomically check lockout state and record attempt.
+        
+        This prevents TOCTOU race conditions by combining check + record in a single
+        Redis Lua script that executes atomically.
+        
+        Args:
+            ip: Client IP address
+            success: Whether the authentication succeeded
+            
+        Returns:
+            (is_locked, remaining_minutes, attempt_count)
+        """
         try:
             redis = get_redis_client()
             key = f"{self._redis_prefix}:{ip}"
             now = time.time()
+            cutoff = now - self._lockout_window_seconds
             
-            # Add current attempt with TTL
-            await redis.zadd(key, {str(now): now})
-            await redis.expire(key, self._lockout_duration_seconds * 2)
+            # Lua script for atomic check + record
+            # Returns: [is_locked, remaining_seconds, attempt_count]
+            lua_script = """
+            local key = KEYS[1]
+            local now = tonumber(ARGV[1])
+            local cutoff = tonumber(ARGV[2])
+            local max_attempts = tonumber(ARGV[3])
+            local lockout_duration = tonumber(ARGV[4])
+            local success = ARGV[5] == 'true'
             
-            # Count recent attempts for warning
-            count = await redis.zcard(key)
-            if count >= self._max_attempts - 1:
+            -- Remove old attempts
+            redis.call('ZREMRANGEBYSCORE', key, 0, cutoff)
+            
+            -- Count recent attempts
+            local count = redis.call('ZCARD', key)
+            
+            -- Check if locked
+            local is_locked = 0
+            local remaining = 0
+            if count >= max_attempts then
+                local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+                if #oldest > 0 then
+                    local oldest_time = tonumber(oldest[2])
+                    local unlock_time = oldest_time + lockout_duration
+                    remaining = math.max(0, unlock_time - now)
+                    is_locked = 1
+                end
+            end
+            
+            -- Record failed attempt (only if not success)
+            if not success and is_locked == 0 then
+                redis.call('ZADD', key, now, tostring(now))
+                redis.call('EXPIRE', key, lockout_duration * 2)
+                count = count + 1
+            end
+            
+            return {is_locked, remaining, count}
+            """
+            
+            result = await redis.eval(
+                lua_script,
+                1,  # number of keys
+                key,
+                str(now),
+                str(cutoff),
+                str(self._max_attempts),
+                str(self._lockout_duration_seconds),
+                str(success)
+            )
+            
+            is_locked = bool(result[0])
+            remaining_minutes = int(result[1] / 60) + 1 if result[1] > 0 else 0
+            attempt_count = int(result[2])
+            
+            # Log warning if approaching lockout
+            if not success and attempt_count >= self._max_attempts - 1:
                 logger.warning(
                     "ip_approaching_lockout",
-                    extra={"ip": ip, "count": count, "max": self._max_attempts}
+                    extra={"ip": ip, "count": attempt_count, "max": self._max_attempts}
                 )
+            
+            return is_locked, remaining_minutes, attempt_count
+            
         except Exception as e:
-            logger.error("redis_record_fail_failed", error=str(e))
+            logger.error("redis_lockout_check_failed", error=str(e))
+            return False, 0, 0
 
 
 # Global authenticator singleton (lazy init; avoids import-time asyncio.Lock binding)

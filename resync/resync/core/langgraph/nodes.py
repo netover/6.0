@@ -92,7 +92,7 @@ class RouterConfig:
                 "query": ["como", "o que", "qual", "porque", "documentação"],
             }
         
-        # [FIX] Resolve model dynamically via LLMConfig if not provided
+        # [FIX] v5.9.9: Resolve model dynamically via LLMConfig. NEVER use hardcoded strings.
         if self.model is None:
             self.model = get_llm_config().get_model(task_type="classification")
 
@@ -241,8 +241,8 @@ class LLMNode(BaseNode):
         prompt_manager = get_prompt_manager()
         prompt = await prompt_manager.get_prompt(self.config.prompt_id)
 
-        # [FIX] Prioritize: Config Model > Prompt Hint > Central Config (Default)
-        # Removed "gpt-4o" fallback and resync.settings dependency to comply with v5.9.9
+        # [FIX] Resolution Hierarchy: Config Override > Prompt Hint > Central Config Default
+        # Decoupled from resync.settings to ensure core logic remains provider-agnostic.
         model = (
             self.config.model
             or (prompt.model_hint if prompt else None)

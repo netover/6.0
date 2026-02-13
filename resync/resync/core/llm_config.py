@@ -47,20 +47,21 @@ class LLMConfig:
         self._load_config()
 
     def _load_config(self):
-        """Load LLM configuration from TOML file."""
+        """Load LLM configuration from TOML file using standard tomllib."""
         try:
-            config_file = Path(__file__).parent.parent.parent / "config" / "llm.toml"
+            # Resolved dynamically relative to the project structure
+            config_file = Path(__file__).resolve().parent.parent.parent / "config" / "llm.toml"
 
             if not config_file.exists():
                 logger.warning(
                     "llm_config_not_found",
                     path=str(config_file),
-                    fallback="Using defaults"
+                    fallback="using_defaults"
                 )
                 self._config = self._get_defaults()
                 return
 
-            # [FIX] tomllib.load requires binary mode 'rb'
+            # [FIX] tomllib (available in 3.11+) requires binary mode ('rb')
             with open(config_file, "rb") as f:
                 self._config = tomllib.load(f)
 
@@ -71,10 +72,10 @@ class LLMConfig:
             )
 
         except Exception as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
+            # Re-raise programming errors (bugs) vs runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("Failed to load LLM config: %s", str(e), exc_info=True)
+            logger.error("llm_config_load_failed", error=str(e), exc_info=True)
             self._config = self._get_defaults()
 
     def _get_defaults(self) -> dict[str, Any]:

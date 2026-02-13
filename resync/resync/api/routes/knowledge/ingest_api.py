@@ -136,10 +136,23 @@ async def ingest_document(
     tmp_path = Path(tmp_dir) / file.filename
 
     try:
-        # Stream upload to disk (handles large files)
-        with open(tmp_path, "wb") as f:
+        # Stream upload to disk (handles large files) - using thread pool to avoid blocking
+        import anyio
+        
+        async def write_chunks():
+            """Write file chunks in thread pool to avoid blocking event loop."""
+            def _write_chunk(path, chunk_data):
+                with open(path, "ab") as f:
+                    f.write(chunk_data)
+            
+            # Create empty file first
+            await anyio.to_thread.run_sync(lambda: open(tmp_path, "wb").close())
+            
+            # Stream chunks
             while chunk := await file.read(8192):
-                f.write(chunk)
+                await anyio.to_thread.run_sync(_write_chunk, tmp_path, chunk)
+        
+        await write_chunks()
 
         file_size = tmp_path.stat().st_size
         if file_size > MAX_FILE_SIZE:

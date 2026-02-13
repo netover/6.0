@@ -180,24 +180,26 @@ def init_domain_singletons(app: FastAPI) -> None:
 
     # Idempotency manager depends on Redis client.
     # If Redis failed during startup checks but strict=False (degraded mode),
-    # we must still create the enterprise state with a None-safe manager.
+    # we use a degraded manager that fails fast with HTTP 503.
+    redis_available = False
     try:
         idempotency_manager = IdempotencyManager(get_redis_client())
+        redis_available = True
     except RuntimeError:
-        # Redis not available — create manager with None client.
-        # It will raise on actual idempotency operations, which is correct
-        # for degraded mode (endpoints requiring Redis should return 503).
+        # Redis not available — use degraded manager that fails fast.
+        # Endpoints requiring idempotency will return HTTP 503 (correct for degraded mode).
         logger.warning(
-            "idempotency_manager_no_redis",
-            hint="IdempotencyManager created without Redis. "
-                 "Idempotent endpoints will fail until Redis is available.",
+            "idempotency_manager_degraded_mode",
+            hint="Redis unavailable. Idempotent endpoints will return 503.",
         )
-        idempotency_manager = IdempotencyManager(None)  # type: ignore[arg-type]
+        from resync.core.idempotency.degraded import DegradedIdempotencyManager
+        idempotency_manager = DegradedIdempotencyManager()  # type: ignore[assignment]
 
     # LLM service with automatic fallback and circuit breakers
     llm_service = get_llm_service()
 
-    # Flags initialised to safe defaults; lifespan will flip them.
+    # Flags initialised to safe defaults; lifespan will flip startup_complete.
+    # redis_available is set based on IdempotencyManager initialization above.
     enterprise_state = EnterpriseState(
         connection_manager=connection_manager,
         knowledge_graph=knowledge_graph,
@@ -207,7 +209,7 @@ def init_domain_singletons(app: FastAPI) -> None:
         idempotency_manager=idempotency_manager,
         llm_service=llm_service,
         startup_complete=False,
-        redis_available=False,
+        redis_available=redis_available,  # ✅ Now accurate based on actual Redis status
         domain_shutdown_complete=False,
     )
     app.state.enterprise_state = enterprise_state
