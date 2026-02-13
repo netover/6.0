@@ -1,3 +1,0 @@
-"""
-tools - Document processing utilities
-"""
