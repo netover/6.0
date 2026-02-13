@@ -29,6 +29,11 @@ def get_all_routers() -> list[tuple["APIRouter", str, list[str]]]:
     from .agents.agents import router as agents_router
     from .audit import router as audit_router
     from .cache import cache_router
+    from .core.auth import router as auth_router
+    from .core.chat import router as chat_router
+    from .core.health import router as health_router
+    from .core.status import router as status_router
+    from .cors_monitoring import router as cors_monitor_router
     from .monitoring.dashboard import router as monitoring_dashboard_router
     from .performance import performance_router
 

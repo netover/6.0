@@ -35,6 +35,7 @@ Author: Resync Team
 Version: 5.2.3.26
 """
 
+import asyncio
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone

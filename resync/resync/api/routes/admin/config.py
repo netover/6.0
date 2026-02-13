@@ -85,7 +85,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
 # the primary database, cache and external integrations.  For demonstration
 # purposes we avoid deep dependency checks and instead return simple boolean
 # flags.  Integrators can replace these stubs with real connectivity tests.
-def _get_health_report() -> dict[str, Any]:
+async def _get_health_report() -> dict[str, Any]:
     """Assemble a basic health report.
 
     Returns
@@ -101,13 +101,13 @@ def _get_health_report() -> dict[str, Any]:
         "timestamp": datetime.datetime.now(timezone.utc).isoformat() + "Z",
     }
     # If Teams integration is enabled in config, mark as active
-    cfg = _load_config()
+    cfg = await _load_config()
     teams_cfg = cfg.get("teams_config", DEFAULT_CONFIG["teams_config"])
     report["teams"] = bool(teams_cfg.get("enabled"))
     return report
 
 
-def _load_config() -> dict[str, Any]:
+async def _load_config() -> dict[str, Any]:
     """Read configuration from disk or return defaults.
 
     Returns
@@ -115,25 +115,32 @@ def _load_config() -> dict[str, Any]:
     dict
         The configuration dictionary containing all configurable sections.
     """
-    if CONFIG_PATH.exists():
-        try:
+    import asyncio
+    
+    if not CONFIG_PATH.exists():
+        return DEFAULT_CONFIG.copy()
+        
+    try:
+        # Use asyncio.to_thread for blocking file read
+        def _read():
             with CONFIG_PATH.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Merge missing top-level keys from defaults without
-                # overriding existing values.
-                merged = DEFAULT_CONFIG.copy()
-                merged.update(data)
-                return merged
-        except Exception as e:
-            logger.error("exception_caught", error=str(e), exc_info=True)
-            # If the file is corrupted, fall back to defaults but do not
-            # overwrite the file immediately.  The next save will update it.
-            return DEFAULT_CONFIG.copy()
-    else:
+                return json.load(f)
+        
+        data = await asyncio.to_thread(_read)
+        
+        # Merge missing top-level keys from defaults without
+        # overriding existing values.
+        merged = DEFAULT_CONFIG.copy()
+        merged.update(data)
+        return merged
+    except Exception as e:
+        logger.error("config_load_failed", error=str(e), exc_info=True)
+        # If the file is corrupted, fall back to defaults but do not
+        # overwrite the file immediately.  The next save will update it.
         return DEFAULT_CONFIG.copy()
 
 
-def _save_config(config: dict[str, Any]) -> None:
+async def _save_config(config: dict[str, Any]) -> None:
     """Persist the entire configuration to disk as JSON.
 
     Parameters
@@ -141,10 +148,15 @@ def _save_config(config: dict[str, Any]) -> None:
     config : dict
         The configuration to persist.
     """
+    import asyncio
+    
     try:
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with CONFIG_PATH.open("w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+        def _write():
+            CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with CONFIG_PATH.open("w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        
+        await asyncio.to_thread(_write)
     except Exception as exc:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -166,7 +178,7 @@ async def get_teams_config() -> dict[str, Any]:
         ``enabled``, ``webhook_url``, ``channel_name``, ``bot_name`` and
         ``avatar_url``.
     """
-    config = _load_config()
+    config = await _load_config()
     return config.get("teams_config", DEFAULT_CONFIG["teams_config"]).copy()
 
 
@@ -185,14 +197,14 @@ async def update_teams_config(settings: dict[str, Any]) -> None:
     HTTPException
         If saving the configuration fails.
     """
-    config = _load_config()
+    config = await _load_config()
     teams_config = config.get("teams_config", DEFAULT_CONFIG["teams_config"]).copy()
     # Update only known keys; ignore unknown keys for forward compatibility.
     for key in ["enabled", "webhook_url", "channel_name", "bot_name", "avatar_url"]:
         if key in settings:
             teams_config[key] = settings[key]
     config["teams_config"] = teams_config
-    _save_config(config)
+    await _save_config(config)
     # Returning None with status 204 implies success with no content
 
 
@@ -202,7 +214,7 @@ async def update_teams_config(settings: dict[str, Any]) -> None:
 @router.get("/tws-config", tags=["Admin"])
 async def get_tws_config() -> dict[str, Any]:
     """Return current TWS connection configuration."""
-    config = _load_config()
+    config = await _load_config()
     return config.get("tws_config", DEFAULT_CONFIG["tws_config"]).copy()
 
 
@@ -212,14 +224,14 @@ async def update_tws_config(settings: dict[str, Any]) -> None:
 
     Accepts ``primary_instance`` (str) and ``monitored_instances`` (list of str).
     """
-    config = _load_config()
+    config = await _load_config()
     tws_config = config.get("tws_config", DEFAULT_CONFIG["tws_config"]).copy()
     if "primary_instance" in settings:
         tws_config["primary_instance"] = settings["primary_instance"]
     if "monitored_instances" in settings and isinstance(settings["monitored_instances"], list):
         tws_config["monitored_instances"] = settings["monitored_instances"]
     config["tws_config"] = tws_config
-    _save_config(config)
+    await _save_config(config)
 
 
 # ----- System Settings Endpoints -----
@@ -228,7 +240,7 @@ async def update_tws_config(settings: dict[str, Any]) -> None:
 @router.get("/system-settings", tags=["Admin"])
 async def get_system_settings() -> dict[str, Any]:
     """Return current system settings."""
-    config = _load_config()
+    config = await _load_config()
     return config.get("system_settings", DEFAULT_CONFIG["system_settings"]).copy()
 
 
@@ -238,13 +250,13 @@ async def update_system_settings(settings: dict[str, Any]) -> None:
 
     Accepts any subset of keys defined in the ``system_settings`` section.
     """
-    config = _load_config()
+    config = await _load_config()
     sys_cfg = config.get("system_settings", DEFAULT_CONFIG["system_settings"]).copy()
     for key in ["environment", "debug_mode", "ssl_enabled", "csp_enabled", "cors_enabled"]:
         if key in settings:
             sys_cfg[key] = settings[key]
     config["system_settings"] = sys_cfg
-    _save_config(config)
+    await _save_config(config)
 
 
 # ----- Notifications Endpoints -----
@@ -253,7 +265,7 @@ async def update_system_settings(settings: dict[str, Any]) -> None:
 @router.get("/notifications", tags=["Admin"])
 async def get_notifications() -> dict[str, Any]:
     """Return current notification configuration."""
-    config = _load_config()
+    config = await _load_config()
     return config.get("notifications", DEFAULT_CONFIG["notifications"]).copy()
 
 
@@ -264,7 +276,7 @@ async def update_notifications(settings: dict[str, Any]) -> None:
     Accepts ``job_status_filters`` (list of str) and boolean toggles for
     ``notify_job_status``, ``notify_alerts``, and ``notify_performance``.
     """
-    config = _load_config()
+    config = await _load_config()
     notifications = config.get("notifications", DEFAULT_CONFIG["notifications"]).copy()
     if "job_status_filters" in settings and isinstance(settings["job_status_filters"], list):
         notifications["job_status_filters"] = settings["job_status_filters"]
@@ -272,7 +284,7 @@ async def update_notifications(settings: dict[str, Any]) -> None:
         if key in settings:
             notifications[key] = bool(settings[key])
     config["notifications"] = notifications
-    _save_config(config)
+    await _save_config(config)
 
 
 # ----- Logs Endpoint -----
@@ -448,4 +460,4 @@ async def get_health() -> dict[str, Any]:
     dict
         A dictionary containing health flags and a timestamp.
     """
-    return _get_health_report()
+    return await _get_health_report()

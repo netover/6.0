@@ -134,7 +134,7 @@ class InputSanitizer:
                 f"Text exceeds maximum length of {max_length} characters",
             )
 
-        # Verificar caracteres perigosos (< >)
+        # Check for dangerous characters (< >)
         dangerous = DANGEROUS_CHARS_PATTERN.findall(text)
         if dangerous:
             return ValidationResult(
@@ -143,9 +143,9 @@ class InputSanitizer:
                 invalid_chars=list(set(dangerous))
             )
 
-        # Verificar se todos os caracteres são seguros (Unicode-aware)
+        # Check if all characters are safe (Unicode-aware)
         if not SAFE_STRING_PATTERN.match(text):
-            # Identificar caracteres inválidos
+            # Identify invalid characters
             invalid = [c for c in text if not SAFE_CHARS_ONLY.match(c)]
             return ValidationResult(
                 False, text,
@@ -181,9 +181,9 @@ class InputSanitizer:
         text = text[:max_length]
 
         if strip_dangerous:
-            # Remove apenas caracteres perigosos (< >) mas mantém Unicode
+            # Remove only dangerous characters (< >) but keep Unicode
             text = DANGEROUS_CHARS_PATTERN.sub("", text)
-            # Mantém apenas caracteres seguros (agora inclui Unicode)
+            # Keep only safe characters (now includes Unicode)
             return "".join(SAFE_CHARS_ONLY.findall(text))
         # Strict mode: return empty if any dangerous character present
         if SAFE_STRING_PATTERN.match(text):
@@ -212,11 +212,11 @@ class InputSanitizer:
     @staticmethod
     def sanitize_tws_job_name(job_name: str) -> str:
         """
-        Sanitiza nome de job TWS.
-        Permite apenas caracteres válidos para nomes de job HWA/TWS.
+        Sanitize TWS job name.
+        Allows only valid characters for HWA/TWS job names.
 
         Args:
-            job_name: Nome do job a sanitizar.
+            job_name: Job name to sanitize.
 
         Returns:
             Nome do job sanitizado ou string vazia se inválido.
@@ -232,10 +232,10 @@ class InputSanitizer:
     @staticmethod
     def sanitize_tws_workstation(workstation: str) -> str:
         """
-        Sanitiza nome de workstation TWS.
+        Sanitize TWS workstation name.
 
         Args:
-            workstation: Nome da workstation.
+            workstation: Workstation name.
 
         Returns:
             Workstation sanitizada.
@@ -250,10 +250,10 @@ class InputSanitizer:
     @staticmethod
     def validate_email(email: str) -> bool:
         """
-        Valida formato de email.
+        Validate email format.
 
         Args:
-            email: String do email a validar.
+            email: Email string to validate.
 
         Returns:
             True se o email é válido, False caso contrário.
@@ -265,10 +265,10 @@ class InputSanitizer:
     @staticmethod
     def sanitize_email(email: str) -> str:
         """
-        Sanitiza e valida um email.
+        Sanitize and validate an email.
 
         Args:
-            email: String do email.
+            email: Email string.
 
         Returns:
             Email sanitizado ou string vazia se inválido.
@@ -355,12 +355,12 @@ class InputSanitizer:
 
 def sanitize_input(text: str, strip_dangerous: bool = True) -> str:
     """
-    Remove caracteres potencialmente perigosos de uma string de entrada.
+    Remove potentially dangerous characters from an input string.
 
-    v5.9.4: Agora suporta caracteres Unicode (acentos, cedilha, etc.).
+    v5.9.4: Now supports Unicode characters (accents, cedilla, etc.).
 
     Args:
-        text: A string de entrada do usuário.
+        text: User input string.
         strip_dangerous: If True, strips dangerous chars. If False, rejects entirely.
 
     Returns:
@@ -371,13 +371,13 @@ def sanitize_input(text: str, strip_dangerous: bool = True) -> str:
 
 def validate_input(text: str, max_length: int = 1000) -> ValidationResult:
     """
-    Valida string e retorna resultado detalhado.
+    Validate string and return detailed result.
 
-    v5.9.4: Nova função para validação não-destrutiva com erro informativo.
+    v5.9.4: New function for non-destructive validation with informative error.
 
     Args:
-        text: String a validar.
-        max_length: Comprimento máximo permitido.
+        text: String to validate.
+        max_length: Maximum allowed length.
 
     Returns:
         ValidationResult com is_valid, value, error e invalid_chars.
@@ -387,11 +387,11 @@ def validate_input(text: str, max_length: int = 1000) -> ValidationResult:
 
 def sanitize_input_strict(text: str) -> str:
     """
-    Sanitização estrita - apenas alfanuméricos, underscore e hífen.
-    Use para: IDs, usernames, slugs.
+    Strict sanitization - only alphanumeric, underscore, and hyphen.
+    Use for: IDs, usernames, slugs.
 
     Args:
-        text: A string de entrada.
+        text: The input string.
 
     Returns:
         String sanitizada.
@@ -401,10 +401,10 @@ def sanitize_input_strict(text: str) -> str:
 
 def sanitize_tws_job_name(job_name: str) -> str:
     """
-    Sanitiza nome de job TWS/HWA.
+    Sanitize TWS/HWA job name.
 
     Args:
-        job_name: Nome do job.
+        job_name: Job name.
 
     Returns:
         Nome sanitizado.
@@ -414,10 +414,10 @@ def sanitize_tws_job_name(job_name: str) -> str:
 
 def sanitize_tws_workstation(workstation: str) -> str:
     """
-    Sanitiza nome de workstation TWS/HWA.
+    Sanitize TWS/HWA workstation name.
 
     Args:
-        workstation: Nome da workstation.
+        workstation: Workstation name.
 
     Returns:
         Workstation sanitizada.
@@ -427,10 +427,10 @@ def sanitize_tws_workstation(workstation: str) -> str:
 
 def validate_email(email: str) -> bool:
     """
-    Valida formato de email.
+    Validate email format.
 
     Args:
-        email: String do email.
+        email: Email string.
 
     Returns:
         True se válido.

@@ -201,7 +201,7 @@ class ApplicationFactory:
             # Optional services (failures are non-fatal)
             # Parallelize initialization to reduce startup time
             import asyncio
-            await asyncio.gather(
+            results = await asyncio.gather(
                 self._init_proactive_monitoring(app),
                 self._init_metrics_collector(),
                 self._init_cache_warming(),
@@ -209,6 +209,12 @@ class ApplicationFactory:
                 self._init_config_system(),
                 return_exceptions=True  # Ensure one failure doesn't stop others
             )
+
+            # Re-raise programming errors (TypeError, AttributeError, etc.) to fail fast
+            for result in results:
+                if isinstance(result, (TypeError, KeyError, AttributeError, IndexError, NameError, SyntaxError)):
+                    logger.critical("critical_startup_programming_error", error=str(result), type=type(result).__name__)
+                    raise result
 
             logger.info("application_startup_completed")
             enterprise_state_from_app(app).startup_complete = True

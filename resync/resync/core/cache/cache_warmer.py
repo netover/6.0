@@ -21,7 +21,7 @@ class WarmingQuery:
 
     query: str
     category: str
-    priority: int  # 1=alta, 2=média, 3=baixa
+    priority: int  # 1=high, 2=medium, 3=low
     expected_intent: str | None = None
 
 
@@ -135,7 +135,7 @@ class CacheWarmer:
         Warms cache with static queries.
 
         Args:
-            priority: Máximo nível de prioridade a processar (1-3)
+            priority: Maximum priority level to process (1-3)
 
         Returns:
             Number of queries effectively cached
@@ -149,7 +149,7 @@ class CacheWarmer:
         Warms cache with critical job queries.
 
         Args:
-            job_names: Lista de nomes de jobs. Se None, usa lista default.
+            job_names: List of job names. If None, uses default list.
 
         Returns:
             Number of cached queries
@@ -190,8 +190,8 @@ class CacheWarmer:
         Warms cache with most frequent historical queries.
 
         Args:
-            days: Período em dias para análise
-            limit: Número máximo de queries
+            days: Period in days for analysis
+            limit: Maximum number of queries
 
         Returns:
             Número de queries cacheadas
@@ -201,7 +201,7 @@ class CacheWarmer:
             return 0
 
         try:
-            # Query para obter queries mais frequentes
+            # Query to get most frequent queries
             datetime.now(timezone.utc) - timedelta(days=days)
 
             # DEBT: Implement real DB query for cache warming history (low priority)
@@ -219,10 +219,10 @@ class CacheWarmer:
         Processa lista de queries para warming.
 
         Args:
-            queries: Lista de WarmingQuery
+            queries: WarmingQuery list
 
         Returns:
-            Número de queries efetivamente cacheadas
+            Number of queries effectively cached
         """
         cached_count = 0
 
@@ -230,23 +230,23 @@ class CacheWarmer:
             self._stats.queries_processed += 1
 
             try:
-                # Verificar se já está no cache
+                # Check if already in cache
                 if self.cache:
                     existing = await self.cache.get(wq.query)
                     if existing:
-                        logger.debug("Query já em cache: %s...", wq.query[:40])
+                        logger.debug("Query already in cache: %s...", wq.query[:40])
                         self._stats.queries_skipped += 1
                         continue
 
-                # Classificar intent
+                # Classify intent
                 classification = None
                 if self.router:
                     try:
                         classification = await self.router.classify(wq.query)
                     except Exception as e:
-                        logger.debug("Router não disponível: %s", e)
+                        logger.debug("Router not available: %s", e)
 
-                # Buscar resposta
+                # Search response
                 result = None
                 if self.retrieval:
                     try:
@@ -256,9 +256,9 @@ class CacheWarmer:
                             intent=intent,
                         )
                     except Exception as e:
-                        logger.debug("Retrieval não disponível: %s", e)
+                        logger.debug("Retrieval not available: %s", e)
 
-                # Armazenar no cache
+                # Store in cache
                 if self.cache and result:
                     response_data = {
                         "intent": classification.intent.value
@@ -297,7 +297,7 @@ class CacheWarmer:
                     logger.debug("Skipped (no cache available): %s...", wq.query[:40])
 
             except Exception as e:
-                logger.error("Erro no warming de '%s...': %s", wq.query[:40], e)
+                logger.error("Error in warming for '%s...': %s", wq.query[:40], e)
                 self._stats.errors += 1
 
         return cached_count
@@ -316,10 +316,10 @@ class CacheWarmer:
             include_history: Se deve incluir queries do histórico
 
         Returns:
-            Estatísticas do warming
+            Warming statistics
         """
         if self._warming_in_progress:
-            return {"error": "Warming já em progresso", "stats": self._stats.to_dict()}
+            return {"error": "Warming already in progress", "stats": self._stats.to_dict()}
 
         self._warming_in_progress = True
         start_time = datetime.now(timezone.utc)
@@ -343,7 +343,7 @@ class CacheWarmer:
             results["stats"] = self._stats.to_dict()
 
             logger.info(
-                "Cache warming completo: {results['total_cached']} queries em {duration:.2f}s"
+                f"Cache warming complete: {results['total_cached']} queries in {duration:.2f}s"
             )
 
             return results
@@ -352,11 +352,11 @@ class CacheWarmer:
             self._warming_in_progress = False
 
     def get_stats(self) -> dict[str, Any]:
-        """Retorna estatísticas do warming."""
+        """Returns warming statistics."""
         return self._stats.to_dict()
 
     def get_static_queries_count(self) -> dict[str, int]:
-        """Retorna contagem de queries por prioridade."""
+        """Returns count of queries by priority."""
         counts = {"priority_1": 0, "priority_2": 0, "priority_3": 0, "total": 0}
         for q in self.STATIC_QUERIES:
             counts[f"priority_{q.priority}"] += 1
@@ -365,7 +365,7 @@ class CacheWarmer:
 
     @property
     def is_warming(self) -> bool:
-        """Retorna se warming está em progresso."""
+        """Returns if warming is in progress."""
         return self._warming_in_progress
 
 
@@ -380,10 +380,10 @@ def get_cache_warmer(
     db_session=None,
 ) -> CacheWarmer:
     """
-    Obtém instância singleton do CacheWarmer.
+    Gets CacheWarmer singleton instance.
 
-    Na primeira chamada, cria a instância com os serviços fornecidos.
-    Chamadas subsequentes retornam a mesma instância.
+    On first call, creates instance with provided services.
+    Subsequent calls return same instance.
     """
     global _warmer_instance
 
@@ -400,25 +400,24 @@ def get_cache_warmer(
 
 async def warm_cache_on_startup(priority: int = 1) -> dict[str, Any]:
     """
-    Executa cache warming no startup da aplicação.
+    Starts cache warming on application startup.
 
-    Chamado durante o lifespan da aplicação FastAPI.
-    Faz warming apenas de queries de alta prioridade para não
-    atrasar muito o boot.
+    Called during the lifespan of the FastAPI application.
+    Warms only high priority queries to avoid slowing down boot too much.
 
     Args:
         priority: Nível máximo de prioridade (1-3)
 
     Returns:
-        Estatísticas do warming
+        Warming statistics
     """
     try:
         warmer = get_cache_warmer()
 
-        # Warming apenas queries de alta prioridade no startup
+        # Warming only high priority queries on startup
         result = await warmer.warm_static_queries(priority=priority)
 
-        logger.info("Cache warming inicial: %s queries (priority <= %s)", result, priority)
+        logger.info("Initial cache warming: %s queries (priority <= %s)", result, priority)
 
         return {
             "queries_warmed": result,
@@ -430,7 +429,7 @@ async def warm_cache_on_startup(priority: int = 1) -> dict[str, Any]:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.warning("Cache warming falhou (não crítico): %s", e)
+        logger.warning("Cache warming failed (non-critical): %s", e)
         return {
             "error": str(e),
             "queries_warmed": 0,
