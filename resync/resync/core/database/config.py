@@ -97,6 +97,8 @@ class DatabaseConfig:
         }
 
 
+from typing import Optional
+
 def get_database_config() -> DatabaseConfig:
     """
     Get database configuration from environment.
@@ -108,6 +110,7 @@ def get_database_config() -> DatabaseConfig:
     url = os.getenv("DATABASE_URL")
 
     if url:
+        _validate_database_url_security(url)
         return _parse_database_url(url)
 
     # Build from individual environment variables
@@ -118,10 +121,11 @@ def get_database_config() -> DatabaseConfig:
         name=os.getenv("DATABASE_NAME", "resync"),
         user=os.getenv("DATABASE_USER", "resync"),
         password=os.getenv("DATABASE_PASSWORD", ""),
-        pool_size=int(os.getenv("DATABASE_POOL_SIZE", "10")),
-        max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
+        # Keep env defaults aligned with the dataclass defaults (optimized values)
+        pool_size=int(os.getenv("DATABASE_POOL_SIZE", "5")),
+        max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
         pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
-        pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "3600")),
+        pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
         ssl_mode=os.getenv("DATABASE_SSL_MODE", "prefer"),
     )
 
@@ -151,6 +155,57 @@ def _parse_database_url(url: str) -> DatabaseConfig:
     config.password = parsed.password or ""
 
     return config
+
+
+def _is_production_env() -> bool:
+    """
+    Best-effort env detection without importing Settings (avoid circular deps).
+    """
+    raw = (
+        os.getenv("APP_ENVIRONMENT")
+        or os.getenv("ENVIRONMENT")
+        or os.getenv("RESYNC_ENVIRONMENT")
+        or os.getenv("ENV")
+        or ""
+    )
+    v = raw.strip().lower()
+    return v in {"prod", "production"}
+
+
+def _validate_database_url_security(url: str) -> None:
+    """
+    Block obviously insecure DATABASE_URL credentials in production.
+    We do NOT require a password (some deployments use IAM/certs), but if one
+    is present, it must not be a common/default password.
+    """
+    if not _is_production_env():
+        return
+
+    # Normalize postgres://
+    normalized = url
+    if normalized.startswith("postgres://"):
+        normalized = normalized.replace("postgres://", "postgresql://", 1)
+
+    parsed = urlparse(normalized)
+    password: Optional[str] = parsed.password
+
+    if not password:
+        return
+
+    insecure = {
+        "password",
+        "admin",
+        "postgres",
+        "root",
+        "123456",
+        "12345678",
+        "change_me",
+        "changeme",
+    }
+    if password.strip().lower() in insecure:
+        raise ValueError(
+            "DATABASE_URL contains an insecure database password; set a strong password/secret in production"
+        )
 
 
 # Singleton config instance

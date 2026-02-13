@@ -27,7 +27,7 @@ class _ShimLogger:
     def __init__(self, name: str):
         self._l = logging.getLogger(name)
 
-    def _log(self, method: Any, event: str, **kwargs: Any) -> None:
+    def _log(self, method: Any, event: str, *args: Any, **kwargs: Any) -> None:
         """Log an event in a way that won't crash stdlib logging.
 
         The stdlib logging machinery reserves a handful of attribute names on
@@ -47,27 +47,27 @@ class _ShimLogger:
         # LogRecord attributes (message/asctime/etc.).
         extra = {"event_data": kwargs} if kwargs else None
         if extra is None:
-            method(event, exc_info=exc_info, stack_info=stack_info)
+            method(event, *args, exc_info=exc_info, stack_info=stack_info)
         else:
-            method(event, exc_info=exc_info, stack_info=stack_info, extra=extra)
+            method(event, *args, exc_info=exc_info, stack_info=stack_info, extra=extra)
 
     def bind(self, **_kwargs: Any) -> "_ShimLogger":
         return self
 
-    def debug(self, event: str, **kwargs: Any) -> None:
-        self._log(self._l.debug, event, **kwargs)
+    def debug(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._log(self._l.debug, event, *args, **kwargs)
 
-    def info(self, event: str, **kwargs: Any) -> None:
-        self._log(self._l.info, event, **kwargs)
+    def info(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._log(self._l.info, event, *args, **kwargs)
 
-    def warning(self, event: str, **kwargs: Any) -> None:
-        self._log(self._l.warning, event, **kwargs)
+    def warning(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._log(self._l.warning, event, *args, **kwargs)
 
-    def error(self, event: str, **kwargs: Any) -> None:
-        self._log(self._l.error, event, **kwargs)
+    def error(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._log(self._l.error, event, *args, **kwargs)
 
-    def critical(self, event: str, **kwargs: Any) -> None:
-        self._log(self._l.critical, event, **kwargs)
+    def critical(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._log(self._l.critical, event, *args, **kwargs)
 
 
 def get_logger(name: Optional[str] = None) -> _ShimLogger:

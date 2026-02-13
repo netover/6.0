@@ -385,20 +385,20 @@ def get_logger(name: str | None = None):
             def bind(self, **_kwargs):
                 return self
 
-            def debug(self, event: str, **kwargs):
-                self._l.debug(event, extra=kwargs)
+            def debug(self, event: str, *args, **kwargs):
+                self._l.debug(event, *args, extra=kwargs)
 
-            def info(self, event: str, **kwargs):
-                self._l.info(event, extra=kwargs)
+            def info(self, event: str, *args, **kwargs):
+                self._l.info(event, *args, extra=kwargs)
 
-            def warning(self, event: str, **kwargs):
-                self._l.warning(event, extra=kwargs)
+            def warning(self, event: str, *args, **kwargs):
+                self._l.warning(event, *args, extra=kwargs)
 
-            def error(self, event: str, **kwargs):
-                self._l.error(event, extra=kwargs)
+            def error(self, event: str, *args, **kwargs):
+                self._l.error(event, *args, extra=kwargs)
 
-            def critical(self, event: str, **kwargs):
-                self._l.critical(event, extra=kwargs)
+            def critical(self, event: str, *args, **kwargs):
+                self._l.critical(event, *args, extra=kwargs)
 
         return _Shim(base)
 

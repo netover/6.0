@@ -8,13 +8,20 @@ Author: Resync Team
 Version: 5.9.9
 """
 
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
-import structlog
-import toml
+# [FIX] Use tomllib (Python 3.11+) instead of external 'toml' dependency
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import toml as tomllib
 
-logger = structlog.get_logger(__name__)
+# [FIX] Use standardized project logger
+from resync.core.structured_logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMConfig:
@@ -53,8 +60,9 @@ class LLMConfig:
                 self._config = self._get_defaults()
                 return
 
-            with open(config_file) as f:
-                self._config = toml.load(f)
+            # [FIX] tomllib.load requires binary mode 'rb'
+            with open(config_file, "rb") as f:
+                self._config = tomllib.load(f)
 
             logger.info(
                 "llm_config_loaded",
@@ -66,7 +74,7 @@ class LLMConfig:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("Failed to load LLM config: %s", e, exc_info=True)
+            logger.error("Failed to load LLM config: %s", str(e), exc_info=True)
             self._config = self._get_defaults()
 
     def _get_defaults(self) -> dict[str, Any]:

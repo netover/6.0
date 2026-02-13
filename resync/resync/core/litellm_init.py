@@ -231,7 +231,9 @@ def _apply_env_from_settings(*, overwrite: bool = False) -> dict[str, bool]:
         overwrite=overwrite,
     )
 
-    llm_key = getattr(settings, "LLM_API_KEY", None)
+    llm_key = getattr(settings, "llm_api_key", None)
+    if hasattr(llm_key, "get_secret_value"):
+        llm_key = llm_key.get_secret_value()
     changed["OPENAI_API_KEY"] = _set_env("OPENAI_API_KEY", llm_key, overwrite=overwrite)
 
     or_key = getattr(settings, "OPENROUTER_API_KEY", None)

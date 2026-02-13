@@ -39,7 +39,7 @@ from fastapi import Depends
 if TYPE_CHECKING:
     from redis.asyncio import Redis as AsyncRedis
     from redis import Redis as SyncRedis
-    from resync.config.app_settings import AppSettings
+    from resync.settings import Settings as AppSettings
 
 # Thread-safe singleton instances
 _async_redis_instance: Optional["AsyncRedis"] = None
@@ -79,8 +79,8 @@ def _get_settings() -> "AppSettings":
     Returns:
         AppSettings: Application settings singleton
     """
-    from resync.config.app_settings import AppSettings
-    return AppSettings()
+    from resync.settings import settings
+    return settings
 
 
 def _get_redis_url(settings: "AppSettings") -> str:

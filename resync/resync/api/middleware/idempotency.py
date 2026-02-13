@@ -126,8 +126,18 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         )
 
         try:
-            # Compute request fingerprint once (avoid reading request body twice).
+            # Compute request fingerprint once.
+            # We must restore the body after reading it because BaseHTTPMiddleware
+            # consumes the stream, which would make it unavailable to the endpoint.
             request_data = await self._extract_request_data(request)
+            
+            # Restore the body if it was read
+            if "body" in request_data and isinstance(request_data.get("body"), (dict, str, bytes)):
+                body = await request.body()
+                async def receive():
+                    return {"type": "http.request", "body": body}
+                request._receive = receive
+
             cached_response = await self.idempotency_manager.get_cached_response(
                 idempotency_key, request_data
             )

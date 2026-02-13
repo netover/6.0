@@ -73,6 +73,13 @@ class Settings(BaseSettings, SettingsValidators):
         description="Versão do projeto (semver com pre-release e build metadata)",
     )
 
+    startup_timeout: int = Field(
+        default=60,
+        ge=10,
+        validation_alias=AliasChoices("STARTUP_TIMEOUT_SECONDS", "APP_STARTUP_TIMEOUT"),
+        description="Timeout global para o startup da aplicação em segundos",
+    )
+
     # ============================================================================
     # LOGGING CONFIGURATION
     # ============================================================================
@@ -131,8 +138,8 @@ class Settings(BaseSettings, SettingsValidators):
     # REDIS - v5.3.22 adjusted for single VM
     # ============================================================================
     # v5.9.7: Accept both APP_REDIS_URL (preferred) and legacy REDIS_URL
-    redis_url: str = Field(
-        default="redis://localhost:6379/0",
+    redis_url: SecretStr = Field(
+        default=SecretStr("redis://localhost:6379/0"),
         validation_alias=AliasChoices("REDIS_URL", "APP_REDIS_URL"),
         description="URL de conexão Redis",
     )
@@ -659,7 +666,7 @@ class Settings(BaseSettings, SettingsValidators):
         default=False,
         description="Habilita notificações no Microsoft Teams",
     )
-    tws_teams_webhook_url: str | None = Field(
+    tws_teams_webhook_url: SecretStr | None = Field(
         default=None,
         description="URL do webhook do Microsoft Teams",
     )
@@ -773,7 +780,7 @@ class Settings(BaseSettings, SettingsValidators):
     rate_limit_error_handler_per_minute: int = Field(default=10, ge=1)
     rate_limit_websocket_per_minute: int = Field(default=20, ge=1)
     rate_limit_dashboard_per_minute: int = Field(default=10, ge=1)
-    rate_limit_storage_uri: str = Field(default="redis://localhost:6379/1")
+    rate_limit_storage_uri: SecretStr = Field(default=SecretStr("redis://localhost:6379/1"))
     rate_limit_key_prefix: str = Field(default="resync:ratelimit:")
     rate_limit_sliding_window: bool = Field(default=True)
 

@@ -20,6 +20,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
+from resync.api.core import security
+from resync.api.core.security import ALGORITHM
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.redis_init import get_redis_client
 from resync.core.structured_logger import get_logger
@@ -36,7 +38,6 @@ security = HTTPBearer(auto_error=False)
 
 # Secret key for JWT tokens
 # NOTE: Resolved lazily at runtime to avoid unsafe fallbacks in production.
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # ---------------------------------------------------------------------------
@@ -267,10 +268,16 @@ def verify_admin_credentials(
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
-        # Decode & validate JWT
-        payload = jwt.decode(token, get_jwt_secret_key(), algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        # Decode & validate JWT using centralized security utility
+        payload = security.decode_access_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
+        username: str = payload.get("sub")
         if username is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -290,26 +297,19 @@ def verify_admin_credentials(
             )
 
         return username
-    except jwt.PyJWTError:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        ) from None
+        )
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """
-    Create a new JWT access token.
+    Create a new JWT access token using centralized security utility.
     """
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, get_jwt_secret_key(), algorithm=ALGORITHM)
+    return security.create_access_token(subject=data.get("sub", ""), expires_delta=expires_delta)
 
 
 async def authenticate_admin(username: str, password: str) -> bool:

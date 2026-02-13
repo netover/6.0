@@ -14,6 +14,7 @@ Global State:
 import asyncio
 import hashlib
 import os
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -119,392 +120,6 @@ class ApplicationFactory:
         self.templates: Jinja2Templates | None = None
         self.template_env: Environment | None = None
 
-    @asynccontextmanager
-    async def lifespan(self, app: FastAPI) -> AsyncIterator[None]:
-        """Manage application lifecycle with proper startup and shutdown.
-
-        **Startup** (before ``yield``):
-            1. Initialises domain singletons on ``app.state`` (TWS, Agent, KG).
-            2. Starts TWS monitor and wires DI container.
-            3. Connects to Redis with retry.
-            4. Launches optional services (monitoring, metrics, cache warming,
-               GraphRAG, unified config) — each is isolated so a failure in one
-               does not block the others.
-            5. Sets ``app.state.startup_complete = True``.
-
-        **Shutdown** (after ``yield``):
-            Tears down services in reverse order: monitoring → health → background
-            tasks → config system → domain singletons → TWS monitor.
-
-        Side effects:
-            - Modifies ``app.state`` (templates, singletons, startup_complete).
-            - Creates asyncio background tasks (metrics collector).
-            - Initialises global singletons (Redis, GraphRAG, config system).
-
-        Args:
-            app: FastAPI application instance.
-
-        Yields:
-            None during application runtime.
-        """
-        logger.info("application_startup_initiated")
-
-        try:
-            # Import here to avoid circular dependencies at module load time.
-            # These modules depend on resync.settings which in turn may import
-            # from modules that reference app_factory — moving them to module
-            # scope would create an import cycle.
-            from resync.core.exceptions import (
-                ConfigurationError,
-                RedisAuthError,
-                RedisConnectionError,
-                RedisInitializationError,
-                RedisTimeoutError,
-            )
-            from resync.core.interfaces import (
-                IAgentManager,
-                IKnowledgeGraph,
-                ITWSClient,
-            )
-            from resync.core.tws_monitor import get_tws_monitor, shutdown_tws_monitor
-            from resync.api_gateway.container import setup_dependencies
-            from resync.core.startup import enforce_startup_policy, run_startup_checks
-            from resync.core.wiring import (
-                init_domain_singletons,
-            )
-
-            # -----------------------------------------------------------------
-            # Canonical startup validation/health checks
-            # -----------------------------------------------------------------
-            startup_result = await run_startup_checks()
-            if not startup_result.get("overall_health"):
-                app_logger.warning(
-                    "startup_health_failed",
-                    critical_services=startup_result.get("critical_services"),
-                    results=startup_result.get("results"),
-                    strict=startup_result.get("strict"),
-                )
-            enforce_startup_policy(startup_result)
-
-            # Core initialisation (failures here are fatal)
-            init_domain_singletons(app)
-            st = enterprise_state_from_app(app)
-            tws_client = st.tws_client
-            agent_manager = st.agent_manager
-            knowledge_graph = st.knowledge_graph
-
-            await get_tws_monitor(tws_client)
-            setup_dependencies(tws_client, agent_manager, knowledge_graph)
-
-            app_logger.info("core_services_initialized")
-
-            # Optional services (failures are non-fatal)
-            # Parallelize initialization to reduce startup time
-            import asyncio
-            results = await asyncio.gather(
-                self._init_proactive_monitoring(app),
-                self._init_metrics_collector(),
-                self._init_cache_warming(),
-                self._init_graphrag(),
-                self._init_config_system(),
-                return_exceptions=True  # Ensure one failure doesn't stop others
-            )
-
-            # Re-raise programming errors (TypeError, AttributeError, etc.) to fail fast
-            for result in results:
-                if isinstance(result, (TypeError, KeyError, AttributeError, IndexError, NameError, SyntaxError)):
-                    logger.critical("critical_startup_programming_error", error=str(result), type=type(result).__name__)
-                    raise result
-
-            logger.info("application_startup_completed")
-            enterprise_state_from_app(app).startup_complete = True
-
-            # Record startup time for admin dashboard uptime display
-            from resync.core.startup_time import set_startup_time
-            set_startup_time()
-
-            yield  # Application runs here
-
-        except ConfigurationError as exc:
-            app_logger.error(
-                "configuration_error",
-                error_message=str(exc),
-                error_details=exc.details,
-                hint=exc.details.get("hint"),
-            )
-            raise
-        except RedisAuthError as exc:
-            app_logger.error(
-                "redis_authentication_error",
-                error_message=str(exc),
-                error_details=exc.details,
-                hint=exc.details.get("hint"),
-                example_redis_url="redis://:yourpassword@localhost:6379",
-            )
-            raise
-        except RedisConnectionError as exc:
-            app_logger.error(
-                "redis_connection_error",
-                error_message=str(exc),
-                error_details=exc.details,
-                hint=exc.details.get("hint"),
-                installation_guide={
-                    "macos": "brew install redis",
-                    "linux": "apt install redis",
-                    "start_command": "redis-server",
-                    "test_command": "redis-cli ping (should return 'PONG')",
-                },
-            )
-            raise
-        except RedisTimeoutError as exc:
-            app_logger.error(
-                "redis_timeout_error",
-                error_message=str(exc),
-                error_details=exc.details,
-                hint=exc.details.get("hint"),
-            )
-            raise
-        except RedisInitializationError as exc:
-            app_logger.error(
-                "redis_initialization_error",
-                error_message=str(exc),
-                error_details=exc.details,
-                hint=exc.details.get("hint"),
-            )
-            raise
-        except Exception as exc:
-            logger.critical("application_startup_failed", error=str(exc))
-            raise
-        finally:
-            await self._shutdown_services(app)
-
-    # -----------------------------------------------------------------
-    # Lifespan helpers: optional startup services
-    # -----------------------------------------------------------------
-
-    @staticmethod
-    async def _init_proactive_monitoring(app: FastAPI) -> None:
-        """Initialise proactive monitoring (non-fatal on failure)."""
-        try:
-            from resync.core.monitoring_integration import initialize_proactive_monitoring
-
-            await initialize_proactive_monitoring(app)
-            app_logger.info("proactive_monitoring_initialized")
-        except ImportError as exc:
-            app_logger.info("proactive_monitoring_not_installed", module=str(exc))
-        except Exception as exc:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            app_logger.warning(
-                "proactive_monitoring_init_failed",
-                error=str(exc),
-                hint="Monitoring will be unavailable but app will continue",
-                exc_info=True,
-            )
-
-    @staticmethod
-    async def _init_metrics_collector() -> None:
-        """Start the dashboard metrics collector background task."""
-        try:
-            from resync.api import monitoring_dashboard
-            from resync.core.task_tracker import create_tracked_task
-
-
-            monitoring_dashboard._collector_task = await create_tracked_task(
-                monitoring_dashboard.metrics_collector_loop(),
-                name="metrics-collector",
-            )
-            app_logger.info("dashboard_metrics_collector_started")
-        except ImportError as exc:
-            app_logger.info("metrics_collector_not_installed", module=str(exc))
-        except Exception as exc:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            app_logger.warning(
-                "metrics_collector_start_failed",
-                error=str(exc),
-                hint="Dashboard metrics will be unavailable",
-                exc_info=True,
-            )
-
-    @staticmethod
-    async def _init_cache_warming() -> None:
-        """Warm application caches on startup."""
-        try:
-            from resync.core.cache_utils import warmup_cache_on_startup
-
-            await warmup_cache_on_startup()
-            app_logger.info("cache_warming_completed")
-        except ImportError as exc:
-            app_logger.info("cache_warming_not_installed", module=str(exc))
-        except Exception as exc:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            app_logger.warning(
-                "cache_warming_failed",
-                error=str(exc),
-                hint="Cache will start cold but will warm naturally",
-                exc_info=True,
-            )
-
-    @staticmethod
-    async def _init_graphrag() -> None:
-        """Initialise GraphRAG (subgraph retrieval + auto-discovery)."""
-        try:
-            from resync.core.graphrag_integration import initialize_graphrag
-            from resync.core.redis_init import get_redis_client
-            from resync.knowledge.retrieval.graph import get_knowledge_graph
-            from resync.services.llm_service import get_llm_service
-            from resync.services.tws_service import get_tws_client
-
-            if not getattr(settings, "GRAPHRAG_ENABLED", False):
-                app_logger.info("graphrag_disabled_by_config")
-                return
-
-            llm_service = get_llm_service()
-            kg = get_knowledge_graph()
-            tws_client = get_tws_client()
-
-            try:
-                redis_client = get_redis_client()
-            except Exception:
-                redis_client = None
-                app_logger.warning("graphrag_running_without_redis_cache")
-
-            initialize_graphrag(
-                llm_service=llm_service,
-                knowledge_graph=kg,
-                tws_client=tws_client,
-                redis_client=redis_client,
-                enabled=True,
-            )
-            app_logger.info(
-                "graphrag_initialized",
-                features=["subgraph_retrieval", "auto_discovery"],
-            )
-        except ImportError as exc:
-            app_logger.info("graphrag_not_installed", module=str(exc))
-        except Exception as exc:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            app_logger.warning(
-                "graphrag_initialization_failed",
-                error=str(exc),
-                hint="GraphRAG features will be disabled, but system will continue normally",
-                exc_info=True,
-            )
-
-    @staticmethod
-    async def _init_config_system() -> None:
-        """Initialise unified config system with hot reload."""
-        try:
-            from resync.core.unified_config import initialize_config_system
-
-            await initialize_config_system()
-            logger.info(
-                "unified_config_initialized",
-                hot_reload=True,
-                message="All configs loaded with hot reload support",
-            )
-        except ImportError as exc:
-            logger.info("unified_config_not_installed", module=str(exc))
-        except Exception as exc:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error(
-                "unified_config_initialization_failed",
-                error=str(exc),
-                hint="Config hot reload disabled, but system will use static configs",
-                exc_info=True,
-            )
-
-    # -----------------------------------------------------------------
-    # Lifespan helper: shutdown
-    # -----------------------------------------------------------------
-
-    @staticmethod
-    async def _shutdown_services(app: FastAPI) -> None:
-        """Tear down all services in reverse initialisation order.
-
-        Each shutdown step is isolated: a failure in one does not prevent
-        the others from running.  Critical services (domain_singletons)
-        log at ``error`` level; optional services log at ``warning``.
-        """
-        app_logger.info("application_shutdown_initiated")
-
-        try:
-            # 1. Proactive monitoring (optional)
-            try:
-                from resync.core.monitoring_integration import shutdown_proactive_monitoring
-
-                await shutdown_proactive_monitoring(app)
-                app_logger.info("proactive_monitoring_shutdown_successful")
-            except Exception as exc:
-                app_logger.warning("proactive_monitoring_shutdown_error", error=str(exc))
-
-            # 2. Health check service (optional)
-            try:
-                from resync.core.health import shutdown_health_check_service
-
-                await shutdown_health_check_service()
-                app_logger.info("health_service_shutdown_successful")
-            except Exception as exc:
-                app_logger.warning("health_service_shutdown_error", error=str(exc))
-
-            # 3. Background tasks (important — prevent task leaks)
-            try:
-                from resync.core.task_tracker import cancel_all_tasks
-
-                cancel_timeout = getattr(
-                    settings,
-                    "SHUTDOWN_TASK_CANCEL_TIMEOUT",
-                    _DEFAULT_TASK_CANCEL_TIMEOUT,
-                )
-                stats = await cancel_all_tasks(timeout=cancel_timeout)
-                app_logger.info(
-                    "background_tasks_cancelled",
-                    total=stats["total"],
-                    cancelled=stats["cancelled"],
-                    completed=stats.get("completed", 0),
-                )
-            except Exception as exc:
-                app_logger.warning("background_tasks_cancel_error", error=str(exc))
-
-            # 4. Unified config system (optional)
-            try:
-                from resync.core.unified_config import shutdown_config_system
-
-                shutdown_config_system()
-                app_logger.info("unified_config_shutdown_successful")
-            except Exception as exc:
-                app_logger.warning("unified_config_shutdown_error", error=str(exc))
-
-            # 5. Domain singletons (critical — resource cleanup)
-            try:
-                from resync.core.wiring import shutdown_domain_singletons
-
-                await shutdown_domain_singletons(app)
-                app_logger.info("domain_singletons_shutdown_successful")
-            except Exception as exc:
-                app_logger.error("domain_singletons_shutdown_error", error=str(exc))
-
-            # 6. TWS monitor
-            try:
-                from resync.core.tws_monitor import shutdown_tws_monitor
-
-                await shutdown_tws_monitor()
-            except Exception as exc:
-                app_logger.warning("tws_monitor_shutdown_error", error=str(exc))
-
-            logger.info("application_shutdown_completed")
-        except Exception as exc:
-            logger.error("application_shutdown_error", error=str(exc))
-
     def create_application(self) -> FastAPI:
         """
         Create and configure the FastAPI application.
@@ -515,12 +130,14 @@ class ApplicationFactory:
         # Validate settings first
         self._validate_critical_settings()
 
+        from resync.core.startup import lifespan as app_lifespan
+
         # Create FastAPI app with lifespan
         self.app = FastAPI(
             title=settings.project_name,
             version=settings.project_version,
             description=settings.description,
-            lifespan=self.lifespan,
+            lifespan=app_lifespan,
             docs_url="/api/docs" if not settings.is_production else None,
             redoc_url="/api/redoc" if not settings.is_production else None,
             openapi_url="/api/openapi.json" if not settings.is_production else None,
@@ -578,7 +195,7 @@ class ApplicationFactory:
             if (
                 not secret
                 or len(secret.strip()) < min_sk_len
-                or secret.startswith("CHANGE_ME_IN_PRODUCTION")
+                or ("CHANGE_ME" in secret.upper())
             ):
                 errors.append(
                     f"SECRET_KEY must be set (>= {min_sk_len} chars) in production"
@@ -593,8 +210,14 @@ class ApplicationFactory:
                 errors.append("Wildcard CORS origins not allowed in production")
 
             # LLM configuration hardening
-            if getattr(settings, "llm_api_key", "") == "dummy_key_for_development":
-                errors.append("Invalid LLM API key in production")
+            llm_key = getattr(settings, "llm_api_key", None)
+            if llm_key is not None:
+                try:
+                    if llm_key.get_secret_value() == "dummy_key_for_development":
+                        errors.append("Invalid LLM API key in production")
+                except Exception:
+                    # If type drifts, fail closed in production
+                    errors.append("Invalid LLM API key in production")
 
         # Raise if any critical errors
         if errors:
@@ -1007,6 +630,49 @@ class ApplicationFactory:
         except Exception as e:
             logger.error("template_render_error", template=template_name, error=str(e))
             raise HTTPException(status_code=500, detail="Internal server error") from None
+
+    @staticmethod
+    async def _shutdown_services(app: FastAPI) -> None:
+        """Tear down all services with a global timeout."""
+        # Global graceful shutdown timeout (prevents hangs)
+        # Defaults to 30s or env var
+        default_timeout = float(getattr(settings, "graceful_timeout", 30))
+        with contextlib.suppress(Exception):
+            default_timeout = float(os.getenv("GRACEFUL_SHUTDOWN_TIMEOUT", str(default_timeout)))
+
+        async def _shutdown_inner() -> None:
+            await ApplicationFactory._shutdown_services_inner(app)
+
+        try:
+            await asyncio.wait_for(_shutdown_inner(), timeout=default_timeout)
+        except asyncio.TimeoutError:
+            app_logger.error(
+                "application_shutdown_timeout",
+                timeout_seconds=default_timeout,
+                hint="Shutdown exceeded timeout; forcing exit may leak resources",
+            )
+        except Exception as exc:
+            app_logger.error("application_shutdown_error", error=str(exc))
+
+    @staticmethod
+    async def _shutdown_services_inner(app: FastAPI) -> None:
+        """Tear down all services in reverse initialisation order."""
+        app_logger.info("application_shutdown_initiated")
+        
+        from resync.core.health import shutdown_unified_health_service
+        from resync.core.redis_init import close_redis_connections
+        from resync.core.wiring import shutdown_container
+
+        # 1. Shutdown Health Service (stops polling)
+        await shutdown_unified_health_service()
+
+        # 2. Shutdown DI Container (closes dependencies)
+        await shutdown_container()
+
+        # 3. Close Redis Connections (final cleanup)
+        await close_redis_connections()
+
+        app_logger.info("application_shutdown_completed")
 
     async def _handle_csp_report(self, request: Request) -> JSONResponse:
         """

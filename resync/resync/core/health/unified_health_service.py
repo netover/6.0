@@ -480,3 +480,14 @@ async def shutdown_unified_health_service() -> None:
     if _unified_health_service is not None:
         await _unified_health_service.stop_monitoring()
         _unified_health_service = None
+
+
+async def get_health_status() -> HealthCheckResult:
+    """
+    Convenience function to get a comprehensive health check result.
+    
+    Returns:
+        HealthCheckResult snapshot
+    """
+    service = await get_unified_health_service()
+    return await service.perform_comprehensive_health_check()

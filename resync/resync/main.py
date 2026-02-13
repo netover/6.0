@@ -44,9 +44,11 @@ def main() -> None:
 
     import uvicorn
 
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
-    log_level = os.getenv("LOG_LEVEL", "info")
+    from resync.settings import settings
+
+    host = os.getenv("HOST") or settings.server_host
+    port = int(os.getenv("PORT") or settings.server_port)
+    log_level = os.getenv("LOG_LEVEL") or settings.log_level.lower()
 
     uvicorn.run(
         "resync.main:app",

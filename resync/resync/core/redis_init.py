@@ -107,7 +107,12 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
             )
 
         # Legacy path (scripts/dev only)
-        url = getattr(settings, "redis_url", None) or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        _url = getattr(settings, "redis_url", None)
+        if hasattr(_url, "get_secret_value"):
+            url = _url.get_secret_value()
+        else:
+            url = _url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            
         _REDIS_CLIENT = redis.from_url(url, encoding="utf-8", decode_responses=True)
         logger.warning("Initialized Redis client via lazy init (RESYNC_REDIS_LAZY_INIT=1).")
 
@@ -302,7 +307,12 @@ class RedisInitializer:
                     "TCP_KEEPCNT": 3,
                 }[name]
         # v5.9.7: Use consolidated settings field names
-        url = redis_url or getattr(settings, "redis_url", "redis://localhost:6379/0")
+        _url = redis_url or getattr(settings, "redis_url", "redis://localhost:6379/0")
+        if hasattr(_url, "get_secret_value"):
+            url = _url.get_secret_value()
+        else:
+            url = str(_url)
+            
         max_conns = getattr(settings, "redis_pool_max_size", None) or getattr(settings, "redis_max_connections", 50)
         socket_connect_timeout = getattr(settings, "redis_pool_connect_timeout", 5)
         health_interval = getattr(settings, "redis_health_check_interval", 30)

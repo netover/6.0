@@ -508,7 +508,7 @@ class SmokeTestRunner:
             "resync.core.redis_strategy",
             "resync.core.structured_logger",
             "resync.core.circuit_breaker",
-            "resync.core.health_service",
+            "resync.core.health.unified_health_service",
         ]
 
         failed = []
@@ -656,11 +656,12 @@ class SmokeTestRunner:
     async def _test_health_endpoint(self) -> None:
         """Test health endpoint logic."""
         # Simple test - just verify health service exists
-        from resync.core.health import get_health_status
+        from resync.core.health import get_unified_health_service
 
         # Should not raise
-        status = await get_health_status()
-        assert isinstance(status, dict)
+        health_service = await get_unified_health_service()
+        status = await health_service.perform_comprehensive_health_check()
+        assert status is not None
 
 
 # =============================================================================

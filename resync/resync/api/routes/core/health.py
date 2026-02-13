@@ -10,10 +10,11 @@ from pydantic import BaseModel
 from resync.core.health import (
     ComponentType,
     HealthStatus,
-    get_health_check_service,
+    UnifiedHealthService,
+    get_unified_health_service,
     get_status_color,
     get_status_description,
-    shutdown_health_check_service,
+    shutdown_unified_health_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ async def get_health_summary(
         HealthSummaryResponse: Overall system health status with color-coded indicators
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
         # If auto_enable is true and health is good, attempt to enable any disabled components
@@ -166,7 +167,7 @@ async def get_core_health() -> CoreHealthResponse:
         CoreHealthResponse: Health status of core components with status indicators
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
         # Filter only core components
@@ -247,7 +248,7 @@ async def get_detailed_health(
         DetailedHealthResponse: Comprehensive health status with all components
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
         # Convert components to response format
@@ -314,7 +315,7 @@ async def readiness_probe() -> dict[str, Any]:
         dict[str, Any]: Readiness status with core component details
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
         # Check only core components for readiness
@@ -379,7 +380,7 @@ async def liveness_probe() -> dict[str, Any]:
         dict[str, Any]: Liveness status
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
 
         # Simple liveness check - just verify the service is responding
         # We don't check actual component health, just that the system is alive
@@ -440,7 +441,7 @@ async def recover_component(component_name: str) -> dict[str, Any]:
         dict[str, Any]: Recovery attempt result
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
 
         # Attempt recovery
         recovery_success = await health_service.attempt_recovery(component_name)
@@ -497,7 +498,7 @@ async def get_redis_health() -> dict[str, Any]:
         dict[str, Any]: Redis health status with connection details
     """
     try:
-        health_service = await get_health_check_service()
+        health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
         redis_component = health_result.components.get("redis")
@@ -621,7 +622,7 @@ async def list_components() -> dict[str, list[dict[str, str]]]:
 async def shutdown_health_service():
     """Shutdown health check service on application shutdown."""
     try:
-        await shutdown_health_check_service()
+        await shutdown_unified_health_service()
         logger.info("Health service shutdown completed")
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures

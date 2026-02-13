@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Optional
 from fastapi import Depends
 
 if TYPE_CHECKING:
-    from resync.config.app_settings import AppSettings
+    from resync.settings import Settings as AppSettings
     from resync.services.tws_service import OptimizedTWSClient
 
 # Thread-safe singleton instance
@@ -46,8 +46,8 @@ def _get_settings() -> "AppSettings":
     Returns:
         AppSettings: Application settings singleton
     """
-    from resync.config.app_settings import AppSettings
-    return AppSettings()
+    from resync.settings import settings
+    return settings
 
 
 def _create_tws_client(settings: "AppSettings") -> Any:

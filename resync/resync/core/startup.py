@@ -22,8 +22,12 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal, TYPE_CHECKING, AsyncIterator
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 import httpx
 
@@ -76,7 +80,9 @@ def get_startup_policy(settings: Settings) -> dict[str, Any]:
     strict = strict_env if strict_env is not None else bool(getattr(settings, "is_production", False))
 
     # Total startup time budget (seconds)
-    max_total_seconds = float(os.getenv("STARTUP_MAX_TOTAL_SECONDS", "30"))
+    # Prefer settings.startup_timeout, fallback to env var, default 30
+    timeout_default = float(getattr(settings, "startup_timeout", 30))
+    max_total_seconds = float(os.getenv("STARTUP_MAX_TOTAL_SECONDS", str(timeout_default)))
 
     # Generic retry knobs for external services (TWS/LLM). Redis has its own retry
     # parameters in settings + initialize_redis_with_retry().
@@ -409,6 +415,8 @@ async def _check_redis(
         )
 
 
+
+
 async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, Any]:
     """Run the canonical startup sequence.
 
@@ -519,3 +527,201 @@ def enforce_startup_policy(result: dict[str, Any]) -> None:
         # This is important because some server/proc-manager combinations have
         # historically swallowed startup failures.
         raise SystemExit(1)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Manage application lifecycle with proper startup and shutdown.
+
+    Consolidates logic previously in ApplicationFactory for better separation
+    of concerns.
+    """
+    logger = get_logger("resync.lifespan")
+    logger.info("application_startup_initiated")
+
+    # Initialize readiness event for optional parallel services
+    app.state.singletons_ready_event = asyncio.Event()
+
+    try:
+        settings = get_settings()
+        startup_timeout = getattr(settings, "startup_timeout", 60)
+        
+        async with asyncio.timeout(startup_timeout):
+            # 1. Canonical startup validation/health checks
+            startup_result = await run_startup_checks(settings=settings)
+            if not startup_result.get("overall_health"):
+                logger.warning(
+                    "startup_health_failed",
+                    critical_services=startup_result.get("critical_services"),
+                    results=startup_result.get("results"),
+                    strict=startup_result.get("strict"),
+                )
+            enforce_startup_policy(startup_result)
+
+            # 2. Core initialization (failures here are fatal)
+            from resync.core.wiring import init_domain_singletons
+            from resync.core.types.app_state import enterprise_state_from_app
+            from resync.core.tws_monitor import get_tws_monitor
+            from resync.api_gateway.container import setup_dependencies
+
+            init_domain_singletons(app)
+            st = enterprise_state_from_app(app)
+            
+            await get_tws_monitor(st.tws_client)
+            setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
+
+            # Signal that core singletons are ready for optional services
+            app.state.singletons_ready_event.set()
+            logger.info("core_services_initialized")
+
+            # 3. Optional services (failures are non-fatal, except programming errors)
+            results = await asyncio.gather(
+                _init_proactive_monitoring(app),
+                _init_metrics_collector(),
+                _init_cache_warmup(),
+                _init_graphrag(),
+                _init_config_system(),
+                return_exceptions=True
+            )
+
+            # Re-raise critical programming errors (bugs, not environmental timeouts)
+            for res in results:
+                if isinstance(res, (TypeError, KeyError, AttributeError, IndexError, NameError)):
+                    logger.critical(
+                        "critical_startup_programming_error",
+                        error=str(res),
+                        type=type(res).__name__,
+                    )
+                    raise res
+
+            logger.info("application_startup_completed")
+            st.startup_complete = True
+
+            # Record startup time for admin dashboard uptime display
+            from resync.core.startup_time import set_startup_time
+            set_startup_time()
+
+        yield  # Application runs here
+
+    except asyncio.TimeoutError:
+        logger.critical(
+            "application_startup_timeout", 
+            timeout_seconds=startup_timeout,
+            hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB connectivity and network firewalls.",
+            troubleshooting={
+                "redis": "Verify REDIS_URL and Redis server status.",
+                "database": "Check DATABASE_URL and PostgreSQL availability.",
+                "network": "Ensure no firewalls block outbound TWS/LLM connections.",
+            }
+        )
+        raise ConfigurationError(f"Application startup exceeded {startup_timeout}s timeout")
+    except Exception as exc:
+        if not isinstance(exc, ConfigurationError):
+            logger.critical("application_startup_failed", error=str(exc))
+        raise
+    finally:
+        await _shutdown_services(app)
+
+
+# --- Helper methods for optional services (moved from ApplicationFactory) ---
+
+async def _init_proactive_monitoring(app: FastAPI) -> None:
+    try:
+        async with asyncio.timeout(10):
+            # Wait for core singletons to be ready
+            await app.state.singletons_ready_event.wait()
+            
+            from resync.core.monitoring_integration import initialize_proactive_monitoring
+            await initialize_proactive_monitoring(app)
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        get_logger("resync.startup").warning("proactive_monitoring_init_failed", error=str(exc))
+
+async def _init_metrics_collector(app: FastAPI) -> None:
+    try:
+        async with asyncio.timeout(10):
+            # Wait for core singletons to be ready
+            await app.state.singletons_ready_event.wait()
+            
+            from resync.api import monitoring_dashboard
+            from resync.core.task_tracker import create_tracked_task
+            monitoring_dashboard._collector_task = await create_tracked_task(
+                monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
+            )
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        get_logger("resync.startup").warning("metrics_collector_start_failed", error=str(exc))
+
+async def _init_cache_warmup(app: FastAPI) -> None:
+    try:
+        async with asyncio.timeout(30):
+            # Wait for core singletons to be ready
+            await app.state.singletons_ready_event.wait()
+            
+            from resync.core.cache_utils import warmup_cache_on_startup
+            await warmup_cache_on_startup()
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        get_logger("resync.startup").warning("cache_warming_failed", error=str(exc))
+
+async def _init_graphrag(app: FastAPI) -> None:
+    try:
+        async with asyncio.timeout(15):
+            # Wait for core singletons to be ready
+            await app.state.singletons_ready_event.wait()
+            
+            from resync.core.graphrag_integration import initialize_graphrag
+            from resync.core.redis_init import get_redis_client
+            from resync.knowledge.retrieval.graph import get_knowledge_graph
+            from resync.services.llm_service import get_llm_service
+            from resync.services.tws_service import get_tws_client
+            settings = get_settings()
+            if not getattr(settings, "GRAPHRAG_ENABLED", False): return
+            initialize_graphrag(
+                llm_service=get_llm_service(),
+                knowledge_graph=get_knowledge_graph(),
+                tws_client=get_tws_client(),
+                redis_client=get_redis_client() if get_redis_client else None,
+                enabled=True,
+            )
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        get_logger("resync.startup").warning("graphrag_initialization_failed", error=str(exc))
+
+async def _init_config_system(app: FastAPI) -> None:
+    try:
+        async with asyncio.timeout(10):
+            # Wait for core singletons to be ready
+            await app.state.singletons_ready_event.wait()
+            
+            from resync.core.unified_config import initialize_config_system
+            await initialize_config_system()
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        get_logger("resync.startup").warning("unified_config_initialization_failed", error=str(exc))
+
+async def _shutdown_services(app: FastAPI) -> None:
+    logger = get_logger("resync.lifespan")
+    logger.info("application_shutdown_initiated")
+    
+    # Imports inside to avoid early circular deps
+    from resync.core.task_tracker import cancel_all_tasks
+    from resync.core.wiring import shutdown_domain_singletons
+    from resync.core.tws_monitor import shutdown_tws_monitor
+    
+    # 1. Background tasks
+    try:
+        await cancel_all_tasks(timeout=5.0)
+    except Exception as e: logger.warning("task_cancel_error", error=str(e))
+    
+    # 2. Domain singletons
+    try:
+        await shutdown_domain_singletons(app)
+    except Exception as e: logger.error("domain_shutdown_error", error=str(e))
+    
+    # 3. TWS monitor
+    try:
+        await shutdown_tws_monitor()
+    except Exception as e: logger.warning("tws_monitor_shutdown_error", error=str(e))
+    
+    logger.info("application_shutdown_completed")

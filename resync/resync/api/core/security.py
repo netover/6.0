@@ -1,189 +1,103 @@
-"""
-Security utilities for FastAPI application.
-
-Provides:
-- Password hashing with bcrypt
-- JWT token creation and verification
-- Database-backed user authentication
-- Permission checking
-
-v5.4.7: Consolidated to use PyJWT and core/database
-"""
-
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional, Union
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from passlib.context import CryptContext
-from sqlalchemy.ext.asyncio import AsyncSession
+import bcrypt
+import logging
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError
+from pydantic import ValidationError
 
-# Use unified JWT module (PyJWT)
-from resync.core.jwt_utils import JWTError, jwt
+from resync.settings import get_settings
 
-# v5.3.20: Import from config.py which re-exports from resync.settings
-from .config import settings
+settings = get_settings()
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
 
-# OAuth2 scheme
-oauth2_scheme = HTTPBearer()
+# Auth scheme for Swagger UI documentation
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/login",
+    auto_error=False  # Allow fallback to cookies if needed
+)
 
+# Security configuration
+ALGORITHM = settings.jwt_algorithm
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
-
+    """Check if the provided plain text password matches the cryptographic hash."""
+    try:
+        if isinstance(hashed_password, str):
+            hashed_password = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
+    except Exception as e:
+        logger.error("password_verification_failed", error=str(e))
+        return False
 
 def get_password_hash(password: str) -> str:
-    """Hash a password."""
-    return pwd_context.hash(password)
+    """Generate a secure cryptographic hash of the password using bcrypt."""
+    # Generate salt and hash the password
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    """Create JWT access token."""
-    to_encode = data.copy()
-
+def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Generate a new JWT access token signed with the application's secret key.
+    
+    Args:
+        subject: The unique identifier for the token (usually username or user_id)
+        expires_delta: Optional custom expiration time window
+        
+    Returns:
+        A signed JWT string
+    """
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
-
-    to_encode.update({"exp": expire})
-    # v5.3.20: Use jwt_algorithm from consolidated settings
-    return jwt.encode(
-        to_encode,
-        settings.secret_key.get_secret_value(),
-        algorithm=settings.jwt_algorithm,
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    
+    to_encode = {"exp": expire, "sub": str(subject)}
+    
+    # Sign using the SECRET_KEY from the central settings
+    encoded_jwt = jwt.encode(
+        to_encode, 
+        settings.secret_key.get_secret_value(), 
+        algorithm=ALGORITHM
     )
+    return encoded_jwt
 
-
-def verify_token(token: str) -> dict | None:
-    """Verify JWT token and return payload."""
+def decode_access_token(token: str) -> Optional[dict]:
+    """
+    Validate and decode a JWT access token.
+    
+    Returns:
+        The decoded payload dictionary if valid, otherwise None.
+    """
     try:
-        # v5.3.20: Use jwt_algorithm from consolidated settings
-        return jwt.decode(
-            token,
-            settings.secret_key.get_secret_value(),
-            algorithms=[settings.jwt_algorithm],
+        payload = jwt.decode(
+            token, 
+            settings.secret_key.get_secret_value(), 
+            algorithms=[ALGORITHM]
         )
-    except JWTError:
+        return payload
+    except (JWTError, ValidationError):
         return None
 
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
-):
-    """Get current authenticated user from JWT token."""
-    token = credentials.credentials
-
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Extract user info from token
-    username = payload.get("username", user_id)
-    role = payload.get("role", "user")
-
-    # Basic validation: user_id must be non-empty string
-    if not isinstance(user_id, str) or len(user_id) < 1:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user identifier",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Return validated user info from token
-    return {
-        "user_id": user_id,
-        "username": username,
-        "role": role,
-        "permissions": payload.get("permissions", []),
-    }
-
-
-async def get_current_user_from_db(
-    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
-    db: AsyncSession = None,
-):
-    """
-    Get current authenticated user with database validation.
-
-    Use this dependency when you need to verify the user still exists
-    and is active in the database.
-    """
-    token = credentials.credentials
-    payload = verify_token(token)
-
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # If database session provided, validate user exists
-    if db:
-        from resync.core.database.repositories import UserRepository
-
-        user_repo = UserRepository(db)
-        user = await user_repo.get_by_id(user_id)
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is deactivated",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return user.to_dict()
-
-    # Fallback to token-based user info
-    return {
-        "user_id": user_id,
-        "username": payload.get("username", user_id),
-        "role": payload.get("role", "user"),
-        "permissions": payload.get("permissions", []),
-    }
-
+# Alias for backward compatibility
+verify_token = decode_access_token
 
 def check_permissions(required_permissions: list, user_permissions: list) -> bool:
     """Check if user has required permissions."""
     return all(perm in user_permissions for perm in required_permissions)
 
-
 def require_permissions(required_permissions: list):
-    """Dependency to check user permissions."""
-
+    """FastAPI dependency to check user permissions."""
+    from fastapi import Depends, HTTPException, status
+    
+    # In-place import get_current_user to avoid circular dependency if it moves here
+    # For now we'll assume it remains in security.py or related.
+    # Note: get_current_user was in the old security.py, I should restore it if needed.
+    
     def permission_checker(current_user: dict = Depends(get_current_user)):
         if not check_permissions(required_permissions, current_user.get("permissions", [])):
             raise HTTPException(
@@ -191,13 +105,12 @@ def require_permissions(required_permissions: list):
                 detail="Insufficient permissions",
             )
         return current_user
-
     return permission_checker
 
-
 def require_role(required_roles: list):
-    """Dependency to check user role."""
-
+    """FastAPI dependency to check user role."""
+    from fastapi import Depends, HTTPException, status
+    
     def role_checker(current_user: dict = Depends(get_current_user)):
         user_role = current_user.get("role", "")
         if user_role not in required_roles:
@@ -206,5 +119,22 @@ def require_role(required_roles: list):
                 detail=f"Role '{user_role}' not authorized",
             )
         return current_user
-
     return role_checker
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """Backend dependency to extract user from token without DB hit."""
+    from fastapi import HTTPException, status
+    
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return {
+        "user_id": payload.get("sub"),
+        "username": payload.get("username", payload.get("sub")),
+        "role": payload.get("role", "user"),
+        "permissions": payload.get("permissions", []),
+    }

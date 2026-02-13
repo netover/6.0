@@ -9,7 +9,7 @@ from resync.core.health.health_models import (
     HealthCheckResult,
     HealthStatus,
 )
-from resync.core.health.health_service import HealthCheckService
+from resync.core.health.unified_health_service import UnifiedHealthService
 
 
 @dataclass
@@ -88,7 +88,7 @@ class HealthMonitoringAggregator:
     health, generating overall system status, and identifying trends and issues.
     """
 
-    def __init__(self, health_service: HealthCheckService | None = None):
+    def __init__(self, health_service: UnifiedHealthService | None = None):
         """
         Initialize the HealthMonitoringAggregator.
 
@@ -100,12 +100,12 @@ class HealthMonitoringAggregator:
         self._last_collection_time: datetime | None = None
         self._cached_report: HealthReport | None = None
 
-    async def get_health_service(self) -> HealthCheckService:
+    async def get_health_service(self) -> UnifiedHealthService:
         """Get or create the health check service instance."""
         if self.health_service is None:
-            from resync.core.health.health_service import get_health_check_service
+            from resync.core.health.unified_health_service import get_unified_health_service
 
-            self.health_service = await get_health_check_service()
+            self.health_service = await get_unified_health_service()
         return self.health_service
 
     async def collect_all_health_checks(self) -> HealthReport:

@@ -24,6 +24,8 @@ from typing import Any
 
 from resync.core.structured_logger import get_logger
 from resync.core.redis_init import get_redis_client
+# [FIX] Import Central Config
+from resync.core.llm_config import get_llm_config 
 import json
 
 logger = get_logger(__name__)
@@ -70,7 +72,8 @@ class RouterConfig:
     fallback_to_keywords: bool = True
 
     # LLM settings
-    model: str = "meta/llama-3.1-8b-instruct"
+    # [FIX] Resolved dynamically via LLMConfig if not provided
+    model: str | None = None
     temperature: float = 0.1
     max_tokens: int = 20
 
@@ -88,6 +91,10 @@ class RouterConfig:
                 "action": ["cancelar", "reiniciar", "executar", "submit"],
                 "query": ["como", "o que", "qual", "porque", "documentação"],
             }
+        
+        # [FIX] Resolve model dynamically via LLMConfig if not provided
+        if self.model is None:
+            self.model = get_llm_config().get_model(task_type="classification")
 
 
 class RouterNode(BaseNode):
@@ -230,14 +237,17 @@ class LLMNode(BaseNode):
         """Execute LLM call via project standard (LiteLLM + call_llm with resilience)."""
         from resync.core.langfuse import get_prompt_manager, get_tracer
         from resync.core.utils.llm import call_llm
-        from resync.settings import settings
-
-        message = state.get("message", "")
-        history = state.get("conversation_history", [])
-
         # Get prompt
         prompt_manager = get_prompt_manager()
         prompt = await prompt_manager.get_prompt(self.config.prompt_id)
+
+        # [FIX] Prioritize: Config Model > Prompt Hint > Central Config (Default)
+        # Removed "gpt-4o" fallback and resync.settings dependency to comply with v5.9.9
+        model = (
+            self.config.model
+            or (prompt.model_hint if prompt else None)
+            or get_llm_config().get_model()
+        )
 
         # Build messages
         messages = []
@@ -261,12 +271,6 @@ class LLMNode(BaseNode):
 
         # Call LLM with tracing via project standard (call_llm with LiteLLM + resilience)
         tracer = get_tracer()
-
-        model = (
-            self.config.model
-            or (prompt.model_hint if prompt else None)
-            or getattr(settings, "llm_model", "gpt-4o")
-        )
 
         # Build full prompt from messages for call_llm
         full_prompt = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages])

@@ -70,13 +70,14 @@ class SettingsValidators:
                 )
         return v
 
-    @field_validator("redis_url")
+    @field_validator("redis_url", "rate_limit_storage_uri")
     @classmethod
-    def validate_redis_url(cls, v: str) -> str:
+    def validate_redis_url(cls, v: SecretStr | str) -> SecretStr | str:
         """Valida formato da URL Redis."""
-        if not (v.startswith(("redis://", "rediss://"))):
+        val = v.get_secret_value() if isinstance(v, SecretStr) else v
+        if not (val.startswith(("redis://", "rediss://"))):
             raise ValueError(
-                "REDIS_URL deve começar com 'redis://' ou 'rediss://'. "
+                "Redis URL deve começar com 'redis://' ou 'rediss://'. "
                 "Exemplo: redis://localhost:6379 ou rediss://localhost:6379"
             )
         return v
@@ -245,10 +246,11 @@ class SettingsValidators:
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:
         """Ensure CORS origins are properly configured in production."""
         env = info.data.get("environment")
-        if env == Environment.PRODUCTION and ("*" in v or "http://localhost" in str(v).lower()):
+        # [DECISION] Allow localhost even in production as per user request
+        if env == Environment.PRODUCTION and "*" in v:
             raise ValueError(
-                "CORS_ALLOW_ORIGINS cannot contain '*' or 'localhost' in production. "
-                "Specify exact production domains."
+                "CORS_ALLOW_ORIGINS cannot contain '*' in production. "
+                "Specify exact production domains (localhost is allowed)."
             )
         return v
 
