@@ -947,8 +947,6 @@ class RAGTool:
 
     def _run_async_retrieval(self, retriever: Any, query: str, top_k: int) -> list:
         """Execute async retrieval in sync context safely."""
-        import asyncio
-
         async def _retrieve() -> list:
             return await retriever.retrieve(query, top_k=top_k)
 
