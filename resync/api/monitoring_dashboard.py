@@ -20,6 +20,8 @@ from fastapi.responses import JSONResponse
 
 from resync.core.redis_init import get_redis_client
 from resync.api.security import decode_token, get_current_user, require_role
+from resync.api.security import decode_token, require_role
+from resync.core.metrics import runtime_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,42 @@ def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
         # FIX: Decodificar bytes antes de parse JSON
         if isinstance(data, bytes):
             data = data.decode()
+        return json_loads(data)
+    except Exception as e:
+        logger.error("JSON corrompido (%s): %s", context, e)
+        return None
+
+
+# ── Data Models ──────────────────────────────────────────────────────────────
+
+
+try:
+    import orjson
+    def json_dumps(data: Any) -> str:
+        return orjson.dumps(data).decode()
+    def json_loads(data: str | bytes) -> Any:
+        return orjson.loads(data)
+except ImportError:
+    import json
+    def json_dumps(data: Any) -> str:
+        return json.dumps(data)
+    def json_loads(data: str | bytes) -> Any:
+        return json.loads(data)
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try: return float(val) if val is not None else default
+    except (TypeError, ValueError): return default
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    try: return int(val) if val is not None else default
+    except (TypeError, ValueError): return default
+
+
+def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
+    """Parse JSON com tratamento de erro robusto."""
+    if not data: return None
+    try:
         return json_loads(data)
     except Exception as e:
         logger.error("JSON corrompido (%s): %s", context, e)
@@ -161,6 +199,21 @@ class DashboardMetricsStore:
             timestamp=now_wall, datetime_str=dt_str, collection_error=error_msg,
             system_uptime=global_uptime, system_availability=0.0,
             tws_connected=True  # Evita alerta falso
+        raw_msg = str(error)
+        error_msg = raw_msg[:197] + "..." if len(raw_msg) > 200 else raw_msg
+        global_uptime = await self.get_global_uptime()
+
+        # Tenta determinar conexão real se possível, senão assume falso
+        tws_status = False
+        try:
+            snapshot = runtime_metrics.get_snapshot()
+            tws_status = snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
+        except Exception: pass
+
+        sample = MetricSample(
+            timestamp=now_wall, datetime_str=dt_str, collection_error=error_msg,
+            system_uptime=global_uptime, system_availability=0.0,
+            tws_connected=tws_status
         )
         await self.add_sample(sample)
 
@@ -180,6 +233,10 @@ class DashboardMetricsStore:
         except Exception as e:
             logger.error("Falha ao persistir amostra no Redis: %s", e)
         
+        await self._check_alerts_redis(sample)
+
+        await pipe.execute()
+
         await self._check_alerts_redis(sample)
 
     async def _check_alerts_redis(self, sample: MetricSample) -> None:
@@ -206,6 +263,7 @@ class DashboardMetricsStore:
                 await pipe.execute()
             except Exception as e:
                 logger.error("Falha ao persistir alertas no Redis: %s", e)
+            await pipe.execute()
 
     async def get_global_uptime(self) -> float:
         redis = get_redis_client()
@@ -227,6 +285,11 @@ class DashboardMetricsStore:
         except Exception as e:
             # FIX: Adicionar logging adequado em vez de retornar 0.0 silenciosamente
             logger.error("Erro ao obter uptime global do Redis: %s", e)
+            await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
+            raw = await redis.get(REDIS_KEY_START_TIME)
+            return now - float(raw or now)
+        except Exception:
+            logger.debug("Falha ao obter uptime global do Redis")
             return 0.0
 
     async def get_current_metrics(self) -> dict[str, Any]:
@@ -241,6 +304,14 @@ class DashboardMetricsStore:
             alerts_raw = await redis.lrange(REDIS_KEY_ALERTS, 0, 4)
             alerts = [p for a in alerts_raw if (p := _safe_json_loads(a, "alert"))]
             
+            if raw is None: return self._empty_response("initializing")
+
+            data = _safe_json_loads(raw, "latest")
+            if not data: return self._empty_response("data_error")
+
+            alerts_raw = await redis.lrange(REDIS_KEY_ALERTS, 0, 4)
+            alerts = [p for a in alerts_raw if (p := _safe_json_loads(a, "alert"))]
+
             return self._format_metrics_dict(data, alerts)
         except Exception as e:
             logger.error("Erro ao obter métricas: %s", e)
@@ -256,6 +327,10 @@ class DashboardMetricsStore:
             samples = [p for r in reversed(raw_list) if (p := _safe_json_loads(r, "history"))]
             if not samples: return self._empty_history()
             
+
+            samples = [p for r in reversed(raw_list) if (p := _safe_json_loads(r, "history"))]
+            if not samples: return self._empty_history()
+
             return {
                 "timestamps": [s.get("datetime_str", "") for s in samples],
                 "api": {
@@ -281,6 +356,7 @@ class DashboardMetricsStore:
         else:
             status_val = "ok"
         
+
         return {
             "status": status_val, "uptime_seconds": round(current.get("system_uptime", 0), 1),
             "last_update": current.get("datetime_str"),
@@ -462,6 +538,103 @@ async def collect_metrics_sample() -> None:
         subscribers = await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
         if subscribers == 0: logger.debug("Nenhum subscriber no canal de broadcast")
 
+    def _empty_history(self) -> dict:
+        return {
+            "timestamps": [],
+            "api": {"requests_per_sec": [], "error_rate": []},
+            "cache": {"hit_ratio": []},
+            "agents": {"active": []},
+            "sample_count": 0
+        }
+
+
+# ── WebSocket Manager ────────────────────────────────────────────────────────
+
+class WebSocketManager:
+    """Gerencia conexões WebSocket locais e sincroniza via Redis Pub/Sub."""
+
+    def __init__(self):
+        self._clients: set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+        self._sync_task: asyncio.Task | None = None
+        self._stop_event = asyncio.Event()
+
+    async def start_sync(self):
+        if self._sync_task is None or self._sync_task.done():
+            self._stop_event.clear()
+            self._sync_task = asyncio.create_task(self._pubsub_listener())
+
+    async def stop(self) -> None:
+        self._stop_event.set()
+        if self._sync_task and not self._sync_task.done():
+            self._sync_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._sync_task
+        self._sync_task = None
+
+    async def connect(self, websocket: WebSocket) -> bool:
+        async with self._lock:
+            if len(self._clients) >= MAX_WS_CONNECTIONS:
+                logger.warning("Limite de conexões WebSocket atingido: %d", MAX_WS_CONNECTIONS)
+                return False
+            self._clients.add(websocket)
+            return True
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self._lock:
+            self._clients.discard(websocket)
+
+    async def _pubsub_listener(self):
+        while not self._stop_event.is_set():
+            pubsub = None
+            try:
+                redis = get_redis_client()
+                pubsub = redis.pubsub()
+                await pubsub.subscribe(REDIS_CH_BROADCAST)
+                logger.info("WebSocketManager sincronizado com Redis Pub/Sub")
+                async for message in pubsub.listen():
+                    if self._stop_event.is_set():
+                        break
+                    if message["type"] == "message":
+                        data = message["data"]
+                        if isinstance(data, bytes): data = data.decode()
+                        await self._local_broadcast(data)
+            except asyncio.CancelledError:
+                logger.info("WebSocketManager Pub/Sub listener cancelado")
+                break
+            except Exception:
+                logger.exception("Pub/Sub desconectado; tentando reconectar em 5s")
+                if not self._stop_event.is_set():
+                    await asyncio.sleep(5)
+            finally:
+                if pubsub is not None:
+                    with suppress(Exception):
+                        await pubsub.unsubscribe(REDIS_CH_BROADCAST)
+                    close_fn = getattr(pubsub, "close", None)
+                    if close_fn is not None:
+                        with suppress(Exception):
+                            maybe_awaitable = close_fn()
+                            if asyncio.iscoroutine(maybe_awaitable):
+                                await maybe_awaitable
+
+    async def broadcast(self, message_str: str) -> None:
+        await self._local_broadcast(message_str)
+
+    async def _local_broadcast(self, message_str: str):
+        async with self._lock:
+            clients = list(self._clients)
+
+        async def _safe_send(ws: WebSocket):
+            try:
+                await asyncio.wait_for(ws.send_text(message_str), timeout=WS_SEND_TIMEOUT)
+            except Exception:
+                logger.debug("Falha ao enviar mensagem WebSocket; desconectando cliente")
+                await self.disconnect(ws)
+
+        if clients:
+            tasks = [asyncio.create_task(_safe_send(c)) for c in clients]
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     except Exception as e:
         logger.error("Erro na coleta: %s", e)
         await _metrics_store.add_error_sample(e)
@@ -488,8 +661,43 @@ async def metrics_collector_loop() -> None:
 
 
 # ── FastAPI Router ────────────────────────────────────────────────────────────
+# ── WebSocket Authentication ─────────────────────────────────────────────────
 
-router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+async def _verify_ws_admin(websocket: WebSocket) -> str | None:
+    """Valida autenticação admin para WebSocket."""
+    try:
+        token = websocket.query_params.get("access_token")
+        if not token:
+            auth_header = websocket.headers.get("authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+
+        if not token: return None
+
+        payload = decode_token(token)
+        username = payload.get("sub")
+
+        # Verificar se é admin (suporta roles ou scopes)
+        roles_claim = payload.get("roles")
+        if roles_claim is None:
+            legacy_role = payload.get("role")
+            roles = [legacy_role] if legacy_role else []
+        elif isinstance(roles_claim, list):
+            roles = roles_claim
+        else:
+            roles = [roles_claim]
+        if "admin" not in roles: return None
+
+        return username
+    except Exception as e:
+        logger.warning("WebSocket authentication failed: %s", e, exc_info=True)
+        return None
+
+
+# ── Singletons ───────────────────────────────────────────────────────────────
+
+_metrics_store = DashboardMetricsStore()
+ws_manager = WebSocketManager()
 
 # FIX: Adicionar autenticação aos endpoints GET
 @router.get("/current")
@@ -500,6 +708,81 @@ async def get_current(user: dict = Depends(require_role("admin"))):
 @router.get("/history")
 async def get_history(minutes: int = 120, user: dict = Depends(require_role("admin"))):
     """Retorna histórico de métricas para gráficos. Requer autenticação admin."""
+
+# ── Collector Logic ──────────────────────────────────────────────────────────
+
+async def collect_metrics_sample() -> None:
+    """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
+    redis = get_redis_client()
+    # Aumentado TTL para 15s para maior segurança contra sobreposição
+    if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=15, nx=True):
+        return
+
+    try:
+        snapshot = runtime_metrics.get_snapshot()
+        now_mono = time.monotonic()
+        now_wall = time.time()
+        dt_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+
+        agent = snapshot.get("agent", {})
+        slo = snapshot.get("slo", {})
+        req_total = _safe_int(agent.get("initializations"))
+        uptime = await _metrics_store.get_global_uptime()
+
+        def build_sample(rps: float) -> MetricSample:
+            return MetricSample(
+                timestamp=now_wall, datetime_str=dt_str,
+                requests_total=req_total, requests_per_sec=rps,
+                error_rate=_safe_float(slo.get("api_error_rate")) * 100,
+                tws_connected=_safe_float(slo.get("tws_connection_success_rate")) > 0.5,
+                system_uptime=uptime, system_availability=_safe_float(slo.get("availability"), 1.0) * 100
+            )
+
+        await _metrics_store.compute_rate_and_add_sample(req_total, now_mono, build_sample)
+
+        current = await _metrics_store.get_current_metrics()
+        subscribers = await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+        if subscribers == 0: logger.debug("Nenhum subscriber no canal de broadcast")
+
+    except Exception as e:
+        logger.error("Erro na coleta: %s", e)
+        try:
+            await _metrics_store.add_error_sample(e)
+            current = await _metrics_store.get_current_metrics()
+            await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+        except Exception:
+            logger.debug("Falha ao persistir/broadcast amostra de erro")
+    finally:
+        # Libera o lock explicitamente após a coleta
+        await redis.delete(REDIS_LOCK_COLLECTOR)
+
+
+async def metrics_collector_loop() -> None:
+    try:
+        redis = get_redis_client()
+        await redis.ping()
+    except Exception as e:
+        logger.error("Redis não disponível, encerrando collector: %s", e); return
+
+    await ws_manager.start_sync()
+    while True:
+        try: await collect_metrics_sample()
+        except asyncio.CancelledError: break
+        except Exception:
+            logger.exception("Erro no collector loop ao executar collect_metrics_sample")
+        await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+
+
+# ── FastAPI Router ────────────────────────────────────────────────────────────
+
+router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+
+@router.get("/current", dependencies=[Depends(require_role("admin"))])
+async def get_current():
+    return await _metrics_store.get_current_metrics()
+
+@router.get("/history", dependencies=[Depends(require_role("admin"))])
+async def get_history(minutes: int = 120):
     return await _metrics_store.get_history(min(max(1, minutes), 120))
 
 @router.websocket("/ws")
@@ -514,6 +797,15 @@ async def websocket_metrics(websocket: WebSocket):
     if not await ws_manager.connect(websocket):
         await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return
     
+    await websocket.accept()
+    username = await _verify_ws_admin(websocket)
+    if not username:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    if not await ws_manager.connect(websocket):
+        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return
+
     try:
         initial = await _metrics_store.get_current_metrics()
         await websocket.send_json(initial)

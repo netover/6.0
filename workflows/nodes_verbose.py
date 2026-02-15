@@ -96,7 +96,7 @@ async def fetch_job_history(
                     WHERE job_name = :job_name
                     AND timestamp >= :cutoff_date
                     ORDER BY timestamp DESC
-                    LIMIT 1000
+                    LIMIT 2000
                 """)
                 
                 result = await db.execute(
@@ -298,7 +298,7 @@ async def fetch_workstation_metrics(
                     WHERE workstation = :workstation
                     AND timestamp >= :cutoff_date
                     ORDER BY timestamp DESC
-                    LIMIT 1000
+                    LIMIT 5000
                 """)
                 
                 result = await db.execute(

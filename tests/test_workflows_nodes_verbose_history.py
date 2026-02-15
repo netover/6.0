@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -83,6 +84,8 @@ async def test_fetch_workstation_metrics_history_uses_named_mappings(monkeypatch
         "cpu_count": 8,
         "total_memory_gb": 32,
         "total_disk_gb": 512,
+        "total_memory_gb": 32.0,
+        "total_disk_gb": 512.0,
     }
 
 
@@ -124,3 +127,195 @@ async def test_fetch_workstation_metrics_history_handles_none_fields(monkeypatch
         "total_disk_gb": 0.0,
     }
 
+
+@pytest.mark.asyncio
+async def test_fetch_job_execution_history_with_workstation_filter(monkeypatch):
+    """Test fetching job execution history filtered by workstation."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    rows = [
+        {
+            "timestamp": now,
+            "job_name": "JOB_A",
+            "workstation": "WS01",
+            "status": "SUCC",
+            "return_code": 0,
+            "runtime_seconds": 120,
+            "scheduled_time": now,
+            "actual_start_time": now,
+            "completed_time": now,
+        }
+    ]
+
+    result = SimpleNamespace(mappings=lambda: SimpleNamespace(fetchall=lambda: rows))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    history = await fetch_job_execution_history(db=db, workstation="WS01")
+
+    assert len(history) == 1
+    assert history[0]["workstation"] == "WS01"
+
+
+@pytest.mark.asyncio
+async def test_fetch_job_execution_history_empty_result(monkeypatch):
+    """Test fetching job execution history with no results."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    result = SimpleNamespace(mappings=lambda: SimpleNamespace(fetchall=lambda: []))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    history = await fetch_job_execution_history(db=db)
+
+    assert len(history) == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_job_execution_history_feature_disabled(monkeypatch):
+    """Test that function returns empty list when feature is disabled."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "false")
+
+    db = AsyncMock()
+    history = await fetch_job_execution_history(db=db)
+
+    assert len(history) == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_job_execution_history_database_error(monkeypatch):
+    """Test error handling when database query fails."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=Exception("Database error"))
+
+    history = await fetch_job_execution_history(db=db)
+
+    assert len(history) == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_workstation_metrics_history_with_filter(monkeypatch):
+    """Test fetching metrics history filtered by workstation."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    now = datetime(2026, 1, 2, 13, 0, tzinfo=timezone.utc)
+    rows = [
+        {
+            "timestamp": now,
+            "workstation": "WS01",
+            "cpu_percent": 50.0,
+            "memory_percent": 60.0,
+            "disk_percent": 70.0,
+            "load_avg_1min": 1.5,
+            "cpu_count": 16,
+            "total_memory_gb": 64,
+            "total_disk_gb": 1024,
+        }
+    ]
+
+    result = SimpleNamespace(mappings=lambda: SimpleNamespace(fetchall=lambda: rows))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    history = await fetch_workstation_metrics_history(db=db, workstation="WS01")
+
+    assert len(history) == 1
+    assert history[0]["workstation"] == "WS01"
+
+
+@pytest.mark.asyncio
+async def test_fetch_workstation_metrics_history_multiple_records(monkeypatch):
+    """Test fetching multiple metrics records."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    now = datetime(2026, 1, 2, 13, 0, tzinfo=timezone.utc)
+    rows = [
+        {
+            "timestamp": now,
+            "workstation": "WS01",
+            "cpu_percent": 50.0,
+            "memory_percent": 60.0,
+            "disk_percent": 70.0,
+            "load_avg_1min": 1.5,
+            "cpu_count": 16,
+            "total_memory_gb": 64,
+            "total_disk_gb": 1024,
+        },
+        {
+            "timestamp": now,
+            "workstation": "WS02",
+            "cpu_percent": 30.0,
+            "memory_percent": 40.0,
+            "disk_percent": 50.0,
+            "load_avg_1min": 0.8,
+            "cpu_count": 8,
+            "total_memory_gb": 32,
+            "total_disk_gb": 512,
+        }
+    ]
+
+    result = SimpleNamespace(mappings=lambda: SimpleNamespace(fetchall=lambda: rows))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    history = await fetch_workstation_metrics_history(db=db)
+
+    assert len(history) == 2
+    assert history[0]["workstation"] == "WS01"
+    assert history[1]["workstation"] == "WS02"
+
+
+@pytest.mark.asyncio
+async def test_fetch_workstation_metrics_history_feature_disabled(monkeypatch):
+    """Test that function returns empty list when feature is disabled."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "false")
+
+    db = AsyncMock()
+    history = await fetch_workstation_metrics_history(db=db)
+
+    assert len(history) == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_workstation_metrics_history_database_error(monkeypatch):
+    """Test error handling when database query fails."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=Exception("Database error"))
+
+    history = await fetch_workstation_metrics_history(db=db)
+
+    assert len(history) == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_job_execution_history_custom_days(monkeypatch):
+    """Test fetching job execution history with custom days parameter."""
+    monkeypatch.setenv("ENABLE_PREDICTIVE_WORKFLOWS", "true")
+
+    now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    rows = [
+        {
+            "timestamp": now,
+            "job_name": "JOB_A",
+            "workstation": "WS01",
+            "status": "SUCC",
+            "return_code": 0,
+            "runtime_seconds": 120,
+            "scheduled_time": now,
+            "actual_start_time": now,
+            "completed_time": now,
+        }
+    ]
+
+    result = SimpleNamespace(mappings=lambda: SimpleNamespace(fetchall=lambda: rows))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    history = await fetch_job_execution_history(db=db, days=60)
+
+    assert len(history) == 1
