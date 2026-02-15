@@ -218,9 +218,26 @@ class RedisCacheManager:
         """
         try:
             # Use SCAN to avoid blocking Redis in production
+            # Optimization: Batch delete operations to reduce network round-trips
+            keys_to_delete: list[str] = []
             total_deleted = 0
-            for key in self.redis_client.scan_iter(match=pattern, count=1000):
-                total_deleted += int(self.redis_client.delete(key))
+            batch_size = getattr(settings, "REDIS_DELETE_BATCH_SIZE", 1000)
+
+            for key in self.redis_client.scan_iter(match=pattern, count=batch_size):
+                # Ensure keys are strings (scan_iter might yield bytes)
+                if isinstance(key, bytes):
+                    key = key.decode("utf-8")
+
+                keys_to_delete.append(key)
+                if len(keys_to_delete) >= batch_size:
+                    # redis.delete returns the number of keys removed
+                    total_deleted += self.redis_client.delete(*keys_to_delete)
+                    keys_to_delete = []
+
+            # Delete any remaining keys
+            if keys_to_delete:
+                total_deleted += self.redis_client.delete(*keys_to_delete)
+
             logger.debug("Cleared %s keys matching pattern: %s", total_deleted, pattern)
             return total_deleted
         except Exception as e:
