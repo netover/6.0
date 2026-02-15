@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.interfaces import ITWSClient
-    from resync.services.llm_fallback import LLMService
+    from resync.services.llm_service import LLMService
 
 logger = get_logger(__name__)
 
@@ -138,9 +138,8 @@ def init_domain_singletons(app: FastAPI) -> None:
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.redis_init import get_redis_client
-    from resync.services.llm_fallback import get_llm_service
+    from resync.services.llm_service import get_llm_service
     from resync.services.mock_tws_service import MockTWSClient
-    from resync.services.tws_unified import get_tws_client as get_resilient_tws
     from resync.services.rag_client import get_rag_client_singleton
 
     settings = get_settings()
@@ -200,7 +199,7 @@ def init_domain_singletons(app: FastAPI) -> None:
     llm_service = get_llm_service()
 
     # RAG client singleton (initializes and validates Config/URL)
-    rag_client = get_rag_client_singleton()
+    get_rag_client_singleton()
 
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # redis_available is set based on IdempotencyManager initialization above.
