@@ -351,13 +351,13 @@ class ApplicationFactory:
         from resync.api.routes.cache import router as cache_router
         from resync.api.chat import chat_router
         from resync.api.routes.cors_monitoring import router as cors_monitor_router
-        from resync.api.health import router as health_router
+        from resync.api.routes.core.health import router as health_router
         from resync.api.routes.performance import router as performance_router
 
         # Additional routers from main_improved
         try:
             from resync.api.routes.endpoints import router as api_router
-            from resync.api.health import config_router
+            from resync.api.routes.core.health import config_router
             from resync.api.routes.rag.upload import router as rag_upload_router
 
             self.app.include_router(api_router, prefix="/api")

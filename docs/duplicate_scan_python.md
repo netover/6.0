@@ -4,8 +4,9 @@ Total de arquivos analisados: **122**
 
 ## Duplicações API (top-level) x API Routes
 
-- `resync/api/health.py` ↔ `resync/api/routes/core/health.py`: **0.905**
+- `resync/api/auth_legacy.py` ↔ `resync/api/routes/core/auth.py`: **0.464** (sobreposição parcial)
 
 ## Candidatos seguros para ajuste/remoção
 
-- Risco **alto**: consolidar `resync/api/health.py` em `resync/api/routes/core/health.py` (sim 0.905) após validar imports.
+- `resync/api/health.py` ↔ `resync/api/routes/core/health.py` foi **consolidado**: imports migrados para `resync/api/routes/core/health.py` e arquivo legado removido.
+- Próximo candidato de revisão: consolidar trechos comuns entre `auth_legacy` e `routes/core/auth` com compatibilidade retroativa.
