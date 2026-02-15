@@ -91,7 +91,7 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
         if manager and manager.status_store:
             init_tws_history_rag(
                 status_store=manager.status_store,
-                llm_client=_get_llm_client(),
+                llm_client=_get_llm_client(app),
             )
 
         # 6. Store reference in app state

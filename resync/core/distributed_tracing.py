@@ -453,12 +453,8 @@ class DistributedTracingManager:
         # can still safely set attributes/record exceptions.
         if not getattr(self, 'tracer', None):
             span = _NoOpSpan()
-            try:
-                yield span
-            except Exception:
-                raise
-            finally:
-                return
+            yield span
+            return
 
         with self.tracer.start_as_current_span(operation_name, attributes=attributes) as span:
             # Store trace context

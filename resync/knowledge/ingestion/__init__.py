@@ -17,6 +17,10 @@ Usage:
     result = await pipeline.ingest_file("manual.pdf", tenant="default")
 """
 
+from .document_converter import DoclingConverter
+from .ingest import IngestService
+from .pipeline import DocumentIngestionPipeline
+
 __all__ = [
     "DocumentIngestionPipeline",
     "DoclingConverter",

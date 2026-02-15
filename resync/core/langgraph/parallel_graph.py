@@ -394,9 +394,9 @@ def metrics_node(state: ParallelState) -> dict[str, Any]:
     logger.debug("parallel_node_start", node=source_name)
 
     try:
-        from resync.core.metrics import RuntimeMetrics
+        from resync.core.metrics import runtime_metrics
 
-        metrics = RuntimeMetrics.get_snapshot()
+        metrics = runtime_metrics.get_snapshot()
 
         latency_ms = (time.time() - start_time) * 1000
 

@@ -90,7 +90,7 @@ class KGExtractor:
                 c_prompt = build_concepts_prompt(
                     text,
                     allowed_node_types=self.allowed_node_types,
-                    max_items=self.max_concepts_per_chunk,
+                    max_concepts=self.max_concepts_per_chunk,
                 )
                 raw = await call_llm(c_prompt, temperature=0.0, model=self.model)
                 concepts = self._parse_concepts(raw)
@@ -110,7 +110,7 @@ class KGExtractor:
                     text,
                     concepts=names,
                     allowed_relations=self.allowed_relations,
-                    max_items=self.max_edges_per_chunk,
+                    max_edges=self.max_edges_per_chunk,
                 )
                 raw = await call_llm(e_prompt, temperature=0.0, model=self.model)
                 edges = self._parse_edges(raw, doc_id=doc_id, chunk_id=chunk_id)
