@@ -612,5 +612,6 @@ async def _save_suggestion(suggestion: ImprovementSuggestion):
     if not AGENT_IMPROVEMENTS_DIR.exists():
         AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion.id}.json"
     async with aiofiles.open(file_path, 'w') as f:
         await f.write(suggestion.model_dump_json(indent=2))

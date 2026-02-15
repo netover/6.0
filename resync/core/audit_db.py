@@ -114,13 +114,22 @@ class AuditDB:
         """Get recent audit actions."""
         return await self._repo.get_all(limit=limit, offset=offset, order_by="timestamp", desc=True)
 
+    async def get_record_count_async(self) -> int:
+        """Get total number of audit records asynchronously."""
+        return await self._repo.count()
+
     def get_record_count(self) -> int:
-        """Get total number of audit records."""
+        """Get total number of audit records (sync shim).
+        
+        Note: Returns 0 if called within an active event loop to avoid blocking.
+        Use get_record_count_async() in async contexts.
+        """
         # Use a simplified sync wrapper since this is used in sync dashboard context
         try:
             asyncio.get_running_loop()
             # If in loop, we'd need to await, but this is a shim.
             # Returning 0 or similar is safer than crashing if called incorrectly.
+            logger.warning("get_record_count_called_in_async_loop")
             return 0
         except RuntimeError:
             async def _count():

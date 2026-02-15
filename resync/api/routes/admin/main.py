@@ -1104,7 +1104,7 @@ async def get_admin_audit_logs(
             records = [r for r in records if r.get("action") == action]
 
         # Get total count for pagination
-        total_count = audit_db.get_record_count()
+        total_count = await audit_db.get_record_count_async()
 
         return {
             "records": records,

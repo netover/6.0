@@ -675,6 +675,39 @@ class Settings(BaseSettings, SettingsValidators):
         description="URL do webhook do Microsoft Teams",
     )
 
+    # Teams Outgoing Webhook (Validation Logic)
+    teams_outgoing_webhook_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"),
+        description="Enable Teams outgoing webhook",
+    )
+    teams_outgoing_webhook_security_token: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN", "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN"),
+        description="Security token for Teams webhook",
+        exclude=True,
+        repr=False,
+    )
+    teams_outgoing_webhook_name: str = Field(
+        default="resync",
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"),
+    )
+    teams_callback_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("TEAMS_CALLBACK_URL", "APP_TEAMS_CALLBACK_URL"),
+    )
+    teams_outgoing_webhook_timeout: int = Field(
+        default=25,
+        ge=1,
+        le=60,
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"),
+        description="Response timeout for Teams webhook",
+    )
+    teams_outgoing_webhook_max_response_length: int = Field(
+        default=28000,
+        description="Teams message length limit",
+    )
+
     # Dashboard
     tws_dashboard_theme: str = Field(
         default="auto",
@@ -1101,7 +1134,7 @@ class Settings(BaseSettings, SettingsValidators):
     @property
     def REDIS_URL(self) -> str:
         """Legacy alias for redis_url."""
-        return self.redis_url
+        return self.redis_url.get_secret_value()
 
     @property
     def LLM_ENDPOINT(self) -> str | None:
@@ -1491,11 +1524,6 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # Validators are now imported from settings_validators.py
 
-    # SSL/TLS (compat-shims; não usados diretamente por Pydantic)
-    # >>> Enable certificate validation by default for security <<<
-    # Set TWS_VERIFY=false in .env for development with self-signed certs
-    TWS_VERIFY: bool | str = True  # SSL enabled by default
-    TWS_CA_BUNDLE: str | None = None
 
     def __repr__(self) -> str:
         """Representation that excludes sensitive fields from the output."""
@@ -1538,7 +1566,7 @@ settings = _SettingsProxy()
 # -----------------------------------------------------------------------------
 def load_settings() -> Settings:
     """Load application settings (backward-compat shim)."""
-    return settings  # type: ignore[return-value]
+    return get_settings()
 
 
 # -----------------------------------------------------------------------------
@@ -1566,11 +1594,28 @@ def __getattr__(name: str) -> Any:
 # TEAMS OUTGOING WEBHOOK CONFIGURATION
 # =============================================================================
 
-TEAMS_OUTGOING_WEBHOOK = {
-    "enabled": os.getenv("TEAMS_OUTGOING_WEBHOOK_ENABLED", "false").lower() == "true",
-    "security_token": os.getenv("TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN", ""),
-    "webhook_name": os.getenv("TEAMS_OUTGOING_WEBHOOK_NAME", "resync"),
-    "callback_url": os.getenv("TEAMS_CALLBACK_URL", ""),
-    "response_timeout": int(os.getenv("TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "25")),
-    "max_response_length": 28000,  # Teams limit
-}
+# Define a proxy class to lazily access settings for the dictionary interface
+class _TeamsConfigProxy(dict):
+    def __getitem__(self, key: str) -> Any:
+        s = get_settings()
+        if key == "enabled":
+            return s.teams_outgoing_webhook_enabled
+        if key == "security_token":
+            return s.teams_outgoing_webhook_security_token.get_secret_value()
+        if key == "webhook_name":
+            return s.teams_outgoing_webhook_name
+        if key == "callback_url":
+            return s.teams_callback_url
+        if key == "response_timeout":
+            return s.teams_outgoing_webhook_timeout
+        if key == "max_response_length":
+            return s.teams_outgoing_webhook_max_response_length
+        raise KeyError(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()

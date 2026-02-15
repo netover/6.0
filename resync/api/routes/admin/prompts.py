@@ -143,7 +143,7 @@ async def list_prompts(
                     detail=f"Invalid prompt type: {prompt_type}",
                 ) from None
 
-        prompts = prompt_manager.list_prompts(
+        prompts = await prompt_manager.list_prompts(
             prompt_type=type_filter, active_only=active_only
         )
 
@@ -178,7 +178,7 @@ async def get_prompt(
 ) -> PromptDetailResponse:
     """Get a specific prompt by ID."""
     prompt_manager = get_prompt_manager()
-    template = prompt_manager.get_prompt(prompt_id)
+    template = await prompt_manager.get_prompt(prompt_id)
 
     if not template:
         raise HTTPException(status_code=404, detail=f"Prompt '{prompt_id}' not found")
@@ -305,7 +305,7 @@ async def delete_prompt(
 ):
     """Delete a prompt."""
     prompt_manager = get_prompt_manager()
-    deleted = prompt_manager.delete_prompt(prompt_id)
+    deleted = await prompt_manager.delete_prompt(prompt_id)
 
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Prompt '{prompt_id}' not found")
@@ -320,7 +320,7 @@ async def test_prompt(
 ) -> PromptTestResponse:
     """Test a prompt by compiling it."""
     prompt_manager = get_prompt_manager()
-    template = prompt_manager.get_prompt(prompt_id)
+    template = await prompt_manager.get_prompt(prompt_id)
 
     if not template:
         raise HTTPException(status_code=404, detail=f"Prompt '{prompt_id}' not found")
