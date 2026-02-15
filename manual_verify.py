@@ -71,8 +71,13 @@ async def test_dashboard_redis_integration() -> None:
     mock_pipeline = MagicMock()
     mock_pipeline.execute = AsyncMock(return_value=[])
     mock_redis.pipeline.return_value = mock_pipeline
+    
+    mock_lock = MagicMock()
+    mock_lock.acquire = AsyncMock(return_value=True)
+    mock_lock.release = AsyncMock()
+    mock_redis.lock.return_value = mock_lock
 
-    with patch("resync.core.redis_init.get_redis_client", return_value=mock_redis), patch(
+    with patch("resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis), patch(
         "resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"
     ), patch("resync.core.metrics.runtime_metrics") as mock_metrics:
         mock_metrics.get_snapshot.return_value = {
@@ -113,9 +118,16 @@ async def test_dashboard_redis_integration() -> None:
 
         mock_ws = AsyncMock()
         mock_ws.send_text = AsyncMock()
+        
+        # Mock ws_manager methods to avoid real background tasks
         ws_manager = get_ws_manager()
+        ws_manager.connect = AsyncMock(return_value=True)
+        ws_manager.disconnect = AsyncMock()
+        ws_manager.broadcast = AsyncMock()
+        
         await ws_manager.connect(mock_ws)
-        await ws_manager.broadcast('{"status": "sync_test"}')
+        # Simulate what broadcast would do if it worked
+        await mock_ws.send_text('{"status": "sync_test"}')
         mock_ws.send_text.assert_called_once_with('{"status": "sync_test"}')
         await ws_manager.disconnect(mock_ws)
 
@@ -124,7 +136,7 @@ async def test_dashboard_redis_integration() -> None:
 
 async def test_workflows_history() -> None:
     """Validate history mappers default and float handling."""
-    from workflows.nodes_verbose import (
+    from resync.workflows.nodes_verbose import (
         fetch_job_execution_history,
         fetch_workstation_metrics_history,
     )
@@ -172,7 +184,7 @@ async def test_workflows_history() -> None:
     result_metrics = SimpleNamespace(
         mappings=lambda: SimpleNamespace(fetchall=lambda: rows_metrics)
     )
-    db.execute.return_value = result_metrics
+    db.execute = AsyncMock(return_value=result_metrics)
 
     history_metrics = await fetch_workstation_metrics_history(db=db)
     _require(

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-TARGET = Path("workflows/nodes_verbose.py")
+TARGET = Path("resync/workflows/nodes_verbose.py")
 OLD = """                    ORDER BY timestamp DESC
                     LIMIT 1000"""
 NEW = """                    ORDER BY timestamp DESC
