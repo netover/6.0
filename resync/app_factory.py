@@ -344,7 +344,7 @@ class ApplicationFactory:
         # =================================================================
         # CORE ROUTERS (v7.0: canonical paths under resync/api/routes/)
         # =================================================================
-        from resync.api.admin import admin_router
+        from resync.api.routes.admin.main import admin_router
         from resync.api.routes.admin.prompts import prompt_router
         from resync.api.agents import agents_router
         from resync.api.routes.audit import router as audit_router
