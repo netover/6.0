@@ -17,6 +17,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
+from .common import build_error_health, response_time_ms
 
 logger = structlog.get_logger(__name__)
 
@@ -44,14 +45,12 @@ class WebSocketPoolHealthChecker(BaseHealthChecker):
         start_time = time.time()
 
         try:
-            response_time = (time.time() - start_time) * 1000
-
             return ComponentHealth(
                 name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.HEALTHY,
                 message="WebSocket pool service available",
-                response_time_ms=response_time,
+                response_time_ms=response_time_ms(start_time),
                 last_check=datetime.now(timezone.utc),
                 metadata={
                     "pool_status": "available",
@@ -59,16 +58,15 @@ class WebSocketPoolHealthChecker(BaseHealthChecker):
                 },
             )
         except Exception as e:
-            response_time = (time.time() - start_time) * 1000
-            logger.error("websocket_pool_health_check_failed", error=str(e))
-            return ComponentHealth(
-                name=self.component_name,
+            return build_error_health(
+                component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNHEALTHY,
                 message=f"WebSocket pool unavailable: {str(e)}",
-                response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
-                error_count=1,
+                start_time=start_time,
+                error=e,
+                log_event="websocket_pool_health_check_failed",
+                logger=logger,
             )
 
     def _get_status_for_exception(self, exception: Exception) -> ComponentType:
