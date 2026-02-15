@@ -4,10 +4,11 @@ LangGraph Workflow Nodes
 Shared node functions used by predictive maintenance and capacity forecasting workflows.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import structlog
+from sqlalchemy import text
 
 logger = structlog.get_logger(__name__)
 
@@ -1760,8 +1761,6 @@ async def fetch_job_execution_history(
         List of job execution records
     """
     import os
-    from datetime import timedelta, datetime, timezone
-    from sqlalchemy import text
     
     if not os.getenv("ENABLE_PREDICTIVE_WORKFLOWS", "").lower() == "true":
         logger.warning("fetch_job_execution_history.feature_disabled")
@@ -1772,21 +1771,6 @@ async def fetch_job_execution_history(
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     try:
-        # Check if table exists
-        check_table_query = text("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'job_execution_history'
-            )
-        """)
-        result = await db.execute(check_table_query)
-        table_exists = result.scalar()
-
-        if not table_exists:
-            logger.warning("fetch_job_execution_history.table_missing")
-            return []
-
         # Build query
         query_str = """
             SELECT
@@ -1856,8 +1840,6 @@ async def fetch_workstation_metrics_history(
         List of metrics records with timestamp, CPU, memory, disk
     """
     import os
-    from datetime import timedelta, datetime, timezone
-    from sqlalchemy import text
     
     if not os.getenv("ENABLE_PREDICTIVE_WORKFLOWS", "").lower() == "true":
         logger.warning("fetch_workstation_metrics_history.feature_disabled")
@@ -1868,21 +1850,6 @@ async def fetch_workstation_metrics_history(
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     try:
-        # Check if table exists
-        check_table_query = text("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'workstation_metrics_history'
-            )
-        """)
-        result = await db.execute(check_table_query)
-        table_exists = result.scalar()
-
-        if not table_exists:
-            logger.warning("fetch_workstation_metrics_history.table_missing")
-            return []
-
         # Build query
         query_str = """
             SELECT
