@@ -29,9 +29,8 @@ try:
     from httpx import ASGITransport, AsyncClient
 except ImportError:
     # Handle environment where httpx is not installed
-    from unittest.mock import MagicMock
-    ASGITransport = MagicMock()
-    AsyncClient = MagicMock()
+    ASGITransport = MagicMock
+    AsyncClient = MagicMock
 
 import logging
 logger = logging.getLogger(__name__)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Type definitions for Semantic Cache.
 
@@ -8,6 +10,9 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+
+
+_EPOCH_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 @dataclass
@@ -35,6 +40,7 @@ class CacheEntry:
         """Convert to dictionary for Redis storage."""
         return {
             "query": self.query,
+            "query_text": self.query,
             "response": self.response,
             "embedding": json.dumps(self.embedding),
             "timestamp": self.timestamp.isoformat(),
@@ -45,15 +51,42 @@ class CacheEntry:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CacheEntry":
         """Create from Redis hash data."""
+        query = data.get("query") or data.get("query_text") or ""
+
+        raw_embedding = data.get("embedding", "[]")
+        try:
+            embedding = json.loads(raw_embedding)
+            if not isinstance(embedding, list):
+                embedding = []
+        except (TypeError, json.JSONDecodeError):
+            embedding = []
+
+        raw_metadata = data.get("metadata", "{}")
+        try:
+            metadata = json.loads(raw_metadata)
+            if not isinstance(metadata, dict):
+                metadata = {}
+        except (TypeError, json.JSONDecodeError):
+            metadata = {}
+
+        raw_timestamp = data.get("timestamp")
+        try:
+            timestamp = datetime.fromisoformat(raw_timestamp) if raw_timestamp else _EPOCH_UTC
+        except (TypeError, ValueError):
+            timestamp = _EPOCH_UTC
+
+        try:
+            hit_count = int(data.get("hit_count", 0))
+        except (TypeError, ValueError):
+            hit_count = 0
+
         return cls(
-            query=data.get("query", ""),
+            query=query,
             response=data.get("response", ""),
-            embedding=json.loads(data.get("embedding", "[]")),
-            timestamp=datetime.fromisoformat(
-                data.get("timestamp", datetime.now(timezone.utc).isoformat())
-            ),
-            hit_count=int(data.get("hit_count", 0)),
-            metadata=json.loads(data.get("metadata", "{}")),
+            embedding=embedding,
+            timestamp=timestamp,
+            hit_count=hit_count,
+            metadata=metadata,
         )
 
 
