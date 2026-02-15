@@ -15,13 +15,16 @@ import time
 from contextlib import suppress
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends
 
 from resync.core.redis_init import get_redis_client
 from resync.api.security import decode_token, require_role
 from resync.core.metrics import runtime_metrics
+
+if TYPE_CHECKING:
+    import redis.asyncio as redis_async
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +118,7 @@ def _build_metric_sample(
     req_total: int,
     rps: float,
     uptime: float,
-) -> MetricSample:
+) -> "MetricSample":
     """Constrói MetricSample completo a partir do snapshot de runtime."""
     agent = snapshot.get("agent", {})
     slo = snapshot.get("slo", {})
@@ -140,7 +143,7 @@ def _build_metric_sample(
         response_time_avg=_safe_float(slo.get("api_response_time_avg")) * 1000,
         cache_hits=cache_hits,
         cache_misses=cache_misses,
-        cache_hit_ratio=((cache_hits / cache_total) * 100) if cache_total > 0 else 100.0,
+        cache_hit_ratio=((cache_hits / cache_total) * 100) if cache_total > 0 else 0.0,
         cache_size=_safe_int(cache.get("size")),
         cache_evictions=_safe_int(cache.get("evictions")),
         agents_active=_safe_int(agent.get("active_count")),
@@ -161,7 +164,7 @@ def _build_metric_sample(
     )
 
 
-async def _get_redis():
+async def _get_redis() -> "redis_async.Redis":
     """Obtém o cliente Redis canônico da aplicação."""
     client = get_redis_client()
     if client is None:
@@ -261,7 +264,7 @@ class DashboardMetricsStore:
             sample = sample_builder(max(0.0, rps))
             await self.add_sample(sample)
         except Exception as e:
-            logger.error("Falha ao calcular RPS; usando 0: %s", e)
+            logger.error("Falha ao calcular RPS; usando 0 (%s)", type(e).__name__)
             sample = sample_builder(0.0)
             await self.add_sample(sample)
 
@@ -307,7 +310,7 @@ class DashboardMetricsStore:
                 pipe.ltrim(REDIS_KEY_ALERTS, 0, 19)
             await pipe.execute()
         except Exception as e:
-            logger.error("Falha ao persistir amostra no Redis: %s", e)
+            logger.error("Falha ao persistir amostra no Redis (%s)", type(e).__name__)
 
     def _compute_alerts(self, sample: MetricSample) -> list[dict[str, Any]]:
         """Computa alertas localmente."""
@@ -345,7 +348,7 @@ class DashboardMetricsStore:
             self._cached_start_time = float(raw)
             return now - self._cached_start_time
         except Exception as e:
-            logger.exception("Erro ao obter uptime global do Redis: %s", e)
+            logger.exception("Erro ao obter uptime global do Redis (%s)", type(e).__name__)
             return 0.0
 
     async def get_current_metrics(self) -> dict[str, Any]:
@@ -365,7 +368,7 @@ class DashboardMetricsStore:
 
             return self._format_metrics_dict(data, alerts)
         except Exception as e:
-            logger.error("Erro ao obter métricas: %s", e)
+            logger.error("Erro ao obter métricas (%s)", type(e).__name__)
             return self._empty_response("error")
 
     async def get_history(self, minutes: int = 120) -> dict[str, Any]:
@@ -393,7 +396,7 @@ class DashboardMetricsStore:
                 "sample_count": len(samples)
             }
         except Exception as e:
-            logger.error("Erro ao obter histórico: %s", e)
+            logger.error("Erro ao obter histórico (%s)", type(e).__name__)
             return self._empty_history()
 
     def _format_metrics_dict(self, current: dict, alerts: list) -> dict:
@@ -671,7 +674,7 @@ async def collect_metrics_sample() -> None:
             logger.debug("Nenhum subscriber no canal de broadcast")
 
     except Exception as e:
-        logger.error("Erro na coleta: %s", e)
+        logger.error("Erro na coleta (%s)", type(e).__name__)
         try:
             store = get_metrics_store()
             await store.add_error_sample(e)
@@ -692,7 +695,7 @@ async def metrics_collector_loop() -> None:
         redis = await _get_redis()
         await redis.ping()
     except Exception as e:
-        logger.exception("Redis não disponível, encerrando collector: %s", e)
+        logger.exception("Redis não disponível, encerrando collector (%s)", type(e).__name__)
         return
 
     ws_manager = get_ws_manager()
