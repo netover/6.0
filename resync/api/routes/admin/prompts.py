@@ -16,7 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -122,11 +122,11 @@ class PromptTestResponse(BaseModel):
 # =============================================================================
 
 
-@prompt_router.get("", response_model=PromptListResponse, summary="List all prompts")
+@prompt_router.get("", summary="List all prompts")
 async def list_prompts(
+    _: Annotated[str, Depends(verify_admin_credentials)],
     prompt_type: str | None = None,
     active_only: bool = True,
-    _: str = Depends(verify_admin_credentials),
 ) -> PromptListResponse:
     """List all prompts."""
     try:
@@ -170,10 +170,10 @@ async def list_prompts(
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
 
 
-@prompt_router.get("/{prompt_id}", response_model=PromptDetailResponse, summary="Get a prompt")
+@prompt_router.get("/{prompt_id}", summary="Get a prompt")
 async def get_prompt(
     prompt_id: str,
-    _: str = Depends(verify_admin_credentials),
+    _: Annotated[str, Depends(verify_admin_credentials)],
 ) -> PromptDetailResponse:
     """Get a specific prompt by ID."""
     prompt_manager = get_prompt_manager()
@@ -203,11 +203,11 @@ async def get_prompt(
 
 
 @prompt_router.post(
-    "", response_model=PromptDetailResponse, status_code=201, summary="Create a prompt"
+    "", status_code=201, summary="Create a prompt"
 )
 async def create_prompt(
     request: PromptCreateRequest,
-    _: str = Depends(verify_admin_credentials),
+    _: Annotated[str, Depends(verify_admin_credentials)],
 ) -> PromptDetailResponse:
     """Create a new prompt."""
     try:
@@ -259,11 +259,11 @@ async def create_prompt(
     )
 
 
-@prompt_router.put("/{prompt_id}", response_model=PromptDetailResponse, summary="Update a prompt")
+@prompt_router.put("/{prompt_id}", summary="Update a prompt")
 async def update_prompt(
     prompt_id: str,
     request: PromptUpdateRequest,
-    _: str = Depends(verify_admin_credentials),
+    _: Annotated[str, Depends(verify_admin_credentials)],
 ) -> PromptDetailResponse:
     """Update an existing prompt."""
     prompt_manager = get_prompt_manager()
@@ -299,7 +299,7 @@ async def update_prompt(
 @prompt_router.delete("/{prompt_id}", status_code=204, summary="Delete a prompt")
 async def delete_prompt(
     prompt_id: str,
-    _: str = Depends(verify_admin_credentials),
+    _: Annotated[str, Depends(verify_admin_credentials)],
 ):
     """Delete a prompt."""
     prompt_manager = get_prompt_manager()
@@ -308,14 +308,13 @@ async def delete_prompt(
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Prompt '{prompt_id}' not found")
 
-    return
 
 
-@prompt_router.post("/{prompt_id}/test", response_model=PromptTestResponse, summary="Test a prompt")
+@prompt_router.post("/{prompt_id}/test", summary="Test a prompt")
 async def test_prompt(
     prompt_id: str,
     request: PromptTestRequest,
-    _: str = Depends(verify_admin_credentials),
+    _: Annotated[str, Depends(verify_admin_credentials)],
 ) -> PromptTestResponse:
     """Test a prompt by compiling it."""
     prompt_manager = get_prompt_manager()

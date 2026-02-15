@@ -31,6 +31,7 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 # Module-level singleton variables for dependency injection to avoid B008 errors
 teams_integration_dependency = Depends(get_teams_integration)
 tws_client_dependency = Depends(get_tws_client)
+PRODUCTION_SETTINGS_FILE = "settings.production.toml"
 
 
 class TeamsConfigUpdate(BaseModel):
@@ -109,7 +110,6 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 @admin_router.get(
     "/config",
     summary="Get Admin Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_admin_config(
@@ -175,7 +175,6 @@ async def get_admin_config(
 @admin_router.put(
     "/config/teams",
     summary="Update Teams Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def update_teams_config(
@@ -203,7 +202,7 @@ async def update_teams_config(
         # Persist configuration to file
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("teams", update_fields)
 
@@ -261,7 +260,6 @@ async def update_teams_config(
 @admin_router.get(
     "/config/teams/health",
     summary="Get Teams Integration Health",
-    response_model=TeamsHealthResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_teams_health(
@@ -435,7 +433,6 @@ class SystemConfigUpdate(BaseModel):
 @admin_router.put(
     "/config/tws",
     summary="Update TWS Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def update_tws_config(
@@ -453,7 +450,7 @@ async def update_tws_config(
         update_fields = config_update.dict(exclude_unset=True)
 
         # Persist configuration to file
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("tws", update_fields)
 
@@ -485,7 +482,6 @@ async def update_tws_config(
 @admin_router.put(
     "/config/system",
     summary="Update System Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def update_system_config(
@@ -505,7 +501,7 @@ async def update_system_config(
         update_fields = config_update.dict(exclude_unset=True)
 
         # Persist configuration to file
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("system", update_fields)
 
@@ -670,7 +666,7 @@ async def create_backup(request: Request) -> dict[str, Any]:
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         # Create backup
@@ -709,7 +705,7 @@ async def list_backups(request: Request) -> dict[str, Any]:
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         backups = await persistence.list_backups()
@@ -756,7 +752,7 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         # Find backup file (with path traversal protection)
@@ -831,7 +827,6 @@ class SystemHealthResponse(BaseModel):
 @admin_router.get(
     "/health",
     summary="Get System Health Status",
-    response_model=SystemHealthResponse,
 )
 async def get_system_health(request: Request) -> SystemHealthResponse:
     """Get comprehensive system health status.
