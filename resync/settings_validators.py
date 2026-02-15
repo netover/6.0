@@ -11,14 +11,27 @@ Validation Strategy:
 
 from __future__ import annotations
 
+import os
 import warnings
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 from pydantic import SecretStr, ValidationInfo, field_validator, model_validator
 
 from .settings_types import Environment
+
+
+def _redact_sensitive(val: Any) -> str:
+    """Mask sensitive string values for logs/errors."""
+    if isinstance(val, SecretStr):
+        return "**********"
+    s = str(val)
+    if not s:
+        return ""
+    if len(s) <= 4:
+        return "*" * len(s)
+    return f"{s[:2]}...{s[-2:]}"
 
 
 class SettingsValidators:
@@ -45,31 +58,34 @@ class SettingsValidators:
     @field_validator("base_dir")
     @classmethod
     def validate_base_dir(cls, v: Path) -> Path:
-        """Resolve base_dir para path absoluto e valida existência."""
+        """Resolve base_dir to absolute path and validate existence/permissions."""
         resolved_path = v.resolve()
         if not resolved_path.exists():
-            raise ValueError(f"base_dir ({resolved_path}) does not exist")
+            raise ValueError(f"REQUIRED: base_dir directory must exist. Path not found: {resolved_path}")
         if not resolved_path.is_dir():
-            raise ValueError(f"base_dir ({resolved_path}) is not a directory")
+            raise ValueError(f"REQUIRED: base_dir must be a directory, not a file: {resolved_path}")
+        # Issue 11: Permission checks
+        if not os.access(resolved_path, os.R_OK):
+            raise ValueError(f"PERMISSION DENIED: base_dir is not readable: {resolved_path}")
         return resolved_path
 
     @field_validator("db_pool_max_size")
     @classmethod
     def validate_db_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Valida que max_size >= min_size."""
+        """Validate that max_size >= min_size."""
         min_size = info.data.get("db_pool_min_size", 0)
         if v < min_size:
-            raise ValueError(f"db_pool_max_size ({v}) must be >= db_pool_min_size ({min_size})")
+            raise ValueError(f"CONFIGURATION ERROR: db_pool_max_size ({v}) must be >= db_pool_min_size ({min_size})")
         return v
 
     @field_validator("redis_pool_max_size")
     @classmethod
     def validate_redis_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Valida que max_size >= min_size."""
+        """Validate that max_size >= min_size."""
         min_size = info.data.get("redis_pool_min_size", 0)
         if v < min_size:
             raise ValueError(
-                f"redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
+                f"CONFIGURATION ERROR: redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
             )
         return v
 
@@ -90,7 +106,8 @@ class SettingsValidators:
                 raise ValueError("Redis URL missing hostname")
         except Exception as e:
             # Mask the URL in the error message
-            raise ValueError("Invalid Redis URL format") from e
+            redacted = _redact_sensitive(val)
+            raise ValueError(f"Invalid Redis URL format: {redacted}") from e
         return v
 
     @field_validator("admin_password")
@@ -110,22 +127,26 @@ class SettingsValidators:
         if env == Environment.PRODUCTION:
             if v is None:
                 raise ValueError(
-                    "Admin password is required in production"
+                    "SECURITY FAILURE: admin_password is REQUIRED in Production. "
+                    "Set ADMIN_PASSWORD environment variable."
                 )
             pwd = v.get_secret_value()
             if len(pwd) < min_len:
                 raise ValueError(
-                    f"Admin password must be at least {min_len} characters in production"
+                    f"INSECURE PASSWORD: admin_password must be at least {min_len} characters in Production. "
+                    f"Got {len(pwd)}."
                 )
             if pwd.lower() in cls._INSECURE_ADMIN_PASSWORDS:
                 raise ValueError(
-                    "Insecure admin password not allowed in production"
+                    f"INSECURE PASSWORD: '{pwd[:1]}...' is a known weak password. "
+                    "Use a complex random string."
                 )
         elif v is not None:
             pwd = v.get_secret_value()
             if len(pwd) < min_len:
                 raise ValueError(
-                    f"Admin password must be at least {min_len} characters"
+                    f"INSECURE PASSWORD: admin_password should be at least {min_len} characters. "
+                    f"Got {len(pwd)}."
                 )
 
         return v
@@ -255,7 +276,7 @@ class SettingsValidators:
     @field_validator("upload_dir")
     @classmethod
     def validate_upload_dir(cls, v: Path, info: ValidationInfo) -> Path:
-        """Warn if upload_dir is relative in production."""
+        """Validate upload_dir existence and write permissions."""
         env = info.data.get("environment")
         if env == Environment.PRODUCTION and not v.is_absolute():
             warnings.warn(
@@ -264,6 +285,17 @@ class SettingsValidators:
                 UserWarning,
                 stacklevel=2,
             )
+        
+        # Issue 11: Write permission check if directory exists
+        if v.exists():
+            if not os.access(v, os.W_OK):
+                raise ValueError(f"PERMISSION DENIED: upload_dir is not writable: {v}")
+        else:
+            # Check if parent is writable to allow creation
+            parent = v.parent
+            if parent.exists() and not os.access(parent, os.W_OK):
+                raise ValueError(f"PERMISSION DENIED: Cannot create upload_dir, parent not writable: {parent}")
+                
         return v
 
     @field_validator("cors_allowed_origins")
@@ -353,12 +385,15 @@ class SettingsValidators:
     @field_validator("redis_max_connections")
     @classmethod
     def validate_redis_connection_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Validate redis_max_connections >= redis_min_connections."""
+        """Validate redis_max_connections >= redis_min_connections and reasonable ranges (Issue 12)."""
         min_size = info.data.get("redis_min_connections", 0)
         if v < min_size:
             raise ValueError(
-                f"redis_max_connections ({v}) must be >= redis_min_connections ({min_size})"
+                f"CONFIGURATION ERROR: redis_max_connections ({v}) must be >= redis_min_connections ({min_size})"
             )
+        # Issue 12: Positive range
+        if v <= 0:
+            raise ValueError(f"INVALID RANGE: redis_max_connections must be > 0. Got {v}")
         return v
 
     # =========================================================================

@@ -142,6 +142,7 @@ async def test_workflows_history() -> None:
     )
 
     print("Running test_workflows_history...")
+    # Fix: define history if needed for other mocks, but here it was just a result variable
     now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     rows = [
         {
@@ -194,6 +195,76 @@ async def test_workflows_history() -> None:
     print("test_workflows_history passed!")
 
 
+async def test_settings_validation() -> bool:
+    """Validate formal Settings object and validators (Issues 3, 4, 15)."""
+    print("\n--- [Issue 3 & 4] Running Settings Validation ---")
+    try:
+        print(f"DEBUG: _redact_sensitive exists: {'_redact_sensitive' in globals()}")
+        from resync.settings import settings
+        
+        # Issue 5: Environment Precedence & Dump
+        print("Loading and resolving settings...")
+        
+        print("\nResolved Configuration (Redacted):")
+        # Issue 6: Secret Redaction in Dump
+        for field, value in settings.model_dump().items():
+            if any(k in field.lower() for k in ("key", "password", "secret", "url")):
+                redacted = _redact_sensitive(value)
+                print(f"  {field}: {redacted}")
+            else:
+                print(f"  {field}: {value}")
+                
+        print("\nSettings validation PASSED.")
+        return True
+    except Exception as e:
+        print(f"\nSettings validation FAILED: {e}")
+        return False
+
+
+def _redact_sensitive(val: Any) -> str:
+    """Helper for redacted dump in manual verify."""
+    from pydantic import SecretStr
+    if isinstance(val, SecretStr):
+        return "**********"
+    s = str(val)
+    if not s: return ""
+    if len(s) <= 4: return "*" * len(s)
+    return f"{s[:2]}...{s[-2:]}"
+
+
+async def main() -> int:
+    """Main entry point with fail-fast (Issue 8)."""
+    success = True
+    
+    # 1. Settings Validation (New)
+    if not await test_settings_validation():
+        success = False
+        # Fail fast if settings are broken
+        print("\nABORTING: Settings validation failed.")
+        return 1
+        
+    # 2. Redis Integration
+    try:
+        await test_dashboard_redis_integration()
+    except Exception as e:
+        print(f"test_dashboard_redis_integration FAILED: {e}")
+        success = False
+
+    # 3. Workflows History
+    try:
+        await test_workflows_history()
+    except Exception as e:
+        print(f"test_workflows_history FAILED: {e}")
+        success = False
+
+    if success:
+        print("\nALL VERIFICATIONS PASSED.")
+        return 0
+    else:
+        print("\nSOME VERIFICATIONS FAILED.")
+        return 1
+
+
 if __name__ == "__main__":
-    asyncio.run(test_dashboard_redis_integration())
-    asyncio.run(test_workflows_history())
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)
