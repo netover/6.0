@@ -1744,7 +1744,7 @@ async def notify_operators(
         }
 
 
-def fetch_job_execution_history(
+async def fetch_job_execution_history(
     db: Any,
     workstation: str | None = None,
     days: int = 30
@@ -1760,6 +1760,8 @@ def fetch_job_execution_history(
         List of job execution records
     """
     import os
+    from datetime import timedelta, datetime, timezone
+    from sqlalchemy import text
     
     if not os.getenv("ENABLE_PREDICTIVE_WORKFLOWS", "").lower() == "true":
         logger.warning("fetch_job_execution_history.feature_disabled")
@@ -1767,13 +1769,78 @@ def fetch_job_execution_history(
     
     logger.info("fetch_job_execution_history", workstation=workstation, days=days)
 
-    # DEBT: Implement PostgreSQL query for job_execution_history (blocked by predictive feature flag)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
-    logger.warning("fetch_job_execution_history.not_implemented")
-    return []
+    try:
+        # Check if table exists
+        check_table_query = text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'job_execution_history'
+            )
+        """)
+        result = await db.execute(check_table_query)
+        table_exists = result.scalar()
+
+        if not table_exists:
+            logger.warning("fetch_job_execution_history.table_missing")
+            return []
+
+        # Build query
+        query_str = """
+            SELECT
+                timestamp,
+                job_name,
+                workstation,
+                status,
+                return_code,
+                runtime_seconds,
+                scheduled_time,
+                actual_start_time,
+                completed_time
+            FROM job_execution_history
+            WHERE timestamp >= :cutoff_date
+        """
+        params = {"cutoff_date": cutoff_date}
+
+        if workstation:
+            query_str += " AND workstation = :workstation"
+            params["workstation"] = workstation
+
+        query_str += " ORDER BY timestamp DESC LIMIT 2000"
+
+        result = await db.execute(text(query_str), params)
+        rows = result.fetchall()
+
+        job_history = [
+            {
+                "timestamp": row[0].isoformat() if row[0] else None,
+                "job_name": row[1],
+                "workstation": row[2] or "UNKNOWN",
+                "status": row[3] or "UNKNOWN",
+                "return_code": row[4] or 0,
+                "runtime_seconds": row[5] or 0,
+                "scheduled_time": row[6].isoformat() if row[6] else None,
+                "actual_start_time": row[7].isoformat() if row[7] else None,
+                "completed_time": row[8].isoformat() if row[8] else None,
+            }
+            for row in rows
+        ]
+
+        logger.info(
+            "fetch_job_execution_history.success",
+            workstation=workstation,
+            records=len(job_history)
+        )
+        return job_history
+
+    except Exception as e:
+        logger.error("fetch_job_execution_history.failed", error=str(e))
+        return []
 
 
-def fetch_workstation_metrics_history(
+async def fetch_workstation_metrics_history(
     db: Any,
     workstation: str | None = None,
     days: int = 30
@@ -1789,6 +1856,8 @@ def fetch_workstation_metrics_history(
         List of metrics records with timestamp, CPU, memory, disk
     """
     import os
+    from datetime import timedelta, datetime, timezone
+    from sqlalchemy import text
     
     if not os.getenv("ENABLE_PREDICTIVE_WORKFLOWS", "").lower() == "true":
         logger.warning("fetch_workstation_metrics_history.feature_disabled")
@@ -1796,10 +1865,75 @@ def fetch_workstation_metrics_history(
     
     logger.info("fetch_workstation_metrics_history", workstation=workstation, days=days)
 
-    # DEBT: Implement PostgreSQL query for workstation_metrics_history (blocked by predictive feature flag)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
-    logger.warning("fetch_workstation_metrics_history.not_implemented")
-    return []
+    try:
+        # Check if table exists
+        check_table_query = text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'workstation_metrics_history'
+            )
+        """)
+        result = await db.execute(check_table_query)
+        table_exists = result.scalar()
+
+        if not table_exists:
+            logger.warning("fetch_workstation_metrics_history.table_missing")
+            return []
+
+        # Build query
+        query_str = """
+            SELECT
+                timestamp,
+                workstation,
+                cpu_percent,
+                memory_percent,
+                disk_percent,
+                load_avg_1min,
+                cpu_count,
+                total_memory_gb,
+                total_disk_gb
+            FROM workstation_metrics_history
+            WHERE timestamp >= :cutoff_date
+        """
+        params = {"cutoff_date": cutoff_date}
+
+        if workstation:
+            query_str += " AND workstation = :workstation"
+            params["workstation"] = workstation
+
+        query_str += " ORDER BY timestamp DESC LIMIT 5000"
+
+        result = await db.execute(text(query_str), params)
+        rows = result.fetchall()
+
+        metrics_history = [
+            {
+                "timestamp": row[0].isoformat() if row[0] else None,
+                "workstation": row[1],
+                "cpu_percent": row[2],
+                "memory_percent": row[3],
+                "disk_percent": row[4],
+                "load_avg_1min": row[5],
+                "cpu_count": row[6],
+                "total_memory_gb": row[7],
+                "total_disk_gb": row[8],
+            }
+            for row in rows
+        ]
+
+        logger.info(
+            "fetch_workstation_metrics_history.success",
+            workstation=workstation,
+            records=len(metrics_history)
+        )
+        return metrics_history
+
+    except Exception as e:
+        logger.error("fetch_workstation_metrics_history.failed", error=str(e))
+        return []
 
 
 __all__ = [
