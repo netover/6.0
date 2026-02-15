@@ -86,7 +86,8 @@ def _safe_int(val: Any, default: int = 0) -> int:
 
 def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
     """Parse JSON com tratamento de erro robusto."""
-    if not data: return None
+    if not data:
+        return None
     try:
         if isinstance(data, bytes):
             data = data.decode()
@@ -164,7 +165,7 @@ def _build_metric_sample(
     )
 
 
-async def _get_redis() -> "redis_async.Redis":
+def _get_redis() -> "redis_async.Redis":
     """Obtém o cliente Redis canônico da aplicação."""
     client = get_redis_client()
     if client is None:
@@ -241,7 +242,7 @@ class DashboardMetricsStore:
     async def compute_rate_and_add_sample(self, requests_total: int, now_wall: float, sample_builder: Any) -> None:
         """Calcula RPS com estado persistido no Redis (consistente entre workers)."""
         try:
-            redis = await _get_redis()
+            redis = _get_redis()
             prev_req_raw, prev_time_raw = await asyncio.gather(
                 redis.get(REDIS_KEY_PREV_REQUESTS),
                 redis.get(REDIS_KEY_PREV_WALLTIME),
@@ -296,7 +297,7 @@ class DashboardMetricsStore:
     async def add_sample(self, sample: MetricSample) -> None:
         """Persiste amostra no Redis e gera alertas."""
         try:
-            redis = await _get_redis()
+            redis = _get_redis()
             data = json_dumps(asdict(sample))
             new_alerts = self._compute_alerts(sample)
 
@@ -339,7 +340,7 @@ class DashboardMetricsStore:
             return now - self._cached_start_time
 
         try:
-            redis = await _get_redis()
+            redis = _get_redis()
             await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
             raw = await redis.get(REDIS_KEY_START_TIME)
             if raw is None:
@@ -354,7 +355,7 @@ class DashboardMetricsStore:
     async def get_current_metrics(self) -> dict[str, Any]:
         """Retorna métricas atuais."""
         try:
-            redis = await _get_redis()
+            redis = _get_redis()
             raw = await redis.get(REDIS_KEY_LATEST)
             if not raw:
                 return self._empty_response("initializing")
@@ -374,7 +375,7 @@ class DashboardMetricsStore:
     async def get_history(self, minutes: int = 120) -> dict[str, Any]:
         """Retorna histórico de métricas."""
         try:
-            redis = await _get_redis()
+            redis = _get_redis()
             needed = (minutes * 60) // SAMPLE_INTERVAL_SECONDS
             raw_list = await redis.lrange(REDIS_KEY_HISTORY, 0, needed - 1)
             if not raw_list:
@@ -501,7 +502,7 @@ class WebSocketManager:
 
     async def _subscribe_to_broadcast(self):
         """Cria e subscreve um cliente pubsub para o canal de broadcast."""
-        redis = await _get_redis()
+        redis = _get_redis()
         pubsub = redis.pubsub()
         await pubsub.subscribe(REDIS_CH_BROADCAST)
         return pubsub
@@ -647,7 +648,7 @@ def get_ws_manager() -> WebSocketManager:
 
 async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
-    redis = await _get_redis()
+    redis = _get_redis()
 
     lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=15)
     if not await lock.acquire(blocking=False):
@@ -692,7 +693,7 @@ async def collect_metrics_sample() -> None:
 async def metrics_collector_loop() -> None:
     """Loop de coleta de métricas em background."""
     try:
-        redis = await _get_redis()
+        redis = _get_redis()
         await redis.ping()
     except Exception as e:
         logger.exception("Redis não disponível, encerrando collector (%s)", type(e).__name__)
