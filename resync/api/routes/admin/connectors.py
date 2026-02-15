@@ -78,12 +78,12 @@ class ConnectorResponse(BaseModel):
     id: str
     name: str
     type: str
-    host: str | None
-    port: int | None
+    host: str | None = None
+    port: int | None = None
     enabled: bool
     status: str
-    last_check: str | None
-    error_message: str | None
+    last_check: str | None = None
+    error_message: str | None = None
 
 
 class ConnectorTest(BaseModel):
@@ -258,24 +258,17 @@ async def test_connector(connector_id: str, test: ConnectorTest):
     try:
         connector_type = connector["type"]
 
-        if connector_type == "tws":
-            # Would test TWS connection here
-            connector["status"] = "connected"
-            connector["error_message"] = None
+        if connector_type not in {"tws", "redis", "database"}:
+            return {
+                "success": False,
+                "status": "error",
+                "latency_ms": None,
+                "message": f"Unknown connector type: {connector_type}",
+            }
 
-        elif connector_type == "redis":
-            # Would test Redis connection here
-            connector["status"] = "connected"
-            connector["error_message"] = None
-
-        elif connector_type == "database":
-            # Would test database connection here
-            connector["status"] = "connected"
-            connector["error_message"] = None
-
-        else:
-            connector["status"] = "connected"
-            connector["error_message"] = None
+        # Would test concrete connector health per type here.
+        connector["status"] = "connected"
+        connector["error_message"] = None
 
         return {
             "success": True,

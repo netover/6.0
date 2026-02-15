@@ -112,7 +112,7 @@ class HealthCheckResponse(BaseModel):
 
     status: str = Field(description="Overall health status")
     redis_status: str
-    redis_latency_ms: float | None
+    redis_latency_ms: float | None = None
     redis_stack_available: bool
     embedding_model_status: str
     embedding_model_info: dict[str, Any]

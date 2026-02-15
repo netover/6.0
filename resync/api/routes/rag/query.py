@@ -11,6 +11,8 @@ Provides endpoints for:
 """
 from pathlib import Path
 
+import anyio
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -70,8 +72,8 @@ async def save_upload_file(upload_file: UploadFile, destination: Path) -> str:
     """Save uploaded file to disk and return content."""
     try:
         content = await upload_file.read()
-        with destination.open("wb") as buffer:
-            buffer.write(content)
+        async with await anyio.open_file(destination, "wb") as buffer:
+            await buffer.write(content)
         return content.decode("utf-8", errors="ignore")
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures

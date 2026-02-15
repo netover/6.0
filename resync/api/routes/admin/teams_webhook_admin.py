@@ -46,7 +46,7 @@ class UserResponse(BaseModel):
     can_execute_commands: bool
     is_active: bool
     created_at: datetime
-    last_activity: datetime | None
+    last_activity: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,7 +55,7 @@ class AuditLogResponse(BaseModel):
     id: int
     user_email: str
     user_name: str
-    channel_name: str | None
+    channel_name: str | None = None
     message_text: str
     command_type: str
     was_authorized: bool

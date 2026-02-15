@@ -61,9 +61,9 @@ class PromptDetailResponse(BaseModel):
     description: str
     variables: list[str]
     default_values: dict[str, str]
-    model_hint: str | None
-    temperature_hint: float | None
-    max_tokens_hint: int | None
+    model_hint: str | None = None
+    temperature_hint: float | None = None
+    max_tokens_hint: int | None = None
     is_active: bool
     is_default: bool
     created_at: str

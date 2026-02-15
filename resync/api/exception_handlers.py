@@ -181,6 +181,7 @@ async def validation_exception_handler(
 
     # Criar problem detail
     problem = create_validation_problem_detail(
+        title="Validation Error",
         errors=validation_errors,
         detail=f"Validation failed with {len(validation_errors)} error(s)",
         instance=str(request.url.path),

@@ -162,14 +162,14 @@ class APIKeyResponse(BaseModel):
     id: str
     key_prefix: str
     name: str
-    description: str | None
+    description: str | None = None
     scopes: list[str]
-    expires_at: datetime | None
+    expires_at: datetime | None = None
     is_active: bool
     is_revoked: bool
     is_expired: bool
     is_valid: bool
-    last_used_at: datetime | None
+    last_used_at: datetime | None = None
     usage_count: int
     created_at: datetime
     created_by: str
@@ -184,9 +184,9 @@ class APIKeyCreatedResponse(BaseModel):
     key: str  # Full key (rsk_abc123...) - ONLY shown once!
     key_prefix: str
     name: str
-    description: str | None
+    description: str | None = None
     scopes: list[str]
-    expires_at: datetime | None
+    expires_at: datetime | None = None
     created_at: datetime
 
     model_config = ConfigDict(json_schema_extra={

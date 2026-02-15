@@ -80,7 +80,7 @@ class PatternResponse(BaseModel):
     frequency: int
     confidence: float
     examples: list[str]
-    job_pattern: str | None
+    job_pattern: str | None = None
 
 
 class ImprovementResponse(BaseModel):

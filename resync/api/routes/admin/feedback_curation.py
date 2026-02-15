@@ -61,10 +61,10 @@ class FeedbackListItem(BaseModel):
 
     id: int
     session_id: str
-    query_text: str | None
-    response_text: str | None
-    rating: int | None
-    feedback_text: str | None
+    query_text: str | None = None
+    response_text: str | None = None
+    rating: int | None = None
+    feedback_text: str | None = None
     curation_status: str
     created_at: str
     has_correction: bool
@@ -75,19 +75,19 @@ class FeedbackDetail(BaseModel):
 
     id: int
     session_id: str
-    query_id: str | None
-    query_text: str | None
-    response_text: str | None
-    rating: int | None
+    query_id: str | None = None
+    query_text: str | None = None
+    response_text: str | None = None
+    rating: int | None = None
     feedback_type: str
-    feedback_text: str | None
-    is_positive: bool | None
+    feedback_text: str | None = None
+    is_positive: bool | None = None
     created_at: str
     curation_status: str
-    user_correction: str | None
-    approved_by: str | None
-    approved_at: str | None
-    incorporated_doc_id: str | None
+    user_correction: str | None = None
+    approved_by: str | None = None
+    approved_at: str | None = None
+    incorporated_doc_id: str | None = None
 
 
 class CurationStats(BaseModel):
@@ -98,7 +98,7 @@ class CurationStats(BaseModel):
     approved: int
     rejected: int
     incorporated: int
-    avg_rating: float | None
+    avg_rating: float | None = None
     pending_with_correction: int
 
 
@@ -108,7 +108,7 @@ class ApprovalResponse(BaseModel):
     message: str
     feedback_id: int
     incorporated: bool
-    doc_id: str | None
+    doc_id: str | None = None
 
 
 # =============================================================================
