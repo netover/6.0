@@ -371,6 +371,16 @@ class SettingsValidators:
                     f"admin_password length < MIN_ADMIN_PASSWORD_LENGTH ({min_pw_len})"
                 )
 
+        # 5. TWS Credentials (enforce if not in mock mode)
+        tws_mock = getattr(self, "tws_mock_mode", True)
+        if not tws_mock:
+            if not getattr(self, "tws_user", None):
+                errors.append("tws_user is required when tws_mock_mode is False")
+            
+            tws_pw = getattr(self, "tws_password", None)
+            if not tws_pw or not tws_pw.get_secret_value():
+                errors.append("tws_password is required when tws_mock_mode is False")
+
         if errors:
             raise ValueError(
                 "Settings cross-field validation failed:\n  - " + "\n  - ".join(errors)
