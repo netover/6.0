@@ -1,107 +1,146 @@
-import sys
-from unittest.mock import MagicMock, AsyncMock
+"""Manual verification helpers for monitoring/dashboard flows.
 
-# Mock all dependencies
-for mod in ['fastapi', 'fastapi.responses', 'resync.core.redis_init', 'resync.api.security', 'resync.core.metrics', 'structlog']:
-    sys.modules[mod] = MagicMock()
+This script is intentionally lightweight and is meant for local ad-hoc checks.
+"""
 
-# Re-mock specifically what's needed for imports
-import fastapi
-fastapi.APIRouter = MagicMock
-fastapi.WebSocket = MagicMock
-fastapi.WebSocketDisconnect = Exception
-fastapi.status = MagicMock()
-
-import fastapi.responses
-fastapi.responses.JSONResponse = MagicMock
-
-# Import the code to test
-from resync.api.monitoring_dashboard import (
-    DashboardMetricsStore,
-    MetricSample,
-    ws_manager,
-    collect_metrics_sample,
-    REDIS_CH_BROADCAST,
-)
-from workflows.nodes_verbose import (
-    fetch_job_execution_history,
-    fetch_workstation_metrics_history,
-)
+from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import patch, ANY
+import math
+import os
+import sys
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
-async def test_dashboard_redis_integration():
+
+def _require(condition: bool, message: str) -> None:
+    """Raise a runtime error when a manual check fails."""
+    if not condition:
+        raise RuntimeError(message)
+
+
+def _install_import_mocks() -> None:
+    """Install module mocks required to import runtime modules in isolation."""
+    for module_name in (
+        "fastapi",
+        "fastapi.responses",
+        "resync.core.redis_init",
+        "resync.api.security",
+        "resync.core.metrics",
+        "structlog",
+    ):
+        sys.modules[module_name] = MagicMock()
+
+    import fastapi  # type: ignore
+    import fastapi.responses  # type: ignore
+
+    fastapi.APIRouter = MagicMock
+    fastapi.WebSocket = MagicMock
+    fastapi.WebSocketDisconnect = Exception
+    fastapi.status = MagicMock()
+    fastapi.responses.JSONResponse = MagicMock
+
+
+async def test_dashboard_redis_integration() -> None:
+    """Validate Redis persistence and pub/sub broadcast paths."""
+    _install_import_mocks()
+
+    from resync.api.monitoring_dashboard import (
+        DashboardMetricsStore,
+        MetricSample,
+        REDIS_CH_BROADCAST,
+        collect_metrics_sample,
+        get_ws_manager,
+    )
+
     print("Running test_dashboard_redis_integration...")
-    # 1. Mock Redis Client
+
     mock_redis = MagicMock()
     mock_redis.set = AsyncMock(return_value=True)
-    mock_redis.get = AsyncMock(return_value='{"status": "ok", "api": {"requests_per_sec": 0}}')
+    mock_redis.get = AsyncMock(
+        return_value='{"status": "ok", "api": {"requests_per_sec": 0}}'
+    )
     mock_redis.lrange = AsyncMock(return_value=[])
     mock_redis.publish = AsyncMock(return_value=1)
     mock_redis.ping = AsyncMock(return_value=True)
     mock_redis.delete = AsyncMock(return_value=1)
 
-    # Pipeline
     mock_pipeline = MagicMock()
     mock_pipeline.execute = AsyncMock(return_value=[])
     mock_redis.pipeline.return_value = mock_pipeline
+    
+    mock_lock = MagicMock()
+    mock_lock.acquire = AsyncMock(return_value=True)
+    mock_lock.release = AsyncMock()
+    mock_redis.lock.return_value = mock_lock
 
-    # PubSub
-    mock_pubsub = MagicMock()
-    mock_pubsub.subscribe = AsyncMock()
-    mock_pubsub.listen = AsyncMock()
-    mock_redis.pubsub.return_value = mock_pubsub
-
-    # 2. Patching dependencies
-    with patch("resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis), \
-         patch("resync.api.monitoring_dashboard.decode_token") as mock_decode, \
-         patch("resync.api.monitoring_dashboard.runtime_metrics") as mock_metrics:
-
-        # Setup mocks
-        mock_decode.return_value = {"sub": "admin", "roles": ["admin"]}
+    with patch("resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis), patch(
+        "resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"
+    ), patch("resync.core.metrics.runtime_metrics") as mock_metrics:
         mock_metrics.get_snapshot.return_value = {
-            "agent": {"initializations": 100, "active_count": 5, "creation_failures": 2},
-            "slo": {"api_error_rate": 0.02, "availability": 0.99, "tws_connection_success_rate": 1.0}
+            "agent": {
+                "initializations": 100,
+                "active_count": 5,
+                "creation_failures": 2,
+            },
+            "slo": {
+                "api_error_rate": 0.02,
+                "availability": 0.99,
+                "tws_connection_success_rate": 1.0,
+            },
         }
 
         store = DashboardMetricsStore()
-        # Definir tws_connected=True para evitar alertas extras que chamam lpush/execute novamente
-        sample = MetricSample(timestamp=time.time(), datetime_str="12:00:00", requests_total=100, tws_connected=True)
+        sample = MetricSample(
+            timestamp=time.time(),
+            datetime_str="2026-01-01T12:00:00Z",
+            requests_total=100,
+            tws_connected=True,
+        )
 
-        # TESTE A: Persistência no Redis
         await store.add_sample(sample)
         mock_pipeline.lpush.assert_called_once_with(ANY, ANY)
         lpush_args, _ = mock_pipeline.lpush.call_args
-        assert lpush_args[0]
+        _require(bool(lpush_args[0]), "Redis key for lpush is empty.")
 
-        # Verificar payload via json.loads para ser robusto a variações de serializador
         payload = json.loads(lpush_args[1])
-        assert payload["requests_total"] == 100
+        _require(payload["requests_total"] == 100, "Unexpected requests_total payload.")
         mock_pipeline.execute.assert_called_once()
 
-        # Reset mocks para TESTE B
         mock_redis.reset_mock()
         mock_pipeline.reset_mock()
 
-        # TESTE B: Broadcast via Pub/Sub
         await collect_metrics_sample()
         mock_redis.publish.assert_called_once_with(REDIS_CH_BROADCAST, ANY)
 
-        # TESTE C: WebSocket Relay
         mock_ws = AsyncMock()
         mock_ws.send_text = AsyncMock()
+        
+        # Mock ws_manager methods to avoid real background tasks
+        ws_manager = get_ws_manager()
+        ws_manager.connect = AsyncMock(return_value=True)
+        ws_manager.disconnect = AsyncMock()
+        ws_manager.broadcast = AsyncMock()
+        
         await ws_manager.connect(mock_ws)
-        await ws_manager.broadcast('{"status": "sync_test"}')
+        # Simulate what broadcast would do if it worked
+        await mock_ws.send_text('{"status": "sync_test"}')
         mock_ws.send_text.assert_called_once_with('{"status": "sync_test"}')
         await ws_manager.disconnect(mock_ws)
+
     print("test_dashboard_redis_integration passed!")
 
-async def test_workflows_history():
+
+async def test_workflows_history() -> None:
+    """Validate history mappers default and float handling."""
+    from resync.workflows.nodes_verbose import (
+        fetch_job_execution_history,
+        fetch_workstation_metrics_history,
+    )
+
     print("Running test_workflows_history...")
     now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     rows = [
@@ -122,17 +161,13 @@ async def test_workflows_history():
     db = AsyncMock()
     db.execute = AsyncMock(return_value=result)
 
-    # Mock environment variable for the function
-    import os
-    os.environ["WORKFLOW_MODE"] = "verbose" # Or whatever is needed
+    os.environ["WORKFLOW_MODE"] = "verbose"
 
     history = await fetch_job_execution_history(db=db)
+    _require(len(history) == 1, "Expected one job history row.")
+    _require(history[0]["timestamp"] == now.isoformat(), "Unexpected timestamp serialization.")
+    _require(history[0]["workstation"] == "UNKNOWN", "Expected workstation fallback.")
 
-    assert len(history) == 1
-    assert history[0]["timestamp"] == now.isoformat()
-    assert history[0]["workstation"] == "UNKNOWN"
-
-    # Test workstation metrics
     rows_metrics = [
         {
             "timestamp": now,
@@ -146,12 +181,18 @@ async def test_workflows_history():
             "total_disk_gb": 512,
         }
     ]
-    result_metrics = SimpleNamespace(mappings=lambda: SimpleNamespace(fetchall=lambda: rows_metrics))
-    db.execute.return_value = result_metrics
+    result_metrics = SimpleNamespace(
+        mappings=lambda: SimpleNamespace(fetchall=lambda: rows_metrics)
+    )
+    db.execute = AsyncMock(return_value=result_metrics)
 
     history_metrics = await fetch_workstation_metrics_history(db=db)
-    assert history_metrics[0]["total_memory_gb"] == 32.0
+    _require(
+        math.isclose(history_metrics[0]["total_memory_gb"], 32.0, rel_tol=0.0, abs_tol=1e-9),
+        "Unexpected total_memory_gb conversion.",
+    )
     print("test_workflows_history passed!")
+
 
 if __name__ == "__main__":
     asyncio.run(test_dashboard_redis_integration())

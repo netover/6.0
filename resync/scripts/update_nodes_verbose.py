@@ -1,11 +1,19 @@
-import re
+"""Utility script to patch job execution history query limit."""
 
-with open('workflows/nodes_verbose.py', 'r') as f:
-    content = f.read()
+from pathlib import Path
 
-# Update fetch_job_history
-content = content.replace(
-    '                    ORDER BY timestamp DESC\n                    LIMIT 1000',
-    f'                    ORDER BY timestamp DESC\n                    LIMIT {_JOB_EXECUTION_HISTORY_LIMIT}', # Wait, I need the value
-)
-# Ah, I should use the variable name if I'm doing it in python, but I need to make sure the variable is available or just use the literal in the script.
+TARGET = Path("resync/workflows/nodes_verbose.py")
+OLD = """                    ORDER BY timestamp DESC
+                    LIMIT 1000"""
+NEW = """                    ORDER BY timestamp DESC
+                    LIMIT {_JOB_EXECUTION_HISTORY_LIMIT}"""
+
+
+def main() -> None:
+    content = TARGET.read_text(encoding="utf-8")
+    updated = content.replace(OLD, NEW)
+    TARGET.write_text(updated, encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()
