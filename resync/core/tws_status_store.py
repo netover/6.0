@@ -46,10 +46,8 @@ class TWSStatusStore:
     patterns, and problem-solutions using PostgreSQL.
     """
 
-    def __init__(self, db_path: str | None = None):
-        """Initialize. db_path is ignored - uses PostgreSQL."""
-        if db_path:
-            logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
+    def __init__(self):
+        """Initialize - uses PostgreSQL."""
         self._store = TWSStore()
         self._initialized = False
 

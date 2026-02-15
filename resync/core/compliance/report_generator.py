@@ -157,7 +157,7 @@ class ComplianceReportGenerator:
         logger.info("Generating GDPR compliance report: %s", report_id)
 
         # Generate GDPR compliance data (placeholder for now)
-        gdpr_data = self._collect_gdpr_data(start_date, end_date)
+        gdpr_data = self._collect_gdpr_data()
 
         # Create the compliance report
         compliance_report_cls = _get_compliance_report()
@@ -278,7 +278,7 @@ class ComplianceReportGenerator:
             "confidentiality_incidents": soc2_data.get("confidentiality_incidents", {}),
         }
 
-    def _collect_gdpr_data(self, start_date: datetime, end_date: datetime) -> dict[str, Any]:
+    def _collect_gdpr_data(self) -> dict[str, Any]:
         """Collect GDPR compliance data for the reporting period."""
         # Placeholder implementation - in real scenario, this would
         # collect data from various GDPR-related systems and processes

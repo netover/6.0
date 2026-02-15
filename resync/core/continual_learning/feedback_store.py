@@ -31,10 +31,8 @@ __all__ = ["FeedbackStore", "get_feedback_store", "FeedbackRating"]
 class FeedbackStore:
     """Feedback Store - PostgreSQL Backend."""
 
-    def __init__(self, db_path: str | None = None):
-        """Initialize. db_path is ignored - uses PostgreSQL."""
-        if db_path:
-            logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
+    def __init__(self):
+        """Initialize - uses PostgreSQL."""
         self._store = PGFeedbackStore()
         self._initialized = False
 

@@ -496,7 +496,7 @@ class ImprovementSuggester:
         Uses LLM to suggest prompt modification.
         """
         # Get current agent prompt
-        current_prompt = self._get_current_prompt(pattern.pattern_type)
+        current_prompt = self._get_current_prompt()
 
         # Ask LLM for improved prompt
         proposed_prompt = await self._generate_improved_prompt(
@@ -524,7 +524,7 @@ class ImprovementSuggester:
 
         return suggestion
 
-    def _get_current_prompt(self, pattern_type: str) -> str:
+    def _get_current_prompt(self) -> str:
         """Get current agent prompt."""
         # STUB: Returns default prompt — implement agent config lookup
         return "You are a TWS/HWA job analyst. Analyze job dependencies and risks."
@@ -646,18 +646,10 @@ class SandboxTester:
         )
 
         # Run current version
-        current_results = self._run_test_cases(
-            suggestion.agent_name,
-            suggestion.current_prompt,
-            test_cases
-        )
+        current_results = self._run_test_cases(suggestion.agent_name, suggestion.current_prompt, test_cases)
 
         # Run improved version
-        improved_results = self._run_test_cases(
-            suggestion.agent_name,
-            suggestion.proposed_prompt,
-            test_cases
-        )
+        improved_results = self._run_test_cases(suggestion.agent_name, suggestion.proposed_prompt, test_cases)
 
         # Compare
         current_accuracy = self._calculate_accuracy(current_results)

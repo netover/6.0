@@ -551,15 +551,14 @@ class RAGOnlyHandler(BaseHandler):
                 return "\n".join(response_parts)
 
             # Fallback to general response
-            return self._general_response(message, classification)
+            return self._general_response(classification)
 
         except Exception as e:
             logger.warning("RAG search failed: %s", e)
-            return self._general_response(message, classification)
+            return self._general_response(classification)
 
     def _general_response(
         self,
-        message: str,
         classification: IntentClassification,
     ) -> str:
         """Generate a general response without RAG."""

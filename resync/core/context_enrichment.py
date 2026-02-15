@@ -147,7 +147,7 @@ class ContextEnricher:
             try:
                 from resync.core.tws_multi.learning import TWSLearningStore
 
-                self._learning_stores[instance_id] = TWSLearningStore(instance_id)
+                self._learning_stores[instance_id] = TWSLearningStore()
             except Exception as e:
                 logger.warning("Could not load learning store: %s", e)
                 return None

@@ -121,12 +121,15 @@ class _NoOpSpan:
         return False
 
     def set_attribute(self, *args, **kwargs):
+        """No-op: silently ignore when tracing is disabled."""
         return None
 
     def record_exception(self, *args, **kwargs):
+        """No-op: silently ignore when tracing is disabled."""
         return None
 
     def set_status(self, *args, **kwargs):
+        """No-op: silently ignore when tracing is disabled."""
         return None
 
 

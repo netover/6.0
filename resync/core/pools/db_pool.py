@@ -22,13 +22,10 @@ class DatabasePool:
     Uses SQLAlchemy's built-in connection pooling.
     """
 
-    def __init__(self, db_path: str | None = None, pool_size: int = 10):
+    def __init__(self, pool_size: int = 10):
         """
-        Initialize. db_path is ignored - uses PostgreSQL.
-        Pool size is configured via SQLAlchemy engine settings.
+        Initialize. Pool size is configured via SQLAlchemy engine settings.
         """
-        if db_path:
-            logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
         self._engine = None
         self._session_factory = None
         self._initialized = False
