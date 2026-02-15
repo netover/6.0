@@ -56,6 +56,22 @@ from .reranker import (
 logger = logging.getLogger(__name__)
 
 
+def _decode_redis_value(value: Any, default: str) -> str:
+    """Normalize Redis hash values to ``str``.
+
+    Redis clients may return hash fields as ``bytes`` or ``str`` depending on
+    client configuration. We normalize here so cache deserialization remains
+    robust across environments and merge variants.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 @dataclass
 class CacheEntry:
     """
@@ -91,15 +107,22 @@ class CacheEntry:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CacheEntry":
         """Create from Redis hash data."""
+        query = _decode_redis_value(data.get("query"), "")
+        response = _decode_redis_value(data.get("response"), "")
+        embedding_raw = _decode_redis_value(data.get("embedding"), "[]")
+        timestamp_raw = _decode_redis_value(
+            data.get("timestamp"), datetime.now(timezone.utc).isoformat()
+        )
+        hit_count_raw = _decode_redis_value(data.get("hit_count"), "0")
+        metadata_raw = _decode_redis_value(data.get("metadata"), "{}")
+
         return cls(
-            query=data.get("query", ""),
-            response=data.get("response", ""),
-            embedding=json.loads(data.get("embedding", "[]")),
-            timestamp=datetime.fromisoformat(
-                data.get("timestamp", datetime.now(timezone.utc).isoformat())
-            ),
-            hit_count=int(data.get("hit_count", 0)),
-            metadata=json.loads(data.get("metadata", "{}")),
+            query=query,
+            response=response,
+            embedding=json.loads(embedding_raw),
+            timestamp=datetime.fromisoformat(timestamp_raw),
+            hit_count=int(hit_count_raw),
+            metadata=json.loads(metadata_raw),
         )
 
 

@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from resync.core.interfaces import ITWSClient
     from resync.core.agent_manager import AgentManager
     from resync.core.agent_router import HybridRouter
+    # Canonical LLM service type used by enterprise wiring.
     from resync.services.llm_service import LLMService
 
 
