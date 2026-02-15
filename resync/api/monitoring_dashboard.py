@@ -351,7 +351,7 @@ class WebSocketManager:
         self._sync_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
 
-    async def start_sync(self):
+    def start_sync(self) -> None:
         """Inicia o listener de Pub/Sub.
         
         Nota: restart após stop() não é suportado - o stop_event precisa ser
@@ -386,40 +386,60 @@ class WebSocketManager:
         async with self._lock:
             self._clients.discard(websocket)
 
+    async def _subscribe_to_broadcast(self):
+        """Cria e subscreve um cliente pubsub para o canal de broadcast."""
+        redis = get_redis_client()
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(REDIS_CH_BROADCAST)
+        return pubsub
+
+    async def _handle_pubsub_message(self, message: dict) -> None:
+        """Processa uma mensagem recebida do pubsub."""
+        if message.get("type") != "message":
+            return
+
+        data = message.get("data")
+        if isinstance(data, bytes):
+            data = data.decode()
+        await self._local_broadcast(data)
+
+    async def _close_pubsub(self, pubsub) -> None:
+        """Fecha conexão pubsub com cleanup resiliente."""
+        if pubsub is None:
+            return
+
+        with suppress(Exception):
+            await pubsub.unsubscribe(REDIS_CH_BROADCAST)
+
+        close_fn = getattr(pubsub, "close", None)
+        if close_fn is None:
+            return
+
+        with suppress(Exception):
+            maybe_awaitable = close_fn()
+            if asyncio.iscoroutine(maybe_awaitable):
+                await maybe_awaitable
+
     async def _pubsub_listener(self):
         """Listener do Redis Pub/Sub para broadcast."""
         while not self._stop_event.is_set():
             pubsub = None
             try:
-                redis = get_redis_client()
-                pubsub = redis.pubsub()
-                await pubsub.subscribe(REDIS_CH_BROADCAST)
+                pubsub = await self._subscribe_to_broadcast()
                 logger.info("WebSocketManager sincronizado com Redis Pub/Sub")
                 async for message in pubsub.listen():
                     if self._stop_event.is_set():
                         break
-                    if message["type"] == "message":
-                        data = message["data"]
-                        if isinstance(data, bytes):
-                            data = data.decode()
-                        await self._local_broadcast(data)
+                    await self._handle_pubsub_message(message)
             except asyncio.CancelledError:
                 logger.info("WebSocketManager Pub/Sub listener cancelado")
-                break
+                raise
             except Exception:
                 logger.exception("Pub/Sub desconectado; tentando reconectar em 5s")
                 if not self._stop_event.is_set():
                     await asyncio.sleep(5)
             finally:
-                if pubsub is not None:
-                    with suppress(Exception):
-                        await pubsub.unsubscribe(REDIS_CH_BROADCAST)
-                    close_fn = getattr(pubsub, "close", None)
-                    if close_fn is not None:
-                        with suppress(Exception):
-                            maybe_awaitable = close_fn()
-                            if asyncio.iscoroutine(maybe_awaitable):
-                                await maybe_awaitable
+                await self._close_pubsub(pubsub)
 
     async def broadcast(self, message_str: str) -> None:
         """Broadcast de mensagem para todos os clientes."""
@@ -444,7 +464,7 @@ class WebSocketManager:
 
 # ── WebSocket Authentication ─────────────────────────────────────────────────
 
-async def _verify_ws_admin(websocket: WebSocket) -> str | None:
+def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """Valida autenticação admin para WebSocket.
     
     Aceita token apenas do header Authorization (não aceita query params por segurança).
@@ -553,15 +573,18 @@ async def metrics_collector_loop() -> None:
         logger.exception("Redis não disponível, encerrando collector: %s", e)
         return
 
-    await ws_manager.start_sync()
-    while True:
-        try:
-            await collect_metrics_sample()
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            logger.exception("Erro no collector loop ao executar collect_metrics_sample")
-        await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+    ws_manager.start_sync()
+    try:
+        while True:
+            try:
+                await collect_metrics_sample()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Erro no collector loop ao executar collect_metrics_sample")
+            await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+    finally:
+        await ws_manager.stop()
 
 
 # ── FastAPI Router ───────────────────────────────────────────────────────────
@@ -588,7 +611,7 @@ async def websocket_metrics(websocket: WebSocket):
     # Authentication will be checked after accepting the connection
     await websocket.accept()
     
-    username = await _verify_ws_admin(websocket)
+    username = _verify_ws_admin(websocket)
     if not username:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
@@ -602,7 +625,9 @@ async def websocket_metrics(websocket: WebSocket):
         await websocket.send_json(initial)
         while True:
             await websocket.receive_text()
-    except (WebSocketDisconnect, asyncio.CancelledError):
+    except WebSocketDisconnect:
         pass
+    except asyncio.CancelledError:
+        raise
     finally:
         await ws_manager.disconnect(websocket)
