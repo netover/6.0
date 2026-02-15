@@ -259,13 +259,12 @@ async def test_connector(connector_id: str, test: ConnectorTest):
     try:
         connector_type = connector["type"]
 
-        if connector_type not in {"tws", "redis", "database"}:
-            return {
-                "success": False,
-                "status": "error",
-                "latency_ms": None,
-                "message": f"Unknown connector type: {connector_type}",
-            }
+        known_types = {connector.value for connector in ConnectorType}
+        if connector_type not in known_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown connector type: {connector_type}",
+            )
 
         # Would test concrete connector health per type here.
         connector["status"] = "connected"

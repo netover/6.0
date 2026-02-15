@@ -102,25 +102,25 @@ class UpdateGatingConfigRequest(BaseModel):
 
     enabled: bool | None = Field(
         default=None,
-    description="Enable/disable gating"
+        description="Enable/disable gating",
     )
     score_low_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-    description="New score low threshold (0-1)"
+        description="New score low threshold (0-1)",
     )
     margin_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-    description="New margin threshold (0-1)"
+        description="New margin threshold (0-1)",
     )
     max_candidates: int | None = Field(
         default=None,
         ge=1,
         le=100,
-    description="Max candidates to rerank (1-100)"
+        description="Max candidates to rerank (1-100)",
     )
 
 

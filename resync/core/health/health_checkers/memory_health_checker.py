@@ -80,7 +80,7 @@ class MemoryHealthChecker(BaseHealthChecker):
                 component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNKNOWN,
-                message=f"Memory check failed: {str(e)}",
+                message="Memory check failed",
                 start_time=start_time,
                 error=e,
                 log_event="memory_health_check_failed",

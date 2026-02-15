@@ -470,7 +470,7 @@ class VerifyNode:
     ) -> dict[str, Any]:
         """Check current TWS job/workstation states."""
         try:
-            from resync.services.tws_service import get_tws_client
+            from resync.services.tws_unified import get_tws_client
 
             client = await get_tws_client()
 

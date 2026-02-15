@@ -87,7 +87,7 @@ class CpuHealthChecker(BaseHealthChecker):
                 component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNKNOWN,
-                message=f"CPU check failed: {str(e)}",
+                message="CPU check failed",
                 start_time=start_time,
                 error=e,
                 log_event="cpu_health_check_failed",

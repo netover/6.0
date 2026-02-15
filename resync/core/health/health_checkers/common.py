@@ -44,7 +44,7 @@ def build_error_health(
     logger: structlog.stdlib.BoundLogger,
 ) -> ComponentHealth:
     """Build a standardized error ComponentHealth response and log failure."""
-    logger.error(log_event, error=str(error))
+    logger.error(log_event, error_type=type(error).__name__, exc_info=True)
     return ComponentHealth(
         name=component_name,
         component_type=component_type,

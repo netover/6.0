@@ -5,6 +5,7 @@ Provides audit logging functionality using PostgreSQL.
 Replaces the original SQLite implementation.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -42,10 +43,37 @@ class AuditDB:
         self._initialized = False
 
 
+    @staticmethod
+    def _to_record_dict(entry: AuditEntry) -> dict:
+        """Convert an AuditEntry model to the legacy dict shape."""
+        return {
+            "id": entry.id,
+            "action": entry.action,
+            "user_id": entry.user_id,
+            "entity_type": entry.entity_type,
+            "entity_id": entry.entity_id,
+            "old_value": entry.old_value,
+            "new_value": entry.new_value,
+            "ip_address": entry.ip_address,
+            "user_agent": entry.user_agent,
+            "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+            "metadata": entry.metadata_,
+        }
+
     def get_records(self, limit: int = 100, offset: int = 0) -> list[dict]:
-        """Backward-compatible sync shim for legacy admin endpoints."""
+        """Backward-compatible sync accessor for legacy admin endpoints."""
         logger.warning("auditdb_get_records_sync_shim_used", limit=limit, offset=offset)
-        return []
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError(
+                "get_records() cannot be used inside an active event loop; use get_recent_actions()"
+            )
+        except RuntimeError as exc:
+            if "active event loop" in str(exc):
+                raise
+
+        records = asyncio.run(self.get_recent_actions(limit=limit + offset))
+        return [self._to_record_dict(entry) for entry in records[offset:]]
 
     async def log_action(
         self,

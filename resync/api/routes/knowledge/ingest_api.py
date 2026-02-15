@@ -15,13 +15,11 @@ from __future__ import annotations
 # mypy: ignore-errors
 
 import logging
-import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from resync.api.auth import verify_admin_credentials
@@ -126,7 +124,8 @@ async def ingest_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
+    safe_filename = Path(file.filename).name
+    ext = Path(safe_filename).suffix.lower()
     if ext not in FORMAT_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -135,7 +134,7 @@ async def ingest_document(
 
     # Save to temp file
     tmp_dir = tempfile.mkdtemp(prefix="resync_ingest_")
-    tmp_path = Path(tmp_dir) / file.filename
+    tmp_path = Path(tmp_dir) / safe_filename
 
     try:
         # Stream upload to disk without blocking the event loop

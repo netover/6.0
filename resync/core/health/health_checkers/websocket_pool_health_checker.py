@@ -62,7 +62,7 @@ class WebSocketPoolHealthChecker(BaseHealthChecker):
                 component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNHEALTHY,
-                message=f"WebSocket pool unavailable: {str(e)}",
+                message="WebSocket pool unavailable",
                 start_time=start_time,
                 error=e,
                 log_event="websocket_pool_health_check_failed",

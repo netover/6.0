@@ -71,7 +71,7 @@ class ThresholdUpdateRequest(BaseModel):
         ...,
         ge=0.0,
         le=1.0,
-    description="New similarity threshold (0-1, lower = stricter)",
+        description="New similarity threshold (0-1, lower = stricter)",
         examples=[0.25, 0.30, 0.35],
     )
 
@@ -89,15 +89,15 @@ class InvalidateRequest(BaseModel):
 
     query: str | None = Field(
         default=None,
-    description="Specific query to invalidate",
+        description="Specific query to invalidate",
     )
     pattern: str | None = Field(
         default=None,
-    description="Pattern to match queries for invalidation",
+        description="Pattern to match queries for invalidation",
     )
     all: bool = Field(
         default=False,
-    description="Clear entire cache (use with caution!)",
+        description="Clear entire cache (use with caution!)",
     )
 
 
@@ -609,19 +609,19 @@ class RerankerConfigRequest(BaseModel):
         default=None,
         ge=0.0,
         le=1.0,
-    description="Cross-encoder similarity threshold (0-1, higher = stricter)",
+        description="Cross-encoder similarity threshold (0-1, higher = stricter)",
     )
     gray_zone_min: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-    description="Minimum embedding distance for gray zone",
+        description="Minimum embedding distance for gray zone",
     )
     gray_zone_max: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-    description="Maximum embedding distance for gray zone",
+        description="Maximum embedding distance for gray zone",
     )
 
 

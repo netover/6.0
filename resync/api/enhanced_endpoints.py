@@ -8,14 +8,12 @@ para chamadas paralelas e melhor performance.
 from __future__ import annotations
 # mypy: ignore-errors
 
-import inspect
 import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from resync.core.interfaces import ITWSClient
 from resync.core.orchestrator import ServiceOrchestrator
 from resync.knowledge.retrieval.graph import get_knowledge_graph
 from resync.services.llm_service import get_llm_service
@@ -182,10 +180,13 @@ async def get_failed_jobs_endpoint(
     """
     try:
         query_jobs = getattr(tws_client, "query_jobs", None)
+        query_jobstreams = getattr(tws_client, "query_jobstreams", None)
         if callable(query_jobs):
             jobs = await query_jobs(status="ABEND", hours=hours)
+        elif callable(query_jobstreams):
+            jobs = await query_jobstreams(status="ABEND", hours=hours)
         else:
-            jobs = await tws_client.query_jobstreams(status="ABEND", hours=hours)
+            raise HTTPException(status_code=500, detail="TWS client missing query methods")
 
         return {
             "count": len(jobs),

@@ -80,7 +80,7 @@ class FileSystemHealthChecker(BaseHealthChecker):
                 component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNKNOWN,
-                message=f"File system check failed: {str(e)}",
+                message="File system check failed",
                 start_time=start_time,
                 error=e,
                 log_event="file_system_health_check_failed",

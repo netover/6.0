@@ -7,7 +7,6 @@ through the /admin/config interface.
 from __future__ import annotations
 # mypy: ignore-errors
 
-import asyncio
 import inspect
 import logging
 from datetime import datetime, timezone
@@ -1096,8 +1095,9 @@ async def get_admin_audit_logs(
         # Get audit database instance
         audit_db = AuditDB()
 
-        # Query records
-        records = audit_db.get_records(limit=limit, offset=offset)
+        # Query records (async canonical path)
+        entries = await audit_db.get_recent_actions(limit=limit + offset)
+        records = [audit_db._to_record_dict(entry) for entry in entries[offset:]]
 
         # Filter by action if specified
         if action:
