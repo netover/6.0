@@ -12,6 +12,9 @@ from sqlalchemy import text
 
 logger = structlog.get_logger(__name__)
 
+_JOB_EXECUTION_HISTORY_LIMIT = 2000
+_METRICS_HISTORY_LIMIT = 5000
+
 
 async def fetch_job_history(
     db: Any,
@@ -100,20 +103,20 @@ async def fetch_job_history(
                     query,
                     {"job_name": job_name, "cutoff_date": cutoff_date}
                 )
-                rows = result.fetchall()
+                rows = result.mappings().fetchall()
                 
                 if rows:
                     job_history = [
                         {
-                            "timestamp": row[0].isoformat() if row[0] else None,
-                            "job_name": row[1],
-                            "workstation": row[2] or "UNKNOWN",
-                            "status": row[3] or "UNKNOWN",
-                            "return_code": row[4] or 0,
-                            "runtime_seconds": row[5] or 0,
-                            "scheduled_time": row[6].isoformat() if row[6] else None,
-                            "actual_start_time": row[7].isoformat() if row[7] else None,
-                            "completed_time": row[8].isoformat() if row[8] else None,
+                            "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
+                            "job_name": row["job_name"],
+                            "workstation": row["workstation"] or "UNKNOWN",
+                            "status": row["status"] or "UNKNOWN",
+                            "return_code": row["return_code"] or 0,
+                            "runtime_seconds": row["runtime_seconds"] or 0,
+                            "scheduled_time": row["scheduled_time"].isoformat() if row["scheduled_time"] else None,
+                            "actual_start_time": row["actual_start_time"].isoformat() if row["actual_start_time"] else None,
+                            "completed_time": row["completed_time"].isoformat() if row["completed_time"] else None,
                         }
                         for row in rows
                     ]
@@ -302,18 +305,18 @@ async def fetch_workstation_metrics(
                     query,
                     {"workstation": workstation, "cutoff_date": cutoff_date}
                 )
-                rows = result.fetchall()
+                rows = result.mappings().fetchall()
                 
                 if rows:
                     metrics = [
                         {
-                            "timestamp": row[0].isoformat() if row[0] else None,
-                            "workstation": row[1],
-                            "cpu_percent": float(row[2]) if row[2] is not None else 0.0,
-                            "memory_percent": float(row[3]) if row[3] is not None else 0.0,
-                            "disk_percent": float(row[4]) if row[4] is not None else 0.0,
-                            "network_mbps": float(row[5]) if row[5] is not None else 0.0,
-                            "active_jobs": int(row[6]) if row[6] is not None else 0,
+                            "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
+                            "workstation": row["workstation"],
+                            "cpu_percent": float(row["cpu_percent"]) if row["cpu_percent"] is not None else 0.0,
+                            "memory_percent": float(row["memory_percent"]) if row["memory_percent"] is not None else 0.0,
+                            "disk_percent": float(row["disk_percent"]) if row["disk_percent"] is not None else 0.0,
+                            "network_mbps": float(row["network_mbps"]) if row["network_mbps"] is not None else 0.0,
+                            "active_jobs": int(row["active_jobs"]) if row["active_jobs"] is not None else 0,
                         }
                         for row in rows
                     ]
@@ -1792,22 +1795,22 @@ async def fetch_job_execution_history(
             query_str += " AND workstation = :workstation"
             params["workstation"] = workstation
 
-        query_str += " ORDER BY timestamp DESC LIMIT 2000"
+        query_str += f" ORDER BY timestamp DESC LIMIT {_JOB_EXECUTION_HISTORY_LIMIT}"
 
         result = await db.execute(text(query_str), params)
-        rows = result.fetchall()
+        rows = result.mappings().fetchall()
 
         job_history = [
             {
-                "timestamp": row[0].isoformat() if row[0] else None,
-                "job_name": row[1],
-                "workstation": row[2] or "UNKNOWN",
-                "status": row[3] or "UNKNOWN",
-                "return_code": row[4] or 0,
-                "runtime_seconds": row[5] or 0,
-                "scheduled_time": row[6].isoformat() if row[6] else None,
-                "actual_start_time": row[7].isoformat() if row[7] else None,
-                "completed_time": row[8].isoformat() if row[8] else None,
+                "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
+                "job_name": row["job_name"],
+                "workstation": row["workstation"] or "UNKNOWN",
+                "status": row["status"] or "UNKNOWN",
+                "return_code": row["return_code"] or 0,
+                "runtime_seconds": row["runtime_seconds"] or 0,
+                "scheduled_time": row["scheduled_time"].isoformat() if row["scheduled_time"] else None,
+                "actual_start_time": row["actual_start_time"].isoformat() if row["actual_start_time"] else None,
+                "completed_time": row["completed_time"].isoformat() if row["completed_time"] else None,
             }
             for row in rows
         ]
@@ -1871,22 +1874,22 @@ async def fetch_workstation_metrics_history(
             query_str += " AND workstation = :workstation"
             params["workstation"] = workstation
 
-        query_str += " ORDER BY timestamp DESC LIMIT 5000"
+        query_str += f" ORDER BY timestamp DESC LIMIT {_METRICS_HISTORY_LIMIT}"
 
         result = await db.execute(text(query_str), params)
-        rows = result.fetchall()
+        rows = result.mappings().fetchall()
 
         metrics_history = [
             {
-                "timestamp": row[0].isoformat() if row[0] else None,
-                "workstation": row[1],
-                "cpu_percent": row[2],
-                "memory_percent": row[3],
-                "disk_percent": row[4],
-                "load_avg_1min": row[5],
-                "cpu_count": row[6],
-                "total_memory_gb": row[7],
-                "total_disk_gb": row[8],
+                "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
+                "workstation": row["workstation"],
+                "cpu_percent": float(row["cpu_percent"]) if row["cpu_percent"] is not None else 0.0,
+                "memory_percent": float(row["memory_percent"]) if row["memory_percent"] is not None else 0.0,
+                "disk_percent": float(row["disk_percent"]) if row["disk_percent"] is not None else 0.0,
+                "load_avg_1min": float(row["load_avg_1min"]) if row["load_avg_1min"] is not None else 0.0,
+                "cpu_count": int(row["cpu_count"]) if row["cpu_count"] is not None else 0,
+                "total_memory_gb": float(row["total_memory_gb"]) if row["total_memory_gb"] is not None else 0.0,
+                "total_disk_gb": float(row["total_disk_gb"]) if row["total_disk_gb"] is not None else 0.0,
             }
             for row in rows
         ]
