@@ -447,18 +447,16 @@ class WebSocketManager:
 async def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """Valida autenticação admin para WebSocket.
     
-    Aceita token tanto do header Authorization quanto do query param access_token.
+    Aceita token apenas do header Authorization (não aceita query params por segurança).
     """
     try:
-        # Normalizar: aceitar ambos Authorization header e access_token query
+        # Security: Only accept token from Authorization header (not query params)
+        # Query params can leak through URL logs, browser history, proxies, and Referer headers
         auth_header = websocket.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-        else:
-            token = websocket.query_params.get("access_token")
-
-        if not token:
+        if not auth_header.startswith("Bearer "):
             return None
+        
+        token = auth_header[7:]
 
         payload = decode_token(token)
         username = payload.get("sub")
@@ -586,13 +584,14 @@ async def get_history(minutes: int = 120):
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket):
     """WebSocket para métricas em tempo real com autenticação."""
+    # Accept connection first to avoid RuntimeError on close()
+    # Authentication will be checked after accepting the connection
+    await websocket.accept()
+    
     username = await _verify_ws_admin(websocket)
     if not username:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
-    # ÚNICA chamada a accept() - não duplicar
-    await websocket.accept()
 
     if not await ws_manager.connect(websocket):
         await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)

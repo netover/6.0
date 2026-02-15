@@ -109,28 +109,32 @@ class Agent:
 
     def _fallback_response(self, message: str) -> str:
         """Provide a keyword-based fallback when the LLM is unavailable."""
-        msg = message.lower()
+        try:
+            msg = message.lower()
 
-        if "job" in msg and ("abend" in msg or "erro" in msg):
+            if "job" in msg and ("abend" in msg or "erro" in msg):
+                return (
+                    "Jobs em estado ABEND encontrados. Recomendo investigar "
+                    "o log do job e verificar dependências."
+                )
+            if "status" in msg or "workstation" in msg:
+                return (
+                    "Para verificar o status, use o comando 'conman' ou "
+                    "consulte a interface web do TWS."
+                )
+            if "tws" in msg:
+                return (
+                    f"Como {self.name}, posso ajudar com questões "
+                    "relacionadas ao TWS. O que você precisa?"
+                )
             return (
-                "Jobs em estado ABEND encontrados. Recomendo investigar "
-                "o log do job e verificar dependências."
+                f"Entendi sua mensagem. Como {self.name}, estou aqui para "
+                "ajudar com operações TWS. "
+                "(Nota: LLM temporariamente indisponível)"
             )
-        if "status" in msg or "workstation" in msg:
-            return (
-                "Para verificar o status, use o comando 'conman' ou "
-                "consulte a interface web do TWS."
-            )
-        if "tws" in msg:
-            return (
-                f"Como {self.name}, posso ajudar com questões "
-                "relacionadas ao TWS. O que você precisa?"
-            )
-        return (
-            f"Entendi sua mensagem. Como {self.name}, estou aqui para "
-            "ajudar com operações TWS. "
-            "(Nota: LLM temporariamente indisponível)"
-        )
+        except Exception as e:
+            agent_logger.error("fallback_response_error", error=str(e), agent=self.name)
+            return "Ocorreu um erro inesperado ao tentar gerar uma resposta alternativa."
 
     def run(self, message: str) -> str:
         """Synchronous wrapper around :meth:`arun`."""
