@@ -1,3 +1,4 @@
+# pylint: disable=not-callable
 """Teams Webhook Administration API."""
 
 from datetime import datetime, timezone

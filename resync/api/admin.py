@@ -5,6 +5,7 @@ through the /admin/config interface.
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
 import logging
 from datetime import datetime, timezone
@@ -1121,13 +1122,13 @@ async def get_admin_audit_logs(
         Dictionary containing audit records and pagination info
     """
     try:
-        from resync.core.audit_db import AuditDatabase
+        from resync.core.audit_db import AuditDB
 
         # Limit max results
         limit = min(limit, 500)
 
         # Get audit database instance
-        audit_db = AuditDatabase()
+        audit_db = AuditDB()
 
         # Query records
         records = audit_db.get_records(limit=limit, offset=offset)

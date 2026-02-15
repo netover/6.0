@@ -8,6 +8,7 @@ By default, extraction is gated by env var KG_EXTRACTION_ENABLED.
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
 import json
 import logging

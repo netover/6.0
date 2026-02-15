@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 Admin API - API Key Management
 

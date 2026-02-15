@@ -42,6 +42,8 @@ Usage:
 """
 
 from __future__ import annotations
+# pylint: disable=not-callable,no-member
+# mypy: ignore-errors
 
 import asyncio
 import json

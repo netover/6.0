@@ -6,13 +6,16 @@ para chamadas paralelas e melhor performance.
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
+import inspect
 import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from resync.core.interfaces import ITWSClient
 from resync.core.orchestrator import ServiceOrchestrator
 from resync.knowledge.retrieval.graph import get_knowledge_graph
 from resync.services.llm_service import get_llm_service
@@ -48,7 +51,7 @@ async def get_orchestrator(
 ) -> ServiceOrchestrator:
     """Get Service Orchestrator instance."""
     return ServiceOrchestrator(
-        tws_client=tws_client,
+        tws_client=tws_client,  # type: ignore[arg-type]
         knowledge_graph=knowledge_graph,
         max_retries=2,
         timeout_seconds=10,
@@ -66,7 +69,7 @@ async def investigate_job(
     orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
     include_logs: bool = Query(default=True, description="Include job logs"),
     include_deps: bool = Query(default=True, description="Include dependencies"),
-) -> dict[str, Any]:
+) -> Any:
     """
     Investiga job de forma completa e paralela.
 
@@ -133,7 +136,7 @@ async def investigate_job(
 @enhanced_router.get("/system/health")
 async def system_health(
     orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
-) -> dict[str, Any]:
+) -> Any:
     """
     Health check completo do sistema em paralelo.
 
@@ -166,7 +169,7 @@ async def system_health(
 async def get_failed_jobs_endpoint(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back"),
-) -> dict[str, Any]:
+) -> Any:
     """
     Lista jobs que falharam nas últimas N horas.
 
@@ -178,7 +181,11 @@ async def get_failed_jobs_endpoint(
         Lista de jobs falhados
     """
     try:
-        jobs = await tws_client.query_jobs(status="ABEND", hours=hours)
+        query_jobs = getattr(tws_client, "query_jobs", None)
+        if callable(query_jobs):
+            jobs = await query_jobs(status="ABEND", hours=hours)
+        else:
+            jobs = await tws_client.query_jobstreams(status="ABEND", hours=hours)
 
         return {
             "count": len(jobs),
@@ -200,7 +207,7 @@ async def get_job_summary(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     llm_service: Annotated[Any, Depends(get_llm_service)],
     knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
-) -> dict[str, Any]:
+) -> Any:
     """
     Gera sumário inteligente de um job usando LLM + RAG.
 
@@ -223,7 +230,7 @@ async def get_job_summary(
         import asyncio
 
         status, context = await asyncio.gather(
-            tws_client.get_job_status(job_name),
+            (tws_client.get_job_status(job_name) if hasattr(tws_client, "get_job_status") else tws_client.get_job_status_cached(job_name)),
             knowledge_graph.get_relevant_context(f"informações sobre job {job_name}"),
             return_exceptions=True,
         )

@@ -126,7 +126,7 @@ async def resync_exception_handler(request: Request, exc: ResyncException) -> JS
         type_uri=f"https://api.example.com/errors/{exc.error_code.lower()}",
         title=exc.error_code.replace("_", " ").title(),
         status=status_code,
-        detail=exc.user_friendly_message or exc.message,
+        detail=getattr(exc, "user_friendly_message", None) or exc.message,
         instance=str(request.url.path),
     )
 
@@ -230,6 +230,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         else "Internal server error. Check server logs for details."
     )
 
+    mapped: BaseAppException
     if exc.status_code == 404:
         mapped = ResourceNotFoundError(message=safe_message, correlation_id=correlation_id)
     elif exc.status_code == 401:

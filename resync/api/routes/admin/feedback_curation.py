@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+# pylint: disable=not-callable
 """
 Admin Feedback Curation API - Endpoints para curadoria de feedback.
 

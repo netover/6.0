@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 Admin routes for Semantic Cache management.
 

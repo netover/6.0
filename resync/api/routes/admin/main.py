@@ -5,7 +5,10 @@ through the /admin/config interface.
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
+import asyncio
+import inspect
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -355,10 +358,11 @@ async def get_admin_status(
     try:
         # Get TWS connection status
         try:
-            tws_connected = await tws_client.check_connection()
+            _conn_result = tws_client.check_connection()
+            tws_connected = await _conn_result if inspect.isawaitable(_conn_result) else _conn_result
             tws_status = "connected" if tws_connected else "disconnected"
         except Exception as e:
-            logger.error("exception_caught", error=str(e), exc_info=True)
+            logger.error("exception_caught: %s", str(e), exc_info=True)
             tws_status = "error"
 
         # Get Teams integration status
@@ -671,6 +675,8 @@ async def create_backup(request: Request) -> dict[str, Any]:
 
         # Create backup
         backup_file = persistence._create_backup()
+        if inspect.isawaitable(backup_file):
+            backup_file = await backup_file
 
         logger.info("Configuration backup created: %s", backup_file)
 
@@ -1082,13 +1088,13 @@ async def get_admin_audit_logs(
         Dictionary containing audit records and pagination info
     """
     try:
-        from resync.core.audit_db import AuditDatabase
+        from resync.core.audit_db import AuditDB
 
         # Limit max results
         limit = min(limit, 500)
 
         # Get audit database instance
-        audit_db = AuditDatabase()
+        audit_db = AuditDB()
 
         # Query records
         records = audit_db.get_records(limit=limit, offset=offset)

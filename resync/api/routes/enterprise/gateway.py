@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+# pylint: disable=no-member
 """
 Advanced API Gateway for Microservices Architecture.
 

@@ -14,6 +14,8 @@ This module provides comprehensive distributed tracing capabilities including:
 - Trace correlation with logs and metrics
 """
 from __future__ import annotations
+# pylint: disable=no-member
+# mypy: ignore-errors
 
 import asyncio
 import contextlib

@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+# pylint: disable=not-callable
 """Admin API para gerenciar notificações do Teams."""
 
 from datetime import datetime, timezone

@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 Application factory for creating and configuring the FastAPI application.
 

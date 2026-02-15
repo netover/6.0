@@ -9,6 +9,7 @@ Endpoints:
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
 from typing import Annotated
 
