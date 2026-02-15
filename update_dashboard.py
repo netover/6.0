@@ -1,12 +1,12 @@
-import re
+"""Utility script to patch websocket auth flow in monitoring_dashboard.py."""
 
-with open('resync/api/monitoring_dashboard.py', 'r') as f:
-    content = f.read()
+from pathlib import Path
 
-# Update websocket_metrics
-old_ws = """@router.websocket("/ws")
+TARGET = Path("resync/api/monitoring_dashboard.py")
+
+OLD_WS = '''@router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket):
-    \"\"\"WebSocket para métricas em tempo real com autenticação.\"\"\"
+    """WebSocket para métricas em tempo real com autenticação."""
     username = await _verify_ws_admin(websocket)
     if not username:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -14,11 +14,11 @@ async def websocket_metrics(websocket: WebSocket):
 
     await websocket.accept()
     if not await ws_manager.connect(websocket):
-        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return"""
+        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return'''
 
-new_ws = """@router.websocket("/ws")
+NEW_WS = '''@router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket):
-    \"\"\"WebSocket para métricas em tempo real com autenticação.\"\"\"
+    """WebSocket para métricas em tempo real com autenticação."""
     await websocket.accept()
     username = await _verify_ws_admin(websocket)
     if not username:
@@ -26,9 +26,14 @@ async def websocket_metrics(websocket: WebSocket):
         return
 
     if not await ws_manager.connect(websocket):
-        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return"""
+        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return'''
 
-content = content.replace(old_ws, new_ws)
 
-with open('resync/api/monitoring_dashboard.py', 'w') as f:
-    f.write(content)
+def main() -> None:
+    content = TARGET.read_text(encoding="utf-8")
+    updated = content.replace(OLD_WS, NEW_WS)
+    TARGET.write_text(updated, encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()
