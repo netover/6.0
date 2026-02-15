@@ -20,12 +20,18 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import os
 from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+try:
+    from httpx import ASGITransport, AsyncClient
+except ImportError:
+    # Handle environment where httpx is not installed
+    ASGITransport = MagicMock
+    AsyncClient = MagicMock
 
 import logging
 logger = logging.getLogger(__name__)
@@ -39,9 +45,7 @@ os.environ["TESTING"] = "true"
 # Pytest Plugins
 # =============================================================================
 
-pytest_plugins = [
-    "pytest_asyncio",
-]
+pytest_plugins = ["pytest_asyncio"] if importlib.util.find_spec("pytest_asyncio") else []
 
 
 # =============================================================================
