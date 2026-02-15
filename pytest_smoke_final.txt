@@ -1,0 +1,54 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: D:\Python\GITHUB\resync\6.0
+plugins: anyio-4.11.0, hypothesis-6.140.2, locust-2.41.2, asyncio-1.2.0, benchmark-5.1.0, cov-7.0.0, mock-3.15.1, timeout-2.4.0, xdist-3.8.0, respx-0.22.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+
+resync\tests\test_ui_smoke.py ..                                         [100%]
+
+============================== warnings summary ===============================
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\templating.py:162: DeprecationWarning: The `name` is not the first parameter anymore. The first parameter should be the `Request` instance.
+  Replace `TemplateResponse(name, {"request": request})` by `TemplateResponse(request, name)`.
+    warnings.warn(
+
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\_internal\_generate_schema.py:298: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.11/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(
+
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  D:\Python\GITHUB\resync\6.0\resync\core\database\models\teams.py:8: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  D:\Python\GITHUB\resync\6.0\resync\api\health.py:10: DeprecationWarning: Importing 'get_health_check_service' from 'resync.core.health' is deprecated. Use 'get_unified_health_service' instead.
+    from resync.core.health import (
+
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  D:\Python\GITHUB\resync\6.0\resync\api\routes\monitoring\dashboard.py:462: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @router.on_event("startup")
+
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  D:\Python\GITHUB\resync\6.0\resync\core\database\models\teams_notifications.py:8: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  D:\Python\GITHUB\resync\6.0\resync\api\routes\core\health.py:621: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @router.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 2 passed, 9 warnings in 22.63s ========================

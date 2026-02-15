@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_request_scoped_dependency_is_isolated_under_concurrency() -> None:
     app = create_app()
     transport = httpx.ASGITransport(app=app)

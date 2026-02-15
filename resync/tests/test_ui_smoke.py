@@ -109,11 +109,15 @@ def test_admin_ui_renders_and_serves_css() -> None:
     from resync.app_factory import ApplicationFactory
 
     app = ApplicationFactory().create_application()
+    
+    # Override auth for smoke test
+    from resync.api.auth import verify_admin_credentials
+    app.dependency_overrides[verify_admin_credentials] = lambda: {"username": "admin", "role": "admin", "id": "admin_id"}
 
     with TestClient(app) as client:
-        r = client.get("/", allow_redirects=False)
+        r = client.get("/", follow_redirects=False)
         assert r.status_code in (301, 302, 307, 308)
-        assert r.headers.get("location") == "/admin"
-        admin = client.get("/admin")
+        assert r.headers.get("location") == "/api/v1/admin"
+        admin = client.get("/api/v1/admin")
         assert admin.status_code == 200
         assert "text/html" in admin.headers.get("content-type", "")

@@ -56,7 +56,7 @@ class TestDatabaseInputValidator:
             ("", "Table name cannot be empty"),
             ("invalid_table", "Table name not in whitelist"),
             ("audit_log; DROP TABLE users; --", "Table name not in whitelist"),
-            ("" * 65, "Table name too long"),
+            ("a" * 65, "Table name too long"),
             ("audit' OR 1=1 --", "Table name not in whitelist"),
         ]
 
@@ -78,7 +78,7 @@ class TestDatabaseInputValidator:
             ("", "Column name cannot be empty"),
             ("invalid_column", "Column name not in whitelist"),
             ("id; DROP TABLE users; --", "Column name not in whitelist"),
-            ("" * 65, "Column name too long"),
+            ("a" * 65, "Column name too long"),
         ]
 
         for column, expected_error in invalid_cases:
@@ -103,7 +103,7 @@ class TestDatabaseInputValidator:
         invalid_cases = [
             (None, "String input cannot be None"),
             (123, "Input must be string"),
-            ("" * 10001, "String input too long"),
+            ("a" * 10001, "String input too long"),
             ("text with \x00 null byte", "String input cannot contain null bytes"),
             ("'; DROP TABLE users; --", "Dangerous pattern detected"),
             ("' OR '1'='1", "Dangerous pattern detected"),
@@ -179,7 +179,7 @@ class TestDatabaseInputValidator:
             ("query with 'quotes'", "query with ''quotes''"),
             ('query with "quotes"', 'query with ""quotes""'),
             ("query; DROP TABLE users; --", "query DROP TABLE users"),
-            ("query with /* comment */ text", "query with comment text"),
+            ("query with /* comment */ text", "query with  text"),
         ]
 
         for input_query, expected_output in test_cases:
@@ -205,10 +205,10 @@ class TestSecureQueryBuilder:
     def test_build_select_query_with_where(self):
         """Test SELECT query with WHERE clause."""
         query, params = SecureQueryBuilder.build_select_query(
-            table="audit_log", where_clause="status = ?", limit=50
+            table="audit_log", where_clause="status = :status", limit=50
         )
 
-        expected_query = "SELECT * FROM audit_log WHERE status = ? LIMIT ?"
+        expected_query = "SELECT * FROM audit_log WHERE status = :status LIMIT ?"
         assert query == expected_query
         assert params == {"limit": 50}
 
@@ -319,7 +319,7 @@ class TestSQLInjectionMiddleware:
         request = mock_request(
             query_params={"id": "123"},
             path_params={"user_id": "456"},
-            headers={"User-Agent": "Test Browser"},
+            headers={"user-agent": "Test Browser"},
             method="POST",
         )
 
@@ -328,10 +328,10 @@ class TestSQLInjectionMiddleware:
 
         assert "query.id" in data
         assert "path.user_id" in data
-        assert "header.User-Agent" in data
+        assert "header.user-agent" in data
         assert data["query.id"] == "123"
         assert data["path.user_id"] == "456"
-        assert data["header.User-Agent"] == "Test Browser"
+        assert data["header.user-agent"] == "Test Browser"
 
     def test_security_stats(self):
         """Test security statistics tracking."""
@@ -358,6 +358,7 @@ class TestAuditRecordValidation:
                 "agent_response": "The weather is sunny with a high of 75°F.",
                 "ia_audit_reason": None,
                 "ia_audit_confidence": None,
+                "action": "QUERY",
             },
             {
                 "id": "test_id_456",
@@ -365,12 +366,13 @@ class TestAuditRecordValidation:
                 "agent_response": "You can reset your password by clicking the forgot password link.",
                 "ia_audit_reason": "Suspicious query pattern",
                 "ia_audit_confidence": 0.85,
+                "action": "RESET_PASSWORD",
             },
         ]
 
         for record in valid_records:
             result = _validate_audit_record(record)
-            assert result["id"] == record["id"]
+            assert result == record
             assert result["user_query"] == record["user_query"]
             assert result["agent_response"] == record["agent_response"]
 
@@ -378,25 +380,25 @@ class TestAuditRecordValidation:
         """Test invalid audit record inputs."""
         invalid_cases = [
             # Missing required fields
-            ({"user_query": "test"}, "Memory ID is required"),
-            ({"id": "test"}, "User query is required"),
-            ({"id": "test", "user_query": "test"}, "Agent response is required"),
+            ({"user_query": "test", "action": "TEST"}, "Memory ID is required"),
+            ({"id": "test", "action": "TEST"}, "User query is required"),
+            ({"id": "test", "user_query": "test", "action": "TEST"}, "Agent response is required"),
             # Invalid data types
             (
-                {"id": 123, "user_query": "test", "agent_response": "response"},
+                {"id": 123, "user_query": "test", "agent_response": "response", "action": "TEST"},
                 "Memory ID must be string",
             ),
             (
-                {"id": "test", "user_query": None, "agent_response": "response"},
+                {"id": "test", "user_query": None, "agent_response": "response", "action": "TEST"},
                 "User query is required",
             ),
             # Length validation
             (
-                {"id": "x" * 256, "user_query": "test", "agent_response": "response"},
+                {"id": "x" * 256, "user_query": "test", "agent_response": "response", "action": "TEST"},
                 "Memory ID too long",
             ),
             (
-                {"id": "test", "user_query": "x" * 10001, "agent_response": "response"},
+                {"id": "test", "user_query": "x" * 10001, "agent_response": "response", "action": "TEST"},
                 "User query too long",
             ),
             # Dangerous content
@@ -405,6 +407,7 @@ class TestAuditRecordValidation:
                     "id": "test",
                     "user_query": "'; DROP TABLE users; --",
                     "agent_response": "response",
+                    "action": "TEST",
                 },
                 "Dangerous pattern detected",
             ),
@@ -564,7 +567,7 @@ class TestDatabaseSecurityPerformance:
 
             # Check for injection (should be False for all)
             contains_injection = any(
-                pattern.search(str(value)) for pattern in middleware.SQL_INJECTION_PATTERNS
+                pattern.search(str(value)) for pattern in middleware._compiled_patterns
             )
             assert not contains_injection, f"Valid input flagged as injection: {request_data}"
 

@@ -153,7 +153,7 @@ async def test_planner_node_creates_plan_for_troubleshoot():
         "execution_plan": None,
         "plan_step_index": 0,
     }
-    result = await planner_node(state)
+    result = planner_node(state)
 
     plan = result["execution_plan"]
     assert plan is not None
@@ -175,7 +175,7 @@ async def test_planner_node_creates_plan_for_action():
         "execution_plan": None,
         "plan_step_index": 0,
     }
-    result = await planner_node(state)
+    result = planner_node(state)
 
     plan = result["execution_plan"]
     assert plan["template"] == "action"
@@ -195,7 +195,7 @@ async def test_planner_node_bypasses_for_general_intent():
         "execution_plan": None,
         "plan_step_index": 0,
     }
-    result = await planner_node(state)
+    result = planner_node(state)
     assert result["execution_plan"] is None
 
 
@@ -404,7 +404,7 @@ async def test_plan_executor_verification_retry(monkeypatch):
         "max_verification_attempts": 3,
     }
 
-    state = await planner_node(state)
+    state = planner_node(state)
     state["execution_plan"]["steps"] = [
         {"id": "execute", "action": "execute_action", "description": "", "requires": [],
          "on_failure": "abort", "completed": True, "error": None},

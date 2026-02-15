@@ -36,7 +36,7 @@ except ImportError:
 
 # Import RAG components
 # v5.4.0: Import memory system
-from resync.api.dependencies_v2 import get_logger
+from resync.api.dependencies_v2 import get_logger, get_current_user
 from resync.api.models.requests import ChatHistoryQuery, ChatMessageRequest
 from resync.api.models.responses_v2 import ChatMessageResponse
 from resync.core.memory import ConversationContext, get_conversation_memory

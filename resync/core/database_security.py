@@ -218,6 +218,10 @@ class DatabaseInputValidator:
             r"\*/",  # Multi-line comments
             r"xp_",  # Extended procedures
             r"sp_",  # Stored procedures
+            r"(?i)\bunion\b\s+(?:all\s+)?\bselect\b",
+            r"(?i)(?:\bor\b|\band\b)\s+(?:'\w+'|\d+)\s*=\s*(?:'\w+'|\d+)",
+            r"(?i)(?:\bor\b|\band\b)\s+\d+\s*=\s*\d+",
+            r"(?i);\s*(?:drop|alter|create|truncate|exec|execute)\b",
         ]
 
         for pattern in dangerous_patterns:
@@ -313,6 +317,7 @@ class DatabaseInputValidator:
         sanitized = sanitized.replace('"', '""')  # Escape double quotes
         sanitized = sanitized.replace(";", "")  # Remove statement separators
         sanitized = sanitized.replace("--", "")  # Remove comments
+        sanitized = re.sub(r"/\*.*?\*/", "", sanitized, flags=re.DOTALL)  # Remove block comments
 
         return sanitized.strip()
 

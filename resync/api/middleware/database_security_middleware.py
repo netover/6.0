@@ -31,15 +31,16 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
     # SQL injection patterns to detect
     SQL_INJECTION_PATTERNS = [
         # High-confidence SQLi patterns only (avoid false positives on natural language).
-        r"(?i)\bunion\b\s+\bselect\b",
-        r"(?i)(?:\bor\b|\band\b)\s+\d+\s*=\s*\d+\s*(?:--|/\*)?",
-        r"(?i)\bsleep\s*\(",
+        r"(?i)\bunion\b\s+(?:all\s+)?\bselect\b",
+        r"(?i)(?:\bor\b|\band\b)\s+(?:'\w+'|\d+)\s*=\s*(?:'\w+'|\d+)(?:\s*(?:--|/\*|;))?",
+        r"(?i)(?:\bor\b|\band\b)\s+\d+\s*=\s*\d+(?:\s*(?:--|/\*|;))?",
+        r"(?i)\bsleep\s*\(\s*\d+\s*\)",
         r"(?i)\bbenchmark\s*\(",
         r"(?i)\bwaitfor\b\s+\bdelay\b",
-        r"(?i)\bxp_\w+\b",
-        r"(?i)\bsp_\w+\b",
+        r"(?i)\bxp_[a-zA-Z0-9_]+\b",
+        r"(?i)\bsp_[a-zA-Z0-9_]+\b",
         r"(?i)\binformation_schema\b",
-        r"(?i);\s*(?:drop|alter|create|truncate)\b",
+        r"(?i);\s*(?:drop|alter|create|truncate|exec|execute)\b",
     ]
 
     def __init__(self, app: Callable, enabled: bool = True):

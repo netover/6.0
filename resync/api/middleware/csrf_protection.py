@@ -9,7 +9,7 @@ from resync.core.structured_logger import get_logger
 logger = get_logger(__name__)
 
 
-class CSRFProtectionMiddleware(BaseHTTPMiddleware):
+class CSRFMiddleware(BaseHTTPMiddleware):
     """
     CSRF protection with:
     - Double-submit cookie pattern

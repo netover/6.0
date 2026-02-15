@@ -309,7 +309,7 @@ class ApplicationFactory:
         # 4) Additional security headers
         from resync.config.security import add_additional_security_headers
 
-        add_additional_security_headers(self.app, settings)
+        add_additional_security_headers(self.app)
 
         # 5) Correlation IDs MUST be outermost (added last)
         from resync.api.middleware.correlation_id import CorrelationIdMiddleware
@@ -557,7 +557,7 @@ class ApplicationFactory:
         @self.app.get("/", include_in_schema=False)
         def root():
             """Redirect root to admin panel."""
-            return RedirectResponse(url="/admin", status_code=302)
+            return RedirectResponse(url="/api/v1/admin", status_code=302)
 
         # Admin panel is now handled by the admin router
 

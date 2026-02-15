@@ -1,0 +1,201 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: D:\Python\GITHUB\resync\6.0
+plugins: anyio-4.11.0, hypothesis-6.140.2, locust-2.41.2, asyncio-1.2.0, benchmark-5.1.0, cov-7.0.0, mock-3.15.1, timeout-2.4.0, xdist-3.8.0, respx-0.22.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+
+resync\tests\test_ui_smoke.py FF                                         [100%]
+
+================================== FAILURES ===================================
+_________________ test_templates_reference_existing_css_files _________________
+
+    def test_templates_reference_existing_css_files() -> None:
+        root = _root()
+        templates_dir = root / "templates"
+        static_dir = root / "static"
+        assert templates_dir.exists() and templates_dir.is_dir(), "templates/ directory missing"
+        assert static_dir.exists() and static_dir.is_dir(), "static/ directory missing"
+    
+        index_path = templates_dir / "index.html"
+>       assert index_path.exists(), "templates/index.html missing"
+E       AssertionError: templates/index.html missing
+E       assert False
+E        +  where False = exists()
+E        +    where exists = WindowsPath('D:/Python/GITHUB/resync/6.0/resync/templates/index.html').exists
+
+resync\tests\test_ui_smoke.py:50: AssertionError
+____________________ test_admin_ui_renders_and_serves_css _____________________
+
+    def test_admin_ui_renders_and_serves_css() -> None:
+        """Validate that templates render and CSS assets are reachable.
+    
+        This test has two layers:
+        1) Always-run minimal UI check (no external deps) that renders admin.html
+           and serves the bundled CSS from /static.
+        2) If full runtime dependencies are available (e.g. SQLAlchemy), also
+           instantiate the real app and verify the real /admin route.
+        """
+    
+        # ------------------------------------------------------------------
+        # Layer 1: Minimal render check (no database/redis required)
+        # ------------------------------------------------------------------
+        from fastapi import FastAPI
+        from fastapi.responses import HTMLResponse
+        from fastapi.staticfiles import StaticFiles
+        from fastapi.templating import Jinja2Templates
+    
+        root = _root()
+        templates = Jinja2Templates(directory=str(root / "templates"))
+        app_min = FastAPI()
+        app_min.mount("/static", StaticFiles(directory=str(root / "static")), name="static")
+    
+        @app_min.get("/admin", response_class=HTMLResponse)
+        def admin_page(request: Request):
+            return templates.TemplateResponse("admin.html", {"request": request})
+    
+        with TestClient(app_min) as client:
+>           admin = client.get("/admin")
+                    ^^^^^^^^^^^^^^^^^^^^
+
+resync\tests\test_ui_smoke.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:479: in get
+    return super().get(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:1066: in get
+    return self.request(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:451: in request
+    return super().request(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:354: in handle_request
+    raise exc
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\applications.py:1133: in __call__
+    await super().__call__(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:123: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:109: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:387: in app
+    raw_response = await run_endpoint_function(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:290: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\_backends\_asyncio.py:2485: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\_backends\_asyncio.py:976: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+resync\tests\test_ui_smoke.py:93: in admin_page
+    return templates.TemplateResponse("admin.html", {"request": request})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\templating.py:209: in TemplateResponse
+    template = self.get_template(name)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\templating.py:132: in get_template
+    return self.env.get_template(name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\jinja2\environment.py:1016: in get_template
+    return self._load_template(name, globals)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\jinja2\environment.py:975: in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\jinja2\loaders.py:126: in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jinja2.loaders.FileSystemLoader object at 0x0000027C736ED400>
+environment = <jinja2.environment.Environment object at 0x0000027C736ED550>
+template = 'admin.html'
+
+    def get_source(
+        self, environment: "Environment", template: str
+    ) -> t.Tuple[str, str, t.Callable[[], bool]]:
+        pieces = split_template_path(template)
+    
+        for searchpath in self.searchpath:
+            # Use posixpath even on Windows to avoid "drive:" or UNC
+            # segments breaking out of the search directory.
+            filename = posixpath.join(searchpath, *pieces)
+    
+            if os.path.isfile(filename):
+                break
+        else:
+            plural = "path" if len(self.searchpath) == 1 else "paths"
+            paths_str = ", ".join(repr(p) for p in self.searchpath)
+>           raise TemplateNotFound(
+                template,
+                f"{template!r} not found in search {plural}: {paths_str}",
+            )
+E           jinja2.exceptions.TemplateNotFound: 'admin.html' not found in search path: 'D:\\Python\\GITHUB\\resync\\6.0\\resync\\templates'
+
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\jinja2\loaders.py:209: TemplateNotFound
+============================== warnings summary ===============================
+resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css
+  C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\templating.py:162: DeprecationWarning: The `name` is not the first parameter anymore. The first parameter should be the `Request` instance.
+  Replace `TemplateResponse(name, {"request": request})` by `TemplateResponse(request, name)`.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED resync/tests/test_ui_smoke.py::test_templates_reference_existing_css_files
+FAILED resync/tests/test_ui_smoke.py::test_admin_ui_renders_and_serves_css - ...
+======================== 2 failed, 1 warning in 0.93s =========================
