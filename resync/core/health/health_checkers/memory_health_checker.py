@@ -17,6 +17,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
+from .common import build_error_health, response_time_ms, threshold_status
 
 logger = structlog.get_logger(__name__)
 
@@ -50,25 +51,21 @@ class MemoryHealthChecker(BaseHealthChecker):
             memory = psutil.virtual_memory()
             memory_usage_percent = memory.percent
 
-            # Determine status
-            if memory_usage_percent > 95:
-                status = HealthStatus.UNHEALTHY
-                message = "Memory usage critically high: {memory_usage_percent:.1f}%"
-            elif memory_usage_percent > 85:
-                status = HealthStatus.DEGRADED
-                message = "Memory usage high: {memory_usage_percent:.1f}%"
-            else:
-                status = HealthStatus.HEALTHY
-                message = "Memory usage normal: {memory_usage_percent:.1f}%"
-
-            response_time = (time.time() - start_time) * 1000
+            status, message = threshold_status(
+                value=memory_usage_percent,
+                warning_threshold=85,
+                critical_threshold=95,
+                healthy_message="Memory usage normal: {value:.1f}%",
+                degraded_message="Memory usage high: {value:.1f}%",
+                critical_message="Memory usage critically high: {value:.1f}%",
+            )
 
             return ComponentHealth(
                 name=self.component_name,
                 component_type=self.component_type,
                 status=status,
                 message=message,
-                response_time_ms=response_time,
+                response_time_ms=response_time_ms(start_time),
                 last_check=datetime.now(timezone.utc),
                 metadata={
                     "memory_usage_percent": memory_usage_percent,
@@ -79,16 +76,15 @@ class MemoryHealthChecker(BaseHealthChecker):
             )
 
         except Exception as e:
-            response_time = (time.time() - start_time) * 1000
-            logger.error("memory_health_check_failed", error=str(e))
-            return ComponentHealth(
-                name=self.component_name,
+            return build_error_health(
+                component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNKNOWN,
                 message=f"Memory check failed: {str(e)}",
-                response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
-                error_count=1,
+                start_time=start_time,
+                error=e,
+                log_event="memory_health_check_failed",
+                logger=logger,
             )
 
     def _get_status_for_exception(self, exception: Exception) -> ComponentType:

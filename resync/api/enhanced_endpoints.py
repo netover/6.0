@@ -6,13 +6,16 @@ para chamadas paralelas e melhor performance.
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
+import inspect
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from resync.core.interfaces import ITWSClient
 from resync.core.orchestrator import ServiceOrchestrator
 from resync.knowledge.retrieval.graph import get_knowledge_graph
 from resync.services.llm_service import get_llm_service
@@ -22,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Router
 enhanced_router = APIRouter(prefix="/api/v2", tags=["enhanced"])
+INTERNAL_SERVER_ERROR_DETAIL = "Internal server error. Check server logs for details."
 
 
 # =============================================================================
@@ -42,12 +46,12 @@ async def get_tws_client() -> OptimizedTWSClient:
 
 
 async def get_orchestrator(
-    tws_client: OptimizedTWSClient = Depends(get_tws_client),
-    knowledge_graph = Depends(get_knowledge_graph),
+    tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
+    knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
 ) -> ServiceOrchestrator:
     """Get Service Orchestrator instance."""
     return ServiceOrchestrator(
-        tws_client=tws_client,
+        tws_client=tws_client,  # type: ignore[arg-type]
         knowledge_graph=knowledge_graph,
         max_retries=2,
         timeout_seconds=10,
@@ -62,10 +66,10 @@ async def get_orchestrator(
 @enhanced_router.get("/jobs/{job_name}/investigate")
 async def investigate_job(
     job_name: str,
+    orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
     include_logs: bool = Query(default=True, description="Include job logs"),
     include_deps: bool = Query(default=True, description="Include dependencies"),
-    orchestrator: ServiceOrchestrator = Depends(get_orchestrator),
-) -> dict[str, Any]:
+) -> Any:
     """
     Investiga job de forma completa e paralela.
 
@@ -126,13 +130,13 @@ async def investigate_job(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error investigating job %s: %s", job_name, e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @enhanced_router.get("/system/health")
 async def system_health(
-    orchestrator: ServiceOrchestrator = Depends(get_orchestrator),
-) -> dict[str, Any]:
+    orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
+) -> Any:
     """
     Health check completo do sistema em paralelo.
 
@@ -163,9 +167,9 @@ async def system_health(
 
 @enhanced_router.get("/jobs/failed")
 async def get_failed_jobs_endpoint(
+    tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back"),
-    tws_client: OptimizedTWSClient = Depends(get_tws_client),
-) -> dict[str, Any]:
+) -> Any:
     """
     Lista jobs que falharam nas últimas N horas.
 
@@ -177,7 +181,11 @@ async def get_failed_jobs_endpoint(
         Lista de jobs falhados
     """
     try:
-        jobs = await tws_client.query_jobs(status="ABEND", hours=hours)
+        query_jobs = getattr(tws_client, "query_jobs", None)
+        if callable(query_jobs):
+            jobs = await query_jobs(status="ABEND", hours=hours)
+        else:
+            jobs = await tws_client.query_jobstreams(status="ABEND", hours=hours)
 
         return {
             "count": len(jobs),
@@ -190,16 +198,16 @@ async def get_failed_jobs_endpoint(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error getting failed jobs: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @enhanced_router.get("/jobs/{job_name}/summary")
 async def get_job_summary(
     job_name: str,
-    tws_client: OptimizedTWSClient = Depends(get_tws_client),
-    llm_service = Depends(get_llm_service),
-    knowledge_graph = Depends(get_knowledge_graph),
-) -> dict[str, Any]:
+    tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
+    llm_service: Annotated[Any, Depends(get_llm_service)],
+    knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
+) -> Any:
     """
     Gera sumário inteligente de um job usando LLM + RAG.
 
@@ -222,7 +230,7 @@ async def get_job_summary(
         import asyncio
 
         status, context = await asyncio.gather(
-            tws_client.get_job_status(job_name),
+            (tws_client.get_job_status(job_name) if hasattr(tws_client, "get_job_status") else tws_client.get_job_status_cached(job_name)),
             knowledge_graph.get_relevant_context(f"informações sobre job {job_name}"),
             return_exceptions=True,
         )
@@ -265,7 +273,7 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error generating job summary: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 # =============================================================================

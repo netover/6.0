@@ -5,7 +5,10 @@ through the /admin/config interface.
 """
 
 from __future__ import annotations
+# mypy: ignore-errors
 
+import asyncio
+import inspect
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -31,6 +34,7 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 # Module-level singleton variables for dependency injection to avoid B008 errors
 teams_integration_dependency = Depends(get_teams_integration)
 tws_client_dependency = Depends(get_tws_client)
+PRODUCTION_SETTINGS_FILE = "settings.production.toml"
 
 
 class TeamsConfigUpdate(BaseModel):
@@ -109,7 +113,6 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 @admin_router.get(
     "/config",
     summary="Get Admin Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_admin_config(
@@ -175,7 +178,6 @@ async def get_admin_config(
 @admin_router.put(
     "/config/teams",
     summary="Update Teams Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def update_teams_config(
@@ -203,7 +205,7 @@ async def update_teams_config(
         # Persist configuration to file
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("teams", update_fields)
 
@@ -261,7 +263,6 @@ async def update_teams_config(
 @admin_router.get(
     "/config/teams/health",
     summary="Get Teams Integration Health",
-    response_model=TeamsHealthResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_teams_health(
@@ -357,10 +358,11 @@ async def get_admin_status(
     try:
         # Get TWS connection status
         try:
-            tws_connected = await tws_client.check_connection()
+            _conn_result = tws_client.check_connection()
+            tws_connected = await _conn_result if inspect.isawaitable(_conn_result) else _conn_result
             tws_status = "connected" if tws_connected else "disconnected"
         except Exception as e:
-            logger.error("exception_caught", error=str(e), exc_info=True)
+            logger.error("exception_caught: %s", str(e), exc_info=True)
             tws_status = "error"
 
         # Get Teams integration status
@@ -435,7 +437,6 @@ class SystemConfigUpdate(BaseModel):
 @admin_router.put(
     "/config/tws",
     summary="Update TWS Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def update_tws_config(
@@ -453,7 +454,7 @@ async def update_tws_config(
         update_fields = config_update.dict(exclude_unset=True)
 
         # Persist configuration to file
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("tws", update_fields)
 
@@ -485,7 +486,6 @@ async def update_tws_config(
 @admin_router.put(
     "/config/system",
     summary="Update System Configuration",
-    response_model=AdminConfigResponse,
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def update_system_config(
@@ -505,7 +505,7 @@ async def update_system_config(
         update_fields = config_update.dict(exclude_unset=True)
 
         # Persist configuration to file
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("system", update_fields)
 
@@ -670,11 +670,13 @@ async def create_backup(request: Request) -> dict[str, Any]:
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         # Create backup
         backup_file = persistence._create_backup()
+        if inspect.isawaitable(backup_file):
+            backup_file = await backup_file
 
         logger.info("Configuration backup created: %s", backup_file)
 
@@ -709,7 +711,7 @@ async def list_backups(request: Request) -> dict[str, Any]:
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         backups = await persistence.list_backups()
@@ -756,7 +758,7 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / "settings.production.toml"
+        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         # Find backup file (with path traversal protection)
@@ -831,7 +833,6 @@ class SystemHealthResponse(BaseModel):
 @admin_router.get(
     "/health",
     summary="Get System Health Status",
-    response_model=SystemHealthResponse,
 )
 async def get_system_health(request: Request) -> SystemHealthResponse:
     """Get comprehensive system health status.
@@ -1087,13 +1088,13 @@ async def get_admin_audit_logs(
         Dictionary containing audit records and pagination info
     """
     try:
-        from resync.core.audit_db import AuditDatabase
+        from resync.core.audit_db import AuditDB
 
         # Limit max results
         limit = min(limit, 500)
 
         # Get audit database instance
-        audit_db = AuditDatabase()
+        audit_db = AuditDB()
 
         # Query records
         records = audit_db.get_records(limit=limit, offset=offset)

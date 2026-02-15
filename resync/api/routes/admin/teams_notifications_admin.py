@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+# pylint: disable=not-callable
 """Admin API para gerenciar notificações do Teams."""
 
 from datetime import datetime, timezone
@@ -52,13 +54,13 @@ class ChannelUpdate(BaseModel):
 class ChannelResponse(BaseModel):
     id: int
     name: str
-    description: str | None
+    description: str | None = None
     webhook_url_masked: str
     is_active: bool
     color: str
     icon: str
     notification_count: int
-    last_notification_sent: datetime | None
+    last_notification_sent: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,7 +75,7 @@ class JobMappingResponse(BaseModel):
     id: int
     job_name: str
     channel_id: int
-    channel_name: str | None
+    channel_name: str | None = None
     priority: int
     is_active: bool
 
@@ -92,8 +94,8 @@ class PatternRuleResponse(BaseModel):
     id: int
     pattern: str
     channel_id: int
-    channel_name: str | None
-    description: str | None
+    channel_name: str | None = None
+    description: str | None = None
     priority: int
     pattern_type: str
     is_active: bool

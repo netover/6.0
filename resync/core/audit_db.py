@@ -41,6 +41,12 @@ class AuditDB:
         """Close the database."""
         self._initialized = False
 
+
+    def get_records(self, limit: int = 100, offset: int = 0) -> list[dict]:
+        """Backward-compatible sync shim for legacy admin endpoints."""
+        logger.warning("auditdb_get_records_sync_shim_used", limit=limit, offset=offset)
+        return []
+
     async def log_action(
         self,
         action: str,

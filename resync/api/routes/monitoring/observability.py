@@ -48,7 +48,7 @@ class LangFuseStatusResponse(BaseModel):
     enabled: bool
     configured: bool
     connected: bool
-    host: str | None
+    host: str | None = None
 
 
 class EvidentlyStatusResponse(BaseModel):
@@ -124,7 +124,7 @@ class EvidentlyStatsResponse(BaseModel):
     enabled: bool
     reference_data_size: int
     current_data_size: int
-    last_check: str | None
+    last_check: str | None = None
     reports_count: int
     config: dict[str, Any]
 

@@ -102,25 +102,25 @@ class UpdateGatingConfigRequest(BaseModel):
 
     enabled: bool | None = Field(
         default=None,
-        description="Enable/disable gating"
+    description="Enable/disable gating"
     )
     score_low_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="New score low threshold (0-1)"
+    description="New score low threshold (0-1)"
     )
     margin_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="New margin threshold (0-1)"
+    description="New margin threshold (0-1)"
     )
     max_candidates: int | None = Field(
         default=None,
         ge=1,
         le=100,
-        description="Max candidates to rerank (1-100)"
+    description="Max candidates to rerank (1-100)"
     )
 
 
@@ -147,7 +147,6 @@ class FullStatusResponse(BaseModel):
 
 @router.get(
     "/status",
-    response_model=FullStatusResponse,
     summary="Get full reranker and gating status",
     description="Returns complete information about reranker and gating configuration.",
 )
@@ -206,7 +205,6 @@ async def get_full_status() -> FullStatusResponse:
 
 @router.get(
     "/gating/config",
-    response_model=GatingConfigResponse,
     summary="Get gating configuration",
     description="Returns current gating thresholds and settings.",
 )
@@ -226,7 +224,6 @@ async def get_gating_config() -> GatingConfigResponse:
 
 @router.get(
     "/gating/stats",
-    response_model=GatingStatsResponse,
     summary="Get gating statistics",
     description="Returns gating decision statistics for monitoring.",
 )
@@ -253,7 +250,6 @@ async def get_gating_stats() -> GatingStatsResponse:
 
 @router.put(
     "/gating/config",
-    response_model=UpdateGatingConfigResponse,
     summary="Update gating configuration",
     description="Update gating thresholds at runtime. Changes are applied immediately.",
 )
@@ -323,7 +319,6 @@ async def reset_gating_stats() -> dict[str, str]:
 
 @router.get(
     "/reranker/info",
-    response_model=RerankerInfoResponse,
     summary="Get reranker information",
     description="Returns information about the current reranker implementation.",
 )

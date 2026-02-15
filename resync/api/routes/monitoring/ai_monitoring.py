@@ -166,7 +166,7 @@ class MonitoringStatusResponse(BaseModel):
     enabled: bool
     running: bool
     schedule: str
-    last_run: str | None
+    last_run: str | None = None
     total_alerts: int
     recent_alerts: int
     evidently_available: bool
@@ -190,9 +190,9 @@ class MonitoringRunResponse(BaseModel):
     """Monitoring run result response."""
 
     timestamp: str
-    data_drift: dict[str, Any] | None
-    prediction_drift: dict[str, Any] | None
-    target_drift: dict[str, Any] | None
+    data_drift: dict[str, Any] | None = None
+    prediction_drift: dict[str, Any] | None = None
+    target_drift: dict[str, Any] | None = None
     alerts: list[dict[str, Any]]
     duration_seconds: float
     error: str | None = None

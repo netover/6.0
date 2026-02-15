@@ -56,9 +56,9 @@ class ServiceHealth(BaseModel):
 
     name: str
     status: str  # healthy, degraded, unhealthy
-    latency_ms: float | None
+    latency_ms: float | None = None
     last_check: str
-    error_message: str | None
+    error_message: str | None = None
 
 
 class MonitoringDashboard(BaseModel):

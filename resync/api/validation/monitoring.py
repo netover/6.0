@@ -1,5 +1,6 @@
 """System monitoring and health check validation models for API endpoints."""
 
+import math
 import re
 from datetime import datetime
 from enum import Enum
@@ -158,7 +159,7 @@ class CustomMetricRequest(BaseValidatedModel):
             raise ValueError("Metric value must be numeric")
         if abs(v) > 1e15:  # Reasonable limit for metric values
             raise ValueError("Metric value too large")
-        if v != v:  # Check for NaN
+        if isinstance(v, float) and math.isnan(v):
             raise ValueError("Metric value cannot be NaN")
         if v == float("inf") or v == float("-inf"):
             raise ValueError("Metric value cannot be infinite")
