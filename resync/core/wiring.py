@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
-    from resync.core.interfaces import ITWSClient
+    from resync.core.interfaces import IFileIngestor, ITWSClient
     from resync.services.llm_service import LLMService
 
 logger = get_logger(__name__)
@@ -57,6 +57,7 @@ STATE_AGENT_MANAGER: Final[str] = "agent_manager"
 STATE_HYBRID_ROUTER: Final[str] = "hybrid_router"
 STATE_IDEMPOTENCY_MANAGER: Final[str] = "idempotency_manager"
 STATE_LLM_SERVICE: Final[str] = "llm_service"
+STATE_FILE_INGESTOR: Final[str] = "file_ingestor"
 
 # -----------------------------------------------------------------------------
 # Enterprise state contract (used by validate_app_state_contract)
@@ -71,6 +72,7 @@ _REQUIRED_SINGLETONS: Final[tuple[str, ...]] = (
     STATE_HYBRID_ROUTER,
     STATE_IDEMPOTENCY_MANAGER,
     STATE_LLM_SERVICE,
+    STATE_FILE_INGESTOR,
 )
 
 #: Boolean flags that must be present and typed correctly.
@@ -141,6 +143,10 @@ def init_domain_singletons(app: FastAPI) -> None:
     from resync.services.llm_service import get_llm_service
     from resync.services.mock_tws_service import MockTWSClient
     from resync.services.rag_client import get_rag_client_singleton
+    from resync.knowledge.store.pgvector_store import PgVectorStore
+    from resync.knowledge.ingestion.embedding_service import MultiProviderEmbeddingService
+    from resync.knowledge.ingestion.ingest import IngestService
+    from resync.core.file_ingestor import FileIngestor
 
     settings = get_settings()
 
@@ -201,6 +207,12 @@ def init_domain_singletons(app: FastAPI) -> None:
     # RAG client singleton (initializes and validates Config/URL)
     get_rag_client_singleton()
 
+    # Initialize RAG File Ingestor
+    vector_store = PgVectorStore()
+    embedding_service = MultiProviderEmbeddingService()
+    ingest_service = IngestService(embedder=embedding_service, store=vector_store)
+    file_ingestor = FileIngestor(ingest_service=ingest_service)
+
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # redis_available is set based on IdempotencyManager initialization above.
     enterprise_state = EnterpriseState(
@@ -211,6 +223,7 @@ def init_domain_singletons(app: FastAPI) -> None:
         hybrid_router=hybrid_router,
         idempotency_manager=idempotency_manager,
         llm_service=llm_service,
+        file_ingestor=file_ingestor,
         startup_complete=False,
         redis_available=redis_available,  # ✅ Now accurate based on actual Redis status
         domain_shutdown_complete=False,
@@ -322,6 +335,11 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     if cm is not None:
         await _safe_close(cm, "connection_manager")
 
+    # 7. File ingestor (and its vector store)
+    fi = getattr(st, STATE_FILE_INGESTOR, None)
+    if fi is not None:
+        await _safe_close(fi, "file_ingestor")
+
     logger.info("domain_singletons_shutdown_completed")
 
 
@@ -365,6 +383,11 @@ def get_idempotency_manager(request: Request) -> IdempotencyManager:
 def get_llm_service(request: Request) -> LLMService:
     """Provide the ``LLMService`` singleton for a request."""
     return enterprise_state_from_request(request).llm_service
+
+
+def get_file_ingestor(request: Request) -> IFileIngestor:
+    """Provide the ``IFileIngestor`` singleton for a request."""
+    return enterprise_state_from_request(request).file_ingestor
 
 
 # -----------------------------------------------------------------------------

@@ -378,9 +378,15 @@ class DocumentUpload(BaseModel):
         if v <= 0:
             raise ValueError("File size must be positive")
 
-        # 10MB limit
-        if v > 10 * 1024 * 1024:
-            raise ValueError("File too large. Maximum size is 10MB.")
+        # Use settings for dynamic limit, fallback to 10MB
+        try:
+            from resync.settings import get_settings
+            max_size = get_settings().max_file_size
+        except Exception:
+            max_size = 10 * 1024 * 1024
+
+        if v > max_size:
+            raise ValueError(f"File too large. Maximum size is {max_size / (1024*1024):.1f}MB.")
 
         return v
 

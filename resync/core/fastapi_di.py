@@ -128,13 +128,10 @@ async def get_file_ingestor(request: Request):
     optional dependencies are missing), we raise a 503.
     """
 
-    # Lazy import to keep base app importable without optional RAG deps.
     try:
-        from resync.core.interfaces import IFileIngestor  # noqa: F401
-        # The full implementation was intentionally kept optional.
-        # If you add it back, store the instance on app.state for reuse.
-        raise ImportError("file_ingestor implementation not enabled")
-    except ImportError as exc:
+        from resync.core.wiring import get_file_ingestor as _get
+        return _get(request)
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(

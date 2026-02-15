@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from resync.core.interfaces import ITWSClient
     from resync.core.agent_manager import AgentManager
     from resync.core.agent_router import HybridRouter
-    # Canonical LLM service type used by enterprise wiring.
+    from resync.core.interfaces import IFileIngestor
     from resync.services.llm_service import LLMService
 
 
@@ -47,6 +47,7 @@ class EnterpriseState:
     hybrid_router: "HybridRouter"
     idempotency_manager: "IdempotencyManager"
     llm_service: "LLMService"
+    file_ingestor: "IFileIngestor"
 
     # Lifecycle flags
     startup_complete: bool
