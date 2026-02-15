@@ -17,6 +17,7 @@ Version: 5.9.9
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
@@ -35,6 +36,12 @@ import aiofiles
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin/agents", tags=["agent-evolution"])
+
+INTERNAL_SERVER_ERROR_DETAIL = "Internal server error. Check server logs for details."
+JSON_FILE_GLOB = "*.json"
+AGENT_IMPROVEMENTS_DIR = Path("data/agent_improvements")
+SUGGESTION_NOT_FOUND_DETAIL = "Suggestion not found"
+
 
 
 # =============================================================================
@@ -171,7 +178,7 @@ async def submit_feedback(request: SubmitFeedbackRequest):
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to collect feedback: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @router.get("/{agent_name}/patterns", response_model=list[PatternResponse])
@@ -205,7 +212,7 @@ async def get_patterns(agent_name: str):
         patterns = []
 
         if pattern_dir.exists():
-            for file_path in pattern_dir.glob("*.json"):
+            for file_path in pattern_dir.glob(JSON_FILE_GLOB):
                 try:
                     async with aiofiles.open(file_path) as f:
                         data = json.load(f)
@@ -223,7 +230,7 @@ async def get_patterns(agent_name: str):
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get patterns: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @router.get("/improvements", response_model=list[ImprovementResponse])
@@ -255,11 +262,11 @@ async def list_improvements(status: str | None = None):
         import json
         from pathlib import Path
 
-        improvements_dir = Path("data/agent_improvements")
+        improvements_dir = AGENT_IMPROVEMENTS_DIR
         improvements = []
 
         if improvements_dir.exists():
-            for file_path in improvements_dir.glob("*.json"):
+            for file_path in improvements_dir.glob(JSON_FILE_GLOB):
                 try:
                     async with aiofiles.open(file_path) as f:
                         data = json.load(f)
@@ -285,7 +292,7 @@ async def list_improvements(status: str | None = None):
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to list improvements: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @router.post("/improvements/{suggestion_id}/test", response_model=TestResultResponse)
@@ -315,7 +322,7 @@ async def test_improvement(suggestion_id: str):
         suggestion = await _load_suggestion(suggestion_id)
 
         if not suggestion:
-            raise HTTPException(status_code=404, detail="Suggestion not found")
+            raise HTTPException(status_code=404, detail=SUGGESTION_NOT_FOUND_DETAIL)
 
         # Test in sandbox
         tester = SandboxTester()
@@ -342,7 +349,7 @@ async def test_improvement(suggestion_id: str):
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to test improvement: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @router.post("/improvements/{suggestion_id}/approve", dependencies=[Depends(verify_admin_credentials)])
@@ -376,7 +383,7 @@ async def approve_improvement(
         suggestion = await _load_suggestion(suggestion_id)
 
         if not suggestion:
-            raise HTTPException(status_code=404, detail="Suggestion not found")
+            raise HTTPException(status_code=404, detail=SUGGESTION_NOT_FOUND_DETAIL)
 
         # Check if tested
         if suggestion.status != "tested":
@@ -415,7 +422,7 @@ async def approve_improvement(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to approve improvement: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @router.post("/improvements/{suggestion_id}/reject")
@@ -436,7 +443,7 @@ async def reject_improvement(suggestion_id: str):
         suggestion = await _load_suggestion(suggestion_id)
 
         if not suggestion:
-            raise HTTPException(status_code=404, detail="Suggestion not found")
+            raise HTTPException(status_code=404, detail=SUGGESTION_NOT_FOUND_DETAIL)
 
         suggestion.status = "rejected"
         await _save_suggestion(suggestion)
@@ -455,7 +462,7 @@ async def reject_improvement(suggestion_id: str):
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to reject improvement: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @router.get("/{agent_name}/performance", response_model=PerformanceMetrics)
@@ -494,7 +501,7 @@ async def get_performance_metrics(
         negative = 0
 
         if feedback_dir.exists():
-            for file_path in feedback_dir.glob("*.json"):
+            for file_path in feedback_dir.glob(JSON_FILE_GLOB):
                 try:
                     async with aiofiles.open(file_path) as f:
                         data = json.load(f)
@@ -538,7 +545,7 @@ async def get_performance_metrics(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get performance metrics: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 # =============================================================================
@@ -550,7 +557,7 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     import json
     from pathlib import Path
 
-    file_path = Path("data/agent_improvements") / f"{suggestion_id}.json"
+    file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion_id}.json"
 
     if not file_path.exists():
         return None
@@ -567,7 +574,7 @@ async def _save_suggestion(suggestion: ImprovementSuggestion):
     """Save suggestion to disk."""
     from pathlib import Path
 
-    file_path = Path("data/agent_improvements") / f"{suggestion.id}.json"
+    file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion.id}.json"
 
     async with aiofiles.open(file_path, 'w') as f:
         f.write(suggestion.model_dump_json(indent=2))

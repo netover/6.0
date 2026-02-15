@@ -8,7 +8,7 @@ para chamadas paralelas e melhor performance.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Router
 enhanced_router = APIRouter(prefix="/api/v2", tags=["enhanced"])
+INTERNAL_SERVER_ERROR_DETAIL = "Internal server error. Check server logs for details."
 
 
 # =============================================================================
@@ -42,8 +43,8 @@ async def get_tws_client() -> OptimizedTWSClient:
 
 
 async def get_orchestrator(
-    tws_client: OptimizedTWSClient = Depends(get_tws_client),
-    knowledge_graph = Depends(get_knowledge_graph),
+    tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
+    knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
 ) -> ServiceOrchestrator:
     """Get Service Orchestrator instance."""
     return ServiceOrchestrator(
@@ -62,9 +63,9 @@ async def get_orchestrator(
 @enhanced_router.get("/jobs/{job_name}/investigate")
 async def investigate_job(
     job_name: str,
+    orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
     include_logs: bool = Query(default=True, description="Include job logs"),
     include_deps: bool = Query(default=True, description="Include dependencies"),
-    orchestrator: ServiceOrchestrator = Depends(get_orchestrator),
 ) -> dict[str, Any]:
     """
     Investiga job de forma completa e paralela.
@@ -126,12 +127,12 @@ async def investigate_job(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error investigating job %s: %s", job_name, e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @enhanced_router.get("/system/health")
 async def system_health(
-    orchestrator: ServiceOrchestrator = Depends(get_orchestrator),
+    orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
 ) -> dict[str, Any]:
     """
     Health check completo do sistema em paralelo.
@@ -163,8 +164,8 @@ async def system_health(
 
 @enhanced_router.get("/jobs/failed")
 async def get_failed_jobs_endpoint(
+    tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back"),
-    tws_client: OptimizedTWSClient = Depends(get_tws_client),
 ) -> dict[str, Any]:
     """
     Lista jobs que falharam nas últimas N horas.
@@ -190,15 +191,15 @@ async def get_failed_jobs_endpoint(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error getting failed jobs: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 @enhanced_router.get("/jobs/{job_name}/summary")
 async def get_job_summary(
     job_name: str,
-    tws_client: OptimizedTWSClient = Depends(get_tws_client),
-    llm_service = Depends(get_llm_service),
-    knowledge_graph = Depends(get_knowledge_graph),
+    tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
+    llm_service: Annotated[Any, Depends(get_llm_service)],
+    knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
 ) -> dict[str, Any]:
     """
     Gera sumário inteligente de um job usando LLM + RAG.
@@ -265,7 +266,7 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error generating job summary: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
 # =============================================================================

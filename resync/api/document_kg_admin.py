@@ -10,6 +10,8 @@ Endpoints:
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Query
 
 from resync.knowledge.kg_store.store import PostgresGraphStore
@@ -26,8 +28,8 @@ async def kg_health() -> dict:
 
 @router.get("/stats")
 async def kg_stats(
-    tenant: str = Query("default"),
-    graph_version: int = Query(1),
+    tenant: Annotated[str, Query("default")],
+    graph_version: Annotated[int, Query(1)],
 ) -> dict:
     store = PostgresGraphStore()
     return await store.stats(tenant=tenant, graph_version=graph_version)
@@ -35,10 +37,10 @@ async def kg_stats(
 
 @router.get("/subgraph")
 async def kg_subgraph(
-    tenant: str = Query("default"),
-    graph_version: int = Query(1),
-    seed: list[str] = Query(..., description="node_id(s) or name(s)"),
-    depth: int = Query(2, ge=1, le=5),
+    tenant: Annotated[str, Query("default")],
+    graph_version: Annotated[int, Query(1)],
+    seed: Annotated[list[str], Query(..., description="node_id(s) or name(s)")],
+    depth: Annotated[int, Query(2, ge=1, le=5)],
 ) -> dict:
     store = PostgresGraphStore()
 

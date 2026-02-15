@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
@@ -94,12 +94,12 @@ class CoreHealthResponse(BaseModel):
 CORE_COMPONENTS = {"database", "redis", "connection_pools", "file_system"}
 
 
-@router.get("/", response_model=HealthSummaryResponse)
+@router.get("/")
 async def get_health_summary(
-    auto_enable: bool = Query(
+    auto_enable: Annotated[bool, Query(
         default=False,
         description="Auto-enable system components if validation is successful",
-    ),
+    )],
 ) -> HealthSummaryResponse:
     """
     Get overall system health summary with status indicators.
@@ -147,7 +147,7 @@ async def get_health_summary(
         # Increment counter for health check failures if we can
         try:
             _get_runtime_metrics().health_check_with_auto_enable.increment()
-        except (AttributeError, ImportError, Exception) as metrics_e:
+        except Exception as metrics_e:
             # Log metrics failure but don't fail the health check
             logger.warning("Failed to increment health check metrics: %s", metrics_e, exc_info=True)
         raise HTTPException(
@@ -156,7 +156,7 @@ async def get_health_summary(
         ) from original_exception
 
 
-@router.get("/core", response_model=CoreHealthResponse)
+@router.get("/core")
 async def get_core_health() -> CoreHealthResponse:
     """
     Get health status for core system components only.
@@ -230,10 +230,10 @@ async def get_core_health() -> CoreHealthResponse:
         ) from e
 
 
-@router.get("/detailed", response_model=DetailedHealthResponse)
+@router.get("/detailed")
 async def get_detailed_health(
-    include_history: bool = Query(False, description="Include health history in response"),
-    history_hours: int = Query(24, description="Hours of history to include", ge=1, le=168),
+    include_history: Annotated[bool, Query(False, description="Include health history in response")],
+    history_hours: Annotated[int, Query(24, description="Hours of history to include", ge=1, le=168)],
 ) -> DetailedHealthResponse:
     """
     Get detailed health check with all components and optional history.
