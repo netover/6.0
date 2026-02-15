@@ -17,7 +17,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
-from .common import build_error_health, response_time_ms, threshold_status
+from .common import ErrorContext, ThresholdConfig, build_error_health, response_time_ms, threshold_status
 
 logger = structlog.get_logger(__name__)
 
@@ -53,11 +53,13 @@ class MemoryHealthChecker(BaseHealthChecker):
 
             status, message = threshold_status(
                 value=memory_usage_percent,
-                warning_threshold=85,
-                critical_threshold=95,
-                healthy_message="Memory usage normal: {value:.1f}%",
-                degraded_message="Memory usage high: {value:.1f}%",
-                critical_message="Memory usage critically high: {value:.1f}%",
+                config=ThresholdConfig(
+                    warning=85,
+                    critical=95,
+                    healthy_msg="Memory usage normal: {value:.1f}%",
+                    degraded_msg="Memory usage high: {value:.1f}%",
+                    critical_msg="Memory usage critically high: {value:.1f}%",
+                ),
             )
 
             return ComponentHealth(
@@ -77,13 +79,15 @@ class MemoryHealthChecker(BaseHealthChecker):
 
         except Exception as e:
             return build_error_health(
-                component_name=self.component_name,
-                component_type=self.component_type,
-                status=HealthStatus.UNKNOWN,
-                message="Memory check failed",
-                start_time=start_time,
-                error=e,
-                log_event="memory_health_check_failed",
+                ctx=ErrorContext(
+                    name=self.component_name,
+                    type=self.component_type,
+                    status=HealthStatus.UNKNOWN,
+                    message="Memory check failed",
+                    start_time=start_time,
+                    error=e,
+                    log_event="memory_health_check_failed",
+                ),
                 logger=logger,
             )
 

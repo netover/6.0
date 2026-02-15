@@ -61,7 +61,10 @@ async def get_orchestrator(
 # =============================================================================
 
 
-@enhanced_router.get("/jobs/{job_name}/investigate")
+@enhanced_router.get(
+    "/jobs/{job_name}/investigate",
+    responses={500: {"description": "Internal Server Error"}},
+)
 async def investigate_job(
     job_name: str,
     orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
@@ -131,7 +134,10 @@ async def investigate_job(
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@enhanced_router.get("/system/health")
+@enhanced_router.get(
+    "/system/health",
+    responses={503: {"description": "Service Unavailable"}},
+)
 async def system_health(
     orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
 ) -> Any:
@@ -163,7 +169,10 @@ async def system_health(
         )
 
 
-@enhanced_router.get("/jobs/failed")
+@enhanced_router.get(
+    "/jobs/failed",
+    responses={500: {"description": "Internal Server Error"}},
+)
 async def get_failed_jobs_endpoint(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back"),
@@ -204,7 +213,13 @@ async def get_failed_jobs_endpoint(
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@enhanced_router.get("/jobs/{job_name}/summary")
+@enhanced_router.get(
+    "/jobs/{job_name}/summary",
+    responses={
+        404: {"description": "Job Not Found"},
+        500: {"description": "Internal Server Error"},
+    },
+)
 async def get_job_summary(
     job_name: str,
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],

@@ -130,7 +130,11 @@ class PerformanceMetrics(BaseModel):
 # Endpoints
 # =============================================================================
 
-@router.post("/feedback", response_model=FeedbackResponse)
+@router.post(
+    "/feedback",
+    response_model=FeedbackResponse,
+    responses={500: {"description": "Internal Server Error"}},
+)
 async def submit_feedback(request: SubmitFeedbackRequest):
     """
     Submit feedback on agent performance.
@@ -182,7 +186,11 @@ async def submit_feedback(request: SubmitFeedbackRequest):
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@router.get("/{agent_name}/patterns", response_model=list[PatternResponse])
+@router.get(
+    "/{agent_name}/patterns",
+    response_model=list[PatternResponse],
+    responses={500: {"description": "Internal Server Error"}},
+)
 async def get_patterns(agent_name: str):
     """
     Get detected patterns for an agent.
@@ -234,7 +242,11 @@ async def get_patterns(agent_name: str):
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@router.get("/improvements", response_model=list[ImprovementResponse])
+@router.get(
+    "/improvements",
+    response_model=list[ImprovementResponse],
+    responses={500: {"description": "Internal Server Error"}},
+)
 async def list_improvements(status: str | None = None):
     """
     List improvement suggestions.
@@ -294,7 +306,14 @@ async def list_improvements(status: str | None = None):
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@router.post("/improvements/{suggestion_id}/test", response_model=TestResultResponse)
+@router.post(
+    "/improvements/{suggestion_id}/test",
+    response_model=TestResultResponse,
+    responses={
+        404: {"description": "Suggestion Not Found"},
+        500: {"description": "Internal Server Error"},
+    },
+)
 async def test_improvement(suggestion_id: str):
     """
     Test improvement in sandbox.
@@ -351,7 +370,15 @@ async def test_improvement(suggestion_id: str):
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@router.post("/improvements/{suggestion_id}/approve", dependencies=[Depends(verify_admin_credentials)])
+@router.post(
+    "/improvements/{suggestion_id}/approve",
+    dependencies=[Depends(verify_admin_credentials)],
+    responses={
+        400: {"description": "Validation Error (e.g., must test before approving)"},
+        404: {"description": "Suggestion Not Found"},
+        500: {"description": "Internal Server Error"},
+    },
+)
 async def approve_improvement(
     suggestion_id: str,
 ):
@@ -424,7 +451,13 @@ async def approve_improvement(
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@router.post("/improvements/{suggestion_id}/reject")
+@router.post(
+    "/improvements/{suggestion_id}/reject",
+    responses={
+        404: {"description": "Suggestion Not Found"},
+        500: {"description": "Internal Server Error"},
+    },
+)
 async def reject_improvement(suggestion_id: str):
     """
     Reject improvement suggestion.
@@ -464,7 +497,11 @@ async def reject_improvement(suggestion_id: str):
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
 
-@router.get("/{agent_name}/performance", response_model=PerformanceMetrics)
+@router.get(
+    "/{agent_name}/performance",
+    response_model=PerformanceMetrics,
+    responses={500: {"description": "Internal Server Error"}},
+)
 async def get_performance_metrics(
     agent_name: str,
     period_days: int = 30

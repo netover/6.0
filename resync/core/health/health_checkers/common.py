@@ -7,7 +7,18 @@ from datetime import datetime, timezone
 
 import structlog
 
+from dataclasses import dataclass
 from resync.core.health.health_models import ComponentHealth, ComponentType, HealthStatus
+
+
+@dataclass(frozen=True)
+class ThresholdConfig:
+    """Thresholds and messages for health checks."""
+    warning: float
+    critical: float
+    healthy_msg: str
+    degraded_msg: str
+    critical_msg: str
 
 
 def response_time_ms(start_time: float) -> float:
@@ -16,41 +27,41 @@ def response_time_ms(start_time: float) -> float:
 
 
 def threshold_status(
-    *,
     value: float,
-    warning_threshold: float,
-    critical_threshold: float,
-    healthy_message: str,
-    degraded_message: str,
-    critical_message: str,
+    config: ThresholdConfig,
 ) -> tuple[HealthStatus, str]:
     """Resolve health status and formatted message from warning/critical thresholds."""
-    if value > critical_threshold:
-        return HealthStatus.UNHEALTHY, critical_message.format(value=value)
-    if value > warning_threshold:
-        return HealthStatus.DEGRADED, degraded_message.format(value=value)
-    return HealthStatus.HEALTHY, healthy_message.format(value=value)
+    if value > config.critical:
+        return HealthStatus.UNHEALTHY, config.critical_msg.format(value=value)
+    if value > config.warning:
+        return HealthStatus.DEGRADED, config.degraded_msg.format(value=value)
+    return HealthStatus.HEALTHY, config.healthy_msg.format(value=value)
+
+
+@dataclass(frozen=True)
+class ErrorContext:
+    """Context for building error health results."""
+    name: str
+    type: ComponentType
+    status: HealthStatus
+    message: str
+    start_time: float
+    error: Exception
+    log_event: str
 
 
 def build_error_health(
-    *,
-    component_name: str,
-    component_type: ComponentType,
-    status: HealthStatus,
-    message: str,
-    start_time: float,
-    error: Exception,
-    log_event: str,
+    ctx: ErrorContext,
     logger: structlog.stdlib.BoundLogger,
 ) -> ComponentHealth:
     """Build a standardized error ComponentHealth response and log failure."""
-    logger.error(log_event, error_type=type(error).__name__, exc_info=True)
+    logger.error(ctx.log_event, error_type=type(ctx.error).__name__, exc_info=True)
     return ComponentHealth(
-        name=component_name,
-        component_type=component_type,
-        status=status,
-        message=message,
-        response_time_ms=response_time_ms(start_time),
+        name=ctx.name,
+        component_type=ctx.type,
+        status=ctx.status,
+        message=ctx.message,
+        response_time_ms=response_time_ms(ctx.start_time),
         last_check=datetime.now(timezone.utc),
         error_count=1,
     )
