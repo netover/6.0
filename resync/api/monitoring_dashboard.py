@@ -15,11 +15,11 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends
 from fastapi.responses import JSONResponse
 
 from resync.core.redis_init import get_redis_client
-from resync.api.security import decode_token
+from resync.api.security import decode_token, get_current_user, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,9 @@ def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
     """Parse JSON com tratamento de erro robusto."""
     if not data: return None
     try:
+        # FIX: Decodificar bytes antes de parse JSON
+        if isinstance(data, bytes):
+            data = data.decode()
         return json_loads(data)
     except Exception as e:
         logger.error("JSON corrompido (%s): %s", context, e)
@@ -170,8 +173,13 @@ class DashboardMetricsStore:
         pipe.lpush(REDIS_KEY_HISTORY, data)
         pipe.ltrim(REDIS_KEY_HISTORY, 0, MAX_SAMPLES - 1)
         pipe.set(REDIS_KEY_LATEST, data)
-        await pipe.execute()
-
+        
+        # FIX: Adicionar tratamento de erro para escrita Redis
+        try:
+            await pipe.execute()
+        except Exception as e:
+            logger.error("Falha ao persistir amostra no Redis: %s", e)
+        
         await self._check_alerts_redis(sample)
 
     async def _check_alerts_redis(self, sample: MetricSample) -> None:
@@ -194,16 +202,32 @@ class DashboardMetricsStore:
             for alert in new_alerts:
                 pipe.lpush(REDIS_KEY_ALERTS, json_dumps(alert))
             pipe.ltrim(REDIS_KEY_ALERTS, 0, 19) # Manter últimos 20
-            await pipe.execute()
+            try:
+                await pipe.execute()
+            except Exception as e:
+                logger.error("Falha ao persistir alertas no Redis: %s", e)
 
     async def get_global_uptime(self) -> float:
         redis = get_redis_client()
         try:
             now = time.time()
-            was_set = await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
+            # FIX: Usar redis.lock em vez de set(..., nx=True)
+            lock = redis.lock(REDIS_KEY_START_TIME, timeout=1)
+            if await lock.acquire(blocking=False):
+                try:
+                    await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
+                finally:
+                    await lock.release()
+            
             raw = await redis.get(REDIS_KEY_START_TIME)
-            return now - float(raw or now)
-        except Exception: return 0.0
+            if raw is None:
+                logger.warning("Não foi possível determinar o tempo de início global do Redis.")
+                return 0.0
+            return now - float(raw)
+        except Exception as e:
+            # FIX: Adicionar logging adequado em vez de retornar 0.0 silenciosamente
+            logger.error("Erro ao obter uptime global do Redis: %s", e)
+            return 0.0
 
     async def get_current_metrics(self) -> dict[str, Any]:
         redis = get_redis_client()
@@ -368,11 +392,12 @@ class WebSocketManager:
 async def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """Valida autenticação admin para WebSocket."""
     try:
-        token = websocket.query_params.get("access_token")
-        if not token:
-            auth_header = websocket.headers.get("authorization", "")
-            if auth_header.startswith("Bearer "):
-                token = auth_header[7:]
+        # FIX: Preferir header Authorization em vez de query param
+        auth_header = websocket.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+        else:
+            token = websocket.query_params.get("access_token")
         
         if not token: return None
         
@@ -405,7 +430,9 @@ ws_manager = WebSocketManager()
 async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
     redis = get_redis_client()
-    if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=8, nx=True):
+    # FIX: Usar redis.lock em vez de set(..., nx=True)
+    lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=8)
+    if not await lock.acquire(blocking=False):
         return
 
     from resync.core.metrics import runtime_metrics
@@ -440,6 +467,8 @@ async def collect_metrics_sample() -> None:
         await _metrics_store.add_error_sample(e)
         current = await _metrics_store.get_current_metrics()
         await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+    finally:
+        await lock.release()
 
 
 async def metrics_collector_loop() -> None:
@@ -462,12 +491,15 @@ async def metrics_collector_loop() -> None:
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
+# FIX: Adicionar autenticação aos endpoints GET
 @router.get("/current")
-async def get_current():
+async def get_current(user: dict = Depends(require_role("admin"))):
+    """Retorna métricas atuais do sistema. Requer autenticação admin."""
     return await _metrics_store.get_current_metrics()
 
 @router.get("/history")
-async def get_history(minutes: int = 120):
+async def get_history(minutes: int = 120, user: dict = Depends(require_role("admin"))):
+    """Retorna histórico de métricas para gráficos. Requer autenticação admin."""
     return await _metrics_store.get_history(min(max(1, minutes), 120))
 
 @router.websocket("/ws")
