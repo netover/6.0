@@ -83,6 +83,8 @@ async def test_fetch_workstation_metrics_history_uses_named_mappings(monkeypatch
         "cpu_count": 8,
         "total_memory_gb": 32.0,
         "total_disk_gb": 512.0,
+        "total_memory_gb": 32,
+        "total_disk_gb": 512,
     }
 
 
