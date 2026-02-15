@@ -618,9 +618,15 @@ class HybridRAG:
 
         # Execute RAG query if needed (use enriched query for better retrieval)
         if classification.use_rag:
-            result["rag_results"] = await self._execute_rag_query(
-                enriched_query, classification.entities
-            )
+            # Use Fusion RAG for GENERAL or TROUBLESHOOTING intents (ambiguous queries)
+            if classification.intent in {QueryIntent.GENERAL, QueryIntent.TROUBLESHOOTING}:
+                result["rag_results"] = await self._execute_fusion_rag_query(
+                    enriched_query, classification.entities
+                )
+            else:
+                result["rag_results"] = await self._execute_rag_query(
+                    enriched_query, classification.entities
+                )
 
         # Generate response if requested
         if generate_response:
@@ -743,6 +749,173 @@ class HybridRAG:
         except Exception as e:
             logger.error("rag_query_failed", error=str(e))
             return {"error": str(e), "documents": []}
+
+    # =========================================================================
+    # FUSION RAG - Query Expansion + RRF Merging
+    # =========================================================================
+
+    async def _expand_query(self, query: str, num_variations: int = 3) -> list[str]:
+        """
+        Generate query variations for Fusion RAG.
+
+        Uses LLM to create semantically similar but differently phrased queries.
+        This improves recall by capturing different aspects of the user's intent.
+
+        Args:
+            query: Original user query
+            num_variations: Number of variations to generate (default: 3)
+
+        Returns:
+            List of query variations (including original)
+        """
+        llm = self._get_llm()
+        if llm is None:
+            # Fallback: return original query only
+            return [query]
+
+        try:
+            prompt = f"""Generate {num_variations} different ways to ask the following question about TWS/HWA workload automation.
+Each variation should capture the same intent but use different words or phrasing.
+
+Original question: {query}
+
+Provide ONLY the variations, one per line, without numbering or explanation."""
+
+            response = await llm.generate(prompt)
+            variations = [line.strip() for line in response.strip().split('\n') if line.strip()]
+
+            # Always include original query
+            all_queries = [query] + variations[:num_variations]
+
+            logger.debug(
+                "query_expansion",
+                original=query[:50],
+                num_variations=len(all_queries) - 1,
+            )
+
+            return all_queries
+
+        except Exception as e:
+            logger.warning("query_expansion_failed", error=str(e))
+            return [query]
+
+    def _reciprocal_rank_fusion(
+        self,
+        results_list: list[list[dict[str, Any]]],
+        k: int = 60,
+    ) -> list[dict[str, Any]]:
+        """
+        Merge multiple result sets using Reciprocal Rank Fusion (RRF).
+
+        RRF formula: score(doc) = sum(1 / (k + rank_i))
+        where rank_i is the position of doc in result set i.
+
+        Documents appearing high in multiple result sets get boosted.
+
+        Args:
+            results_list: List of result sets, each is a list of documents
+            k: RRF constant (default: 60, standard value from literature)
+
+        Returns:
+            Merged and re-ranked documents with 'fusion_score' field
+        """
+        # Build document index by unique ID
+        doc_scores: dict[str, float] = {}
+        doc_map: dict[str, dict[str, Any]] = {}
+
+        for result_set in results_list:
+            for rank, doc in enumerate(result_set, start=1):
+                # Use document ID or content hash as key
+                doc_id = doc.get("id") or doc.get("document_id") or str(hash(doc.get("content", "")[:100]))
+
+                # RRF score contribution
+                rrf_score = 1.0 / (k + rank)
+
+                if doc_id in doc_scores:
+                    doc_scores[doc_id] += rrf_score
+                else:
+                    doc_scores[doc_id] = rrf_score
+                    doc_map[doc_id] = doc
+
+        # Sort by fusion score
+        ranked = sorted(
+            doc_scores.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        # Build final result list
+        fused_results = []
+        for doc_id, score in ranked:
+            doc = dict(doc_map[doc_id])
+            doc["fusion_score"] = round(score, 4)
+            fused_results.append(doc)
+
+        logger.debug(
+            "rrf_fusion",
+            input_sets=len(results_list),
+            unique_docs=len(fused_results),
+        )
+
+        return fused_results
+
+    async def _execute_fusion_rag_query(
+        self, query_text: str, entities: dict[str, list[str]]
+    ) -> dict[str, Any]:
+        """
+        Execute Fusion RAG: expand query + parallel search + RRF merge.
+
+        This improves recall for ambiguous queries by:
+        1. Generating query variations
+        2. Searching with each variation
+        3. Merging results using Reciprocal Rank Fusion
+
+        Args:
+            query_text: Original user query
+            entities: Extracted entities (for filtering)
+
+        Returns:
+            Fusion RAG results with merged documents
+        """
+        rag = self._get_rag()
+        if rag is None:
+            return {"error": "RAG not available", "documents": []}
+
+        try:
+            # Step 1: Expand query
+            queries = await self._expand_query(query_text, num_variations=3)
+
+            # Step 2: Parallel search for all variations
+            all_results = []
+            for q in queries:
+                try:
+                    results = await rag.retrieve(q, top_k=5)
+                    all_results.append(results)
+                except Exception as e:
+                    logger.warning("fusion_search_failed", query=q[:30], error=str(e))
+
+            if not all_results:
+                return {"error": "All fusion searches failed", "documents": []}
+
+            # Step 3: Merge with RRF
+            fused_docs = self._reciprocal_rank_fusion(all_results)
+
+            return {
+                "type": "fusion_search",
+                "original_query": query_text,
+                "query_variations": queries,
+                "documents": fused_docs[:10],  # Top 10 after fusion
+                "fusion_stats": {
+                    "num_queries": len(queries),
+                    "total_results": sum(len(r) for r in all_results),
+                    "unique_after_fusion": len(fused_docs),
+                },
+            }
+
+        except Exception as e:
+            logger.error("fusion_rag_failed", error=str(e))
+            # Fallback to standard RAG
+            return await self._execute_rag_query(query_text, entities)
 
     # =========================================================================
     # RESPONSE GENERATION

@@ -84,6 +84,33 @@ class ChunkType(str, Enum):
     DEFINITION = "definition"
 
 
+class OverlapStrategy(str, Enum):
+    """Overlap strategy for chunking.
+
+    Based on article: "9 RAG Chunking Decisions That Beat Models"
+    - CONSTANT: Traditional fixed-token overlap (can cause duplicate retrieval)
+    - STRUCTURE: Overlap only at semantic boundaries (paragraphs, headings)
+    - NONE: No overlap (rely on atomic unit preservation)
+    """
+
+    CONSTANT = "constant"  # Traditional fixed overlap
+    STRUCTURE = "structure"  # Overlap at boundaries only
+    NONE = "none"  # No overlap
+
+
+class ChunkViewType(str, Enum):
+    """Types of views for multi-view chunk indexing.
+
+    Based on article Decision #8: "Query-aware chunking: index multiple views"
+    Different query types match different representations of the same content.
+    """
+
+    RAW = "raw"  # Original chunk content
+    SUMMARY = "summary"  # Generated summary (first sentence + key entities)
+    ENTITIES = "entities"  # Extracted key terms and entities
+    FAQ = "faq"  # Q/A format for policies and procedures
+
+
 # TWS-specific patterns
 TWS_ERROR_PATTERN = re.compile(
     r"(AWS[A-Z]{2,4}\d{3}[EWI]?|AWSJ[A-Z]+\d+[EWI]?|"
@@ -176,6 +203,12 @@ class ChunkMetadata:
     extracted_entities: list[dict[str, Any]] = field(default_factory=list)
     entity_count: int = 0  # Number of entities extracted from this chunk
 
+    # === v6.0: Citation-Friendly Chunking (Decision #7) ===
+    # Stable ID for citations (format: "{doc_id}::{section_id}::{offset}")
+    stable_id: str = ""
+    # Short snippet preview for quick identification (first 100 chars)
+    snippet_preview: str = ""
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
         return {
@@ -216,6 +249,9 @@ class ChunkMetadata:
             "verified_at": self.verified_at,
             "extracted_entities": self.extracted_entities,
             "entity_count": self.entity_count,
+            # v6.0: Citation-friendly fields
+            "stable_id": self.stable_id,
+            "snippet_preview": self.snippet_preview,
         }
 
 
@@ -243,6 +279,60 @@ class EnrichedChunk:
 
 
 @dataclass
+class MultiViewChunk:
+    """
+    Multi-view representation of a chunk for query-aware indexing.
+
+    Based on article Decision #8: "Query-aware chunking: index multiple views"
+    Different query types match different representations of the same content.
+
+    Users ask questions in different ways:
+    - broad ("How does refunds work?")
+    - specific ("Is COD allowed for outstation orders?")
+    - procedural ("What steps do I follow?")
+
+    A single representation doesn't match all intents.
+    """
+
+    # Original chunk reference
+    chunk_id: str
+    doc_id: str
+
+    # Multiple views for indexing
+    raw_content: str  # Original chunk content
+    summary_view: str  # Generated summary (first sentence + key entities)
+    entities_view: str  # Extracted key terms and entities as searchable text
+    faq_view: str | None = None  # Q/A format for policies and procedures (optional)
+
+    # Metadata for all views
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def get_view(self, view_type: ChunkViewType) -> str:
+        """Get content for a specific view type."""
+        if view_type == ChunkViewType.RAW:
+            return self.raw_content
+        elif view_type == ChunkViewType.SUMMARY:
+            return self.summary_view
+        elif view_type == ChunkViewType.ENTITIES:
+            return self.entities_view
+        elif view_type == ChunkViewType.FAQ:
+            return self.faq_view or self.raw_content
+        return self.raw_content
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for storage."""
+        return {
+            "chunk_id": self.chunk_id,
+            "doc_id": self.doc_id,
+            "raw_content": self.raw_content,
+            "summary_view": self.summary_view,
+            "entities_view": self.entities_view,
+            "faq_view": self.faq_view,
+            "metadata": self.metadata,
+        }
+
+
+@dataclass
 class ChunkingConfig:
     """Configuration for chunking."""
 
@@ -253,6 +343,10 @@ class ChunkingConfig:
     max_tokens: int = 500
     min_tokens: int = 50
     overlap_tokens: int = 75  # 15% overlap
+
+    # === v6.0: Structure-Aware Overlap (Decision #3) ===
+    # Overlap strategy: "constant" (traditional), "structure" (at boundaries only), "none"
+    overlap_strategy: OverlapStrategy = OverlapStrategy.STRUCTURE
 
     # Semantic chunking
     semantic_threshold_percentile: float = 90.0
@@ -276,6 +370,16 @@ class ChunkingConfig:
     extract_error_codes: bool = True
     extract_job_names: bool = True
     extract_commands: bool = True
+
+    # === v6.0: Multi-View Indexing (Decision #8) ===
+    # Enable generation of multiple views for each chunk
+    enable_multi_view: bool = True
+    # Which views to generate
+    enabled_views: list[ChunkViewType] = field(
+        default_factory=lambda: [ChunkViewType.RAW, ChunkViewType.SUMMARY, ChunkViewType.ENTITIES]
+    )
+    # Enable FAQ conversion for policies/procedures
+    enable_faq_conversion: bool = True
 
 
 # =============================================================================
@@ -765,6 +869,203 @@ def generate_chunk_summary(chunk: str, max_words: int = 20) -> str:
 
 
 # =============================================================================
+# v6.0: MULTI-VIEW GENERATION (Decision #8)
+# =============================================================================
+
+
+def generate_entities_view(content: str, metadata: ChunkMetadata) -> str:
+    """
+    Generate an entities-only view for keyword matching.
+
+    Combines extracted entities into a searchable text representation.
+    This view helps match specific queries like "AWS001E" or "BACKUP_JOB".
+    """
+    parts = []
+
+    # Add error codes
+    if metadata.error_codes:
+        parts.append(f"Error codes: {', '.join(metadata.error_codes)}")
+
+    # Add job names
+    if metadata.job_names:
+        parts.append(f"Jobs: {', '.join(metadata.job_names)}")
+
+    # Add commands
+    if metadata.commands:
+        parts.append(f"Commands: {', '.join(metadata.commands)}")
+
+    # Add section path keywords
+    if metadata.section_path:
+        # Extract keywords from section path
+        path_parts = metadata.section_path.split(" > ")
+        parts.append(f"Section: {metadata.section_path}")
+
+    # Add chunk type
+    parts.append(f"Type: {metadata.chunk_type.value}")
+
+    return " | ".join(parts) if parts else content[:100]
+
+
+def generate_faq_view(content: str, section_path: str, chunk_type: ChunkType) -> str | None:
+    """
+    Generate a Q/A format view for policies and procedures.
+
+    Converts structured content into a question-answer format
+    that matches natural language queries better.
+    """
+    if chunk_type not in (ChunkType.PROCEDURE, ChunkType.ERROR_DOC, ChunkType.DEFINITION):
+        return None
+
+    # Extract topic from section path
+    topic = section_path.split(" > ")[-1] if section_path else "this topic"
+
+    if chunk_type == ChunkType.ERROR_DOC:
+        # Generate FAQ for error documentation
+        error_codes = extract_tws_error_codes(content)
+        if error_codes:
+            code_str = " or ".join(error_codes[:2])
+            return f"Q: What does error {code_str} mean?\nA: {content[:300]}..."
+
+    if chunk_type == ChunkType.PROCEDURE:
+        # Generate FAQ for procedures
+        return f"Q: How do I {topic.lower()}?\nA: {content[:300]}..."
+
+    if chunk_type == ChunkType.DEFINITION:
+        # Generate FAQ for definitions
+        return f"Q: What is {topic.lower()}?\nA: {content[:300]}..."
+
+    return None
+
+
+def create_multi_view_chunk(chunk: EnrichedChunk, doc_id: str) -> MultiViewChunk:
+    """
+    Create a multi-view representation of a chunk.
+
+    Generates multiple views for different query types:
+    - RAW: Original content for semantic similarity
+    - SUMMARY: First sentence + key entities for quick scanning
+    - ENTITIES: Extracted entities for keyword matching
+    - FAQ: Q/A format for natural language queries
+    """
+    chunk_id = f"{doc_id}#c{chunk.metadata.chunk_index:06d}"
+
+    # Generate summary view
+    summary_view = generate_chunk_summary(chunk.content, max_words=30)
+
+    # Generate entities view
+    entities_view = generate_entities_view(chunk.content, chunk.metadata)
+
+    # Generate FAQ view (optional)
+    faq_view = None
+    if chunk.metadata.chunk_type in (ChunkType.PROCEDURE, ChunkType.ERROR_DOC, ChunkType.DEFINITION):
+        faq_view = generate_faq_view(
+            chunk.content,
+            chunk.metadata.section_path,
+            chunk.metadata.chunk_type
+        )
+
+    return MultiViewChunk(
+        chunk_id=chunk_id,
+        doc_id=doc_id,
+        raw_content=chunk.content,
+        summary_view=summary_view,
+        entities_view=entities_view,
+        faq_view=faq_view,
+        metadata=chunk.metadata.to_dict(),
+    )
+
+
+# =============================================================================
+# v6.0: STRUCTURE-AWARE OVERLAP (Decision #3)
+# =============================================================================
+
+
+def get_structure_aware_overlap(
+    prev_content: str,
+    target_tokens: int,
+    overlap_strategy: OverlapStrategy,
+) -> str:
+    """
+    Get overlap text based on strategy.
+
+    Based on article Decision #3: "Overlap strategy: avoid copy-paste inflation"
+    - CONSTANT: Traditional fixed-token overlap (can cause duplicate retrieval)
+    - STRUCTURE: Overlap only at semantic boundaries (paragraphs, headings)
+    - NONE: No overlap (rely on atomic unit preservation)
+    """
+    if overlap_strategy == OverlapStrategy.NONE:
+        return ""
+
+    if overlap_strategy == OverlapStrategy.CONSTANT:
+        # Traditional: get last N tokens worth of sentences
+        sentences = split_sentences(prev_content)
+        overlap_text = ""
+        for sent in reversed(sentences):
+            new_text = sent + " " + overlap_text if overlap_text else sent
+            if count_tokens(new_text) > target_tokens:
+                break
+            overlap_text = new_text
+        return overlap_text.strip()
+
+    # STRUCTURE: overlap at paragraph boundaries only
+    paragraphs = split_paragraphs(prev_content)
+    if not paragraphs:
+        return ""
+
+    overlap_text = ""
+    for para in reversed(paragraphs):
+        test_text = para + "\n\n" + overlap_text if overlap_text else para
+        if count_tokens(test_text) > target_tokens:
+            break
+        overlap_text = test_text
+
+    return overlap_text.strip()
+
+
+# =============================================================================
+# v6.0: CITATION-FRIENDLY IDS (Decision #7)
+# =============================================================================
+
+
+def generate_stable_id(doc_id: str, section_path: str, chunk_index: int) -> str:
+    """
+    Generate a stable, citation-friendly ID for a chunk.
+
+    Format: "{doc_id}::{section_id}::{offset}"
+    Example: "manual_v2::troubleshooting_error-codes::000001"
+
+    This enables:
+    - Quick debugging: "Which chunk made the model say that?"
+    - Stable references across re-indexing
+    """
+    # Normalize section path to ID format
+    section_id = section_path.lower().replace(" > ", "_").replace(" ", "-") if section_path else "root"
+
+    # Remove special characters
+    section_id = re.sub(r"[^a-z0-9_-]", "", section_id)
+
+    return f"{doc_id}::{section_id}::{chunk_index:06d}"
+
+
+def generate_snippet_preview(content: str, max_chars: int = 100) -> str:
+    """
+    Generate a short snippet preview for quick identification.
+
+    First N characters, truncated at word boundary.
+    """
+    if len(content) <= max_chars:
+        return content
+
+    # Find word boundary
+    truncated = content[:max_chars]
+    last_space = truncated.rfind(" ")
+    if last_space > 0:
+        truncated = truncated[:last_space]
+
+    return truncated + "..."
+
+
+# =============================================================================
 # MAIN CHUNKER CLASS
 # =============================================================================
 
@@ -807,6 +1108,7 @@ class AdvancedChunker:
         text: str,
         source: str = "",
         document_title: str = "",
+        doc_id: str = "",
     ) -> list[EnrichedChunk]:
         """
         Chunk a document using configured strategy.
@@ -815,6 +1117,7 @@ class AdvancedChunker:
             text: Document text
             source: Source filename
             document_title: Document title for context
+            doc_id: Document ID for citation-friendly IDs
 
         Returns:
             List of enriched chunks
@@ -838,7 +1141,7 @@ class AdvancedChunker:
             chunks = self._chunk_fixed_size(text, source, document_title)
 
         # Post-process: add context and summaries
-        chunks = self._enrich_chunks(chunks, document_title)
+        chunks = self._enrich_chunks(chunks, document_title, doc_id)
 
         # Update total_chunks
         for i, chunk in enumerate(chunks):
@@ -846,6 +1149,45 @@ class AdvancedChunker:
             chunk.metadata.chunk_index = i
 
         return chunks
+
+    def chunk_document_multi_view(
+        self,
+        text: str,
+        source: str = "",
+        document_title: str = "",
+        doc_id: str = "",
+    ) -> list[MultiViewChunk]:
+        """
+        Chunk a document and generate multi-view representations.
+
+        v6.0: Implements Decision #8 "Query-aware chunking: index multiple views"
+
+        This method returns MultiViewChunk objects that contain multiple
+        representations of each chunk for different query types.
+
+        Args:
+            text: Document text
+            source: Source filename
+            document_title: Document title for context
+            doc_id: Document ID for citation
+
+        Returns:
+            List of MultiViewChunk objects
+        """
+        if not self.config.enable_multi_view:
+            logger.warning("Multi-view is disabled in config, returning empty list")
+            return []
+
+        # First, get regular enriched chunks
+        chunks = self.chunk_document(text, source, document_title, doc_id)
+
+        # Convert to multi-view
+        multi_view_chunks = []
+        for chunk in chunks:
+            mvc = create_multi_view_chunk(chunk, doc_id or source)
+            multi_view_chunks.append(mvc)
+
+        return multi_view_chunks
 
     def _chunk_tws_optimized(
         self,
@@ -1099,17 +1441,12 @@ class AdvancedChunker:
         return chunks
 
     def _get_overlap_text(self, text: str, target_tokens: int) -> str:
-        """Get last ~target_tokens from text."""
-        sentences = split_sentences(text)
-        overlap_text = ""
-
-        for sent in reversed(sentences):
-            new_text = sent + " " + overlap_text if overlap_text else sent
-            if count_tokens(new_text) > target_tokens:
-                break
-            overlap_text = new_text
-
-        return overlap_text.strip()
+        """Get last ~target_tokens from text using configured overlap strategy."""
+        return get_structure_aware_overlap(
+            text,
+            target_tokens,
+            self.config.overlap_strategy,
+        )
 
     def _split_oversized(self, text: str) -> list[str]:
         """Split oversized chunk by sentences."""
@@ -1235,6 +1572,7 @@ class AdvancedChunker:
         self,
         chunks: list[EnrichedChunk],
         document_title: str,
+        doc_id: str = "",
     ) -> list[EnrichedChunk]:
         """Add contextual enrichment to chunks."""
         for i, chunk in enumerate(chunks):
@@ -1250,6 +1588,14 @@ class AdvancedChunker:
                 chunk.metadata,
                 document_title,
             )
+
+            # v6.0: Add citation-friendly fields (Decision #7)
+            chunk.metadata.stable_id = generate_stable_id(
+                doc_id or chunk.metadata.source_file,
+                chunk.metadata.section_path,
+                chunk.metadata.chunk_index,
+            )
+            chunk.metadata.snippet_preview = generate_snippet_preview(chunk.content)
 
         return chunks
 
@@ -1531,3 +1877,56 @@ def chunk_text_simple(
 
 # Backward compatibility alias
 chunk_text = chunk_text_simple
+
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+
+__all__ = [
+    # Enums
+    "ChunkingStrategy",
+    "ChunkType",
+    "OverlapStrategy",
+    "ChunkViewType",
+    # Data classes
+    "ChunkMetadata",
+    "EnrichedChunk",
+    "MultiViewChunk",
+    "ChunkingConfig",
+    "MarkdownSection",
+    # Main class
+    "AdvancedChunker",
+    "SemanticChunker",
+    # Utility functions
+    "count_tokens",
+    "truncate_to_tokens",
+    "split_sentences",
+    "split_paragraphs",
+    "parse_markdown_structure",
+    "build_section_hierarchy",
+    "get_section_path",
+    "extract_code_blocks",
+    "extract_inline_code",
+    "extract_markdown_tables",
+    "extract_tws_error_codes",
+    "extract_tws_job_names",
+    "extract_tws_commands",
+    "detect_error_documentation",
+    "detect_procedure",
+    "create_contextual_prefix",
+    "generate_chunk_summary",
+    # v6.0: Multi-view functions
+    "generate_entities_view",
+    "generate_faq_view",
+    "create_multi_view_chunk",
+    # v6.0: Structure-aware overlap
+    "get_structure_aware_overlap",
+    # v6.0: Citation-friendly functions
+    "generate_stable_id",
+    "generate_snippet_preview",
+    # Convenience functions
+    "chunk_document",
+    "chunk_text_simple",
+    "chunk_text",
+]

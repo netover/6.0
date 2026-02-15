@@ -79,6 +79,7 @@ from resync.core.wiring import (  # noqa: E402
     get_knowledge_graph,
     get_llm_service,
     get_tws_client,
+    get_a2a_handler,
 )
 
 
@@ -158,4 +159,5 @@ __all__ = [
     "get_redis_client",
     "get_audit_queue",
     "get_file_ingestor",
+    "get_a2a_handler",
 ]

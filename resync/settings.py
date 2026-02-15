@@ -332,6 +332,14 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
+    # A2A PROTOCOL (v6.2.0)
+    # ============================================================================
+    a2a_enabled: bool = Field(
+        default=True,
+        description="Habilitar protocolo A2A (Agent-to-Agent) para interoperabilidade",
+    )
+
+    # ============================================================================
     # HYBRID RETRIEVER - BM25 + Vector Search (v5.2.3.22)
     # ============================================================================
     hybrid_vector_weight: float = Field(

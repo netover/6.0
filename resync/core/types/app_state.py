@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from resync.core.agent_manager import AgentManager
     from resync.core.agent_router import HybridRouter
     from resync.core.interfaces import IFileIngestor
+    from resync.core.a2a_handler import A2AHandler
     from resync.services.llm_service import LLMService
 
 
@@ -48,6 +49,7 @@ class EnterpriseState:
     idempotency_manager: "IdempotencyManager"
     llm_service: "LLMService"
     file_ingestor: "IFileIngestor"
+    a2a_handler: "A2AHandler"
 
     # Lifecycle flags
     startup_complete: bool
