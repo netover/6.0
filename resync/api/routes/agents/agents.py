@@ -18,6 +18,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from resync.api.dependencies_v2 import get_logger
+from resync.core.langgraph.roma_graph import execute_roma_query
+from resync.settings import settings
 from resync.api.models.requests import (
     AgentExecuteRequest,
     ApprovalListQuery,
@@ -282,6 +284,44 @@ async def execute_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Agent execution failed. Check server logs for details.",
         ) from e
+
+
+@router.post("/roma/execute")
+async def execute_roma_agent(
+    query: str = Query(..., min_length=1, description="Query to execute with ROMA orchestration"),
+    use_roma: bool = Query(default=False, description="Must be true to enable ROMA route"),
+    logger_instance=Depends(get_logger),
+) -> dict[str, Any]:
+    """Execute query via ROMA orchestration graph (feature-flagged)."""
+    if not use_roma:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Set use_roma=true to call this endpoint",
+        )
+
+    if not settings.ENABLE_ROMA_ORCHESTRATION:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ROMA orchestration disabled",
+        )
+
+    try:
+        result = await execute_roma_query(query)
+        return {
+            "success": True,
+            "query": query,
+            "final_response": result.get("final_response", ""),
+            "plan": [task.model_dump() for task in result.get("plan", [])],
+            "verification_notes": result.get("verification_notes", []),
+            "execution_logs": result.get("execution_logs", []),
+        }
+    except Exception as e:
+        logger_instance.error("roma_execute_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ROMA execution failed",
+        ) from e
+
 
 
 # =============================================================================
