@@ -81,7 +81,7 @@ class CachedStaticFiles(StarletteStaticFiles):
                     
                 if file_metadata is None:
                     # Fallback to deterministic hash of path if metadata fails
-                    digest = hashlib.md5(path.encode("utf-8")).hexdigest()[:16]
+                    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
                 else:
                     hash_len = getattr(
                         settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
@@ -92,7 +92,7 @@ class CachedStaticFiles(StarletteStaticFiles):
             except Exception as exc:
                 logger.warning("failed_to_generate_etag", error=str(exc))
                 # Fallback to deterministic hash of path if metadata fails
-                digest = hashlib.md5(path.encode("utf-8")).hexdigest()[:16]
+                digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
                 response.headers["ETag"] = f'"{digest}"'
 
         return response
