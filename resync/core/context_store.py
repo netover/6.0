@@ -55,6 +55,7 @@ class ContextStore:
     # Sync wrapper for backward compatibility
     def add_conversation_sync(self, session_id: str, role: str, content: str) -> None:
         """Sync version - deprecated, use async version."""
+        logger.warning("add_conversation_sync is deprecated, use async add_conversation")
         raise NotImplementedError("Sync method add_conversation_sync is deprecated, use async add_conversation")
 
     async def get_session_history(self, session_id: str, limit: int = 100) -> list[Conversation]:
@@ -95,7 +96,7 @@ class ContextStore:
         """Search conversations by content."""
         return await self._store.conversations.search_conversations(query, limit)
 
-    def search_conversations_sync(self, query: str, limit: int = 50) -> None:
+    def search_conversations_sync(self, _query: str, _limit: int = 50) -> None:
         """Sync version - deprecated."""
         logger.warning("search_conversations_sync is deprecated, use async search_conversations")
         raise NotImplementedError("Sync method search_conversations_sync is deprecated")
@@ -104,7 +105,7 @@ class ContextStore:
         """Search for similar issues/content."""
         return await self._store.get_relevant_context(query, limit)
 
-    def search_similar_issues_sync(self, query: str, limit: int = 10) -> None:
+    def search_similar_issues_sync(self, _query: str, _limit: int = 10) -> None:
         """Sync version - deprecated."""
         logger.warning("search_similar_issues_sync is deprecated, use async search_similar_issues")
         raise NotImplementedError("Sync method search_similar_issues_sync is deprecated")

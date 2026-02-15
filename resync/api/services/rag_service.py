@@ -279,7 +279,7 @@ class RAGIntegrationService:
         Args:
             query: Search query
             top_k: Number of results to return
-            filters: Optional filters (currently not implemented in mock mode)
+            filters: Optional metadata filters applied in mock mode via _matches_filters
         """
         results = []
         query_words = set(query.lower().split())
@@ -296,9 +296,7 @@ class RAGIntegrationService:
         for file_id, chunks in self._chunks.items():
             if file_id not in filtered_docs:
                 continue
-            doc = filtered_docs.get(file_id)
-            if not doc:
-                continue
+            doc = filtered_docs[file_id]
 
             for chunk in chunks:
                 chunk_words = set(chunk["text"].lower().split())
@@ -329,9 +327,8 @@ class RAGIntegrationService:
             return True
         doc_metadata = doc.metadata or {}
         for key, value in filters.items():
-            if key in doc_metadata:
-                if doc_metadata[key] != value:
-                    return False
+            if doc_metadata.get(key) != value:
+                return False
         return True
 
     def get_document(self, file_id: str) -> RAGDocument | None:

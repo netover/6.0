@@ -221,7 +221,7 @@ class DashboardMetricsStore:
             try:
                 await pipe.execute()
             except Exception as e:
-                logger.error("Falha ao persistir alertas no Redis: %s", e)
+                logger.exception("Falha ao persistir alertas no Redis: %s", e)
 
     async def get_global_uptime(self) -> float:
         """Obtém o tempo de uptime global via Redis."""
@@ -237,7 +237,10 @@ class DashboardMetricsStore:
                     if existing is None:
                         await redis.set(REDIS_KEY_START_TIME, str(now))
                 finally:
-                    await lock.release()
+                    try:
+                        await lock.release()
+                    except Exception as lock_error:
+                        logger.debug("Start-time lock release failed (possibly expired): %s", lock_error)
 
             raw = await redis.get(REDIS_KEY_START_TIME)
             if raw is None:
@@ -245,7 +248,7 @@ class DashboardMetricsStore:
                 return 0.0
             return now - float(raw)
         except Exception as e:
-            logger.error("Erro ao obter uptime global do Redis: %s", e)
+            logger.exception("Erro ao obter uptime global do Redis: %s", e)
             return 0.0
 
     async def get_current_metrics(self) -> dict[str, Any]:
@@ -349,7 +352,11 @@ class WebSocketManager:
         self._stop_event = asyncio.Event()
 
     async def start_sync(self):
-        """Inicia o listener de Pub/Sub."""
+        """Inicia o listener de Pub/Sub.
+        
+        Nota: restart após stop() não é suportado - o stop_event precisa ser
+        explicitamente limpo pelo caller se deseja reiniciar.
+        """
         if self._stop_event.is_set():
             return
         if self._sync_task is None or self._sync_task.done():
@@ -545,7 +552,7 @@ async def metrics_collector_loop() -> None:
         redis = get_redis_client()
         await redis.ping()
     except Exception as e:
-        logger.error("Redis não disponível, encerrando collector: %s", e)
+        logger.exception("Redis não disponível, encerrando collector: %s", e)
         return
 
     await ws_manager.start_sync()
