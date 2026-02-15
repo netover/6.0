@@ -185,6 +185,8 @@ def create_paginated_response(
     total: int,
     page: int,
     page_size: int,
+    base_path: str | None = None,
+    query_params: dict[str, Any] | None = None,
 ) -> PaginatedResponse:
     """Create a PaginatedResponse instance.
 

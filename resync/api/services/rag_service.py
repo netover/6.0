@@ -205,7 +205,7 @@ class RAGIntegrationService:
             List of search results with scores
         """
         if self.use_mock:
-            return self._mock_search(query, top_k)
+            return self._mock_search(query, top_k, filters)
 
         try:
             hits = await self._retriever.retrieve(
@@ -272,13 +272,31 @@ class RAGIntegrationService:
         self,
         query: str,
         top_k: int,
+        filters: dict[str, Any] | None = None,
     ) -> list[RAGSearchResult]:
-        """Mock semantic search using simple keyword matching."""
+        """Mock semantic search using simple keyword matching.
+
+        Args:
+            query: Search query
+            top_k: Number of results to return
+            filters: Optional filters (currently not implemented in mock mode)
+        """
         results = []
         query_words = set(query.lower().split())
 
+        # Apply filters if provided (mock implementation)
+        filtered_docs = self._documents
+        if filters:
+            # Basic filtering by metadata in mock mode
+            filtered_docs = {
+                k: v for k, v in self._documents.items()
+                if self._matches_filters(v, filters)
+            }
+
         for file_id, chunks in self._chunks.items():
-            doc = self._documents.get(file_id)
+            if file_id not in filtered_docs:
+                continue
+            doc = filtered_docs.get(file_id)
             if not doc:
                 continue
 
@@ -304,6 +322,17 @@ class RAGIntegrationService:
         # Sort by score and return top_k
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]
+
+    def _matches_filters(self, doc: RAGDocument, filters: dict[str, Any]) -> bool:
+        """Check if document matches the given filters."""
+        if not filters:
+            return True
+        doc_metadata = doc.metadata or {}
+        for key, value in filters.items():
+            if key in doc_metadata:
+                if doc_metadata[key] != value:
+                    return False
+        return True
 
     def get_document(self, file_id: str) -> RAGDocument | None:
         """Get document by ID."""

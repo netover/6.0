@@ -532,7 +532,11 @@ async def collect_metrics_sample() -> None:
             logger.debug("Falha ao persistir/broadcast amostra de erro")
     finally:
         # Libera o lock explicitamente após a coleta
-        await lock.release()
+        # Suprime LockNotOwnedError se o lock expirou (timeout=15s)
+        try:
+            await lock.release()
+        except Exception as lock_error:
+            logger.debug("Lock release failed (possibly expired): %s", lock_error)
 
 
 async def metrics_collector_loop() -> None:

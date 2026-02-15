@@ -19,7 +19,7 @@ __all__ = ["ContextStore", "get_context_store"]
 class ContextStore:
     """Context Store - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL backend."""
         self._store = PGContextStore()
         self._initialized = False
@@ -84,6 +84,7 @@ class ContextStore:
 
     def add_content_sync(self) -> None:
         """Sync version - deprecated."""
+        logger.warning("add_content_sync is deprecated, use async add_content")
         raise NotImplementedError("Sync method add_content_sync is deprecated, use async add_content")
 
     async def get_relevant_context(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
@@ -94,16 +95,18 @@ class ContextStore:
         """Search conversations by content."""
         return await self._store.conversations.search_conversations(query, limit)
 
-    def search_conversations_sync(self, query: str, limit: int = 50) -> list[dict]:
+    def search_conversations_sync(self, query: str, limit: int = 50) -> None:
         """Sync version - deprecated."""
+        logger.warning("search_conversations_sync is deprecated, use async search_conversations")
         raise NotImplementedError("Sync method search_conversations_sync is deprecated")
 
     async def search_similar_issues(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Search for similar issues/content."""
         return await self._store.get_relevant_context(query, limit)
 
-    def search_similar_issues_sync(self, query: str, limit: int = 10) -> list[dict]:
+    def search_similar_issues_sync(self, query: str, limit: int = 10) -> None:
         """Sync version - deprecated."""
+        logger.warning("search_similar_issues_sync is deprecated, use async search_similar_issues")
         raise NotImplementedError("Sync method search_similar_issues_sync is deprecated")
 
     async def flag_memory(self, conversation_id: int) -> bool:
@@ -150,6 +153,7 @@ class ContextStore:
 
     def add_solution_feedback_sync(self) -> None:
         """Sync version - deprecated."""
+        logger.warning("add_solution_feedback_sync is deprecated, use async add_solution_feedback")
         raise NotImplementedError("Sync method add_solution_feedback_sync is deprecated")
 
     async def atomic_check_and_flag(self, conversation_id: int, expected_approved: bool) -> bool:
