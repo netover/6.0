@@ -44,7 +44,7 @@ if WORKFLOW_MODE not in ("optimized", "verbose"):
 # Import appropriate implementation
 if WORKFLOW_MODE == "verbose":
     logger.info("Loading VERBOSE workflow implementation (1813 lines, v5.11.0)")
-    from .nodes_verbose import (
+    from workflows.nodes_verbose import (
         fetch_job_history,
         fetch_workstation_metrics,
         detect_degradation,
