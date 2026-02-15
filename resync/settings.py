@@ -551,6 +551,10 @@ class Settings(BaseSettings, SettingsValidators):
             "workflow nodes return safe defaults (no hidden 'predictions')."
         ),
     )
+    enable_roma_orchestration: bool = Field(
+        default=False,
+        description="Enable ROMA orchestration graph endpoints",
+    )
     tws_verify: bool | str = Field(
         default=True,
         description=(
@@ -1178,6 +1182,11 @@ class Settings(BaseSettings, SettingsValidators):
     def CORS_ALLOW_HEADERS(self) -> list[str]:
         """Legacy alias for cors_allow_headers."""
         return self.cors_allow_headers
+
+    @property
+    def ENABLE_ROMA_ORCHESTRATION(self) -> bool:
+        """Legacy alias for enable_roma_orchestration."""
+        return self.enable_roma_orchestration
 
     @property
     def STATIC_CACHE_MAX_AGE(self) -> int:
