@@ -6,7 +6,6 @@ Provides user authentication storage using PostgreSQL.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from resync.core.database.models import UserProfile
 from resync.core.database.repositories import BaseRepository

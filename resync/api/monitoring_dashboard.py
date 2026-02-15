@@ -163,8 +163,8 @@ class DashboardMetricsStore:
         try:
             snapshot = runtime_metrics.get_snapshot()
             tws_status = snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
-        except Exception:
-            pass  # Silencioso em caso de erro na obtenção do status
+        except Exception as e:
+            logger.debug("Failed to get TWS status: %s", e)
 
         sample = MetricSample(
             timestamp=now_wall,
@@ -228,7 +228,7 @@ class DashboardMetricsStore:
         redis = get_redis_client()
         try:
             now = time.time()
-            # Usar redis.lock para避免 race conditions
+            # Use redis.lock to avoid race conditions
             lock = redis.lock(f"{REDIS_KEY_START_TIME}:lock", timeout=1)
             if await lock.acquire(blocking=False):
                 try:
@@ -487,7 +487,7 @@ async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
     redis = get_redis_client()
 
-    # Usar redis.lock consistentemente para evitar race conditions
+    # Use redis.lock consistently to avoid race conditions
     lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=15)
     if not await lock.acquire(blocking=False):
         return  # Outro worker já está coletando

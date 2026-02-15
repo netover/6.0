@@ -20,9 +20,7 @@ class ContextStore:
     """Context Store - PostgreSQL Backend."""
 
     def __init__(self):
-        """Initialize. db_path is ignored - uses PostgreSQL."""
-        if db_path:
-            logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
+        """Initialize - uses PostgreSQL backend."""
         self._store = PGContextStore()
         self._initialized = False
 

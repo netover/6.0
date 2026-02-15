@@ -121,13 +121,16 @@ class _NoOpSpan:
         return False
 
     def set_attribute(self, *args, **kwargs):
-        raise NotImplementedError("_NoOpSpan is deprecated, use real tracing or disable tracing")
+        """No-op: silently ignore when tracing is disabled."""
+        return None
 
     def record_exception(self, *args, **kwargs):
-        raise NotImplementedError("_NoOpSpan is deprecated, use real tracing or disable tracing")
+        """No-op: silently ignore when tracing is disabled."""
+        return None
 
     def set_status(self, *args, **kwargs):
-        raise NotImplementedError("_NoOpSpan is deprecated, use real tracing or disable tracing")
+        """No-op: silently ignore when tracing is disabled."""
+        return None
 
 
 

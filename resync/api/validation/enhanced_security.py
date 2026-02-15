@@ -687,7 +687,7 @@ class EnhancedSecurityValidator:
         return threat
 
     async def rate_limit_check(
-        self, limit: int = 100, window_seconds: int = 60
+        self, identifier: str, limit: int = 100, window_seconds: int = 60
     ) -> RateLimitInfo:
         """
         Check rate limiting for an identifier.
@@ -703,7 +703,6 @@ class EnhancedSecurityValidator:
         # In a real implementation, this would use Redis or similar
         # For now, we'll simulate with in-memory storage
         current_time = time.time()
-        current_time - window_seconds
 
         # Simulate rate limiting logic
         # In production, this would use atomic operations in Redis

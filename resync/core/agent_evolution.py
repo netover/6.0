@@ -646,10 +646,10 @@ class SandboxTester:
         )
 
         # Run current version
-        current_results = self._run_test_cases(test_cases)
+        current_results = self._run_test_cases(suggestion.agent_name, suggestion.current_prompt, test_cases)
 
         # Run improved version
-        improved_results = self._run_test_cases(test_cases)
+        improved_results = self._run_test_cases(suggestion.agent_name, suggestion.proposed_prompt, test_cases)
 
         # Compare
         current_accuracy = self._calculate_accuracy(current_results)
@@ -703,6 +703,8 @@ class SandboxTester:
 
     def _run_test_cases(
         self,
+        agent_name: str,
+        prompt: str,
         test_cases: list[dict]
     ) -> list[dict]:
         """Run test cases with given prompt."""
