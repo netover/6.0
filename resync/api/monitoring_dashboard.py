@@ -356,11 +356,6 @@ class WebSocketManager:
         
         Returns:
             True if started successfully, False if already stopped or already running.
-            Caller must call restart() after stop() - the stop_event needs to be
-            explicitly cleared before attempting restart.
-        
-        Nota: restart após stop() requer chamada explícita a restart() - o stop_event
-        precisa ser limpo pelo caller se deseja reiniciar.
         """
         if self._stop_event.is_set():
             logger.debug("start_sync called but stop_event is set - call restart() to reset")
@@ -403,47 +398,62 @@ class WebSocketManager:
         async with self._lock:
             self._clients.discard(websocket)
 
+    async def _subscribe_to_broadcast(self):
+        """Cria e subscreve um cliente pubsub para o canal de broadcast."""
+        redis = get_redis_client()
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(REDIS_CH_BROADCAST)
+        return pubsub
+
+    async def _handle_pubsub_message(self, message: dict) -> None:
+        """Processa uma mensagem recebida do pubsub."""
+        if message.get("type") != "message":
+            return
+
+        data = message.get("data")
+        if isinstance(data, bytes):
+            data = data.decode()
+        await self._local_broadcast(data)
+
+    async def _close_pubsub(self, pubsub) -> None:
+        """Fecha conexão pubsub com cleanup resiliente e logging explícito."""
+        if pubsub is None:
+            return
+
+        try:
+            await pubsub.unsubscribe(REDIS_CH_BROADCAST)
+        except Exception as e:
+            logger.warning("PubSub unsubscribe failed: %s", e)
+
+        close_fn = getattr(pubsub, "close", None)
+        if close_fn is not None:
+            try:
+                maybe_awaitable = close_fn()
+                if asyncio.iscoroutine(maybe_awaitable):
+                    await maybe_awaitable
+            except Exception as e:
+                logger.warning("PubSub close failed: %s", e)
+
     async def _pubsub_listener(self) -> None:
         """Listener do Redis Pub/Sub para broadcast."""
         while not self._stop_event.is_set():
             pubsub = None
             try:
-                redis = get_redis_client()
-                pubsub = redis.pubsub()
-                await pubsub.subscribe(REDIS_CH_BROADCAST)
+                pubsub = await self._subscribe_to_broadcast()
                 logger.info("WebSocketManager sincronizado com Redis Pub/Sub")
                 async for message in pubsub.listen():
                     if self._stop_event.is_set():
                         break
-                    if message["type"] == "message":
-                        data = message["data"]
-                        if isinstance(data, bytes):
-                            data = data.decode()
-                        await self._local_broadcast(data)
+                    await self._handle_pubsub_message(message)
             except asyncio.CancelledError:
                 logger.info("WebSocketManager Pub/Sub listener cancelado")
-                break
+                raise
             except Exception:
                 logger.exception("Pub/Sub desconectado; tentando reconectar em 5s")
                 if not self._stop_event.is_set():
                     await asyncio.sleep(5)
             finally:
-                if pubsub is not None:
-                    # Explicit exception handling instead of broad suppress
-                    # to avoid masking real failures during cleanup
-                    try:
-                        await pubsub.unsubscribe(REDIS_CH_BROADCAST)
-                    except Exception as e:
-                        logger.warning("PubSub unsubscribe failed: %s", e)
-                    
-                    close_fn = getattr(pubsub, "close", None)
-                    if close_fn is not None:
-                        try:
-                            maybe_awaitable = close_fn()
-                            if asyncio.iscoroutine(maybe_awaitable):
-                                await maybe_awaitable
-                        except Exception as e:
-                            logger.warning("PubSub close failed: %s", e)
+                await self._close_pubsub(pubsub)
 
     async def broadcast(self, message_str: str) -> None:
         """Broadcast de mensagem para todos os clientes."""
@@ -468,20 +478,18 @@ class WebSocketManager:
 
 # ── WebSocket Authentication ─────────────────────────────────────────────────
 
-async def _verify_ws_admin(websocket: WebSocket) -> str | None:
+def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """Valida autenticação admin para WebSocket.
     
     Aceita token apenas do header Authorization (não aceita query params por segurança).
     """
     try:
         # Security: Only accept token from Authorization header (not query params)
-        # Query params can leak through URL logs, browser history, proxies, and Referer headers
         auth_header = websocket.headers.get("authorization", "")
         if not auth_header.startswith("Bearer "):
             return None
         
         token = auth_header[7:]
-
         payload = decode_token(token)
         username = payload.get("sub")
 
@@ -516,7 +524,6 @@ async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
     redis = get_redis_client()
 
-    # Use redis.lock consistently to avoid race conditions
     lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=15)
     if not await lock.acquire(blocking=False):
         return  # Outro worker já está coletando
@@ -560,8 +567,6 @@ async def collect_metrics_sample() -> None:
         except Exception:
             logger.debug("Falha ao persistir/broadcast amostra de erro")
     finally:
-        # Libera o lock explicitamente após a coleta
-        # Suprime LockNotOwnedError se o lock expirou (timeout=15s)
         try:
             await lock.release()
         except Exception as lock_error:
@@ -578,14 +583,17 @@ async def metrics_collector_loop() -> None:
         return
 
     await ws_manager.start_sync()
-    while True:
-        try:
-            await collect_metrics_sample()
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            logger.exception("Erro no collector loop ao executar collect_metrics_sample")
-        await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+    try:
+        while True:
+            try:
+                await collect_metrics_sample()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Erro no collector loop ao executar collect_metrics_sample")
+            await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+    finally:
+        await ws_manager.stop()
 
 
 # ── FastAPI Router ───────────────────────────────────────────────────────────
@@ -608,11 +616,9 @@ async def get_history(minutes: int = 120):
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket):
     """WebSocket para métricas em tempo real com autenticação."""
-    # Accept connection first to avoid RuntimeError on close()
-    # Authentication will be checked after accepting the connection
     await websocket.accept()
     
-    username = await _verify_ws_admin(websocket)
+    username = _verify_ws_admin(websocket)
     if not username:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
@@ -626,7 +632,9 @@ async def websocket_metrics(websocket: WebSocket):
         await websocket.send_json(initial)
         while True:
             await websocket.receive_text()
-    except (WebSocketDisconnect, asyncio.CancelledError):
+    except WebSocketDisconnect:
         pass
+    except asyncio.CancelledError:
+        raise
     finally:
         await ws_manager.disconnect(websocket)

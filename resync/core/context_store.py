@@ -53,7 +53,7 @@ class ContextStore:
         )
 
     # Sync wrapper for backward compatibility
-    def add_conversation_sync(self, session_id: str, role: str, content: str) -> None:
+    def add_conversation_sync(self, *_args: Any, **_kwargs: Any) -> None:
         """Sync version - deprecated, use async version."""
         logger.warning("add_conversation_sync is deprecated, use async add_conversation")
         raise NotImplementedError("Sync method add_conversation_sync is deprecated, use async add_conversation")
