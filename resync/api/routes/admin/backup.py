@@ -74,11 +74,11 @@ class BackupResponse(BaseModel):
     size_bytes: int
     size_human: str
     created_at: str
-    completed_at: str | None
+    completed_at: str | None = None
     duration_seconds: float
     checksum_sha256: str
     metadata: dict[str, Any]
-    error: str | None
+    error: str | None = None
 
     @classmethod
     def from_backup_info(cls, backup: BackupInfo) -> "BackupResponse":
@@ -135,8 +135,8 @@ class ScheduleResponse(BaseModel):
     cron_expression: str
     enabled: bool
     retention_days: int
-    last_run: str | None
-    next_run: str | None
+    last_run: str | None = None
+    next_run: str | None = None
     created_at: str
 
     @classmethod

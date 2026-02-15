@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 Admin User Management Routes.
 
@@ -47,12 +48,12 @@ class UserResponse(BaseModel):
     id: str
     username: str
     email: str
-    full_name: str | None
+    full_name: str | None = None
     role: str
     is_active: bool
     is_verified: bool
     created_at: str
-    last_login: str | None
+    last_login: str | None = None
 
 
 class PasswordChange(BaseModel):

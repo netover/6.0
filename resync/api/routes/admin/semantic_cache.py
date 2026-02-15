@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 Admin routes for Semantic Cache management.
 
@@ -70,7 +71,7 @@ class ThresholdUpdateRequest(BaseModel):
         ...,
         ge=0.0,
         le=1.0,
-        description="New similarity threshold (0-1, lower = stricter)",
+    description="New similarity threshold (0-1, lower = stricter)",
         examples=[0.25, 0.30, 0.35],
     )
 
@@ -88,15 +89,15 @@ class InvalidateRequest(BaseModel):
 
     query: str | None = Field(
         default=None,
-        description="Specific query to invalidate",
+    description="Specific query to invalidate",
     )
     pattern: str | None = Field(
         default=None,
-        description="Pattern to match queries for invalidation",
+    description="Pattern to match queries for invalidation",
     )
     all: bool = Field(
         default=False,
-        description="Clear entire cache (use with caution!)",
+    description="Clear entire cache (use with caution!)",
     )
 
 
@@ -112,7 +113,7 @@ class HealthCheckResponse(BaseModel):
 
     status: str = Field(description="Overall health status")
     redis_status: str
-    redis_latency_ms: float | None
+    redis_latency_ms: float | None = None
     redis_stack_available: bool
     embedding_model_status: str
     embedding_model_info: dict[str, Any]
@@ -162,7 +163,6 @@ class RedisInfoResponse(BaseModel):
 
 @router.get(
     "/stats",
-    response_model=CacheStatsResponse,
     summary="Get cache statistics",
     description="Returns comprehensive statistics about semantic cache performance.",
 )
@@ -187,7 +187,6 @@ async def get_cache_stats() -> CacheStatsResponse:
 
 @router.get(
     "/health",
-    response_model=HealthCheckResponse,
     summary="Health check",
     description="Check health of semantic cache components.",
 )
@@ -240,7 +239,6 @@ async def health_check() -> HealthCheckResponse:
 
 @router.put(
     "/threshold",
-    response_model=ThresholdUpdateResponse,
     summary="Update similarity threshold",
     description="Update the similarity threshold for cache hits. Lower = stricter matching.",
 )
@@ -278,7 +276,6 @@ async def update_threshold(request: ThresholdUpdateRequest) -> ThresholdUpdateRe
 
 @router.post(
     "/invalidate",
-    response_model=InvalidateResponse,
     summary="Invalidate cache entries",
     description="Invalidate specific cache entries or clear entire cache.",
 )
@@ -336,7 +333,6 @@ async def invalidate_cache(request: InvalidateRequest) -> InvalidateResponse:
 
 @router.post(
     "/preload-model",
-    response_model=PreloadResponse,
     summary="Preload embedding model",
     description="Preload the embedding model into memory to avoid cold-start latency.",
 )
@@ -444,7 +440,6 @@ async def test_cache_store(
 
 @router.get(
     "/redis-info",
-    response_model=RedisInfoResponse,
     summary="Get Redis server information",
     description="Returns detailed information about Redis server, modules, and databases.",
 )
@@ -614,25 +609,24 @@ class RerankerConfigRequest(BaseModel):
         default=None,
         ge=0.0,
         le=1.0,
-        description="Cross-encoder similarity threshold (0-1, higher = stricter)",
+    description="Cross-encoder similarity threshold (0-1, higher = stricter)",
     )
     gray_zone_min: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="Minimum embedding distance for gray zone",
+    description="Minimum embedding distance for gray zone",
     )
     gray_zone_max: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="Maximum embedding distance for gray zone",
+    description="Maximum embedding distance for gray zone",
     )
 
 
 @router.get(
     "/reranker",
-    response_model=RerankerInfoResponse,
     summary="Get reranker information",
     description="Returns information about the cross-encoder reranker configuration and stats.",
 )

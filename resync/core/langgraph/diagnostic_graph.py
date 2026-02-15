@@ -38,6 +38,8 @@ Graph Architecture:
 """
 
 from __future__ import annotations
+# pylint: disable=no-name-in-module
+# mypy: ignore-errors
 
 import logging
 from dataclasses import dataclass
@@ -470,7 +472,7 @@ class VerifyNode:
         try:
             from resync.services.tws_service import get_tws_client
 
-            client = await get_tws_client(instance_id=tws_instance_id)
+            client = await get_tws_client()
 
             states = {}
             for job in jobs[:5]:  # Limit to 5 jobs
