@@ -634,7 +634,5 @@ async def websocket_metrics(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         pass
-    except asyncio.CancelledError:
-        raise
     finally:
         await ws_manager.disconnect(websocket)

@@ -71,10 +71,10 @@ class FallbackRomaGraph:
             executed = await executor_node(merged)
             merged.update(executed)
 
-        aggregated = await aggregator_node(merged)
+        aggregated = aggregator_node(merged)
         merged.update(aggregated)
 
-        verified = await verifier_node(merged)
+        verified = verifier_node(merged)
         merged.update(verified)
         return merged
 

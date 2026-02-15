@@ -1184,7 +1184,7 @@ class Settings(BaseSettings, SettingsValidators):
         return self.cors_allow_headers
 
     @property
-    def ENABLE_ROMA_ORCHESTRATION(self) -> bool:
+    def ROMA_ORCHESTRATION_ENABLED(self) -> bool:
         """Legacy alias for enable_roma_orchestration."""
         return self.enable_roma_orchestration
 

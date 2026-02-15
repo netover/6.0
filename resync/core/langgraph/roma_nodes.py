@@ -90,7 +90,7 @@ async def executor_node(state: RomaState) -> dict[str, Any]:
     }
 
 
-async def aggregator_node(state: RomaState) -> dict[str, Any]:
+def aggregator_node(state: RomaState) -> dict[str, Any]:
     """Aggregate outputs into a user-facing summary."""
     if state.get("is_atomic") and not state.get("plan"):
         summary = "Solicitação tratada como tarefa atômica; nenhuma decomposição adicional necessária."
@@ -110,7 +110,7 @@ async def aggregator_node(state: RomaState) -> dict[str, Any]:
     }
 
 
-async def verifier_node(state: RomaState) -> dict[str, Any]:
+def verifier_node(state: RomaState) -> dict[str, Any]:
     """Provide lightweight verification notes for observability."""
     results = state.get("execution_results", [])
     failed = [item["task_id"] for item in results if item.get("status") == "failed"]

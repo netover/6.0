@@ -225,48 +225,51 @@ async def add_audit_records_batch_async(records: list) -> int:
     return count
 
 
-def _validate_audit_record(record: dict) -> bool:
+def _validate_memory_id(record: dict) -> None:
+    """Validate Memory ID field."""
+    mem_id = record.get("id")
+    if not mem_id:
+        raise ValueError("Memory ID is required")
+    if not isinstance(mem_id, str):
+        raise ValueError("Memory ID must be string")
+    if len(mem_id) > 255:
+        raise ValueError("Memory ID too long")
+
+
+def _validate_user_query(record: dict) -> None:
+    """Validate user_query field."""
+    query = record.get("user_query")
+    if "user_query" in record:
+        if not query:
+            raise ValueError("User query cannot be empty")
+        if not isinstance(query, str):
+            raise ValueError("User query must be string")
+        if len(query) > 10000:
+            raise ValueError("User query too long")
+
+
+def _validate_audit_record(record: dict) -> dict:
     """Validate an audit record has required fields.
 
     Args:
         record: Audit record dictionary to validate
 
     Returns:
-        True if valid
+        The validated record
 
     Raises:
         ValueError: If record is invalid
     """
-    required_fields = {"action"}
-
     if not isinstance(record, dict):
         raise ValueError("Audit record must be a dictionary")
 
-    missing = required_fields - set(record.keys())
-    if missing:
-        raise ValueError(f"Missing required fields: {missing}")
-
+    # Required fields check
     if not record.get("action"):
         raise ValueError("Action field cannot be empty")
 
-    if not record.get("id"):
-        raise ValueError("Memory ID is required")
-        
-    # Loose validation for id (Memory ID) if present
-    if "id" in record:
-         if not isinstance(record["id"], str):
-             raise ValueError("Memory ID must be string")
-         if len(record["id"]) > 255:
-             raise ValueError("Memory ID too long")
-
-    # Loose validation for user_query if present
-    if "user_query" in record:
-         if not isinstance(record["user_query"], str):
-             raise ValueError("User query must be string")
-         if len(record["user_query"]) > 10000:
-             raise ValueError("User query too long")
-         if not record["user_query"]:
-             raise ValueError("User query cannot be empty")
+    # Validate specific fields
+    _validate_memory_id(record)
+    _validate_user_query(record)
 
     # Loose validation for agent_response if present in valid cases
     # The test expects it to be required for the test cases provided

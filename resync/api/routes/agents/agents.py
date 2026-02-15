@@ -13,7 +13,7 @@ Version: 5.4.1
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -288,9 +288,9 @@ async def execute_agent(
 
 @router.post("/roma/execute")
 async def execute_roma_agent(
-    query: str = Query(..., min_length=1, description="Query to execute with ROMA orchestration"),
-    use_roma: bool = Query(default=False, description="Must be true to enable ROMA route"),
-    logger_instance=Depends(get_logger),
+    query: Annotated[str, Query(min_length=1, description="Query to execute with ROMA orchestration")],
+    use_roma: Annotated[bool, Query(description="Must be true to enable ROMA route")] = False,
+    logger_instance: Annotated[Any, Depends(get_logger)] = None,
 ) -> dict[str, Any]:
     """Execute query via ROMA orchestration graph (feature-flagged)."""
     if not use_roma:
@@ -299,7 +299,7 @@ async def execute_roma_agent(
             detail="Set use_roma=true to call this endpoint",
         )
 
-    if not settings.ENABLE_ROMA_ORCHESTRATION:
+    if not settings.ROMA_ORCHESTRATION_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="ROMA orchestration disabled",
