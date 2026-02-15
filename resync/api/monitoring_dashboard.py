@@ -351,17 +351,29 @@ class WebSocketManager:
         self._sync_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
 
-    def start_sync(self) -> None:
+    async def start_sync(self) -> bool:
         """Inicia o listener de Pub/Sub.
         
-        Nota: restart após stop() não é suportado - o stop_event precisa ser
-        explicitamente limpo pelo caller se deseja reiniciar.
+        Returns:
+            True if started successfully, False if already stopped or already running.
         """
         if self._stop_event.is_set():
-            return
+            logger.debug("start_sync called but stop_event is set - call restart() to reset")
+            return False
         if self._sync_task is None or self._sync_task.done():
             self._stop_event.clear()
             self._sync_task = asyncio.create_task(self._pubsub_listener())
+            return True
+        return False
+
+    async def restart(self) -> bool:
+        """Reinicia o listener de Pub/Sub após stop().
+        
+        Returns:
+            True if restarted successfully.
+        """
+        self._stop_event.clear()
+        return await self.start_sync()
 
     async def stop(self) -> None:
         """Para o manager."""
@@ -381,7 +393,7 @@ class WebSocketManager:
             self._clients.add(websocket)
             return True
 
-    async def disconnect(self, websocket: WebSocket):
+    async def disconnect(self, websocket: WebSocket) -> None:
         """Desconecta um WebSocket."""
         async with self._lock:
             self._clients.discard(websocket)
@@ -404,23 +416,25 @@ class WebSocketManager:
         await self._local_broadcast(data)
 
     async def _close_pubsub(self, pubsub) -> None:
-        """Fecha conexão pubsub com cleanup resiliente."""
+        """Fecha conexão pubsub com cleanup resiliente e logging explícito."""
         if pubsub is None:
             return
 
-        with suppress(Exception):
+        try:
             await pubsub.unsubscribe(REDIS_CH_BROADCAST)
+        except Exception as e:
+            logger.warning("PubSub unsubscribe failed: %s", e)
 
         close_fn = getattr(pubsub, "close", None)
-        if close_fn is None:
-            return
+        if close_fn is not None:
+            try:
+                maybe_awaitable = close_fn()
+                if asyncio.iscoroutine(maybe_awaitable):
+                    await maybe_awaitable
+            except Exception as e:
+                logger.warning("PubSub close failed: %s", e)
 
-        with suppress(Exception):
-            maybe_awaitable = close_fn()
-            if asyncio.iscoroutine(maybe_awaitable):
-                await maybe_awaitable
-
-    async def _pubsub_listener(self):
+    async def _pubsub_listener(self) -> None:
         """Listener do Redis Pub/Sub para broadcast."""
         while not self._stop_event.is_set():
             pubsub = None
@@ -445,7 +459,7 @@ class WebSocketManager:
         """Broadcast de mensagem para todos os clientes."""
         await self._local_broadcast(message_str)
 
-    async def _local_broadcast(self, message_str: str):
+    async def _local_broadcast(self, message_str: str) -> None:
         """Envia mensagem para todos os clientes locais."""
         async with self._lock:
             clients = list(self._clients)
@@ -471,13 +485,11 @@ def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """
     try:
         # Security: Only accept token from Authorization header (not query params)
-        # Query params can leak through URL logs, browser history, proxies, and Referer headers
         auth_header = websocket.headers.get("authorization", "")
         if not auth_header.startswith("Bearer "):
             return None
         
         token = auth_header[7:]
-
         payload = decode_token(token)
         username = payload.get("sub")
 
@@ -512,7 +524,6 @@ async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
     redis = get_redis_client()
 
-    # Use redis.lock consistently to avoid race conditions
     lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=15)
     if not await lock.acquire(blocking=False):
         return  # Outro worker já está coletando
@@ -556,8 +567,6 @@ async def collect_metrics_sample() -> None:
         except Exception:
             logger.debug("Falha ao persistir/broadcast amostra de erro")
     finally:
-        # Libera o lock explicitamente após a coleta
-        # Suprime LockNotOwnedError se o lock expirou (timeout=15s)
         try:
             await lock.release()
         except Exception as lock_error:
@@ -573,7 +582,7 @@ async def metrics_collector_loop() -> None:
         logger.exception("Redis não disponível, encerrando collector: %s", e)
         return
 
-    ws_manager.start_sync()
+    await ws_manager.start_sync()
     try:
         while True:
             try:
@@ -607,8 +616,6 @@ async def get_history(minutes: int = 120):
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket):
     """WebSocket para métricas em tempo real com autenticação."""
-    # Accept connection first to avoid RuntimeError on close()
-    # Authentication will be checked after accepting the connection
     await websocket.accept()
     
     username = _verify_ws_admin(websocket)
