@@ -9,8 +9,9 @@
 
 import asyncio
 import logging
+import secrets
+import threading
 import time
-import random
 from contextlib import suppress
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -59,6 +60,8 @@ except ImportError:
 
 
 def _safe_float(val: Any, default: float = 0.0) -> float:
+    if isinstance(val, bytes):
+        val = val.decode(errors="ignore")
     if val is None:
         return default
     try:
@@ -68,6 +71,8 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
 
 
 def _safe_int(val: Any, default: int = 0) -> int:
+    if isinstance(val, bytes):
+        val = val.decode(errors="ignore")
     if val is None:
         return default
     try:
@@ -103,14 +108,73 @@ def _utc_iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _build_metric_sample(
+    snapshot: dict[str, Any],
+    now_wall: float,
+    dt_str: str,
+    req_total: int,
+    rps: float,
+    uptime: float,
+) -> MetricSample:
+    """Constrói MetricSample completo a partir do snapshot de runtime."""
+    agent = snapshot.get("agent", {})
+    slo = snapshot.get("slo", {})
+    cache = snapshot.get("cache", {})
+    llm = snapshot.get("llm", {})
+    tws = snapshot.get("tws", {})
+    system = snapshot.get("system", {})
+
+    cache_hits = _safe_int(cache.get("hits"))
+    cache_misses = _safe_int(cache.get("misses"))
+    cache_total = cache_hits + cache_misses
+
+    return MetricSample(
+        timestamp=now_wall,
+        datetime_str=dt_str,
+        requests_total=req_total,
+        requests_per_sec=rps,
+        error_count=_safe_int(agent.get("creation_failures")),
+        error_rate=_safe_float(slo.get("api_error_rate")) * 100,
+        response_time_p50=_safe_float(slo.get("api_response_time_p50")) * 1000,
+        response_time_p95=_safe_float(slo.get("api_response_time_p95")) * 1000,
+        response_time_avg=_safe_float(slo.get("api_response_time_avg")) * 1000,
+        cache_hits=cache_hits,
+        cache_misses=cache_misses,
+        cache_hit_ratio=((cache_hits / cache_total) * 100) if cache_total > 0 else 100.0,
+        cache_size=_safe_int(cache.get("size")),
+        cache_evictions=_safe_int(cache.get("evictions")),
+        agents_active=_safe_int(agent.get("active_count")),
+        agents_created=_safe_int(agent.get("initializations")),
+        agents_failed=_safe_int(agent.get("creation_failures")),
+        llm_requests=_safe_int(llm.get("requests")),
+        llm_tokens_used=_safe_int(llm.get("tokens_used")),
+        llm_errors=_safe_int(llm.get("errors")),
+        tws_connected=_safe_float(slo.get("tws_connection_success_rate")) > 0.5,
+        tws_latency_ms=_safe_float(tws.get("latency_ms")),
+        tws_errors=_safe_int(tws.get("errors")),
+        tws_requests_success=_safe_int(tws.get("success")),
+        tws_requests_failed=_safe_int(tws.get("failed")),
+        system_uptime=uptime,
+        system_availability=_safe_float(slo.get("availability"), 1.0) * 100,
+        async_operations_active=_safe_int(system.get("async_operations_active")),
+        correlation_ids_active=_safe_int(system.get("correlation_ids_active")),
+    )
+
+
 async def _get_redis():
-    """Obtém cliente redis (sync ou async) com validação."""
+    """Obtém o cliente Redis canônico da aplicação."""
     client = get_redis_client()
-    if asyncio.iscoroutine(client) or asyncio.isfuture(client):
-        client = await client
     if client is None:
         raise ConnectionError("Redis client indisponível")
     return client
+
+
+def _jitter_seconds(base: float) -> float:
+    """Retorna jitter em [0, 10% de base] sem RNG pseudo-aleatório."""
+    if base <= 0:
+        return 0.0
+    max_millis = int(base * 100)
+    return secrets.randbelow(max_millis + 1) / 1000.0
 
 
 # ── Data Models ──────────────────────────────────────────────────────────────
@@ -185,7 +249,7 @@ class DashboardMetricsStore:
             time_delta = now_wall - prev_walltime if prev_walltime > 0 else SAMPLE_INTERVAL_SECONDS
             req_delta = requests_total - prev_requests if prev_requests > 0 else 0
             if req_delta < 0:
-                req_delta = requests_total
+                req_delta = 0
 
             rps = req_delta / time_delta if time_delta > 0 else 0.0
 
@@ -488,7 +552,7 @@ class WebSocketManager:
             except Exception:
                 logger.exception("Pub/Sub desconectado; tentando reconectar")
                 if not self._stop_event.is_set():
-                    jitter = random.uniform(0.0, backoff * 0.1)
+                    jitter = _jitter_seconds(backoff)
                     await asyncio.sleep(backoff + jitter)
                     backoff = min(backoff * 2, max_backoff)
             finally:
@@ -555,19 +619,24 @@ def _verify_ws_admin(websocket: WebSocket) -> str | None:
 
 _metrics_store: DashboardMetricsStore | None = None
 _ws_manager: WebSocketManager | None = None
+_singleton_lock = threading.Lock()
 
 
 def get_metrics_store() -> DashboardMetricsStore:
     global _metrics_store
     if _metrics_store is None:
-        _metrics_store = DashboardMetricsStore()
+        with _singleton_lock:
+            if _metrics_store is None:
+                _metrics_store = DashboardMetricsStore()
     return _metrics_store
 
 
 def get_ws_manager() -> WebSocketManager:
     global _ws_manager
     if _ws_manager is None:
-        _ws_manager = WebSocketManager()
+        with _singleton_lock:
+            if _ws_manager is None:
+                _ws_manager = WebSocketManager()
     return _ws_manager
 
 
@@ -587,51 +656,12 @@ async def collect_metrics_sample() -> None:
         dt_str = _utc_iso_now()
 
         agent = snapshot.get("agent", {})
-        slo = snapshot.get("slo", {})
-        cache = snapshot.get("cache", {})
-        llm = snapshot.get("llm", {})
-        tws = snapshot.get("tws", {})
-        system = snapshot.get("system", {})
         req_total = _safe_int(agent.get("initializations"))
         store = get_metrics_store()
         uptime = await store.get_global_uptime()
 
-        cache_hits = _safe_int(cache.get("hits"))
-        cache_misses = _safe_int(cache.get("misses"))
-        cache_total = cache_hits + cache_misses
-
         def build_sample(rps: float) -> MetricSample:
-            return MetricSample(
-                timestamp=now_wall,
-                datetime_str=dt_str,
-                requests_total=req_total,
-                requests_per_sec=rps,
-                error_count=_safe_int(agent.get("creation_failures")),
-                error_rate=_safe_float(slo.get("api_error_rate")) * 100,
-                response_time_p50=_safe_float(slo.get("api_response_time_p50")) * 1000,
-                response_time_p95=_safe_float(slo.get("api_response_time_p95")) * 1000,
-                response_time_avg=_safe_float(slo.get("api_response_time_avg")) * 1000,
-                cache_hits=cache_hits,
-                cache_misses=cache_misses,
-                cache_hit_ratio=((cache_hits / cache_total) * 100) if cache_total > 0 else 100.0,
-                cache_size=_safe_int(cache.get("size")),
-                cache_evictions=_safe_int(cache.get("evictions")),
-                agents_active=_safe_int(agent.get("active_count")),
-                agents_created=_safe_int(agent.get("initializations")),
-                agents_failed=_safe_int(agent.get("creation_failures")),
-                llm_requests=_safe_int(llm.get("requests")),
-                llm_tokens_used=_safe_int(llm.get("tokens_used")),
-                llm_errors=_safe_int(llm.get("errors")),
-                tws_connected=_safe_float(slo.get("tws_connection_success_rate")) > 0.5,
-                tws_latency_ms=_safe_float(tws.get("latency_ms")),
-                tws_errors=_safe_int(tws.get("errors")),
-                tws_requests_success=_safe_int(tws.get("success")),
-                tws_requests_failed=_safe_int(tws.get("failed")),
-                system_uptime=uptime,
-                system_availability=_safe_float(slo.get("availability"), 1.0) * 100,
-                async_operations_active=_safe_int(system.get("async_operations_active")),
-                correlation_ids_active=_safe_int(system.get("correlation_ids_active")),
-            )
+            return _build_metric_sample(snapshot, now_wall, dt_str, req_total, rps, uptime)
 
         await store.compute_rate_and_add_sample(req_total, now_wall, build_sample)
 
