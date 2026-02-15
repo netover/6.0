@@ -82,6 +82,32 @@ class AuditDB:
         """Get recent audit actions."""
         return await self._repo.get_all(limit=limit, order_by="timestamp", desc=True)
 
+    async def search_incidents(
+        self,
+        query: str,
+        incident_type: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[AuditEntry]:
+        """
+        Search for historical incidents.
+
+        Uses the repository's keyword search across action, entity and metadata.
+        """
+        # Filter by common incident/job failure actions if not specified
+        action = None
+        if incident_type == "job_failure":
+            action = "job_failure"
+        elif status == "resolved":
+            action = "incident_resolved"
+
+        return await self._repo.search(
+            query=query,
+            action=action,
+            entity_type=incident_type,
+            limit=limit,
+        )
+
     async def search_actions(
         self,
         action: str | None = None,

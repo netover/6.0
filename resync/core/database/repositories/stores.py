@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, Text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from resync.core.database.models import (
@@ -231,6 +231,48 @@ class AuditEntryRepository(TimestampedRepository[AuditEntry]):
             order_by="timestamp",
             desc=True,
         )
+
+    async def search(
+        self,
+        query: str,
+        action: str | None = None,
+        entity_type: str | None = None,
+        limit: int = 100,
+    ) -> list[AuditEntry]:
+        """
+        Search audit entries with keyword matching.
+
+        Searches in action, entity_type, and metadata fields.
+        """
+        async with self._get_session() as session:
+            # Base query
+            q = select(AuditEntry)
+
+            # Apply filters
+            filters = []
+            if action:
+                filters.append(AuditEntry.action == action)
+            if entity_type:
+                filters.append(AuditEntry.entity_type == entity_type)
+
+            # Keyword search in action, entity_type and metadata (JSONB)
+            keyword = f"%{query}%"
+            search_filters = or_(
+                AuditEntry.action.ilike(keyword),
+                AuditEntry.entity_type.ilike(keyword),
+                # Search in JSONB metadata by casting to text
+                func.cast(AuditEntry.metadata_, Text).ilike(keyword),
+            )
+            filters.append(search_filters)
+
+            if filters:
+                q = q.where(and_(*filters))
+
+            # Order and limit
+            q = q.order_by(AuditEntry.timestamp.desc()).limit(limit)
+
+            result = await session.execute(q)
+            return list(result.scalars().all())
 
 
 class AuditQueueRepository(BaseRepository[AuditQueueItem]):

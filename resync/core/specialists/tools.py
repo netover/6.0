@@ -24,12 +24,14 @@ Version: 5.4.2
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import functools
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, TypeVar
 
@@ -1194,6 +1196,17 @@ class SearchHistoryTool:
                 "error": str(e),
             }
 
+    def _run_async_search(
+        self, db: Any, query: str, incident_type: str | None, status: str | None, limit: int
+    ) -> list:
+        """Execute async search in sync context safely."""
+        async def _search() -> list:
+            return await db.search_incidents(
+                query=query, incident_type=incident_type, status=status, limit=limit
+            )
+
+        return asyncio.run(_search())
+
     def _search_incidents(
         self,
         db: Any,
@@ -1203,20 +1216,61 @@ class SearchHistoryTool:
         days: int,
         limit: int,
     ) -> list[dict[str, Any]]:
-        """Search incidents in database.
-
-        v5.9.6: Returns empty list until real implementation.
-        Mock data was removed to prevent operational confusion.
         """
-        # DEBT: Implement incident similarity search — requires ITSM/ServiceNow integration
-        # WARNING: This returns empty - integrate with your incident management system
-        import os
-        if os.getenv("ENVIRONMENT", "development").lower() == "production":
-            logger.warning(
-                "incident_search_not_implemented",
-                msg="Incident search returns empty - implement integration with your ITSM"
-            )
-        return []
+        Search incidents in database.
+
+        Uses the audit database as a local operational memory.
+        """
+        if not db:
+            return []
+
+        # Execute async search in sync context safely
+        try:
+            try:
+                asyncio.get_running_loop()
+                # We are in an async context (e.g. running under FastAPI/uvicorn)
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        self._run_async_search, db, query, incident_type, status, limit
+                    )
+                    entries = future.result(timeout=30)
+            except RuntimeError:
+                # No running loop - safe to use asyncio.run directly
+                entries = self._run_async_search(db, query, incident_type, status, limit)
+
+            # Filter by date and map to incident records
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            results = []
+            for entry in entries:
+                if entry.timestamp >= cutoff:
+                    results.append(self._map_audit_to_incident(entry))
+
+            return results
+
+        except Exception as e:
+            logger.error("Database incident search failed: %s", e)
+            return []
+
+    def _map_audit_to_incident(self, entry: Any) -> dict[str, Any]:
+        """Map AuditEntry to incident dictionary format."""
+        details = entry.metadata_ or {}
+
+        # Extract resolution info
+        resolution = details.get("resolution", "")
+        if not resolution and entry.action == "incident_resolved":
+            resolution = details.get("solution", "Resolved in audit log")
+
+        return {
+            "incident_id": f"AUDIT_{entry.id}",
+            "timestamp": entry.timestamp,
+            "incident_type": entry.entity_type or entry.action,
+            "problem_description": details.get("description", entry.action),
+            "symptoms": details.get("symptoms", []),
+            "root_cause": details.get("root_cause", ""),
+            "resolution": resolution,
+            "resolution_status": "resolved" if entry.action == "incident_resolved" else "pending",
+            "affected_jobs": details.get("affected_jobs", [entry.entity_id] if entry.entity_id else []),
+        }
 
     def _calculate_success_rate(self, incidents: list[dict]) -> float:
         """Calculate success rate of resolved incidents."""
