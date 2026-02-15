@@ -105,9 +105,9 @@ class Agent:
             agent_logger.error(
                 "agent_arun_error", error=str(exc), agent=self.name
             )
-            return self._fallback_response(message, str(exc))
+            return self._fallback_response(message)
 
-    def _fallback_response(self, message: str, error: str) -> str:
+    def _fallback_response(self, message: str) -> str:
         """Provide a keyword-based fallback when the LLM is unavailable."""
         msg = message.lower()
 

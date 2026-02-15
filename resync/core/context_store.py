@@ -19,7 +19,7 @@ __all__ = ["ContextStore", "get_context_store"]
 class ContextStore:
     """Context Store - PostgreSQL Backend."""
 
-    def __init__(self, db_path: str | None = None):
+    def __init__(self):
         """Initialize. db_path is ignored - uses PostgreSQL."""
         if db_path:
             logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
@@ -55,9 +55,9 @@ class ContextStore:
         )
 
     # Sync wrapper for backward compatibility
-    def add_conversation_sync(self, session_id: str, role: str, content: str, **kwargs) -> None:
-        """Sync version - logs warning, use async version."""
-        logger.warning("add_conversation_sync is deprecated, use async add_conversation")
+    def add_conversation_sync(self, session_id: str, role: str, content: str) -> None:
+        """Sync version - deprecated, use async version."""
+        raise NotImplementedError("Sync method add_conversation_sync is deprecated, use async add_conversation")
 
     async def get_session_history(self, session_id: str, limit: int = 100) -> list[Conversation]:
         """Get conversation history for a session."""
@@ -84,9 +84,9 @@ class ContextStore:
             embedding_id=embedding_id,
         )
 
-    def add_content_sync(self, *args, **kwargs) -> None:
+    def add_content_sync(self) -> None:
         """Sync version - deprecated."""
-        logger.warning("add_content_sync is deprecated, use async add_content")
+        raise NotImplementedError("Sync method add_content_sync is deprecated, use async add_content")
 
     async def get_relevant_context(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get relevant context for a query."""
@@ -98,8 +98,7 @@ class ContextStore:
 
     def search_conversations_sync(self, query: str, limit: int = 50) -> list[dict]:
         """Sync version - deprecated."""
-        logger.warning("search_conversations_sync is deprecated")
-        return []
+        raise NotImplementedError("Sync method search_conversations_sync is deprecated")
 
     async def search_similar_issues(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Search for similar issues/content."""
@@ -107,8 +106,7 @@ class ContextStore:
 
     def search_similar_issues_sync(self, query: str, limit: int = 10) -> list[dict]:
         """Sync version - deprecated."""
-        logger.warning("search_similar_issues_sync is deprecated")
-        return []
+        raise NotImplementedError("Sync method search_similar_issues_sync is deprecated")
 
     async def flag_memory(self, conversation_id: int) -> bool:
         """Flag a conversation for review."""
@@ -152,9 +150,9 @@ class ContextStore:
             metadata={"session_id": session_id, "was_helpful": was_helpful},
         )
 
-    def add_solution_feedback_sync(self, *args, **kwargs) -> None:
+    def add_solution_feedback_sync(self) -> None:
         """Sync version - deprecated."""
-        logger.warning("add_solution_feedback_sync is deprecated")
+        raise NotImplementedError("Sync method add_solution_feedback_sync is deprecated")
 
     async def atomic_check_and_flag(self, conversation_id: int, expected_approved: bool) -> bool:
         """Atomically check and flag a memory."""

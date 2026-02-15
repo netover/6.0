@@ -6,6 +6,7 @@ Provides user authentication storage using PostgreSQL.
 
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from resync.core.database.models import UserProfile
 from resync.core.database.repositories import BaseRepository
@@ -22,10 +23,8 @@ class UserRepository:
     Provides user authentication and profile management.
     """
 
-    def __init__(self, db_path: str | None = None):
-        """Initialize. db_path is ignored - uses PostgreSQL."""
-        if db_path:
-            logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
+    def __init__(self):
+        """Initialize - uses PostgreSQL."""
         self._repo = BaseRepository(UserProfile)
         self._initialized = False
 
@@ -84,14 +83,13 @@ class UserRepository:
         return await self.update_user(user_id, last_active=datetime.now(timezone.utc))
 
     # Sync methods for backward compatibility
-    def create_user_sync(self, user_id: str, **kwargs) -> None:
+    def create_user_sync(self, user_id: str) -> None:
         """Sync version - deprecated."""
-        logger.warning("create_user_sync is deprecated, use async create_user")
+        raise NotImplementedError("Sync method create_user_sync is deprecated, use async create_user")
 
     def get_user_sync(self, user_id: str) -> dict | None:
         """Sync version - deprecated."""
-        logger.warning("get_user_sync is deprecated, use async get_user")
-        return None
+        raise NotImplementedError("Sync method get_user_sync is deprecated, use async get_user")
 
 
 _instance: UserRepository | None = None

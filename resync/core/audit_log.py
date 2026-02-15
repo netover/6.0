@@ -28,9 +28,9 @@ class AuditLog:
     This is an alias for AuditDB to maintain backward compatibility.
     """
 
-    def __init__(self, db_path: str | None = None):
-        """Initialize. db_path is ignored - uses PostgreSQL."""
-        self._db = AuditDB(db_path)
+    def __init__(self):
+        """Initialize - uses PostgreSQL."""
+        self._db = AuditDB()
 
     async def initialize(self) -> None:
         """Initialize the audit log."""

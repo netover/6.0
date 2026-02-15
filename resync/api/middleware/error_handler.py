@@ -54,23 +54,23 @@ class GlobalExceptionHandlerMiddleware(BaseHTTPMiddleware):
         except RequestValidationError as exc:
             # Handle FastAPI validation errors
             response = await self._handle_validation_error(request, exc, correlation_id)
-            self._log_error_metrics(request, exc.__class__.__name__, time.time() - start_time)
+            self._log_error_metrics(exc.__class__.__name__, time.time() - start_time)
             return response
 
         except ResyncException as exc:
             # Handle custom Resync exceptions
             response = await self._handle_resync_exception(request, exc, correlation_id)
-            self._log_error_metrics(request, exc.__class__.__name__, time.time() - start_time)
+            self._log_error_metrics(exc.__class__.__name__, time.time() - start_time)
             return response
 
         except Exception as exc:
             logger.error("exception_caught", error=str(exc), exc_info=True)
             # Handle all other exceptions
             response = await self._handle_generic_exception(request, exc, correlation_id)
-            self._log_error_metrics(request, exc.__class__.__name__, time.time() - start_time)
+            self._log_error_metrics(exc.__class__.__name__, time.time() - start_time)
             return response
 
-    def _log_error_metrics(self, request: Request, error_type: str, processing_time: float) -> None:
+    def _log_error_metrics(self, error_type: str, processing_time: float) -> None:
         """Log error metrics for monitoring and alerting."""
         try:
             # Import runtime_metrics from the core metrics module. This provides

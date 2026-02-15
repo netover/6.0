@@ -994,9 +994,11 @@ class FuzzingEngine:
                 config = AgentConfig(**config_data)
                 results["passed"] += 1
 
-                # Validate required fields are present
-                assert hasattr(config, "id")
-                assert hasattr(config, "name")
+                # Validation is handled by Pydantic in AgentConfig constructor
+                # If we reach here, the config was created successfully
+                # The hasattr checks below are redundant but kept for clarity in fuzzing context
+                if not hasattr(config, "id") or not hasattr(config, "name"):
+                    raise ValueError("Config missing required fields after construction")
 
             except Exception as e:
                 logger.error("exception_caught", error=str(e), exc_info=True)

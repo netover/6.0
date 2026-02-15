@@ -121,13 +121,13 @@ class _NoOpSpan:
         return False
 
     def set_attribute(self, *args, **kwargs):
-        return None
+        raise NotImplementedError("_NoOpSpan is deprecated, use real tracing or disable tracing")
 
     def record_exception(self, *args, **kwargs):
-        return None
+        raise NotImplementedError("_NoOpSpan is deprecated, use real tracing or disable tracing")
 
     def set_status(self, *args, **kwargs):
-        return None
+        raise NotImplementedError("_NoOpSpan is deprecated, use real tracing or disable tracing")
 
 
 

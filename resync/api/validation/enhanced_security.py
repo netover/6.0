@@ -687,7 +687,7 @@ class EnhancedSecurityValidator:
         return threat
 
     async def rate_limit_check(
-        self, identifier: str, limit: int = 100, window_seconds: int = 60
+        self, limit: int = 100, window_seconds: int = 60
     ) -> RateLimitInfo:
         """
         Check rate limiting for an identifier.

@@ -20,10 +20,8 @@ __all__ = ["AuditQueue", "AsyncAuditQueue", "IAuditQueue", "get_audit_queue"]
 class AuditQueue:
     """Audit Queue - PostgreSQL Backend."""
 
-    def __init__(self, db_path: str | None = None):
-        """Initialize. db_path is ignored - uses PostgreSQL."""
-        if db_path:
-            logger.debug("db_path ignored, using PostgreSQL: %s", db_path)
+    def __init__(self):
+        """Initialize - uses PostgreSQL."""
         self._repo = AuditQueueRepository()
         self._initialized = False
 

@@ -205,7 +205,7 @@ class RAGIntegrationService:
             List of search results with scores
         """
         if self.use_mock:
-            return self._mock_search(query, top_k, filters)
+            return self._mock_search(query, top_k)
 
         try:
             hits = await self._retriever.retrieve(
@@ -272,7 +272,6 @@ class RAGIntegrationService:
         self,
         query: str,
         top_k: int,
-        filters: dict[str, Any] | None,
     ) -> list[RAGSearchResult]:
         """Mock semantic search using simple keyword matching."""
         results = []
