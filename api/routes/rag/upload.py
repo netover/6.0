@@ -22,6 +22,8 @@ from resync.core.exceptions import FileProcessingError
 from resync.core.fastapi_di import get_file_ingestor
 from resync.core.interfaces import IFileIngestor
 from resync.models.validation import DocumentUpload
+from resync.api.dependencies_v2 import get_current_user
+from resync.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +39,23 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = file_dependency,
     file_ingestor: IFileIngestor = file_ingestor_dependency,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Accepts a file upload and saves it to the RAG directory for processing.
     """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    settings = get_settings()
     try:
         # Check file size by reading and limiting
         contents = await file.read()
-        if len(contents) > 10 * 1024 * 1024:  # 10MB limit
-            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+        if len(contents) > settings.max_file_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size is {settings.max_file_size / (1024*1024):.1f}MB."
+            )
 
         # Reset file pointer for saving
         await file.seek(0)
@@ -72,6 +82,13 @@ async def upload_document(
 
         # Get the filename from the path
         safe_filename = destination.name
+
+        logger.info(
+            "rag_document_uploaded",
+            user=current_user.get("username"),
+            filename=safe_filename,
+            size=document_upload.size,
+        )
 
         return {
             "filename": safe_filename,
