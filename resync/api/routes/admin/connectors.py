@@ -277,6 +277,8 @@ async def test_connector(connector_id: str, test: ConnectorTest):
             "message": "Connection successful",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         connector["status"] = "error"
         connector["error_message"] = str(e)

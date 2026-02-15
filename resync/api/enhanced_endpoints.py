@@ -194,6 +194,8 @@ async def get_failed_jobs_endpoint(
             "jobs": jobs,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):

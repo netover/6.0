@@ -41,7 +41,6 @@ router = APIRouter(prefix="/api/admin/agents", tags=["agent-evolution"])
 INTERNAL_SERVER_ERROR_DETAIL = "Internal server error. Check server logs for details."
 JSON_FILE_GLOB = "*.json"
 AGENT_IMPROVEMENTS_DIR = Path("data/agent_improvements")
-AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 SUGGESTION_NOT_FOUND_DETAIL = "Suggestion not found"
 
 
@@ -561,6 +560,9 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
         return None
 
     try:
+        if not AGENT_IMPROVEMENTS_DIR.exists():
+             AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
+             
         async with aiofiles.open(file_path) as f:
             data = json.loads(await f.read())
             return ImprovementSuggestion(**data)
@@ -570,7 +572,8 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
 
 async def _save_suggestion(suggestion: ImprovementSuggestion):
     """Save suggestion to disk."""
-    file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion.id}.json"
+    if not AGENT_IMPROVEMENTS_DIR.exists():
+        AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
     async with aiofiles.open(file_path, 'w') as f:
         await f.write(suggestion.model_dump_json(indent=2))

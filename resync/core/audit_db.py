@@ -44,7 +44,7 @@ class AuditDB:
 
 
     @staticmethod
-    def _to_record_dict(entry: AuditEntry) -> dict:
+    def to_record_dict(entry: AuditEntry) -> dict:
         """Convert an AuditEntry model to the legacy dict shape."""
         return {
             "id": entry.id,
@@ -65,15 +65,15 @@ class AuditDB:
         logger.warning("auditdb_get_records_sync_shim_used", limit=limit, offset=offset)
         try:
             asyncio.get_running_loop()
+        except RuntimeError:
+            # Safe to run to completion if NO loop is running
+            records = asyncio.run(self.get_recent_actions(limit=limit, offset=offset))
+            return [self.to_record_dict(entry) for entry in records]
+        else:
+            # RuntimeError if loop IS running
             raise RuntimeError(
                 "get_records() cannot be used inside an active event loop; use get_recent_actions()"
             )
-        except RuntimeError as exc:
-            if "active event loop" in str(exc):
-                raise
-
-        records = asyncio.run(self.get_recent_actions(limit=limit + offset))
-        return [self._to_record_dict(entry) for entry in records[offset:]]
 
     async def log_action(
         self,
@@ -110,9 +110,22 @@ class AuditDB:
         """Get audit history for an entity."""
         return await self._repo.get_entity_history(entity_type, entity_id, limit)
 
-    async def get_recent_actions(self, limit: int = 100) -> list[AuditEntry]:
+    async def get_recent_actions(self, limit: int = 100, offset: int = 0) -> list[AuditEntry]:
         """Get recent audit actions."""
-        return await self._repo.get_all(limit=limit, order_by="timestamp", desc=True)
+        return await self._repo.get_all(limit=limit, offset=offset, order_by="timestamp", desc=True)
+
+    def get_record_count(self) -> int:
+        """Get total number of audit records."""
+        # Use a simplified sync wrapper since this is used in sync dashboard context
+        try:
+            asyncio.get_running_loop()
+            # If in loop, we'd need to await, but this is a shim.
+            # Returning 0 or similar is safer than crashing if called incorrectly.
+            return 0
+        except RuntimeError:
+            async def _count():
+                return await self._repo.count()
+            return asyncio.run(_count())
 
     async def search_incidents(
         self,

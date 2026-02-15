@@ -1,0 +1,535 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: D:\Python\GITHUB\resync\6.0
+plugins: anyio-4.11.0, hypothesis-6.140.2, locust-2.41.2, asyncio-1.2.0, benchmark-5.1.0, cov-7.0.0, mock-3.15.1, timeout-2.4.0, xdist-3.8.0, respx-0.22.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+
+resync\tests\test_lifespan_smoke.py F                                    [ 50%]
+resync\tests\test_http_di_canonical.py .                                 [100%]
+
+================================== FAILURES ===================================
+_______________ test_lifespan_initializes_app_state_singletons ________________
+
+    def test_lifespan_initializes_app_state_singletons() -> None:
+>       app = create_app()
+              ^^^^^^^^^^^^
+
+resync\tests\test_lifespan_smoke.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def create_app() -> FastAPI:
+        """Entry point para Uvicorn e Pytest.
+    
+        Creates a new ApplicationFactory instance per call to avoid
+        state contamination between tests.
+    
+        Returns:
+            Configured FastAPI application
+        """
+>       return ApplicationFactory().create_application()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+resync\app_factory.py:676: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <resync.app_factory.ApplicationFactory object at 0x00000245A0CE3620>
+
+    def create_application(self) -> FastAPI:
+        """
+        Create and configure the FastAPI application.
+    
+        Returns:
+            Fully configured FastAPI application instance
+        """
+        # Validate settings first
+        self._validate_critical_settings()
+    
+        from resync.core.startup import lifespan as app_lifespan
+    
+        # Create FastAPI app with lifespan
+        self.app = FastAPI(
+            title=settings.project_name,
+            version=settings.project_version,
+            description=settings.description,
+            lifespan=app_lifespan,
+            docs_url="/api/docs" if not settings.is_production else None,
+            redoc_url="/api/redoc" if not settings.is_production else None,
+            openapi_url="/api/openapi.json" if not settings.is_production else None,
+        )
+    
+        # Configure all components in order
+        self._setup_templates()
+        self._configure_middleware()
+        self._configure_exception_handlers()
+        self._setup_dependency_injection()
+>       self._register_routers()
+
+resync\app_factory.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <resync.app_factory.ApplicationFactory object at 0x00000245A0CE3620>
+
+    def _register_routers(self) -> None:
+        """
+        Register all API routers.
+    
+        v5.8.0: Unified API structure - all routes under resync/api/routes/
+        """
+        # =================================================================
+        # CORE ROUTERS (v7.0: canonical paths under resync/api/routes/)
+        # =================================================================
+        from resync.api.routes.admin.main import admin_router
+        from resync.api.routes.admin.prompts import prompt_router
+        from resync.api.agents import agents_router
+        from resync.api.routes.audit import router as audit_router
+        from resync.api.routes.cache import router as cache_router
+        from resync.api.chat import chat_router
+        from resync.api.routes.cors_monitoring import router as cors_monitor_router
+        from resync.api.routes.core.health import router as health_router
+        from resync.api.routes.performance import router as performance_router
+    
+        # Additional routers from main_improved
+        try:
+            from resync.api.routes.endpoints import router as api_router
+            from resync.api.routes.core.health import config_router
+            from resync.api.routes.rag.upload import router as rag_upload_router
+    
+            self.app.include_router(api_router, prefix="/api")
+            self.app.include_router(config_router, prefix="/api/v1")
+            self.app.include_router(rag_upload_router, prefix="/api/v1")
+        except ImportError as e:
+            logger.warning("optional_routers_not_available", error=str(e))
+    
+        # v5.9.9: Enhanced endpoints (orchestrator-based)
+        try:
+            from resync.api.enhanced_endpoints import enhanced_router
+    
+            self.app.include_router(enhanced_router)
+            logger.info("enhanced_endpoints_registered", prefix="/api/v2")
+        except ImportError as e:
+            logger.warning("enhanced_endpoints_not_available", error=str(e))
+    
+        # v5.9.9: GraphRAG admin endpoints
+        try:
+            from resync.api.graphrag_admin import router as graphrag_admin_router
+    
+            self.app.include_router(graphrag_admin_router)
+            logger.info("graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag")
+        except ImportError as e:
+            logger.warning("graphrag_admin_not_available", error=str(e))
+    
+        # v6.1: Document Knowledge Graph (DKG) admin endpoints
+        try:
+>           from resync.api.document_kg_admin import router as dkg_admin_router
+
+resync\app_factory.py:389: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """Admin API for Document Knowledge Graph.
+    
+    Mounted under /api/admin/kg (see app_factory.py integration).
+    
+    Endpoints:
+    - GET /api/admin/kg/health
+    - GET /api/admin/kg/stats?tenant=...&graph_version=...
+    - GET /api/admin/kg/subgraph?tenant=...&graph_version=...&seed=...&depth=...
+    """
+    
+    from __future__ import annotations
+    # mypy: ignore-errors
+    
+    from typing import Annotated
+    
+    from fastapi import APIRouter, Query
+    
+    from resync.knowledge.kg_store.store import PostgresGraphStore
+    
+    router = APIRouter(prefix="/api/admin/kg", tags=["KG Admin"])
+    
+    
+    @router.get("/health")
+    async def kg_health() -> dict:
+        store = PostgresGraphStore()
+        await store.ensure_schema()
+        return {"status": "ok"}
+    
+    
+>   @router.get("/stats")
+     ^^^^^^^^^^^^^^^^^^^^
+
+resync\api\document_kg_admin.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <function kg_stats at 0x00000245948BBCE0>
+
+    def decorator(func: DecoratedCallable) -> DecoratedCallable:
+>       self.add_api_route(
+            path,
+            func,
+            response_model=response_model,
+            status_code=status_code,
+            tags=tags,
+            dependencies=dependencies,
+            summary=summary,
+            description=description,
+            response_description=response_description,
+            responses=responses,
+            deprecated=deprecated,
+            methods=methods,
+            operation_id=operation_id,
+            response_model_include=response_model_include,
+            response_model_exclude=response_model_exclude,
+            response_model_by_alias=response_model_by_alias,
+            response_model_exclude_unset=response_model_exclude_unset,
+            response_model_exclude_defaults=response_model_exclude_defaults,
+            response_model_exclude_none=response_model_exclude_none,
+            include_in_schema=include_in_schema,
+            response_class=response_class,
+            name=name,
+            callbacks=callbacks,
+            openapi_extra=openapi_extra,
+            generate_unique_id_function=generate_unique_id_function,
+        )
+
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:1070: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <fastapi.routing.APIRouter object at 0x00000245948D7110>, path = '/stats'
+endpoint = <function kg_stats at 0x00000245948BBCE0>
+
+    def add_api_route(
+        self,
+        path: str,
+        endpoint: Callable[..., Any],
+        *,
+        response_model: Any = Default(None),
+        status_code: Optional[int] = None,
+        tags: Optional[List[Union[str, Enum]]] = None,
+        dependencies: Optional[Sequence[params.Depends]] = None,
+        summary: Optional[str] = None,
+        description: Optional[str] = None,
+        response_description: str = "Successful Response",
+        responses: Optional[Dict[Union[int, str], Dict[str, Any]]] = None,
+        deprecated: Optional[bool] = None,
+        methods: Optional[Union[Set[str], List[str]]] = None,
+        operation_id: Optional[str] = None,
+        response_model_include: Optional[IncEx] = None,
+        response_model_exclude: Optional[IncEx] = None,
+        response_model_by_alias: bool = True,
+        response_model_exclude_unset: bool = False,
+        response_model_exclude_defaults: bool = False,
+        response_model_exclude_none: bool = False,
+        include_in_schema: bool = True,
+        response_class: Union[Type[Response], DefaultPlaceholder] = Default(
+            JSONResponse
+        ),
+        name: Optional[str] = None,
+        route_class_override: Optional[Type[APIRoute]] = None,
+        callbacks: Optional[List[BaseRoute]] = None,
+        openapi_extra: Optional[Dict[str, Any]] = None,
+        generate_unique_id_function: Union[
+            Callable[[APIRoute], str], DefaultPlaceholder
+        ] = Default(generate_unique_id),
+    ) -> None:
+        route_class = route_class_override or self.route_class
+        responses = responses or {}
+        combined_responses = {**self.responses, **responses}
+        current_response_class = get_value_or_default(
+            response_class, self.default_response_class
+        )
+        current_tags = self.tags.copy()
+        if tags:
+            current_tags.extend(tags)
+        current_dependencies = self.dependencies.copy()
+        if dependencies:
+            current_dependencies.extend(dependencies)
+        current_callbacks = self.callbacks.copy()
+        if callbacks:
+            current_callbacks.extend(callbacks)
+        current_generate_unique_id = get_value_or_default(
+            generate_unique_id_function, self.generate_unique_id_function
+        )
+>       route = route_class(
+            self.prefix + path,
+            endpoint=endpoint,
+            response_model=response_model,
+            status_code=status_code,
+            tags=current_tags,
+            dependencies=current_dependencies,
+            summary=summary,
+            description=description,
+            response_description=response_description,
+            responses=combined_responses,
+            deprecated=deprecated or self.deprecated,
+            methods=methods,
+            operation_id=operation_id,
+            response_model_include=response_model_include,
+            response_model_exclude=response_model_exclude,
+            response_model_by_alias=response_model_by_alias,
+            response_model_exclude_unset=response_model_exclude_unset,
+            response_model_exclude_defaults=response_model_exclude_defaults,
+            response_model_exclude_none=response_model_exclude_none,
+            include_in_schema=include_in_schema and self.include_in_schema,
+            response_class=current_response_class,
+            name=name,
+            dependency_overrides_provider=self.dependency_overrides_provider,
+            callbacks=current_callbacks,
+            openapi_extra=openapi_extra,
+            generate_unique_id_function=current_generate_unique_id,
+        )
+
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:1009: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = APIRoute(path='/api/admin/kg/stats', name='kg_stats', methods=['GET'])
+path = '/api/admin/kg/stats'
+endpoint = <function kg_stats at 0x00000245948BBCE0>
+
+    def __init__(
+        self,
+        path: str,
+        endpoint: Callable[..., Any],
+        *,
+        response_model: Any = Default(None),
+        status_code: Optional[int] = None,
+        tags: Optional[List[Union[str, Enum]]] = None,
+        dependencies: Optional[Sequence[params.Depends]] = None,
+        summary: Optional[str] = None,
+        description: Optional[str] = None,
+        response_description: str = "Successful Response",
+        responses: Optional[Dict[Union[int, str], Dict[str, Any]]] = None,
+        deprecated: Optional[bool] = None,
+        name: Optional[str] = None,
+        methods: Optional[Union[Set[str], List[str]]] = None,
+        operation_id: Optional[str] = None,
+        response_model_include: Optional[IncEx] = None,
+        response_model_exclude: Optional[IncEx] = None,
+        response_model_by_alias: bool = True,
+        response_model_exclude_unset: bool = False,
+        response_model_exclude_defaults: bool = False,
+        response_model_exclude_none: bool = False,
+        include_in_schema: bool = True,
+        response_class: Union[Type[Response], DefaultPlaceholder] = Default(
+            JSONResponse
+        ),
+        dependency_overrides_provider: Optional[Any] = None,
+        callbacks: Optional[List[BaseRoute]] = None,
+        openapi_extra: Optional[Dict[str, Any]] = None,
+        generate_unique_id_function: Union[
+            Callable[["APIRoute"], str], DefaultPlaceholder
+        ] = Default(generate_unique_id),
+    ) -> None:
+        self.path = path
+        self.endpoint = endpoint
+        if isinstance(response_model, DefaultPlaceholder):
+            return_annotation = get_typed_return_annotation(endpoint)
+            if lenient_issubclass(return_annotation, Response):
+                response_model = None
+            else:
+                response_model = return_annotation
+        self.response_model = response_model
+        self.summary = summary
+        self.response_description = response_description
+        self.deprecated = deprecated
+        self.operation_id = operation_id
+        self.response_model_include = response_model_include
+        self.response_model_exclude = response_model_exclude
+        self.response_model_by_alias = response_model_by_alias
+        self.response_model_exclude_unset = response_model_exclude_unset
+        self.response_model_exclude_defaults = response_model_exclude_defaults
+        self.response_model_exclude_none = response_model_exclude_none
+        self.include_in_schema = include_in_schema
+        self.response_class = response_class
+        self.dependency_overrides_provider = dependency_overrides_provider
+        self.callbacks = callbacks
+        self.openapi_extra = openapi_extra
+        self.generate_unique_id_function = generate_unique_id_function
+        self.tags = tags or []
+        self.responses = responses or {}
+        self.name = get_name(endpoint) if name is None else name
+        self.path_regex, self.path_format, self.param_convertors = compile_path(path)
+        if methods is None:
+            methods = ["GET"]
+        self.methods: Set[str] = {method.upper() for method in methods}
+        if isinstance(generate_unique_id_function, DefaultPlaceholder):
+            current_generate_unique_id: Callable[[APIRoute], str] = (
+                generate_unique_id_function.value
+            )
+        else:
+            current_generate_unique_id = generate_unique_id_function
+        self.unique_id = self.operation_id or current_generate_unique_id(self)
+        # normalize enums e.g. http.HTTPStatus
+        if isinstance(status_code, IntEnum):
+            status_code = int(status_code)
+        self.status_code = status_code
+        if self.response_model:
+            assert is_body_allowed_for_status_code(status_code), (
+                f"Status code {status_code} must not have a response body"
+            )
+            response_name = "Response_" + self.unique_id
+            self.response_field = create_model_field(
+                name=response_name,
+                type_=self.response_model,
+                mode="serialization",
+            )
+            # Create a clone of the field, so that a Pydantic submodel is not returned
+            # as is just because it's an instance of a subclass of a more limited class
+            # e.g. UserInDB (containing hashed_password) could be a subclass of User
+            # that doesn't have the hashed_password. But because it's a subclass, it
+            # would pass the validation and be returned as is.
+            # By being a new field, no inheritance will be passed as is. A new model
+            # will always be created.
+            # TODO: remove when deprecating Pydantic v1
+            self.secure_cloned_response_field: Optional[ModelField] = (
+                create_cloned_field(self.response_field)
+            )
+        else:
+            self.response_field = None  # type: ignore
+            self.secure_cloned_response_field = None
+        self.dependencies = list(dependencies or [])
+        self.description = description or inspect.cleandoc(self.endpoint.__doc__ or "")
+        # if a "form feed" character (page break) is found in the description text,
+        # truncate description text to the content preceding the first "form feed"
+        self.description = self.description.split("\f")[0].strip()
+        response_fields = {}
+        for additional_status_code, response in self.responses.items():
+            assert isinstance(response, dict), "An additional response must be a dict"
+            model = response.get("model")
+            if model:
+                assert is_body_allowed_for_status_code(additional_status_code), (
+                    f"Status code {additional_status_code} must not have a response body"
+                )
+                response_name = f"Response_{additional_status_code}_{self.unique_id}"
+                response_field = create_model_field(
+                    name=response_name, type_=model, mode="serialization"
+                )
+                response_fields[additional_status_code] = response_field
+        if response_fields:
+            self.response_fields: Dict[Union[int, str], ModelField] = response_fields
+        else:
+            self.response_fields = {}
+    
+        assert callable(endpoint), "An endpoint must be a callable"
+>       self.dependant = get_dependant(path=self.path_format, call=self.endpoint)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:630: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def get_dependant(
+        *,
+        path: str,
+        call: Callable[..., Any],
+        name: Optional[str] = None,
+        security_scopes: Optional[List[str]] = None,
+        use_cache: bool = True,
+    ) -> Dependant:
+        path_param_names = get_path_param_names(path)
+        endpoint_signature = get_typed_signature(call)
+        signature_params = endpoint_signature.parameters
+        dependant = Dependant(
+            call=call,
+            name=name,
+            path=path,
+            security_scopes=security_scopes,
+            use_cache=use_cache,
+        )
+        for param_name, param in signature_params.items():
+            is_path_param = param_name in path_param_names
+>           param_details = analyze_param(
+                param_name=param_name,
+                annotation=param.annotation,
+                value=param.default,
+                is_path_param=is_path_param,
+            )
+
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\dependencies\utils.py:293: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def analyze_param(
+        *,
+        param_name: str,
+        annotation: Any,
+        value: Any,
+        is_path_param: bool,
+    ) -> ParamDetails:
+        field_info = None
+        depends = None
+        type_annotation: Any = Any
+        use_annotation: Any = Any
+        if annotation is not inspect.Signature.empty:
+            use_annotation = annotation
+            type_annotation = annotation
+        # Extract Annotated info
+        if get_origin(use_annotation) is Annotated:
+            annotated_args = get_args(annotation)
+            type_annotation = annotated_args[0]
+            fastapi_annotations = [
+                arg
+                for arg in annotated_args[1:]
+                if isinstance(arg, (FieldInfo, params.Depends))
+            ]
+            fastapi_specific_annotations = [
+                arg
+                for arg in fastapi_annotations
+                if isinstance(arg, (params.Param, params.Body, params.Depends))
+            ]
+            if fastapi_specific_annotations:
+                fastapi_annotation: Union[FieldInfo, params.Depends, None] = (
+                    fastapi_specific_annotations[-1]
+                )
+            else:
+                fastapi_annotation = None
+            # Set default for Annotated FieldInfo
+            if isinstance(fastapi_annotation, FieldInfo):
+                # Copy `field_info` because we mutate `field_info.default` below.
+                field_info = copy_field_info(
+                    field_info=fastapi_annotation, annotation=use_annotation
+                )
+                assert (
+>                   field_info.default is Undefined or field_info.default is RequiredParam
+                ), (
+                    f"`{field_info.__class__.__name__}` default value cannot be set in"
+                    f" `Annotated` for {param_name!r}. Set the default value with `=` instead."
+                )
+E               AssertionError: `Query` default value cannot be set in `Annotated` for 'tenant'. Set the default value with `=` instead.
+
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\dependencies\utils.py:397: AssertionError
+---------------------------- Captured stdout call -----------------------------
+2026-02-15 14:12:23 [info     ] settings_validation_passed
+2026-02-15 14:12:23 [warning  ] templates_directory_not_found  path=D:\Python\GITHUB\resync\6.0\templates
+2026-02-15 14:12:23 [info     ] Rate limiting enabled          auth_limit=5/minute default_limit=100/minute storage=memory
+2026-02-15 14:12:24 [info     ] middleware_configured
+2026-02-15 14:12:24 [info     ] Exception handlers registered successfully
+2026-02-15 14:12:24 [info     ] exception_handlers_registered
+2026-02-15 14:12:24 [info     ] dependency_injection_configured mode=fastapi_depends
+2026-02-15 14:12:24 [info     ] Circuit breaker initialized    failure_threshold=3 name=llm_service recovery_timeout=60
+2026-02-15 14:12:29 [info     ] enhanced_endpoints_registered  prefix=/api/v2
+2026-02-15 14:12:29 [info     ] graphrag_admin_endpoints_registered prefix=/api/admin/graphrag
+------------------------------ Captured log call ------------------------------
+WARNING  resync.api.auth.service:service.py:23 AUTH_SECRET_KEY not set ù using insecure default. This is only acceptable in development.
+============================== warnings summary ===============================
+resync/tests/test_lifespan_smoke.py::test_lifespan_initializes_app_state_singletons
+resync/tests/test_lifespan_smoke.py::test_lifespan_initializes_app_state_singletons
+  C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\_internal\_generate_schema.py:298: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.11/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(
+
+resync/tests/test_lifespan_smoke.py::test_lifespan_initializes_app_state_singletons
+  D:\Python\GITHUB\resync\6.0\resync\core\database\models\teams.py:8: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+resync/tests/test_lifespan_smoke.py::test_lifespan_initializes_app_state_singletons
+  D:\Python\GITHUB\resync\6.0\resync\api\routes\core\health.py:621: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @router.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED resync/tests/test_lifespan_smoke.py::test_lifespan_initializes_app_state_singletons
+=================== 1 failed, 1 passed, 4 warnings in 6.22s ===================

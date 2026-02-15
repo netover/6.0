@@ -1096,17 +1096,15 @@ async def get_admin_audit_logs(
         audit_db = AuditDB()
 
         # Query records (async canonical path)
-        entries = await audit_db.get_recent_actions(limit=limit + offset)
-        records = [audit_db._to_record_dict(entry) for entry in entries[offset:]]
+        entries = await audit_db.get_recent_actions(limit=limit, offset=offset)
+        records = [audit_db.to_record_dict(entry) for entry in entries]
 
         # Filter by action if specified
         if action:
             records = [r for r in records if r.get("action") == action]
 
         # Get total count for pagination
-        total_count = (
-            audit_db.get_record_count() if hasattr(audit_db, "get_record_count") else len(records)
-        )
+        total_count = audit_db.get_record_count()
 
         return {
             "records": records,
