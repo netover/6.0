@@ -351,17 +351,34 @@ class WebSocketManager:
         self._sync_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
 
-    async def start_sync(self):
+    async def start_sync(self) -> bool:
         """Inicia o listener de Pub/Sub.
         
-        Nota: restart após stop() não é suportado - o stop_event precisa ser
-        explicitamente limpo pelo caller se deseja reiniciar.
+        Returns:
+            True if started successfully, False if already stopped or already running.
+            Caller must call restart() after stop() - the stop_event needs to be
+            explicitly cleared before attempting restart.
+        
+        Nota: restart após stop() requer chamada explícita a restart() - o stop_event
+        precisa ser limpo pelo caller se deseja reiniciar.
         """
         if self._stop_event.is_set():
-            return
+            logger.debug("start_sync called but stop_event is set - call restart() to reset")
+            return False
         if self._sync_task is None or self._sync_task.done():
             self._stop_event.clear()
             self._sync_task = asyncio.create_task(self._pubsub_listener())
+            return True
+        return False
+
+    async def restart(self) -> bool:
+        """Reinicia o listener de Pub/Sub após stop().
+        
+        Returns:
+            True if restarted successfully.
+        """
+        self._stop_event.clear()
+        return await self.start_sync()
 
     async def stop(self) -> None:
         """Para o manager."""
@@ -381,12 +398,12 @@ class WebSocketManager:
             self._clients.add(websocket)
             return True
 
-    async def disconnect(self, websocket: WebSocket):
+    async def disconnect(self, websocket: WebSocket) -> None:
         """Desconecta um WebSocket."""
         async with self._lock:
             self._clients.discard(websocket)
 
-    async def _pubsub_listener(self):
+    async def _pubsub_listener(self) -> None:
         """Listener do Redis Pub/Sub para broadcast."""
         while not self._stop_event.is_set():
             pubsub = None
@@ -412,20 +429,27 @@ class WebSocketManager:
                     await asyncio.sleep(5)
             finally:
                 if pubsub is not None:
-                    with suppress(Exception):
+                    # Explicit exception handling instead of broad suppress
+                    # to avoid masking real failures during cleanup
+                    try:
                         await pubsub.unsubscribe(REDIS_CH_BROADCAST)
+                    except Exception as e:
+                        logger.warning("PubSub unsubscribe failed: %s", e)
+                    
                     close_fn = getattr(pubsub, "close", None)
                     if close_fn is not None:
-                        with suppress(Exception):
+                        try:
                             maybe_awaitable = close_fn()
                             if asyncio.iscoroutine(maybe_awaitable):
                                 await maybe_awaitable
+                        except Exception as e:
+                            logger.warning("PubSub close failed: %s", e)
 
     async def broadcast(self, message_str: str) -> None:
         """Broadcast de mensagem para todos os clientes."""
         await self._local_broadcast(message_str)
 
-    async def _local_broadcast(self, message_str: str):
+    async def _local_broadcast(self, message_str: str) -> None:
         """Envia mensagem para todos os clientes locais."""
         async with self._lock:
             clients = list(self._clients)
