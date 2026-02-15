@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import os
 from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
@@ -44,11 +45,7 @@ os.environ["TESTING"] = "true"
 # Pytest Plugins
 # =============================================================================
 
-try:
-    import pytest_asyncio
-    pytest_plugins = ["pytest_asyncio"]
-except ImportError:
-    pytest_plugins = []
+pytest_plugins = ["pytest_asyncio"] if importlib.util.find_spec("pytest_asyncio") else []
 
 
 # =============================================================================

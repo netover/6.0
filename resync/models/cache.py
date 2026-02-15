@@ -1,10 +1,11 @@
-from __future__ import annotations
-
 """
 Type definitions for Semantic Cache.
 
 Separated from semantic_cache.py to allow lightweight imports and better testing.
 """
+
+from __future__ import annotations
+
 
 import json
 from dataclasses import dataclass, field

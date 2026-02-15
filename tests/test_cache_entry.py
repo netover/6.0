@@ -1,3 +1,4 @@
+# bandit:skip=B101
 """
 Unit tests for CacheEntry serialization logic.
 
