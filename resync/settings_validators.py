@@ -14,6 +14,7 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 from typing import ClassVar
+from urllib.parse import urlparse
 
 from pydantic import SecretStr, ValidationInfo, field_validator, model_validator
 
@@ -75,13 +76,21 @@ class SettingsValidators:
     @field_validator("redis_url", "rate_limit_storage_uri")
     @classmethod
     def validate_redis_url(cls, v: SecretStr | str) -> SecretStr | str:
-        """Valida formato da URL Redis."""
+        """Validate Redis URL format."""
         val = v.get_secret_value() if isinstance(v, SecretStr) else v
-        if not (val.startswith(("redis://", "rediss://"))):
+        if not val.startswith(("redis://", "rediss://")):
             raise ValueError(
-                "Redis URL deve começar com 'redis://' ou 'rediss://'. "
-                "Exemplo: redis://localhost:6379 ou rediss://localhost:6379"
+                "Redis URL must start with 'redis://' or 'rediss://'. "
+                "Example: redis://localhost:6379/0"
             )
+        try:
+            parsed = urlparse(val)
+            if not parsed.hostname:
+                # Do not include the full URL in the error message as it may contain credentials
+                raise ValueError("Redis URL missing hostname")
+        except Exception as e:
+            # Mask the URL in the error message
+            raise ValueError("Invalid Redis URL format") from e
         return v
 
     @field_validator("admin_password")
