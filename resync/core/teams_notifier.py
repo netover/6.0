@@ -26,6 +26,8 @@ class TeamsNotificationManager:
     def __init__(self, db_session: Session):
         self.db = db_session
         self._rate_limit_cache: dict[str, list[datetime]] = {}
+        self._config_cache: TeamsNotificationConfig | None = None
+        self._config_fetched = False
 
     def get_channel_for_job(self, job_name: str) -> TeamsChannel | None:
         """
@@ -449,7 +451,10 @@ class TeamsNotificationManager:
 
     def _get_config(self) -> TeamsNotificationConfig | None:
         """Obtém configuração global."""
-        return self.db.query(TeamsNotificationConfig).first()
+        if not self._config_fetched:
+            self._config_cache = self.db.query(TeamsNotificationConfig).first()
+            self._config_fetched = True
+        return self._config_cache
 
     def is_enabled(self) -> bool:
         """Verifica se notificações do Teams estão habilitadas."""
