@@ -13,7 +13,7 @@ import os
 import tempfile
 import threading
 import time
-from typing import Any, Optional
+from typing import Any
 
 # Feature flags
 USE_CORE_BOOT_V2 = os.getenv("USE_CORE_BOOT_V2", "true").lower() in ("true", "1", "yes")
@@ -312,7 +312,7 @@ def _validate_environment():
             log = _get_logger()
             log.warning("Environment validation failed: %s", e)
         except (ImportError, RuntimeError):
-            logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+            logger.debug("suppressed_exception", error=str(e), exc_info=True)  # was: pass
 
 
 # Validation is now optional and lazy - call _validate_environment() explicitly
