@@ -2,117 +2,171 @@
 
 This module contains all Pydantic field validators used by the Settings class
 to keep the main settings module more focused and maintainable.
+
+Validation Strategy:
+- Field validators: per-field constraints, run during field construction
+- Model validator: cross-field consistency, runs after all fields are set
+- Defense in depth: some constraints are checked in both layers intentionally
 """
 
+from __future__ import annotations
+
+import os
 import warnings
 from pathlib import Path
+from typing import Any, ClassVar
+from urllib.parse import urlparse
 
 from pydantic import SecretStr, ValidationInfo, field_validator, model_validator
 
 from .settings_types import Environment
 
 
+def _redact_sensitive(val: Any) -> str:
+    """Mask sensitive string values for logs/errors."""
+    if isinstance(val, SecretStr):
+        return "**********"
+    s = str(val)
+    if not s:
+        return ""
+    if len(s) <= 4:
+        return "*" * len(s)
+    return f"{s[:2]}...{s[-2:]}"
+
+
 class SettingsValidators:
     """Collection of field validators for Settings class."""
+
+    # =========================================================================
+    # CONSTANTS
+    # =========================================================================
+    _INSECURE_ADMIN_PASSWORDS: ClassVar[frozenset[str]] = frozenset({
+        "change_me_please",
+        "change_me_immediately",
+        "admin",
+        "password",
+        "12345678",
+    })
+
+    _COMMON_TWS_PASSWORDS: ClassVar[frozenset[str]] = frozenset({
+        "password",
+        "twsuser",
+        "tws_password",
+        "change_me",
+    })
 
     @field_validator("base_dir")
     @classmethod
     def validate_base_dir(cls, v: Path) -> Path:
-        """Resolve base_dir para path absoluto e valida existência."""
+        """Resolve base_dir to absolute path and validate existence/permissions."""
         resolved_path = v.resolve()
         if not resolved_path.exists():
-            raise ValueError(f"base_dir ({resolved_path}) does not exist")
+            raise ValueError(f"REQUIRED: base_dir directory must exist. Path not found: {resolved_path}")
         if not resolved_path.is_dir():
-            raise ValueError(f"base_dir ({resolved_path}) is not a directory")
+            raise ValueError(f"REQUIRED: base_dir must be a directory, not a file: {resolved_path}")
+        # Issue 11: Permission checks
+        if not os.access(resolved_path, os.R_OK):
+            raise ValueError(f"PERMISSION DENIED: base_dir is not readable: {resolved_path}")
         return resolved_path
 
     @field_validator("db_pool_max_size")
     @classmethod
     def validate_db_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Valida que max_size >= min_size."""
+        """Validate that max_size >= min_size."""
         min_size = info.data.get("db_pool_min_size", 0)
         if v < min_size:
-            raise ValueError(f"db_pool_max_size ({v}) must be >= db_pool_min_size ({min_size})")
+            raise ValueError(f"CONFIGURATION ERROR: db_pool_max_size ({v}) must be >= db_pool_min_size ({min_size})")
         return v
 
     @field_validator("redis_pool_max_size")
     @classmethod
     def validate_redis_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Valida que max_size >= min_size."""
+        """Validate that max_size >= min_size."""
         min_size = info.data.get("redis_pool_min_size", 0)
         if v < min_size:
             raise ValueError(
-                f"redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
+                f"CONFIGURATION ERROR: redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
             )
         return v
 
     @field_validator("redis_url", "rate_limit_storage_uri")
     @classmethod
     def validate_redis_url(cls, v: SecretStr | str) -> SecretStr | str:
-        """Valida formato da URL Redis."""
+        """Validate Redis URL format."""
         val = v.get_secret_value() if isinstance(v, SecretStr) else v
-        if not (val.startswith(("redis://", "rediss://"))):
+        if not val.startswith(("redis://", "rediss://")):
             raise ValueError(
-                "Redis URL deve começar com 'redis://' ou 'rediss://'. "
-                "Exemplo: redis://localhost:6379 ou rediss://localhost:6379"
+                "Redis URL must start with 'redis://' or 'rediss://'. "
+                "Example: redis://localhost:6379/0"
             )
+        try:
+            parsed = urlparse(val)
+            if not parsed.hostname:
+                # Do not include the full URL in the error message as it may contain credentials
+                raise ValueError("Redis URL missing hostname")
+        except Exception as e:
+            # Mask the URL in the error message
+            redacted = _redact_sensitive(val)
+            raise ValueError(f"Invalid Redis URL format: {redacted}") from e
         return v
 
     @field_validator("admin_password")
     @classmethod
-    def validate_password_strength(
+    def validate_admin_password(
         cls, v: SecretStr | None, info: ValidationInfo
     ) -> SecretStr | None:
-        """Valida força mínima da senha."""
+        """Validate admin password strength and reject insecure values.
+        
+        Note: Uses hardcoded minimum (8) because MIN_ADMIN_PASSWORD_LENGTH
+        is declared after this field in the model. The model_validator
+        performs the authoritative check with the configurable minimum.
+        """
         env = info.data.get("environment")
+        min_len = 8  # Hardcoded; model_validator uses MIN_ADMIN_PASSWORD_LENGTH
 
-        # Em produção: senha obrigatória com 8+ caracteres
         if env == Environment.PRODUCTION:
-            if v is None or len(v.get_secret_value()) < 8:
-                raise ValueError("Senha do admin deve ter no mínimo 8 caracteres (produção)")
-        # Em desenvolvimento: permitir None, mas se definida, exigir 8+ caracteres
-        else:
-            if v is not None and len(v.get_secret_value()) < 8:
-                raise ValueError("Senha deve ter no mínimo 8 caracteres")
+            if v is None:
+                raise ValueError(
+                    "SECURITY FAILURE: admin_password is REQUIRED in Production. "
+                    "Set ADMIN_PASSWORD environment variable."
+                )
+            pwd = v.get_secret_value()
+            if len(pwd) < min_len:
+                raise ValueError(
+                    f"INSECURE PASSWORD: admin_password must be at least {min_len} characters in Production. "
+                    f"Got {len(pwd)}."
+                )
+            if pwd.lower() in cls._INSECURE_ADMIN_PASSWORDS:
+                raise ValueError(
+                    f"INSECURE PASSWORD: '{pwd[:1]}...' is a known weak password. "
+                    "Use a complex random string."
+                )
+        elif v is not None:
+            pwd = v.get_secret_value()
+            if len(pwd) < min_len:
+                raise ValueError(
+                    f"INSECURE PASSWORD: admin_password should be at least {min_len} characters. "
+                    f"Got {len(pwd)}."
+                )
+
         return v
 
-    @field_validator("admin_password")
-    @classmethod
-    def validate_insecure_in_prod(
-        cls, v: SecretStr | None, info: ValidationInfo
-    ) -> SecretStr | None:
-        """Bloqueia senhas inseguras em produção."""
-        env = info.data.get("environment")
-        if env == Environment.PRODUCTION and v is not None:
-            insecure = {
-                "change_me_please",
-                "change_me_immediately",
-                "admin",
-                "password",
-                "12345678",
-            }
-            if v.get_secret_value().lower() in insecure:
-                raise ValueError("Insecure admin password not allowed in production")
-        return v
 
-    @field_validator("cors_allowed_origins")
-    @classmethod
-    def validate_production_cors(cls, v: list[str], info: ValidationInfo) -> list[str]:
-        """Valida CORS em produção."""
-        env = info.data.get("environment")
-        if env == Environment.PRODUCTION and "*" in v:
-            raise ValueError("Wildcard CORS origins not allowed in production")
-        return v
 
     @field_validator("cors_allow_credentials")
     @classmethod
     def validate_credentials_with_wildcard(cls, v: bool, info: ValidationInfo) -> bool:
-        """Valida credenciais com wildcard origins."""
+        """Validate CORS credentials with wildcard origins."""
+        env = info.data.get("environment")
         origins = info.data.get("cors_allowed_origins", [])
         if v and "*" in origins:
+            if env == Environment.PRODUCTION:
+                raise ValueError(
+                    "CORS wildcard origins with credentials not allowed in production"
+                )
             warnings.warn(
-                "CORS wildcard origins with credentials allowed is insecure. "
-                "Consider using explicit origins instead of wildcard.",
+                "CORS wildcard origins with credentials is insecure. "
+                "Consider using explicit origins.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -144,27 +198,43 @@ class SettingsValidators:
             )
         return v
 
-    @field_validator("tws_user", "tws_password")
+    @field_validator("tws_user")
     @classmethod
-    def validate_tws_credentials(cls, v: SecretStr | None, info: ValidationInfo) -> SecretStr | None:
-        """Valida credenciais TWS quando não está em mock mode."""
-        if info.field_name == "tws_password" and v is not None:
-            env = info.data.get("environment")
-            mock_mode = info.data.get("tws_mock_mode")
-            if env == Environment.PRODUCTION and not mock_mode:
-                # SecretStr esperado; valida conteúdo
-                if not v.get_secret_value():
-                    raise ValueError("TWS_PASSWORD is required when not in mock mode")
-                if len(v.get_secret_value()) < 12:
-                    raise ValueError("TWS_PASSWORD must be at least 12 characters in production")
-                common_passwords = {
-                    "password",
-                    "twsuser",
-                    "tws_password",
-                    "change_me",
-                }
-                if v.get_secret_value().lower() in common_passwords:
-                    raise ValueError("TWS_PASSWORD cannot be a common/default password")
+    def validate_tws_user(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate TWS user when not in mock mode."""
+        env = info.data.get("environment")
+        mock_mode = info.data.get("tws_mock_mode", True)
+        if env == Environment.PRODUCTION and not mock_mode:
+            if not v or not v.strip():
+                raise ValueError(
+                    "TWS_USER is required when not in mock mode (production)"
+                )
+        return v
+
+    @field_validator("tws_password")
+    @classmethod
+    def validate_tws_password(
+        cls, v: SecretStr | None, info: ValidationInfo
+    ) -> SecretStr | None:
+        """Validate TWS password strength when not in mock mode."""
+        if v is None:
+            return v
+        env = info.data.get("environment")
+        mock_mode = info.data.get("tws_mock_mode", True)
+        if env == Environment.PRODUCTION and not mock_mode:
+            pwd = v.get_secret_value()
+            if not pwd:
+                raise ValueError(
+                    "TWS_PASSWORD is required when not in mock mode"
+                )
+            if len(pwd) < 12:
+                raise ValueError(
+                    "TWS_PASSWORD must be at least 12 characters in production"
+                )
+            if pwd.lower() in cls._COMMON_TWS_PASSWORDS:
+                raise ValueError(
+                    "TWS_PASSWORD cannot be a common/default password"
+                )
         return v
 
     @field_validator("secret_key")
@@ -206,7 +276,7 @@ class SettingsValidators:
     @field_validator("upload_dir")
     @classmethod
     def validate_upload_dir(cls, v: Path, info: ValidationInfo) -> Path:
-        """Warn if upload_dir is relative in production."""
+        """Validate upload_dir existence and write permissions."""
         env = info.data.get("environment")
         if env == Environment.PRODUCTION and not v.is_absolute():
             warnings.warn(
@@ -215,17 +285,28 @@ class SettingsValidators:
                 UserWarning,
                 stacklevel=2,
             )
+        
+        # Issue 11: Write permission check if directory exists
+        if v.exists():
+            if not os.access(v, os.W_OK):
+                raise ValueError(f"PERMISSION DENIED: upload_dir is not writable: {v}")
+        else:
+            # Check if parent is writable to allow creation
+            parent = v.parent
+            if parent.exists() and not os.access(parent, os.W_OK):
+                raise ValueError(f"PERMISSION DENIED: Cannot create upload_dir, parent not writable: {parent}")
+                
         return v
 
     @field_validator("cors_allowed_origins")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:
-        """Ensure CORS origins are properly configured in production."""
+        """Validate CORS origins — reject wildcard in production."""
         env = info.data.get("environment")
         # [DECISION] Allow localhost even in production as per user request
         if env == Environment.PRODUCTION and "*" in v:
             raise ValueError(
-                "CORS_ALLOW_ORIGINS cannot contain '*' in production. "
+                "CORS wildcard origins ('*') not allowed in production. "
                 "Specify exact production domains (localhost is allowed)."
             )
         return v
@@ -301,12 +382,26 @@ class SettingsValidators:
             )
         return v
 
+    @field_validator("redis_max_connections")
+    @classmethod
+    def validate_redis_connection_sizes(cls, v: int, info: ValidationInfo) -> int:
+        """Validate redis_max_connections >= redis_min_connections and reasonable ranges (Issue 12)."""
+        min_size = info.data.get("redis_min_connections", 0)
+        if v < min_size:
+            raise ValueError(
+                f"CONFIGURATION ERROR: redis_max_connections ({v}) must be >= redis_min_connections ({min_size})"
+            )
+        # Issue 12: Positive range
+        if v <= 0:
+            raise ValueError(f"INVALID RANGE: redis_max_connections must be > 0. Got {v}")
+        return v
+
     # =========================================================================
     # MODEL-LEVEL VALIDATOR (runs after all field validators)
     # =========================================================================
 
     @model_validator(mode="after")
-    def validate_cross_field_consistency(self):
+    def validate_cross_field_consistency(self) -> "SettingsValidators":
         """
         Cross-field consistency checks that run after all individual validators.
 
@@ -318,12 +413,13 @@ class SettingsValidators:
         pool_pairs = [
             ("db_pool_min_size", "db_pool_max_size"),
             ("redis_pool_min_size", "redis_pool_max_size"),
+            ("redis_min_connections", "redis_max_connections"),
             ("http_pool_min_size", "http_pool_max_size"),
         ]
         for min_field, max_field in pool_pairs:
-            min_val = getattr(self, min_field, None)
-            max_val = getattr(self, max_field, None)
-            if min_val is not None and max_val is not None and max_val < min_val:
+            min_val = getattr(self, min_field)
+            max_val = getattr(self, max_field)
+            if max_val < min_val:
                 errors.append(f"{max_field} ({max_val}) < {min_field} ({min_val})")
 
         # 2. Pool lifetime must be > idle timeout
@@ -333,31 +429,77 @@ class SettingsValidators:
             ("http_pool_idle_timeout", "http_pool_max_lifetime", "http_pool"),
         ]
         for idle_field, lifetime_field, label in lifetime_pairs:
-            idle = getattr(self, idle_field, None)
-            lifetime = getattr(self, lifetime_field, None)
-            if idle is not None and lifetime is not None and lifetime <= idle:
+            idle = getattr(self, idle_field)
+            lifetime = getattr(self, lifetime_field)
+            if lifetime <= idle:
                 errors.append(
                     f"{label}: max_lifetime ({lifetime}s) must be > idle_timeout ({idle}s)"
                 )
 
         # 3. TWS granular timeouts must be <= overall request timeout
-        tws_request_timeout = getattr(self, "tws_request_timeout", None)
-        if tws_request_timeout is not None:
-            for sub_field in ("tws_timeout_connect", "tws_timeout_read",
-                              "tws_timeout_write", "tws_timeout_pool"):
-                sub_val = getattr(self, sub_field, None)
-                if sub_val is not None and sub_val > tws_request_timeout:
-                    errors.append(
-                        f"{sub_field} ({sub_val}s) > tws_request_timeout ({tws_request_timeout}s)"
-                    )
+        tws_request_timeout = getattr(self, "tws_request_timeout")
+        for sub_field in (
+            "tws_timeout_connect",
+            "tws_timeout_read",
+            "tws_timeout_write",
+            "tws_timeout_pool",
+        ):
+            sub_val = getattr(self, sub_field)
+            if sub_val > tws_request_timeout:
+                errors.append(
+                    f"{sub_field} ({sub_val}s) > "
+                    f"tws_request_timeout ({tws_request_timeout}s)"
+                )
 
-        # 4. Production-specific cross-checks
-        env = getattr(self, "environment", None)
-        if env and str(env).lower() in ("production", "prod"):
+        # 4. Backoff ranges: base must be <= max
+        backoff_pairs = [
+            ("redis_startup_backoff_base", "redis_startup_backoff_max", "Redis startup"),
+            ("tws_retry_backoff_base", "tws_retry_backoff_max", "TWS retry"),
+        ]
+        for base_field, max_field, label in backoff_pairs:
+            base_val = getattr(self, base_field)
+            max_val = getattr(self, max_field)
+            if base_val > max_val:
+                errors.append(
+                    f"{label}: {base_field} ({base_val}) > {max_field} ({max_val})"
+                )
+
+        # 5. Hybrid weights must sum to ~1.0 when auto_weight is off
+        if not getattr(self, "hybrid_auto_weight", True):
+            vec_w = getattr(self, "hybrid_vector_weight", 0.5)
+            bm25_w = getattr(self, "hybrid_bm25_weight", 0.5)
+            total = vec_w + bm25_w
+            if not (0.99 <= total <= 1.01):
+                errors.append(
+                    f"Hybrid weights sum={total:.4f}, expected ≈1.0 "
+                    f"when hybrid_auto_weight=False"
+                )
+
+        # 6. Service credentials when enabled
+        if getattr(self, "langfuse_enabled", False):
+            if not getattr(self, "langfuse_public_key", ""):
+                errors.append(
+                    "langfuse_public_key required when langfuse_enabled=True"
+                )
+            lf_secret = getattr(self, "langfuse_secret_key", None)
+            if not lf_secret or not lf_secret.get_secret_value():
+                errors.append(
+                    "langfuse_secret_key required when langfuse_enabled=True"
+                )
+
+        if getattr(self, "enterprise_enable_siem", False):
+            if not getattr(self, "enterprise_siem_endpoint", None):
+                errors.append(
+                    "enterprise_siem_endpoint required when SIEM enabled"
+                )
+
+        # 7. Production-specific cross-checks (FIXED: use direct enum comparison)
+        env = getattr(self, "environment")
+        if env == Environment.PRODUCTION:
             # Secret key length must meet minimum
-            secret_key = getattr(self, "secret_key", None)
+            secret_key = getattr(self, "secret_key")
             min_len = getattr(self, "MIN_SECRET_KEY_LENGTH", 32)
-            if secret_key and len(secret_key.get_secret_value()) < min_len:
+            if len(secret_key.get_secret_value()) < min_len:
                 errors.append(
                     f"secret_key length ({len(secret_key.get_secret_value())}) "
                     f"< MIN_SECRET_KEY_LENGTH ({min_len})"
@@ -369,6 +511,18 @@ class SettingsValidators:
             if admin_pw and len(admin_pw.get_secret_value()) < min_pw_len:
                 errors.append(
                     f"admin_password length < MIN_ADMIN_PASSWORD_LENGTH ({min_pw_len})"
+                )
+
+        # 8. TWS credentials when not in mock mode
+        if not getattr(self, "tws_mock_mode", True):
+            if not getattr(self, "tws_user", None):
+                errors.append(
+                    "tws_user is required when tws_mock_mode=False"
+                )
+            tws_pw = getattr(self, "tws_password", None)
+            if not tws_pw or not tws_pw.get_secret_value():
+                errors.append(
+                    "tws_password is required when tws_mock_mode=False"
                 )
 
         if errors:

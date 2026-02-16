@@ -5,6 +5,7 @@ Provides audit logging functionality using PostgreSQL.
 Replaces the original SQLite implementation.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -41,6 +42,39 @@ class AuditDB:
         """Close the database."""
         self._initialized = False
 
+
+    @staticmethod
+    def to_record_dict(entry: AuditEntry) -> dict:
+        """Convert an AuditEntry model to the legacy dict shape."""
+        return {
+            "id": entry.id,
+            "action": entry.action,
+            "user_id": entry.user_id,
+            "entity_type": entry.entity_type,
+            "entity_id": entry.entity_id,
+            "old_value": entry.old_value,
+            "new_value": entry.new_value,
+            "ip_address": entry.ip_address,
+            "user_agent": entry.user_agent,
+            "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+            "metadata": entry.metadata_,
+        }
+
+    def get_records(self, limit: int = 100, offset: int = 0) -> list[dict]:
+        """Backward-compatible sync accessor for legacy admin endpoints."""
+        logger.warning("auditdb_get_records_sync_shim_used", limit=limit, offset=offset)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Safe to run to completion if NO loop is running
+            records = asyncio.run(self.get_recent_actions(limit=limit, offset=offset))
+            return [self.to_record_dict(entry) for entry in records]
+        else:
+            # RuntimeError if loop IS running
+            raise RuntimeError(
+                "get_records() cannot be used inside an active event loop; use get_recent_actions()"
+            )
+
     async def log_action(
         self,
         action: str,
@@ -76,9 +110,31 @@ class AuditDB:
         """Get audit history for an entity."""
         return await self._repo.get_entity_history(entity_type, entity_id, limit)
 
-    async def get_recent_actions(self, limit: int = 100) -> list[AuditEntry]:
+    async def get_recent_actions(self, limit: int = 100, offset: int = 0) -> list[AuditEntry]:
         """Get recent audit actions."""
-        return await self._repo.get_all(limit=limit, order_by="timestamp", desc=True)
+        return await self._repo.get_all(limit=limit, offset=offset, order_by="timestamp", desc=True)
+
+    async def get_record_count_async(self) -> int:
+        """Get total number of audit records asynchronously."""
+        return await self._repo.count()
+
+    def get_record_count(self) -> int:
+        """Get total number of audit records (sync shim).
+        
+        Note: Returns 0 if called within an active event loop to avoid blocking.
+        Use get_record_count_async() in async contexts.
+        """
+        # Use a simplified sync wrapper since this is used in sync dashboard context
+        try:
+            asyncio.get_running_loop()
+            # If in loop, we'd need to await, but this is a shim.
+            # Returning 0 or similar is safer than crashing if called incorrectly.
+            logger.warning("get_record_count_called_in_async_loop")
+            return 0
+        except RuntimeError:
+            async def _count():
+                return await self._repo.count()
+            return asyncio.run(_count())
 
     async def search_incidents(
         self,

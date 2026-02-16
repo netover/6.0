@@ -1,6 +1,12 @@
 """
 Idempotent document ingestion service for RAG systems.
 
+v6.0: Enhanced with all 9 RAG Chunking Decisions
+- Structure-aware overlap (Decision #3)
+- Citation-friendly IDs (Decision #7)
+- Multi-view chunk indexing (Decision #8)
+- Eval-driven tuning support (Decision #9)
+
 v5.4.2: Enhanced with advanced chunking support
 - Structure-aware parsing (markdown headers, code blocks, tables)
 - Semantic chunking using sentence transformers
@@ -145,9 +151,17 @@ class IngestService:
         environment: str = "all",
         embedding_model: str = "",
         embedding_version: str = "",
+        # v6.0: New chunking features
+        overlap_strategy: str = "structure",  # "constant", "structure", "none"
+        enable_multi_view: bool = False,  # Enable multi-view indexing
     ) -> int:
         """
         Ingest document using advanced chunking with rich metadata.
+
+        v6.0 Features:
+        - Structure-aware overlap (Decision #3)
+        - Citation-friendly IDs (Decision #7)
+        - Multi-view chunk indexing (Decision #8)
 
         v5.7.0 Features (PR1):
         - Structure-aware parsing as DEFAULT (preserves headers, code blocks, tables)
@@ -178,6 +192,8 @@ class IngestService:
             environment: Target environment (prod, staging, dev, all)
             embedding_model: Name of embedding model used
             embedding_version: Version of embedding model
+            overlap_strategy: Overlap strategy - "constant", "structure", or "none"
+            enable_multi_view: Enable multi-view indexing for different query types
 
         Returns:
             Number of chunks ingested
@@ -186,6 +202,7 @@ class IngestService:
             AdvancedChunker,
             ChunkingConfig,
             ChunkingStrategy,
+            OverlapStrategy,
         )
         from .authority import infer_doc_type
         from .filter_strategy import normalize_metadata_value
@@ -200,14 +217,29 @@ class IngestService:
             "tws_optimized": ChunkingStrategy.TWS_OPTIMIZED,
         }
 
+        # Map overlap strategy
+        overlap_map = {
+            "constant": OverlapStrategy.CONSTANT,
+            "structure": OverlapStrategy.STRUCTURE,
+            "none": OverlapStrategy.NONE,
+        }
+
         config = ChunkingConfig(
             strategy=strategy_map.get(chunking_strategy, ChunkingStrategy.STRUCTURE_AWARE),
             max_tokens=max_tokens,
             overlap_tokens=overlap_tokens,
+            overlap_strategy=overlap_map.get(overlap_strategy, OverlapStrategy.STRUCTURE),
+            enable_multi_view=enable_multi_view,
         )
 
         chunker = AdvancedChunker(config)
-        enriched_chunks = chunker.chunk_document(text, source=source, document_title=document_title)
+        # v6.0: Pass doc_id for citation-friendly IDs
+        enriched_chunks = chunker.chunk_document(
+            text,
+            source=source,
+            document_title=document_title,
+            doc_id=doc_id,
+        )
 
         if not enriched_chunks:
             return 0
@@ -231,7 +263,7 @@ class IngestService:
             if exists:
                 continue
 
-            chunk_id = "{doc_id}#c{i:06d}"
+            chunk_id = f"{doc_id}#c{i:06d}"
             ids.append(chunk_id)
 
             # Build rich payload with metadata including PR1 authority/freshness
@@ -269,6 +301,9 @@ class IngestService:
                 # v5.7.0 PR1: Embedding tracking
                 "embedding_model": embedding_model or CFG.embed_model,
                 "embedding_version": embedding_version,
+                # v6.0: Citation-friendly fields (Decision #7)
+                "stable_id": chunk.metadata.stable_id,
+                "snippet_preview": chunk.metadata.snippet_preview,
             }
             payloads.append(payload)
 
@@ -303,6 +338,27 @@ class IngestService:
             total_upsert += len(batch_texts)
 
         # -----------------------------------------------------------------
+        # v6.0: Multi-view indexing (Decision #8)
+        # Index additional views for different query types
+        # -----------------------------------------------------------------
+        if enable_multi_view:
+            try:
+                multi_view_chunks = chunker.chunk_document_multi_view(
+                    text,
+                    source=source,
+                    document_title=document_title,
+                    doc_id=doc_id,
+                )
+                # Log multi-view generation
+                logger.info(
+                    "multi_view_generated",
+                    doc_id=doc_id,
+                    views_generated=len(multi_view_chunks),
+                )
+            except Exception as mv_e:
+                logger.warning("multi_view_indexing_failed", error=str(mv_e))
+
+        # -----------------------------------------------------------------
         # v6.1: Document KG extraction (optional, gated by settings)
         # Never blocks ingestion on failure.
         # -----------------------------------------------------------------
@@ -317,7 +373,7 @@ class IngestService:
                 extractor = KGExtractor()
                 chunk_payloads = [
                     {
-                        "chunk_id": ids[i] if i < len(ids) else "{doc_id}#c{i:06d}",
+                        "chunk_id": ids[i] if i < len(ids) else f"{doc_id}#c{i:06d}",
                         "content": texts_for_embed[i] if i < len(texts_for_embed) else "",
                     }
                     for i in range(len(texts_for_embed))
@@ -358,11 +414,12 @@ class IngestService:
         jobs_total.labels(status="ingested").inc()
         logger.info(
             "Advanced ingest: %s chunks for doc_id=%s in %.2fs "
-            "(strategy=%s, types=%s, error_codes=%s)",
+            "(strategy=%s, overlap=%s, types=%s, error_codes=%s)",
             total_upsert,
             doc_id,
             time.perf_counter() - t0,
             chunking_strategy,
+            overlap_strategy,
             chunk_types,
             error_code_count,
         )

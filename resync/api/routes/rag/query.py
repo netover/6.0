@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 """
 RAG (Retrieval-Augmented Generation) routes for FastAPI
 
@@ -9,7 +7,12 @@ Provides endpoints for:
 - Document management
 - RAG statistics
 """
+from datetime import datetime, timezone
+import logging
 from pathlib import Path
+import uuid
+
+import anyio
 
 from fastapi import (
     APIRouter,
@@ -25,11 +28,9 @@ from fastapi import (
 from resync.api.dependencies_v2 import get_current_user, get_logger
 from resync.api.models.requests import FileUploadValidation
 from resync.api.models.responses_v2 import FileUploadResponse
-
-import logging
-logger = logging.getLogger(__name__)
-
 from ...services.rag_service import RAGIntegrationService, get_rag_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -70,8 +71,8 @@ async def save_upload_file(upload_file: UploadFile, destination: Path) -> str:
     """Save uploaded file to disk and return content."""
     try:
         content = await upload_file.read()
-        with destination.open("wb") as buffer:
-            buffer.write(content)
+        async with await anyio.open_file(destination, "wb") as buffer:
+            await buffer.write(content)
         return content.decode("utf-8", errors="ignore")
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
@@ -129,11 +130,9 @@ async def upload_rag_file(
     try:
         validate_file(file)
 
-        import uuid
-
-
+        original_filename = Path(file.filename or "upload.bin").name
         file_id = str(uuid.uuid4())
-        unique_filename = f"{file_id}_{file.filename}"
+        unique_filename = f"{file_id}_{original_filename}"
         file_path = UPLOAD_DIR / unique_filename
 
         # Save file and get content
@@ -147,13 +146,13 @@ async def upload_rag_file(
             process_rag_document,
             rag_service,
             file_id,
-            file.filename,
+            original_filename,
             content,
             tag_list,
         )
 
         upload_response = FileUploadResponse(
-            filename=file.filename,
+            filename=original_filename,
             status="processing",
             file_id=file_id,
             upload_time=datetime.now(timezone.utc).isoformat(),
@@ -162,7 +161,7 @@ async def upload_rag_file(
         logger_instance.info(
             "rag_file_uploaded",
             user_id=current_user.get("user_id"),
-            filename=file.filename,
+            filename=original_filename,
             file_id=file_id,
             file_size=file.size,
             tags=tag_list,
@@ -179,7 +178,7 @@ async def upload_rag_file(
         logger_instance.error(
             "rag_upload_error",
             error=str(e),
-            filename=file.filename,
+            filename=Path(file.filename or "").name,
             user_id=current_user.get("user_id"),
         )
         raise HTTPException(

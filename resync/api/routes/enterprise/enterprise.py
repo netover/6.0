@@ -45,7 +45,7 @@ class IncidentCreateRequest(BaseModel):
 class IncidentResponse(BaseModel):
     """Incident response."""
 
-    id: str | None
+    id: str | None = None
     created: bool
     message: str
 

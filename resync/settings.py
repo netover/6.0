@@ -16,10 +16,13 @@ v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 
 from __future__ import annotations
 
+import importlib
 import os
-from functools import cached_property, lru_cache
+import threading
+from collections.abc import Iterator, Mapping
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -206,7 +209,7 @@ class Settings(BaseSettings, SettingsValidators):
         description=(
             "Chave de API do LLM (NVIDIA). Deve ser configurada via variável de ambiente."
         ),
-        validation_alias="LLM_API_KEY",
+        validation_alias=AliasChoices("LLM_API_KEY", "APP_LLM_API_KEY"),
         exclude=True,
         repr=False,
     )
@@ -285,7 +288,7 @@ class Settings(BaseSettings, SettingsValidators):
     langfuse_secret_key: SecretStr = Field(
         default="",
         description="LangFuse secret key for API authentication",
-        validation_alias="LANGFUSE_SECRET_KEY",
+        validation_alias=AliasChoices("LANGFUSE_SECRET_KEY", "APP_LANGFUSE_SECRET_KEY"),
         exclude=True,
         repr=False,
     )
@@ -326,6 +329,14 @@ class Settings(BaseSettings, SettingsValidators):
     langgraph_require_approval: bool = Field(
         default=True,
         description="Require human approval for TWS action requests",
+    )
+
+    # ============================================================================
+    # A2A PROTOCOL (v6.2.0)
+    # ============================================================================
+    a2a_enabled: bool = Field(
+        default=True,
+        description="Habilitar protocolo A2A (Agent-to-Agent) para interoperabilidade",
     )
 
     # ============================================================================
@@ -490,12 +501,12 @@ class Settings(BaseSettings, SettingsValidators):
     tws_port: int | None = Field(default=None, ge=1, le=65535)
     tws_user: str | None = Field(
         default=None,
-        validation_alias="TWS_USER",
+        validation_alias=AliasChoices("TWS_USER", "APP_TWS_USER"),
         description="Usuário do TWS (obrigatório se não estiver em modo mock)",
     )
     tws_password: SecretStr | None = Field(
         default=None,
-        validation_alias="TWS_PASSWORD",
+        validation_alias=AliasChoices("TWS_PASSWORD", "APP_TWS_PASSWORD"),
         description="Senha do TWS (obrigatório se não estiver em modo mock)",
         exclude=True,
         repr=False,
@@ -675,6 +686,39 @@ class Settings(BaseSettings, SettingsValidators):
         description="URL do webhook do Microsoft Teams",
     )
 
+    # Teams Outgoing Webhook (Validation Logic)
+    teams_outgoing_webhook_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"),
+        description="Enable Teams outgoing webhook",
+    )
+    teams_outgoing_webhook_security_token: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN", "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN"),
+        description="Security token for Teams webhook",
+        exclude=True,
+        repr=False,
+    )
+    teams_outgoing_webhook_name: str = Field(
+        default="resync",
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"),
+    )
+    teams_callback_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("TEAMS_CALLBACK_URL", "APP_TEAMS_CALLBACK_URL"),
+    )
+    teams_outgoing_webhook_timeout: int = Field(
+        default=25,
+        ge=1,
+        le=60,
+        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"),
+        description="Response timeout for Teams webhook",
+    )
+    teams_outgoing_webhook_max_response_length: int = Field(
+        default=28000,
+        description="Teams message length limit",
+    )
+
     # Dashboard
     tws_dashboard_theme: str = Field(
         default="auto",
@@ -693,7 +737,7 @@ class Settings(BaseSettings, SettingsValidators):
     # JWT Configuration (v5.3.20 - consolidated from fastapi_app/core/config.py)
     secret_key: SecretStr = Field(
         default=SecretStr("CHANGE_ME_IN_PRODUCTION_USE_ENV_VAR"),
-        validation_alias="SECRET_KEY",
+        validation_alias=AliasChoices("SECRET_KEY", "APP_SECRET_KEY"),
         description="Secret key for JWT signing. MUST be set via SECRET_KEY env var in production.",
         exclude=True,
         repr=False,
@@ -752,7 +796,7 @@ class Settings(BaseSettings, SettingsValidators):
     admin_password: SecretStr | None = Field(
         default=None,
         # Reads from ADMIN_PASSWORD (without APP_ prefix)
-        validation_alias="ADMIN_PASSWORD",
+        validation_alias=AliasChoices("ADMIN_PASSWORD", "APP_ADMIN_PASSWORD"),
         description=("Senha do administrador. Deve ser configurada via variável de ambiente."),
         exclude=True,
         repr=False,
@@ -1101,7 +1145,7 @@ class Settings(BaseSettings, SettingsValidators):
     @property
     def REDIS_URL(self) -> str:
         """Legacy alias for redis_url."""
-        return self.redis_url
+        return self.redis_url.get_secret_value()
 
     @property
     def LLM_ENDPOINT(self) -> str | None:
@@ -1234,9 +1278,12 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for agent_model_name."""
         return self.agent_model_name
 
-    @cached_property
+    @property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
-        """Legacy alias exposing cache hierarchy configuration object."""
+        """Legacy alias exposing cache hierarchy configuration object.
+        
+        Converted to @property for thread safety (lightweight object creation).
+        """
         return CacheHierarchyConfig(
             l1_max_size=self.cache_hierarchy_l1_max_size,
             l2_ttl_seconds=self.cache_hierarchy_l2_ttl,
@@ -1491,11 +1538,6 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # Validators are now imported from settings_validators.py
 
-    # SSL/TLS (compat-shims; não usados diretamente por Pydantic)
-    # >>> Enable certificate validation by default for security <<<
-    # Set TWS_VERIFY=false in .env for development with self-signed certs
-    TWS_VERIFY: bool | str = True  # SSL enabled by default
-    TWS_CA_BUNDLE: str | None = None
 
     def __repr__(self) -> str:
         """Representation that excludes sensitive fields from the output."""
@@ -1525,9 +1567,16 @@ def clear_settings_cache() -> None:
 
 class _SettingsProxy:
     """Proxy de conveniência para manter compatibilidade."""
+    __slots__ = ()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(get_settings(), name)
+
+    def __repr__(self) -> str:
+        return repr(get_settings())
+
+    def __dir__(self) -> list[str]:
+        return dir(get_settings())
 
 
 settings = _SettingsProxy()
@@ -1538,7 +1587,7 @@ settings = _SettingsProxy()
 # -----------------------------------------------------------------------------
 def load_settings() -> Settings:
     """Load application settings (backward-compat shim)."""
-    return settings  # type: ignore[return-value]
+    return get_settings()
 
 
 # -----------------------------------------------------------------------------
@@ -1546,18 +1595,21 @@ def load_settings() -> Settings:
 # -----------------------------------------------------------------------------
 _LAZY_IMPORTS: dict[str, tuple[str, str]] = {}
 _LOADED_IMPORTS: dict[str, Any] = {}
+_LAZY_IMPORT_LOCK = threading.Lock()
 
 
 def __getattr__(name: str) -> Any:
     """PEP 562 __getattr__ for lazy imports to avoid circular dependencies."""
     if name in _LAZY_IMPORTS:
         if name not in _LOADED_IMPORTS:
-            try:
-                module_name, attr = _LAZY_IMPORTS[name]
-                module = __import__(module_name, fromlist=[attr])
-                _LOADED_IMPORTS[name] = getattr(module, attr)
-            except ImportError:
-                _LOADED_IMPORTS[name] = None
+            with _LAZY_IMPORT_LOCK:
+                if name not in _LOADED_IMPORTS:
+                    try:
+                        module_name, attr = _LAZY_IMPORTS[name]
+                        module = importlib.import_module(module_name)
+                        _LOADED_IMPORTS[name] = getattr(module, attr)
+                    except ImportError:
+                        _LOADED_IMPORTS[name] = None
         return _LOADED_IMPORTS[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from None
 
@@ -1566,11 +1618,40 @@ def __getattr__(name: str) -> Any:
 # TEAMS OUTGOING WEBHOOK CONFIGURATION
 # =============================================================================
 
-TEAMS_OUTGOING_WEBHOOK = {
-    "enabled": os.getenv("TEAMS_OUTGOING_WEBHOOK_ENABLED", "false").lower() == "true",
-    "security_token": os.getenv("TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN", ""),
-    "webhook_name": os.getenv("TEAMS_OUTGOING_WEBHOOK_NAME", "resync"),
-    "callback_url": os.getenv("TEAMS_CALLBACK_URL", ""),
-    "response_timeout": int(os.getenv("TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "25")),
-    "max_response_length": 28000,  # Teams limit
-}
+# Define a proxy class to lazily access settings for the dictionary interface
+class _TeamsConfigProxy(Mapping[str, Any]):
+    """Read-only Mapping que delega ao Pydantic Settings."""
+
+    _KEY_MAP: ClassVar[dict[str, str]] = {
+        "enabled": "teams_outgoing_webhook_enabled",
+        "security_token": "teams_outgoing_webhook_security_token",
+        "webhook_name": "teams_outgoing_webhook_name",
+        "callback_url": "teams_callback_url",
+        "response_timeout": "teams_outgoing_webhook_timeout",
+        "max_response_length": "teams_outgoing_webhook_max_response_length",
+    }
+
+    def __getitem__(self, key: str) -> Any:
+        if key not in self._KEY_MAP:
+            raise KeyError(key)
+        s = get_settings()
+        value = getattr(s, self._KEY_MAP[key])
+        return value.get_secret_value() if isinstance(value, SecretStr) else value
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._KEY_MAP)
+
+    def __len__(self) -> int:
+        return len(self._KEY_MAP)
+
+    def __repr__(self) -> str:
+        safe = {k: ("***" if k == "security_token" else self[k]) for k in self}
+        return repr(safe)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()

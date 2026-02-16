@@ -27,6 +27,7 @@ def get_all_routers() -> list[tuple["APIRouter", str, list[str]]]:
     from .admin.main import admin_router
     from .admin.prompts import prompt_router
     from .agents.agents import router as agents_router
+    from .a2a import router as a2a_router
     from .audit import router as audit_router
     from .cache import cache_router
     from .core.auth import router as auth_router
@@ -47,6 +48,7 @@ def get_all_routers() -> list[tuple["APIRouter", str, list[str]]]:
         (prompt_router, "/api/v1", ["Admin - Prompts"]),
         (monitoring_dashboard_router, "/api/v1", ["Monitoring"]),
         (agents_router, "/api/v1/agents", ["Agents"]),
+        (a2a_router, "", ["A2A Protocol"]),
         (cache_router, "/api/v1", ["Cache"]),
         (audit_router, "/api/v1", ["Audit"]),
         (performance_router, "/api", ["Performance"]),

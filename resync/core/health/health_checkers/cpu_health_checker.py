@@ -18,6 +18,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
+from .common import ErrorContext, ThresholdConfig, build_error_health, response_time_ms, threshold_status
 
 logger = structlog.get_logger(__name__)
 
@@ -57,25 +58,23 @@ class CpuHealthChecker(BaseHealthChecker):
 
             cpu_percent = sum(cpu_samples) / len(cpu_samples)
 
-            # Determine status
-            if cpu_percent > 95:
-                status = HealthStatus.UNHEALTHY
-                message = "CPU usage critically high: {cpu_percent:.1f}%"
-            elif cpu_percent > 85:
-                status = HealthStatus.DEGRADED
-                message = "CPU usage high: {cpu_percent:.1f}%"
-            else:
-                status = HealthStatus.HEALTHY
-                message = "CPU usage normal: {cpu_percent:.1f}%"
-
-            response_time = (time.time() - start_time) * 1000
+            status, message = threshold_status(
+                value=cpu_percent,
+                config=ThresholdConfig(
+                    warning=85,
+                    critical=95,
+                    healthy_msg="CPU usage normal: {value:.1f}%",
+                    degraded_msg="CPU usage high: {value:.1f}%",
+                    critical_msg="CPU usage critically high: {value:.1f}%",
+                ),
+            )
 
             return ComponentHealth(
                 name=self.component_name,
                 component_type=self.component_type,
                 status=status,
                 message=message,
-                response_time_ms=response_time,
+                response_time_ms=response_time_ms(start_time),
                 last_check=datetime.now(timezone.utc),
                 metadata={
                     "cpu_usage_percent": cpu_percent,
@@ -86,16 +85,17 @@ class CpuHealthChecker(BaseHealthChecker):
             )
 
         except Exception as e:
-            response_time = (time.time() - start_time) * 1000
-            logger.error("cpu_health_check_failed", error=str(e))
-            return ComponentHealth(
-                name=self.component_name,
-                component_type=self.component_type,
-                status=HealthStatus.UNKNOWN,
-                message=f"CPU check failed: {str(e)}",
-                response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
-                error_count=1,
+            return build_error_health(
+                ctx=ErrorContext(
+                    name=self.component_name,
+                    type=self.component_type,
+                    status=HealthStatus.UNKNOWN,
+                    message="CPU check failed",
+                    start_time=start_time,
+                    error=e,
+                    log_event="cpu_health_check_failed",
+                ),
+                logger=logger,
             )
 
     def _get_status_for_exception(self, exception: Exception) -> ComponentType:

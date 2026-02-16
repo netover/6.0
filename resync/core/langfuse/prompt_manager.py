@@ -427,7 +427,7 @@ Se houver erros, explique o que pode ter acontecido.""",
     # PUBLIC API
     # =========================================================================
 
-    def get_prompt(self, prompt_id: str, version: str | None = None) -> PromptTemplate | None:
+    async def get_prompt(self, prompt_id: str, version: str | None = None) -> PromptTemplate | None:
         """
         Get a prompt template by ID.
 
@@ -450,7 +450,7 @@ Se houver erros, explique o que pode ter acontecido.""",
 
         return None
 
-    def get_default_prompt(self, prompt_type: PromptType) -> PromptTemplate | None:
+    async def get_default_prompt(self, prompt_type: PromptType) -> PromptTemplate | None:
         """
         Get the default prompt for a given type.
 
@@ -465,7 +465,7 @@ Se houver erros, explique o que pode ter acontecido.""",
                 return self._templates[config.id]
         return None
 
-    def list_prompts(
+    async def list_prompts(
         self, prompt_type: PromptType | None = None, active_only: bool = True
     ) -> list[PromptConfig]:
         """
@@ -555,7 +555,7 @@ Se houver erros, explique o que pode ter acontecido.""",
         logger.info("prompt_updated", prompt_id=prompt_id)
         return config
 
-    def delete_prompt(self, prompt_id: str) -> bool:
+    async def delete_prompt(self, prompt_id: str) -> bool:
         """
         Delete a prompt.
 
@@ -573,8 +573,11 @@ Se houver erros, explique o que pode ter acontecido.""",
 
         # Remove from YAML
         yaml_file = self._prompts_dir / f"{prompt_id}.yaml"
-        if yaml_file.exists():
-            yaml_file.unlink()
+        try:
+            import aiofiles.os
+            await aiofiles.os.remove(yaml_file)
+        except FileNotFoundError:
+            pass
 
         logger.info("prompt_deleted", prompt_id=prompt_id)
         return True

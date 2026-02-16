@@ -17,7 +17,9 @@ from typing import Any
 
 import structlog
 import yaml
+import aiofiles
 
+from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
 from resync.core.interfaces import ITWSClient
 from resync.core.skill_manager import get_skill_manager
 from resync.tools.definitions.tws import (
@@ -604,6 +606,51 @@ class AgentManager:
         return next(
             (c for c in self.agent_configs if c.id == agent_id), None
         )
+
+    # -----------------------------------------------------------------
+    # A2A Protocol support
+    # -----------------------------------------------------------------
+
+    async def get_agent_card(self, agent_id: str, base_url: str = "http://localhost:8000") -> AgentCard | None:
+        """Generate an A2A Agent Card for the specified agent."""
+        config = self.get_agent_config(agent_id)
+        if not config:
+            return None
+
+        # Clean strings for description
+        description = config.backstory.replace("\n", " ").strip()
+        if not description:
+            description = config.goal
+
+        return AgentCard(
+            name=config.id,
+            version="6.1.2",  # Project version
+            description=description,
+            capabilities=AgentCapabilities(
+                actions=config.tools,
+                communication_modes=["json-rpc", "websocket"],
+                supports_streaming=True,
+                supports_events=True
+            ),
+            contact=AgentContact(
+                endpoint=f"{base_url}/api/v1/a2a/{agent_id}/jsonrpc",
+                websocket_endpoint=f"ws://{base_url.split('://')[1]}/ws/{agent_id}",
+                auth_required=True
+            ),
+            metadata={
+                "role": config.role,
+                "model": config.model_name
+            }
+        )
+
+    async def export_a2a_cards(self, base_url: str = "http://localhost:8000") -> list[AgentCard]:
+        """Export A2A cards for all configured agents."""
+        cards = []
+        for config in self.agent_configs:
+            card = await self.get_agent_card(config.id, base_url)
+            if card:
+                cards.append(card)
+        return cards
 
 
 # =============================================================================

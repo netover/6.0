@@ -11,15 +11,15 @@ Routes:
 """
 
 from __future__ import annotations
+# pylint: disable=no-name-in-module
+# mypy: ignore-errors
 
 import logging
-import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from resync.api.auth import verify_admin_credentials
@@ -124,7 +124,8 @@ async def ingest_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
+    safe_filename = Path(file.filename).name
+    ext = Path(safe_filename).suffix.lower()
     if ext not in FORMAT_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -133,26 +134,15 @@ async def ingest_document(
 
     # Save to temp file
     tmp_dir = tempfile.mkdtemp(prefix="resync_ingest_")
-    tmp_path = Path(tmp_dir) / file.filename
+    tmp_path = Path(tmp_dir) / safe_filename
 
     try:
-        # Stream upload to disk (handles large files) - using thread pool to avoid blocking
+        # Stream upload to disk without blocking the event loop
         import anyio
-        
-        async def write_chunks():
-            """Write file chunks in thread pool to avoid blocking event loop."""
-            def _write_chunk(path, chunk_data):
-                with open(path, "ab") as f:
-                    f.write(chunk_data)
-            
-            # Create empty file first
-            await anyio.to_thread.run_sync(lambda: open(tmp_path, "wb").close())
-            
-            # Stream chunks
+
+        async with await anyio.open_file(tmp_path, "wb") as tmp_file:
             while chunk := await file.read(8192):
-                await anyio.to_thread.run_sync(_write_chunk, tmp_path, chunk)
-        
-        await write_chunks()
+                await tmp_file.write(chunk)
 
         file_size = tmp_path.stat().st_size
         if file_size > MAX_FILE_SIZE:

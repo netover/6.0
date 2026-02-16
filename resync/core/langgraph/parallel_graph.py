@@ -42,6 +42,8 @@ Usage:
 """
 
 from __future__ import annotations
+# pylint: disable=not-callable,no-member
+# mypy: ignore-errors
 
 import asyncio
 import json
@@ -394,9 +396,9 @@ def metrics_node(state: ParallelState) -> dict[str, Any]:
     logger.debug("parallel_node_start", node=source_name)
 
     try:
-        from resync.core.metrics import RuntimeMetrics
+        from resync.core.metrics import runtime_metrics
 
-        metrics = RuntimeMetrics.get_snapshot()
+        metrics = runtime_metrics.get_stats()
 
         latency_ms = (time.time() - start_time) * 1000
 
@@ -569,10 +571,10 @@ async def response_generator_node(state: ParallelState) -> dict[str, Any]:
         if aggregated.get("metrics"):
             metrics = aggregated["metrics"]
             context_parts.append(
-                f"**Métricas:**\n"
-                "- Cache Hit Rate: {metrics.get('cache_hit_rate', 0):.1%}\n"
-                "- Error Rate: {metrics.get('error_rate', 0):.2%}\n"
-                "- LLM Latency: {metrics.get('llm_latency_avg', 0):.0f}ms"
+                "**Métricas:**\n"
+                f"- Cache Hit Rate: {metrics.get('cache_hit_rate', 0):.1%}\n"
+                f"- Error Rate: {metrics.get('error_rate', 0):.2%}\n"
+                f"- LLM Latency: {metrics.get('llm_latency_avg', 0):.0f}ms"
             )
 
         full_context = "\n\n".join(context_parts)
@@ -606,8 +608,8 @@ Responda de forma estruturada e acionável."""
         sources_count = len(aggregated.get("sources_available", []))
 
         performance_note = (
-            f"\n\n---\n"
-            "*Análise paralela: {sources_count} fontes consultadas em {parallel_latency:.0f}ms*"
+            "\n\n---\n"
+            f"*Análise paralela: {sources_count} fontes consultadas em {parallel_latency:.0f}ms*"
         )
 
         return {

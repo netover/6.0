@@ -89,6 +89,31 @@ class RuntimeMetricsCollector:
         )
         self.pool_connections_idle = create_gauge("pool_connections_idle", "Idle pool connections")
 
+        # RAG Metrics
+        self.rag_bm25_index_loads = create_counter("rag_bm25_index_loads", "BM25 index load operations")
+        self.rag_bm25_index_saves = create_counter("rag_bm25_index_saves", "BM25 index save operations")
+        self.rag_bm25_queries_total = create_counter("rag_bm25_queries_total", "Total BM25 queries")
+        self.rag_bm25_queries_success = create_counter("rag_bm25_queries_success", "Successful BM25 queries")
+        self.rag_bm25_queries_failed = create_counter("rag_bm25_queries_failed", "Failed BM25 queries")
+        self.rag_vector_queries_total = create_counter("rag_vector_queries_total", "Total vector search queries")
+        self.rag_vector_queries_success = create_counter("rag_vector_queries_success", "Successful vector queries")
+        self.rag_hybrid_queries_total = create_counter("rag_hybrid_queries_total", "Total hybrid queries")
+        self.rag_hybrid_queries_success = create_counter("rag_hybrid_queries_success", "Successful hybrid queries")
+        self.rag_chat_turns_stored = create_counter("rag_chat_turns_stored", "Chat turns stored")
+        self.rag_chat_searches = create_counter("rag_chat_searches", "Chat memory searches")
+        
+        # RAG Gauges
+        self.rag_bm25_index_documents = create_gauge("rag_bm25_index_documents", "Number of documents in BM25 index")
+        self.rag_bm25_index_terms = create_gauge("rag_bm25_index_terms", "Number of terms in BM25 index")
+        self.rag_bm25_index_size_bytes = create_gauge("rag_bm25_index_size_bytes", "BM25 index size in bytes")
+        self.rag_cache_size = create_gauge("rag_cache_size", "RAG cache size")
+        self.rag_cache_hits = create_gauge("rag_cache_hits", "RAG cache hits")
+        self.rag_cache_misses = create_gauge("rag_cache_misses", "RAG cache misses")
+        
+        # RAG Histograms
+        self.rag_query_duration = create_histogram("rag_query_duration", "RAG query duration in seconds")
+        self.rag_index_build_duration = create_histogram("rag_index_build_duration", "BM25 index build duration")
+
         # Correlation tracking
         self._correlations: dict[str, dict[str, Any]] = {}
 
@@ -153,6 +178,11 @@ class RuntimeMetricsCollector:
 
     def get_stats(self) -> dict[str, Any]:
         """Get all metrics as a dictionary."""
+        cache_hits = self.cache_hits.get()
+        cache_misses = self.cache_misses.get()
+        cache_total = cache_hits + cache_misses
+        cache_hit_rate = (cache_hits / cache_total * 100) if cache_total > 0 else 0.0
+        
         return {
             "api": {
                 "requests_total": self.api_requests_total.get(),
@@ -160,9 +190,10 @@ class RuntimeMetricsCollector:
                 "requests_failed": self.api_requests_failed.get(),
             },
             "cache": {
-                "hits": self.cache_hits.get(),
-                "misses": self.cache_misses.get(),
+                "hits": cache_hits,
+                "misses": cache_misses,
                 "evictions": self.cache_evictions.get(),
+                "hit_rate": cache_hit_rate,
             },
             "tws": {
                 "requests_total": self.tws_requests_total.get(),
@@ -173,6 +204,35 @@ class RuntimeMetricsCollector:
                 "checks_total": self.health_checks_total.get(),
                 "checks_success": self.health_checks_success.get(),
                 "checks_failed": self.health_checks_failed.get(),
+            },
+            "rag": {
+                "bm25": {
+                    "index_loads": self.rag_bm25_index_loads.get(),
+                    "index_saves": self.rag_bm25_index_saves.get(),
+                    "queries_total": self.rag_bm25_queries_total.get(),
+                    "queries_success": self.rag_bm25_queries_success.get(),
+                    "queries_failed": self.rag_bm25_queries_failed.get(),
+                    "index_documents": self.rag_bm25_index_documents.get(),
+                    "index_terms": self.rag_bm25_index_terms.get(),
+                    "index_size_bytes": self.rag_bm25_index_size_bytes.get(),
+                },
+                "vector": {
+                    "queries_total": self.rag_vector_queries_total.get(),
+                    "queries_success": self.rag_vector_queries_success.get(),
+                },
+                "hybrid": {
+                    "queries_total": self.rag_hybrid_queries_total.get(),
+                    "queries_success": self.rag_hybrid_queries_success.get(),
+                },
+                "chat": {
+                    "turns_stored": self.rag_chat_turns_stored.get(),
+                    "searches": self.rag_chat_searches.get(),
+                },
+                "cache": {
+                    "size": self.rag_cache_size.get(),
+                    "hits": self.rag_cache_hits.get(),
+                    "misses": self.rag_cache_misses.get(),
+                },
             },
         }
 

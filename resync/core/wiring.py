@@ -58,6 +58,7 @@ STATE_HYBRID_ROUTER: Final[str] = "hybrid_router"
 STATE_IDEMPOTENCY_MANAGER: Final[str] = "idempotency_manager"
 STATE_LLM_SERVICE: Final[str] = "llm_service"
 STATE_FILE_INGESTOR: Final[str] = "file_ingestor"
+STATE_A2A_HANDLER: Final[str] = "a2a_handler"
 
 # -----------------------------------------------------------------------------
 # Enterprise state contract (used by validate_app_state_contract)
@@ -73,6 +74,7 @@ _REQUIRED_SINGLETONS: Final[tuple[str, ...]] = (
     STATE_IDEMPOTENCY_MANAGER,
     STATE_LLM_SERVICE,
     STATE_FILE_INGESTOR,
+    STATE_A2A_HANDLER,
 )
 
 #: Boolean flags that must be present and typed correctly.
@@ -147,6 +149,7 @@ def init_domain_singletons(app: FastAPI) -> None:
     from resync.knowledge.ingestion.embedding_service import MultiProviderEmbeddingService
     from resync.knowledge.ingestion.ingest import IngestService
     from resync.core.file_ingestor import FileIngestor
+    from resync.core.a2a_handler import A2AHandler
 
     settings = get_settings()
 
@@ -212,6 +215,7 @@ def init_domain_singletons(app: FastAPI) -> None:
     embedding_service = MultiProviderEmbeddingService()
     ingest_service = IngestService(embedder=embedding_service, store=vector_store)
     file_ingestor = FileIngestor(ingest_service=ingest_service)
+    a2a_handler = A2AHandler(agent_manager=agent_manager)
 
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # redis_available is set based on IdempotencyManager initialization above.
@@ -224,6 +228,7 @@ def init_domain_singletons(app: FastAPI) -> None:
         idempotency_manager=idempotency_manager,
         llm_service=llm_service,
         file_ingestor=file_ingestor,
+        a2a_handler=a2a_handler,
         startup_complete=False,
         redis_available=redis_available,  # ✅ Now accurate based on actual Redis status
         domain_shutdown_complete=False,
@@ -388,6 +393,11 @@ def get_llm_service(request: Request) -> LLMService:
 def get_file_ingestor(request: Request) -> IFileIngestor:
     """Provide the ``IFileIngestor`` singleton for a request."""
     return enterprise_state_from_request(request).file_ingestor
+
+
+def get_a2a_handler(request: Request) -> A2AHandler:
+    """Provide the ``A2AHandler`` singleton for a request."""
+    return enterprise_state_from_request(request).a2a_handler
 
 
 # -----------------------------------------------------------------------------

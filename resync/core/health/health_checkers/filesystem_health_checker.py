@@ -17,6 +17,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
+from .common import build_error_health, response_time_ms, threshold_status
 
 logger = structlog.get_logger(__name__)
 
@@ -50,25 +51,21 @@ class FileSystemHealthChecker(BaseHealthChecker):
             disk_usage = psutil.disk_usage("/")
             disk_usage_percent = (disk_usage.used / disk_usage.total) * 100
 
-            # Determine status
-            if disk_usage_percent > 95:
-                status = HealthStatus.UNHEALTHY
-                message = "Disk space critically low: {disk_usage_percent:.1f}% used"
-            elif disk_usage_percent > 85:
-                status = HealthStatus.DEGRADED
-                message = "Disk space getting low: {disk_usage_percent:.1f}% used"
-            else:
-                status = HealthStatus.HEALTHY
-                message = "Disk space OK: {disk_usage_percent:.1f}% used"
-
-            response_time = (time.time() - start_time) * 1000
+            status, message = threshold_status(
+                value=disk_usage_percent,
+                warning_threshold=85,
+                critical_threshold=95,
+                healthy_message="Disk space OK: {value:.1f}% used",
+                degraded_message="Disk space getting low: {value:.1f}% used",
+                critical_message="Disk space critically low: {value:.1f}% used",
+            )
 
             return ComponentHealth(
                 name=self.component_name,
                 component_type=self.component_type,
                 status=status,
                 message=message,
-                response_time_ms=response_time,
+                response_time_ms=response_time_ms(start_time),
                 last_check=datetime.now(timezone.utc),
                 metadata={
                     "disk_usage_percent": disk_usage_percent,
@@ -79,16 +76,15 @@ class FileSystemHealthChecker(BaseHealthChecker):
             )
 
         except Exception as e:
-            response_time = (time.time() - start_time) * 1000
-            logger.error("file_system_health_check_failed", error=str(e))
-            return ComponentHealth(
-                name=self.component_name,
+            return build_error_health(
+                component_name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNKNOWN,
-                message=f"File system check failed: {str(e)}",
-                response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
-                error_count=1,
+                message="File system check failed",
+                start_time=start_time,
+                error=e,
+                log_event="file_system_health_check_failed",
+                logger=logger,
             )
 
     def _get_status_for_exception(self, exception: Exception) -> ComponentType:

@@ -74,6 +74,17 @@ class MetricSample:
     async_operations_active: int = 0
     correlation_ids_active: int = 0
 
+    # RAG Metrics
+    rag_bm25_index_loaded: bool = False
+    rag_bm25_documents: int = 0
+    rag_bm25_terms: int = 0
+    rag_bm25_size_mb: float = 0.0
+    rag_bm25_queries: int = 0
+    rag_vector_queries: int = 0
+    rag_hybrid_queries: int = 0
+    rag_cache_hit_ratio: float = 0.0
+    rag_chat_turns: int = 0
+
 
 @dataclass
 class DashboardMetricsStore:
@@ -222,6 +233,17 @@ class DashboardMetricsStore:
                     "async_operations": current.async_operations_active,
                     "correlation_ids": current.correlation_ids_active,
                 },
+                "rag": {
+                    "index_loaded": current.rag_bm25_index_loaded,
+                    "bm25_documents": current.rag_bm25_documents,
+                    "bm25_terms": current.rag_bm25_terms,
+                    "bm25_size_mb": round(current.rag_bm25_size_mb, 2),
+                    "bm25_queries": current.rag_bm25_queries,
+                    "vector_queries": current.rag_vector_queries,
+                    "hybrid_queries": current.rag_hybrid_queries,
+                    "cache_hit_ratio": round(current.rag_cache_hit_ratio, 1),
+                    "chat_turns": current.rag_chat_turns,
+                },
                 "alerts": self.alerts[:5],  # Últimos 5 alertas
             }
 
@@ -277,6 +299,17 @@ class DashboardMetricsStore:
             "llm": {"requests": 0, "tokens_used": 0, "errors": 0},
             "tws": {"connected": False, "latency_ms": 0, "status": "unknown"},
             "system": {"availability": 0, "async_operations": 0},
+            "rag": {
+                "index_loaded": False,
+                "bm25_documents": 0,
+                "bm25_terms": 0,
+                "bm25_size_mb": 0.0,
+                "bm25_queries": 0,
+                "vector_queries": 0,
+                "hybrid_queries": 0,
+                "cache_hit_ratio": 0.0,
+                "chat_turns": 0,
+            },
             "alerts": [],
         }
 
@@ -408,6 +441,16 @@ async def collect_metrics_sample() -> MetricSample:
             system_availability=slo.get("availability", 1.0) * 100,
             async_operations_active=snapshot.get("system", {}).get("async_operations_active", 0),
             correlation_ids_active=snapshot.get("system", {}).get("correlation_ids_active", 0),
+            # RAG Metrics
+            rag_bm25_index_loaded=snapshot.get("rag", {}).get("bm25_index_loaded", False),
+            rag_bm25_documents=snapshot.get("rag", {}).get("bm25_documents", 0),
+            rag_bm25_terms=snapshot.get("rag", {}).get("bm25_terms", 0),
+            rag_bm25_size_mb=snapshot.get("rag", {}).get("bm25_size_mb", 0.0),
+            rag_bm25_queries=snapshot.get("rag", {}).get("bm25_queries", 0),
+            rag_vector_queries=snapshot.get("rag", {}).get("vector_queries", 0),
+            rag_hybrid_queries=snapshot.get("rag", {}).get("hybrid_queries", 0),
+            rag_cache_hit_ratio=snapshot.get("rag", {}).get("cache_hit_ratio", 0.0),
+            rag_chat_turns=snapshot.get("rag", {}).get("chat_turns", 0),
         )
 
     except Exception as e:

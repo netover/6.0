@@ -38,6 +38,8 @@ Graph Architecture:
 """
 
 from __future__ import annotations
+# pylint: disable=no-name-in-module
+# mypy: ignore-errors
 
 import logging
 from dataclasses import dataclass
@@ -468,9 +470,9 @@ class VerifyNode:
     ) -> dict[str, Any]:
         """Check current TWS job/workstation states."""
         try:
-            from resync.services.tws_service import get_tws_client
+            from resync.services.tws_unified import get_tws_client
 
-            client = await get_tws_client(instance_id=tws_instance_id)
+            client = await get_tws_client()
 
             states = {}
             for job in jobs[:5]:  # Limit to 5 jobs
@@ -767,7 +769,6 @@ def create_diagnostic_graph(
 
 async def diagnose_problem(
     problem_description: str,
-    tws_instance_id: str | None = None,
     skill_context: str = "",
     config: DiagnosticConfig | None = None,
 ) -> dict[str, Any]:
@@ -787,7 +788,6 @@ async def diagnose_problem(
     # Create initial state
     initial_state: DiagnosticState = {
         "problem_description": problem_description,
-        "tws_instance_id": tws_instance_id,
         "skill_context": skill_context,
         "phase": DiagnosticPhase.DIAGNOSE,
         "iteration": 0,

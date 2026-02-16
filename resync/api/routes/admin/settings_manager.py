@@ -149,6 +149,14 @@ SETTINGS_SCHEMA = {
             "langgraph_require_approval": {"type": "boolean", "label": "Requer Aprovação Humana", "hot_reload": True},
         }
     },
+    "a2a": {
+        "title": "A2A Protocol",
+        "icon": "fa-exchange-alt",
+        "description": "Interoperabilidade entre agentes (Agent-to-Agent)",
+        "fields": {
+            "a2a_enabled": {"type": "boolean", "label": "Habilitar Protocolo A2A", "hot_reload": True},
+        }
+    },
     "tws": {
         "title": "TWS Connection",
         "icon": "fa-plug",

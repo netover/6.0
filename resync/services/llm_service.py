@@ -800,6 +800,41 @@ async def _chat_completion(
 
             messages.append({"role": "user", "content": query})
 
+        # Generate initial response
+        response = await self.generate_response(messages, max_tokens=1000)
+
+        # === SELF-RAG: Hallucination Check ===
+        # Verify that the response is grounded in the provided context
+        is_grounded, reflection = await self._check_hallucination(
+            query=query,
+            context=context,
+            response=response,
+        )
+
+        if not is_grounded:
+            logger.warning(
+                "self_rag_hallucination_detected",
+                query=query[:50],
+                reflection=reflection,
+            )
+
+            # Attempt re-generation with stricter prompt
+            try:
+                strict_prompt = (
+                    f"CRITICAL: Answer ONLY using information from the context below. "
+                    f"If the context doesn't contain the answer, say 'I don't have enough information.'\n\n"
+                    f"Context:\n{context}\n\nQuestion: {query}"
+                )
+                messages[-1] = {"role": "user", "content": strict_prompt}
+                response = await self.generate_response(messages, max_tokens=1000, temperature=0.2)
+
+                logger.info("self_rag_regenerated", query=query[:50])
+            except Exception as e:
+                logger.error("self_rag_regeneration_failed", error=str(e))
+                # Keep original response
+        else:
+            logger.debug("self_rag_grounded", query=query[:50])
+
         # Use tracer if available
         if LANGFUSE_INTEGRATION:
             tracer = get_tracer()
@@ -807,15 +842,68 @@ async def _chat_completion(
                 "generate_rag_response",
                 model=self.model,
                 prompt_id="rag",
-                metadata={"opinion_based": use_opinion_based}
+                metadata={
+                    "opinion_based": use_opinion_based,
+                    "self_rag_grounded": is_grounded,
+                    "self_rag_reflection": reflection,
+                }
             ) as trace:
-                response = await self.generate_response(messages, max_tokens=1000)
                 trace.output = response
                 trace.input_tokens = sum(len(m.get("content", "").split()) * 2 for m in messages)
                 trace.output_tokens = len(response.split()) * 2
                 return response
 
-        return await self.generate_response(messages, max_tokens=1000)
+        return response
+
+    async def _check_hallucination(
+        self,
+        query: str,
+        context: str,
+        response: str,
+    ) -> tuple[bool, str]:
+        """
+        Self-RAG hallucination check: verify response is grounded in context.
+
+        Uses a lightweight LLM call to check if the answer references information
+        not present in the retrieved context.
+
+        Args:
+            query: Original user query
+            context: Retrieved context
+            response: Generated response
+
+        Returns:
+            Tuple of (is_grounded, reflection_message)
+        """
+        try:
+            check_prompt = f"""You are a fact-checker. Determine if the ANSWER is fully supported by the CONTEXT.
+
+CONTEXT:
+{context[:1000]}
+
+QUESTION: {query}
+
+ANSWER:
+{response}
+
+Is the answer fully grounded in the context? Respond with ONLY:
+- "YES" if all facts in the answer come from the context
+- "NO: [reason]" if the answer includes information not in the context"""
+
+            reflection = await self.generate_response(
+                messages=[{"role": "user", "content": check_prompt}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+
+            is_grounded = reflection.strip().upper().startswith("YES")
+
+            return is_grounded, reflection.strip()
+
+        except Exception as e:
+            logger.warning("hallucination_check_failed", error=str(e))
+            # Assume grounded if check fails (fail-open)
+            return True, "check_failed"
 
     async def health_check(self) -> dict[str, Any]:
         """Perform a lightweight health check on LLM service.

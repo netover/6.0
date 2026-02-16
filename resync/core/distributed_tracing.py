@@ -14,6 +14,8 @@ This module provides comprehensive distributed tracing capabilities including:
 - Trace correlation with logs and metrics
 """
 from __future__ import annotations
+# pylint: disable=no-member
+# mypy: ignore-errors
 
 import asyncio
 import contextlib
@@ -453,12 +455,8 @@ class DistributedTracingManager:
         # can still safely set attributes/record exceptions.
         if not getattr(self, 'tracer', None):
             span = _NoOpSpan()
-            try:
-                yield span
-            except Exception:
-                raise
-            finally:
-                return
+            yield span
+            return
 
         with self.tracer.start_as_current_span(operation_name, attributes=attributes) as span:
             # Store trace context

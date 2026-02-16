@@ -51,6 +51,7 @@ class BackupType(str, Enum):
     DATABASE = "database"
     CONFIG = "config"
     FULL = "full"
+    RAG_INDEX = "rag_index"
 
 
 class BackupStatus(str, Enum):
@@ -933,6 +934,128 @@ class BackupService:
             "active_schedules": sum(1 for s in self._schedules.values() if s.enabled),
             "backup_directory": str(self._backup_dir),
         }
+
+
+    def create_rag_index_backup(
+        self,
+        index,
+        collection_name: str = "bm25",
+    ) -> BackupInfo | None:
+        """
+        Create a backup of the RAG BM25 index.
+
+        Args:
+            index: BM25Index instance to backup
+            collection_name: Name of the collection for identification
+
+        Returns:
+            BackupInfo object or None if failed
+        """
+        from resync.knowledge.retrieval.hybrid_retriever import INDEX_STORAGE_PATH
+        
+        backup_id = _generate_backup_id()
+        timestamp = datetime.now(timezone.utc)
+        
+        try:
+            source_path = INDEX_STORAGE_PATH
+            
+            if not os.path.exists(source_path):
+                logger.warning("rag_index_backup_source_not_found", path=source_path)
+                return None
+            
+            filename = f"rag_{collection_name}_{timestamp.strftime('%Y%m%d_%H%M%S')}.bin.gz"
+            dest_path = self._backup_dir / filename
+            
+            import shutil
+            shutil.copy2(source_path, dest_path)
+            
+            file_size = os.path.getsize(dest_path)
+            file_hash = _calculate_sha256(str(dest_path))
+            
+            backup = BackupInfo(
+                id=backup_id,
+                type=BackupType.RAG_INDEX,
+                status=BackupStatus.COMPLETED,
+                filepath=str(dest_path),
+                size_bytes=file_size,
+                sha256=file_hash,
+                created_at=timestamp,
+                metadata={
+                    "collection": collection_name,
+                    "source_path": source_path,
+                },
+            )
+            
+            self._backups[backup_id] = backup
+            self._save_metadata()
+            
+            logger.info(
+                "rag_index_backup_created",
+                backup_id=backup_id,
+                path=str(dest_path),
+                size_bytes=file_size,
+            )
+            
+            self._cleanup_old_backups(BackupType.RAG_INDEX)
+            
+            return backup
+            
+        except Exception as e:
+            logger.error("rag_index_backup_failed", backup_id=backup_id, error=str(e))
+            return None
+
+    def restore_rag_index_backup(
+        self,
+        backup_id: str,
+        target_path: str | None = None,
+    ) -> bool:
+        """
+        Restore RAG index from backup.
+
+        Args:
+            backup_id: ID of the backup to restore
+            target_path: Optional target path (defaults to INDEX_STORAGE_PATH)
+
+        Returns:
+            True if successful
+        """
+        from resync.knowledge.retrieval.hybrid_retriever import INDEX_STORAGE_PATH
+        
+        backup = self._backups.get(backup_id)
+        
+        if not backup or backup.type != BackupType.RAG_INDEX:
+            logger.error("rag_restore_backup_not_found", backup_id=backup_id)
+            return False
+        
+        try:
+            target = target_path or INDEX_STORAGE_PATH
+            
+            import shutil
+            shutil.copy2(backup.filepath, target)
+            
+            logger.info(
+                "rag_index_restored",
+                backup_id=backup_id,
+                target=target,
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error("rag_restore_failed", backup_id=backup_id, error=str(e))
+            return False
+
+    def list_rag_backups(self) -> list[BackupInfo]:
+        """
+        List all RAG index backups.
+
+        Returns:
+            List of RAG backup info objects
+        """
+        return [
+            b for b in self._backups.values()
+            if b.type == BackupType.RAG_INDEX
+        ]
 
 
 # =============================================================================

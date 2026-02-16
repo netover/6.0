@@ -251,6 +251,8 @@ class LLMNode(BaseNode):
 
         # Build messages
         messages = []
+        message = state.get("message", "")
+        history = state.get("history", [])
 
         if prompt:
             # Compile prompt with variables from state and config
