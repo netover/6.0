@@ -479,7 +479,7 @@
 - [ ] `resync/models/tws.py`
 - [ ] `resync/models/validation.py`
 - [ ] `resync/prompts/__init__.py`
-- [ ] `resync/scripts/__init__.py`
+- [x] `resync/scripts/__init__.py`
 - [ ] `resync/scripts/check_env.py`
 - [x] `resync/scripts/install_postgres.py`
 - [x] `resync/scripts/install_redis.py`
