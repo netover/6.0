@@ -9,7 +9,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from resync.core.exceptions import (
     AuthenticationError,
-    RateLimitError,
     ServiceUnavailableError,
     ValidationError,
 )
@@ -19,7 +18,6 @@ from resync.core.structured_logger import get_logger
 logger = get_logger(__name__)
 
 # Legacy fallback (non-HTTP contexts). The canonical HTTP path uses app.state.
-_idempotency_manager: IdempotencyManager | None = None
 
 
 # Rate limit configuration (module-level constants)
@@ -106,31 +104,6 @@ async def require_idempotency_key(
     return x_idempotency_key
 
 
-async def initialize_idempotency_manager(redis_client):
-    """
-    Initialize the global idempotency manager with Redis client.
-
-    Args:
-        redis_client: Redis async client for persistence
-    """
-    global _idempotency_manager
-    try:
-        # Initialize the global manager with the new refactored structure
-        manager = IdempotencyManager(redis_client)
-        # Store globally for dependency injection
-        _idempotency_manager = manager
-
-        logger.info("idempotency_manager_initialized", redis_available=True)
-
-    except Exception as e:
-        logger.error(
-            "idempotency_manager_initialization_failed",
-            error=str(e),
-            redis_available=False,
-        )
-        # Create in-memory fallback
-        # Note: In production, this should not be used
-        # For now, we'll just log the error and continue
 
 
 # ============================================================================

@@ -16,6 +16,7 @@ Version: 5.8.0
 from __future__ import annotations
 
 import functools
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -128,7 +129,7 @@ class ToolExecutionTrace:
     success: bool = False
     error: str | None = None
     duration_ms: int = 0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     user_id: str | None = None
     user_role: UserRole | None = None
     session_id: str | None = None
@@ -174,20 +175,25 @@ class ToolCatalog:
     """
 
     _instance: ToolCatalog | None = None
+    _lock: threading.Lock = threading.Lock()
 
     def __new__(cls) -> ToolCatalog:
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._tools: dict[str, ToolDefinition] = {}
-            cls._instance._execution_history: list[ToolExecutionTrace] = []
-            cls._instance._pending_approvals: dict[str, ToolExecutionTrace] = {}
-            cls._instance._active_runs: dict[str, ToolRun] = {}
-            cls._instance._undo_registry: dict[str, Any] = {}
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._tools: dict[str, ToolDefinition] = {}
+                    cls._instance._execution_history: list[ToolExecutionTrace] = []
+                    cls._instance._pending_approvals: dict[str, ToolExecutionTrace] = {}
+                    cls._instance._active_runs: dict[str, ToolRun] = {}
+                    cls._instance._undo_registry: dict[str, Any] = {}
+                    cls._instance._state_lock = threading.Lock()
         return cls._instance
 
     def register(self, tool_def: ToolDefinition) -> None:
         """Register a tool in the catalog."""
-        self._tools[tool_def.name] = tool_def
+        with self._state_lock:
+            self._tools[tool_def.name] = tool_def
         logger.debug(
             "tool_registered",
             tool_name=tool_def.name,
@@ -249,7 +255,8 @@ class ToolCatalog:
     def create_run(self, tool_name: str) -> ToolRun:
         """Create a new tool run for tracking."""
         run = ToolRun(tool_name=tool_name, status=ToolRunStatus.QUEUED)
-        self._active_runs[run.run_id] = run
+        with self._state_lock:
+            self._active_runs[run.run_id] = run
         return run
 
     def update_run_status(
@@ -261,24 +268,25 @@ class ToolCatalog:
         error: str | None = None,
     ) -> ToolRun | None:
         """Update a run's status."""
-        run = self._active_runs.get(run_id)
-        if not run:
-            return None
+        with self._state_lock:
+            run = self._active_runs.get(run_id)
+            if not run:
+                return None
 
-        run.status = status
-        if progress is not None:
-            run.progress = progress
-        if message is not None:
-            run.progress_message = message
-        if error is not None:
-            run.error = error
+            run.status = status
+            if progress is not None:
+                run.progress = progress
+            if message is not None:
+                run.progress_message = message
+            if error is not None:
+                run.error = error
 
-        if status == ToolRunStatus.IN_PROGRESS and run.started_at is None:
-            run.started_at = datetime.now(timezone.utc)
-        if status in {ToolRunStatus.DONE, ToolRunStatus.ERROR, ToolRunStatus.CANCELLED}:
-            run.completed_at = datetime.now(timezone.utc)
+            if status == ToolRunStatus.IN_PROGRESS and run.started_at is None:
+                run.started_at = datetime.now(timezone.utc)
+            if status in {ToolRunStatus.DONE, ToolRunStatus.ERROR, ToolRunStatus.CANCELLED}:
+                run.completed_at = datetime.now(timezone.utc)
 
-        return run
+            return run
 
     def get_run(self, run_id: str) -> ToolRun | None:
         """Get a run by ID."""
@@ -298,10 +306,10 @@ class ToolCatalog:
 
     def record_execution(self, trace: ToolExecutionTrace) -> None:
         """Record a tool execution for audit."""
-        self._execution_history.append(trace)
-        # Keep last 1000 executions
-        if len(self._execution_history) > 1000:
-            self._execution_history = self._execution_history[-1000:]
+        with self._state_lock:
+            self._execution_history.append(trace)
+            if len(self._execution_history) > 1000:
+                self._execution_history = self._execution_history[-1000:]
 
     def get_execution_history(
         self, tool_name: str | None = None, limit: int = 100
@@ -320,7 +328,8 @@ class ToolCatalog:
         """Request HITL approval for a tool execution."""
         approval_id = str(uuid.uuid4())
         trace.approval_id = approval_id
-        self._pending_approvals[approval_id] = trace
+        with self._state_lock:
+            self._pending_approvals[approval_id] = trace
         logger.info(
             "approval_requested",
             tool_name=trace.tool_name,
@@ -330,14 +339,16 @@ class ToolCatalog:
 
     def approve(self, approval_id: str) -> ToolExecutionTrace | None:
         """Approve a pending tool execution."""
-        trace = self._pending_approvals.pop(approval_id, None)
+        with self._state_lock:
+            trace = self._pending_approvals.pop(approval_id, None)
         if trace:
             logger.info("tool_approved", approval_id=approval_id)
         return trace
 
     def reject(self, approval_id: str, reason: str = "") -> ToolExecutionTrace | None:
         """Reject a pending tool execution."""
-        trace = self._pending_approvals.pop(approval_id, None)
+        with self._state_lock:
+            trace = self._pending_approvals.pop(approval_id, None)
         if trace:
             trace.error = f"Rejected: {reason}"
             logger.info("tool_rejected", approval_id=approval_id, reason=reason)

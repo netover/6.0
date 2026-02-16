@@ -25,12 +25,18 @@ That command simply launches Uvicorn and relies on the same lifespan logic.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env before importing the rest of the project to avoid settings reading
-# environment variables before dotenv has had a chance to populate them.
-load_dotenv()
+# Setup Environment: Ensure project root is in sys.path
+BASE_DIR = Path(__file__).resolve().parent.parent
+import sys
+sys.path.insert(0, str(BASE_DIR))
+
+# Load .env explicitly before importing settings to avoid reading env vars
+# before dotenv has had a chance to populate them
+load_dotenv(BASE_DIR / ".env")
 
 from resync.app_factory import ApplicationFactory  # noqa: E402
 

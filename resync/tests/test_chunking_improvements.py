@@ -19,11 +19,9 @@ from resync.knowledge.ingestion.advanced_chunking import (
     ChunkMetadata,
     ChunkType,
     ChunkViewType,
-    EnrichedChunk,
     MultiViewChunk,
     OverlapStrategy,
     chunk_document,
-    count_tokens,
     generate_stable_id,
     generate_snippet_preview,
     get_structure_aware_overlap,
@@ -38,7 +36,6 @@ from resync.knowledge.ingestion.chunking_eval import (
     FailureSlice,
     FailureSeverity,
     RetrievedChunk,
-    RuleSuggestion,
     detect_failure_slice,
     generate_rule_suggestions,
     create_eval_query,
@@ -342,7 +339,7 @@ class TestFailureSliceEval:
         expected = "The timeout is 30 seconds unless overridden in config."
         relevant_ids = ["c2"]  # The chunk with exception is not retrieved
 
-        failure_slice, desc = detect_failure_slice(
+        failure_slice, _ = detect_failure_slice(
             query, retrieved, expected, relevant_ids
         )
         # Should detect some failure since relevant chunk wasn't retrieved
@@ -362,7 +359,7 @@ class TestFailureSliceEval:
         expected = "Configuration table with headers"
         relevant_ids = ["c_header"]
 
-        failure_slice, desc = detect_failure_slice(
+        failure_slice, _ = detect_failure_slice(
             query, retrieved, expected, relevant_ids
         )
         # Table without header should trigger LOST_TABLE_HEADER
@@ -395,7 +392,7 @@ class TestFailureSliceEval:
         expected = "Timeout is 30 seconds"
         relevant_ids = ["c1"]
 
-        failure_slice, desc = detect_failure_slice(
+        failure_slice, _ = detect_failure_slice(
             query, retrieved, expected, relevant_ids
         )
         # High overlap should trigger REDUNDANT_OVERLAPS

@@ -24,7 +24,7 @@ Global State:
 """
 
 import inspect
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Final
 
 from fastapi import FastAPI, Request
@@ -39,6 +39,7 @@ from resync.settings import get_settings
 if TYPE_CHECKING:
     from resync.core.agent_manager import AgentManager
     from resync.core.agent_router import HybridRouter
+    from resync.core.a2a_handler import A2AHandler
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
@@ -292,41 +293,29 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     st = enterprise_state_from_app(app)
     st.domain_shutdown_complete = True
 
-    # 1. Redis client: close global client if it exists
-    try:
-        from resync.core.redis_init import close_redis_client
+    logger.info("starting_graceful_shutdown")
 
-        await close_redis_client()
-        logger.info("redis_client_closed")
-    except Exception as exc:
-        logger.warning(
-            "redis_client_close_error",
-            error=type(exc).__name__,
-            detail="Internal server error. Check server logs for details.",
-        )
-
-    # 2. TWS client
-    tws = getattr(st, STATE_TWS_CLIENT, None)
-    if tws is not None:
-        await _safe_close(tws, "tws_client")
-
-    # 3. Knowledge graph / context store
-    kg = getattr(st, STATE_KNOWLEDGE_GRAPH, None)
-    if kg is not None:
-        await _safe_close(kg, "knowledge_graph")
-
-    # 4. Agent manager
+    # 1. Agent Manager (high-level service - may use TWS, LLM, Redis)
     am = getattr(st, STATE_AGENT_MANAGER, None)
     if am is not None:
         await _safe_close(am, "agent_manager")
 
-    # 5. LLM service
+    # 2. LLM Service
     llm = getattr(st, STATE_LLM_SERVICE, None)
     if llm is not None:
         await _safe_close(llm, "llm_service")
 
-    
-    # 5.5. RAG client singleton (optional external integration)
+    # 3. File Ingestor (uses vector store, embedding service)
+    fi = getattr(st, STATE_FILE_INGESTOR, None)
+    if fi is not None:
+        await _safe_close(fi, "file_ingestor")
+
+    # 4. Knowledge graph / context store
+    kg = getattr(st, STATE_KNOWLEDGE_GRAPH, None)
+    if kg is not None:
+        await _safe_close(kg, "knowledge_graph")
+
+    # 5. RAG client singleton (optional external integration)
     try:
         from resync.services.rag_client import close_rag_client_singleton
 
@@ -340,10 +329,23 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     if cm is not None:
         await _safe_close(cm, "connection_manager")
 
-    # 7. File ingestor (and its vector store)
-    fi = getattr(st, STATE_FILE_INGESTOR, None)
-    if fi is not None:
-        await _safe_close(fi, "file_ingestor")
+    # 7. TWS client (external connection)
+    tws = getattr(st, STATE_TWS_CLIENT, None)
+    if tws is not None:
+        await _safe_close(tws, "tws_client")
+
+    # 8. Redis client: close last (infrastructure)
+    try:
+        from resync.core.redis_init import close_redis_client
+
+        await close_redis_client()
+        logger.info("redis_client_closed")
+    except Exception as exc:
+        logger.warning(
+            "redis_client_close_error",
+            error=type(exc).__name__,
+            detail="Internal server error. Check server logs for details.",
+        )
 
     logger.info("domain_singletons_shutdown_completed")
 

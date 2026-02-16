@@ -156,7 +156,7 @@ class ConfigPersistenceManager:
             # Clean old backups
             self._cleanup_old_backups_sync()
 
-        except Exception as e:
+        except Exception:
             # Restore from backup if save failed
             if backup_file and backup_file.exists():
                 try:
@@ -280,7 +280,7 @@ class ConfigPersistenceManager:
                 f"previous config backed up to: {current_backup.name}"
             )
 
-        except Exception as e:
+        except Exception:
             raise
 
     def validate_config(self, config: dict[str, Any]) -> tuple[bool, list[str]]:

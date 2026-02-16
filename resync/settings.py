@@ -16,9 +16,6 @@ v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 
 from __future__ import annotations
 
-import importlib
-import os
-import threading
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
 from pathlib import Path
@@ -68,12 +65,8 @@ class Settings(BaseSettings, SettingsValidators):
 
     project_version: str = Field(
         default="6.2.0",
-        pattern=(
-            r"^\d+\.\d+\.\d+(?:-(?:(?:0|[1-9]\d*|[a-zA-Z-][0-9a-zA-Z-]*)"
-            r"(?:\.(?:0|[1-9]\d*|[a-zA-Z-][0-9a-zA-Z-]*))*))?"
-            r"(?:\+(?:[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
-        ),
-        description="Versão do projeto (semver com pre-release e build metadata)",
+        pattern=r"^\d+\.\d+\.\d+$",
+        description="Versão do projeto (semantic versioning X.Y.Z)",
     )
 
     startup_timeout: int = Field(
@@ -115,36 +108,25 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
-    # CONTEXT STORE (LEGACY - PostgreSQL now used)
-    # ============================================================================
-    # DEPRECATED: SQLite context store removed in v5.3
-    # The system now uses PostgreSQL for all persistence
-    # This field is kept for backward compatibility only
-    context_db_path: str = Field(
-        default="",
-        description="DEPRECATED: SQLite removed - using PostgreSQL. Keep empty.",
-        deprecated=True,
-    )
-
-    # ============================================================================
-    # CONNECTION POOLS (PostgreSQL) - v5.3.22 adjusted for single VM
+    # CONNECTION POOLS (PostgreSQL) - v6.0 adjusted for single VM
     # For Docker/K8s: increase via environment variables
     # ============================================================================
-    db_pool_min_size: int = Field(default=5, ge=1, le=100)  # Reduced from 20
-    db_pool_max_size: int = Field(default=20, ge=1, le=1000)  # Reduced from 100
+    db_pool_min_size: int = Field(default=2, ge=1, le=100)  # Reduced from 5
+    db_pool_max_size: int = Field(default=10, ge=1, le=1000)  # Reduced from 20
     db_pool_idle_timeout: int = Field(default=600, ge=60)  # Reduced from 1200
     db_pool_connect_timeout: int = Field(default=30, ge=5)  # Reduced from 60
     db_pool_health_check_interval: int = Field(default=60, ge=10)
     db_pool_max_lifetime: int = Field(default=1800, ge=300)
 
     # ============================================================================
-    # REDIS - v5.3.22 adjusted for single VM
+    # REDIS - v6.0 adjusted for single VM
     # ============================================================================
     # v5.9.7: Accept both APP_REDIS_URL (preferred) and legacy REDIS_URL
     redis_url: SecretStr = Field(
         default=SecretStr("redis://localhost:6379/0"),
         validation_alias=AliasChoices("REDIS_URL", "APP_REDIS_URL"),
         description="URL de conexão Redis",
+        repr=False,
     )
 
     redis_min_connections: int = Field(default=1, ge=1, le=100)
@@ -152,8 +134,8 @@ class Settings(BaseSettings, SettingsValidators):
     redis_timeout: float = Field(default=30.0, gt=0)
 
     # Connection Pool - Redis
-    redis_pool_min_size: int = Field(default=2, ge=1, le=100)  # Reduced from 5
-    redis_pool_max_size: int = Field(default=10, ge=1, le=1000)  # Reduced from 20
+    redis_pool_min_size: int = Field(default=1, ge=1, le=100)  # Reduced from 2
+    redis_pool_max_size: int = Field(default=5, ge=1, le=1000)  # Reduced from 10
     redis_pool_idle_timeout: int = Field(default=300, ge=60)
     redis_pool_connect_timeout: int = Field(default=15, ge=5)  # Reduced from 30
     redis_pool_health_check_interval: int = Field(default=60, ge=10)
@@ -684,6 +666,7 @@ class Settings(BaseSettings, SettingsValidators):
     tws_teams_webhook_url: SecretStr | None = Field(
         default=None,
         description="URL do webhook do Microsoft Teams",
+        repr=False,
     )
 
     # Teams Outgoing Webhook (Validation Logic)
@@ -736,9 +719,9 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # JWT Configuration (v5.3.20 - consolidated from fastapi_app/core/config.py)
     secret_key: SecretStr = Field(
-        default=SecretStr("CHANGE_ME_IN_PRODUCTION_USE_ENV_VAR"),
+        default=SecretStr(""),
         validation_alias=AliasChoices("SECRET_KEY", "APP_SECRET_KEY"),
-        description="Secret key for JWT signing. MUST be set via SECRET_KEY env var in production.",
+        description="Secret key for JWT signing. MUST be set via SECRET_KEY env var.",
         exclude=True,
         repr=False,
     )
@@ -828,7 +811,10 @@ class Settings(BaseSettings, SettingsValidators):
     rate_limit_error_handler_per_minute: int = Field(default=10, ge=1)
     rate_limit_websocket_per_minute: int = Field(default=20, ge=1)
     rate_limit_dashboard_per_minute: int = Field(default=10, ge=1)
-    rate_limit_storage_uri: SecretStr = Field(default=SecretStr("redis://localhost:6379/1"))
+    rate_limit_storage_uri: SecretStr = Field(
+        default=SecretStr("redis://localhost:6379/1"),
+        repr=False,
+    )
     rate_limit_key_prefix: str = Field(default="resync:ratelimit:")
     rate_limit_sliding_window: bool = Field(default=True)
 
@@ -1027,6 +1013,7 @@ class Settings(BaseSettings, SettingsValidators):
     enterprise_siem_api_key: SecretStr | None = Field(
         default=None,
         description="SIEM API key",
+        repr=False,
     )
 
     # Phase 3: Observability
@@ -1413,23 +1400,6 @@ class Settings(BaseSettings, SettingsValidators):
         return self.environment == Environment.TEST
 
     # ============================================================================
-    # MIGRATION GRADUAL - FEATURE FLAGS
-    # ============================================================================
-    # Controle de migração para novos componentes
-    MIGRATION_USE_NEW_CACHE: bool = Field(
-        default=False, description="Usar ImprovedAsyncCache ao invés de AsyncTTLCache"
-    )
-    MIGRATION_USE_NEW_TWS: bool = Field(
-        default=False,
-        description="Usar TWSClientFactory ao invés de implementação direta",
-    )
-    MIGRATION_USE_NEW_RATE_LIMIT: bool = Field(
-        default=False,
-        description="Usar RateLimiterManager ao invés de implementação básica",
-    )
-    MIGRATION_ENABLE_METRICS: bool = Field(
-        default=True, description="Habilitar métricas de migração e monitoramento"
-    )
 
     # ============================================================================
     # DOCUMENT KNOWLEDGE GRAPH (DKG)
@@ -1572,6 +1542,12 @@ class _SettingsProxy:
     def __getattr__(self, name: str) -> Any:
         return getattr(get_settings(), name)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Allow setting attributes on the underlying Settings instance.
+        This enables tests and runtime code to modify configuration values.
+        """
+        setattr(get_settings(), name, value)
+
     def __repr__(self) -> str:
         return repr(get_settings())
 
@@ -1588,30 +1564,6 @@ settings = _SettingsProxy()
 def load_settings() -> Settings:
     """Load application settings (backward-compat shim)."""
     return get_settings()
-
-
-# -----------------------------------------------------------------------------
-# PEP 562 Lazy Imports (kept if other modules expect them from this namespace)
-# -----------------------------------------------------------------------------
-_LAZY_IMPORTS: dict[str, tuple[str, str]] = {}
-_LOADED_IMPORTS: dict[str, Any] = {}
-_LAZY_IMPORT_LOCK = threading.Lock()
-
-
-def __getattr__(name: str) -> Any:
-    """PEP 562 __getattr__ for lazy imports to avoid circular dependencies."""
-    if name in _LAZY_IMPORTS:
-        if name not in _LOADED_IMPORTS:
-            with _LAZY_IMPORT_LOCK:
-                if name not in _LOADED_IMPORTS:
-                    try:
-                        module_name, attr = _LAZY_IMPORTS[name]
-                        module = importlib.import_module(module_name)
-                        _LOADED_IMPORTS[name] = getattr(module, attr)
-                    except ImportError:
-                        _LOADED_IMPORTS[name] = None
-        return _LOADED_IMPORTS[name]
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from None
 
 
 # =============================================================================

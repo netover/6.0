@@ -337,22 +337,52 @@ class ApplicationFactory:
 
     def _register_routers(self) -> None:
         """
-        Register all API routers.
+        Register all API routers with fail-fast logic in dev mode.
 
         v5.8.0: Unified API structure - all routes under resync/api/routes/
+        v6.3.0: Fail-fast in development mode for broken routes.
         """
         # =================================================================
         # CORE ROUTERS (v7.0: canonical paths under resync/api/routes/)
         # =================================================================
-        from resync.api.routes.admin.main import admin_router
-        from resync.api.routes.admin.prompts import prompt_router
-        from resync.api.agents import agents_router
-        from resync.api.routes.audit import router as audit_router
-        from resync.api.routes.cache import router as cache_router
-        from resync.api.chat import chat_router
-        from resync.api.routes.cors_monitoring import router as cors_monitor_router
-        from resync.api.routes.core.health import router as health_router
-        from resync.api.routes.performance import router as performance_router
+        
+        # Essential routers - must load (fail-fast)
+        essential_routers = [
+            ("resync.api.routes.core.health", "router", "health_router"),
+            ("resync.api.routes.admin.main", "admin_router", "admin_router"),
+            ("resync.api.agents", "agents_router", "agents_router"),
+            ("resync.api.chat", "chat_router", "chat_router"),
+        ]
+        
+        for module_path, router_name, log_name in essential_routers:
+            try:
+                mod = __import__(module_path, fromlist=[router_name])
+                router = getattr(mod, router_name)
+                self.app.include_router(router)
+            except ImportError as e:
+                logger.critical("essential_router_import_failed", module=module_path, router=router_name, error=str(e))
+                raise
+
+        # Optional routers - graceful degradation in prod, fail-fast in dev
+        optional_routers = [
+            ("resync.api.routes.admin.prompts", "prompt_router", "prompt_router"),
+            ("resync.api.routes.audit", "router", "audit_router"),
+            ("resync.api.routes.cache", "router", "cache_router"),
+            ("resync.api.routes.cors_monitoring", "router", "cors_monitor_router"),
+            ("resync.api.routes.performance", "router", "performance_router"),
+        ]
+
+        for module_path, router_name, log_name in optional_routers:
+            try:
+                mod = __import__(module_path, fromlist=[router_name])
+                router = getattr(mod, router_name)
+                self.app.include_router(router)
+            except ImportError as e:
+                if settings.is_development:
+                    logger.error("route_import_failed_dev", module=module_path, error=str(e))
+                    raise
+                else:
+                    logger.warning("route_import_failed_prod", module=module_path, error=str(e))
 
         # Additional routers from main_improved
         try:
@@ -364,6 +394,9 @@ class ApplicationFactory:
             self.app.include_router(config_router, prefix="/api/v1")
             self.app.include_router(rag_upload_router, prefix="/api/v1")
         except ImportError as e:
+            if settings.is_development:
+                logger.error("optional_routers_not_available", error=str(e))
+                raise
             logger.warning("optional_routers_not_available", error=str(e))
 
         # v5.9.9: Enhanced endpoints (orchestrator-based)
@@ -373,6 +406,9 @@ class ApplicationFactory:
             self.app.include_router(enhanced_router)
             logger.info("enhanced_endpoints_registered", prefix="/api/v2")
         except ImportError as e:
+            if settings.is_development:
+                logger.error("enhanced_endpoints_not_available", error=str(e))
+                raise
             logger.warning("enhanced_endpoints_not_available", error=str(e))
 
         # v5.9.9: GraphRAG admin endpoints
@@ -382,6 +418,9 @@ class ApplicationFactory:
             self.app.include_router(graphrag_admin_router)
             logger.info("graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag")
         except ImportError as e:
+            if settings.is_development:
+                logger.error("graphrag_admin_not_available", error=str(e))
+                raise
             logger.warning("graphrag_admin_not_available", error=str(e))
 
         # v6.1: Document Knowledge Graph (DKG) admin endpoints
@@ -391,6 +430,9 @@ class ApplicationFactory:
             self.app.include_router(dkg_admin_router)
             logger.info("document_kg_admin_endpoints_registered", prefix="/api/admin/kg")
         except ImportError as e:
+            if settings.is_development:
+                logger.error("document_kg_admin_not_available", error=str(e))
+                raise
             logger.warning("document_kg_admin_not_available", error=str(e))
 
         # Register unified config API (v5.9.9)
@@ -400,6 +442,9 @@ class ApplicationFactory:
             self.app.include_router(unified_config_router)
             logger.info("unified_config_endpoints_registered", prefix="/api/admin/config")
         except ImportError as e:
+            if settings.is_development:
+                logger.error("unified_config_api_not_available", error=str(e))
+                raise
             logger.warning("unified_config_api_not_available", error=str(e))
 
         # Register monitoring routers
@@ -411,6 +456,9 @@ class ApplicationFactory:
             register_dashboard_route(self.app)
             logger.info("monitoring_routers_registered")
         except ImportError as e:
+            if settings.is_development:
+                logger.error("monitoring_routers_not_available", error=str(e))
+                raise
             logger.warning("monitoring_routers_not_available", error=str(e))
 
         # =================================================================
@@ -511,27 +559,12 @@ class ApplicationFactory:
                 other_count=len(unified_other_routers),
             )
         except ImportError as e:
+            if settings.is_development:
+                logger.error("unified_routers_not_available", error=str(e))
+                raise
             logger.warning("unified_routers_not_available", error=str(e))
 
-        # =================================================================
-        # LEGACY CORE ROUTERS (backward compatible)
-        # =================================================================
-        routers = [
-            (health_router, "/api/v1", ["Health"]),
-            (agents_router, "/api/v1/agents", ["Agents"]),
-            (chat_router, "/api/v1", ["Chat"]),
-            (cache_router, "/api/v1", ["Cache"]),
-            (audit_router, "/api/v1", ["Audit"]),
-            (cors_monitor_router, "/api/v1", ["CORS"]),
-            (performance_router, "/api", ["Performance"]),
-            (admin_router, "/api/v1", ["Admin"]),
-            (prompt_router, "/api/v1", ["Admin - Prompts"]),
-        ]
-
-        for router, prefix, tags in routers:
-            self.app.include_router(router, prefix=prefix, tags=tags)
-
-        logger.info("routers_registered", count=len(routers))
+        logger.info("routers_registered")
 
     def _mount_static_files(self) -> None:
         """Mount static file directory with caching.
@@ -568,8 +601,11 @@ class ApplicationFactory:
             """Serve the revision page."""
             return self._render_template("revisao.html", request)
 
-        # CSP violation report endpoint
+        # CSP violation report endpoint (with rate limiting to prevent DoS from browser extensions)
+        from resync.core.security.rate_limiter_v2 import rate_limit
+
         @self.app.post("/csp-violation-report", include_in_schema=False)
+        @rate_limit("30/minute")
         async def csp_violation_report(request: Request):
             """Handle CSP violation reports."""
             return await self._handle_csp_report(request)
@@ -666,10 +702,10 @@ class ApplicationFactory:
 
 def create_app() -> FastAPI:
     """Entry point para Uvicorn e Pytest.
-    
+
     Creates a new ApplicationFactory instance per call to avoid
     state contamination between tests.
-    
+
     Returns:
         Configured FastAPI application
     """

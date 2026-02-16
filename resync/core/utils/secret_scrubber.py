@@ -198,13 +198,13 @@ def scrub_args_and_result(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Scrub kwargs for logging
-        scrubbed_kwargs = scrub_secrets(kwargs)
+        scrub_secrets(kwargs)
         
         # Call original function
         result = func(*args, **kwargs)
         
         # Scrub result for logging
-        scrubbed_result = scrub_secrets(result)
+        scrub_secrets(result)
         
         return result  # Return original, not scrubbed
     

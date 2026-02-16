@@ -5,12 +5,12 @@ performance metrics collection, and alert generation for anomalies.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog

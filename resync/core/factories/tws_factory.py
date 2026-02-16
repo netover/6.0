@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import threading
 from functools import lru_cache
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from fastapi import Depends
 

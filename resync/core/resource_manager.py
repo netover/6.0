@@ -72,7 +72,7 @@ class ManagedResource:
             try:
                 await self._cleanup()
                 self._closed = True
-                lifetime = (datetime.now(timezone.utc) - self.created_at).total_seconds()
+                (datetime.now(timezone.utc) - self.created_at).total_seconds()
                 logger.debug(
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     "lifetime: {lifetime:.2f}s"
@@ -87,7 +87,7 @@ class ManagedResource:
             try:
                 self._cleanup_sync()
                 self._closed = True
-                lifetime = (datetime.now(timezone.utc) - self.created_at).total_seconds()
+                (datetime.now(timezone.utc) - self.created_at).total_seconds()
                 logger.debug(
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     "lifetime: {lifetime:.2f}s"
@@ -293,7 +293,7 @@ class ResourcePool:
         async with self._lock:
             if resource_id in self.active_resources:
                 info = self.active_resources[resource_id]
-                lifetime = info.get_lifetime_seconds()
+                info.get_lifetime_seconds()
 
                 # Cleanup the resource
                 try:

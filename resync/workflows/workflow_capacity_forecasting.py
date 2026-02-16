@@ -29,8 +29,10 @@ from resync.core.utils.llm_factories import LLMFactory
 try:
     from langchain_core.messages import HumanMessage, SystemMessage
 except ImportError:
-    class HumanMessage: pass
-    class SystemMessage: pass
+    class HumanMessage:
+        pass
+    class SystemMessage:
+        pass
 
 try:
     from langgraph.graph import END, StateGraph
@@ -636,12 +638,22 @@ async def run_capacity_forecast(
 ) -> dict[str, Any]:
     """Run Capacity Forecasting workflow."""
 
-    # Using centralized LLM factory for governance
-    # original: ChatAnthropic(model="claude-sonnet-4-20250514")
-    llm = LLMFactory.get_langchain_llm(model="claude-3-sonnet-20240229") # Updated to valid model ID
+    from resync.settings import settings
+    
+    model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
+    llm = LLMFactory.get_langchain_llm(model=model_name)
 
     async with get_async_session() as db:
-        checkpointer = PostgresSaver(db.connection())
+        if POSTGRES_SAVER_AVAILABLE and PostgresSaver is not None:
+            try:
+                checkpointer = PostgresSaver(db.connection())
+            except Exception as e:
+                logger.warning("postgres_checkpointer_failed_using_memory", error=str(e))
+                from langgraph.checkpoint.memory import MemorySaver
+                checkpointer = MemorySaver()
+        else:
+            from langgraph.checkpoint.memory import MemorySaver
+            checkpointer = MemorySaver()
 
         workflow = create_capacity_forecast_workflow(
             llm=llm,

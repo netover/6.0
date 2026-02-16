@@ -481,7 +481,6 @@ def fix_table_width_conservative(root):
         # Check if this is a nested table by looking for parent tbl
         # We do this by checking if any ancestor is tbl
         is_nested = False
-        parent = tbl
         # Walk up using getparent() if available, or iterate
         # Since ElementTree doesn't have getparent, we check by finding
         # if this tbl is inside another tbl's tc

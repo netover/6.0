@@ -442,12 +442,10 @@ class RegressionGate:
             current_val = getattr(current, attr, 0)
 
             if "latency" in attr:
-                change = current_val - baseline_val
-                change_str = "+{change:.1f}ms" if change >= 0 else "{change:.1f}ms"
+                current_val - baseline_val
                 lines.append("  {display_name}: {current_val:.1f}ms (baseline: {baseline_val:.1f}ms, {change_str})")
             else:
-                change = (current_val - baseline_val) / baseline_val if baseline_val > 0 else 0
-                change_str = "+{change*100:.1f}%" if change >= 0 else "{change*100:.1f}%"
+                (current_val - baseline_val) / baseline_val if baseline_val > 0 else 0
                 lines.append("  {display_name}: {current_val:.4f} (baseline: {baseline_val:.4f}, {change_str})")
 
         if failures:

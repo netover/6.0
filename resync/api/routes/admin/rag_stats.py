@@ -11,7 +11,7 @@ Versão: 1.0.0
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter
@@ -75,7 +75,7 @@ async def get_rag_stats() -> RAGStatsResponse:
     
     index_exists = os.path.exists(index_path)
     index_size_bytes = os.path.getsize(index_path) if index_exists else None
-    index_size_mb = index_size_bytes / (1024 * 1024) if index_size_bytes else None
+    index_size_bytes / (1024 * 1024) if index_size_bytes else None
     
     index_modified = None
     if index_exists:
@@ -105,7 +105,7 @@ async def get_rag_stats() -> RAGStatsResponse:
     chat_ttl = int(os.environ.get("CHAT_MEMORY_TTL_DAYS", "30"))
 
     return RAGStatsResponse(
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         index_status=IndexStatus(
             path=index_path,
             exists=index_exists,
@@ -145,7 +145,7 @@ async def rag_health_check() -> dict[str, Any]:
     return {
         "status": "healthy" if index_ok else "degraded",
         "index_ready": index_ok,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 

@@ -13,7 +13,7 @@ This module provides intelligent service discovery capabilities including:
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import random
 import socket

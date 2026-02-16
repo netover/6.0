@@ -637,14 +637,7 @@ async def test_dkg_context_node_survives_import_failure(monkeypatch):
 
 def test_router_resets_doc_kg_context():
     """doc_kg_context should be reset between turns."""
-    from resync.core.langgraph.agent_graph import Intent
 
-    state = {
-        "message": "status do job X",
-        "doc_kg_context": "[DOCUMENT KNOWLEDGE GRAPH]\nNodes:\n- Job:foo",
-        "intent": Intent.STATUS,
-        "confidence": 1.0,
-    }
 
     # The transient defaults in router_node reset doc_kg_context to ""
     # We can verify by checking the default value in the reset dict

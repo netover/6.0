@@ -16,7 +16,7 @@ Versão: 5.2
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import json
 from collections import deque
@@ -124,11 +124,6 @@ class EventBus:
         if self._event_queue is None:
             self._event_queue = asyncio.Queue()
         return self._event_queue
-
-        logger.info(
-            "event_bus_initialized",
-            history_size=history_size,
-        )
 
     # =========================================================================
     # LIFECYCLE

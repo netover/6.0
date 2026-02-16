@@ -25,7 +25,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import hashlib
 import json
@@ -74,7 +74,7 @@ class BackupInfo:
     filepath: str
     size_bytes: int = 0
     size_human: str = ""
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     duration_seconds: float = 0
     checksum_sha256: str = ""
@@ -111,7 +111,7 @@ class BackupSchedule:
     retention_days: int = 30
     last_run: datetime | None = None
     next_run: datetime | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -132,9 +132,9 @@ def _human_size(size_bytes: int) -> str:
     """Convert bytes to human-readable size."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size_bytes < 1024:
-            return "{size_bytes:.2f} {unit}"
+            return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024
-    return "{size_bytes:.2f} PB"
+    return f"{size_bytes:.2f} PB"
 
 
 def _generate_backup_id() -> str:
@@ -833,7 +833,7 @@ class BackupService:
 
             return next_run
 
-        except Exception:
+        except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -976,9 +976,10 @@ class BackupService:
                 id=backup_id,
                 type=BackupType.RAG_INDEX,
                 status=BackupStatus.COMPLETED,
+                filename=os.path.basename(dest_path),
                 filepath=str(dest_path),
                 size_bytes=file_size,
-                sha256=file_hash,
+                checksum_sha256=file_hash,
                 created_at=timestamp,
                 metadata={
                     "collection": collection_name,
@@ -995,9 +996,7 @@ class BackupService:
                 path=str(dest_path),
                 size_bytes=file_size,
             )
-            
-            self._cleanup_old_backups(BackupType.RAG_INDEX)
-            
+
             return backup
             
         except Exception as e:

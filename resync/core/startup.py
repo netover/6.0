@@ -714,7 +714,8 @@ async def _init_proactive_monitoring(app: FastAPI) -> None:
             from resync.core.monitoring_integration import initialize_proactive_monitoring
             await initialize_proactive_monitoring(app)
     except Exception as exc:
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
         get_logger("resync.startup").warning("proactive_monitoring_init_failed", error=str(exc))
 
 async def _init_metrics_collector(app: FastAPI) -> None:
@@ -729,7 +730,8 @@ async def _init_metrics_collector(app: FastAPI) -> None:
                 monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
             )
     except Exception as exc:
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
         get_logger("resync.startup").warning("metrics_collector_start_failed", error=str(exc))
 
 async def _init_cache_warmup(app: FastAPI) -> None:
@@ -741,7 +743,8 @@ async def _init_cache_warmup(app: FastAPI) -> None:
             from resync.core.cache_utils import warmup_cache_on_startup
             await warmup_cache_on_startup()
     except Exception as exc:
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
         get_logger("resync.startup").warning("cache_warming_failed", error=str(exc))
 
 async def _init_graphrag(app: FastAPI) -> None:
@@ -756,7 +759,8 @@ async def _init_graphrag(app: FastAPI) -> None:
             from resync.services.llm_service import get_llm_service
             from resync.services.tws_service import get_tws_client
             settings = get_settings()
-            if not getattr(settings, "GRAPHRAG_ENABLED", False): return
+            if not getattr(settings, "GRAPHRAG_ENABLED", False):
+                return
             initialize_graphrag(
                 llm_service=get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
@@ -765,7 +769,8 @@ async def _init_graphrag(app: FastAPI) -> None:
                 enabled=True,
             )
     except Exception as exc:
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
         get_logger("resync.startup").warning("graphrag_initialization_failed", error=str(exc))
 
 async def _init_config_system(app: FastAPI) -> None:
@@ -777,7 +782,8 @@ async def _init_config_system(app: FastAPI) -> None:
             from resync.core.unified_config import initialize_config_system
             await initialize_config_system()
     except Exception as exc:
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)): raise
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
         get_logger("resync.startup").warning("unified_config_initialization_failed", error=str(exc))
 
 async def _shutdown_services(app: FastAPI) -> None:

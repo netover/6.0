@@ -1,5 +1,4 @@
 
-import os
 import pytest
 
 from resync.core.database.config import get_database_config

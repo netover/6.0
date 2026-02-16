@@ -12,7 +12,7 @@ This module provides comprehensive SIEM integration capabilities including:
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import json
 import secrets
@@ -932,7 +932,8 @@ from typing import Optional
 
 _siem_integrator_instance: Optional["SIEMIntegrator"] = None
 
-def get_siem_integrator() -> "SIEMIntegrator":
+def get_siem_integrator_sync() -> "SIEMIntegrator":
+    """Return the singleton instance synchronously."""
     global _siem_integrator_instance
     if _siem_integrator_instance is None:
         _siem_integrator_instance = SIEMIntegrator()
@@ -944,6 +945,7 @@ class _LazySIEMIntegratorProxy:
 
 # Backward-compatible module-level symbol (lazy proxy)
 siem_integrator = _LazySIEMIntegratorProxy()
+
 async def get_siem_integrator() -> SIEMIntegrator:
     """Get the global SIEM integrator instance."""
     if not siem_integrator._running:

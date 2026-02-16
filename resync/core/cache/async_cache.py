@@ -23,21 +23,18 @@ Changes from legacy version:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import collections
 import contextlib
 import logging
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from time import time
 from typing import Any, Generic, Optional, TypeVar
 
-from resync.core.exceptions import CacheError
-from resync.core.metrics import log_with_correlation, runtime_metrics
+from resync.core.metrics import runtime_metrics
 from resync.core.utils.correlation import (
     cache_error_handler,
     ensure_correlation_id,
-    generate_correlation_id,
 )
 from resync.core.write_ahead_log import WalEntry, WalOperationType, WriteAheadLog
 

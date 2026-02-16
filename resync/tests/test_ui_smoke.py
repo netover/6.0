@@ -10,12 +10,17 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
 
 def _root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[2]
+    templates_dir = root / "templates"
+    static_dir = root / "static"
+    if not templates_dir.exists() or not static_dir.exists():
+        pytest.skip("templates/ or static/ directories not present in this environment")
 
 
 def _extract_stylesheet_hrefs(html: str) -> list[str]:

@@ -732,9 +732,10 @@ class _LazyAdvancedCacheManager:
 advanced_cache_manager = _LazyAdvancedCacheManager()
 
 
-def get_advanced_cache_manager() -> AdvancedCacheManager:
-    """Return the singleton instance (preferred over using the proxy directly)."""
+def get_advanced_cache_manager_sync() -> AdvancedCacheManager:
+    """Return the singleton instance synchronously."""
     return advanced_cache_manager.get_instance()
+
 
 async def get_advanced_cache_manager() -> AdvancedCacheManager:
     """Get the global advanced cache manager instance."""

@@ -192,7 +192,6 @@ if TYPE_CHECKING:
     from .component_cache_manager import ComponentCacheManager  # noqa: F401
     from .health_alerting import HealthAlerting  # noqa: F401
     from .health_check_retry import HealthCheckRetry  # noqa: F401
-    HealthCheckService = UnifiedHealthService  # legacy alias
     from .health_check_utils import HealthCheckUtils  # noqa: F401
     from .health_config_manager import HealthCheckConfigurationManager  # noqa: F401
     from .health_history_manager import HealthHistoryManager  # noqa: F401
@@ -208,3 +207,4 @@ if TYPE_CHECKING:
         get_unified_health_service,
         shutdown_unified_health_service,
     )
+    HealthCheckService = UnifiedHealthService  # legacy alias

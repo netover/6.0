@@ -200,8 +200,8 @@ class FeedbackAwareRetriever:
             if field in doc:
                 try:
                     return float(doc[field])
-                except (ValueError, TypeError):
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                except (ValueError, TypeError) as e:
+                    logger.debug("suppressed_exception", error=str(e), exc_info=True)  # was: pass
         return 0.0
 
     async def record_feedback(

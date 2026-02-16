@@ -11,7 +11,7 @@ import logging
 import os
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from resync.core.idempotency.manager import IdempotencyManager

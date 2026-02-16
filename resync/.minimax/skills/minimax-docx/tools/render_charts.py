@@ -201,9 +201,9 @@ def create_horizontal_bar():
     y = np.arange(len(categories))
     height = 0.35
 
-    bars1 = ax.barh(y - height/2, current, height, label='Current',
+    ax.barh(y - height/2, current, height, label='Current',
                     color=MORANDI['green'], edgecolor='none')
-    bars2 = ax.barh(y + height/2, target, height, label='Target',
+    ax.barh(y + height/2, target, height, label='Target',
                     color=MORANDI['beige'], edgecolor='none')
 
     ax.set_xlabel('Completion (%)', fontsize=11, color='#333333')

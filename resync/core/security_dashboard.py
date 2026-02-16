@@ -12,7 +12,7 @@ This module provides comprehensive security monitoring and dashboard capabilitie
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import defaultdict, deque

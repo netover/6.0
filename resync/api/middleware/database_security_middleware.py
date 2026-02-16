@@ -33,10 +33,13 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         # High-confidence SQLi patterns only (avoid false positives on natural language).
         r"(?i)\bunion\b\s+(?:all\s+)?\bselect\b",
         r"(?i)(?:\bor\b|\band\b)\s+(?:'\w+'|\d+)\s*=\s*(?:'\w+'|\d+)(?:\s*(?:--|/\*|;))?",
+        r"(?i)(?:\bor\b|\band\b)\s+(?:'\w+'\s*=\s*'\w+'|\d+\s*=\s*\d+)(?:\s*(?:--|/\*|;))?",  # Fix: '1'='1 pattern
         r"(?i)(?:\bor\b|\band\b)\s+\d+\s*=\s*\d+(?:\s*(?:--|/\*|;))?",
+        r"(?i)'\s*(?:or|and)\b.*'.*'=",  # Detect ' OR '1'='1 pattern
         r"(?i)\bsleep\s*\(\s*\d+\s*\)",
         r"(?i)\bbenchmark\s*\(",
         r"(?i)\bwaitfor\b\s+\bdelay\b",
+        r"(?i)\bconvert\s*\(",  # Detect CONVERT function (used in SQL injection)
         r"(?i)\bxp_[a-zA-Z0-9_]+\b",
         r"(?i)\bsp_[a-zA-Z0-9_]+\b",
         r"(?i)\binformation_schema\b",

@@ -11,9 +11,6 @@ import time
 from ...settings import settings
 from ..exceptions import LLMError
 from ..structured_logger import get_logger
-from .llm_deps import get_acompletion, get_litellm_exceptions
-from ..exceptions import LLMError
-from ..structured_logger import get_logger
 
 logger = get_logger(__name__)
 

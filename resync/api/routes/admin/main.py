@@ -569,7 +569,7 @@ async def get_system_logs(
 
         # Read log file
         async with aiofiles.open(log_file, encoding="utf-8") as f:
-            all_lines = f.readlines()
+            all_lines = await f.readlines()
 
         # Get last N lines
         log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
@@ -832,6 +832,7 @@ class SystemHealthResponse(BaseModel):
 @admin_router.get(
     "/health",
     summary="Get System Health Status",
+    dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_system_health(request: Request) -> SystemHealthResponse:
     """Get comprehensive system health status.

@@ -9,7 +9,7 @@ from resync.core.startup import lifespan as app_lifespan
 @pytest.mark.asyncio
 async def test_startup_timeout_triggered():
     """Verify that a slow startup check triggers the global timeout."""
-    factory = ApplicationFactory()
+    ApplicationFactory()
     app = FastAPI()
     
     # Mock settings with a very short timeout
@@ -32,7 +32,7 @@ async def test_startup_timeout_triggered():
 @pytest.mark.asyncio
 async def test_startup_success_within_time():
     """Verify that startup completes if checks are fast."""
-    factory = ApplicationFactory()
+    ApplicationFactory()
     app = FastAPI()
     
     with patch("resync.core.startup.get_settings") as mock_get_settings:
@@ -64,7 +64,7 @@ async def test_startup_success_within_time():
 @pytest.mark.asyncio
 async def test_individual_helper_timeout():
     """Verify that an individual helper's timeout doesn't crash the whole startup."""
-    factory = ApplicationFactory()
+    ApplicationFactory()
     app = FastAPI()
     
     async def slow_collector():

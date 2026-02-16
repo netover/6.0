@@ -928,62 +928,12 @@ def get_config_definitions() -> list[ConfigCategory]:
             ],
         ),
         # =====================================================================
-        # FEATURE FLAGS
-        # =====================================================================
-        ConfigCategory(
-            name="feature_flags",
-            display_name="Feature Flags",
-            description="Enable/disable experimental features",
-            icon="fa-flask",
-            fields=[
-                ConfigField(
-                    name="MIGRATION_USE_NEW_CACHE",
-                    value=settings.MIGRATION_USE_NEW_CACHE,
-                    type="bool",
-                    description="Use improved async cache",
-                    default=False,
-                    requires_restart=True,
-                    category="feature_flags",
-                    sensitive=False,
-                ),
-                ConfigField(
-                    name="MIGRATION_USE_NEW_TWS",
-                    value=settings.MIGRATION_USE_NEW_TWS,
-                    type="bool",
-                    description="Use new TWS client factory",
-                    default=False,
-                    requires_restart=True,
-                    category="feature_flags",
-                    sensitive=False,
-                ),
-                ConfigField(
-                    name="MIGRATION_USE_NEW_RATE_LIMIT",
-                    value=settings.MIGRATION_USE_NEW_RATE_LIMIT,
-                    type="bool",
-                    description="Use new rate limiter manager",
-                    default=False,
-                    requires_restart=True,
-                    category="feature_flags",
-                    sensitive=False,
-                ),
-                ConfigField(
-                    name="MIGRATION_ENABLE_METRICS",
-                    value=settings.MIGRATION_ENABLE_METRICS,
-                    type="bool",
-                    description="Enable migration metrics",
-                    default=True,
-                    requires_restart=False,
-                    category="feature_flags",
-                    sensitive=False,
-                ),
-            ],
-        ),
+
     ]
 
-
-# =============================================================================
-# API ENDPOINTS
-# =============================================================================
+    # =============================================================================
+    # API ENDPOINTS
+    # =============================================================================
 
 
 @router.get("/categories", response_model=list[ConfigCategory])

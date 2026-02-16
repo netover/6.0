@@ -289,7 +289,7 @@ def check_section_margins(root):
                 # Final section with zero margins might affect preceding content
                 # if there are sections between first and last without their own sectPr
                 warnings.append(
-                    f"MARGIN: final section has zero margins - may affect body content if intermediate sections lack sectPr"
+                    "MARGIN: final section has zero margins - may affect body content if intermediate sections lack sectPr"
                 )
             elif not is_first and not is_last:
                 # Middle section with zero margins is likely a bug

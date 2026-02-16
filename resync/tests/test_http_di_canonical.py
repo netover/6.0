@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient

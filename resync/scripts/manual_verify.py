@@ -13,6 +13,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 
@@ -227,8 +228,10 @@ def _redact_sensitive(val: Any) -> str:
     if isinstance(val, SecretStr):
         return "**********"
     s = str(val)
-    if not s: return ""
-    if len(s) <= 4: return "*" * len(s)
+    if not s:
+        return ""
+    if len(s) <= 4:
+        return "*" * len(s)
     return f"{s[:2]}...{s[-2:]}"
 
 

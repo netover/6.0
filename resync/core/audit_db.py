@@ -120,21 +120,21 @@ class AuditDB:
 
     def get_record_count(self) -> int:
         """Get total number of audit records (sync shim).
-        
-        Note: Returns 0 if called within an active event loop to avoid blocking.
+
+        Raises RuntimeError if called within an active event loop.
         Use get_record_count_async() in async contexts.
         """
-        # Use a simplified sync wrapper since this is used in sync dashboard context
         try:
             asyncio.get_running_loop()
-            # If in loop, we'd need to await, but this is a shim.
-            # Returning 0 or similar is safer than crashing if called incorrectly.
-            logger.warning("get_record_count_called_in_async_loop")
-            return 0
         except RuntimeError:
             async def _count():
                 return await self._repo.count()
             return asyncio.run(_count())
+        else:
+            raise RuntimeError(
+                "get_record_count() cannot be used inside an active event loop; "
+                "use await get_record_count_async() instead"
+            )
 
     async def search_incidents(
         self,
@@ -294,14 +294,22 @@ def _validate_memory_id(record: dict) -> None:
 
 def _validate_user_query(record: dict) -> None:
     """Validate user_query field."""
+    if "user_query" not in record:
+        raise ValueError("User query is required")
+    
     query = record.get("user_query")
-    if "user_query" in record:
-        if not query:
-            raise ValueError("User query cannot be empty")
-        if not isinstance(query, str):
-            raise ValueError("User query must be string")
-        if len(query) > 10000:
-            raise ValueError("User query too long")
+    if query is None:
+        raise ValueError("User query is required")
+    if not query:
+        raise ValueError("User query cannot be empty")
+    if not isinstance(query, str):
+        raise ValueError("User query must be string")
+    if len(query) > 10000:
+        raise ValueError("User query too long")
+
+    # Check for dangerous SQL patterns
+    from resync.core.database_security import DatabaseInputValidator
+    DatabaseInputValidator.validate_string_input(query)
 
 
 def _validate_audit_record(record: dict) -> dict:

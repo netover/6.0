@@ -393,7 +393,7 @@ class CrossEncoderReranker:
                 max_length=self.max_length,
             )
 
-            load_time = (time.perf_counter() - start) * 1000
+            (time.perf_counter() - start) * 1000
             logger.info("Cross-encoder loaded in {load_time:.0f}ms")
             self._available = True
 

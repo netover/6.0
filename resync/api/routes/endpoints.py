@@ -13,20 +13,8 @@ from fastapi import APIRouter, Depends, Query
 from resync.api.security import require_role
 from resync.core.factories import get_tws_client as get_client
 from resync.services.tws_service import OptimizedTWSClient
-from resync.settings import get_settings
 
 __all__ = ['get_client', 'router', 'engine_info', 'engine_config', 'list_users', 'list_groups', 'query_jobdefinitions', 'get_jobdefinition', 'query_jobstreams', 'get_jobstream', 'query_workstations', 'get_workstation', 'list_current_plan_jobs', 'count_current_plan_jobs', 'current_plan_job_issues', 'current_plan_job_joblog', 'get_current_plan_job', 'get_current_plan_job_predecessors', 'get_current_plan_job_successors', 'get_current_plan_job_model', 'get_current_plan_job_model_description', 'list_current_plan_jobstreams', 'count_current_plan_jobstreams', 'get_current_plan_jobstream', 'get_current_plan_jobstream_predecessors', 'get_current_plan_jobstream_successors', 'get_current_plan_jobstream_model_description', 'list_current_plan_resources', 'get_current_plan_resource', 'current_plan_folder_objects_count', 'list_consumed_jobs_runs']
-
-
-
-def get_client() -> OptimizedTWSClient:
-    """
-    Resolve the OptimizedTWSClient for injection into route handlers.
-
-    Uses the main settings system with production validators.
-    """
-    settings = get_settings()
-    return get_tws_client(settings)
 
 
 router = APIRouter(

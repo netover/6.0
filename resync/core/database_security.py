@@ -220,8 +220,10 @@ class DatabaseInputValidator:
             r"sp_",  # Stored procedures
             r"(?i)\bunion\b\s+(?:all\s+)?\bselect\b",
             r"(?i)(?:\bor\b|\band\b)\s+(?:'\w+'|\d+)\s*=\s*(?:'\w+'|\d+)",
+            r"(?i)(?:\bor\b|\band\b)\s+(?:'\w+'\s*=\s*'\w+'|\d+\s*=\s*\d+)",  # Fix: support quoted strings like '1'='1'
             r"(?i)(?:\bor\b|\band\b)\s+\d+\s*=\s*\d+",
             r"(?i);\s*(?:drop|alter|create|truncate|exec|execute)\b",
+            r"(?i)'\s*(?:or|and)\b.*'.*'=",  # Detect ' OR '1'='1 pattern
         ]
 
         for pattern in dangerous_patterns:

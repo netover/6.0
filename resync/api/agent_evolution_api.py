@@ -453,6 +453,7 @@ async def approve_improvement(
 
 @router.post(
     "/improvements/{suggestion_id}/reject",
+    dependencies=[Depends(verify_admin_credentials)],
     responses={
         404: {"description": "Suggestion Not Found"},
         500: {"description": "Internal Server Error"},
@@ -591,15 +592,18 @@ async def get_performance_metrics(
 async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     """Load suggestion from disk."""
     import json
-    file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion_id}.json"
+    from pathlib import Path
+
+    safe_id = Path(suggestion_id).name
+    if not safe_id or '..' in suggestion_id or '/' in suggestion_id or '\\' in suggestion_id:
+        return None
+
+    file_path = AGENT_IMPROVEMENTS_DIR / f"{safe_id}.json"
 
     if not file_path.exists():
         return None
 
     try:
-        if not AGENT_IMPROVEMENTS_DIR.exists():
-             AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-             
         async with aiofiles.open(file_path) as f:
             data = json.loads(await f.read())
             return ImprovementSuggestion(**data)

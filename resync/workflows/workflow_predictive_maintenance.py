@@ -17,25 +17,27 @@ Version: 1.0.0
 """
 
 import asyncio
+import uuid
+import re
 from datetime import datetime, timezone
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Optional, TypedDict
 
 import structlog
+from pydantic import BaseModel, Field, field_validator
 from resync.core.utils.llm_factories import LLMFactory
 
+# --- Optional Dependencies Check ---
+LANGGRAPH_AVAILABLE = False
 try:
+    from langchain_core.messages import HumanMessage, SystemMessage
     from langgraph.graph import END, StateGraph
-except ImportError:
-    END = "END"
-    class StateGraph:  # type: ignore
-        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
-
-
-# PostgresSaver requires psycopg3 with libpq - fallback to MemorySaver if unavailable
-try:
     from langgraph.checkpoint.postgres import PostgresSaver
-    POSTGRES_SAVER_AVAILABLE = True
+    LANGGRAPH_AVAILABLE = True
 except ImportError:
+    class HumanMessage: pass
+    class SystemMessage: pass
+    END = "END"
+    StateGraph = None  # type: ignore
     PostgresSaver = None  # type: ignore
     POSTGRES_SAVER_AVAILABLE = False
 
@@ -53,6 +55,91 @@ from resync.workflows.nodes import (
 )
 
 logger = structlog.get_logger(__name__)
+
+# ============================================================================
+# CHECKPOINTER SINGLETON (prevents connection pool leak)
+# ============================================================================
+
+_checkpointer_pool: Any = None
+_checkpointer_instance: Any = None
+_pool_lock = asyncio.Lock()
+
+
+async def get_checkpointer() -> Optional[Any]:
+    """
+    Returns singleton PostgresSaver with shared connection pool.
+
+    This prevents connection pool exhaustion by reusing a single pool
+    across all workflow executions.
+    """
+    global _checkpointer_pool, _checkpointer_instance
+
+    if _checkpointer_instance is not None:
+        return _checkpointer_instance
+
+    async with _pool_lock:
+        if _checkpointer_instance is not None:
+            return _checkpointer_instance
+
+        if not POSTGRES_SAVER_AVAILABLE or PostgresSaver is None:
+            logger.warning("postgres_checkpointer_unavailable")
+            return None
+
+        try:
+            from psycopg_pool import AsyncConnectionPool
+            from resync.settings import settings
+
+            conn_url = settings.database_url.replace("postgresql+asyncpg", "postgresql")
+
+            _checkpointer_pool = AsyncConnectionPool(
+                conninfo=conn_url,
+                min_size=2,
+                max_size=10,
+                timeout=30.0,
+                max_waiting=50,
+            )
+
+            await _checkpointer_pool.open()
+            await _checkpointer_pool.wait()
+
+            _checkpointer_instance = PostgresSaver(_checkpointer_pool)
+            await _checkpointer_instance.setup()
+
+            logger.info("postgres_checkpointer_initialized", min_size=2, max_size=10)
+            return _checkpointer_instance
+
+        except Exception as e:
+            logger.error("postgres_checkpointer_init_failed", error=str(e))
+            return None
+
+
+async def close_checkpointer() -> None:
+    """Close the checkpointer pool. Call on application shutdown."""
+    global _checkpointer_pool, _checkpointer_instance
+
+    if _checkpointer_pool:
+        try:
+            await _checkpointer_pool.close()
+            logger.info("postgres_checkpointer_closed")
+        except Exception as e:
+            logger.error("postgres_checkpointer_close_failed", error=str(e))
+        finally:
+            _checkpointer_pool = None
+            _checkpointer_instance = None
+
+
+# ============================================================================
+# RATE LIMITING FOR LLM CALLS
+# ============================================================================
+
+_llm_semaphore = asyncio.Semaphore(10)
+
+
+async def rate_limited_llm_call(llm_func, *args, **kwargs):
+    """Wrapper for LLM calls with rate limiting."""
+    async with _llm_semaphore:
+        return await llm_func(*args, **kwargs)
+
 
 # ============================================================================
 # STATE DEFINITION
@@ -111,7 +198,7 @@ class PredictiveMaintenanceState(TypedDict):
 
 async def fetch_data_node(
     state: PredictiveMaintenanceState,
-    db: AsyncSession
+    db: AsyncSession | None = None
 ) -> PredictiveMaintenanceState:
     """
     Step 1: Fetch historical data.
@@ -120,7 +207,22 @@ async def fetch_data_node(
     - Job execution history (30 days)
     - Workstation metrics (30 days)
     - Joblog patterns (failures)
+
+    Note: Opens its own DB session if not provided to avoid holding
+    connection open during LLM processing.
     """
+    # Open own session if not provided to avoid holding connection during LLM processing
+    if db is None:
+        async with get_async_session() as session:
+            return await _fetch_data_node_impl(state, session)
+    return await _fetch_data_node_impl(state, db)
+
+
+async def _fetch_data_node_impl(
+    state: PredictiveMaintenanceState,
+    db: AsyncSession
+) -> PredictiveMaintenanceState:
+    """Implementation of fetch_data_node."""
     logger.info(
         "predictive_maintenance.fetch_data",
         job_name=state["job_name"],
@@ -400,7 +502,7 @@ async def human_review_node(
 
 async def execute_actions_node(
     state: PredictiveMaintenanceState,
-    db: AsyncSession
+    db: AsyncSession | None = None
 ) -> PredictiveMaintenanceState:
     """
     Step 7: Execute preventive actions (optional).
@@ -410,7 +512,22 @@ async def execute_actions_node(
     - Archive old data
     - Scale resources
     - Reschedule jobs
+
+    Note: Opens its own DB session if not provided to avoid holding
+    connection open during execution.
     """
+    # Open own session if not provided to avoid holding connection during action execution
+    if db is None:
+        async with get_async_session() as session:
+            return await _execute_actions_node_impl(state, session)
+    return await _execute_actions_node_impl(state, db)
+
+
+async def _execute_actions_node_impl(
+    state: PredictiveMaintenanceState,
+    db: AsyncSession
+) -> PredictiveMaintenanceState:
+    """Implementation of execute_actions_node."""
     logger.info("predictive_maintenance.execute_actions")
 
     if not state.get("human_approved"):
@@ -524,8 +641,7 @@ def should_continue_after_human_review(
 
 def create_predictive_maintenance_workflow(
     llm: Any,
-    db: AsyncSession,
-    checkpointer: PostgresSaver
+    checkpointer: Optional[Any] = None
 ) -> StateGraph:
     """
     Create the Predictive Maintenance workflow graph.
@@ -555,9 +671,10 @@ def create_predictive_maintenance_workflow(
     workflow = StateGraph(PredictiveMaintenanceState)
 
     # Add nodes
+    # fetch_data_node opens its own DB session internally
     workflow.add_node(
         "fetch_data",
-        lambda state: fetch_data_node(state, db)
+        fetch_data_node
     )
     workflow.add_node(
         "analyze",
@@ -579,9 +696,10 @@ def create_predictive_maintenance_workflow(
         "human_review",
         human_review_node
     )
+    # execute_actions_node opens its own DB session internally
     workflow.add_node(
         "execute",
-        lambda state: execute_actions_node(state, db)
+        execute_actions_node
     )
 
     # Define edges
@@ -629,13 +747,79 @@ def create_predictive_maintenance_workflow(
     # Compile with checkpointer for pause/resume
     return workflow.compile(
         checkpointer=checkpointer,
-        interrupt_before=["human_review"]  # Pause before human review
+        interrupt_after=["human_review"]  # Pause AFTER notification is sent
     )
 
 
 # ============================================================================
 # WORKFLOW RUNNER
 # ============================================================================
+
+class WorkflowRequest(BaseModel):
+    """Validated request for predictive maintenance workflow."""
+
+    job_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Job name (alphanumeric, underscore, hyphen, dot)"
+    )
+    lookback_days: int = Field(
+        default=30,
+        ge=1,
+        le=90,
+        description="Days of history (max 90 for performance)"
+    )
+    workflow_id: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Existing workflow ID to resume"
+    )
+
+    @field_validator('job_name')
+    @classmethod
+    def validate_job_name(cls, v: str) -> str:
+        if not re.match(r'^[a-zA-Z0-9_\-\.]+$', v):
+            raise ValueError("job_name must contain only: letters, numbers, underscore, hyphen, dot")
+        if '..' in v or '/' in v or '\\' in v:
+            raise ValueError("job_name cannot contain path separators")
+        return v
+
+    @field_validator('workflow_id')
+    @classmethod
+    def validate_workflow_id(cls, v: str | None) -> str | None:
+        if v is not None:
+            if not re.match(r'^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$', v):
+                raise ValueError("workflow_id format invalid. Expected: pm_<job>_<id>")
+            if '..' in v or '/' in v:
+                raise ValueError("workflow_id cannot contain path separators")
+        return v
+
+
+class ApprovalRequest(BaseModel):
+    """Validated request for workflow approval."""
+
+    workflow_id: str = Field(..., max_length=100)
+    approved: bool
+    feedback: str | None = Field(default=None, max_length=5000)
+    user_id: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator('workflow_id')
+    @classmethod
+    def validate_workflow_id(cls, v: str) -> str:
+        if not re.match(r'^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$', v):
+            raise ValueError("workflow_id format invalid")
+        if '..' in v or '/':
+            raise ValueError("workflow_id contains prohibited characters")
+        return v
+
+    @field_validator('user_id')
+    @classmethod
+    def validate_user_id(cls, v: str) -> str:
+        if not re.match(r'^[a-zA-Z0-9_\-@\.]+$', v):
+            raise ValueError("user_id contains invalid characters")
+        return v
+
 
 async def run_predictive_maintenance(
     job_name: str,
@@ -653,89 +837,106 @@ async def run_predictive_maintenance(
     Returns:
         Final workflow state
     """
-    # Initialize
-    # Use centralized factory for LLM to ensure governance/metrics
-    # Original: ChatAnthropic(model="claude-sonnet-4-20250514")
-    llm = LLMFactory.get_langchain_llm(model="claude-3-sonnet-20240229") # Updated to valid model ID
+    try:
+        request = WorkflowRequest(
+            job_name=job_name,
+            lookback_days=lookback_days,
+            workflow_id=workflow_id
+        )
+    except Exception as e:
+        logger.error("invalid_workflow_request", job_name=job_name[:20], error=str(e))
+        raise ValueError(f"Invalid parameters: {e}")
 
-    async with get_async_session() as db:
-        checkpointer = PostgresSaver(db.connection())
+    job_name = request.job_name
+    lookback_days = request.lookback_days
+    workflow_id = request.workflow_id
 
-        workflow = create_predictive_maintenance_workflow(
-            llm=llm,
-            db=db,
-            checkpointer=checkpointer
+    if not LANGGRAPH_AVAILABLE:
+        logger.error("langgraph_missing")
+        return {"status": "failed", "error": "LangGraph dependency missing"}
+
+    from resync.settings import settings
+    model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
+    llm = LLMFactory.get_langchain_llm(model=model_name)
+
+    # Get dedicated checkpointer with its own connection pool
+    checkpointer = await get_checkpointer()
+
+    # Create workflow - db session will be opened per-node
+    workflow = create_predictive_maintenance_workflow(
+        llm=llm,
+        checkpointer=checkpointer
+    )
+
+    if workflow_id:
+        # Resume existing workflow
+        logger.info(
+            "predictive_maintenance.resume",
+            workflow_id=workflow_id
         )
 
-        if workflow_id:
-            # Resume existing workflow
-            logger.info(
-                "predictive_maintenance.resume",
-                workflow_id=workflow_id
-            )
+        config = {"configurable": {"thread_id": workflow_id}}
 
-            config = {"configurable": {"thread_id": workflow_id}}
+        # Get current state
+        state = await workflow.aget_state(config)
 
-            # Get current state
-            state = await workflow.aget_state(config)
-
-            # Continue from checkpoint
-            result = await workflow.ainvoke(
-                state.values,
-                config=config
-            )
-        else:
-            # Start new workflow
-            workflow_id = f"pm_{job_name}_{datetime.now(timezone.utc).timestamp()}"
-
-            logger.info(
-                "predictive_maintenance.start",
-                workflow_id=workflow_id,
-                job_name=job_name
-            )
-
-            initial_state: PredictiveMaintenanceState = {
-                "job_name": job_name,
-                "lookback_days": lookback_days,
-                "job_history": [],
-                "workstation_metrics": [],
-                "degradation_detected": False,
-                "degradation_type": None,
-                "degradation_severity": 0.0,
-                "correlation_found": False,
-                "root_cause": None,
-                "contributing_factors": [],
-                "failure_probability": 0.0,
-                "estimated_failure_date": None,
-                "confidence": 0.0,
-                "recommendations": [],
-                "preventive_actions": [],
-                "requires_human_review": False,
-                "human_approved": None,
-                "human_feedback": None,
-                "actions_executed": [],
-                "execution_results": {},
-                "workflow_id": workflow_id,
-                "started_at": datetime.now(timezone.utc),
-                "completed_at": None,
-                "status": "running",
-                "error": None
-            }
-
-            config = {"configurable": {"thread_id": workflow_id}}
-
-            result = await workflow.ainvoke(
-                initial_state,
-                config=config
-            )
+        # Continue from checkpoint
+        result = await workflow.ainvoke(
+            state.values,
+            config=config
+        )
+    else:
+        # Start new workflow
+        workflow_id = f"pm_{job_name}_{uuid.uuid4().hex[:12]}"
 
         logger.info(
-            "predictive_maintenance.completed",
+            "predictive_maintenance.start",
             workflow_id=workflow_id,
-            status=result.get("status")
+            job_name=job_name
         )
 
-        return result
+        initial_state: PredictiveMaintenanceState = {
+            "job_name": job_name,
+            "lookback_days": lookback_days,
+            "job_history": [],
+            "workstation_metrics": [],
+            "degradation_detected": False,
+            "degradation_type": None,
+            "degradation_severity": 0.0,
+            "correlation_found": False,
+            "root_cause": None,
+            "contributing_factors": [],
+            "failure_probability": 0.0,
+            "estimated_failure_date": None,
+            "confidence": 0.0,
+            "recommendations": [],
+            "preventive_actions": [],
+            "requires_human_review": False,
+            "human_approved": None,
+            "human_feedback": None,
+            "actions_executed": [],
+            "execution_results": {},
+            "workflow_id": workflow_id,
+            "started_at": datetime.now(timezone.utc),
+            "completed_at": None,
+            "status": "running",
+            "error": None
+        }
+
+        config = {"configurable": {"thread_id": workflow_id}}
+
+        result = await workflow.ainvoke(
+            initial_state,
+            config=config
+        )
+
+    logger.info(
+        "predictive_maintenance.completed",
+        workflow_id=workflow_id,
+        status=result.get("status")
+    )
+
+    return result
 
 
 # ============================================================================
@@ -745,41 +946,76 @@ async def run_predictive_maintenance(
 async def approve_workflow(
     workflow_id: str,
     approved: bool,
-    feedback: str | None = None
+    feedback: str | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Approve or reject workflow recommendations.
 
     This resumes the workflow from the human_review checkpoint.
+
+    Args:
+        workflow_id: ID of the workflow to approve/reject
+        approved: True to approve, False to reject
+        feedback: Optional feedback from the approver
+        user_id: ID of the user making the approval (for audit trail)
     """
-    async with get_async_session() as db:
-        checkpointer = PostgresSaver(db.connection())
+    import os
 
-        llm = LLMFactory.get_langchain_llm(model="claude-3-sonnet-20240229")
-        workflow = create_predictive_maintenance_workflow(
-            llm=llm,
-            db=db,
-            checkpointer=checkpointer
+    if user_id is None:
+        user_id = os.getenv("INTERNAL_CALL_USER", "system")
+
+    try:
+        request = ApprovalRequest(
+            workflow_id=workflow_id,
+            approved=approved,
+            feedback=feedback,
+            user_id=user_id
         )
+    except Exception as e:
+        logger.error("invalid_approval_request", workflow_id=workflow_id, error=str(e))
+        raise ValueError(f"Invalid parameters: {e}")
 
-        config = {"configurable": {"thread_id": workflow_id}}
+    workflow_id = request.workflow_id
 
-        # Get current state
-        state = await workflow.aget_state(config)
+    logger.info(
+        "workflow_approval_request",
+        workflow_id=workflow_id,
+        approved=approved,
+        user_id=user_id,
+        feedback_length=len(feedback) if feedback else 0,
+    )
 
-        if not state:
-            raise ValueError(f"Workflow {workflow_id} not found")
+    # Get dedicated checkpointer with its own connection pool
+    checkpointer = await get_checkpointer()
 
-        # Update state with human decision
-        updated_state = {
-            **state.values,
-            "human_approved": approved,
-            "human_feedback": feedback
-        }
+    from resync.settings import settings
+    model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
+    llm = LLMFactory.get_langchain_llm(model=model_name)
+    workflow = create_predictive_maintenance_workflow(
+        llm=llm,
+        checkpointer=checkpointer
+    )
 
-        # Resume workflow
-        return await workflow.ainvoke(
-            updated_state,
-            config=config
-        )
+    config = {"configurable": {"thread_id": workflow_id}}
+
+    # Get current state
+    state = await workflow.aget_state(config)
+
+    if not state:
+        raise ValueError(f"Workflow {workflow_id} not found")
+
+    # Update state with human decision
+    updated_state = {
+        **state.values,
+        "human_approved": approved,
+        "human_feedback": feedback,
+        "approved_by": user_id,
+    }
+
+    # Resume workflow
+    return await workflow.ainvoke(
+        updated_state,
+        config=config
+    )
 

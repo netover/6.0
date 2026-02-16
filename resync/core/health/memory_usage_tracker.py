@@ -6,7 +6,7 @@ functionality for health checks and system monitoring.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import gc
 from datetime import datetime, timedelta, timezone

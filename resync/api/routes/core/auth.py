@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import hmac
 import secrets
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -19,7 +20,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from resync.api.core import security as jwt_security
-from resync.api.core.security import ALGORITHM
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.redis_init import get_redis_client
 from resync.core.structured_logger import get_logger
@@ -39,21 +39,30 @@ bearer_scheme = HTTPBearer(auto_error=False)
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # ---------------------------------------------------------------------------
-# JWT secret key resolution (Option B)
+# JWT secret key resolution
 # ---------------------------------------------------------------------------
 
-_DEVELOPMENT_FALLBACK_SECRET = "fallback_secret_key_for_development"
+_DEVELOPMENT_FALLBACK_SECRET: str | None = None
+
+
+def _get_dev_fallback_secret() -> str:
+    """Generate a secure random fallback secret for development only."""
+    global _DEVELOPMENT_FALLBACK_SECRET
+    if _DEVELOPMENT_FALLBACK_SECRET is None:
+        import os
+        _DEVELOPMENT_FALLBACK_SECRET = os.urandom(32).hex()
+    return _DEVELOPMENT_FALLBACK_SECRET
 
 def _is_secret_key_secure(secret: str | None) -> bool:
     if not secret:
         return False
     if len(secret) < 32:
         return False
-    insecure = {
-        _DEVELOPMENT_FALLBACK_SECRET,
+    known_insecure = {
+        "fallback_secret_key_for_development",
         "dev-secret-key-change-me-in-production-minimum-32-chars",
     }
-    return secret not in insecure
+    return secret not in known_insecure and secret != _get_dev_fallback_secret()
 
 
 def _get_configured_secret_key() -> str | None:
@@ -96,7 +105,7 @@ def get_jwt_secret_key() -> str:
         return configured
     if not configured:
         logger.warning("auth_secret_key_not_set_using_dev_fallback")
-        return _DEVELOPMENT_FALLBACK_SECRET
+        return _get_dev_fallback_secret()
     logger.warning("auth_secret_key_insecure_nonprod", extra={"length": len(configured)})
     return configured
 
