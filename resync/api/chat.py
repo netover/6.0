@@ -46,11 +46,11 @@ _bg_tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
 class SupportsAgentMeta(Protocol):
     """Minimal contract used by this module for agent-like objects."""
 
-    name: str | None
-    description: str | None
+    name: str | None = None
+    description: str | None = None
     # Some agents expose 'llm_model', others 'model'
-    llm_model: Any | None  # type: ignore[assignment]
-    model: Any | None  # type: ignore[assignment]
+    llm_model: Any | None = None  # type: ignore[assignment]
+    model: Any | None = None  # type: ignore[assignment]
 
 
 async def send_error_message(websocket: WebSocket, message: str) -> None:

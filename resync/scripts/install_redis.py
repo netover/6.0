@@ -274,7 +274,7 @@ def start_docker() -> None:
         # Tenta docker compose (v2)
         try:
             run_command(["docker", "compose", "-f", "docker-compose.redis.yml", "up", "-d"])
-        except:
+        except Exception:
             print("Docker Compose não disponível.")
 
 
@@ -296,6 +296,7 @@ def test_redis() -> None:
 
 
 def main():
+    global REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
     parser = argparse.ArgumentParser(description="Redis Setup for Resync")
     parser.add_argument(
         "--action",
@@ -309,7 +310,6 @@ def main():
 
     args = parser.parse_args()
 
-    global REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
     REDIS_HOST = args.host
     REDIS_PORT = args.port
     REDIS_PASSWORD = args.password

@@ -631,6 +631,7 @@ def run_migrations() -> None:
 
 
 def main():
+    global DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
     parser = argparse.ArgumentParser(description="PostgreSQL Setup for Resync")
     parser.add_argument(
         "--action",
@@ -647,7 +648,6 @@ def main():
     args = parser.parse_args()
 
     # Atualiza variáveis globais
-    global DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
     DB_NAME = args.db_name
     DB_USER = args.db_user
     DB_PASSWORD = args.db_password

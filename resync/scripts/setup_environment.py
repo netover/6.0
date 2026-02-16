@@ -14,7 +14,6 @@ Usage:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -168,7 +167,7 @@ volumes:
         # Tenta docker compose v2
         try:
             run_command(["docker", "compose", "-f", "docker-compose.resync.yml", "up", "-d"])
-        except:
+        except Exception:
             print("❌ Docker não disponível")
 
 
