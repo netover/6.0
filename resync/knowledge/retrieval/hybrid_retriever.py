@@ -19,12 +19,20 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+import os
 import re
 import time
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Protocol
+
+try:
+    from filelock import FileLock, Timeout
+    FILELOCK_AVAILABLE = True
+except ImportError:
+    FILELOCK_AVAILABLE = False
 
 from .reranker_interface import (
     IReranker,
@@ -33,7 +41,12 @@ from .reranker_interface import (
     create_reranker,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.get_logger(__name__)
+
+INDEX_STORAGE_PATH = os.environ.get(
+    "BM25_INDEX_PATH",
+    os.path.join("data", "bm25_index.bin.gz")
+)
 
 
 # =============================================================================
@@ -308,6 +321,126 @@ class BM25Index:
         # Sort by score and return top_k
         sorted_results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return sorted_results[:top_k]
+
+    def save(self, path: str) -> bool:
+        """
+        Persist BM25 index to disk with compression.
+
+        Args:
+            path: Path to save the index file (.bin.gz)
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        if not FILELOCK_AVAILABLE:
+            logger.warning("filelock not available, skipping BM25 index save")
+            return False
+
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+            lock_path = f"{path}.lock"
+            lock = FileLock(lock_path, timeout=10)
+
+            try:
+                with lock.acquire(timeout=10):
+                    import joblib
+
+                    with gzip.open(path, "wb") as f:
+                        joblib.dump(self, f)
+
+                    logger.info(
+                        "bm25_index_saved",
+                        path=path,
+                        size_bytes=os.path.getsize(path),
+                        num_docs=len(self.documents),
+                        num_terms=len(self.inverted_index)
+                    )
+                    return True
+
+            except Timeout:
+                logger.error("bm25_index_save_timeout", path=path)
+                return False
+
+        except Exception as e:
+            logger.error("bm25_index_save_failed", error=str(e), path=path)
+            return False
+
+    @classmethod
+    def load(cls, path: str) -> "BM25Index":
+        """
+        Load BM25 index from disk with auto-recovery.
+
+        Args:
+            path: Path to the index file
+
+        Returns:
+            BM25Index instance (loaded or empty)
+        """
+        if not os.path.exists(path):
+            logger.info("bm25_index_not_found_will_build", path=path)
+            return cls()
+
+        if not FILELOCK_AVAILABLE:
+            logger.warning("filelock not available, building fresh index")
+            return cls()
+
+        lock_path = f"{path}.lock"
+
+        try:
+            import joblib
+
+            lock = FileLock(lock_path, timeout=5)
+
+            try:
+                with lock.acquire(timeout=5):
+                    with gzip.open(path, "rb") as f:
+                        index = joblib.load(f)
+
+                    logger.info(
+                        "bm25_index_loaded",
+                        path=path,
+                        size_bytes=os.path.getsize(path),
+                        num_docs=len(index.documents),
+                        num_terms=len(index.inverted_index)
+                    )
+                    return index
+
+            except Timeout:
+                logger.warning("bm25_index_locked_using_empty", path=path)
+                return cls()
+
+        except (EOFError, OSError, ImportError, gzip.BadGzipFile) as e:
+            logger.warning(
+                "bm25_index_corrupted_rebuilding",
+                error=str(e),
+                path=path
+            )
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                if os.path.exists(lock_path):
+                    os.remove(lock_path)
+            except Exception as cleanup_error:
+                logger.error("bm25_index_cleanup_failed", error=str(cleanup_error))
+
+            return cls()
+
+        except MemoryError:
+            logger.error(
+                "bm25_index_oom_using_empty",
+                path=path
+            )
+            return cls()
+
+        except Exception as e:
+            logger.warning(
+                "bm25_index_load_failed_unknown",
+                error=str(e),
+                error_type=type(e).__name__,
+                path=path
+            )
+            return cls()
 
 
 # =============================================================================
@@ -852,16 +985,44 @@ class HybridRetriever:
         return weights
 
     async def _ensure_bm25_index(self, collection: str | None = None) -> None:
-        """Build BM25 index if not already built."""
+        """Build BM25 index if not already built, using persistent storage."""
         if self._index_built:
             return
 
+        index_path = INDEX_STORAGE_PATH
+
         try:
-            # Get all documents from vector store
-            documents = store.get_all_documents(collection=collection)
+            import asyncio
+
+            logger.info("Attempting to load persisted BM25 index", path=index_path)
+
+            self.bm25_index = await asyncio.to_thread(
+                BM25Index.load, index_path
+            )
+
+            if self.bm25_index and self.bm25_index.documents:
+                self._index_built = True
+                logger.info(
+                    "BM25 index loaded from disk",
+                    num_docs=len(self.bm25_index.documents)
+                )
+                return
+
+        except Exception as e:
+            logger.warning(
+                "BM25 index load failed, will rebuild",
+                error=str(e)
+            )
+
+        logger.info("Building fresh BM25 index from database")
+
+        try:
+            from resync.knowledge.store import get_vector_store
+            store = get_vector_store()
+
+            documents = await store.get_all_documents(collection=collection)
 
             if documents:
-                # v5.2.3.23: Pass field_boosts from config
                 self.bm25_index = BM25Index(
                     k1=self.config.bm25_k1,
                     b=self.config.bm25_b,
@@ -869,16 +1030,32 @@ class HybridRetriever:
                 )
                 self.bm25_index.build_index(documents)
                 self._index_built = True
+
+                asyncio.create_task(self._save_index_async(index_path))
+
                 logger.info(
-                    f"BM25 index ready with {len(documents)} documents, "
-                    f"field_boosts={list(self.config.field_boosts.keys())}"
+                    f"BM25 index built and saved: {len(documents)} docs"
                 )
             else:
                 logger.warning("No documents found for BM25 indexing")
 
         except Exception as e:
             logger.error("Failed to build BM25 index: %s", e)
-            # Continue without BM25 - fall back to vector-only
+
+    async def _save_index_async(self, path: str) -> None:
+        """Save BM25 index in background (non-blocking)."""
+        try:
+            import asyncio
+            await asyncio.sleep(2)
+
+            if self.bm25_index:
+                success = self.bm25_index.save(path)
+                if success:
+                    logger.info("BM25 index persisted successfully")
+                else:
+                    logger.warning("BM25 index persist failed (non-critical)")
+        except Exception as e:
+            logger.error("BM25 index async save failed: %s", e)
 
     def _get_cross_encoder(self):
         """Lazy load cross-encoder model."""

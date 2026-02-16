@@ -62,6 +62,7 @@ class CreateBackupRequest(BaseModel):
     description: str = Field(default="", description="Optional backup description")
     compress: bool = Field(default=True, description="Compress the backup (database only)")
     include_env: bool = Field(default=True, description="Include .env files (config only)")
+    collection_name: str | None = Field(default=None, description="Collection name for RAG backup")
 
 
 class BackupResponse(BaseModel):
@@ -481,3 +482,50 @@ async def stop_scheduler():
     await service.stop_scheduler()
 
     return {"message": "Backup scheduler stopped"}
+
+
+@router.post("/rag/index", response_model=BackupResponse)
+async def create_rag_index_backup(request: CreateBackupRequest):
+    """
+    Create a backup of the RAG BM25 index.
+    """
+    from resync.knowledge.retrieval.hybrid_retriever import BM25Index, INDEX_STORAGE_PATH
+    
+    service = get_backup_service()
+    
+    index = BM25Index.load(INDEX_STORAGE_PATH)
+    backup = service.create_rag_index_backup(index, request.collection_name or "bm25")
+    
+    if backup:
+        return BackupResponse.from_backup_info(backup)
+    
+    raise HTTPException(status_code=500, detail="Failed to create RAG index backup")
+
+
+@router.get("/rag/list", response_model=BackupListResponse)
+async def list_rag_backups():
+    """
+    List all RAG index backups.
+    """
+    service = get_backup_service()
+    backups = service.list_rag_backups()
+    
+    return BackupListResponse(
+        backups=[BackupResponse.from_backup_info(b) for b in backups],
+        total=len(backups)
+    )
+
+
+@router.post("/rag/{backup_id}/restore")
+async def restore_rag_index_backup(backup_id: str):
+    """
+    Restore RAG index from backup.
+    """
+    service = get_backup_service()
+    
+    success = service.restore_rag_index_backup(backup_id)
+    
+    if success:
+        return {"message": f"RAG index restored from backup {backup_id}"}
+    
+    raise HTTPException(status_code=404, detail=f"Backup {backup_id} not found")
