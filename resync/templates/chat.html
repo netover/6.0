@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self'; connect-src 'self' ws: wss:;">
+    <title>Resync Chat | AI Assistant</title>
+
+    <!-- Reuse Admin CSS -->
+    <link href="/static/css/admin-neumorphic.css" rel="stylesheet">
+    <link href="/static/css/chat.css" rel="stylesheet">
+</head>
+
+<body class="chat-body">
+    <div class="chat-container">
+        <!-- Header -->
+        <header class="chat-header">
+            <div class="chat-header-content">
+                <h1>🤖 Resync AI</h1>
+                <div class="connection-status" id="connectionStatus">
+                    <span class="status-indicator"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Messages Area -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <h2>Welcome to Resync</h2>
+                <p>I'm your AI assistant. How can I help you today?</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-container">
+            <form id="chatForm" class="chat-form">
+                <textarea id="messageInput" class="chat-input" placeholder="Type your message..." rows="1"
+                    autofocus></textarea>
+                <button type="submit" class="btn btn-primary chat-send-btn" id="sendBtn">
+                    <span>📤</span> Send
+                </button>
+            </form>
+            <div class="chat-footer">
+                <small>Powered by Resync v6.0 | <span id="traceId"></span></small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/chat-client.js"></script>
+</body>
+
+</html>

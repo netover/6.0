@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resync - TWS Real-time Monitor</title>
+    <link rel="stylesheet" href="/static/css/style-neumorphic.css">
+    <link rel="stylesheet" href="/static/css/admin-neumorphic.css">
+    <style>
+        .monitor-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .workstations-panel {
+            background: linear-gradient(145deg, #e6ebf2, #bec3c9);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 8px 8px 16px var(--shadow-dark),
+                -8px -8px 16px var(--shadow-light);
+        }
+
+        .jobs-panel {
+            background: linear-gradient(145deg, #e6ebf2, #bec3c9);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 8px 8px 16px var(--shadow-dark),
+                -8px -8px 16px var(--shadow-light);
+        }
+
+        .ws-list {
+            list-style: none;
+            margin-top: 1rem;
+        }
+
+        .ws-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: inset 2px 2px 5px var(--shadow-dark),
+                inset -2px -2px 5px var(--shadow-light);
+        }
+
+        .job-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .job-table th,
+        .job-table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .status-pill {
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+        }
+
+        .status-running {
+            background: #4299e1;
+        }
+
+        .status-success {
+            background: #48bb78;
+        }
+
+        .status-failed {
+            background: #f56565;
+        }
+
+        .status-pending {
+            background: #ed8936;
+        }
+
+        .log-panel {
+            grid-column: 1 / -1;
+            background: #2d3748;
+            color: #a0aec0;
+            border-radius: 15px;
+            padding: 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            height: 200px;
+            overflow-y: auto;
+            box-shadow: inset 4px 4px 10px #1a202c;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>TWS Pulse</h1>
+                <div id="ws-status" class="status-badge status-warning">Connecting...</div>
+            </div>
+            <p>Real-time workstation and job orchestration monitoring</p>
+        </header>
+
+        <main class="admin-main">
+            <div class="monitor-grid">
+                <section class="workstations-panel">
+                    <h2>Workstations</h2>
+                    <ul class="ws-list" id="ws-list">
+                        <!-- Dynamic items -->
+                    </ul>
+                </section>
+
+                <section class="jobs-panel">
+                    <h2>Recent Jobs</h2>
+                    <table class="job-table">
+                        <thead>
+                            <tr>
+                                <th>Job Name</th>
+                                <th>WS</th>
+                                <th>Status</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="job-list">
+                            <!-- Dynamic rows -->
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="log-panel" id="event-log">
+                    <div>[SYSTEM] Initializing monitor...</div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let ws;
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/monitoring/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                document.getElementById('ws-status').className = 'status-badge status-ok';
+                document.getElementById('ws-status').textContent = 'Live';
+                addLog('Connected to TWS Event Bus');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleEvent(data);
+            };
+
+            ws.onclose = () => {
+                document.getElementById('ws-status').className = 'status-badge status-critical';
+                document.getElementById('ws-status').textContent = 'Offline';
+                addLog('Connection lost. Retrying...', 'error');
+                setTimeout(connect, 3000);
+            };
+        }
+
+        function handleEvent(data) {
+            if (data.type === 'connected') {
+                addLog(`Registered as ${data.client_id}`);
+            } else if (data.type === 'workstation_status') {
+                updateWorkstations(data.workstations);
+            } else if (data.type === 'job_update') {
+                addJobRow(data.job);
+            } else if (data.type === 'snapshot') {
+                updateWorkstations(data.snapshot.workstations);
+                updateJobs(data.snapshot.jobs);
+            } else {
+                addLog(`Event: ${data.type}`);
+            }
+        }
+
+        function addLog(msg, type = 'info') {
+            const log = document.getElementById('event-log');
+            const entry = document.createElement('div');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            if (type === 'error') entry.style.color = '#f56565';
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateWorkstations(wss) {
+            const list = document.getElementById('ws-list');
+            list.innerHTML = '';
+            wss.forEach(ws => {
+                const li = document.createElement('li');
+                li.className = 'ws-item';
+                li.innerHTML = `
+                    <span>${ws.name}</span>
+                    <span class="status-pill ${ws.status === 'LINKED' ? 'status-success' : 'status-failed'}">${ws.status}</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function updateJobs(jobs) {
+            const list = document.getElementById('job-list');
+            list.innerHTML = '';
+            jobs.slice(0, 10).forEach(addJobRow);
+        }
+
+        function addJobRow(job) {
+            const list = document.getElementById('job-list');
+            const row = document.createElement('tr');
+            const statusClass = job.status === 'SUCC' ? 'status-success' :
+                job.status === 'ABEND' ? 'status-failed' :
+                    job.status === 'EXEC' ? 'status-running' : 'status-pending';
+
+            row.innerHTML = `
+                <td><strong>${job.name}</strong></td>
+                <td>${job.workstation}</td>
+                <td><span class="status-pill ${statusClass}">${job.status}</span></td>
+                <td>${new Date(job.startTime).toLocaleTimeString()}</td>
+            `;
+            if (list.firstChild) list.insertBefore(row, list.firstChild);
+            else list.appendChild(row);
+        }
+
+        connect();
+    </script>
+</body>
+
+</html>
