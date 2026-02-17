@@ -54,27 +54,43 @@ class AdminAudit {
                         </tr>
                     </thead>
                     <tbody>
-                        ${logs.map(log => `
-                            <tr>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem;">${new Date(log.timestamp).toLocaleString()}</td>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${log.user_id}</td>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border);"><span class="badge">${log.action}</span></td>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem;">
-                                    ${this.formatDetails(log.details)}
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${logs.map(log => this.renderLogRow(log)).join('')}
                     </tbody>
                 </table>
             `;
         } catch (err) {
-            container.innerHTML = `<div class="stat-label">Error loading logs: ${err.message}</div>`;
+            container.innerHTML = `<div class="stat-label">Error loading logs: ${escapeHtml(err.message)}</div>`;
         }
+    }
+
+    renderLogRow(log) {
+        // Escape all user-provided data to prevent XSS
+        const timestamp = escapeHtml(new Date(log.timestamp).toLocaleString());
+        const userId = escapeHtml(log.user_id);
+        const action = escapeHtml(log.action);
+        const details = this.formatDetails(log.details);
+
+        return `
+            <tr>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem;">${timestamp}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${userId}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);"><span class="badge">${action}</span></td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem;">
+                    ${details}
+                </td>
+            </tr>
+        `;
     }
 
     formatDetails(details) {
         if (!details) return '-';
-        const str = JSON.stringify(details);
-        return str.length > 100 ? str.substring(0, 100) + '...' : str;
+        try {
+            const str = JSON.stringify(details);
+            const truncated = str.length > 100 ? str.substring(0, 100) + '...' : str;
+            // Escape the JSON string to prevent XSS
+            return escapeHtml(truncated);
+        } catch (e) {
+            return escapeHtml(String(details));
+        }
     }
 }

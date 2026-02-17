@@ -143,6 +143,7 @@ class ChatClient {
         // Update trace ID if present
         if (data.trace_id && this.traceIdDisplay) {
             this.traceId = data.trace_id;
+            // Use textContent for trace ID to prevent XSS
             this.traceIdDisplay.textContent = `Trace: ${data.trace_id.substring(0, 8)}...`;
         }
 
@@ -173,18 +174,25 @@ class ChatClient {
 
         const avatar = role === 'user' ? '👤' : role === 'assistant' ? '🤖' : '⚠️';
 
+        // Build metadata HTML with proper escaping
         let metaHtml = '';
         if (role === 'assistant' && (metadata.mode || metadata.intent)) {
             const confidenceStr = metadata.confidence ? ` | ${(metadata.confidence * 100).toFixed(0)}%` : '';
+            // Escape all metadata values to prevent XSS
+            const modeStr = metadata.mode ? escapeHtml(metadata.mode) : '';
+            const intentStr = metadata.intent ? escapeHtml(metadata.intent) : '';
+
             metaHtml = `
                 <div class="message-meta">
-                    ${metadata.mode ? `Mode: ${metadata.mode}` : ''} 
-                    ${metadata.intent ? `| Intent: ${metadata.intent}` : ''}
+                    ${modeStr ? `Mode: ${modeStr}` : ''} 
+                    ${intentStr ? `| Intent: ${intentStr}` : ''}
                     ${confidenceStr}
                 </div>
             `;
         }
 
+        // Use textContent for the avatar and properly escape content
+        // The formatMessage function already escapes HTML, so it's safe to use innerHTML
         messageEl.innerHTML = `
             <div class="message-avatar">${avatar}</div>
             <div class="message-content">
@@ -200,11 +208,9 @@ class ChatClient {
     formatMessage(content) {
         if (!content) return '';
 
-        // Basic markdown-like formatting
-        return content
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
+        // First escape HTML to prevent XSS, then apply markdown-like formatting
+        // This ensures user content is safe before any formatting is applied
+        return escapeHtml(content)
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/`(.*?)`/g, '<code>$1</code>')
@@ -218,6 +224,7 @@ class ChatClient {
         const indicator = document.createElement('div');
         indicator.id = 'typingIndicator';
         indicator.className = 'message assistant';
+        // Static HTML, no user input - safe to use innerHTML
         indicator.innerHTML = `
             <div class="message-avatar">🤖</div>
             <div class="message-content">

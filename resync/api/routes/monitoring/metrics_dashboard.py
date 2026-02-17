@@ -17,7 +17,7 @@ Campos com valor None devem ser exibidos como "N/A" no frontend.
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 import asyncio
 import json
 from pydantic import BaseModel, Field
@@ -32,7 +32,41 @@ except ImportError:
 
 import logging
 
+from resync.api.security import decode_token
+
 logger = logging.getLogger(__name__)
+
+
+def _verify_ws_admin(websocket: WebSocket) -> bool:
+    """Verify admin authentication for WebSocket connection.
+    
+    Returns True if authenticated as admin, False otherwise.
+    """
+    try:
+        # Check for token in Authorization header
+        auth_header = websocket.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False
+        
+        token = auth_header[7:]
+        payload = decode_token(token)
+        if not payload:
+            return False
+        
+        # Verify admin role
+        roles_claim = payload.get("roles")
+        if roles_claim is None:
+            legacy_role = payload.get("role")
+            roles = [legacy_role] if legacy_role else []
+        elif isinstance(roles_claim, list):
+            roles = roles_claim
+        else:
+            roles = [roles_claim]
+
+        return "admin" in roles
+    except Exception as e:
+        logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
+        return False
 
 router = APIRouter(prefix="/metrics-dashboard", tags=["Metrics Dashboard"])
 
@@ -208,6 +242,18 @@ _metrics_store = MetricsStore()
 
 
 def get_metrics_store() -> MetricsStore:
+    """Get the MetricsStore singleton (sync version for backwards compatibility)."""
+    return _metrics_store
+
+
+async def get_metrics_store_dep() -> MetricsStore:
+    """
+    Get the MetricsStore singleton as an async dependency for FastAPI.
+    
+    This is the proper FastAPI DI pattern - an async function that returns
+    the singleton instance. This ensures proper lifecycle management and
+    allows FastAPI to handle the dependency injection correctly.
+    """
     return _metrics_store
 
 
@@ -218,7 +264,7 @@ def get_metrics_store() -> MetricsStore:
 
 @router.get("/", response_model=DashboardMetrics)
 async def get_dashboard_metrics(
-    store: MetricsStore = Depends(get_metrics_store),
+    store: MetricsStore = Depends(get_metrics_store_dep),
 ) -> DashboardMetrics:
     """
     Retorna todas as métricas do dashboard.
@@ -606,14 +652,122 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket para atualizações em tempo real do dashboard.
+    
+    Requires admin authentication via Authorization header.
     """
+    # Verify admin authentication - fail closed (deny by default)
+    if not _verify_ws_admin(websocket):
+        logger.warning("Metrics Dashboard WebSocket auth failed - rejecting connection")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Admin authentication required")
+        return
+    
     await manager.connect(websocket)
     try:
         while True:
-            # Enviar métricas imediatamente ao conectar
-            metrics = await get_dashboard_metrics()
-            # Pydantic v2 .model_dump()
-            await websocket.send_json(metrics.model_dump(mode="json"))
+            # v6.0 FIX: Get metrics directly using singleton to avoid DI issues in WebSocket loop
+            # The get_dashboard_metrics function requires proper DI which isn't available in WebSocket context
+            store = get_metrics_store()
+            
+            # Build metrics directly (same logic as get_dashboard_metrics but without DI)
+            from resync.core.metrics import RuntimeMetricsCollector
+            collector = RuntimeMetricsCollector()
+            snapshot = collector.get_snapshot()
+
+            if not PSUTIL_AVAILABLE:
+                memory_mb = 0.0
+                cpu_percent = 0.0
+            else:
+                sys_snap = snapshot.get("system", {})
+                memory_mb = sys_snap.get("memory_mb", 0.0)
+                cpu_percent = sys_snap.get("cpu_percent", 0.0)
+                if memory_mb == 0.0:
+                    try:
+                        process = psutil.Process()
+                        memory_mb = process.memory_info().rss / (1024 * 1024)
+                        cpu_percent = process.cpu_percent()
+                    except Exception as e:
+                        logger.warning("psutil_process_metrics_failed", error=str(e))
+
+            router_cache = snapshot.get("router_cache", {})
+            router_hits = router_cache.get("hits", 0)
+            router_misses = router_cache.get("misses", 0)
+            router_total = router_hits + router_misses
+            router_hit_ratio = (router_hits / router_total) if router_total > 0 else 0.0
+
+            cache_metrics = CacheMetrics(
+                hit_rate=router_hit_ratio,
+                total_entries=router_total,
+                memory_mb=memory_mb * 0.3,
+                avg_latency_ms=router_cache.get("avg_latency_ms"),
+                hits_last_hour=router_hits,
+                misses_last_hour=router_misses,
+            )
+
+            router_stats = snapshot.get("router", {})
+            router_metrics = RouterMetrics(
+                accuracy=router_stats.get("accuracy"),
+                fallback_rate=router_stats.get("fallback_rate", 0.0),
+                avg_classification_ms=router_stats.get("avg_duration_ms"),
+                total_classifications=router_stats.get("total", 0),
+                low_confidence_count=router_stats.get("low_confidence_count", 0),
+                top_intents=router_stats.get("top_intents", {}),
+            )
+
+            from resync.knowledge.config import CFG
+            reranker_metrics = RerankerMetrics(
+                enabled=CFG.enable_cross_encoder,
+                model=CFG.cross_encoder_model,
+                avg_rerank_ms=None,
+                docs_processed=None,
+                docs_filtered=0,
+                filter_rate=0.30,
+                threshold=CFG.cross_encoder_threshold,
+            )
+
+            validator_metrics = ValidatorMetrics(
+                total_validations=store._validations,
+                successful_validations=store._validations - store._validation_failures,
+                failed_validations=store._validation_failures,
+                avg_validation_ms=None,
+                validation_types=store._validation_type_counts,
+            )
+
+            warming_metrics = WarmingMetrics(
+                last_warm=None,
+                queries_warmed=0,
+                queries_skipped=0,
+                errors=0,
+                duration_seconds=0.0,
+                is_warming=False,
+            )
+
+            active_connections = 0
+            if PSUTIL_AVAILABLE:
+                try:
+                    active_connections = len(psutil.net_connections(kind="inet"))
+                except Exception as e:
+                    logger.warning("psutil_net_connections_failed", error=str(e))
+
+            system_metrics = SystemMetrics(
+                uptime_hours=round(snapshot.get("system", {}).get("uptime_hours", 0.0), 2),
+                requests_today=snapshot.get("system", {}).get("requests_today", 0),
+                errors_today=snapshot.get("system", {}).get("errors_today", 0),
+                active_connections=active_connections,
+                memory_usage_mb=round(memory_mb, 2),
+                cpu_usage_percent=round(cpu_percent, 2),
+            )
+
+            dashboard_metrics = DashboardMetrics(
+                timestamp=datetime.now(timezone.utc),
+                cache=cache_metrics,
+                router=router_metrics,
+                reranker=reranker_metrics,
+                validators=validator_metrics,
+                warming=warming_metrics,
+                system=system_metrics,
+            )
+
+            await websocket.send_json(dashboard_metrics.model_dump(mode="json"))
             
             # Aguarda 5 segundos ou até cliente desconectar
             await asyncio.sleep(5)

@@ -148,6 +148,25 @@ class SemanticCache:
         normalized = query.strip().lower()
         return hashlib.md5(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
+    def _build_cache_key(self, query_text: str, user_id: str | None = None) -> str:
+        """
+        Build a cache key that includes user_id for per-user caching.
+        
+        SECURITY: This prevents cross-user data leakage by scoping cache entries
+        to specific users.
+        
+        Args:
+            query_text: The user's message/query
+            user_id: Optional user identifier
+            
+        Returns:
+            Cache key text with user scoping
+        """
+        if user_id:
+            # Scope cache key to user to prevent cross-user leakage
+            return f"user:{user_id}:{query_text}"
+        return query_text
+
     async def get(self, query: str) -> CacheResult:
         """Look up query in cache with fallback and reranking support."""
         if not self._initialized:
@@ -420,7 +439,11 @@ class SemanticCache:
         self.enable_reranking = enabled
         return enabled
 
-    async def check_intent(self, query_text: str) -> Optional[Dict[str, Any]]:
+    async def check_intent(
+        self,
+        query_text: str,
+        user_id: str | None = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Check if a query's intent is cached (Router Cache).
         
@@ -429,8 +452,12 @@ class SemanticCache:
         
         This is used by router_node to skip LLM classification for known queries.
         
+        SECURITY: The cache key now includes user_id to prevent cross-user data leakage.
+        Only intents from the same user can access cached data.
+        
         Args:
             query_text: The user's message/query
+            user_id: The user identifier to scope the cache per-user
             
         Returns:
             Dict with keys: intent, entities, confidence if cache hit, else None
@@ -439,14 +466,16 @@ class SemanticCache:
             await self.initialize()
         
         try:
-            # Generate embedding for the query
-            embedding = self.vectorizer.embed(query_text)
+            # Generate embedding for the query with user scoping
+            # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+            cache_key_text = self._build_cache_key(query_text, user_id)
+            embedding = self.vectorizer.embed(cache_key_text)
             
             # Search using RedisVL or fallback
             if self._redis_stack_available:
-                result = await self._search_redisvl(query_text, embedding)
+                result = await self._search_redisvl(cache_key_text, embedding)
             else:
-                result = await self._search_fallback(query_text, embedding)
+                result = await self._search_fallback(cache_key_text, embedding)
             
             if not result.hit:
                 return None
@@ -483,6 +512,7 @@ class SemanticCache:
         query_text: str,
         intent_data: Dict[str, Any],
         ttl: int | None = None,
+        user_id: str | None = None,
     ) -> bool:
         """
         Store the router's intent classification in cache.
@@ -491,10 +521,14 @@ class SemanticCache:
         NOT the final response. This allows us to skip expensive LLM calls
         while still executing real-time data queries.
         
+        SECURITY: The cache key now includes user_id to prevent cross-user data leakage.
+        Only intents from the same user can access cached data.
+        
         Args:
             query_text: The user's message/query
             intent_data: Dict containing intent, entities, confidence
             ttl: Optional TTL override (default: self.default_ttl)
+            user_id: The user identifier to scope the cache per-user
             
         Returns:
             True if successfully stored, False otherwise
@@ -506,15 +540,19 @@ class SemanticCache:
             # Serialize intent data as JSON
             intent_json = json.dumps(intent_data, ensure_ascii=False)
             
+            # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+            cache_key_text = self._build_cache_key(query_text, user_id)
+            
             # Use the existing set() method with metadata to mark as intent cache
             metadata = {
                 "type": "router_cache",
                 "intent": intent_data.get("intent"),
                 "confidence": intent_data.get("confidence"),
+                "user_id": user_id,  # Track which user cached this
             }
             
             success = await self.set(
-                query=query_text,
+                query=cache_key_text,
                 response=intent_json,
                 ttl=ttl,
                 metadata=metadata,

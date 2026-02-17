@@ -105,23 +105,31 @@ class AdminBackup {
                 </table>
             `;
         } catch (err) {
-            container.innerHTML = `<div class="stat-label">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="stat-label">Error: ${escapeHtml(err.message)}</div>`;
         }
     }
 
     renderBackupRow(backup) {
+        // Escape all user-provided data to prevent XSS
+        const filename = escapeHtml(backup.filename);
+        const status = escapeHtml(backup.status);
+        const type = escapeHtml(backup.type);
+        const sizeHuman = escapeHtml(backup.size_human);
+        const createdAt = escapeHtml(new Date(backup.created_at).toLocaleString());
+        const id = escapeHtml(backup.id);
+
         return `
             <tr>
                 <td style="padding: 1rem; border-bottom: 1px solid var(--border);">
-                    <div style="font-weight: 500;">${backup.filename}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${backup.status}</div>
+                    <div style="font-weight: 500;">${filename}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${status}</div>
                 </td>
-                <td style="padding: 1rem; border-bottom: 1px solid var(--border);"><span class="badge">${backup.type}</span></td>
-                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${backup.size_human}</td>
-                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${new Date(backup.created_at).toLocaleString()}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);"><span class="badge">${type}</span></td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${sizeHuman}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${createdAt}</td>
                 <td style="padding: 1rem; text-align: right; border-bottom: 1px solid var(--border);">
-                    <button class="btn btn-neu" onclick="window.backupModule.downloadBackup('${backup.id}')" title="Download"><i class="fas fa-download"></i></button>
-                    <button class="btn btn-danger" onclick="window.backupModule.deleteBackup('${backup.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-neu" onclick="window.backupModule.downloadBackup('${id}')" title="Download"><i class="fas fa-download"></i></button>
+                    <button class="btn btn-danger" onclick="window.backupModule.deleteBackup('${id}')" title="Delete"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
         `;
@@ -161,17 +169,7 @@ class AdminBackup {
                             </tr>
                         </thead>
                         <tbody>
-                            ${schedules.map(s => `
-                                <tr>
-                                    <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${s.name}</td>
-                                    <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${s.backup_type}</td>
-                                    <td style="padding: 1rem; border-bottom: 1px solid var(--border);"><code>${s.cron_expression}</code></td>
-                                    <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${s.next_run ? new Date(s.next_run).toLocaleString() : '-'}</td>
-                                    <td style="padding: 1rem; text-align: right; border-bottom: 1px solid var(--border);">
-                                        <button class="btn btn-danger" onclick="window.backupModule.deleteSchedule('${s.id}')"><i class="fas fa-trash"></i></button>
-                                    </td>
-                                </tr>
-                            `).join('')}
+                            ${schedules.map(s => this.renderScheduleRow(s)).join('')}
                         </tbody>
                     </table>
                 `;
@@ -179,8 +177,29 @@ class AdminBackup {
             container.innerHTML = html;
 
         } catch (err) {
-            container.innerHTML = `<div class="stat-label">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="stat-label">Error: ${escapeHtml(err.message)}</div>`;
         }
+    }
+
+    renderScheduleRow(schedule) {
+        // Escape all user-provided data to prevent XSS
+        const name = escapeHtml(schedule.name);
+        const backupType = escapeHtml(schedule.backup_type);
+        const cronExpression = escapeHtml(schedule.cron_expression);
+        const nextRun = schedule.next_run ? escapeHtml(new Date(schedule.next_run).toLocaleString()) : '-';
+        const id = escapeHtml(schedule.id);
+
+        return `
+            <tr>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${name}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${backupType}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);"><code>${cronExpression}</code></td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border);">${nextRun}</td>
+                <td style="padding: 1rem; text-align: right; border-bottom: 1px solid var(--border);">
+                    <button class="btn btn-danger" onclick="window.backupModule.deleteSchedule('${id}')"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
     }
 
     // ========================================================================

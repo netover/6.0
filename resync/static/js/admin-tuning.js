@@ -89,27 +89,21 @@ class AdminTuning {
                             </tr>
                         </thead>
                         <tbody>
-                            ${data.pending_recommendations.map(r => `
-                                <tr>
-                                    <td style="padding: 0.5rem;">${r.threshold_name}</td>
-                                    <td style="padding: 0.5rem;">${r.current_value}</td>
-                                    <td style="padding: 0.5rem; font-weight: bold; color: var(--primary);">${r.recommended_value}</td>
-                                    <td style="padding: 0.5rem; text-align: right;">
-                                        <button class="btn btn-sm btn-primary" onclick="window.tuningModule.approveRec(${r.id})">Approve</button>
-                                        <button class="btn btn-sm btn-danger" onclick="window.tuningModule.rejectRec(${r.id})">Reject</button>
-                                    </td>
-                                </tr>
-                            `).join('')}
+                            ${data.pending_recommendations.map(r => this.renderRecommendationRow(r)).join('')}
                         </tbody>
                     </table>
                 `;
             }
 
+            // Escape mode for safe display
+            const mode = escapeHtml(data.mode);
+            const circuitBreakerActive = data.circuit_breaker_active;
+
             container.innerHTML = `
                 <div class="dashboard-grid">
                     <div class="card stat-card">
                         <span class="stat-label">Current Mode</span>
-                        <div class="stat-value" style="text-transform: capitalize;">${data.mode}</div>
+                        <div class="stat-value" style="text-transform: capitalize;">${mode}</div>
                         <div style="margin-top: 10px;">
                             <select onchange="window.tuningModule.setMode(this.value)" class="form-input" style="padding: 2px;">
                                 <option value="off" ${data.mode === 'off' ? 'selected' : ''}>Off</option>
@@ -122,9 +116,9 @@ class AdminTuning {
                      <div class="card stat-card">
                         <span class="stat-label">Circuit Breaker</span>
                         <div class="stat-value">
-                            ${data.circuit_breaker_active ? '<span style="color:var(--error)">TRIPPED</span>' : '<span style="color:var(--success)">OK</span>'}
+                            ${circuitBreakerActive ? '<span style="color:var(--error)">TRIPPED</span>' : '<span style="color:var(--success)">OK</span>'}
                         </div>
-                        ${data.circuit_breaker_active ? `<button class="btn btn-sm btn-warning" style="margin-top:5px;" onclick="window.tuningModule.resetBreaker()">Reset</button>` : ''}
+                        ${circuitBreakerActive ? `<button class="btn btn-sm btn-warning" style="margin-top:5px;" onclick="window.tuningModule.resetBreaker()">Reset</button>` : ''}
                     </div>
                 </div>
 
@@ -138,8 +132,28 @@ class AdminTuning {
             `;
 
         } catch (err) {
-            container.innerHTML = `<div class="stat-label">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="stat-label">Error: ${escapeHtml(err.message)}</div>`;
         }
+    }
+
+    renderRecommendationRow(r) {
+        // Escape all user-provided data
+        const thresholdName = escapeHtml(r.threshold_name);
+        const currentValue = escapeHtml(r.current_value);
+        const recommendedValue = escapeHtml(r.recommended_value);
+        const id = escapeHtml(r.id);
+
+        return `
+            <tr>
+                <td style="padding: 0.5rem;">${thresholdName}</td>
+                <td style="padding: 0.5rem;">${currentValue}</td>
+                <td style="padding: 0.5rem; font-weight: bold; color: var(--primary);">${recommendedValue}</td>
+                <td style="padding: 0.5rem; text-align: right;">
+                    <button class="btn btn-sm btn-primary" onclick="window.tuningModule.approveRec('${id}')">Approve</button>
+                    <button class="btn btn-sm btn-danger" onclick="window.tuningModule.rejectRec('${id}')">Reject</button>
+                </td>
+            </tr>
+        `;
     }
 
     // ========================================================================
@@ -166,16 +180,7 @@ class AdminTuning {
                         </tr>
                     </thead>
                     <tbody>
-                        ${Object.entries(items).map(([key, val]) => `
-                            <tr>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-weight: 500;">${key}</td>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-family: monospace;">${val.value}</td>
-                                <td style="padding: 1rem; border-bottom: 1px solid var(--border); color: var(--text-secondary);">${val.description || ''}</td>
-                                <td style="padding: 1rem; text-align: right; border-bottom: 1px solid var(--border);">
-                                    <button class="btn btn-neu" onclick="window.tuningModule.openEditModal('${key}', ${val.value})"><i class="fas fa-edit"></i></button>
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${Object.entries(items).map(([key, val]) => this.renderThresholdRow(key, val)).join('')}
                     </tbody>
                 </table>
                  <div style="margin-top: 1rem; text-align: right;">
@@ -184,8 +189,26 @@ class AdminTuning {
             `;
 
         } catch (err) {
-            container.innerHTML = `<div class="stat-label">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="stat-label">Error: ${escapeHtml(err.message)}</div>`;
         }
+    }
+
+    renderThresholdRow(key, val) {
+        // Escape all data
+        const name = escapeHtml(key);
+        const value = escapeHtml(val.value);
+        const description = escapeHtml(val.description || '');
+
+        return `
+            <tr>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-weight: 500;">${name}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border); font-family: monospace;">${value}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border); color: var(--text-secondary);">${description}</td>
+                <td style="padding: 1rem; text-align: right; border-bottom: 1px solid var(--border);">
+                    <button class="btn btn-neu" onclick="window.tuningModule.openEditModal('${name}', ${value})"><i class="fas fa-edit"></i></button>
+                </td>
+            </tr>
+        `;
     }
 
     // ========================================================================

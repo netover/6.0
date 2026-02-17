@@ -95,6 +95,10 @@ class Counter:
         label_key = tuple(sorted((labels or {}).items()))
         return self._values.get(label_key, 0)
 
+    def get_sum(self) -> float:
+        """Get sum of all label values (for labeled counters)."""
+        return sum(self._values.values())
+
     def labels(self, **kwargs) -> "_LabeledCounter":
         """Return counter with specific labels (for compatibility)."""
         return _LabeledCounter(self, kwargs)
@@ -143,6 +147,10 @@ class Gauge:
         """Get current value."""
         label_key = tuple(sorted((labels or {}).items()))
         return self._values.get(label_key, 0)
+
+    def get_sum(self) -> float:
+        """Get sum of all label values (for labeled gauges)."""
+        return sum(self._values.values())
 
     def labels(self, **kwargs) -> "Gauge":
         """Return gauge with specific labels."""

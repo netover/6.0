@@ -87,8 +87,8 @@ class AdminResources {
             idKey: 'id',
             columns: [
                 { key: 'name', label: 'Name' },
-                { key: 'key_prefix', label: 'Prefix', format: (val) => `<code>${val}...</code>` },
-                { key: 'scopes', label: 'Scopes', format: (val) => val.map(s => `<span class="badge">${s}</span>`).join(' ') },
+                { key: 'key_prefix', label: 'Prefix', format: (val) => `<code>${escapeHtml(val)}...</code>` },
+                { key: 'scopes', label: 'Scopes', format: (val) => val.map(s => `<span class="badge">${escapeHtml(s)}</span>`).join(' ') },
                 { key: 'is_valid', label: 'Status', format: (val, item) => item.is_revoked ? '<span class="badge badge-error">Revoked</span>' : (val ? '<span class="badge badge-success">Valid</span>' : '<span class="badge badge-warning">Expired/Invalid</span>') },
                 { key: 'last_used_at', label: 'Last Used', format: (val) => val ? new Date(val).toLocaleString() : 'Never' }
             ],
@@ -122,7 +122,7 @@ class AdminResources {
             let html = `
                 <div class="header-title" style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <h1>${this.currentConfig.title}</h1>
+                        <h1>${escapeHtml(this.currentConfig.title)}</h1>
                         <p>Manage list of resources</p>
                     </div>
                     <button class="btn btn-primary" onclick="window.resourcesModule.openCreateModal()">
@@ -134,7 +134,7 @@ class AdminResources {
                     <table class="data-table" style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr style="background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--border);">
-                                ${this.currentConfig.columns.map(col => `<th style="padding: 1rem; text-align: left;">${col.label}</th>`).join('')}
+                                ${this.currentConfig.columns.map(col => `<th style="padding: 1rem; text-align: left;">${escapeHtml(col.label)}</th>`).join('')}
                                 <th style="padding: 1rem; text-align: right;">Actions</th>
                             </tr>
                         </thead>
@@ -157,7 +157,7 @@ class AdminResources {
             window.resourcesModule = this; // Expose for handlers
 
         } catch (err) {
-            content.innerHTML = `<div class="card"><div class="stat-label">Error loading list: ${err.message}</div></div>`;
+            content.innerHTML = `<div class="card"><div class="stat-label">Error loading list: ${escapeHtml(err.message)}</div></div>`;
         }
     }
 
@@ -168,15 +168,21 @@ class AdminResources {
 
         const cells = this.currentConfig.columns.map(col => {
             let val = this.getValue(item, col.key);
-            if (col.format) val = col.format(val, item);
+            // If there's a format function, it should handle escaping internally
+            // Otherwise, escape the raw value
+            if (col.format) {
+                val = col.format(val, item);
+            } else {
+                val = escapeHtml(val);
+            }
             return `<td style="padding: 1rem; border-bottom: 1px solid var(--border);">${val}</td>`;
         }).join('');
 
         const actions = this.currentConfig.actions.map(action => `
             <button class="btn ${action.className || 'btn-neu'}" 
                     style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-left: 5px;"
-                    onclick="window.resourcesModule.handleAction('${action.label}', '${id}')">
-                ${action.icon ? `<i class="fas ${action.icon}"></i>` : ''} ${action.label}
+                    onclick="window.resourcesModule.handleAction('${escapeHtml(action.label)}', '${escapeHtml(id)}')">
+                ${action.icon ? `<i class="fas ${escapeHtml(action.icon)}"></i>` : ''} ${escapeHtml(action.label)}
             </button>
         `).join('');
 
@@ -231,25 +237,35 @@ class AdminResources {
     }
 
     renderField(key, field, value) {
+        // Escape key and label for HTML attributes
+        const escapedKey = escapeHtml(key);
+        const escapedLabel = escapeHtml(field.label);
+
         if (field.type === 'boolean') {
             return `
                 <div class="form-group" style="flex-direction: row; align-items: center; gap: 10px;">
-                    <input type="checkbox" name="${key}" ${value ? 'checked' : ''}>
-                    <label>${field.label}</label>
+                    <input type="checkbox" name="${escapedKey}" ${value ? 'checked' : ''}>
+                    <label>${escapedLabel}</label>
                 </div>`;
         } else if (field.type === 'select') {
+            const options = field.options.map(opt => {
+                const escapedOpt = escapeHtml(opt);
+                return `<option value="${escapedOpt}" ${opt === value ? 'selected' : ''}>${escapedOpt}</option>`;
+            }).join('');
             return `
                 <div class="form-group">
-                    <label>${field.label}</label>
-                    <select name="${key}" class="form-input">
-                        ${field.options.map(opt => `<option value="${opt}" ${opt === value ? 'selected' : ''}>${opt}</option>`).join('')}
+                    <label>${escapedLabel}</label>
+                    <select name="${escapedKey}" class="form-input">
+                        ${options}
                     </select>
                 </div>`;
         } else {
+            // Escape value for HTML attribute
+            const escapedValue = escapeHtml(value || '');
             return `
                 <div class="form-group">
-                    <label>${field.label}</label>
-                    <input type="${field.type}" name="${key}" class="form-input" value="${value || ''}" ${field.required ? 'required' : ''}>
+                    <label>${escapedLabel}</label>
+                    <input type="${escapeHtml(field.type)}" name="${escapedKey}" class="form-input" value="${escapedValue}" ${field.required ? 'required' : ''}>
                 </div>`;
         }
     }
@@ -347,11 +363,12 @@ class AdminResources {
     }
 
     formatStatus(status) {
+        const escapedStatus = escapeHtml(status);
         const map = {
             'connected': '<span class="badge badge-success">Connected</span>',
             'disconnected': '<span class="badge badge-error">Disconnected</span>',
             'error': '<span class="badge badge-error">Error</span>'
         };
-        return map[status] || status;
+        return map[status] || escapedStatus;
     }
 }

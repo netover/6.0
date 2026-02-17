@@ -266,9 +266,6 @@ class IntentClassifier:
     # Class-level cache for compiled regex patterns
     _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
 
-    # Class-level cache for compiled regex patterns
-    _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
-
     def __init__(self, llm_classifier: Callable | None = None):
         """
         Initialize the classifier.
@@ -468,6 +465,7 @@ class BaseHandler(ABC):
         self._specialist_team = None  # lazy-loaded TWSSpecialistTeam
 
     
+    @property
     def specialist_team(self):
         """Lazy-load TWSSpecialistTeam (shared across handlers)."""
         if self._specialist_team is None:

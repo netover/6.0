@@ -17,10 +17,44 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
 
+from resync.api.security import decode_token
+
 logger = logging.getLogger(__name__)
+
+
+def _verify_ws_admin(websocket: WebSocket) -> bool:
+    """Verify admin authentication for WebSocket connection.
+    
+    Returns True if authenticated as admin, False otherwise.
+    """
+    try:
+        # Check for token in Authorization header
+        auth_header = websocket.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False
+        
+        token = auth_header[7:]
+        payload = decode_token(token)
+        if not payload:
+            return False
+        
+        # Verify admin role
+        roles_claim = payload.get("roles")
+        if roles_claim is None:
+            legacy_role = payload.get("role")
+            roles = [legacy_role] if legacy_role else []
+        elif isinstance(roles_claim, list):
+            roles = roles_claim
+        else:
+            roles = [roles_claim]
+
+        return "admin" in roles
+    except Exception as e:
+        logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
+        return False
 
 # Configurações do rolling buffer
 HISTORY_WINDOW_SECONDS = 2 * 60 * 60  # 2 horas
@@ -598,7 +632,14 @@ async def websocket_metrics(websocket: WebSocket):
     WebSocket para métricas em tempo real.
 
     Envia atualizações a cada 5 segundos automaticamente.
+    Requires admin authentication via Authorization header.
     """
+    # Verify admin authentication - fail closed (deny by default)
+    if not _verify_ws_admin(websocket):
+        logger.warning("Monitoring Dashboard WebSocket auth failed - rejecting connection")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Admin authentication required")
+        return
+    
     await websocket.accept()
     connected_clients.append(websocket)
 

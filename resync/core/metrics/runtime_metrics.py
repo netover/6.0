@@ -287,7 +287,7 @@ class RuntimeMetricsCollector:
                 },
             },
             "routing": {
-                "total_decisions": self.routing_decisions_total.get(),
+                "total_decisions": self.routing_decisions_total.get_sum(),
                 "errors": self.routing_errors_total.get(),
                 "avg_latency_ms": (
                     self.routing_duration_seconds.get_percentile(50) * 1000

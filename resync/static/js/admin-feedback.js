@@ -73,22 +73,23 @@ class AdminFeedback {
             const stats = await this.api.get(`${this.basePath}/stats`);
             const container = document.getElementById('feedback-stats-summary');
             if (container) {
+                // Use textContent for numbers to prevent XSS
                 container.innerHTML = `
                     <div class="card stat-card">
                         <span class="stat-label">Pending</span>
-                        <div class="stat-value">${stats.pending}</div>
+                        <div class="stat-value">${escapeHtml(stats.pending)}</div>
                     </div>
                     <div class="card stat-card">
                         <span class="stat-label">With Correction</span>
-                        <div class="stat-value">${stats.pending_with_correction}</div>
+                        <div class="stat-value">${escapeHtml(stats.pending_with_correction)}</div>
                     </div>
                      <div class="card stat-card">
                         <span class="stat-label">Approved</span>
-                        <div class="stat-value">${stats.approved}</div>
+                        <div class="stat-value">${escapeHtml(stats.approved)}</div>
                     </div>
                     <div class="card stat-card">
                         <span class="stat-label">Incorporated</span>
-                        <div class="stat-value">${stats.incorporated}</div>
+                        <div class="stat-value">${escapeHtml(stats.incorporated)}</div>
                     </div>
                 `;
             }
@@ -124,26 +125,34 @@ class AdminFeedback {
                 </table>
             `;
         } catch (err) {
-            container.innerHTML = `<div class="stat-label">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="stat-label">Error: ${escapeHtml(err.message)}</div>`;
         }
     }
 
     renderRow(item) {
+        // Escape all user-provided data to prevent XSS
+        const id = escapeHtml(item.id);
+        const queryText = escapeHtml(item.query_text || '-');
+        const responseText = escapeHtml(item.response_text || '-');
+        const rating = escapeHtml(item.rating);
+        const feedbackText = item.feedback_text ? escapeHtml(item.feedback_text) : null;
+        const badgeClass = item.rating > 2 ? 'badge-success' : 'badge-error';
+
         return `
             <tr>
-                <td style="padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top;">${item.id}</td>
+                <td style="padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top;">${id}</td>
                 <td style="padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top;">
-                    <div style="font-weight: 500; margin-bottom: 5px;">Q: ${item.query_text || '-'}</div>
-                    <div style="font-size: 0.85rem; color: var(--text-secondary);">A: ${item.response_text || '-'}</div>
+                    <div style="font-weight: 500; margin-bottom: 5px;">Q: ${queryText}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);">A: ${responseText}</div>
                 </td>
                 <td style="padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top;">
-                    <span class="badge ${item.rating > 2 ? 'badge-success' : 'badge-error'}">${item.rating}/5</span>
+                    <span class="badge ${badgeClass}">${rating}/5</span>
                 </td>
                 <td style="padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top;">
-                    ${item.feedback_text ? `<div>${item.feedback_text}</div>` : '<em style="color:#999">No text</em>'}
+                    ${feedbackText ? `<div>${feedbackText}</div>` : '<em style="color:#999">No text</em>'}
                 </td>
                 <td style="padding: 1rem; text-align: right; border-bottom: 1px solid var(--border); vertical-align: top;">
-                    <button class="btn btn-primary" onclick="window.feedbackModule.openReviewModal(${item.id})">Review</button>
+                    <button class="btn btn-primary" onclick="window.feedbackModule.openReviewModal(${id})">Review</button>
                 </td>
             </tr>
         `;
@@ -153,14 +162,21 @@ class AdminFeedback {
         try {
             const detail = await this.api.get(`${this.basePath}/${id}`);
             const modal = document.getElementById('reviewModal');
+
+            // Escape all user-provided data
+            const queryText = escapeHtml(detail.query_text);
+            const responseText = escapeHtml(detail.response_text);
+            const feedbackText = escapeHtml(detail.feedback_text || 'None');
+            const rating = escapeHtml(detail.rating);
+
             document.getElementById('reviewContent').innerHTML = `
                 <div style="background: rgba(0,0,0,0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                    <strong>Query:</strong> ${detail.query_text}<br><br>
+                    <strong>Query:</strong> ${queryText}<br><br>
                     <strong>Current Response:</strong><br>
-                    <div style="font-family: monospace; font-size: 0.9rem; margin-top: 5px;">${detail.response_text}</div>
+                    <div style="font-family: monospace; font-size: 0.9rem; margin-top: 5px;">${responseText}</div>
                 </div>
                 <div>
-                    <strong>User Feedback:</strong> ${detail.feedback_text || 'None'} (${detail.rating}/5)
+                    <strong>User Feedback:</strong> ${feedbackText} (${rating}/5)
                 </div>
             `;
 
