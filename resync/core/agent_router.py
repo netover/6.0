@@ -601,6 +601,7 @@ class AgenticHandler(BaseHandler):
         self.tool_call_limit = 10
         self.max_steps = 15
         self._parallel_executor = None
+        self._specialist_team = None
 
     @property
     def parallel_executor(self):
@@ -610,6 +611,20 @@ class AgenticHandler(BaseHandler):
 
             self._parallel_executor = ParallelToolExecutor()
         return self._parallel_executor
+
+    @property
+    def specialist_team(self):
+        """
+        Lazy load TWSSpecialistTeam for advanced agentic reasoning.
+        
+        v6.0: Integrated into AgenticHandler and DiagnosticHandler
+        to provide comprehensive context before LLM interpretation.
+        """
+        if self._specialist_team is None:
+            from resync.core.specialists.agents import TWSSpecialistTeam
+
+            self._specialist_team = TWSSpecialistTeam()
+        return self._specialist_team
 
     async def handle(
         self,
@@ -867,6 +882,20 @@ PERGUNTA DO USUÁRIO:
 
         # Buscar o conteúdo das skills (Deep Loading) usando helper
         skill_context = self._build_skill_context(classification)
+        
+        # v6.0: Optionally run specialist team for complex analysis
+        if classification.primary_intent == Intent.ANALYSIS:
+            try:
+                team_summary = await self.specialist_team.analyze(
+                    query=message,
+                    context={"entities": classification.entities}
+                )
+                if team_summary:
+                    # Inject specialist team summary into skill context
+                    skill_context = f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
+                    self.last_tools_used.append("specialist_team")
+            except Exception as e:
+                logger.warning("Specialist team analysis failed: %s", e)
 
         # Quando for chamar o agente, passe a skill
         return await self._get_agent_response("tws-troubleshooting", message, skill_context=skill_context)
@@ -949,6 +978,20 @@ class DiagnosticHandler(BaseHandler):
 
             # GAP C: Build skill context for diagnostic injection
             skill_context = self._build_skill_context(classification)
+            
+            # v6.0: Run specialist team for diagnostic context (best-effort)
+            # This provides additional context before LangGraph diagnosis
+            try:
+                team_summary = await self.specialist_team.diagnose(
+                    query=message,
+                    context={"entities": classification.entities}
+                )
+                if team_summary:
+                    # Inject specialist team findings into skill context
+                    skill_context = f"# Specialist Team Diagnostic Findings\n{team_summary}\n\n{skill_context}"
+                    self.last_tools_used.append("specialist_team")
+            except Exception as e:
+                logger.warning("Specialist team diagnostic failed: %s", e)
 
             result = await diagnose_problem(
                 problem_description=message,

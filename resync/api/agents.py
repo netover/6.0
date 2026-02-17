@@ -24,7 +24,7 @@ async def list_all_agents(
     """
     logger.info("list_all_agents endpoint called")
     try:
-        agents = await agent_manager.get_all_agents()
+        agents = agent_manager.get_all_agents()
         return [
             {
                 "id": agent.id,
@@ -53,7 +53,7 @@ async def get_agent_details(
     """
     logger.info("get_agent_details endpoint called with agent_id: %s", agent_id)
     try:
-        agent_config = await agent_manager.get_agent_config(agent_id)
+        agent_config = agent_manager.get_agent_config(agent_id)
         if agent_config is None:
             raise NotFoundError(f"Agent with ID '{agent_id}' not found.")
 
