@@ -19,7 +19,8 @@ intent classification and complexity analysis.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request, status
+import secrets
 
 # v5.4.1: Import HybridRouter (fallback to UnifiedAgent for compatibility)
 try:
@@ -172,17 +173,22 @@ async def chat_message(
     from resync.settings import settings
     from resync.settings import settings
     
-    # v6.0: Allow limited access for Operator Chat (outside admin)
-    # The user confirmed "limited access" pattern exists.
-    # We relax the strict admin check here, but we might want to enforce "Operator" role later.
-    # For now, we allow if verify_admin_credentials failed (current_user is None) 
-    # but strictly for chat interaction which is designed to be safe/limited.
-    # if settings.is_production and not current_user:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="Authentication required",
-    #         headers={"WWW-Authenticate": "Bearer"},
-    #     )
+    # v6.2.1: Implemented secure Limited Access pattern
+    # Use 'operator_api_key' if provided in X-Operator-Key header
+    x_operator_key = request.headers.get("X-Operator-Key")
+    is_operator = False
+    
+    if x_operator_key and settings.operator_api_key:
+        if secrets.compare_digest(x_operator_key, settings.operator_api_key.get_secret_value()):
+            is_operator = True
+
+    if settings.is_production and not current_user and not is_operator:
+        logger_instance.warning("unauthorized_chat_access_attempt")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
     # v5.7.1 FIX: Removed global logger injection to prevent context contamination

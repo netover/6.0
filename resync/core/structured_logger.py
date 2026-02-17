@@ -276,9 +276,9 @@ def censor_sensitive_data(
                 # Apply value pattern censoring
                 censored_value = value
                 for pattern in _sensitive_value_patterns:
-                    censored_value = re.sub(
-                        pattern, "***REDACTED***", censored_value
-                    )
+                    # v6.2.1: Use pattern.sub and ensure case-insensitivity (Redaction bypass fix)
+                    # The patterns are already compiled with re.IGNORECASE in _sensitive_value_patterns
+                    censored_value = pattern.sub("***REDACTED***", censored_value)
                 result[key] = censored_value
             else:
                 result[key] = value

@@ -791,6 +791,15 @@ class Settings(BaseSettings, SettingsValidators):
         repr=False,
     )
 
+    # v6.2.1: API Key for limited Operator access (outside admin)
+    operator_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("OPERATOR_API_KEY", "APP_OPERATOR_API_KEY"),
+        description="Chave de API para acesso limitado de operador",
+        exclude=True,
+        repr=False,
+    )
+
     # CORS
     cors_allowed_origins: list[str] = Field(default=["http://localhost:3000"])
     cors_allow_credentials: bool = Field(default=False)

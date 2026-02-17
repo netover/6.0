@@ -344,7 +344,11 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="Authentication required")
             return
     except Exception:
-        logger.warning("WebSocket auth check failed, allowing connection (auth service unavailable)")
+        if settings.is_production:
+            logger.error("WebSocket auth service unavailable, rejecting connection")
+            await websocket.close(code=1008, reason="Authentication service unavailable")
+            return
+        logger.warning("WebSocket auth check failed, allowing connection (auth service unavailable - DEV ONLY)")
 
     # Criar trace_id para sessão WebSocket
     import uuid
