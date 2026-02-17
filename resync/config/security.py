@@ -4,13 +4,13 @@ Additional security headers and configuration for Resync application.
 UPDATED: 2024-12-23 - Implementação completa conforme OWASP 2024
 """
 
-import logging
+import structlog
 
 from fastapi import FastAPI
 
 from .enhanced_security import configure_enhanced_security
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def add_additional_security_headers(app: FastAPI) -> None:

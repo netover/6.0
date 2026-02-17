@@ -19,7 +19,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from resync.core.task_tracker import create_tracked_task
-import logging
+import structlog
 import weakref
 from typing import Any, Protocol
 
@@ -36,11 +36,12 @@ from resync.core.exceptions import (
 from resync.core.fastapi_di import get_agent_manager
 from resync.core.ia_auditor import analyze_and_flag_memories
 from resync.core.interfaces import IAgentManager
+from resync.core.context import set_trace_id, reset_trace_id
 from resync.core.security import SafeAgentID, sanitize_input
 from resync.core.types.app_state import enterprise_state_from_app
 
 # --- Logging Setup ---
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # --- APIRouter Initialization ---
 chat_router = APIRouter()
@@ -268,8 +269,8 @@ async def _setup_websocket_session(
     st = enterprise_state_from_app(websocket.app)
     agent_manager: IAgentManager = st.agent_manager
     
-    # Get agent synchronously from the manager
-    agent = agent_manager.get_agent(agent_id)
+    # Get agent asynchronously from the manager
+    agent = await agent_manager.get_agent(str(agent_id))
     agent_id_str = str(agent_id)
     session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
 
@@ -345,6 +346,18 @@ async def websocket_endpoint(
     except Exception:
         logger.warning("WebSocket auth check failed, allowing connection (auth service unavailable)")
 
+    # Criar trace_id para sessão WebSocket
+    import uuid
+    trace_id = str(uuid.uuid4())
+    trace_token = set_trace_id(trace_id)
+
+    if structlog:
+        structlog.contextvars.bind_contextvars(
+            trace_id=trace_id,
+            websocket_session=True,
+            agent_id=str(agent_id),
+        )
+
     try:
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
         # Note: No knowledge_graph passed - it's now obtained from enterprise_state
@@ -373,6 +386,10 @@ async def websocket_endpoint(
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(websocket, "Ocorreu um erro inesperado no servidor.", agent_id_str, session_id)
+    finally:
+        reset_trace_id(trace_token)
+        if structlog:
+            structlog.contextvars.clear_contextvars()
 
 
 async def _validate_input(

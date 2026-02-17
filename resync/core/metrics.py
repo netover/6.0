@@ -266,6 +266,11 @@ class RuntimeMetrics:
         self.cache_size = MetricGauge()
         self.cache_cleanup_cycles = MetricCounter()
 
+        # Router Cache (Intent Cache)
+        self.router_cache_hits = MetricCounter()
+        self.router_cache_misses = MetricCounter()
+        self.router_cache_sets = MetricCounter()
+
         # Audit
         self.audit_records_created = MetricCounter()
         self.audit_records_approved = MetricCounter()
@@ -451,6 +456,12 @@ class RuntimeMetrics:
             return self.cache_hits.value / total_cache_ops
         return 0.0
 
+    def _calculate_router_cache_hit_ratio(self) -> float:
+        total_router_ops = self.router_cache_hits.value + self.router_cache_misses.value
+        if total_router_ops > 0:
+            return self.router_cache_hits.value / total_router_ops
+        return 0.0
+
     def get_snapshot(self) -> dict[str, Any]:
         # Erros por tipo
         error_metrics = {}
@@ -473,6 +484,12 @@ class RuntimeMetrics:
                 "size": self.cache_size.get(),
                 "cleanup_cycles": self.cache_cleanup_cycles.value,
                 "hit_rate": self._calculate_cache_hit_ratio(),
+            },
+            "router_cache": {
+                "hits": self.router_cache_hits.value,
+                "misses": self.router_cache_misses.value,
+                "sets": self.router_cache_sets.value,
+                "hit_rate": self._calculate_router_cache_hit_ratio(),
             },
             "audit": {
                 "records_created": self.audit_records_created.value,

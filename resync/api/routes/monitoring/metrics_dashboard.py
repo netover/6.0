@@ -17,7 +17,9 @@ Campos com valor None devem ser exibidos como "N/A" no frontend.
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+import asyncio
+import json
 from pydantic import BaseModel, Field
 
 # v5.9.6: Import psutil at module level with graceful fallback
@@ -226,39 +228,54 @@ async def get_dashboard_metrics(
     NOTA: Algumas métricas são estimativas/placeholders até instrumentação real ser implementada.
     """
     # v5.9.6: Graceful handling if psutil not available
+    from resync.core.metrics import RuntimeMetricsCollector
+    collector = RuntimeMetricsCollector()
+    snapshot = collector.get_snapshot()
+
     if not PSUTIL_AVAILABLE:
         logger.warning("psutil not available - system metrics will use defaults")
         memory_mb = 0.0
         cpu_percent = 0.0
     else:
-        # psutil can still fail in constrained containers (permissions/cgroups).
-        try:
-            process = psutil.Process()
-            memory_mb = process.memory_info().rss / (1024 * 1024)
-            cpu_percent = process.cpu_percent()
-        except Exception as e:
-            logger.warning("psutil_process_metrics_failed", error=str(e))
-            memory_mb = 0.0
-            cpu_percent = 0.0
+        # Tentar obter do snapshot primeiro
+        sys_snap = snapshot.get("system", {})
+        memory_mb = sys_snap.get("memory_mb", 0.0)
+        cpu_percent = sys_snap.get("cpu_percent", 0.0)
+        
+        # Fallback se snapshot não tiver os dados
+        if memory_mb == 0.0:
+            try:
+                process = psutil.Process()
+                memory_mb = process.memory_info().rss / (1024 * 1024)
+                cpu_percent = process.cpu_percent()
+            except Exception as e:
+                logger.warning("psutil_process_metrics_failed", error=str(e))
 
-    # Tentar obter métricas reais do cache
+    # Tentar obter métricas reais do cache do snapshot
+    router_cache = snapshot.get("router_cache", {})
+    router_hits = router_cache.get("hits", 0)
+    router_misses = router_cache.get("misses", 0)
+    router_total = router_hits + router_misses
+    router_hit_ratio = (router_hits / router_total) if router_total > 0 else 0.0
+
     cache_metrics = CacheMetrics(
-        hit_rate=store.hit_rate,
-        total_entries=store._cache_hits + store._cache_misses,  # Aproximação
+        hit_rate=router_hit_ratio,
+        total_entries=router_total,
         memory_mb=memory_mb * 0.3,  # Estimativa: 30% para cache
-        avg_latency_ms=None,  # Not yet instrumented
-        hits_last_hour=store._cache_hits,
-        misses_last_hour=store._cache_misses,
+        avg_latency_ms=snapshot.get("router_cache", {}).get("avg_latency_ms"),
+        hits_last_hour=router_hits,
+        misses_last_hour=router_misses,
     )
 
-    # Métricas do router
+    # Métricas do router (instrumentação real v6.0)
+    router_stats = snapshot.get("router", {})
     router_metrics = RouterMetrics(
-        accuracy=None,  # Not yet instrumented
-        fallback_rate=store.fallback_rate,
-        avg_classification_ms=None,  # Not yet instrumented
-        total_classifications=store._classifications,
-        low_confidence_count=store._low_confidence,
-        top_intents=store.get_top_intents(),
+        accuracy=router_stats.get("accuracy"),
+        fallback_rate=router_stats.get("fallback_rate", 0.0),
+        avg_classification_ms=router_stats.get("avg_duration_ms"),
+        total_classifications=router_stats.get("total", 0),
+        low_confidence_count=router_stats.get("low_confidence_count", 0),
+        top_intents=router_stats.get("top_intents", {}),
     )
 
     # Métricas do reranker
@@ -326,10 +343,11 @@ async def get_dashboard_metrics(
         except Exception as e:
             logger.warning("psutil_net_connections_failed", error=str(e))
 
+    # v6.0: Use global stats from snapshot
     system_metrics = SystemMetrics(
-        uptime_hours=round(store.uptime_hours, 2),
-        requests_today=store._requests,
-        errors_today=store._errors,
+        uptime_hours=round(snapshot.get("system", {}).get("uptime_hours", 0.0), 2),
+        requests_today=snapshot.get("system", {}).get("requests_today", 0),
+        errors_today=snapshot.get("system", {}).get("errors_today", 0),
         active_connections=active_connections,
         memory_usage_mb=round(memory_mb, 2),
         cpu_usage_percent=round(cpu_percent, 2),
@@ -347,17 +365,23 @@ async def get_dashboard_metrics(
 
 
 @router.get("/cache", response_model=CacheMetrics)
-async def get_cache_metrics(
-    store: MetricsStore = Depends(get_metrics_store),
-) -> CacheMetrics:
+async def get_cache_metrics() -> CacheMetrics:
     """Retorna métricas detalhadas do cache."""
+    from resync.core.metrics import RuntimeMetricsCollector
+    snapshot = RuntimeMetricsCollector().get_snapshot()
+    router_cache = snapshot.get("router_cache", {})
+    router_hits = router_cache.get("hits", 0)
+    router_misses = router_cache.get("misses", 0)
+    router_total = router_hits + router_misses
+    router_hit_ratio = (router_hits / router_total) if router_total > 0 else 0.0
+
     return CacheMetrics(
-        hit_rate=store.hit_rate,
-        total_entries=store._cache_hits + store._cache_misses,
-        memory_mb=None,  # Not yet instrumented
-        avg_latency_ms=15.0,
-        hits_last_hour=store._cache_hits,
-        misses_last_hour=store._cache_misses,
+        hit_rate=router_hit_ratio,
+        total_entries=router_total,
+        memory_mb=snapshot.get("system", {}).get("memory_mb", 0.0) * 0.3,
+        avg_latency_ms=router_cache.get("avg_latency_ms"),
+        hits_last_hour=router_hits,
+        misses_last_hour=router_misses,
     )
 
 
@@ -385,17 +409,21 @@ async def get_cache_history(
 @router.get("/router/intent-distribution")
 async def get_intent_distribution(
     hours: int = Query(default=24, ge=1, le=168),
-    store: MetricsStore = Depends(get_metrics_store),
 ) -> dict[str, Any]:
     """Retorna distribuição de intents classificados."""
-    total = store._classifications or 1
-    distribution = {intent: count / total for intent, count in store._intent_counts.items()}
+    from resync.core.metrics import RuntimeMetricsCollector
+    snapshot = RuntimeMetricsCollector().get_snapshot()
+    router_stats = snapshot.get("router", {})
+    
+    total = router_stats.get("total", 0) or 1
+    intent_counts = router_stats.get("top_intents", {})
+    distribution = {intent: count / total for intent, count in intent_counts.items()}
 
     return {
         "period_hours": hours,
         "distribution": distribution,
-        "total_classifications": store._classifications,
-        "top_intents": store.get_top_intents(10),
+        "total_classifications": total,
+        "top_intents": intent_counts,
     }
 
 
@@ -542,3 +570,55 @@ async def metrics_health() -> dict[str, Any]:
         health["issues"] = unavailable
 
     return health
+
+
+# =============================================================================
+# WEBSOCKETS
+# =============================================================================
+
+
+class ConnectionManager:
+    """Gerencia conexões WebSocket para o dashboard."""
+
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+
+manager = ConnectionManager()
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket para atualizações em tempo real do dashboard.
+    """
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Enviar métricas imediatamente ao conectar
+            metrics = await get_dashboard_metrics()
+            # Pydantic v2 .model_dump()
+            await websocket.send_json(metrics.model_dump(mode="json"))
+            
+            # Aguarda 5 segundos ou até cliente desconectar
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        manager.disconnect(websocket)

@@ -5,7 +5,7 @@ This module provides a dedicated distributed locking mechanism for audit operati
 to prevent race conditions during concurrent memory processing.
 """
 
-import logging
+import structlog
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -17,7 +17,7 @@ from redis.exceptions import RedisError
 from resync.core.exceptions import AuditError, DatabaseError
 from resync.settings import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class DistributedAuditLock:

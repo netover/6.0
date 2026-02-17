@@ -58,6 +58,16 @@ from resync.settings import settings
 
 logger = get_logger(__name__)
 
+# Import SemanticCache for router intent caching
+try:
+    from resync.core.cache.semantic_cache import SemanticCache
+    SEMANTIC_CACHE_AVAILABLE = True
+except ImportError:
+    SEMANTIC_CACHE_AVAILABLE = False
+    SemanticCache = None
+
+from resync.core.metrics import runtime_metrics
+
 # LangGraph imports
 try:
     from langgraph.graph import END, StateGraph
@@ -194,6 +204,28 @@ ENTITY_PATTERNS = {
     ],
 }
 
+# Router Cache Singleton (threshold=0.95 for high precision)
+_router_cache_instance: SemanticCache | None = None
+
+def _get_router_cache() -> SemanticCache | None:
+    """Get or create the router cache singleton."""
+    global _router_cache_instance
+    
+    if not SEMANTIC_CACHE_AVAILABLE:
+        return None
+    
+    if _router_cache_instance is None:
+        try:
+            _router_cache_instance = SemanticCache(
+                threshold=0.95,  # Very high threshold - only cache very similar queries
+                default_ttl=3600,  # 1 hour TTL
+            )
+        except Exception as e:
+            logger.warning("router_cache_init_failed", error=str(e))
+            return None
+    
+    return _router_cache_instance
+
 
 def _get_knowledge_graph_or_stub() -> Any:
     """Return the Knowledge Graph client (RAG) or a safe stub.
@@ -299,6 +331,51 @@ async def router_node(state: AgentState) -> AgentState:
             source="metadata.intent_predefined",
         )
         return state
+    
+    # --- ROUTER CACHE: Check if we already understand this query ---
+    router_cache = _get_router_cache()
+    if router_cache:
+        try:
+            cached_intent = await router_cache.check_intent(message)
+            
+            if cached_intent:
+                # Cache hit! Use the cached understanding
+                logger.info(
+                    "⚡ router_cache_hit",
+                    intent=cached_intent.get("intent"),
+                    confidence=cached_intent.get("confidence"),
+                )
+                
+                # Increment metric
+                runtime_metrics.router_cache_hits.increment()
+                
+                # Populate state with cached data
+                intent_value = cached_intent.get("intent")
+                if isinstance(intent_value, str):
+                    try:
+                        state["intent"] = Intent(intent_value)
+                    except ValueError:
+                        state["intent"] = Intent.UNKNOWN
+                else:
+                    state["intent"] = intent_value
+                
+                state["confidence"] = cached_intent.get("confidence", 1.0)
+                
+                # Merge cached entities with extracted ones (extracted takes precedence)
+                cached_entities = cached_intent.get("entities", {})
+                state["entities"] = {**cached_entities, **entities}
+                
+                state["current_node"] = "router"
+                
+                # Skip LLM call - return immediately
+                return state
+                
+        except Exception as e:
+            # Graceful degradation - continue to LLM if cache fails
+            logger.warning("router_cache_check_error", error=str(e))
+    
+    # Cache miss - increment metric
+    runtime_metrics.router_cache_misses.increment()
 
     # Classify intent using LLM with structured output
     try:
@@ -315,6 +392,27 @@ async def router_node(state: AgentState) -> AgentState:
             state["confidence"] = result.confidence
             entities.update(result.entities)
             state["entities"] = entities
+            
+            # --- ROUTER CACHE: Store high-confidence classifications ---
+            # Only cache if confidence is high enough (> 0.8) to avoid propagating errors
+            if result.confidence > 0.8 and router_cache:
+                try:
+                    intent_data = {
+                        "intent": result.intent.value if isinstance(result.intent, Intent) else result.intent,
+                        "entities": entities,
+                        "confidence": result.confidence,
+                    }
+                    await router_cache.store_intent(message, intent_data)
+                    logger.debug(
+                        "router_cache_stored",
+                        intent=intent_data["intent"],
+                        confidence=result.confidence,
+                    )
+                    # Increment metric
+                    runtime_metrics.router_cache_sets.increment()
+                except Exception as cache_err:
+                    # Non-critical - log and continue
+                    logger.warning("router_cache_store_error", error=str(cache_err))
         else:
             state = _fallback_router(state)
             

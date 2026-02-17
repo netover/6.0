@@ -420,6 +420,119 @@ class SemanticCache:
         self.enable_reranking = enabled
         return enabled
 
+    async def check_intent(self, query_text: str) -> Optional[Dict[str, Any]]:
+        """
+        Check if a query's intent is cached (Router Cache).
+        
+        Returns the cached intent data (intent, entities, confidence) if found
+        with similarity above threshold, otherwise None.
+        
+        This is used by router_node to skip LLM classification for known queries.
+        
+        Args:
+            query_text: The user's message/query
+            
+        Returns:
+            Dict with keys: intent, entities, confidence if cache hit, else None
+        """
+        if not self._initialized:
+            await self.initialize()
+        
+        try:
+            # Generate embedding for the query
+            embedding = self.vectorizer.embed(query_text)
+            
+            # Search using RedisVL or fallback
+            if self._redis_stack_available:
+                result = await self._search_redisvl(query_text, embedding)
+            else:
+                result = await self._search_fallback(query_text, embedding)
+            
+            if not result.hit:
+                return None
+            
+            # Parse the cached response as JSON (intent data)
+            try:
+                cached_data = json.loads(result.response)
+                
+                # Validate that it has the expected intent cache structure
+                if "intent" in cached_data and "entities" in cached_data:
+                    logger.debug(
+                        "intent_cache_hit",
+                        intent=cached_data.get("intent"),
+                        distance=result.distance,
+                    )
+                    return cached_data
+                else:
+                    # Not an intent cache entry, ignore
+                    return None
+                    
+            except json.JSONDecodeError:
+                logger.warning(
+                    "intent_cache_decode_error",
+                    response=result.response[:100],
+                )
+                return None
+                
+        except Exception as e:
+            logger.warning("intent_cache_check_failed", error=str(e))
+            return None
+    
+    async def store_intent(
+        self,
+        query_text: str,
+        intent_data: Dict[str, Any],
+        ttl: int | None = None,
+    ) -> bool:
+        """
+        Store the router's intent classification in cache.
+        
+        This caches the UNDERSTANDING of the query (intent + entities),
+        NOT the final response. This allows us to skip expensive LLM calls
+        while still executing real-time data queries.
+        
+        Args:
+            query_text: The user's message/query
+            intent_data: Dict containing intent, entities, confidence
+            ttl: Optional TTL override (default: self.default_ttl)
+            
+        Returns:
+            True if successfully stored, False otherwise
+        """
+        if not self._initialized:
+            await self.initialize()
+        
+        try:
+            # Serialize intent data as JSON
+            intent_json = json.dumps(intent_data, ensure_ascii=False)
+            
+            # Use the existing set() method with metadata to mark as intent cache
+            metadata = {
+                "type": "router_cache",
+                "intent": intent_data.get("intent"),
+                "confidence": intent_data.get("confidence"),
+            }
+            
+            success = await self.set(
+                query=query_text,
+                response=intent_json,
+                ttl=ttl,
+                metadata=metadata,
+            )
+            
+            if success:
+                logger.debug(
+                    "intent_cache_stored",
+                    intent=intent_data.get("intent"),
+                    confidence=intent_data.get("confidence"),
+                )
+            
+            return success
+            
+        except Exception as e:
+            logger.error("intent_cache_store_failed", error=str(e))
+            return False
+
 # Singleton Management
 _cache_instance: SemanticCache | None = None
 _cache_lock = None

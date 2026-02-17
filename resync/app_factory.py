@@ -124,6 +124,15 @@ class ApplicationFactory:
         Returns:
             Fully configured FastAPI application instance
         """
+        # Configure logging EARLY
+        from resync.core.structured_logger import configure_structured_logging
+
+        configure_structured_logging(
+            log_level=settings.log_level,
+            json_logs=settings.log_format == "json",
+            development_mode=settings.is_development,
+        )
+
         # Validate settings first
         self._validate_critical_settings()
 
@@ -380,6 +389,7 @@ class ApplicationFactory:
         # Optional routers - graceful degradation in prod, fail-fast in dev
         optional_routers = [
             ("resync.api.routes.admin.prompts", "prompt_router", "prompt_router"),
+            ("resync.api.routes.admin.routing", "router", "routing_router"),
             ("resync.api.routes.audit", "router", "audit_router"),
             ("resync.api.routes.cache", "router", "cache_router"),
             ("resync.api.routes.cors_monitoring", "router", "cors_monitor_router"),
@@ -660,10 +670,12 @@ class ApplicationFactory:
         """Register special endpoints (frontend, CSP, etc.)."""
 
         # Root redirect
-        @self.app.get("/", include_in_schema=False)
-        def root():
-            """Redirect root to admin panel."""
-            return RedirectResponse(url="/admin", status_code=302)
+        # Root serves Operator Chat
+        @self.app.get("/", include_in_schema=False, response_class=HTMLResponse)
+        async def root(request: Request):
+            """Serve Operator Chat interface."""
+            # Reuse _render_template for CSP nonce injection
+            return self._render_template("chat.html", request)
 
         # Admin panel is now handled by the admin router
 

@@ -115,6 +115,27 @@ def add_request_context(
     return event_dict
 
 
+def add_trace_id(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Adiciona Trace ID ao log.
+
+    Args:
+        logger: Logger
+        method_name: Nome do método de log
+        event_dict: Dicionário do evento
+
+    Returns:
+        Event dict com trace_id
+    """
+    from resync.core.context import get_trace_id
+
+    trace_id = get_trace_id()
+    if trace_id:
+        event_dict["trace_id"] = trace_id
+    return event_dict
+
+
 def add_service_context(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -256,7 +277,7 @@ def censor_sensitive_data(
                 censored_value = value
                 for pattern in _sensitive_value_patterns:
                     censored_value = re.sub(
-                        pattern, "***REDACTED***", censored_value, flags=re.IGNORECASE
+                        pattern, "***REDACTED***", censored_value
                     )
                 result[key] = censored_value
             else:
@@ -311,62 +332,77 @@ def protect_log_injection(
 def configure_structured_logging(
     log_level: str = "INFO", json_logs: bool = True, development_mode: bool = False
 ) -> None:
-    """Configura logging estruturado para a aplicação.
+    """Configura logging estruturado unificado (stdlib + structlog) para a aplicação.
 
     Args:
         log_level: Nível de log (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         json_logs: Se True, usa formato JSON; se False, formato legível
         development_mode: Se True, usa formato mais legível para desenvolvimento
     """
-    # Configurar root logger para interceptar stdlib logging e aplicar redactor
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, log_level.upper()))
+    level = getattr(logging, log_level.upper())
     
-    # Remove existing handlers to avoid duplication
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-        
-    # Create handler
-    handler = logging.StreamHandler(sys.stdout)
-    
-    # Attach SecretRedactor to the handler (this catches everything at the IO boundary)
-    from resync.core.logging_utils import SecretRedactor
-    handler.addFilter(SecretRedactor())
-    
-    root_logger.addHandler(handler)
-
-    # Processadores comuns
+    # Processadores comuns utilizados por structlog e stdlib
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         add_timestamp,
         add_log_level,
         add_correlation_id,
+        add_trace_id,  # ← NOVO
         add_user_context,
         add_request_context,
         add_request_metadata,
         add_service_context,
-        protect_log_injection, # Added log injection protection
+        protect_log_injection,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
-        censor_sensitive_data, # Calls structlog-specific redactor
+        censor_sensitive_data,
     ]
 
-    # Processadores específicos por modo
+    # Escolher renderer baseado no modo
     if development_mode or not json_logs:
-        # Modo desenvolvimento: logs coloridos e legíveis
-        processors = shared_processors + [structlog.dev.ConsoleRenderer(colors=True)]
+        renderer = structlog.dev.ConsoleRenderer(colors=True)
     else:
-        # Modo produção: logs em JSON
-        processors = shared_processors + [structlog.processors.JSONRenderer()]
+        renderer = structlog.processors.JSONRenderer()
 
-    # Configurar structlog
+    # 1. Configurar structlog
     structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level.upper())),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        processors=shared_processors + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
+
+    # 2. Configurar stdlib logging para usar os mesmos processadores
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+    )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    
+    # Attach SecretRedactor to the handler (IO boundary security)
+    from resync.core.logging_utils import SecretRedactor
+    handler.addFilter(SecretRedactor())
+
+    root_logger = logging.getLogger()
+    
+    # Limpar handlers existentes
+    for h in root_logger.handlers[:]:
+        root_logger.removeHandler(h)
+        
+    root_logger.addHandler(handler)
+    root_logger.setLevel(level)
+    
+    # Silenciar logs muito verbosos de bibliotecas
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def get_logger(name: str | None = None):

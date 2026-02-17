@@ -25,11 +25,18 @@ from typing import Any
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+try:
+    import structlog
+except ImportError:
+    structlog = None
+
 from resync.core.context import (
     reset_correlation_id,
     reset_request_id,
+    reset_trace_id,
     set_correlation_id,
     set_request_id,
+    set_trace_id,
 )
 from resync.core.structured_logger import get_logger
 
@@ -62,6 +69,16 @@ class CorrelationIdMiddleware:
         # Store in contextvars for structured logging across awaits
         cid_token = set_correlation_id(correlation_id)
         rid_token = set_request_id(request_id)
+        tid_token = set_trace_id(correlation_id)
+
+        # Bind to structlog contextvars if available
+        if structlog:
+            structlog.contextvars.clear_contextvars()
+            structlog.contextvars.bind_contextvars(
+                correlation_id=correlation_id,
+                request_id=request_id,
+                trace_id=correlation_id,
+            )
 
         async def send_wrapper(message: dict) -> None:
             if message.get("type") == "http.response.start":
@@ -79,6 +96,13 @@ class CorrelationIdMiddleware:
             except Exception:
                 logger.debug("failed_to_reset_request_id", exc_info=True)
             try:
+                reset_trace_id(tid_token)
+            except Exception:
+                logger.debug("failed_to_reset_trace_id", exc_info=True)
+            try:
                 reset_correlation_id(cid_token)
             except Exception:
                 logger.debug("failed_to_reset_correlation_id", exc_info=True)
+
+            if structlog:
+                structlog.contextvars.clear_contextvars()

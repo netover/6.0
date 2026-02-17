@@ -36,6 +36,8 @@ from enum import Enum
 from typing import Any, Protocol
 
 import structlog
+from resync.core.context import get_trace_id
+from resync.core.metrics.runtime_metrics import runtime_metrics
 
 logger = structlog.get_logger(__name__)
 
@@ -184,12 +186,12 @@ class IntentClassifier:
             r"\bs0c\d\b",
         ],
         Intent.JOB_MANAGEMENT: [
-            r"\bexecutar\b",
-            r"\brodar\b",
+            r"\bexecut\w*\b",
+            r"\broda\w*\b",
             r"\brun\b",
-            r"\bstart\b",
+            r"\bstart\w*\b",
             r"\bparar\b",
-            r"\bstop\b",
+            r"\bstop\w*\b",
             r"\bcancel\b",
             r"\bkill\b",
             r"\brerun\b",
@@ -246,8 +248,7 @@ class IntentClassifier:
             r"\bhelp\b",
             r"\bo\s*que\s*(é|são|significa)\b",
             r"\bwhat\s*is\b",
-            r"\bcomo\s+(funciona|usar|faz)\b",
-            r"\bhow\s+(to|do|does)\b",
+            r"\bcomo\s+(?:.*?\s+)?(funciona|usar|faz|fazer|criar|solicitar|pedir)\b",
             r"\bexplica\w*\b",
             r"\bexplain\b",
         ],
@@ -261,6 +262,12 @@ class IntentClassifier:
         "abend_code": r"\b([SU]0?C?\d+[A-Z]?)\b",
         "time_reference": r"\b(hoje|ontem|última\s+hora|last\s+hour|yesterday|today)\b",
     }
+    
+    # Class-level cache for compiled regex patterns
+    _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
+
+    # Class-level cache for compiled regex patterns
+    _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
 
     def __init__(self, llm_classifier: Callable | None = None):
         """
@@ -270,15 +277,20 @@ class IntentClassifier:
             llm_classifier: Optional async function for LLM-based classification
         """
         self.llm_classifier = llm_classifier
-        self._compiled_patterns: dict[Intent, list[re.Pattern]] = {}
-        self._compile_patterns()
+        self._ensure_compiled()
+
+    @classmethod
+    def _ensure_compiled(cls) -> None:
+        """Ensure regex patterns are compiled at class level."""
+        if not cls._compiled_patterns:
+            for intent, patterns in cls.INTENT_PATTERNS.items():
+                cls._compiled_patterns[intent] = [
+                    re.compile(p, re.IGNORECASE | re.UNICODE) for p in patterns
+                ]
 
     def _compile_patterns(self) -> None:
-        """Pre-compile regex patterns for performance."""
-        for intent, patterns in self.INTENT_PATTERNS.items():
-            self._compiled_patterns[intent] = [
-                re.compile(p, re.IGNORECASE | re.UNICODE) for p in patterns
-            ]
+        """Deprecated: Patterns are now compiled at class level via _ensure_compiled."""
+        self._ensure_compiled() # Maintain compatibility if called manually
 
     def classify(self, message: str) -> IntentClassification:
         """
@@ -301,6 +313,9 @@ class IntentClassifier:
 
         # Score each intent based on pattern matches
         scores: dict[Intent, float] = {}
+        
+        # Ensure patterns are compiled
+        self._ensure_compiled()
 
         for intent, patterns in self._compiled_patterns.items():
             match_count = sum(1 for pattern in patterns if pattern.search(message))
@@ -450,6 +465,16 @@ class BaseHandler(ABC):
     def __init__(self, agent_manager: Any = None):
         self.agent_manager = agent_manager
         self.last_tools_used: list[str] = []
+        self._specialist_team = None  # lazy-loaded TWSSpecialistTeam
+
+    
+    def specialist_team(self):
+        """Lazy-load TWSSpecialistTeam (shared across handlers)."""
+        if self._specialist_team is None:
+            from resync.core.specialists.agents import TWSSpecialistTeam
+
+            self._specialist_team = TWSSpecialistTeam()
+        return self._specialist_team
 
     @abstractmethod
     def handle(
@@ -886,10 +911,12 @@ PERGUNTA DO USUÁRIO:
         # v6.0: Optionally run specialist team for complex analysis
         if classification.primary_intent == Intent.ANALYSIS:
             try:
-                team_summary = await self.specialist_team.analyze(
+                team_resp = await self.specialist_team.process(
                     query=message,
-                    context={"entities": classification.entities}
+                    context={"entities": classification.entities},
+                    use_all_specialists=False,
                 )
+                team_summary = getattr(team_resp, "synthesized_response", "")
                 if team_summary:
                     # Inject specialist team summary into skill context
                     skill_context = f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
@@ -982,10 +1009,12 @@ class DiagnosticHandler(BaseHandler):
             # v6.0: Run specialist team for diagnostic context (best-effort)
             # This provides additional context before LangGraph diagnosis
             try:
-                team_summary = await self.specialist_team.diagnose(
+                team_resp = await self.specialist_team.process(
                     query=message,
-                    context={"entities": classification.entities}
+                    context={"entities": classification.entities},
+                    use_all_specialists=True,
                 )
+                team_summary = getattr(team_resp, "synthesized_response", "")
                 if team_summary:
                     # Inject specialist team findings into skill context
                     skill_context = f"# Specialist Team Diagnostic Findings\n{team_summary}\n\n{skill_context}"
@@ -1207,7 +1236,7 @@ class HybridRouter:
 
         processing_time = int((time.time() - start_time) * 1000)
 
-        return RoutingResult(
+        result = RoutingResult(
             response=response,
             routing_mode=routing_mode,
             intent=classification.primary_intent.value,
@@ -1217,6 +1246,21 @@ class HybridRouter:
             entities=classification.entities,
             processing_time_ms=processing_time,
         )
+
+        # Record decision in metrics (Phase 2)
+        try:
+            runtime_metrics.record_routing_decision(
+                mode=routing_mode.value,
+                intent=classification.primary_intent.value,
+                confidence=classification.confidence,
+                latency_ms=processing_time,
+                trace_id=get_trace_id(),
+                message=message,
+            )
+        except Exception as e:
+            logger.warning("failed_to_record_routing_metric", error=str(e))
+
+        return result
 
 
 # =============================================================================

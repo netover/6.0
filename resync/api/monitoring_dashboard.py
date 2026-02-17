@@ -127,6 +127,15 @@ def _build_metric_sample(
     llm = snapshot.get("llm", {})
     tws = snapshot.get("tws", {})
     system = snapshot.get("system", {})
+    router_cache = snapshot.get("router_cache", {})
+
+    cache_hits = _safe_int(cache.get("hits"))
+    cache_misses = _safe_int(cache.get("misses"))
+    cache_total = cache_hits + cache_misses
+
+    router_hits = _safe_int(router_cache.get("hits"))
+    router_misses = _safe_int(router_cache.get("misses"))
+    router_total = router_hits + router_misses
 
     cache_hits = _safe_int(cache.get("hits"))
     cache_misses = _safe_int(cache.get("misses"))
@@ -147,6 +156,9 @@ def _build_metric_sample(
         cache_hit_ratio=((cache_hits / cache_total) * 100) if cache_total > 0 else 0.0,
         cache_size=_safe_int(cache.get("size")),
         cache_evictions=_safe_int(cache.get("evictions")),
+        router_cache_hits=router_hits,
+        router_cache_misses=router_misses,
+        router_cache_hit_ratio=((router_hits / router_total) * 100) if router_total > 0 else 0.0,
         agents_active=_safe_int(agent.get("active_count")),
         agents_created=_safe_int(agent.get("initializations")),
         agents_failed=_safe_int(agent.get("creation_failures")),
@@ -204,6 +216,11 @@ class MetricSample:
     cache_hit_ratio: float = 0.0
     cache_size: int = 0
     cache_evictions: int = 0
+
+    # Router Cache
+    router_cache_hits: int = 0
+    router_cache_misses: int = 0
+    router_cache_hit_ratio: float = 0.0
 
     # Agent
     agents_active: int = 0
@@ -393,6 +410,10 @@ class DashboardMetricsStore:
                     "error_rate": [round(s.get("error_rate", 0), 2) for s in samples]
                 },
                 "cache": {"hit_ratio": [round(s.get("cache_hit_ratio", 0), 1) for s in samples]},
+                "router_cache": {
+                    "hit_ratio": [round(s.get("router_cache_hit_ratio", 0), 1) for s in samples],
+                    "operations": [s.get("router_cache_hits", 0) + s.get("router_cache_misses", 0) for s in samples]
+                },
                 "agents": {"active": [s.get("agents_active", 0) for s in samples]},
                 "sample_count": len(samples)
             }
@@ -423,6 +444,11 @@ class DashboardMetricsStore:
                 "error_rate": round(current.get("error_rate", 0), 2)
             },
             "system": {"availability": round(current.get("system_availability", 100), 2)},
+            "router_cache": {
+                "hits": current.get("router_cache_hits", 0),
+                "misses": current.get("router_cache_misses", 0),
+                "hit_ratio": round(current.get("router_cache_hit_ratio", 0), 1)
+            },
             "alerts": alerts,
             "collection_error": err_msg
         }
@@ -437,6 +463,7 @@ class DashboardMetricsStore:
             "timestamps": [],
             "api": {"requests_per_sec": [], "error_rate": []},
             "cache": {"hit_ratio": []},
+            "router_cache": {"hit_ratio": [], "operations": []},
             "agents": {"active": []},
             "sample_count": 0
         }

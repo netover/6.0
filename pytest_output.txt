@@ -1,25 +1,175 @@
 ============================= test session starts =============================
-platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- C:\Users\User\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
 benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
-rootdir: D:\Python\GITHUB\resync\6.0
+rootdir: D:\Python\GITHUB\resync\6.0-new1
 plugins: anyio-4.11.0, hypothesis-6.140.2, locust-2.41.2, asyncio-1.2.0, benchmark-5.1.0, cov-7.0.0, mock-3.15.1, timeout-2.4.0, xdist-3.8.0, respx-0.22.0
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 73 items / 1 error
+collecting ... collected 13 items
 
-=================================== ERRORS ====================================
-___________ ERROR collecting resync/tests/test_database_security.py ___________
-ImportError while importing test module 'D:\Python\GITHUB\resync\6.0\resync\tests\test_database_security.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py:88: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-resync\tests\test_database_security.py:32: in <module>
-    from resync.api.middleware.database_security_middleware import DatabaseSecurityMiddleware
-resync\api\middleware\__init__.py:17: in <module>
-    from .csrf_protection import CSRFMiddleware
-E   ImportError: cannot import name 'CSRFMiddleware' from 'resync.api.middleware.csrf_protection' (D:\Python\GITHUB\resync\6.0\resync\api\middleware\csrf_protection.py)
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case0] PASSED [  7%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case1] PASSED [ 15%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case2] PASSED [ 23%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case3] PASSED [ 30%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case4] PASSED [ 38%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case5] PASSED [ 46%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case6] PASSED [ 53%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case7] PASSED [ 61%]
+tests/test_golden_intent_classifier.py::test_intent_classification_golden_cases[case8] PASSED [ 69%]
+tests/test_golden_intent_classifier.py::test_intent_classifier_thresholds PASSED [ 76%]
+tests/test_websocket_integration.py::test_websocket_chat_flow FAILED     [ 84%]
+tests/test_websocket_integration.py::test_websocket_auth_failure PASSED  [ 92%]
+tests/test_websocket_integration.py::test_websocket_invalid_agent FAILED [100%]
+
+================================== FAILURES ===================================
+__________________________ test_websocket_chat_flow ___________________________
+
+app = <fastapi.applications.FastAPI object at 0x000001E1C6949550>
+
+    def test_websocket_chat_flow(app):
+        client = TestClient(app)
+    
+        # Mock authentication service to always verify
+        with patch("resync.api.auth.service.AuthService.verify_token", return_value=True):
+            # Using a dummy token and agent_id
+            with client.websocket_connect("/ws/tws-general?token=valid-token") as websocket:
+                # 1. Receive Welcome Message (System)
+                welcome = websocket.receive_json()
+                assert welcome["type"] == "system"
+                assert "Conectado ao agente" in welcome["message"]
+    
+                # 2. Send Message
+                websocket.send_text("Olß, como estß o TWS?")
+    
+                # 3. Receive Echo/User Message (per _handle_agent_interaction)
+                user_msg = websocket.receive_json()
+>               assert user_msg["type"] == "message"
+E               AssertionError: assert 'error' == 'message'
+E                 
+E                 - message
+E                 + error
+
+tests\test_websocket_integration.py:82: AssertionError
+---------------------------- Captured stdout setup ----------------------------
+2026-02-17T19:59:34.396414+00:00Z [INFO     ] settings_validation_passed     environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.429734+00:00Z [INFO     ] templates_configured           directory=D:\Python\GITHUB\resync\6.0-new1\resync\templates environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.468435+00:00Z [INFO     ] Rate limiting enabled          auth_limit=***REDACTED*** default_limit=100/minute environment=development service_name=Resync storage=memory version=6.2.0
+2026-02-17T19:59:34.566689+00:00Z [INFO     ] jwt_library_loaded library=pyjwt version=2.10.1 environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.581869+00:00Z [INFO     ] Enhanced security middleware configured environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.582131+00:00Z [INFO     ] Development security settings enabled environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.582326+00:00Z [INFO     ] security_headers_configured    enforce_https=False environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.582583+00:00Z [INFO     ] middleware_configured          environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.826755+00:00Z [INFO     ] Exception handlers registered successfully environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.827123+00:00Z [INFO     ] exception_handlers_registered  environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:34.827406+00:00Z [INFO     ] dependency_injection_configured environment=development mode=fastapi_depends service_name=Resync version=6.2.0
+2026-02-17T19:59:34.890046+00:00Z [INFO     ] using_dev_database_url: url=postgresql://localhost:5432/resync environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:39.004992+00:00Z [WARNING  ] AUTH_SECRET_KEY not set ù using insecure default. This is only acceptable in development. environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:39.174070+00:00Z [INFO     ] Circuit breaker initialized    environment=development failure_threshold=3 name=llm_service recovery_timeout=60 service_name=Resync version=6.2.0
+2026-02-17T19:59:39.174561+00:00Z [INFO     ] DistributedAuditLock initialized with Redis environment=development redis_url=***REDACTED*** service_name=Resync version=6.2.0
+2026-02-17T19:59:39.212321+00:00Z [INFO     ] RuntimeMetricsCollector initialized environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:39.219560+00:00Z [INFO     ] pyjwt_loaded version=2.10.1    environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:39.688136+00:00Z [INFO     ] enhanced_endpoints_registered  environment=development prefix=/api/v2 service_name=Resync version=6.2.0
+2026-02-17T19:59:39.691740+00:00Z [INFO     ] graphrag_admin_endpoints_registered environment=development prefix=/api/admin/graphrag service_name=Resync version=6.2.0
+2026-02-17T19:59:39.698270+00:00Z [INFO     ] document_kg_admin_endpoints_registered environment=development prefix=/api/admin/kg service_name=Resync version=6.2.0
+2026-02-17T19:59:39.705056+00:00Z [INFO     ] unified_config_endpoints_registered environment=development prefix=/api/admin/config service_name=Resync version=6.2.0
+2026-02-17T19:59:39.722152+00:00Z [INFO     ] dashboard_routes_registered    environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:39.722770+00:00Z [INFO     ] monitoring_routers_registered  environment=development service_name=Resync version=6.2.0
+16:59:40 resync.app_factory INFO   {'admin_count': 16, 'monitoring_count': 4, 'other_count': 4, 'event': 'unified_routers_registered', 'timestamp': '2026-02-17T19:59:40.232446+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.app_factory INFO   {'event': 'routers_registered', 'timestamp': '2026-02-17T19:59:40.232783+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.app_factory INFO   {'directory': 'D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\static', 'event': 'static_files_mounted', 'timestamp': '2026-02-17T19:59:40.233218+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.app_factory INFO   {'event': 'special_endpoints_registered', 'timestamp': '2026-02-17T19:59:40.233764+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.app_factory INFO   {'environment': 'development', 'debug_mode': True, 'event': 'application_created', 'timestamp': '2026-02-17T19:59:40.233968+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'version': '6.2.0'}
+---------------------------- Captured stdout call -----------------------------
+16:59:40 resync.api.chat INFO   {'positional_args': ('tws-general',), 'event': 'WebSocket connection established for agent %s', 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.243410+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.api.chat INFO   {'positional_args': ('Test Agent',), 'event': "Agent '%s' ready for WebSocket communication", 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.244100+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.api.chat INFO   {'positional_args': ('tws-general', 'Olß, como estß o TWS?'), 'event': "Received message for agent '%s': %s...", 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.245049+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+16:59:40 resync.api.chat CRITICAL   {'positional_args': ('tws-general',), 'event': "Unhandled exception in WebSocket for agent '%s'", 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.247161+00:00Z', 'level': 'CRITICAL', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0', 'exception': 'Traceback (most recent call last):\n  File "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\api\\chat.py", line 364, in websocket_endpoint\n    await _message_processing_loop(websocket, agent, agent_id, session_id)\n  File "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\api\\chat.py", line 319, in _message_processing_loop\n    await _handle_agent_interaction(websocket, agent_id, raw_data)\n  File "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\api\\chat.py", line 146, in _handle_agent_interaction\n    sanitized = sanitize_input(data)\n                ^^^^^^^^^^^^^^\nNameError: name \'sanitize_input\' is not defined'}
+------------------------------ Captured log call ------------------------------
+INFO     resync.api.chat:chat.py:265 {'positional_args': ('tws-general',), 'event': 'WebSocket connection established for agent %s', 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.243410+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+INFO     resync.api.chat:chat.py:297 {'positional_args': ('Test Agent',), 'event': "Agent '%s' ready for WebSocket communication", 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.244100+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+INFO     resync.api.chat:chat.py:313 {'positional_args': ('tws-general', 'Olß, como estß o TWS?'), 'event': "Received message for agent '%s': %s...", 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.245049+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+CRITICAL resync.api.chat:chat.py:385 {'positional_args': ('tws-general',), 'event': "Unhandled exception in WebSocket for agent '%s'", 'agent_id': 'tws-general', 'websocket_session': '***REDACTED***', 'trace_id': '5948eb08-708f-4027-8f0b-998de099c741', 'timestamp': '2026-02-17T19:59:40.247161+00:00Z', 'level': 'CRITICAL', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0', 'exception': 'Traceback (most recent call last):\n  File "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\api\\chat.py", line 364, in websocket_endpoint\n    await _message_processing_loop(websocket, agent, agent_id, session_id)\n  File "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\api\\chat.py", line 319, in _message_processing_loop\n    await _handle_agent_interaction(websocket, agent_id, raw_data)\n  File "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\api\\chat.py", line 146, in _handle_agent_interaction\n    sanitized = sanitize_input(data)\n                ^^^^^^^^^^^^^^\nNameError: name \'sanitize_input\' is not defined'}
+________________________ test_websocket_invalid_agent _________________________
+
+app = <fastapi.applications.FastAPI object at 0x000001E1BC3B4190>
+
+    def test_websocket_invalid_agent(app):
+        client = TestClient(app)
+    
+        # Mock agent manager to return None (agent not found)
+        app.state.enterprise_state.agent_manager.get_agent.return_value = None
+    
+        with patch("resync.api.auth.service.AuthService.verify_token", return_value=True):
+>           with pytest.raises(Exception): # Should disconnect with 1008
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE <class 'Exception'>
+
+tests\test_websocket_integration.py:115: Failed
+---------------------------- Captured stdout setup ----------------------------
+2026-02-17T19:59:40.412923+00:00Z [INFO     ] settings_validation_passed     environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.413395+00:00Z [INFO     ] templates_configured           directory=D:\Python\GITHUB\resync\6.0-new1\resync\templates environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.413719+00:00Z [INFO     ] Rate limiting enabled          auth_limit=***REDACTED*** default_limit=100/minute environment=development service_name=Resync storage=memory version=6.2.0
+2026-02-17T19:59:40.414155+00:00Z [INFO     ] Enhanced security middleware configured environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.414407+00:00Z [INFO     ] Development security settings enabled environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.414620+00:00Z [INFO     ] security_headers_configured    enforce_https=False environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.414878+00:00Z [INFO     ] middleware_configured          environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.415098+00:00Z [INFO     ] Exception handlers registered successfully environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.415313+00:00Z [INFO     ] exception_handlers_registered  environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.415518+00:00Z [INFO     ] dependency_injection_configured environment=development mode=fastapi_depends service_name=Resync version=6.2.0
+2026-02-17T19:59:40.452253+00:00Z [INFO     ] enhanced_endpoints_registered  environment=development prefix=/api/v2 service_name=Resync version=6.2.0
+2026-02-17T19:59:40.453986+00:00Z [INFO     ] graphrag_admin_endpoints_registered environment=development prefix=/api/admin/graphrag service_name=Resync version=6.2.0
+2026-02-17T19:59:40.456406+00:00Z [INFO     ] document_kg_admin_endpoints_registered environment=development prefix=/api/admin/kg service_name=Resync version=6.2.0
+2026-02-17T19:59:40.457721+00:00Z [INFO     ] unified_config_endpoints_registered environment=development prefix=/api/admin/config service_name=Resync version=6.2.0
+2026-02-17T19:59:40.462621+00:00Z [INFO     ] dashboard_routes_registered    environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.462897+00:00Z [INFO     ] monitoring_routers_registered  environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.555784+00:00Z [INFO     ] unified_routers_registered     admin_count=16 environment=development monitoring_count=4 other_count=4 service_name=Resync version=6.2.0
+2026-02-17T19:59:40.556287+00:00Z [INFO     ] routers_registered             environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.556702+00:00Z [INFO     ] static_files_mounted           directory=D:\Python\GITHUB\resync\6.0-new1\resync\static environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.557200+00:00Z [INFO     ] special_endpoints_registered   environment=development service_name=Resync version=6.2.0
+2026-02-17T19:59:40.557455+00:00Z [INFO     ] application_created            debug_mode=True environment=development service_name=Resync version=6.2.0
+---------------------------- Captured stdout call -----------------------------
+2026-02-17T19:59:40.562889+00:00Z [INFO     ] WebSocket connection established for agent %s agent_id=non-existent-agent environment=development positional_args=('non-existent-agent',) service_name=Resync trace_id=40c7a5d8-f143-4754-ba5a-9dcfb4909346 version=6.2.0 websocket_session=***REDACTED***
+2026-02-17T19:59:40.563414+00:00Z [WARNING  ] Agent '%s' not found.          agent_id=non-existent-agent environment=development positional_args=('non-existent-agent',) service_name=Resync trace_id=40c7a5d8-f143-4754-ba5a-9dcfb4909346 version=6.2.0 websocket_session=***REDACTED***
+2026-02-17T19:59:40.563877+00:00Z [INFO     ] Client disconnected from agent '%s'. Reason: %s (Code: %s) agent_id=non-existent-agent environment=development positional_args=('non-existent-agent', 'unknown', 'unknown') service_name=Resync trace_id=40c7a5d8-f143-4754-ba5a-9dcfb4909346 version=6.2.0 websocket_session=***REDACTED***
+------------------------------ Captured log call ------------------------------
+INFO     resync.api.chat:chat.py:265 {'positional_args': ('non-existent-agent',), 'event': 'WebSocket connection established for agent %s', 'agent_id': 'non-existent-agent', 'websocket_session': '***REDACTED***', 'trace_id': '40c7a5d8-f143-4754-ba5a-9dcfb4909346', 'timestamp': '2026-02-17T19:59:40.562889+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+WARNING  resync.api.chat:chat.py:278 {'positional_args': ('non-existent-agent',), 'event': "Agent '%s' not found.", 'agent_id': 'non-existent-agent', 'websocket_session': '***REDACTED***', 'trace_id': '40c7a5d8-f143-4754-ba5a-9dcfb4909346', 'timestamp': '2026-02-17T19:59:40.563414+00:00Z', 'level': 'WARNING', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+INFO     resync.api.chat:chat.py:368 {'positional_args': ('non-existent-agent', 'unknown', 'unknown'), 'event': "Client disconnected from agent '%s'. Reason: %s (Code: %s)", 'agent_id': 'non-existent-agent', 'websocket_session': '***REDACTED***', 'trace_id': '40c7a5d8-f143-4754-ba5a-9dcfb4909346', 'timestamp': '2026-02-17T19:59:40.563877+00:00Z', 'level': 'INFO', 'service_name': 'Resync', 'environment': 'development', 'version': '6.2.0'}
+============================== warnings summary ===============================
+tests/test_websocket_integration.py::test_websocket_chat_flow
+  D:\Python\GITHUB\resync\6.0-new1\resync\api\routes\core\health.py:620: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @router.on_event("shutdown")
+
+tests/test_websocket_integration.py::test_websocket_chat_flow
+tests/test_websocket_integration.py::test_websocket_chat_flow
+  C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\_internal\_generate_schema.py:298: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.11/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(
+
+tests/test_websocket_integration.py::test_websocket_chat_flow
+  D:\Python\GITHUB\resync\6.0-new1\resync\core\database\models\teams.py:8: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+tests/test_websocket_integration.py::test_websocket_chat_flow
+  D:\Python\GITHUB\resync\6.0-new1\resync\api\routes\monitoring\dashboard.py:537: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @router.on_event("startup")
+
+tests/test_websocket_integration.py::test_websocket_chat_flow
+  D:\Python\GITHUB\resync\6.0-new1\resync\core\database\models\teams_notifications.py:8: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ===========================
-ERROR resync/tests/test_database_security.py
-!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
-============================== 1 error in 5.55s ===============================
+FAILED tests/test_websocket_integration.py::test_websocket_chat_flow - Assert...
+FAILED tests/test_websocket_integration.py::test_websocket_invalid_agent - Fa...
+================== 2 failed, 11 passed, 6 warnings in 6.63s ===================

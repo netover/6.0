@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resync - Metrics Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style-neumorphic.css">
+    <link rel="stylesheet" href="/static/css/admin-neumorphic.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --danger-color: #f56565;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .metrics-card {
+            background: linear-gradient(145deg, #e6ebf2, #bec3c9);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 8px 8px 16px var(--shadow-dark),
+                        -8px -8px 16px var(--shadow-light);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .metrics-card h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: var(--accent-color);
+            border-bottom: 2px solid rgba(0,0,0,0.05);
+            padding-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: #718096;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            box-shadow: inset 2px 2px 5px var(--shadow-dark),
+                        inset -2px -2px 5px var(--shadow-light);
+        }
+
+        .stat-value {
+            font-size: 1.125rem;
+            font-weight: 600;
+            display: block;
+        }
+
+        .stat-name {
+            font-size: 0.75rem;
+            color: #718096;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .status-ok { background-color: var(--success-color); }
+        .status-warning { background-color: var(--warning-color); }
+        .status-critical { background-color: var(--danger-color); }
+
+        .system-info {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>Resync Intelligence Dashboard</h1>
+                <div id="connection-status" class="status-badge status-warning">Connecting...</div>
+            </div>
+            <p>Real-time performance monitoring for Semantic Cache and Intent Routing</p>
+        </header>
+
+        <main class="admin-main">
+            <div class="dashboard-grid">
+                <!-- Router Cache Card -->
+                <div class="metrics-card">
+                    <h3>🚀 Router Cache</h3>
+                    <div class="metric-value" id="hit-ratio">0.0%</div>
+                    <div class="metric-label">Hit Ratio</div>
+                    
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <span class="stat-value" id="cache-hits">0</span>
+                            <span class="stat-name">Hits</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="cache-misses">0</span>
+                            <span class="stat-name">Misses</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="ratioChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- API Usage Card -->
+                <div class="metrics-card">
+                    <h3>📊 API Throughput</h3>
+                    <div class="metric-value" id="requests-sec">0.0</div>
+                    <div class="metric-label">Requests / Sec</div>
+                    
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <span class="stat-value" id="total-requests">0</span>
+                            <span class="stat-name">Total Today</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="error-count">0</span>
+                            <span class="stat-name">Errors</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="rpsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- System Health Card -->
+                <div class="metrics-card">
+                    <h3>💻 System Health</h3>
+                    <div class="stats-row" style="flex-wrap: wrap; margin-top: 0;">
+                        <div class="stat-item" style="min-width: 45%;">
+                            <span class="stat-value" id="cpu-usage">0%</span>
+                            <span class="stat-name">CPU</span>
+                        </div>
+                        <div class="stat-item" style="min-width: 45%;">
+                            <span class="stat-value" id="mem-usage">0 MB</span>
+                            <span class="stat-name">RAM</span>
+                        </div>
+                        <div class="stat-item" style="min-width: 45%; margin-top: 0.5rem;">
+                            <span class="stat-value" id="uptime">0.0h</span>
+                            <span class="stat-name">Uptime</span>
+                        </div>
+                        <div class="stat-item" style="min-width: 45%; margin-top: 0.5rem;">
+                            <span class="stat-value" id="active-ws">0</span>
+                            <span class="stat-name">Active WS</span>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1rem; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 0.5rem;">
+                        <h4 style="font-size: 0.875rem; margin-bottom: 0.5rem;">Cache Warming</h4>
+                        <div class="status-badge status-ok" id="warming-status">Idle</div>
+                        <span id="warming-details" style="font-size: 0.75rem; margin-left: 0.5rem; color: #5a5c69;">Last sync: N/A</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="system-info">
+                <span><strong>Version:</strong> v6.0.0-semantic</span>
+                <span><strong>Environment:</strong> {{ settings.environment if settings else 'Development' }}</span>
+                <span><strong>Last Update:</strong> <span id="last-update">Never</span></span>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Init Charts
+        const rpsCtx = document.getElementById('rpsChart').getContext('2d');
+        const ratioCtx = document.getElementById('ratioChart').getContext('2d');
+
+        const chartConfig = (label, color) => ({
+            type: 'line',
+            data: {
+                labels: Array(20).fill(''),
+                datasets: [{
+                    label: label,
+                    data: Array(20).fill(0),
+                    borderColor: color,
+                    backgroundColor: color + '22',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { 
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { font: { size: 10 } }
+                    }
+                }
+            }
+        });
+
+        const rpsChart = new Chart(rpsCtx, chartConfig('Requests/s', '#667eea'));
+        const ratioChart = new Chart(ratioCtx, chartConfig('Hit Ratio %', '#48bb78'));
+
+        function updateCharts(rps, ratio) {
+            rpsChart.data.datasets[0].data.push(rps);
+            rpsChart.data.datasets[0].data.shift();
+            rpsChart.update('none');
+
+            ratioChart.data.datasets[0].data.push(ratio);
+            ratioChart.data.datasets[0].data.shift();
+            ratioChart.update('none');
+        }
+
+        // WebSocket Login
+        let ws;
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/monitoring/metrics-dashboard/ws`;
+            
+            console.log('Connecting to WS:', wsUrl);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                document.getElementById('connection-status').className = 'status-badge status-ok';
+                document.getElementById('connection-status').textContent = 'Live';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'metrics' || data.cache) {
+                    updateUI(data);
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('connection-status').className = 'status-badge status-critical';
+                document.getElementById('connection-status').textContent = 'Disconnected';
+                setTimeout(connect, 3000); // Reconnect
+            };
+        }
+
+        function updateUI(data) {
+            // Router Cache
+            if (data.cache) {
+                const ratio = (data.cache.hit_rate * 100).toFixed(1);
+                document.getElementById('hit-ratio').textContent = ratio + '%';
+                document.getElementById('cache-hits').textContent = data.cache.hits_last_hour || 0;
+                document.getElementById('cache-misses').textContent = data.cache.misses_last_hour || 0;
+                
+                // Set color based on performance
+                document.getElementById('hit-ratio').style.color = ratio > 70 ? '#48bb78' : ratio > 40 ? '#ed8936' : '#f56565';
+                
+                updateCharts(data.system ? data.system.requests_today % 10 : 0, parseFloat(ratio));
+            }
+
+            // System
+            if (data.system) {
+                document.getElementById('cpu-usage').textContent = data.system.cpu_usage_percent.toFixed(1) + '%';
+                document.getElementById('mem-usage').textContent = data.system.memory_usage_mb.toFixed(0) + ' MB';
+                document.getElementById('uptime').textContent = data.system.uptime_hours.toFixed(1) + 'h';
+                document.getElementById('active-ws').textContent = data.system.active_connections;
+                document.getElementById('requests-sec').textContent = (data.system.requests_today / Math.max(1, data.system.uptime_hours * 3600)).toFixed(2);
+                document.getElementById('total-requests').textContent = data.system.requests_today;
+                document.getElementById('error-count').textContent = data.system.errors_today;
+            }
+
+            // Warming
+            if (data.warming) {
+                document.getElementById('warming-status').textContent = data.warming.is_warming ? 'Warming...' : 'Idle';
+                document.getElementById('warming-status').className = 'status-badge ' + (data.warming.is_warming ? 'status-warning' : 'status-ok');
+                document.getElementById('warming-details').textContent = data.warming.last_warm ? `Last: ${new Date(data.warming.last_warm).toLocaleTimeString()}` : 'Last: N/A';
+            }
+
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Fallback Polling if WS fails or while waiting
+        async function fetchMetrics() {
+            try {
+                const response = await fetch('/api/v1/monitoring/metrics-dashboard/');
+                const data = await response.json();
+                updateUI(data);
+            } catch (e) {
+                console.error('Fetch failed:', e);
+            }
+        }
+
+        // Start
+        connect();
+        setInterval(fetchMetrics, 5000); // Background polling as fallback
+        fetchMetrics();
+
+    </script>
+</body>
+</html>

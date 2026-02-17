@@ -51,6 +51,11 @@ class MetricSample:
     cache_size: int = 0
     cache_evictions: int = 0
 
+    # Router Cache Metrics
+    router_cache_hits: int = 0
+    router_cache_misses: int = 0
+    router_cache_hit_ratio: float = 0.0
+
     # Agent Metrics
     agents_active: int = 0
     agents_created: int = 0
@@ -101,6 +106,8 @@ class DashboardMetricsStore:
     _prev_cache_misses: int = 0
     _prev_agents_created: int = 0
     _prev_llm_requests: int = 0
+    _prev_router_cache_hits: int = 0
+    _prev_router_cache_misses: int = 0
 
     # Alertas ativos
     alerts: list[dict[str, Any]] = field(default_factory=list)
@@ -208,6 +215,14 @@ class DashboardMetricsStore:
                         current.cache_hit_ratio, trend_sample.cache_hit_ratio if trend_sample else 0
                     ),
                 },
+                "router_cache": {
+                    "hit_ratio": round(current.router_cache_hit_ratio, 1),
+                    "hits": current.router_cache_hits,
+                    "misses": current.router_cache_misses,
+                    "trend": self._calc_trend(
+                        current.router_cache_hit_ratio, trend_sample.router_cache_hit_ratio if trend_sample else 0
+                    ),
+                },
                 "agents": {
                     "active": current.agents_active,
                     "created_total": current.agents_created,
@@ -272,6 +287,10 @@ class DashboardMetricsStore:
                     "hit_ratio": [round(s.cache_hit_ratio, 1) for s in recent_samples],
                     "operations": [s.cache_hits + s.cache_misses for s in recent_samples],
                 },
+                "router_cache": {
+                    "hit_ratio": [round(s.router_cache_hit_ratio, 1) for s in recent_samples],
+                    "operations": [s.router_cache_hits + s.router_cache_misses for s in recent_samples],
+                },
                 "agents": {
                     "active": [s.agents_active for s in recent_samples],
                     "created": [s.agents_created for s in recent_samples],
@@ -295,6 +314,7 @@ class DashboardMetricsStore:
             "timestamp": time.time(),
             "api": {"requests_per_sec": 0, "error_rate": 0, "response_time_p95": 0, "trend": 0},
             "cache": {"hit_ratio": 0, "hits": 0, "misses": 0, "trend": 0},
+            "router_cache": {"hit_ratio": 0, "hits": 0, "misses": 0, "trend": 0},
             "agents": {"active": 0, "created_total": 0, "failed_total": 0, "trend": 0},
             "llm": {"requests": 0, "tokens_used": 0, "errors": 0},
             "tws": {"connected": False, "latency_ms": 0, "status": "unknown"},
@@ -324,6 +344,7 @@ class DashboardMetricsStore:
                 "response_time_p95": [],
             },
             "cache": {"hit_ratio": [], "operations": []},
+            "router_cache": {"hit_ratio": [], "operations": []},
             "agents": {"active": [], "created": []},
             "tws": {"latency": [], "connected": []},
             "sample_count": 0,
@@ -398,6 +419,13 @@ async def collect_metrics_sample() -> MetricSample:
         cache_total = cache_hits + cache_misses
         cache_hit_ratio = (cache_hits / cache_total * 100) if cache_total > 0 else 100
 
+        # Router cache metrics
+        router_cache = snapshot.get("router_cache", {})
+        router_hits = router_cache.get("hits", 0)
+        router_misses = router_cache.get("misses", 0)
+        router_total = router_hits + router_misses
+        router_hit_ratio = (router_hits / router_total * 100) if router_total > 0 else 0.0
+
         # SLO metrics
         slo = snapshot.get("slo", {})
 
@@ -422,6 +450,10 @@ async def collect_metrics_sample() -> MetricSample:
             cache_hit_ratio=cache_hit_ratio,
             cache_size=int(cache.get("size", 0)),
             cache_evictions=cache.get("evictions", 0),
+            # Router Cache
+            router_cache_hits=router_hits,
+            router_cache_misses=router_misses,
+            router_cache_hit_ratio=router_hit_ratio,
             # Agents
             agents_active=snapshot.get("agent", {}).get("active_count", 0),
             agents_created=snapshot.get("agent", {}).get("initializations", 0),
@@ -502,12 +534,6 @@ def stop_metrics_collector():
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
 
-@router.on_event("startup")
-async def startup_collector():
-    """Inicia o coletor no startup."""
-    global _collector_task
-    _collector_task = await create_tracked_task(metrics_collector_loop(), name="metrics_collector_loop")
-    logger.info("Dashboard metrics collector iniciado")
 
 
 @router.get("/current")

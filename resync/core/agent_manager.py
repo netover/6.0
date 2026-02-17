@@ -594,12 +594,12 @@ class AgentManager:
     # Read-only accessors
     # -----------------------------------------------------------------
 
-    def get_all_agents(self) -> list[AgentConfig]:
-        """Return all loaded agent configurations."""
+    async def get_all_agents(self) -> list[AgentConfig]:
+        """Return all loaded agent configurations (async)."""
         return list(self.agent_configs)
 
-    def get_agent_config(self, agent_id: str) -> AgentConfig | None:
-        """Retrieve the config for a single agent."""
+    async def get_agent_config(self, agent_id: str) -> AgentConfig | None:
+        """Retrieve the config for a single agent (async)."""
         return next(
             (c for c in self.agent_configs if c.id == agent_id), None
         )
@@ -610,7 +610,7 @@ class AgentManager:
 
     async def get_agent_card(self, agent_id: str, base_url: str = "http://localhost:8000") -> AgentCard | None:
         """Generate an A2A Agent Card for the specified agent."""
-        config = self.get_agent_config(agent_id)
+        config = await self.get_agent_config(agent_id)
         if not config:
             return None
 

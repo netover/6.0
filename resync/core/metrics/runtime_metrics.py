@@ -9,6 +9,8 @@ used throughout the application.
 import logging
 import time
 import uuid
+from collections import deque
+from datetime import datetime, timezone
 from typing import Any
 
 from resync.core.metrics_internal import (
@@ -53,6 +55,11 @@ class RuntimeMetricsCollector:
         self.cache_cleanup_cycles = create_counter("cache_cleanup_cycles", "Cache cleanup cycles")
         self.cache_avg_latency = create_gauge("cache_avg_latency", "Average cache latency")
         self.cache_size = create_gauge("cache_size", "Current cache size")
+
+        # Router Cache Metrics (Intent Cache)
+        self.router_cache_hits = create_counter("router_cache_hits", "Router cache hits")
+        self.router_cache_misses = create_counter("router_cache_misses", "Router cache misses")
+        self.router_cache_sets = create_counter("router_cache_sets", "Router cache sets")
 
         # TWS Metrics
         self.tws_requests_total = create_counter("tws_requests_total", "Total TWS requests")
@@ -113,6 +120,16 @@ class RuntimeMetricsCollector:
         # RAG Histograms
         self.rag_query_duration = create_histogram("rag_query_duration", "RAG query duration in seconds")
         self.rag_index_build_duration = create_histogram("rag_index_build_duration", "BM25 index build duration")
+
+        # Routing Monitoring (Phase 2)
+        self.routing_decisions_total = create_counter(
+            "routing_decisions_total", "Total routing decisions", labels=["mode", "intent"]
+        )
+        self.routing_errors_total = create_counter("routing_errors_total", "Total routing errors")
+        self.routing_duration_seconds = create_histogram(
+            "routing_duration_seconds", "Routing duration in seconds"
+        )
+        self.recent_decisions = deque(maxlen=50)
 
         # Correlation tracking
         self._correlations: dict[str, dict[str, Any]] = {}
@@ -176,6 +193,36 @@ class RuntimeMetricsCollector:
         else:
             self.cache_misses.inc()
 
+    def record_routing_decision(
+        self,
+        mode: str,
+        intent: str,
+        confidence: float,
+        latency_ms: float,
+        trace_id: str | None = None,
+        error: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        """Record a routing decision (Phase 2)."""
+        self.routing_decisions_total.labels(mode=mode, intent=intent).inc()
+        self.routing_duration_seconds.observe(latency_ms / 1000)
+
+        if error:
+            self.routing_errors_total.inc()
+
+        self.recent_decisions.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "mode": mode,
+                "intent": intent,
+                "confidence": confidence,
+                "latency_ms": latency_ms,
+                "trace_id": trace_id,
+                "error": error,
+                "message": message[:100] if message else None,  # Truncate for safety
+            }
+        )
+
     def get_stats(self) -> dict[str, Any]:
         """Get all metrics as a dictionary."""
         cache_hits = self.cache_hits.get()
@@ -194,6 +241,12 @@ class RuntimeMetricsCollector:
                 "misses": cache_misses,
                 "evictions": self.cache_evictions.get(),
                 "hit_rate": cache_hit_rate,
+            },
+            "router_cache": {
+                "hits": self.router_cache_hits.get(),
+                "misses": self.router_cache_misses.get(),
+                "sets": self.router_cache_sets.get(),
+                "hit_rate": (self.router_cache_hits.get() / (self.router_cache_hits.get() + self.router_cache_misses.get()) * 100) if (self.router_cache_hits.get() + self.router_cache_misses.get()) > 0 else 0.0,
             },
             "tws": {
                 "requests_total": self.tws_requests_total.get(),
@@ -229,10 +282,19 @@ class RuntimeMetricsCollector:
                     "searches": self.rag_chat_searches.get(),
                 },
                 "cache": {
-                    "size": self.rag_cache_size.get(),
                     "hits": self.rag_cache_hits.get(),
                     "misses": self.rag_cache_misses.get(),
                 },
+            },
+            "routing": {
+                "total_decisions": self.routing_decisions_total.get(),
+                "errors": self.routing_errors_total.get(),
+                "avg_latency_ms": (
+                    self.routing_duration_seconds.get_percentile(50) * 1000
+                    if self.routing_duration_seconds.get_percentile(50)
+                    else 0
+                ),
+                "recent_decisions": list(self.recent_decisions),
             },
         }
 
