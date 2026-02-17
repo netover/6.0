@@ -106,7 +106,7 @@ class SettingsValidators:
         "batman",
         "trustno1",
         "access",
-        "master",
+        # Note: "master" appears earlier in the list, removed duplicate
         "hello",
         "charlie",
         "donald",

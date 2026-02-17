@@ -42,7 +42,9 @@ class TeamsConfigUpdate(BaseModel):
     enabled: bool | None = Field(None, description="Enable Teams integration")
     webhook_url: str | None = Field(None, description="Teams webhook URL")
     channel_name: str | None = Field(None, description="Teams channel name")
-    bot_name: str | None = Field(None, min_length=1, max_length=50, description="Bot display name")
+    bot_name: str | None = Field(
+        None, min_length=1, max_length=50, description="Bot display name"
+    )
     avatar_url: str | None = Field(None, description="Bot avatar URL")
     enable_conversation_learning: bool | None = Field(
         None, description="Enable conversation learning"
@@ -56,7 +58,9 @@ class TeamsConfigUpdate(BaseModel):
     job_status_filters: list[str] | None = Field(
         None, description="Job status filters for notifications"
     )
-    notification_types: list[str] | None = Field(None, description="Types of notifications to send")
+    notification_types: list[str] | None = Field(
+        None, description="Types of notifications to send"
+    )
 
 
 class AdminConfigResponse(BaseModel):
@@ -66,7 +70,9 @@ class AdminConfigResponse(BaseModel):
         default_factory=dict, description="Teams integration configuration"
     )
     tws: dict[str, Any] = Field(default_factory=dict, description="TWS configuration")
-    system: dict[str, Any] = Field(default_factory=dict, description="System configuration")
+    system: dict[str, Any] = Field(
+        default_factory=dict, description="System configuration"
+    )
     last_updated: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="Last update timestamp",
@@ -76,7 +82,9 @@ class AdminConfigResponse(BaseModel):
 class TeamsHealthResponse(BaseModel):
     """Teams integration health check response."""
 
-    status: dict[str, Any] = Field(default_factory=dict, description="Teams integration status")
+    status: dict[str, Any] = Field(
+        default_factory=dict, description="Teams integration status"
+    )
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="Health check timestamp",
@@ -84,6 +92,7 @@ class TeamsHealthResponse(BaseModel):
 
 
 @admin_router.get("/", response_class=HTMLResponse, summary="Admin Dashboard")
+@admin_router.get("", response_class=HTMLResponse, summary="Admin Dashboard")
 async def admin_dashboard(request: Request) -> HTMLResponse:
     """Serve the admin configuration dashboard.
 
@@ -106,6 +115,34 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to render admin dashboard",
+        ) from e
+
+
+@admin_router.get(
+    "/api-keys", 
+    response_class=HTMLResponse, 
+    summary="API Key Management",
+    dependencies=[Depends(verify_admin_credentials)]
+)
+async def api_keys_admin_page(request: Request) -> HTMLResponse:
+    """Serve the API Key Management admin page.
+
+    Renders the HTML interface for managing API keys.
+    """
+    try:
+        from pathlib import Path
+        from fastapi.templating import Jinja2Templates
+
+        templates_dir = Path(settings.BASE_DIR) / "templates"
+        templates = Jinja2Templates(directory=str(templates_dir))
+        return templates.TemplateResponse("api_keys_admin.html", {"request": request})
+    except Exception as e:
+        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        logger.error("Failed to render API keys admin page: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to render API keys admin page",
         ) from e
 
 
@@ -274,7 +311,9 @@ async def get_teams_health(
     """
     try:
         health_status = await teams_integration.health_check()
-        return TeamsHealthResponse(status=health_status, timestamp=datetime.now(timezone.utc).isoformat())
+        return TeamsHealthResponse(
+            status=health_status, timestamp=datetime.now(timezone.utc).isoformat()
+        )
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -358,7 +397,11 @@ async def get_admin_status(
         # Get TWS connection status
         try:
             _conn_result = tws_client.check_connection()
-            tws_connected = await _conn_result if inspect.isawaitable(_conn_result) else _conn_result
+            tws_connected = (
+                await _conn_result
+                if inspect.isawaitable(_conn_result)
+                else _conn_result
+            )
             tws_status = "connected" if tws_connected else "disconnected"
         except Exception as e:
             logger.error("exception_caught: %s", str(e), exc_info=True)
@@ -430,7 +473,9 @@ class SystemConfigUpdate(BaseModel):
     cors_enabled: bool | None = Field(None, description="Enable CORS")
     cors_origins: list[str] | None = Field(None, description="Allowed CORS origins")
     rate_limit_enabled: bool | None = Field(None, description="Enable rate limiting")
-    rate_limit_requests: int | None = Field(None, ge=1, description="Max requests per period")
+    rate_limit_requests: int | None = Field(
+        None, ge=1, description="Max requests per period"
+    )
 
 
 @admin_router.put(
@@ -463,7 +508,9 @@ async def update_tws_config(
             if hasattr(settings, setting_name):
                 setattr(settings, setting_name, field_value)
 
-        logger.info("TWS configuration updated and persisted: %s", list(update_fields.keys()))
+        logger.info(
+            "TWS configuration updated and persisted: %s", list(update_fields.keys())
+        )
 
         # Return updated configuration
         from resync.core.fastapi_di import get_teams_integration
@@ -514,7 +561,9 @@ async def update_system_config(
             if hasattr(settings, setting_name):
                 setattr(settings, setting_name, field_value)
 
-        logger.info("System configuration updated and persisted: %s", list(update_fields.keys()))
+        logger.info(
+            "System configuration updated and persisted: %s", list(update_fields.keys())
+        )
 
         # Return updated configuration
         from resync.core.fastapi_di import get_teams_integration
@@ -808,7 +857,9 @@ class ComponentHealth(BaseModel):
     """Individual component health status."""
 
     status: str = Field(description="Component status: healthy, degraded, unhealthy")
-    latency_ms: float | None = Field(None, description="Response latency in milliseconds")
+    latency_ms: float | None = Field(
+        None, description="Response latency in milliseconds"
+    )
     message: str | None = Field(None, description="Additional status message")
     last_check: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),

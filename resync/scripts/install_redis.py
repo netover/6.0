@@ -25,8 +25,12 @@ from pathlib import Path
 
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379
-REDIS_PASSWORD = ""
+# SECURITY: Read password from environment variable, never hardcode in production
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 REDIS_DB = 0
+
+# Constants for file paths
+DOCKER_COMPOSE_FILE = "docker-compose.redis.yml"
 
 REDIS_CONFIG = """
 # =============================================================================
@@ -203,7 +207,7 @@ def setup_redis() -> None:
     print(f"Configuração salva em: {config_path}")
 
     # Criar configuração Docker
-    docker_path = Path("docker-compose.redis.yml")
+    docker_path = Path(DOCKER_COMPOSE_FILE)
     docker_path.write_text(REDIS_DOCKER_CONFIG)
     print(f"Docker Compose salvo em: {docker_path}")
 
@@ -263,19 +267,19 @@ def start_docker() -> None:
     """Inicia Redis via Docker Compose."""
     print("\n=== Iniciando Redis via Docker ===")
 
-    docker_path = Path("docker-compose.redis.yml")
+    docker_path = Path(DOCKER_COMPOSE_FILE)
     if not docker_path.exists():
         docker_path.write_text(REDIS_DOCKER_CONFIG)
 
     try:
-        run_command(["docker-compose", "-f", "docker-compose.redis.yml", "up", "-d"])
+        run_command(["docker-compose", "-f", DOCKER_COMPOSE_FILE, "up", "-d"])
         print("Redis iniciado via Docker Compose!")
     except FileNotFoundError:
         # Tenta docker compose (v2)
         try:
-            run_command(["docker", "compose", "-f", "docker-compose.redis.yml", "up", "-d"])
-        except:
-            print("Docker Compose não disponível.")
+            run_command(["docker", "compose", "-f", DOCKER_COMPOSE_FILE, "up", "-d"])
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
+            print(f"Docker Compose não disponível: {e}")
 
 
 def test_redis() -> None:

@@ -73,13 +73,15 @@ class CachedStaticFiles(StarletteStaticFiles):
             # Generate ETag from file metadata for cache validation
             try:
                 # Reuse stat_result from FileResponse if available (avoid double I/O)
-                if isinstance(response, FileResponse) and getattr(response, "stat_result", None):
+                if isinstance(response, FileResponse) and getattr(
+                    response, "stat_result", None
+                ):
                     st = response.stat_result
                     file_metadata = f"{st.st_size}-{int(st.st_mtime)}"
                 else:
                     # Fallback: file stat not available, use path hash
                     file_metadata = None
-                    
+
                 if file_metadata is None:
                     # Fallback to deterministic hash of path if metadata fails
                     digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
@@ -87,8 +89,10 @@ class CachedStaticFiles(StarletteStaticFiles):
                     hash_len = getattr(
                         settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
                     )
-                    digest = hashlib.sha256(file_metadata.encode()).hexdigest()[:hash_len]
-                    
+                    digest = hashlib.sha256(file_metadata.encode()).hexdigest()[
+                        :hash_len
+                    ]
+
                 response.headers["ETag"] = f'"{digest}"'
             except Exception as exc:
                 logger.warning("failed_to_generate_etag", error=str(exc))
@@ -174,7 +178,9 @@ class ApplicationFactory:
 
             # Admin credentials
             admin_pw = (
-                settings.admin_password.get_secret_value() if settings.admin_password else ""
+                settings.admin_password.get_secret_value()
+                if settings.admin_password
+                else ""
             )
             if not admin_pw or len(admin_pw.strip()) < min_pw_len:
                 errors.append(
@@ -239,7 +245,9 @@ class ApplicationFactory:
             auto_reload=settings.is_development,
             cache_size=getattr(
                 settings, "JINJA2_TEMPLATE_CACHE_SIZE", _DEFAULT_TEMPLATE_CACHE_SIZE
-            ) if settings.is_production else 0,
+            )
+            if settings.is_production
+            else 0,
             enable_async=True,
             # extensions=['resync.core.csp_jinja_extension.CSPNonceExtension']
         )
@@ -288,7 +296,9 @@ class ApplicationFactory:
         # Convert list of regex patterns to a single regex string when provided.
         allow_origin_regex = None
         if getattr(cors_policy, "origin_regex_patterns", None):
-            allow_origin_regex = "|".join(f"(?:{p})" for p in cors_policy.origin_regex_patterns)
+            allow_origin_regex = "|".join(
+                f"(?:{p})" for p in cors_policy.origin_regex_patterns
+            )
 
         self.app.add_middleware(
             LoggingCORSMiddleware,
@@ -334,7 +344,6 @@ class ApplicationFactory:
         """
         logger.info("dependency_injection_configured", mode="fastapi_depends")
 
-
     def _register_routers(self) -> None:
         """
         Register all API routers with fail-fast logic in dev mode.
@@ -345,7 +354,7 @@ class ApplicationFactory:
         # =================================================================
         # CORE ROUTERS (v7.0: canonical paths under resync/api/routes/)
         # =================================================================
-        
+
         # Essential routers - must load (fail-fast)
         essential_routers = [
             ("resync.api.routes.core.health", "router", "health_router"),
@@ -353,14 +362,19 @@ class ApplicationFactory:
             ("resync.api.agents", "agents_router", "agents_router"),
             ("resync.api.chat", "chat_router", "chat_router"),
         ]
-        
+
         for module_path, router_name, log_name in essential_routers:
             try:
                 mod = __import__(module_path, fromlist=[router_name])
                 router = getattr(mod, router_name)
                 self.app.include_router(router)
             except ImportError as e:
-                logger.critical("essential_router_import_failed", module=module_path, router=router_name, error=str(e))
+                logger.critical(
+                    "essential_router_import_failed",
+                    module=module_path,
+                    router=router_name,
+                    error=str(e),
+                )
                 raise
 
         # Optional routers - graceful degradation in prod, fail-fast in dev
@@ -379,10 +393,14 @@ class ApplicationFactory:
                 self.app.include_router(router)
             except ImportError as e:
                 if settings.is_development:
-                    logger.error("route_import_failed_dev", module=module_path, error=str(e))
+                    logger.error(
+                        "route_import_failed_dev", module=module_path, error=str(e)
+                    )
                     raise
                 else:
-                    logger.warning("route_import_failed_prod", module=module_path, error=str(e))
+                    logger.warning(
+                        "route_import_failed_prod", module=module_path, error=str(e)
+                    )
 
         # Additional routers from main_improved
         try:
@@ -416,7 +434,9 @@ class ApplicationFactory:
             from resync.api.graphrag_admin import router as graphrag_admin_router
 
             self.app.include_router(graphrag_admin_router)
-            logger.info("graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag")
+            logger.info(
+                "graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag"
+            )
         except ImportError as e:
             if settings.is_development:
                 logger.error("graphrag_admin_not_available", error=str(e))
@@ -428,7 +448,9 @@ class ApplicationFactory:
             from resync.api.document_kg_admin import router as dkg_admin_router
 
             self.app.include_router(dkg_admin_router)
-            logger.info("document_kg_admin_endpoints_registered", prefix="/api/admin/kg")
+            logger.info(
+                "document_kg_admin_endpoints_registered", prefix="/api/admin/kg"
+            )
         except ImportError as e:
             if settings.is_development:
                 logger.error("document_kg_admin_not_available", error=str(e))
@@ -440,7 +462,9 @@ class ApplicationFactory:
             from resync.api.unified_config_api import router as unified_config_router
 
             self.app.include_router(unified_config_router)
-            logger.info("unified_config_endpoints_registered", prefix="/api/admin/config")
+            logger.info(
+                "unified_config_endpoints_registered", prefix="/api/admin/config"
+            )
         except ImportError as e:
             if settings.is_development:
                 logger.error("unified_config_api_not_available", error=str(e))
@@ -473,16 +497,33 @@ class ApplicationFactory:
             from resync.api.routes.admin.feedback_curation import (
                 router as feedback_curation_router,
             )
-            from resync.api.routes.admin.rag_reranker import router as rag_reranker_router
-            from resync.api.routes.admin.semantic_cache import router as semantic_cache_router
-            from resync.api.routes.admin.settings_manager import router as settings_manager_router
+            from resync.api.routes.admin.rag_reranker import (
+                router as rag_reranker_router,
+            )
+            from resync.api.routes.admin.semantic_cache import (
+                router as semantic_cache_router,
+            )
+            from resync.api.routes.admin.settings_manager import (
+                router as settings_manager_router,
+            )
             from resync.api.routes.admin.teams import router as teams_router
-            from resync.api.routes.admin.teams_webhook_admin import router as teams_webhook_admin_router
-            from resync.api.routes.admin.teams_notifications_admin import router as teams_notifications_admin_router
-            from resync.api.routes.admin.threshold_tuning import router as threshold_tuning_router
-            from resync.api.routes.admin.tws_instances import router as tws_instances_router
+            from resync.api.routes.admin.teams_webhook_admin import (
+                router as teams_webhook_admin_router,
+            )
+            from resync.api.routes.admin.teams_notifications_admin import (
+                router as teams_notifications_admin_router,
+            )
+            from resync.api.routes.admin.threshold_tuning import (
+                router as threshold_tuning_router,
+            )
+            from resync.api.routes.admin.tws_instances import (
+                router as tws_instances_router,
+            )
             from resync.api.routes.admin.users import router as admin_users_router
             from resync.api.routes.admin.v2 import router as admin_v2_router
+
+            # API Key Management
+            from resync.api.v1.admin import admin_api_keys_router
 
             # Teams webhook public endpoint
             from resync.api.routes.teams_webhook import router as teams_webhook_router
@@ -494,32 +535,51 @@ class ApplicationFactory:
             )
 
             # Monitoring routes (migrated from fastapi_app)
-            from resync.api.routes.monitoring.ai_monitoring import router as ai_monitoring_router
+            from resync.api.routes.monitoring.ai_monitoring import (
+                router as ai_monitoring_router,
+            )
             from resync.api.routes.monitoring.metrics_dashboard import (
                 router as metrics_dashboard_router,
             )
-            from resync.api.routes.monitoring.observability import router as observability_router
+            from resync.api.routes.monitoring.observability import (
+                router as observability_router,
+            )
 
             # learning_router removed in v5.9.3 (drift/eval features unused)
             from resync.api.routes.rag.query import router as rag_query_router
-            from resync.api.routes.knowledge.ingest_api import router as knowledge_ingest_router
+            from resync.api.routes.knowledge.ingest_api import (
+                router as knowledge_ingest_router,
+            )
 
             # Register unified admin routes
             unified_admin_routers = [
                 (backup_router, "/api/v1/admin", ["Admin - Backup"]),
                 (admin_config_router, "/api/v1/admin", ["Admin - Config"]),
-                (settings_manager_router, "/api/v1/admin", ["Admin - Settings Manager"]),
+                (
+                    settings_manager_router,
+                    "/api/v1/admin",
+                    ["Admin - Settings Manager"],
+                ),
                 (teams_router, "/api/v1/admin", ["Admin - Teams"]),
                 (teams_webhook_admin_router, "/api", ["Admin - Teams Webhook Users"]),
-                (teams_notifications_admin_router, "/api", ["Admin - Teams Notifications"]),
+                (
+                    teams_notifications_admin_router,
+                    "/api",
+                    ["Admin - Teams Notifications"],
+                ),
                 (tws_instances_router, "/api/v1/admin", ["Admin - TWS Instances"]),
                 (admin_users_router, "/api/v1/admin", ["Admin - Users"]),
                 (semantic_cache_router, "/api/v1/admin", ["Admin - Semantic Cache"]),
                 (rag_reranker_router, "/api/v1", ["Admin - RAG Reranker"]),
-                (threshold_tuning_router, "/api/v1/admin", ["Admin - Threshold Tuning"]),
+                (
+                    threshold_tuning_router,
+                    "/api/v1/admin",
+                    ["Admin - Threshold Tuning"],
+                ),
                 (environment_router, "/api/v1/admin", ["Admin - Environment"]),
                 (connectors_router, "/api/v1/admin", ["Admin - Connectors"]),
                 (feedback_curation_router, "", ["Admin - Feedback Curation"]),
+                (admin_api_keys_router, "/api/v1/admin", ["Admin - API Keys"]),
                 (admin_v2_router, "/api/v2/admin", ["Admin V2"]),
             ]
 
@@ -528,8 +588,16 @@ class ApplicationFactory:
 
             unified_monitoring_routers = [
                 (ai_monitoring_router, "/api/v1/monitoring", ["Monitoring - AI"]),
-                (observability_router, "/api/v1/monitoring", ["Monitoring - Observability"]),
-                (metrics_dashboard_router, "/api/v1/monitoring", ["Monitoring - Metrics"]),
+                (
+                    observability_router,
+                    "/api/v1/monitoring",
+                    ["Monitoring - Observability"],
+                ),
+                (
+                    metrics_dashboard_router,
+                    "/api/v1/monitoring",
+                    ["Monitoring - Metrics"],
+                ),
                 (admin_monitoring_router, "/api/v1/monitoring", ["Monitoring - Admin"]),
             ]
 
@@ -548,7 +616,9 @@ class ApplicationFactory:
             # Monitoring routes get admin auth at registration time
             for router, prefix, tags in unified_monitoring_routers:
                 self.app.include_router(
-                    router, prefix=prefix, tags=tags,
+                    router,
+                    prefix=prefix,
+                    tags=tags,
                     dependencies=[Depends(_verify_admin)],
                 )
 
@@ -568,9 +638,9 @@ class ApplicationFactory:
 
     def _mount_static_files(self) -> None:
         """Mount static file directory with caching.
-        
+
         All static assets are served from /static prefix.
-        Legacy submounts (/css, /js, /img, /fonts, /assets) removed - 
+        Legacy submounts (/css, /js, /img, /fonts, /assets) removed -
         use /static/{subdir}/... instead.
         """
         static_dir = settings.base_dir / "static"
@@ -580,7 +650,9 @@ class ApplicationFactory:
             return
 
         # Mount main static directory with caching
-        self.app.mount("/static", CachedStaticFiles(directory=str(static_dir)), name="static")
+        self.app.mount(
+            "/static", CachedStaticFiles(directory=str(static_dir)), name="static"
+        )
 
         logger.info("static_files_mounted", directory=str(static_dir))
 
@@ -591,7 +663,7 @@ class ApplicationFactory:
         @self.app.get("/", include_in_schema=False)
         def root():
             """Redirect root to admin panel."""
-            return RedirectResponse(url="/api/v1/admin", status_code=302)
+            return RedirectResponse(url="/admin", status_code=302)
 
         # Admin panel is now handled by the admin router
 
@@ -622,16 +694,18 @@ class ApplicationFactory:
 
         Returns:
             Rendered HTML response
-        
+
         Raises:
             HTTPException: 500 if CSP nonce is missing in production (fail-closed)
         """
         if not self.templates:
-            raise HTTPException(status_code=500, detail="Template engine not configured")
+            raise HTTPException(
+                status_code=500, detail="Template engine not configured"
+            )
 
         # Hardening: fail-closed in production if nonce missing
         nonce = getattr(request.state, "csp_nonce", None)
-        
+
         if settings.is_production and not nonce:
             logger.critical("csp_nonce_missing_prod", template=template_name)
             raise HTTPException(status_code=500, detail="Security middleware failed")
@@ -656,7 +730,9 @@ class ApplicationFactory:
             ) from None
         except Exception as e:
             logger.error("template_render_error", template=template_name, error=str(e))
-            raise HTTPException(status_code=500, detail="Internal server error") from None
+            raise HTTPException(
+                status_code=500, detail="Internal server error"
+            ) from None
 
     async def _handle_csp_report(self, request: Request) -> JSONResponse:
         """
@@ -675,7 +751,9 @@ class ApplicationFactory:
 
             # Log violation details
             report = result.get("report", {})
-            csp_report = report.get("csp-report", report) if isinstance(report, dict) else report
+            csp_report = (
+                report.get("csp-report", report) if isinstance(report, dict) else report
+            )
 
             logger.warning(
                 "csp_violation_reported",

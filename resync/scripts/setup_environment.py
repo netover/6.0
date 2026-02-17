@@ -14,10 +14,12 @@ Usage:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
+
+# Constants for file paths
+DOCKER_COMPOSE_FILE = "docker-compose.resync.yml"
 
 
 def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subprocess.CompletedProcess:
@@ -156,20 +158,20 @@ volumes:
   redis_data:
 """
 
-    docker_file = Path("docker-compose.resync.yml")
+    docker_file = Path(DOCKER_COMPOSE_FILE)
     docker_file.write_text(docker_compose)
     print(f"Docker Compose salvo em: {docker_file}")
 
     print("\nIniciando containers...")
     try:
-        run_command(["docker-compose", "-f", "docker-compose.resync.yml", "up", "-d"])
+        run_command(["docker-compose", "-f", DOCKER_COMPOSE_FILE, "up", "-d"])
         print("✅ Containers PostgreSQL e Redis iniciados!")
     except FileNotFoundError:
         # Tenta docker compose v2
         try:
-            run_command(["docker", "compose", "-f", "docker-compose.resync.yml", "up", "-d"])
-        except:
-            print("❌ Docker não disponível")
+            run_command(["docker", "compose", "-f", DOCKER_COMPOSE_FILE, "up", "-d"])
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
+            print(f"❌ Docker não disponível: {e}")
 
 
 def create_env_file() -> None:

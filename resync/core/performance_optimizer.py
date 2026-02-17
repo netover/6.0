@@ -356,12 +356,12 @@ class ResourceManager:
 
                 # Calculate resource lifetime
                 if resource_id in self.resource_creation_times:
-                    datetime.now(timezone.utc) - self.resource_creation_times[resource_id]
+                    lifetime = datetime.now(timezone.utc) - self.resource_creation_times[resource_id]
                     del self.resource_creation_times[resource_id]
 
                     logger.debug(
                         f"Unregistered resource: {resource_id}, "
-                        "lifetime: {lifetime.total_seconds():.2f}s"
+                        f"lifetime: {lifetime.total_seconds():.2f}s"
                     )
 
     async def cleanup_all(self) -> None:

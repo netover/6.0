@@ -87,7 +87,9 @@ class Settings(BaseSettings, SettingsValidators):
 
     log_sensitive_data_redaction: bool = Field(
         default=True,
-        description=("Enable redaction of sensitive data in logs (passwords, tokens, etc.)"),
+        description=(
+            "Enable redaction of sensitive data in logs (passwords, tokens, etc.)"
+        ),
     )
 
     description: str = Field(
@@ -96,8 +98,8 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     base_dir: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[1],
-        description="Diretório base da aplicação",
+        default_factory=lambda: Path(__file__).resolve().parent,
+        description="Diretório base da aplicação (resync package directory)",
     )
 
     # v5.9.7: Accept both APP_LOG_LEVEL (preferred) and legacy LOG_LEVEL
@@ -442,12 +444,10 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # Cache Hierarchy Configuration
     cache_hierarchy_l1_max_size: int = Field(
-        ge=1,
-        default=5000, description="Maximum number of entries in L1 cache"
+        ge=1, default=5000, description="Maximum number of entries in L1 cache"
     )
     cache_hierarchy_l2_ttl: int = Field(
-        gt=0,
-        default=600, description="Time-To-Live for L2 cache entries in seconds"
+        gt=0, default=600, description="Time-To-Live for L2 cache entries in seconds"
     )
     # Cache Configuration
     enable_cache_swr: bool = Field(
@@ -463,13 +463,13 @@ class Settings(BaseSettings, SettingsValidators):
         default=True, description="Enable cache mutex to prevent duplicate computations"
     )
     cache_hierarchy_l2_cleanup_interval: int = Field(
-        gt=0,
-        default=60, description="Cleanup interval for L2 cache in seconds"
+        gt=0, default=60, description="Cleanup interval for L2 cache in seconds"
     )
-    cache_hierarchy_num_shards: int = Field(default=8, description="Number of shards for cache")
+    cache_hierarchy_num_shards: int = Field(
+        default=8, description="Number of shards for cache"
+    )
     cache_hierarchy_max_workers: int = Field(
-        ge=1,
-        default=4, description="Max workers for cache operations"
+        ge=1, default=4, description="Max workers for cache operations"
     )
 
     # ============================================================================
@@ -495,32 +495,26 @@ class Settings(BaseSettings, SettingsValidators):
     )
     tws_base_url: str = Field(default="http://localhost:31111")
     tws_request_timeout: float = Field(
-        gt=0,
-        default=30.0, description="Timeout for TWS requests in seconds"
+        gt=0, default=30.0, description="Timeout for TWS requests in seconds"
     )
 
     # Resiliency tuning for TWS client (retries/backoff/timeouts)
     tws_joblog_timeout: float = Field(
-        gt=0,
-        default=60.0, description="Timeout for joblog endpoints in seconds"
+        gt=0, default=60.0, description="Timeout for joblog endpoints in seconds"
     )
-    
+
     # Fine-grained Timeouts (v6.0.2)
     tws_timeout_connect: float = Field(
-        gt=0,
-        default=5.0, description="Connect timeout for TWS requests"
+        gt=0, default=5.0, description="Connect timeout for TWS requests"
     )
     tws_timeout_read: float = Field(
-        gt=0,
-        default=30.0, description="Read timeout for TWS requests"
+        gt=0, default=30.0, description="Read timeout for TWS requests"
     )
     tws_timeout_write: float = Field(
-        gt=0,
-        default=5.0, description="Write timeout for TWS requests"
+        gt=0, default=5.0, description="Write timeout for TWS requests"
     )
     tws_timeout_pool: float = Field(
-        gt=0,
-        default=5.0, description="Pool timeout for TWS requests"
+        gt=0, default=5.0, description="Pool timeout for TWS requests"
     )
 
     tws_retry_total: int = Field(
@@ -530,8 +524,7 @@ class Settings(BaseSettings, SettingsValidators):
         default=0.5, description="Base delay (seconds) for exponential backoff"
     )
     tws_retry_backoff_max: float = Field(
-        gt=0,
-        default=8.0, description="Maximum backoff delay (seconds)"
+        gt=0, default=8.0, description="Maximum backoff delay (seconds)"
     )
 
     # ------------------------------------------------------------------
@@ -557,7 +550,9 @@ class Settings(BaseSettings, SettingsValidators):
     )
     tws_ca_bundle: str | None = Field(
         default=None,
-        description=("CA bundle for TWS TLS verification (ignored if tws_verify=False)"),
+        description=(
+            "CA bundle for TWS TLS verification (ignored if tws_verify=False)"
+        ),
     )
 
     # Connection Pool - HTTP
@@ -672,19 +667,26 @@ class Settings(BaseSettings, SettingsValidators):
     # Teams Outgoing Webhook (Validation Logic)
     teams_outgoing_webhook_enabled: bool = Field(
         default=False,
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"
+        ),
         description="Enable Teams outgoing webhook",
     )
     teams_outgoing_webhook_security_token: SecretStr = Field(
         default=SecretStr(""),
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN", "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN",
+            "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN",
+        ),
         description="Security token for Teams webhook",
         exclude=True,
         repr=False,
     )
     teams_outgoing_webhook_name: str = Field(
         default="resync",
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"
+        ),
     )
     teams_callback_url: str = Field(
         default="",
@@ -694,7 +696,9 @@ class Settings(BaseSettings, SettingsValidators):
         default=25,
         ge=1,
         le=60,
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"
+        ),
         description="Response timeout for Teams webhook",
     )
     teams_outgoing_webhook_max_response_length: int = Field(
@@ -780,7 +784,9 @@ class Settings(BaseSettings, SettingsValidators):
         default=None,
         # Reads from ADMIN_PASSWORD (without APP_ prefix)
         validation_alias=AliasChoices("ADMIN_PASSWORD", "APP_ADMIN_PASSWORD"),
-        description=("Senha do administrador. Deve ser configurada via variável de ambiente."),
+        description=(
+            "Senha do administrador. Deve ser configurada via variável de ambiente."
+        ),
         exclude=True,
         repr=False,
     )
@@ -800,14 +806,18 @@ class Settings(BaseSettings, SettingsValidators):
     server_host: str = Field(
         default="127.0.0.1", description="Host do servidor (padrão: localhost apenas)"
     )
-    server_port: int = Field(default=8000, ge=1024, le=65535, description="Porta do servidor")
+    server_port: int = Field(
+        default=8000, ge=1024, le=65535, description="Porta do servidor"
+    )
 
     # ============================================================================
     # RATE LIMITING (v5.3.22 - Production-hardened defaults)
     # ============================================================================
     rate_limit_public_per_minute: int = Field(default=60, ge=1)
     rate_limit_authenticated_per_minute: int = Field(default=300, ge=1)
-    rate_limit_critical_per_minute: int = Field(default=10, ge=1)  # Reduced for security
+    rate_limit_critical_per_minute: int = Field(
+        default=10, ge=1
+    )  # Reduced for security
     rate_limit_error_handler_per_minute: int = Field(default=10, ge=1)
     rate_limit_websocket_per_minute: int = Field(default=20, ge=1)
     rate_limit_dashboard_per_minute: int = Field(default=10, ge=1)
@@ -1268,7 +1278,7 @@ class Settings(BaseSettings, SettingsValidators):
     @property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
         """Legacy alias exposing cache hierarchy configuration object.
-        
+
         Converted to @property for thread safety (lightweight object creation).
         """
         return CacheHierarchyConfig(
@@ -1508,7 +1518,6 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # Validators are now imported from settings_validators.py
 
-
     def __repr__(self) -> str:
         """Representation that excludes sensitive fields from the output."""
         fields: dict[str, Any] = {}
@@ -1537,6 +1546,7 @@ def clear_settings_cache() -> None:
 
 class _SettingsProxy:
     """Proxy de conveniência para manter compatibilidade."""
+
     __slots__ = ()
 
     def __getattr__(self, name: str) -> Any:
@@ -1569,6 +1579,7 @@ def load_settings() -> Settings:
 # =============================================================================
 # TEAMS OUTGOING WEBHOOK CONFIGURATION
 # =============================================================================
+
 
 # Define a proxy class to lazily access settings for the dictionary interface
 class _TeamsConfigProxy(Mapping[str, Any]):
@@ -1605,5 +1616,6 @@ class _TeamsConfigProxy(Mapping[str, Any]):
             return self[key]
         except KeyError:
             return default
+
 
 TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()

@@ -28,18 +28,25 @@ from resync.core.utils.llm_factories import LLMFactory
 
 # --- Optional Dependencies Check ---
 LANGGRAPH_AVAILABLE = False
+POSTGRES_SAVER_AVAILABLE = False
 try:
     from langchain_core.messages import HumanMessage, SystemMessage
     from langgraph.graph import END, StateGraph
     from langgraph.checkpoint.postgres import PostgresSaver
     LANGGRAPH_AVAILABLE = True
+    POSTGRES_SAVER_AVAILABLE = True
 except ImportError:
-    class HumanMessage: pass
-    class SystemMessage: pass
+    class HumanMessage:
+        """Placeholder class when langgraph is not available."""
+        pass
+
+    class SystemMessage:
+        """Placeholder class when langgraph is not available."""
+        pass
+
     END = "END"
     StateGraph = None  # type: ignore
     PostgresSaver = None  # type: ignore
-    POSTGRES_SAVER_AVAILABLE = False
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -809,7 +816,7 @@ class ApprovalRequest(BaseModel):
     def validate_workflow_id(cls, v: str) -> str:
         if not re.match(r'^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$', v):
             raise ValueError("workflow_id format invalid")
-        if '..' in v or '/':
+        if '..' in v or '/' in v:
             raise ValueError("workflow_id contains prohibited characters")
         return v
 

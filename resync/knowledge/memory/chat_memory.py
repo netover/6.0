@@ -14,7 +14,7 @@ Versão: 1.0.0
 import hashlib
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from resync.core.gdpr_compliance import DataAnonymizer, GDPRComplianceConfig
@@ -45,9 +45,9 @@ class ChatTurn:
     user_id: str
     role: str
     content: str
-    expires_at: datetime = field(default_factory=lambda: datetime.utcnow() + timedelta(days=CHAT_MEMORY_TTL_DAYS))
+    expires_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=CHAT_MEMORY_TTL_DAYS))
     metadata: Optional[dict] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ChatMemoryStore:
@@ -109,7 +109,7 @@ class ChatMemoryStore:
                     session_id=turn.session_id[:8]
                 )
 
-            turn.expires_at = datetime.utcnow() + timedelta(days=self._ttl_days)
+            turn.expires_at = datetime.now(timezone.utc) + timedelta(days=self._ttl_days)
             turn_id = self._generate_turn_id(turn)
 
             embedder = await self._get_embedder()
@@ -174,7 +174,7 @@ class ChatMemoryStore:
                 with_vectors=False
             )
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             valid_results = []
 
             for result in results:

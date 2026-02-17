@@ -24,7 +24,8 @@ from pathlib import Path
 
 DB_NAME = "resync"
 DB_USER = "resync"
-DB_PASSWORD = "resync_password"
+# SECURITY: Read password from environment variable, never hardcode in production
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
 DB_HOST = "localhost"
 DB_PORT = 5432
 

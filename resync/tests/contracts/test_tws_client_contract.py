@@ -39,10 +39,11 @@ def isolated_settings():
 
 @pytest_asyncio.fixture
 async def tws_client(isolated_settings):
+    # Note: password is intentionally a test value for unit tests (not a real credential)
     client = OptimizedTWSClient(
         base_url="http://test-tws",
-        username="user",
-        password="password",
+        username="test_user",
+        password="test_password_for_unit_tests_only",  # nosec B106 - test fixture only
         engine_name="test_engine",
         engine_owner="test_owner",
         settings=isolated_settings

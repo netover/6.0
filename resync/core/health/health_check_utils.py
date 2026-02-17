@@ -166,28 +166,28 @@ class HealthCheckUtils:
             elif component.status == HealthStatus.DEGRADED:
                 # Include specific threshold breach information in alerts
                 if name == "database" and "connection_usage_percent" in component.metadata:
-                    thresholds.get(
+                    threshold = thresholds.get(
                         "database_connection_threshold_percent",
                         default_thresholds["database_connection_threshold_percent"],
                     )
-                    component.metadata["connection_usage_percent"]
+                    usage = component.metadata["connection_usage_percent"]
                     alerts.append(
-                        "Database connection pool usage at {usage:.1f}% (threshold: {threshold}%)"
+                        f"Database connection pool usage at {usage:.1f}% (threshold: {threshold}%)"
                     )
                 elif name == "memory" and "memory_usage_percent" in component.metadata:
-                    thresholds.get(
+                    threshold = thresholds.get(
                         "memory_usage_threshold_percent",
                         default_thresholds["memory_usage_threshold_percent"],
                     )
-                    component.metadata["memory_usage_percent"]
-                    alerts.append("Memory usage at {usage:.1f}% (threshold: {threshold}%)")
+                    usage = component.metadata["memory_usage_percent"]
+                    alerts.append(f"Memory usage at {usage:.1f}% (threshold: {threshold}%)")
                 elif name == "cpu" and "cpu_usage_percent" in component.metadata:
-                    thresholds.get(
+                    threshold = thresholds.get(
                         "cpu_usage_threshold_percent",
                         default_thresholds["cpu_usage_threshold_percent"],
                     )
-                    component.metadata["cpu_usage_percent"]
-                    alerts.append("CPU usage at {usage:.1f}% (threshold: {threshold}%)")
+                    usage = component.metadata["cpu_usage_percent"]
+                    alerts.append(f"CPU usage at {usage:.1f}% (threshold: {threshold}%)")
                 else:
                     alerts.append(f"{name} is degraded")
 

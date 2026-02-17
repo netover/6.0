@@ -66,6 +66,10 @@ class RedisConfig:
         redis_url = None
         if app_settings is not None:
             redis_url = getattr(app_settings, "redis_url", None)
+            # Handle Pydantic SecretStr if applicable
+            if hasattr(redis_url, "get_secret_value"):
+                redis_url = redis_url.get_secret_value()
+
         redis_url = redis_url or os.getenv("REDIS_URL") or os.getenv("APP_REDIS_URL")
         parsed = urlparse(redis_url) if redis_url else None
 
@@ -73,7 +77,13 @@ class RedisConfig:
         self.host: str = os.getenv("REDIS_HOST") or (parsed.hostname if parsed and parsed.hostname else "localhost")
         self.port: int = int(os.getenv("REDIS_PORT") or (str(parsed.port) if parsed and parsed.port else "6379"))
         env_password = os.getenv("REDIS_PASSWORD")
-        self.password: str | None = env_password or (parsed.password if parsed and parsed.password else None)
+        password_from_parsed = parsed.password if parsed and parsed.password else None
+        
+        self.password: str | None = env_password or password_from_parsed
+        
+        # Ensure password is a string if it's a SecretStr
+        if hasattr(self.password, "get_secret_value"):
+            self.password = self.password.get_secret_value()
 
         # Connection pool settings
         default_pool_min = str(getattr(app_settings, "redis_pool_min_size", 5)) if app_settings else "5"
@@ -149,31 +159,22 @@ def get_redis_client(
         ConnectionError: If Redis is unreachable
     """
     try:
-        import redis.asyncio as redis_async
+        from redis.asyncio import Redis, from_url
     except ImportError as e:
         raise RuntimeError("redis-py not installed. Run: pip install redis[hiredis]") from e
 
     config = get_redis_config()
+    url = config.get_url(db)
 
-    # Check if we already have a pool for this DB
-    if db not in _connection_pools:
-        logger.info("Creating Redis connection pool for DB %s (%s)", db.name, db.value)
-
-        pool = redis_async.ConnectionPool(
-            host=config.host,
-            port=config.port,
-            password=config.password,
-            db=db.value,
-            max_connections=config.pool_max_connections,
-            socket_timeout=config.socket_timeout,
-            socket_connect_timeout=config.socket_connect_timeout,
-            retry_on_timeout=config.retry_on_timeout,
-            health_check_interval=config.health_check_interval,
-            decode_responses=decode_responses,
-        )
-        _connection_pools[db] = pool
-
-    return redis_async.Redis(connection_pool=_connection_pools[db])
+    return from_url(
+        url,
+        decode_responses=decode_responses,
+        max_connections=config.pool_max_connections,
+        socket_timeout=config.socket_timeout,
+        socket_connect_timeout=config.socket_connect_timeout,
+        retry_on_timeout=config.retry_on_timeout,
+        health_check_interval=config.health_check_interval
+    )
 
 
 async def check_redis_stack_available() -> dict[str, bool]:

@@ -26,6 +26,7 @@ import pandas as pd
 import structlog
 from resync.core.utils.llm_factories import LLMFactory
 
+POSTGRES_SAVER_AVAILABLE = False
 try:
     from langchain_core.messages import HumanMessage, SystemMessage
 except ImportError:
@@ -42,19 +43,53 @@ except ImportError:
         def __init__(self, *args: Any, **kwargs: Any) -> None: pass
 
 
-# PostgresSaver requires psycopg3 with libpq - fallback to MemorySaver if unavailable
+# AsyncPostgresSaver requires psycopg3 with libpq - fallback to MemorySaver if unavailable
 try:
-    from langgraph.checkpoint.postgres import PostgresSaver
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     POSTGRES_SAVER_AVAILABLE = True
 except ImportError:
-    PostgresSaver = None  # type: ignore
-    POSTGRES_SAVER_AVAILABLE = False
+    # Fallback to older import path
+    try:
+        from langgraph_checkpoint_postgres import AsyncPostgresSaver
+        POSTGRES_SAVER_AVAILABLE = True
+    except ImportError:
+        AsyncPostgresSaver = None  # type: ignore
+        POSTGRES_SAVER_AVAILABLE = False
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database import get_async_session
 
 logger = structlog.get_logger(__name__)
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _get_checkpointer_db_url() -> str:
+    """Get PostgreSQL connection URL for checkpointer."""
+    import os
+    from resync.settings import settings
+    
+    # Try settings first
+    if hasattr(settings, "database_url") and settings.database_url:
+        return settings.database_url
+    
+    # Try environment variable
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        return db_url
+    
+    # Build from components
+    host = getattr(settings, "db_host", None) or os.getenv("DB_HOST", "localhost")
+    port = getattr(settings, "db_port", None) or os.getenv("DB_PORT", "5432")
+    user = getattr(settings, "db_user", None) or os.getenv("DB_USER", "postgres")
+    password = getattr(settings, "db_password", None) or os.getenv("DB_PASSWORD", "")
+    database = getattr(settings, "db_name", None) or os.getenv("DB_NAME", "resync")
+    
+    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+
 
 # ============================================================================
 # STATE DEFINITION
@@ -601,7 +636,7 @@ def generate_report_node(
 def create_capacity_forecast_workflow(
     llm: Any,
     db: AsyncSession,
-    checkpointer: PostgresSaver
+    checkpointer: Any
 ) -> StateGraph:
     """Create Capacity Forecasting workflow graph."""
 
@@ -643,18 +678,22 @@ async def run_capacity_forecast(
     model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
     llm = LLMFactory.get_langchain_llm(model=model_name)
 
-    async with get_async_session() as db:
-        if POSTGRES_SAVER_AVAILABLE and PostgresSaver is not None:
-            try:
-                checkpointer = PostgresSaver(db.connection())
-            except Exception as e:
-                logger.warning("postgres_checkpointer_failed_using_memory", error=str(e))
-                from langgraph.checkpoint.memory import MemorySaver
-                checkpointer = MemorySaver()
-        else:
+    # Create checkpointer first (outside the db session)
+    if POSTGRES_SAVER_AVAILABLE and AsyncPostgresSaver is not None:
+        try:
+            db_url = _get_checkpointer_db_url()
+            checkpointer = AsyncPostgresSaver.from_conn_string(db_url)
+            await checkpointer.setup()
+        except Exception as e:
+            logger.warning("postgres_checkpointer_failed_using_memory", error=str(e))
             from langgraph.checkpoint.memory import MemorySaver
             checkpointer = MemorySaver()
+    else:
+        from langgraph.checkpoint.memory import MemorySaver
+        checkpointer = MemorySaver()
 
+    # Then use db for the workflow
+    async with get_async_session() as db:
         workflow = create_capacity_forecast_workflow(
             llm=llm,
             db=db,

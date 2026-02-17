@@ -148,7 +148,7 @@ def select_best_factor(corr_dur: dict[str, Any], threshold: float = 0.45) -> tup
     scored = [
         (k, v)
         for k, v in corr_dur.items()
-        if isinstance(v, (int, float)) and v is not None
+        if isinstance(v, (int, float))
     ]
     scored.sort(key=lambda kv: abs(kv[1]), reverse=True)
 
@@ -183,8 +183,9 @@ def pearson_corr(x: list[float], y: list[float]) -> float | None:
     if _NUMPY_AVAILABLE:
         try:
             return float(_np.corrcoef(_np.array(x), _np.array(y))[0, 1])
-        except Exception:
-            return None
+        except Exception as e:
+            logger.warning("NumPy correlation failed, falling back to manual", error=str(e))
+            # Continue to manual calculation below
 
     mx = sum(x) / len(x)
     my = sum(y) / len(y)
@@ -193,6 +194,7 @@ def pearson_corr(x: list[float], y: list[float]) -> float | None:
     deny = sum((b - my) ** 2 for b in y) ** 0.5
 
     if denx == 0 or deny == 0:
+        logger.warning("Zero standard deviation in correlation calculation")
         return None
 
     return numerator / (denx * deny)
@@ -214,7 +216,8 @@ def _duration_seconds(start: Any, end: Any) -> float | None:
         return None
     try:
         return max(0.0, (end - start).total_seconds())
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to calculate duration between timestamps", error=str(e))
         return None
 
 
@@ -224,7 +227,38 @@ def fetch_job_history_from_db(
     since: datetime,
     limit: int,
 ) -> list[dict[str, Any]]:
-    """Fetch job history from database."""
+    """Fetch job history from database.
+    
+    Note: This function creates its own event loop. For async contexts,
+    use fetch_job_history_from_db_async instead.
+    """
+    import asyncio
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Loop is already running - need to use a different approach
+            # Return empty list with warning - caller should use async version
+            logger.warning(
+                "fetch_job_history_from_db called from async context, "
+                "consider using async version",
+                job_name=job_name
+            )
+            return []
+    except RuntimeError:
+        # No event loop exists, create one
+        pass
+    
+    return asyncio.run(_fetch_job_history_sync(db, job_name, since, limit))
+
+
+async def _fetch_job_history_sync(
+    db: Any,
+    job_name: str,
+    since: datetime,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Internal async implementation for fetching job history."""
     from sqlalchemy import select
 
     try:
@@ -237,9 +271,7 @@ def fetch_job_history_from_db(
             .order_by(TWSJobStatus.timestamp.desc())
             .limit(limit)
         )
-        import asyncio
-
-        rows = asyncio.run(db.execute(stmt)).scalars().all()
+        rows = (await db.execute(stmt)).scalars().all()
         if not rows:
             return []
 
@@ -260,7 +292,12 @@ def fetch_job_history_from_db(
                 "source": "db",
             })
         return list(reversed(out))
-    except Exception:
+    except Exception as e:
+        logger.exception(
+            "Failed to fetch job history from DB",
+            error=str(e),
+            job_name=job_name
+        )
         return []
 
 
@@ -321,7 +358,12 @@ async def fetch_job_history_from_tws(
             if mapped:
                 out.append(mapped)
         return out
-    except Exception:
+    except Exception as e:
+        logger.exception(
+            "Failed to fetch job history from TWS",
+            error=str(e),
+            job_name=job_name
+        )
         return []
 
 
@@ -357,9 +399,23 @@ def calculate_danger_threshold(values: list[float]) -> tuple[float, float, float
         return 0.0, 0.0, 0.0
 
     sorted_values = sorted(values)
-    median = sorted_values[len(sorted_values) // 2]
-    mad_values = [abs(v - median) for v in sorted_values]
-    mad = sorted_values[len(mad_values) // 2] or 1.0
+    n = len(sorted_values)
+    
+    # Correct median calculation for both odd and even lengths
+    if n % 2 == 0:
+        median = (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+    else:
+        median = sorted_values[n // 2]
+    
+    # Calculate MAD: median of absolute deviations from median
+    mad_values = sorted(abs(v - median) for v in values)
+    
+    # Correct MAD median calculation for both odd and even lengths
+    if n % 2 == 0:
+        mad = (mad_values[n // 2 - 1] + mad_values[n // 2]) / 2 or 1.0
+    else:
+        mad = mad_values[n // 2] or 1.0
+    
     danger = median + 3.0 * mad
 
     return median, mad, danger
@@ -395,9 +451,9 @@ def linear_regression(x_values: list[float], y_values: list[float]) -> tuple[flo
 
 def calculate_confidence_interval(
     slope: float,
-    intercept: float,
-    x_values: list[float],
-    y_values: list[float],
+    _intercept: float,  # Kept for API compatibility, not used in calculation
+    _x_values: list[float],  # Kept for API compatibility, not used in calculation
+    _y_values: list[float],  # Kept for API compatibility, not used in calculation
     residual_std: float,
     x_mean: float,
     sxx: float,
@@ -405,6 +461,9 @@ def calculate_confidence_interval(
     predicted_x: float | None = None,
 ) -> dict[str, Any]:
     """Calculate confidence interval for predictions.
+
+    Note: intercept, x_values, and y_values are kept for API compatibility
+    but are not used in the current calculation.
 
     Returns:
         Dict with confidence interval details
@@ -417,7 +476,7 @@ def calculate_confidence_interval(
 
     ci = {}
 
-    if predicted_x is not None and slope != 0:
+    if predicted_x is not None and slope != 0 and sxx > 0:
         se_predicted = residual_std * (1.0 + 1.0 / n + ((predicted_x - x_mean) ** 2) / sxx) ** 0.5
         dt_days = abs(tcrit * se_predicted / slope)
         ci = {
@@ -426,6 +485,8 @@ def calculate_confidence_interval(
             "std_error": se_predicted,
             "delta_days": dt_days,
         }
+    elif sxx <= 0:
+        logger.warning("Cannot calculate confidence interval: sxx is zero or negative")
 
     return ci
 
@@ -434,11 +495,15 @@ def calculate_failure_probability(
     degradation_severity: float,
     estimated_days_to_failure: float | None,
     horizon_days: int,
-    confidence: float,
-    y_mean: float,
-    residual_std: float,
+    _confidence: float,  # Kept for API compatibility, not used in calculation
+    _y_mean: float,  # Kept for API compatibility, not used in calculation
+    _residual_std: float,  # Kept for API compatibility, not used in calculation
 ) -> float:
-    """Calculate failure probability based on timeline and degradation."""
+    """Calculate failure probability based on timeline and degradation.
+    
+    Note: confidence, y_mean, and residual_std are kept for API compatibility
+    but are not used in the current calculation.
+    """
     base_prob = min(1.0, 0.25 + 0.55 * degradation_severity)
 
     if estimated_days_to_failure is not None:

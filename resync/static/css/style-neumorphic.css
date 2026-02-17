@@ -1,0 +1,57 @@
+/* Neumorphic Design System - Base Styles */
+
+:root {
+    --bg-color: #e0e5ec;
+    --text-color: #4a5568;
+    --shadow-light: #ffffff;
+    --shadow-dark: #a3b1c6;
+    --accent-color: #667eea;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.main-header {
+    text-align: center;
+    padding: 3rem 0;
+}
+
+.main-header h1 {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.main-content {
+    padding: 2rem 0;
+}
+
+.hero {
+    background: linear-gradient(145deg, #e6ebf2, #bec3c9);
+    border-radius: 20px;
+    padding: 3rem;
+    box-shadow: 8px 8px 16px var(--shadow-dark),
+                -8px -8px 16px var(--shadow-light);
+}
+
+.hero h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: var(--accent-color);
+}

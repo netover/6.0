@@ -1,0 +1,46 @@
+/* Neumorphic Design System - Admin Styles */
+
+.admin-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.admin-header {
+    background: linear-gradient(145deg, #e6ebf2, #bec3c9);
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 8px 8px 16px var(--shadow-dark),
+                -8px -8px 16px var(--shadow-light);
+}
+
+.admin-header h1 {
+    font-size: 2.5rem;
+    color: var(--accent-color);
+    margin: 0;
+}
+
+.admin-main {
+    display: grid;
+    gap: 2rem;
+}
+
+.admin-panel {
+    background: linear-gradient(145deg, #e6ebf2, #bec3c9);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 8px 8px 16px var(--shadow-dark),
+                -8px -8px 16px var(--shadow-light);
+}
+
+.admin-panel h2 {
+    font-size: 1.5rem;
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+.admin-panel p {
+    color: var(--text-color);
+    line-height: 1.6;
+}
