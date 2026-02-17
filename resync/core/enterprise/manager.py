@@ -13,7 +13,7 @@ This manager coordinates:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime

@@ -1,8 +1,8 @@
 """
-Internal Metrics System - Replaces Prometheus/Grafana dependencies.
+Internal Metrics System - Replaces Grafana dependencies.
 
 Provides lightweight metrics collection without external dependencies.
-Metrics can be exported to JSON for any visualization tool.
+Metrics can be exported to Prometheus format or JSON for any visualization tool.
 """
 
 import logging

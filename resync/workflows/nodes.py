@@ -1,45 +1,47 @@
 """
-Unified Workflow Nodes - Dual Mode Implementation
+Unified Workflow Nodes - Unified Mode Implementation
 
-ReSync v6.1.0 Unified Edition supports two workflow implementations:
+ReSync v6.1.0 uses a centralized configuration system:
 
 1. OPTIMIZED MODE (default):
-   - Fast, production-ready implementation (998 lines)
-   - Streamlined code from v6.0.3
-   - Ideal for production environments
-   
+   - Fast, production-ready implementation
+   - Controlled via NODE_LOG_LEVEL=NORMAL
+
 2. VERBOSE MODE:
-   - Detailed, educational implementation (1813 lines)
-   - Comprehensive code from v5.11.0
-   - Ideal for learning and debugging
+   - Detailed logging for debugging
+   - Controlled via NODE_LOG_LEVEL=VERBOSE or NODE_LOG_LEVEL=DEBUG
+
+3. PROFILING:
+   - Enable performance profiling
+   - Controlled via NODE_ENABLE_PROFILING=true
 
 Usage:
     # Optimized mode (default)
-    export WORKFLOW_MODE=optimized
-    
-    # Verbose mode
-    export WORKFLOW_MODE=verbose
+    export NODE_LOG_LEVEL=NORMAL
 
-The mode can be switched at runtime without code changes.
-All functions maintain the same interface regardless of mode.
+    # Verbose mode
+    export NODE_LOG_LEVEL=VERBOSE
+
+    # Debug mode with profiling
+    export NODE_LOG_LEVEL=DEBUG
+    export NODE_ENABLE_PROFILING=true
+
+The mode can be switched at runtime via environment variables
+or programmatically using configure_nodes().
 """
 
-import os
 import logging
 from typing import Literal
 
+from .node_config import get_node_config
+
 logger = logging.getLogger(__name__)
 
-# Determine workflow mode from environment
-WORKFLOW_MODE: Literal["optimized", "verbose"] = os.getenv("WORKFLOW_MODE", "optimized").lower()
+# Get centralized configuration
+config = get_node_config()
 
-# Validate mode
-if WORKFLOW_MODE not in ("optimized", "verbose"):
-    logger.warning(
-        f"Invalid WORKFLOW_MODE '{WORKFLOW_MODE}'. Defaulting to 'optimized'. "
-        f"Valid values: 'optimized', 'verbose'"
-    )
-    WORKFLOW_MODE = "optimized"
+# Legacy: map to old WORKFLOW_MODE for compatibility
+WORKFLOW_MODE: Literal["optimized", "verbose"] = config.legacy_mode.value
 
 # Import appropriate implementation
 if WORKFLOW_MODE == "verbose":

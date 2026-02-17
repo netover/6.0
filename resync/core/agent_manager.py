@@ -20,8 +20,6 @@ import yaml
 import aiofiles
 
 from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
-from resync.core.interfaces import ITWSClient
-from resync.core.skill_manager import get_skill_manager
 from resync.tools.definitions.tws import (
     tws_status_tool,
     tws_troubleshooting_tool,
@@ -189,7 +187,6 @@ logger = structlog.get_logger(__name__)
 # --- Pydantic models --------------------------------------------------------
 
 from resync.models.agents import AgentConfig, AgentType
-import aiofiles
 
 
 class AgentsConfig(BaseModel):

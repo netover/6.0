@@ -616,9 +616,10 @@ class _LazyQueryCacheManager:
 query_cache_manager = _LazyQueryCacheManager()
 
 
-def get_query_cache_manager() -> QueryCacheManager:
-    """Return the singleton instance (preferred over using the proxy directly)."""
+def get_query_cache_manager_sync() -> QueryCacheManager:
+    """Return the singleton instance synchronously."""
     return query_cache_manager.get_instance()
+
 
 async def get_query_cache_manager() -> QueryCacheManager:
     """Get the global query cache manager instance."""

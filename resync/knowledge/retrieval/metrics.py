@@ -396,8 +396,8 @@ class RegressionGate:
                 regression = (baseline_val - current_val) / baseline_val
                 if regression > threshold:
                     failures.append(
-                        "{metric_name}: {current_val:.4f} vs baseline {baseline_val:.4f} "
-                        "(-{regression*100:.1f}%, threshold: -{threshold*100:.0f}%)"
+                        f"{metric_name}: {current_val:.4f} vs baseline {baseline_val:.4f} "
+                        f"(-{regression*100:.1f}%, threshold: -{threshold*100:.0f}%)"
                     )
 
         # Check latency (lower is better)
@@ -408,8 +408,8 @@ class RegressionGate:
             latency_increase = (current_latency - baseline_latency) / baseline_latency
             if latency_increase > self.thresholds.p95_latency:
                 failures.append(
-                    "p95_latency_ms: {current_latency:.1f}ms vs baseline {baseline_latency:.1f}ms "
-                    "(+{latency_increase*100:.1f}%, threshold: +{self.thresholds.p95_latency*100:.0f}%)"
+                    f"p95_latency_ms: {current_latency:.1f}ms vs baseline {baseline_latency:.1f}ms "
+                    f"(+{latency_increase*100:.1f}%, threshold: +{self.thresholds.p95_latency*100:.0f}%)"
                 )
 
         return len(failures) == 0, failures
@@ -443,12 +443,12 @@ class RegressionGate:
 
             if "latency" in attr:
                 change = current_val - baseline_val
-                change_str = "+{change:.1f}ms" if change >= 0 else "{change:.1f}ms"
-                lines.append("  {display_name}: {current_val:.1f}ms (baseline: {baseline_val:.1f}ms, {change_str})")
+                change_str = f"+{change:.1f}ms" if change >= 0 else f"{change:.1f}ms"
+                lines.append(f"  {display_name}: {current_val:.1f}ms (baseline: {baseline_val:.1f}ms, {change_str})")
             else:
-                change = (current_val - baseline_val) / baseline_val if baseline_val > 0 else 0
-                change_str = "+{change*100:.1f}%" if change >= 0 else "{change*100:.1f}%"
-                lines.append("  {display_name}: {current_val:.4f} (baseline: {baseline_val:.4f}, {change_str})")
+                change_pct = ((current_val - baseline_val) / baseline_val * 100) if baseline_val > 0 else 0
+                change_str = f"+{change_pct:.1f}%" if change_pct >= 0 else f"{change_pct:.1f}%"
+                lines.append(f"  {display_name}: {current_val:.4f} (baseline: {baseline_val:.4f}, {change_str})")
 
         if failures:
             lines.extend([

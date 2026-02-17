@@ -76,9 +76,6 @@ from resync.core.cache.cache_with_stampede_protection import (
     CacheWithStampedeProtection,
 )
 
-# Re-export for backward compatibility
-from resync.core.cache.improved_cache import ImprovedAsyncCache
-
 
 __all__ = [
     # Core

@@ -41,11 +41,81 @@ class SettingsValidators:
     # CONSTANTS
     # =========================================================================
     _INSECURE_ADMIN_PASSWORDS: ClassVar[frozenset[str]] = frozenset({
+        # Common weak passwords
         "change_me_please",
         "change_me_immediately",
+        "change_me",
         "admin",
+        "administrator",
+        "root",
         "password",
+        "password123",
+        "password1234",
+        "password12345",
         "12345678",
+        "123456789",
+        "1234567890",
+        "qwerty",
+        "qwerty123",
+        "qwertyuiop",
+        "letmein",
+        "welcome",
+        "welcome1",
+        "monkey",
+        "dragon",
+        "master",
+        "login",
+        "passw0rd",
+        "p@ssword",
+        "p@ssw0rd",
+        "admin123",
+        "admin1234",
+        "root123",
+        "toor",
+        "test",
+        "test1234",
+        "guest",
+        "guest123",
+        "default",
+        "secret",
+        "secret123",
+        "111111",
+        "222222",
+        "333333",
+        "444444",
+        "555555",
+        "666666",
+        "7777777",
+        "888888",
+        "999999",
+        "000000",
+        "abc123",
+        "abcd1234",
+        "1234abcd",
+        "iloveyou",
+        "sunshine",
+        "princess",
+        "football",
+        "baseball",
+        "soccer",
+        "hockey",
+        "shadow",
+        "ashley",
+        "michael",
+        "superman",
+        "batman",
+        "trustno1",
+        "access",
+        # Note: "master" appears earlier in the list, removed duplicate
+        "hello",
+        "charlie",
+        "donald",
+        "admin888",
+        "admin666",
+        "q1w2e3r4",
+        "1q2w3e4r",
+        "zaq12wsx",
+        "xsw21qaz",
     })
 
     _COMMON_TWS_PASSWORDS: ClassVar[frozenset[str]] = frozenset({
@@ -53,7 +123,20 @@ class SettingsValidators:
         "twsuser",
         "tws_password",
         "change_me",
+        "tws123",
+        "tws1234",
+        "ibkr",
+        "interactive",
+        "broker",
+        "demo",
+        "demo1234",
     })
+
+    _PASSWORD_COMPLEXITY_MIN_LENGTH: ClassVar[int] = 12
+    _PASSWORD_COMPLEXITY_REQUIRE_UPPER: ClassVar[bool] = True
+    _PASSWORD_COMPLEXITY_REQUIRE_LOWER: ClassVar[bool] = True
+    _PASSWORD_COMPLEXITY_REQUIRE_DIGIT: ClassVar[bool] = True
+    _PASSWORD_COMPLEXITY_REQUIRE_SPECIAL: ClassVar[bool] = True
 
     @field_validator("base_dir")
     @classmethod
@@ -116,13 +199,16 @@ class SettingsValidators:
         cls, v: SecretStr | None, info: ValidationInfo
     ) -> SecretStr | None:
         """Validate admin password strength and reject insecure values.
-        
-        Note: Uses hardcoded minimum (8) because MIN_ADMIN_PASSWORD_LENGTH
-        is declared after this field in the model. The model_validator
-        performs the authoritative check with the configurable minimum.
+
+        Enforces:
+        - Minimum length (12 chars in production)
+        - Blacklist of common weak passwords
+        - Complexity requirements (upper, lower, digit, special)
         """
+        import re
+
         env = info.data.get("environment")
-        min_len = 8  # Hardcoded; model_validator uses MIN_ADMIN_PASSWORD_LENGTH
+        min_len = cls._PASSWORD_COMPLEXITY_MIN_LENGTH
 
         if env == Environment.PRODUCTION:
             if v is None:
@@ -131,21 +217,51 @@ class SettingsValidators:
                     "Set ADMIN_PASSWORD environment variable."
                 )
             pwd = v.get_secret_value()
-            if len(pwd) < min_len:
-                raise ValueError(
-                    f"INSECURE PASSWORD: admin_password must be at least {min_len} characters in Production. "
-                    f"Got {len(pwd)}."
-                )
+
+            # Check blacklist
             if pwd.lower() in cls._INSECURE_ADMIN_PASSWORDS:
                 raise ValueError(
                     f"INSECURE PASSWORD: '{pwd[:1]}...' is a known weak password. "
                     "Use a complex random string."
                 )
-        elif v is not None:
-            pwd = v.get_secret_value()
+
+            # Check minimum length
             if len(pwd) < min_len:
                 raise ValueError(
-                    f"INSECURE PASSWORD: admin_password should be at least {min_len} characters. "
+                    f"INSECURE PASSWORD: admin_password must be at least {min_len} characters in Production. "
+                    f"Got {len(pwd)}."
+                )
+
+            # Check complexity requirements
+            errors = []
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_UPPER and not re.search(r'[A-Z]', pwd):
+                errors.append("at least 1 uppercase letter")
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_LOWER and not re.search(r'[a-z]', pwd):
+                errors.append("at least 1 lowercase letter")
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_DIGIT and not re.search(r'\d', pwd):
+                errors.append("at least 1 digit")
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>]', pwd):
+                errors.append("at least 1 special character (!@#$%^&*() etc.)")
+
+            if errors:
+                raise ValueError(
+                    f"INSECURE PASSWORD: admin_password must contain {', '.join(errors)} in Production. "
+                    f"Got password with length {len(pwd)}."
+                )
+        elif v is not None:
+            pwd = v.get_secret_value()
+
+            # Check blacklist in non-production too
+            if pwd.lower() in cls._INSECURE_ADMIN_PASSWORDS:
+                raise ValueError(
+                    f"INSECURE PASSWORD: '{pwd[:1]}...' is a known weak password. "
+                    "Use a complex random string."
+                )
+
+            # Warn but don't block in non-production
+            if len(pwd) < 8:
+                raise ValueError(
+                    f"INSECURE PASSWORD: admin_password should be at least 8 characters. "
                     f"Got {len(pwd)}."
                 )
 

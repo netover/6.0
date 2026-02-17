@@ -6,7 +6,7 @@ Manages task lifecycle, JSON-RPC routing, and agent delegation.
 import asyncio
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import structlog
 from resync.models.a2a import JsonRpcRequest, JsonRpcResponse, TaskState

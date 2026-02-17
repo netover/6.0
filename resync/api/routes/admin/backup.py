@@ -223,7 +223,7 @@ async def create_config_backup(request: CreateBackupRequest):
     service = get_backup_service()
 
     try:
-        backup = await service.create_config_backup(
+        backup = service.create_config_backup(
             description=request.description,
             include_env=request.include_env,
         )
@@ -278,7 +278,7 @@ async def list_backups(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
 
-    backups = await service.list_backups(
+    backups = service.list_backups(
         backup_type=type_filter,
         status=status_filter,
         limit=limit,
@@ -341,7 +341,7 @@ async def delete_backup(backup_id: str):
     """
     service = get_backup_service()
 
-    deleted = await service.delete_backup(backup_id)
+    deleted = service.delete_backup(backup_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Backup not found")
 
@@ -484,7 +484,11 @@ async def stop_scheduler():
     return {"message": "Backup scheduler stopped"}
 
 
-@router.post("/rag/index", response_model=BackupResponse)
+@router.post("/rag/index", response_model=BackupResponse,
+    responses={
+        500: {"description": "Failed to create RAG index backup"},
+    },
+)
 async def create_rag_index_backup(request: CreateBackupRequest):
     """
     Create a backup of the RAG BM25 index.
@@ -516,7 +520,11 @@ async def list_rag_backups():
     )
 
 
-@router.post("/rag/{backup_id}/restore")
+@router.post("/rag/{backup_id}/restore",
+    responses={
+        404: {"description": "Backup not found"},
+    },
+)
 async def restore_rag_index_backup(backup_id: str):
     """
     Restore RAG index from backup.

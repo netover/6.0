@@ -57,8 +57,8 @@ class HealthAlerting:
             elif comp.status == HealthStatus.DEGRADED:
                 # Include specific threshold breach information in alerts
                 if name == "database" and "connection_usage_percent" in comp.metadata:
-                    threshold = comp.metadata.get("threshold_percent", 80)
-                    usage = comp.metadata["connection_usage_percent"]
+                    comp.metadata.get("threshold_percent", 80)
+                    comp.metadata["connection_usage_percent"]
                     alerts.append(
                         "Database connection pool usage at {usage:.1f}% (threshold: {threshold}%)"
                     )

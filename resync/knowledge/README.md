@@ -13,7 +13,7 @@ This microservice implements a complete Qdrant-based RAG pipeline with:
 - **OpenAI or deterministic embedding** fallback
 - **Dynamic vector search** with `ef_search` tuning
 - **Cosine similarity re-ranking** (optional)
-- **Prometheus metrics** for latency and throughput
+- **Internal metrics** for latency and throughput
 - **Snapshot-based versioning** for zero-downtime rollbacks
 
 > ✅ **No FAISS, Chroma, or Redis** — pure Qdrant architecture.
@@ -32,7 +32,7 @@ resync/RAG/microservice/core/
 ├── ingest.py             # Document ingestion pipeline
 ├── retriever.py          # Query retrieval with re-ranking
 ├── persistence.py        # Snapshot creation and management
-├── monitoring.py         # Prometheus metrics (latency, counts)
+├── monitoring.py         # Internal metrics (latency, counts)
 ├── __init__.py           # Public exports
 └── README.md             # This file
 ```
@@ -84,7 +84,7 @@ resync/RAG/microservice/core/
 
 ---
 
-## 📊 Observability (Prometheus)
+## 📊 Observability (Internal Metrics)
 
 Metrics exposed on `/metrics` endpoint:
 
@@ -96,7 +96,7 @@ Metrics exposed on `/metrics` endpoint:
 | `rag_jobs_total` | Counter | `status={ingested}` | Total ingestion jobs |
 | `rag_collection_vectors` | Gauge | - | Current number of vectors in read collection |
 
-> 📌 Use Grafana to visualize latency percentiles and ingestion throughput.
+> 📌 Use the internal dashboard to visualize latency percentiles and ingestion throughput.
 
 ---
 

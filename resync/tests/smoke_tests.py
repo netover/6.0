@@ -224,7 +224,7 @@ class SmokeTestRunner:
             TestStatus.WARNING: "⚠️",
         }
 
-        icon = status_icon.get(result.status, "?")
+        status_icon.get(result.status, "?")
         print("  {icon} {result.name} ({result.duration_ms:.1f}ms) - {result.message}")
 
         if result.error and result.status == TestStatus.FAILED:

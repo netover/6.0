@@ -16,16 +16,17 @@ v5.2.3.24: Added query classification cache and performance metrics.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import logging
 import math
 import os
 import re
 import time
+import asyncio
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Any, Protocol
 
 try:
@@ -41,7 +42,7 @@ from .reranker_interface import (
     create_reranker,
 )
 
-logger = logging.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 INDEX_STORAGE_PATH = os.environ.get(
     "BM25_INDEX_PATH",
@@ -498,67 +499,6 @@ class QueryClassificationResult:
 
 
 @dataclass
-class QueryMetrics:
-    """
-    Metrics for query performance by type.
-
-    v5.2.3.24: Tracks latency, cache hits, and retrieval quality.
-    """
-
-    # Counters by query type
-    query_counts: dict[QueryType, int] = field(default_factory=lambda: defaultdict(int))
-
-    # Total latency by query type (for averaging)
-    total_latency_ms: dict[QueryType, float] = field(default_factory=lambda: defaultdict(float))
-
-    # Cache statistics
-    cache_hits: int = 0
-    cache_misses: int = 0
-
-    # Results quality (average result count)
-    total_results: dict[QueryType, int] = field(default_factory=lambda: defaultdict(int))
-
-    def record_query(
-        self,
-        query_type: QueryType,
-        latency_ms: float,
-        result_count: int,
-        cached: bool = False,
-    ) -> None:
-        """Record metrics for a query."""
-        self.query_counts[query_type] += 1
-        self.total_latency_ms[query_type] += latency_ms
-        self.total_results[query_type] += result_count
-
-        if cached:
-            self.cache_hits += 1
-        else:
-            self.cache_misses += 1
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get aggregated statistics."""
-        stats = {
-            "by_type": {},
-            "cache": {
-                "hits": self.cache_hits,
-                "misses": self.cache_misses,
-                "hit_rate": self.cache_hits / max(1, self.cache_hits + self.cache_misses),
-            },
-            "total_queries": sum(self.query_counts.values()),
-        }
-
-        for qt in QueryType:
-            count = self.query_counts.get(qt, 0)
-            if count > 0:
-                stats["by_type"][qt.value] = {
-                    "count": count,
-                    "avg_latency_ms": self.total_latency_ms[qt] / count,
-                    "avg_results": self.total_results[qt] / count,
-                }
-
-        return stats
-
-
 class QueryClassificationCache:
     """
     LRU Cache for query classifications.
@@ -622,14 +562,6 @@ class QueryClassificationCache:
     def clear(self) -> None:
         """Clear all cached entries."""
         self._cache.clear()
-
-    def stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
-        return {
-            "size": len(self._cache),
-            "max_size": self._max_size,
-            "ttl_seconds": self._ttl_seconds,
-        }
 
 
 # =============================================================================
@@ -819,6 +751,9 @@ class HybridRetriever:
         self.bm25_index: BM25Index | None = None
         self._index_built = False
 
+        # Background save task reference to prevent garbage collection
+        self._pending_save_task: asyncio.Task | None = None
+
         # v5.9.9: Use IReranker interface instead of direct cross-encoder
         self._reranker: IReranker = create_reranker(enabled=self.config.enable_reranking)
 
@@ -831,21 +766,13 @@ class HybridRetriever:
         )
         self._gating_policy = RerankGatingPolicy(config=gating_config)
 
-        # Legacy cross-encoder (kept for backward compatibility)
-        self._cross_encoder = None
-        self._cross_encoder_checked = False
-
-        # v5.2.3.24: Initialize cache and metrics
+        # v5.2.3.24: Initialize cache
         self._classification_cache: QueryClassificationCache | None = None
         if self.config.cache_enabled:
             self._classification_cache = QueryClassificationCache(
                 max_size=self.config.cache_max_size,
                 ttl_seconds=self.config.cache_ttl_seconds,
             )
-
-        self._metrics: QueryMetrics | None = None
-        if self.config.metrics_enabled:
-            self._metrics = QueryMetrics()
 
     def _classify_query(self, query: str) -> QueryClassificationResult:
         """
@@ -898,91 +825,10 @@ class HybridRetriever:
 
         logger.debug(
             f"Query classified as {query_type.value}: {query[:50]}... "
-            "(weights: v={weights[0]:.1f}, b={weights[1]:.1f})"
+            f"(weights: v={weights[0]:.1f}, b={weights[1]:.1f})"
         )
 
         return result
-
-    def _get_dynamic_weights(self, query: str) -> tuple[float, float]:
-        """
-        Determine optimal weights based on query characteristics.
-
-        v5.2.3.22: Automatically adjusts BM25/Vector weights for TWS domain.
-        v5.2.3.24: Now uses cached classification.
-
-        Returns:
-            Tuple of (vector_weight, bm25_weight)
-        """
-        if not self.config.auto_weight:
-            return (self.config.vector_weight, self.config.bm25_weight)
-
-        classification = self._classify_query(query)
-        return (classification.vector_weight, classification.bm25_weight)
-
-    def get_metrics(self) -> dict[str, Any]:
-        """
-        Get performance metrics.
-
-        v5.2.3.24: Returns query type distribution, latency, cache stats.
-        """
-        stats = {}
-
-        if self._metrics:
-            stats["query_metrics"] = self._metrics.get_stats()
-
-        if self._classification_cache:
-            stats["cache"] = self._classification_cache.stats()
-
-        return stats
-
-    def _record_query_metrics(
-        self,
-        query_type: QueryType,
-        latency_ms: float,
-        result_count: int,
-        cached: bool,
-    ) -> None:
-        """Record metrics for a query."""
-        if self._metrics:
-            self._metrics.record_query(query_type, latency_ms, result_count, cached)
-
-    # Keep old method signature for backwards compatibility
-    def _get_dynamic_weights_legacy(self, query: str) -> tuple[float, float]:
-        """Legacy method - kept for reference."""
-        if not self.config.auto_weight:
-            return (self.config.vector_weight, self.config.bm25_weight)
-
-        # Detect exact match patterns (job codes, error codes, etc.)
-        has_exact = any(p.search(query) for p in self.EXACT_MATCH_PATTERNS)
-
-        # Detect semantic patterns (how-to, explanations, etc.)
-        has_semantic = any(p.search(query) for p in self.SEMANTIC_PATTERNS)
-
-        # Determine weights based on query type
-        if has_exact and not has_semantic:
-            # Query has job/error codes but no conceptual keywords
-            # Heavily favor BM25 for exact matching
-            weights = (0.2, 0.8)
-            logger.debug("Query classified as EXACT_MATCH: %s...", query[:50])
-
-        elif has_semantic and not has_exact:
-            # Query is conceptual (how-to, explanations)
-            # Heavily favor vector search for semantics
-            weights = (0.8, 0.2)
-            logger.debug("Query classified as SEMANTIC: %s...", query[:50])
-
-        elif has_exact and has_semantic:
-            # Mixed query (e.g., "how to fix job BATCH001")
-            # Slightly favor BM25 since exact match is important
-            weights = (0.4, 0.6)
-            logger.debug("Query classified as MIXED: %s...", query[:50])
-
-        else:
-            # Unclear - use configured defaults
-            weights = (self.config.vector_weight, self.config.bm25_weight)
-            logger.debug("Query classified as DEFAULT: %s...", query[:50])
-
-        return weights
 
     async def _ensure_bm25_index(self, collection: str | None = None) -> None:
         """Build BM25 index if not already built, using persistent storage."""
@@ -1031,7 +877,7 @@ class HybridRetriever:
                 self.bm25_index.build_index(documents)
                 self._index_built = True
 
-                asyncio.create_task(self._save_index_async(index_path))
+                self._pending_save_task = asyncio.create_task(self._save_index_async(index_path))
 
                 logger.info(
                     f"BM25 index built and saved: {len(documents)} docs"
@@ -1056,30 +902,6 @@ class HybridRetriever:
                     logger.warning("BM25 index persist failed (non-critical)")
         except Exception as e:
             logger.error("BM25 index async save failed: %s", e)
-
-    def _get_cross_encoder(self):
-        """Lazy load cross-encoder model."""
-        if self._cross_encoder_checked:
-            return self._cross_encoder
-
-        self._cross_encoder_checked = True
-
-        try:
-            from resync.knowledge.retrieval.reranker import (
-                get_cross_encoder,
-                is_cross_encoder_available,
-            )
-
-            if is_cross_encoder_available():
-                self._cross_encoder = get_cross_encoder()
-                logger.info("Cross-encoder loaded for hybrid reranking")
-            else:
-                logger.info("Cross-encoder not available, using score-based ranking")
-
-        except Exception as e:
-            logger.warning("Could not load cross-encoder: %s", e)
-
-        return self._cross_encoder
 
     def _reciprocal_rank_fusion(
         self,
@@ -1141,7 +963,7 @@ class HybridRetriever:
     ) -> list[dict[str, Any]]:
         """Perform vector-based semantic search."""
         try:
-            vec = embedder.embed(query)
+            vec = self.embedder.embed(query)
 
             # Calculate adaptive ef_search
             from resync.knowledge.config import CFG
@@ -1149,7 +971,7 @@ class HybridRetriever:
             ef = CFG.ef_search_base + int(math.log2(max(10, top_k)) * 8)
             ef = min(ef, CFG.ef_search_max)
 
-            return store.query(
+            return self.store.query(
                 vector=vec,
                 top_k=top_k,
                 collection=collection,
@@ -1194,53 +1016,6 @@ class HybridRetriever:
             logger.error("BM25 search failed: %s", e)
             return []
 
-    def _rerank_with_cross_encoder(
-        self,
-        query: str,
-        documents: list[dict[str, Any]],
-        top_k: int,
-    ) -> list[dict[str, Any]]:
-        """Rerank documents using cross-encoder."""
-        cross_encoder = self._get_cross_encoder()
-
-        if not cross_encoder or not documents:
-            return documents[:top_k]
-
-        try:
-            # Prepare pairs for cross-encoder
-            pairs = []
-            for doc in documents:
-                content = doc.get("content", "") or ""
-                if isinstance(content, dict):
-                    content = content.get("text", str(content))
-                pairs.append([query, str(content)[:512]])  # Truncate for efficiency
-
-            # Get cross-encoder scores
-            scores = cross_encoder.predict(pairs)
-
-            # Attach scores and sort
-            for doc, score in zip(documents, scores, strict=False):
-                doc["cross_encoder_score"] = float(score)
-
-            # Filter by threshold and sort
-            filtered = [
-                doc
-                for doc in documents
-                if doc.get("cross_encoder_score", 0) >= self.config.rerank_threshold
-            ]
-
-            if not filtered:
-                # If all filtered out, return top results anyway
-                filtered = documents
-
-            filtered.sort(key=lambda x: x.get("cross_encoder_score", 0), reverse=True)
-
-            return filtered[:top_k]
-
-        except Exception as e:
-            logger.error("Cross-encoder reranking failed: %s", e)
-            return documents[:top_k]
-
     async def retrieve(
         self,
         query: str,
@@ -1268,8 +1043,6 @@ class HybridRetriever:
         Returns:
             List of relevant documents
         """
-        start_time = time.time()
-
         # v5.2.3.24: Get classification with cache
         classification = self._classify_query(query)
         vector_weight = classification.vector_weight
@@ -1292,9 +1065,6 @@ class HybridRetriever:
 
         # If one search returned nothing, use the other
         if not vector_results and not bm25_results:
-            # Record metrics for empty results
-            latency_ms = (time.time() - start_time) * 1000
-            self._record_query_metrics(classification.query_type, latency_ms, 0, classification.cached)
             return []
 
         if not vector_results:
@@ -1346,251 +1116,11 @@ class HybridRetriever:
         else:
             results = results[:top_k]
 
-        # v5.2.3.24: Record performance metrics
-        latency_ms = (time.time() - start_time) * 1000
-        self._record_query_metrics(
-            classification.query_type,
-            latency_ms,
-            len(results),
-            classification.cached,
-        )
-
         return results
-
-    async def retrieve_with_scores(
-        self,
-        query: str,
-        top_k: int = 10,
-        filters: dict[str, Any] | None = None,
-        collection: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Retrieve documents with detailed scoring information.
-
-        Returns documents with all score components for debugging/analysis.
-        """
-        results = await self.retrieve(query, top_k, filters, collection)
-
-        # Ensure all score fields are present
-        for doc in results:
-            doc.setdefault("vector_score", doc.get("score", 0))
-            doc.setdefault("bm25_score", 0)
-            doc.setdefault("rrf_score", 0)
-            doc.setdefault("cross_encoder_score", 0)
-
-        return results
-
-    def rebuild_index(self) -> None:
-        """Force rebuild of BM25 index."""
-        self._index_built = False
-        self.bm25_index = None
-        logger.info("BM25 index marked for rebuild")
-
-    def get_gating_stats(self) -> dict[str, Any]:
-        """
-        Get rerank gating statistics.
-
-        v5.9.9: Returns gating policy stats for monitoring.
-
-        Returns:
-            Dict with gating statistics including activation rate and reasons.
-        """
-        return self._gating_policy.get_stats()
-
-    def get_reranker_info(self) -> dict[str, Any]:
-        """
-        Get reranker information.
-
-        v5.9.9: Returns reranker status and configuration.
-        """
-        return self._reranker.get_info()
-
-    # =========================================================================
-    # v5.7.0 PR2+PR4+PR5: Enhanced retrieval with filters and multi-signal ranking
-    # =========================================================================
-
-    async def retrieve_with_filters(
-        self,
-        query: str,
-        *,
-        top_k: int = 10,
-        oversample_factor: int = 3,
-        # PR2: Two-phase filter options
-        platform: str | None = None,
-        environment: str | None = None,
-        doc_type: str | None = None,
-        tags: list[str] | None = None,
-        is_deprecated: bool | None = None,
-        enable_fallback: bool = True,
-        # PR4+PR5: Multi-signal ranking options
-        enable_freshness: bool = True,
-        enable_authority: bool = True,
-        enable_spam_detection: bool = True,
-        relevance_weight: float = 0.5,
-        freshness_weight: float = 0.2,
-        authority_weight: float = 0.2,
-        spam_penalty_weight: float = 0.1,
-    ) -> list[dict[str, Any]]:
-        """
-        Retrieve with two-phase filtering and multi-signal ranking.
-
-        v5.7.0 Features:
-        - PR2: Two-phase filtering (soft then hard) with fallback
-        - PR4: Freshness decay scoring
-        - PR5: Authority signals and spam detection
-
-        Args:
-            query: Search query
-            top_k: Final number of results
-            oversample_factor: Retrieve N*top_k in phase 1 for filtering headroom
-            platform: Filter by platform (ios, android, mobile, web, desktop, all)
-            environment: Filter by environment (prod, staging, dev, all)
-            doc_type: Filter by document type
-            tags: Filter by tags
-            is_deprecated: Filter deprecated docs (None = include all)
-            enable_fallback: Enable progressive filter removal if results < 3
-            enable_freshness: Apply freshness decay scoring
-            enable_authority: Apply authority scoring
-            enable_spam_detection: Apply spam detection penalty
-            relevance_weight: Weight for relevance score
-            freshness_weight: Weight for freshness score
-            authority_weight: Weight for authority score
-            spam_penalty_weight: Weight for spam penalty
-
-        Returns:
-            List of documents with combined scores
-        """
-        from .authority import MultiSignalConfig, apply_multi_signal_rerank
-        from .filter_strategy import TwoPhaseFilter, create_filter_config
-
-        # Build filter config
-        filter_config = create_filter_config(
-            platform=platform,
-            environment=environment,
-            doc_type=doc_type,
-            tags=tags,
-            is_deprecated=is_deprecated,
-        )
-        filter_config.enable_fallback = enable_fallback
-
-        # Phase 1: Retrieve with oversample
-        phase1_k = top_k * oversample_factor
-        phase1_results = await self.retrieve(
-            query=query,
-            top_k=phase1_k,
-            enable_reranking=False,  # We'll do multi-signal reranking
-        )
-
-        if not phase1_results:
-            return []
-
-        # Phase 2: Apply two-phase filtering
-        two_phase = TwoPhaseFilter(filter_config)
-        filter_result = two_phase.filter_documents(
-            phase1_results,
-            soft_filters=filter_config.soft_filters,
-            hard_filters=filter_config.hard_filters,
-        )
-
-        documents = filter_result.documents
-
-        if not documents:
-            logger.warning("No documents after filtering", query=query[:50])
-            return []
-
-        # Phase 3: Multi-signal reranking
-        signal_config = MultiSignalConfig(
-            relevance_weight=relevance_weight,
-            freshness_weight=freshness_weight,
-            authority_weight=authority_weight,
-            spam_penalty_weight=spam_penalty_weight,
-            enable_freshness=enable_freshness,
-            enable_authority=enable_authority,
-            enable_spam_detection=enable_spam_detection,
-        )
-
-        ranked_docs = apply_multi_signal_rerank(documents, config=signal_config, query=query)
-
-        # Return top_k
-        return ranked_docs[:top_k]
-
-    async def retrieve_advanced(
-        self,
-        query: str,
-        *,
-        top_k: int = 10,
-        filters: dict[str, Any] | None = None,
-        signal_weights: dict[str, float] | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Advanced retrieval with full configuration.
-
-        Simplified wrapper for retrieve_with_filters.
-
-        Args:
-            query: Search query
-            top_k: Number of results
-            filters: Dict of filter name -> value
-            signal_weights: Dict of signal name -> weight
-
-        Returns:
-            Ranked documents
-        """
-        filters = filters or {}
-        signal_weights = signal_weights or {}
-
-        return await self.retrieve_with_filters(
-            query=query,
-            top_k=top_k,
-            platform=filters.get("platform"),
-            environment=filters.get("environment"),
-            doc_type=filters.get("doc_type"),
-            tags=filters.get("tags"),
-            is_deprecated=filters.get("is_deprecated"),
-            relevance_weight=signal_weights.get("relevance", 0.5),
-            freshness_weight=signal_weights.get("freshness", 0.2),
-            authority_weight=signal_weights.get("authority", 0.2),
-            spam_penalty_weight=signal_weights.get("spam_penalty", 0.1),
-        )
-
-
-# =============================================================================
-# FACTORY FUNCTION
-# =============================================================================
-
-
-def create_hybrid_retriever(
-    embedder: Embedder,
-    store: VectorStore,
-    vector_weight: float = 0.5,
-    bm25_weight: float = 0.5,
-    enable_reranking: bool = True,
-) -> HybridRetriever:
-    """
-    Create a configured hybrid retriever.
-
-    Args:
-        embedder: Embedding model/service
-        store: Vector store implementation
-        vector_weight: Weight for vector search (0-1)
-        bm25_weight: Weight for BM25 search (0-1)
-        enable_reranking: Whether to use cross-encoder reranking
-
-    Returns:
-        Configured HybridRetriever instance
-    """
-    config = HybridRetrieverConfig(
-        vector_weight=vector_weight,
-        bm25_weight=bm25_weight,
-        enable_reranking=enable_reranking,
-    )
-
-    return HybridRetriever(embedder, store, config)
 
 
 __all__ = [
     "BM25Index",
     "HybridRetriever",
     "HybridRetrieverConfig",
-    "create_hybrid_retriever",
 ]

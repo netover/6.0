@@ -6,6 +6,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
+def _utc_now_iso8601() -> str:
+    """Generate UTC timestamp in ISO 8601 format with 'Z' suffix."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 # NOVO MODELO ADICIONADO
 class HealthCheckResponse(BaseModel):
     """Resposta de health check padronizada.
@@ -18,7 +23,7 @@ class HealthCheckResponse(BaseModel):
     """
 
     status: str = Field(..., json_schema_extra={"example": "UP"})
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
+    timestamp: str = Field(default_factory=_utc_now_iso8601)
     version: str | None = Field(None, json_schema_extra={"example": "1.0.0"})
     environment: str | None = Field(None, json_schema_extra={"example": "production"})
 
@@ -214,7 +219,7 @@ def error_response(status_code: int, message: str, details: Any | None = None) -
     return {
         "success": False,
         "error": {"code": status_code, "message": message, "details": details},
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": _utc_now_iso8601(),
     }
 
 
@@ -224,7 +229,7 @@ def success_response(message: str, data: Any | None = None) -> dict[str, Any]:
         "success": True,
         "message": message,
         "data": data,
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": _utc_now_iso8601(),
     }
 
 
@@ -242,5 +247,5 @@ def paginated_response(items: list[Any], total: int, page: int, page_size: int) 
                 "total_pages": total_pages,
             },
         },
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": _utc_now_iso8601(),
     }

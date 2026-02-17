@@ -15,7 +15,7 @@ Version: 5.2.3.29
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import json
 import os
@@ -872,17 +872,16 @@ class AIMonitoringService:
         try:
             # Set nice level (lower priority)
             os.nice(limits.nice_level)
-        except (OSError, AttributeError):
-            logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+        except (OSError, AttributeError) as e:
+            logger.debug("suppressed_exception", error=str(e), exc_info=True)  # was: pass
 
-        if resource:
+        if limits:
             try:
                 # Set memory limit
                 mem_limit = limits.max_memory_mb * 1024 * 1024
                 resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
             except (ValueError, AttributeError) as exc:
                 logger.debug("suppressed_exception", error=str(exc), exc_info=True)
-            logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
 
     def _create_alert(
         self,

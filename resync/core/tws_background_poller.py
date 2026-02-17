@@ -16,7 +16,7 @@ Versão: 5.2
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections.abc import Callable

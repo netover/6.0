@@ -1,12 +1,11 @@
 import pytest
+import pytest_asyncio
 
 try:
     import respx  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     pytest.skip("Optional dependency 'respx' not installed", allow_module_level=True)
 
-import pytest
-import respx
 import httpx
 from httpx import Response
 from resync.services.tws_service import OptimizedTWSClient
@@ -19,24 +18,38 @@ from resync.core.exceptions import (
 )
 from resync.settings import settings
 
-from unittest.mock import patch
-
-# Configure settings for testing
-settings.tws_retry_total = 2
-settings.tws_retry_backoff_base = 0.01  # Fast retries for tests
-settings.tws_retry_backoff_max = 0.1
 
 @pytest.fixture
-def tws_client():
+def isolated_settings():
+    """Provide isolated settings for each test to avoid race conditions."""
+    original_retry_total = settings.tws_retry_total
+    original_backoff_base = settings.tws_retry_backoff_base
+    original_backoff_max = settings.tws_retry_backoff_max
+
+    settings.tws_retry_total = 3
+    settings.tws_retry_backoff_base = 0.01
+    settings.tws_retry_backoff_max = 0.1
+
+    yield settings
+
+    settings.tws_retry_total = original_retry_total
+    settings.tws_retry_backoff_base = original_backoff_base
+    settings.tws_retry_backoff_max = original_backoff_max
+
+
+@pytest_asyncio.fixture
+async def tws_client(isolated_settings):
+    # Note: password is intentionally a test value for unit tests (not a real credential)
     client = OptimizedTWSClient(
         base_url="http://test-tws",
-        username="user",
-        password="password",
+        username="test_user",
+        password="test_password_for_unit_tests_only",  # nosec B106 - test fixture only
         engine_name="test_engine",
         engine_owner="test_owner",
-        settings=settings
+        settings=isolated_settings
     )
     yield client
+    await client.close()
 
 @pytest.mark.asyncio
 async def test_authentication_error_401(tws_client):

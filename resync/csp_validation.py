@@ -40,6 +40,16 @@ OPTIONAL_FIELDS = {
 # Special values for blocked-uri that are valid
 BLOCKED_URI_SPECIAL_VALUES = {"inline", "eval", "self", "none", "about:blank"}
 
+# Unsafe CSP directives that should be flagged as dangerous
+UNSAFE_CSP_DIRECTIVES = {
+    "unsafe-inline",
+    "unsafe-eval",
+    "unsafe-hashes",
+    "unsafe-allow-redirects",
+    "report-sample",
+    "wasm-unsafe-eval",
+}
+
 # Dangerous patterns to block
 DANGEROUS_PATTERNS = [
     r"<script",
@@ -48,6 +58,18 @@ DANGEROUS_PATTERNS = [
     r"vbscript:",
     r"on\w+\s*=",
     r"\b(alert|prompt|confirm)\s*\(",
+    r"unsafe-inline",
+    r"unsafe-eval",
+    r"eval\(",
+    r"Function\(",
+    r"setTimeout\s*\(\s*['\"]",
+    r"setInterval\s*\(\s*['\"]",
+    r"innerHTML\s*=",
+    r"outerHTML\s*=",
+    r"insertAdjacentHTML",
+    r"document\.write",
+    r"\.cookie",
+    r"<iframe[^>]*srcdoc",
 ]
 
 # Pre-compiled regex patterns for performance

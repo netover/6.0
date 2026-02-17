@@ -6,9 +6,9 @@ added to the HybridRAG system.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-from resync.knowledge.retrieval.hybrid import HybridRAG, QueryIntent
+from resync.knowledge.retrieval.hybrid import HybridRAG
 
 
 @pytest.fixture

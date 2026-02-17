@@ -17,7 +17,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
-from .common import build_error_health, response_time_ms
+from .common import ErrorContext, build_error_health, response_time_ms
 
 logger = structlog.get_logger(__name__)
 
@@ -59,13 +59,15 @@ class WebSocketPoolHealthChecker(BaseHealthChecker):
             )
         except Exception as e:
             return build_error_health(
-                component_name=self.component_name,
-                component_type=self.component_type,
-                status=HealthStatus.UNHEALTHY,
-                message="WebSocket pool unavailable",
-                start_time=start_time,
-                error=e,
-                log_event="websocket_pool_health_check_failed",
+                ctx=ErrorContext(
+                    name=self.component_name,
+                    type=self.component_type,
+                    status=HealthStatus.UNHEALTHY,
+                    message="WebSocket pool unavailable",
+                    start_time=start_time,
+                    error=e,
+                    log_event="websocket_pool_health_check_failed",
+                ),
                 logger=logger,
             )
 

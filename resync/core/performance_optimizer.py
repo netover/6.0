@@ -281,19 +281,19 @@ class ConnectionPoolOptimizer:
         if utilization > 90:
             recommendations.append(
                 "Very high pool utilization ({utilization:.1f}%). "
-                f"Consider increasing max pool size to prevent exhaustion."
+                "Consider increasing max pool size to prevent exhaustion."
             )
         elif utilization < 20:
             recommendations.append(
                 "Low pool utilization ({utilization:.1f}%). "
-                f"Consider decreasing min pool size to save resources."
+                "Consider decreasing min pool size to save resources."
             )
 
         # Check wait times
         if current_metrics.average_wait_time_ms > 100:
             recommendations.append(
                 "High connection wait time ({current_metrics.average_wait_time_ms:.1f}ms). "
-                f"Consider increasing pool size or optimizing queries."
+                "Consider increasing pool size or optimizing queries."
             )
 
         # Check errors
@@ -303,7 +303,7 @@ class ConnectionPoolOptimizer:
             if error_rate > 0.05:
                 recommendations.append(
                     "High connection error rate ({error_rate:.1%}). "
-                    f"Check database health and network connectivity."
+                    "Check database health and network connectivity."
                 )
 
         # Check pool exhaustions
@@ -361,7 +361,7 @@ class ResourceManager:
 
                     logger.debug(
                         f"Unregistered resource: {resource_id}, "
-                        "lifetime: {lifetime.total_seconds():.2f}s"
+                        f"lifetime: {lifetime.total_seconds():.2f}s"
                     )
 
     async def cleanup_all(self) -> None:

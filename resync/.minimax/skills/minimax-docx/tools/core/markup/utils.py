@@ -11,7 +11,7 @@ import random
 from datetime import datetime, timezone
 from lxml import etree
 
-from ..namespaces import NS, W_NS, W14_NS, W15_NS
+from ..namespaces import NS
 from .fuzzy_match import safe_parse_xml
 
 # Additional namespaces for comments

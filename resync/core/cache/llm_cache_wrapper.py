@@ -21,7 +21,6 @@ Usage:
     response = await cached_llm_call(prompt, llm_service.generate)
 """
 
-import asyncio
 from resync.core.task_tracker import create_tracked_task
 import functools
 import logging

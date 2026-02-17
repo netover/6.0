@@ -16,9 +16,6 @@ v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 
 from __future__ import annotations
 
-import importlib
-import os
-import threading
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
 from pathlib import Path
@@ -68,12 +65,8 @@ class Settings(BaseSettings, SettingsValidators):
 
     project_version: str = Field(
         default="6.2.0",
-        pattern=(
-            r"^\d+\.\d+\.\d+(?:-(?:(?:0|[1-9]\d*|[a-zA-Z-][0-9a-zA-Z-]*)"
-            r"(?:\.(?:0|[1-9]\d*|[a-zA-Z-][0-9a-zA-Z-]*))*))?"
-            r"(?:\+(?:[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
-        ),
-        description="Versão do projeto (semver com pre-release e build metadata)",
+        pattern=r"^\d+\.\d+\.\d+$",
+        description="Versão do projeto (semantic versioning X.Y.Z)",
     )
 
     startup_timeout: int = Field(
@@ -94,7 +87,9 @@ class Settings(BaseSettings, SettingsValidators):
 
     log_sensitive_data_redaction: bool = Field(
         default=True,
-        description=("Enable redaction of sensitive data in logs (passwords, tokens, etc.)"),
+        description=(
+            "Enable redaction of sensitive data in logs (passwords, tokens, etc.)"
+        ),
     )
 
     description: str = Field(
@@ -103,8 +98,8 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     base_dir: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[1],
-        description="Diretório base da aplicação",
+        default_factory=lambda: Path(__file__).resolve().parent,
+        description="Diretório base da aplicação (resync package directory)",
     )
 
     # v5.9.7: Accept both APP_LOG_LEVEL (preferred) and legacy LOG_LEVEL
@@ -115,36 +110,25 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
-    # CONTEXT STORE (LEGACY - PostgreSQL now used)
-    # ============================================================================
-    # DEPRECATED: SQLite context store removed in v5.3
-    # The system now uses PostgreSQL for all persistence
-    # This field is kept for backward compatibility only
-    context_db_path: str = Field(
-        default="",
-        description="DEPRECATED: SQLite removed - using PostgreSQL. Keep empty.",
-        deprecated=True,
-    )
-
-    # ============================================================================
-    # CONNECTION POOLS (PostgreSQL) - v5.3.22 adjusted for single VM
+    # CONNECTION POOLS (PostgreSQL) - v6.0 adjusted for single VM
     # For Docker/K8s: increase via environment variables
     # ============================================================================
-    db_pool_min_size: int = Field(default=5, ge=1, le=100)  # Reduced from 20
-    db_pool_max_size: int = Field(default=20, ge=1, le=1000)  # Reduced from 100
+    db_pool_min_size: int = Field(default=2, ge=1, le=100)  # Reduced from 5
+    db_pool_max_size: int = Field(default=10, ge=1, le=1000)  # Reduced from 20
     db_pool_idle_timeout: int = Field(default=600, ge=60)  # Reduced from 1200
     db_pool_connect_timeout: int = Field(default=30, ge=5)  # Reduced from 60
     db_pool_health_check_interval: int = Field(default=60, ge=10)
     db_pool_max_lifetime: int = Field(default=1800, ge=300)
 
     # ============================================================================
-    # REDIS - v5.3.22 adjusted for single VM
+    # REDIS - v6.0 adjusted for single VM
     # ============================================================================
     # v5.9.7: Accept both APP_REDIS_URL (preferred) and legacy REDIS_URL
     redis_url: SecretStr = Field(
         default=SecretStr("redis://localhost:6379/0"),
         validation_alias=AliasChoices("REDIS_URL", "APP_REDIS_URL"),
         description="URL de conexão Redis",
+        repr=False,
     )
 
     redis_min_connections: int = Field(default=1, ge=1, le=100)
@@ -152,8 +136,8 @@ class Settings(BaseSettings, SettingsValidators):
     redis_timeout: float = Field(default=30.0, gt=0)
 
     # Connection Pool - Redis
-    redis_pool_min_size: int = Field(default=2, ge=1, le=100)  # Reduced from 5
-    redis_pool_max_size: int = Field(default=10, ge=1, le=1000)  # Reduced from 20
+    redis_pool_min_size: int = Field(default=1, ge=1, le=100)  # Reduced from 2
+    redis_pool_max_size: int = Field(default=5, ge=1, le=1000)  # Reduced from 10
     redis_pool_idle_timeout: int = Field(default=300, ge=60)
     redis_pool_connect_timeout: int = Field(default=15, ge=5)  # Reduced from 30
     redis_pool_health_check_interval: int = Field(default=60, ge=10)
@@ -460,12 +444,10 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # Cache Hierarchy Configuration
     cache_hierarchy_l1_max_size: int = Field(
-        ge=1,
-        default=5000, description="Maximum number of entries in L1 cache"
+        ge=1, default=5000, description="Maximum number of entries in L1 cache"
     )
     cache_hierarchy_l2_ttl: int = Field(
-        gt=0,
-        default=600, description="Time-To-Live for L2 cache entries in seconds"
+        gt=0, default=600, description="Time-To-Live for L2 cache entries in seconds"
     )
     # Cache Configuration
     enable_cache_swr: bool = Field(
@@ -481,13 +463,13 @@ class Settings(BaseSettings, SettingsValidators):
         default=True, description="Enable cache mutex to prevent duplicate computations"
     )
     cache_hierarchy_l2_cleanup_interval: int = Field(
-        gt=0,
-        default=60, description="Cleanup interval for L2 cache in seconds"
+        gt=0, default=60, description="Cleanup interval for L2 cache in seconds"
     )
-    cache_hierarchy_num_shards: int = Field(default=8, description="Number of shards for cache")
+    cache_hierarchy_num_shards: int = Field(
+        default=8, description="Number of shards for cache"
+    )
     cache_hierarchy_max_workers: int = Field(
-        ge=1,
-        default=4, description="Max workers for cache operations"
+        ge=1, default=4, description="Max workers for cache operations"
     )
 
     # ============================================================================
@@ -513,32 +495,26 @@ class Settings(BaseSettings, SettingsValidators):
     )
     tws_base_url: str = Field(default="http://localhost:31111")
     tws_request_timeout: float = Field(
-        gt=0,
-        default=30.0, description="Timeout for TWS requests in seconds"
+        gt=0, default=30.0, description="Timeout for TWS requests in seconds"
     )
 
     # Resiliency tuning for TWS client (retries/backoff/timeouts)
     tws_joblog_timeout: float = Field(
-        gt=0,
-        default=60.0, description="Timeout for joblog endpoints in seconds"
+        gt=0, default=60.0, description="Timeout for joblog endpoints in seconds"
     )
-    
+
     # Fine-grained Timeouts (v6.0.2)
     tws_timeout_connect: float = Field(
-        gt=0,
-        default=5.0, description="Connect timeout for TWS requests"
+        gt=0, default=5.0, description="Connect timeout for TWS requests"
     )
     tws_timeout_read: float = Field(
-        gt=0,
-        default=30.0, description="Read timeout for TWS requests"
+        gt=0, default=30.0, description="Read timeout for TWS requests"
     )
     tws_timeout_write: float = Field(
-        gt=0,
-        default=5.0, description="Write timeout for TWS requests"
+        gt=0, default=5.0, description="Write timeout for TWS requests"
     )
     tws_timeout_pool: float = Field(
-        gt=0,
-        default=5.0, description="Pool timeout for TWS requests"
+        gt=0, default=5.0, description="Pool timeout for TWS requests"
     )
 
     tws_retry_total: int = Field(
@@ -548,8 +524,7 @@ class Settings(BaseSettings, SettingsValidators):
         default=0.5, description="Base delay (seconds) for exponential backoff"
     )
     tws_retry_backoff_max: float = Field(
-        gt=0,
-        default=8.0, description="Maximum backoff delay (seconds)"
+        gt=0, default=8.0, description="Maximum backoff delay (seconds)"
     )
 
     # ------------------------------------------------------------------
@@ -575,7 +550,9 @@ class Settings(BaseSettings, SettingsValidators):
     )
     tws_ca_bundle: str | None = Field(
         default=None,
-        description=("CA bundle for TWS TLS verification (ignored if tws_verify=False)"),
+        description=(
+            "CA bundle for TWS TLS verification (ignored if tws_verify=False)"
+        ),
     )
 
     # Connection Pool - HTTP
@@ -684,24 +661,32 @@ class Settings(BaseSettings, SettingsValidators):
     tws_teams_webhook_url: SecretStr | None = Field(
         default=None,
         description="URL do webhook do Microsoft Teams",
+        repr=False,
     )
 
     # Teams Outgoing Webhook (Validation Logic)
     teams_outgoing_webhook_enabled: bool = Field(
         default=False,
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"
+        ),
         description="Enable Teams outgoing webhook",
     )
     teams_outgoing_webhook_security_token: SecretStr = Field(
         default=SecretStr(""),
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN", "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN",
+            "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN",
+        ),
         description="Security token for Teams webhook",
         exclude=True,
         repr=False,
     )
     teams_outgoing_webhook_name: str = Field(
         default="resync",
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"
+        ),
     )
     teams_callback_url: str = Field(
         default="",
@@ -711,7 +696,9 @@ class Settings(BaseSettings, SettingsValidators):
         default=25,
         ge=1,
         le=60,
-        validation_alias=AliasChoices("TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"),
+        validation_alias=AliasChoices(
+            "TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"
+        ),
         description="Response timeout for Teams webhook",
     )
     teams_outgoing_webhook_max_response_length: int = Field(
@@ -736,9 +723,9 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # JWT Configuration (v5.3.20 - consolidated from fastapi_app/core/config.py)
     secret_key: SecretStr = Field(
-        default=SecretStr("CHANGE_ME_IN_PRODUCTION_USE_ENV_VAR"),
+        default=SecretStr(""),
         validation_alias=AliasChoices("SECRET_KEY", "APP_SECRET_KEY"),
-        description="Secret key for JWT signing. MUST be set via SECRET_KEY env var in production.",
+        description="Secret key for JWT signing. MUST be set via SECRET_KEY env var.",
         exclude=True,
         repr=False,
     )
@@ -797,7 +784,9 @@ class Settings(BaseSettings, SettingsValidators):
         default=None,
         # Reads from ADMIN_PASSWORD (without APP_ prefix)
         validation_alias=AliasChoices("ADMIN_PASSWORD", "APP_ADMIN_PASSWORD"),
-        description=("Senha do administrador. Deve ser configurada via variável de ambiente."),
+        description=(
+            "Senha do administrador. Deve ser configurada via variável de ambiente."
+        ),
         exclude=True,
         repr=False,
     )
@@ -817,18 +806,25 @@ class Settings(BaseSettings, SettingsValidators):
     server_host: str = Field(
         default="127.0.0.1", description="Host do servidor (padrão: localhost apenas)"
     )
-    server_port: int = Field(default=8000, ge=1024, le=65535, description="Porta do servidor")
+    server_port: int = Field(
+        default=8000, ge=1024, le=65535, description="Porta do servidor"
+    )
 
     # ============================================================================
     # RATE LIMITING (v5.3.22 - Production-hardened defaults)
     # ============================================================================
     rate_limit_public_per_minute: int = Field(default=60, ge=1)
     rate_limit_authenticated_per_minute: int = Field(default=300, ge=1)
-    rate_limit_critical_per_minute: int = Field(default=10, ge=1)  # Reduced for security
+    rate_limit_critical_per_minute: int = Field(
+        default=10, ge=1
+    )  # Reduced for security
     rate_limit_error_handler_per_minute: int = Field(default=10, ge=1)
     rate_limit_websocket_per_minute: int = Field(default=20, ge=1)
     rate_limit_dashboard_per_minute: int = Field(default=10, ge=1)
-    rate_limit_storage_uri: SecretStr = Field(default=SecretStr("redis://localhost:6379/1"))
+    rate_limit_storage_uri: SecretStr = Field(
+        default=SecretStr("redis://localhost:6379/1"),
+        repr=False,
+    )
     rate_limit_key_prefix: str = Field(default="resync:ratelimit:")
     rate_limit_sliding_window: bool = Field(default=True)
 
@@ -1027,6 +1023,7 @@ class Settings(BaseSettings, SettingsValidators):
     enterprise_siem_api_key: SecretStr | None = Field(
         default=None,
         description="SIEM API key",
+        repr=False,
     )
 
     # Phase 3: Observability
@@ -1281,7 +1278,7 @@ class Settings(BaseSettings, SettingsValidators):
     @property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
         """Legacy alias exposing cache hierarchy configuration object.
-        
+
         Converted to @property for thread safety (lightweight object creation).
         """
         return CacheHierarchyConfig(
@@ -1413,23 +1410,6 @@ class Settings(BaseSettings, SettingsValidators):
         return self.environment == Environment.TEST
 
     # ============================================================================
-    # MIGRATION GRADUAL - FEATURE FLAGS
-    # ============================================================================
-    # Controle de migração para novos componentes
-    MIGRATION_USE_NEW_CACHE: bool = Field(
-        default=False, description="Usar ImprovedAsyncCache ao invés de AsyncTTLCache"
-    )
-    MIGRATION_USE_NEW_TWS: bool = Field(
-        default=False,
-        description="Usar TWSClientFactory ao invés de implementação direta",
-    )
-    MIGRATION_USE_NEW_RATE_LIMIT: bool = Field(
-        default=False,
-        description="Usar RateLimiterManager ao invés de implementação básica",
-    )
-    MIGRATION_ENABLE_METRICS: bool = Field(
-        default=True, description="Habilitar métricas de migração e monitoramento"
-    )
 
     # ============================================================================
     # DOCUMENT KNOWLEDGE GRAPH (DKG)
@@ -1538,7 +1518,6 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # Validators are now imported from settings_validators.py
 
-
     def __repr__(self) -> str:
         """Representation that excludes sensitive fields from the output."""
         fields: dict[str, Any] = {}
@@ -1567,10 +1546,17 @@ def clear_settings_cache() -> None:
 
 class _SettingsProxy:
     """Proxy de conveniência para manter compatibilidade."""
+
     __slots__ = ()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(get_settings(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Allow setting attributes on the underlying Settings instance.
+        This enables tests and runtime code to modify configuration values.
+        """
+        setattr(get_settings(), name, value)
 
     def __repr__(self) -> str:
         return repr(get_settings())
@@ -1590,33 +1576,10 @@ def load_settings() -> Settings:
     return get_settings()
 
 
-# -----------------------------------------------------------------------------
-# PEP 562 Lazy Imports (kept if other modules expect them from this namespace)
-# -----------------------------------------------------------------------------
-_LAZY_IMPORTS: dict[str, tuple[str, str]] = {}
-_LOADED_IMPORTS: dict[str, Any] = {}
-_LAZY_IMPORT_LOCK = threading.Lock()
-
-
-def __getattr__(name: str) -> Any:
-    """PEP 562 __getattr__ for lazy imports to avoid circular dependencies."""
-    if name in _LAZY_IMPORTS:
-        if name not in _LOADED_IMPORTS:
-            with _LAZY_IMPORT_LOCK:
-                if name not in _LOADED_IMPORTS:
-                    try:
-                        module_name, attr = _LAZY_IMPORTS[name]
-                        module = importlib.import_module(module_name)
-                        _LOADED_IMPORTS[name] = getattr(module, attr)
-                    except ImportError:
-                        _LOADED_IMPORTS[name] = None
-        return _LOADED_IMPORTS[name]
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from None
-
-
 # =============================================================================
 # TEAMS OUTGOING WEBHOOK CONFIGURATION
 # =============================================================================
+
 
 # Define a proxy class to lazily access settings for the dictionary interface
 class _TeamsConfigProxy(Mapping[str, Any]):
@@ -1653,5 +1616,6 @@ class _TeamsConfigProxy(Mapping[str, Any]):
             return self[key]
         except KeyError:
             return default
+
 
 TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()

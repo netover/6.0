@@ -88,7 +88,7 @@ def get_cross_encoder() -> Any:
             max_length=512,  # Limit input length for speed
         )
 
-        load_time = (time.perf_counter() - start) * 1000
+        (time.perf_counter() - start) * 1000
         logger.info("RAG cross-encoder loaded in {load_time:.0f}ms")
 
         return _cross_encoder_model

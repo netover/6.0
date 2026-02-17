@@ -16,7 +16,6 @@ Date: October 2025
 """
 
 import asyncio
-import random
 import weakref
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
@@ -24,6 +23,9 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 from functools import wraps
 from typing import Any, ClassVar, TypeVar
+
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt
+from tenacity import wait_exponential, wait_random_exponential
 
 from resync.core.exceptions import CircuitBreakerError
 from resync.core.structured_logger import get_logger
@@ -300,10 +302,6 @@ class RetryWithBackoff:
         by :mod:`resync.core.retry`) to ensure consistent retry behavior across
         the codebase.
         """
-        # Import lazily to keep module import lightweight.
-        from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt
-        from tenacity import wait_exponential, wait_random_exponential
-
         wait_strategy = (
             wait_random_exponential(multiplier=self.config.base_delay, max=self.config.max_delay)
             if self.config.jitter
@@ -603,9 +601,6 @@ async def retry_with_backoff_async(
     Kept for backward compatibility. New code should prefer the utilities in
     :mod:`resync.core.retry`.
     """
-    from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt
-    from tenacity import wait_exponential, wait_random_exponential
-
     wait_strategy = (
         wait_random_exponential(multiplier=base_delay, max=cap)
         if jitter

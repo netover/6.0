@@ -22,7 +22,7 @@ from datetime import datetime, timezone, timedelta
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, delete, select, update
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database import Base, get_db
@@ -332,7 +332,7 @@ async def list_api_keys(
     stmt = select(APIKey).order_by(APIKey.created_at.desc())
 
     if not include_revoked:
-        stmt = stmt.where(not APIKey.is_revoked)
+        stmt = stmt.where(APIKey.is_revoked.is_(False))
 
     result = await db.execute(stmt)
     keys = result.scalars().all()
@@ -512,16 +512,30 @@ async def get_api_keys_stats(
 ):
     """Get API keys usage statistics."""
 
-    # Count by status
-    stmt_total = select(APIKey)
-    stmt_active = stmt_total.where(APIKey.is_active, not APIKey.is_revoked)
-    stmt_revoked = stmt_total.where(APIKey.is_revoked)
-    stmt_expired = stmt_total.where(APIKey.expires_at < datetime.now(timezone.utc))
+    # Count total using func.count for efficiency
+    stmt_total = select(func.count()).select_from(APIKey)
+    total = (await db.execute(stmt_total)).scalar() or 0
 
-    total = len((await db.execute(stmt_total)).scalars().all())
-    active = len((await db.execute(stmt_active)).scalars().all())
-    revoked = len((await db.execute(stmt_revoked)).scalars().all())
-    expired = len((await db.execute(stmt_expired)).scalars().all())
+    # Count active (is_active=True AND is_revoked=False)
+    stmt_active = select(func.count()).select_from(APIKey).where(
+        and_(
+            APIKey.is_active == True,
+            APIKey.is_revoked == False
+        )
+    )
+    active = (await db.execute(stmt_active)).scalar() or 0
+
+    # Count revoked
+    stmt_revoked = select(func.count()).select_from(APIKey).where(
+        APIKey.is_revoked == True
+    )
+    revoked = (await db.execute(stmt_revoked)).scalar() or 0
+
+    # Count expired
+    stmt_expired = select(func.count()).select_from(APIKey).where(
+        APIKey.expires_at < datetime.now(timezone.utc)
+    )
+    expired = (await db.execute(stmt_expired)).scalar() or 0
 
     # Most used
     stmt_most_used = select(APIKey).order_by(APIKey.usage_count.desc()).limit(5)

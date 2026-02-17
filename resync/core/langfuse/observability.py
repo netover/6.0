@@ -22,13 +22,12 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import time
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional, TypeVar, Union
+from typing import Any, TypeVar
 
 from resync.core.structured_logger import get_logger
 from resync.settings import settings

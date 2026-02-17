@@ -7,7 +7,7 @@ NOTE: Uses lxml throughout for proper namespace handling.
 import os
 from typing import List, Optional
 
-from ..namespaces import NS, W14_NS, W15_NS
+from ..namespaces import NS
 from .session import DocxSession, CommentNotFoundError
 from .utils import (
     find_and_split_text,

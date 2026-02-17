@@ -672,7 +672,7 @@ class ReportGenerator:
             )
 
             logger.info(
-                f"Compliance report generated successfully with overall score: "
+                "Compliance report generated successfully with overall score: "
                 "{report['overall_compliance_score']:.3f}"
             )
 

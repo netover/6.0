@@ -8,7 +8,6 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-import asyncio
 from resync.core.task_tracker import create_tracked_task
 import json
 from datetime import datetime, timezone

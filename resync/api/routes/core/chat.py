@@ -19,7 +19,7 @@ intent classification and complexity analysis.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 
 # v5.4.1: Import HybridRouter (fallback to UnifiedAgent for compatibility)
 try:
@@ -51,58 +51,65 @@ logger = None  # Will be injected by dependency
 # v5.4.1: HybridRouter instance (singleton)
 _hybrid_router: HybridRouter | None = None
 
-# RAG components will be initialized lazily (when first used)
-# to avoid event loop issues during module import
-_rag_initialized = False
-_rag_embedding_service = None
-_rag_vector_store = None
-_rag_retriever = None
-_rag_ingest_service = None
 
-# v5.4.0: Hybrid retriever (lazy loaded)
-_hybrid_retriever = None
-
-
-async def _get_rag_components():
-    """Lazy initialization of RAG components within async context"""
-    global \
-        _rag_initialized, \
-        _rag_embedding_service, \
-        _rag_vector_store, \
-        _rag_retriever, \
-        _rag_ingest_service, \
-        _hybrid_retriever
-
-    if not _rag_initialized:
+class RagComponentsManager:
+    """Singleton manager for RAG components to avoid global state issues."""
+    
+    _instance: "RagComponentsManager | None" = None
+    _initialized: bool = False
+    _embedding_service = None
+    _vector_store = None
+    _retriever = None
+    _ingest_service = None
+    _hybrid_retriever = None
+    
+    def __new__(cls) -> "RagComponentsManager":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    async def get_components(self):
+        """Lazy initialization of RAG components within async context"""
+        if self._initialized:
+            return self._embedding_service, self._vector_store, self._retriever, self._ingest_service
+        
         try:
-            _rag_embedding_service = EmbeddingService()
-            _rag_vector_store = await get_vector_store()
-            _rag_retriever = RagRetriever(_rag_embedding_service, _rag_vector_store)
-            _rag_ingest_service = IngestService(_rag_embedding_service, _rag_vector_store)
+            self._embedding_service = EmbeddingService()
+            self._vector_store = await get_vector_store()
+            self._retriever = RagRetriever(self._embedding_service, self._vector_store)
+            self._ingest_service = IngestService(self._embedding_service, self._vector_store)
 
-            # v5.4.0: Initialize hybrid retriever
             try:
                 from resync.knowledge.retrieval.hybrid_retriever import HybridRetriever
 
-                _hybrid_retriever = HybridRetriever(_rag_embedding_service, _rag_vector_store)
+                self._hybrid_retriever = HybridRetriever(self._embedding_service, self._vector_store)
                 if logger:
                     logger.info("Hybrid retriever initialized (BM25 + Vector)")
             except Exception as e:
                 if logger:
                     logger.warning("Hybrid retriever not available, using standard: %s", e)
 
-            _rag_initialized = True
+            self._initialized = True
             if logger:
                 logger.info("RAG components initialized successfully (lazy)")
         except Exception as e:
             if logger:
                 logger.error("Failed to initialize RAG components: %s", e)
-            _rag_embedding_service = None
-            _rag_vector_store = None
-            _rag_retriever = None
-            _rag_ingest_service = None
+            self._embedding_service = None
+            self._vector_store = None
+            self._retriever = None
+            self._ingest_service = None
 
-    return _rag_embedding_service, _rag_vector_store, _rag_retriever, _rag_ingest_service
+        return self._embedding_service, self._vector_store, self._retriever, self._ingest_service
+
+
+# Singleton instance
+_rag_manager = RagComponentsManager()
+
+
+async def _get_rag_components():
+    """Lazy initialization of RAG components within async context"""
+    return await _rag_manager.get_components()
 
 
 async def _get_or_create_session(session_id: str | None) -> ConversationContext:

@@ -172,7 +172,7 @@ class HealthCheckUtils:
                     )
                     usage = component.metadata["connection_usage_percent"]
                     alerts.append(
-                        "Database connection pool usage at {usage:.1f}% (threshold: {threshold}%)"
+                        f"Database connection pool usage at {usage:.1f}% (threshold: {threshold}%)"
                     )
                 elif name == "memory" and "memory_usage_percent" in component.metadata:
                     threshold = thresholds.get(
@@ -180,14 +180,14 @@ class HealthCheckUtils:
                         default_thresholds["memory_usage_threshold_percent"],
                     )
                     usage = component.metadata["memory_usage_percent"]
-                    alerts.append("Memory usage at {usage:.1f}% (threshold: {threshold}%)")
+                    alerts.append(f"Memory usage at {usage:.1f}% (threshold: {threshold}%)")
                 elif name == "cpu" and "cpu_usage_percent" in component.metadata:
                     threshold = thresholds.get(
                         "cpu_usage_threshold_percent",
                         default_thresholds["cpu_usage_threshold_percent"],
                     )
                     usage = component.metadata["cpu_usage_percent"]
-                    alerts.append("CPU usage at {usage:.1f}% (threshold: {threshold}%)")
+                    alerts.append(f"CPU usage at {usage:.1f}% (threshold: {threshold}%)")
                 else:
                     alerts.append(f"{name} is degraded")
 

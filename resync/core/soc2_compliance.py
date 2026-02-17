@@ -6,7 +6,7 @@ individual strategies, making the code more modular, testable, and maintainable.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import hashlib
 import time
 from collections import defaultdict, deque

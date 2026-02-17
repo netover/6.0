@@ -65,7 +65,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                     resp = await client.get(f"{tws_url}/health")
                     if resp.status_code != 200:
                         raise Exception(f"HTTP {resp.status_code}")
-            except Exception as e:
+            except Exception:
                 # Re-raise to be caught by outer block
                 raise
 

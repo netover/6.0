@@ -8,7 +8,7 @@ from typing import Any
 from redis.asyncio import Redis
 
 from resync.core.idempotency.config import config
-from resync.core.idempotency.exceptions import IdempotencyKeyError, IdempotencyStorageError
+from resync.core.idempotency.exceptions import IdempotencyConflictError, IdempotencyKeyError, IdempotencyStorageError
 from resync.core.idempotency.metrics import IdempotencyMetrics
 from resync.core.idempotency.models import IdempotencyRecord
 from resync.core.idempotency.storage import IdempotencyStorage
@@ -322,7 +322,7 @@ class IdempotencyManager:
                 logger.debug(
                     "Operation marked as processing",
                     idempotency_key=idempotency_key,
-                    ttl_seconds=cache_ttl_seconds,
+                    ttl_seconds=ttl_seconds,
                 )
                 return True
             # Another request is already processing this key.

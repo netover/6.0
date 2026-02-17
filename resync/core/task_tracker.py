@@ -174,31 +174,45 @@ async def cancel_all_tasks(timeout: float = 5.0) -> dict[str, int]:
 
     logger.info("Cancelling %s background tasks...", total)
 
-    # Cancel all tasks
     for task in tasks_to_cancel:
         task.cancel()
 
-    # Wait for graceful shutdown with timeout
-    results = await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+    done, pending = await asyncio.wait(tasks_to_cancel, timeout=timeout)
 
-    # Count results
-    cancelled = sum(1 for r in results if isinstance(r, asyncio.CancelledError))
-    errors = sum(1 for r in results if isinstance(r, Exception) and not isinstance(r, asyncio.CancelledError))
-    success = total - cancelled - errors
+    cancelled_count = 0
+    error_count = 0
+    success_count = 0
+
+    for task in done:
+        try:
+            if task.cancelled():
+                cancelled_count += 1
+            else:
+                exc = task.exception()
+                if exc and not isinstance(exc, asyncio.CancelledError):
+                    logger.error("background_task_error", task=task.get_name(), error=str(exc))
+                    error_count += 1
+                else:
+                    success_count += 1
+        except asyncio.CancelledError:
+            cancelled_count += 1
+
+    if pending:
+        logger.warning(
+            "background_tasks_timeout",
+            pending_count=len(pending),
+            tasks=[t.get_name() for t in pending]
+        )
 
     stats = {
         "total": total,
-        "cancelled": cancelled,
-        "completed": success,
-        "errors": errors,
+        "cancelled": cancelled_count + len(pending),
+        "completed": success_count,
+        "errors": error_count,
     }
 
-    logger.info(
-        "Background tasks shutdown complete",
-        extra=stats,
-    )
+    logger.info("Background tasks shutdown complete", extra=stats)
 
-    # Clear the set
     _background_tasks.clear()
 
     return stats

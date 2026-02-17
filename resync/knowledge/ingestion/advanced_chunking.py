@@ -758,7 +758,7 @@ class SemanticChunker:
             remaining = " ".join(sentences[start:])
             if chunks and count_tokens(remaining) < min_tokens:
                 # Merge with last chunk
-                chunks[-1] = chunks[-1] + " " + remaining
+                chunks[-1].content = chunks[-1].content + " " + remaining
             else:
                 chunks.append(remaining)
 
@@ -896,8 +896,6 @@ def generate_entities_view(content: str, metadata: ChunkMetadata) -> str:
 
     # Add section path keywords
     if metadata.section_path:
-        # Extract keywords from section path
-        path_parts = metadata.section_path.split(" > ")
         parts.append(f"Section: {metadata.section_path}")
 
     # Add chunk type
@@ -1140,13 +1138,13 @@ class AdvancedChunker:
         else:
             chunks = self._chunk_fixed_size(text, source, document_title)
 
-        # Post-process: add context and summaries
-        chunks = self._enrich_chunks(chunks, document_title, doc_id)
-
-        # Update total_chunks
+        # Update total_chunks and chunk_index BEFORE enrichment
         for i, chunk in enumerate(chunks):
             chunk.metadata.total_chunks = len(chunks)
             chunk.metadata.chunk_index = i
+
+        # Post-process: add context and summaries
+        chunks = self._enrich_chunks(chunks, document_title, doc_id)
 
         return chunks
 

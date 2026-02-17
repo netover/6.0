@@ -528,7 +528,7 @@ Responda em JSON com o formato:
                 binary_score=score,
                 reasoning=data.get("reasoning", ""),
             )
-        except Exception:
+        except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

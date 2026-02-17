@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from resync.core.health import (
     ComponentType,
     HealthStatus,
-    UnifiedHealthService,
     get_unified_health_service,
     get_status_color,
     get_status_description,

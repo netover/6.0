@@ -4,10 +4,12 @@ File System Health Checker
 This module provides health checking functionality for file system and disk space.
 """
 
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
 
+import psutil
 import structlog
 
 from resync.core.health.health_models import (
@@ -17,7 +19,7 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
-from .common import build_error_health, response_time_ms, threshold_status
+from .common import ErrorContext, ThresholdConfig, build_error_health, response_time_ms, threshold_status
 
 logger = structlog.get_logger(__name__)
 
@@ -46,18 +48,18 @@ class FileSystemHealthChecker(BaseHealthChecker):
 
         try:
             # Check disk space
-            import psutil
-
-            disk_usage = psutil.disk_usage("/")
+            disk_usage = psutil.disk_usage("/" if os.name == "posix" else "C:")
             disk_usage_percent = (disk_usage.used / disk_usage.total) * 100
 
             status, message = threshold_status(
                 value=disk_usage_percent,
-                warning_threshold=85,
-                critical_threshold=95,
-                healthy_message="Disk space OK: {value:.1f}% used",
-                degraded_message="Disk space getting low: {value:.1f}% used",
-                critical_message="Disk space critically low: {value:.1f}% used",
+                config=ThresholdConfig(
+                    warning=85,
+                    critical=95,
+                    healthy_msg="Disk space OK: {value:.1f}% used",
+                    degraded_msg="Disk space getting low: {value:.1f}% used",
+                    critical_msg="Disk space critically low: {value:.1f}% used",
+                ),
             )
 
             return ComponentHealth(
@@ -77,13 +79,15 @@ class FileSystemHealthChecker(BaseHealthChecker):
 
         except Exception as e:
             return build_error_health(
-                component_name=self.component_name,
-                component_type=self.component_type,
-                status=HealthStatus.UNKNOWN,
-                message="File system check failed",
-                start_time=start_time,
-                error=e,
-                log_event="file_system_health_check_failed",
+                ctx=ErrorContext(
+                    name=self.component_name,
+                    type=self.component_type,
+                    status=HealthStatus.UNKNOWN,
+                    message="File system check failed",
+                    start_time=start_time,
+                    error=e,
+                    log_event="file_system_health_check_failed",
+                ),
                 logger=logger,
             )
 

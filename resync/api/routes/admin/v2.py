@@ -548,7 +548,7 @@ async def get_chunking_config():
             preserve_structure=manager.get("rag.preserve_structure", True),
             extract_metadata=manager.get("rag.extract_metadata", True),
         )
-    except Exception:
+    except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

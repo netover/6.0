@@ -254,7 +254,7 @@ def censor_sensitive_data(
             elif isinstance(value, str):
                 # Apply value pattern censoring
                 censored_value = value
-                for pattern in sensitive_value_patterns:
+                for pattern in _sensitive_value_patterns:
                     censored_value = re.sub(
                         pattern, "***REDACTED***", censored_value, flags=re.IGNORECASE
                     )

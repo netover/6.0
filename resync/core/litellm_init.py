@@ -119,7 +119,7 @@ class LiteLLMManager:
             self._metrics.increment_init_fail_reason(type(err).__name__)
             raise
 
-        except RuntimeError as err:
+        except RuntimeError:
             logger.exception("Runtime error initializing LiteLLM")
             self._metrics.increment_init_fail_reason("RuntimeError")
             if strict:

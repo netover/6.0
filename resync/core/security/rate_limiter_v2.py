@@ -392,7 +392,7 @@ def rate_limit_by_user(limit: str | None = None):
 def setup_rate_limiting(app: FastAPI) -> None:
     from resync.settings import get_settings
 
-    is_production = get_settings().is_production
+    get_settings().is_production
     """
     Setup rate limiting for FastAPI application.
 

@@ -14,7 +14,7 @@ This module provides cryptographically secure audit trails including:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 import base64
 import contextlib
 import gzip

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Key Management - Resync Admin</title>
+    <link rel="stylesheet" href="/static/css/style-neumorphic.css">
+    <link rel="stylesheet" href="/static/css/admin-neumorphic.css">
+    <link rel="stylesheet" href="/static/css/api-keys-admin.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <div class="header-content">
+                <div class="header-title">
+                    <div class="header-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div>
+                        <h1>API Key Management</h1>
+                        <p class="header-subtitle">Security Access Control System</p>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>New Key</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="admin-main">
+            <!-- Stats Grid -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card stat-total">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-total">-</span>
+                            <span class="stat-label">Total Keys</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-active">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-active">-</span>
+                            <span class="stat-label">Active</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-revoked">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-revoked">-</span>
+                            <span class="stat-label">Revoked</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-expired">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-expired">-</span>
+                            <span class="stat-label">Expired</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Keys List -->
+            <section class="keys-section">
+                <div class="section-header">
+                    <h2>Registered Keys</h2>
+                    <span class="keys-count" id="keys-count">0 entries</span>
+                </div>
+                
+                <div id="keys-loading" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p>Loading API keys...</p>
+                </div>
+                
+                <div id="keys-error" class="error-container" style="display: none;">
+                    <p>Failed to load API keys. Please try again.</p>
+                    <button class="btn btn-secondary" onclick="loadKeys()">Retry</button>
+                </div>
+                
+                <div id="keys-list" class="keys-list" style="display: none;">
+                    <!-- Keys will be rendered here -->
+                </div>
+                
+                <div id="keys-empty" class="empty-container" style="display: none;">
+                    <p>No API keys found.</p>
+                    <button class="btn btn-primary" onclick="openCreateModal()">Create your first key</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Create Key Modal -->
+    <div id="create-modal" class="modal" style="display: none;">
+        <div class="modal-overlay" onclick="closeCreateModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New API Key</h2>
+                <button class="modal-close" onclick="closeCreateModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            
+            <div id="create-form-container" class="modal-body">
+                <form id="create-key-form" onsubmit="handleCreateSubmit(event)">
+                    <div class="form-group">
+                        <label for="key-name">Name <span class="required">*</span></label>
+                        <input type="text" id="key-name" name="name" required 
+                               placeholder="e.g., Production FTA Metrics" 
+                               minlength="3" maxlength="100">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="key-description">Description</label>
+                        <textarea id="key-description" name="description" rows="3" 
+                                  placeholder="Optional description..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Scopes</label>
+                        <div class="scopes-grid">
+                            <label class="scope-checkbox">
+                                <input type="checkbox" name="scopes" value="metrics:read" checked>
+                                <span>metrics:read</span>
+                            </label>
+                            <label class="scope-checkbox">
+                                <input type="checkbox" name="scopes" value="metrics:write" checked>
+                                <span>metrics:write</span>
+                            </label>
+                            <label class="scope-checkbox">
+                                <input type="checkbox" name="scopes" value="admin:read">
+                                <span>admin:read</span>
+                            </label>
+                            <label class="scope-checkbox">
+                                <input type="checkbox" name="scopes" value="admin:write">
+                                <span>admin:write</span>
+                            </label>
+                            <label class="scope-checkbox">
+                                <input type="checkbox" name="scopes" value="workflows:read">
+                                <span>workflows:read</span>
+                            </label>
+                            <label class="scope-checkbox">
+                                <input type="checkbox" name="scopes" value="workflows:write">
+                                <span>workflows:write</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="key-expires">Expires In (days)</label>
+                        <input type="number" id="key-expires" name="expires_in_days" 
+                               value="365" min="1" max="3650">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Key</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div id="create-success-container" class="modal-body" style="display: none;">
+                <div class="success-message">
+                    <div class="success-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <h3>Key Created Successfully!</h3>
+                    <p class="warning-text">⚠️ Copy this key now - you won't see it again!</p>
+                    
+                    <div class="key-display">
+                        <code id="created-key-value"></code>
+                        <button class="btn btn-icon" onclick="copyCreatedKey()" title="Copy to clipboard">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                    </div>
+                    
+                    <button class="btn btn-primary btn-full" onclick="closeCreateModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast" style="display: none;">
+        <span id="toast-message"></span>
+    </div>
+
+    <script>
+        // State
+        let apiKeys = [];
+        let stats = null;
+        let createdKey = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadKeys();
+            loadStats();
+        });
+
+        // Load API Keys
+        async function loadKeys() {
+            showLoading();
+            
+            try {
+                const response = await fetch('/api/v1/admin/api-keys', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin';
+                        return;
+                    }
+                    throw new Error('Failed to load keys');
+                }
+                
+                const data = await response.json();
+                apiKeys = data.keys || [];
+                renderKeys();
+            } catch (error) {
+                console.error('Error loading keys:', error);
+                showError();
+            }
+        }
+
+        // Load Stats
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/v1/admin/api-keys/stats/summary', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) return;
+                
+                stats = await response.json();
+                updateStats();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Update Stats Display
+        function updateStats() {
+            if (!stats || !stats.counts) return;
+            
+            document.getElementById('stat-total').textContent = stats.counts.total || 0;
+            document.getElementById('stat-active').textContent = stats.counts.active || 0;
+            document.getElementById('stat-revoked').textContent = stats.counts.revoked || 0;
+            document.getElementById('stat-expired').textContent = stats.counts.expired || 0;
+        }
+
+        // Render Keys List
+        function renderKeys() {
+            const container = document.getElementById('keys-list');
+            const countLabel = document.getElementById('keys-count');
+            
+            countLabel.textContent = `${apiKeys.length} entries`;
+            
+            if (apiKeys.length === 0) {
+                showEmpty();
+                return;
+            }
+            
+            container.innerHTML = apiKeys.map((key, index) => renderKeyCard(key, index)).join('');
+            showList();
+        }
+
+        // Render Single Key Card
+        function renderKeyCard(key, index) {
+            const status = getKeyStatus(key);
+            const statusClass = `status-${status.toLowerCase()}`;
+            const statusText = status;
+            
+            return `
+                <div class="key-card" style="animation-delay: ${index * 50}ms">
+                    <div class="key-header">
+                        <div class="key-title-section">
+                            <svg class="key-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                            <h3 class="key-name">${escapeHtml(key.name)}</h3>
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="key-actions">
+                            <button class="btn btn-icon btn-ghost" onclick="toggleDetails('${key.id}')" title="Toggle details">
+                                <svg id="eye-${key.id}" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                            ${key.is_valid ? `
+                            <button class="btn btn-icon btn-danger" onclick="revokeKey('${key.id}')" title="Revoke key">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="key-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Prefix:</span>
+                            <div class="meta-value copy-group">
+                                <code>${escapeHtml(key.key_prefix)}...</code>
+                                <button class="btn btn-icon btn-ghost" onclick="copyToClipboard('${key.key_prefix}', 'Prefix copied!')" title="Copy prefix">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Usage:</span>
+                            <span class="meta-value">${(key.usage_count || 0).toLocaleString()} calls</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Created:</span>
+                            <span class="meta-value">${formatDate(key.created_at)}</span>
+                        </div>
+                    </div>
+                    
+                    ${key.description ? `<p class="key-description">// ${escapeHtml(key.description)}</p>` : ''}
+                    
+                    <div class="key-scopes">
+                        <span class="scopes-label">Scopes:</span>
+                        ${(key.scopes || []).map(scope => `<span class="scope-badge">${escapeHtml(scope)}</span>`).join('')}
+                    </div>
+                    
+                    <div id="details-${key.id}" class="key-details" style="display: none;">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">ID:</span>
+                                <code class="detail-value">${escapeHtml(key.id)}</code>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Created By:</span>
+                                <span class="detail-value">${escapeHtml(key.created_by)}</span>
+                            </div>
+                            ${key.last_used_at ? `
+                            <div class="detail-item">
+                                <span class="detail-label">Last Used:</span>
+                                <span class="detail-value">${formatDateTime(key.last_used_at)}</span>
+                            </div>
+                            ` : ''}
+                            ${key.expires_at ? `
+                            <div class="detail-item">
+                                <span class="detail-label">Expires:</span>
+                                <span class="detail-value ${key.is_expired ? 'text-danger' : ''}">${formatDateTime(key.expires_at)}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Get Key Status
+        function getKeyStatus(key) {
+            if (key.is_revoked) return 'REVOKED';
+            if (key.is_expired) return 'EXPIRED';
+            if (key.is_valid) return 'ACTIVE';
+            return 'INACTIVE';
+        }
+
+        // Toggle Details
+        function toggleDetails(keyId) {
+            const details = document.getElementById(`details-${keyId}`);
+            const isVisible = details.style.display !== 'none';
+            details.style.display = isVisible ? 'none' : 'block';
+        }
+
+        // Open Create Modal
+        function openCreateModal() {
+            createdKey = null;
+            document.getElementById('create-key-form').reset();
+            document.getElementById('create-form-container').style.display = 'block';
+            document.getElementById('create-success-container').style.display = 'none';
+            document.getElementById('create-modal').style.display = 'block';
+        }
+
+        // Close Create Modal
+        function closeCreateModal() {
+            document.getElementById('create-modal').style.display = 'none';
+            createdKey = null;
+        }
+
+        // Handle Create Submit
+        async function handleCreateSubmit(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const formData = new FormData(form);
+            
+            // Collect scopes
+            const scopes = [];
+            form.querySelectorAll('input[name="scopes"]:checked').forEach(cb => {
+                scopes.push(cb.value);
+            });
+            
+            const payload = {
+                name: formData.get('name'),
+                description: formData.get('description') || null,
+                scopes: scopes,
+                expires_in_days: parseInt(formData.get('expires_in_days'))
+            };
+            
+            try {
+                const response = await fetch('/api/v1/admin/api-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to create key');
+                }
+                
+                createdKey = await response.json();
+                showCreateSuccess();
+                loadKeys();
+                loadStats();
+            } catch (error) {
+                console.error('Error creating key:', error);
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Show Create Success
+        function showCreateSuccess() {
+            document.getElementById('created-key-value').textContent = createdKey.key;
+            document.getElementById('create-form-container').style.display = 'none';
+            document.getElementById('create-success-container').style.display = 'block';
+        }
+
+        // Copy Created Key
+        async function copyCreatedKey() {
+            if (createdKey && createdKey.key) {
+                await copyToClipboard(createdKey.key, 'Key copied to clipboard!');
+            }
+        }
+
+        // Revoke Key
+        async function revokeKey(keyId) {
+            if (!confirm('Revoke this API key? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/admin/api-keys/${keyId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ reason: 'Revoked via admin panel' })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to revoke key');
+                }
+                
+                showToast('Key revoked successfully', 'success');
+                loadKeys();
+                loadStats();
+            } catch (error) {
+                console.error('Error revoking key:', error);
+                showToast('Error revoking key', 'error');
+            }
+        }
+
+        // Copy to Clipboard
+        async function copyToClipboard(text, message) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast(message || 'Copied to clipboard!', 'success');
+            } catch (error) {
+                console.error('Error copying:', error);
+                showToast('Failed to copy', 'error');
+            }
+        }
+
+        // Show Toast
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast toast-${type}`;
+            toast.style.display = 'block';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // UI Helpers
+        function showLoading() {
+            document.getElementById('keys-loading').style.display = 'flex';
+            document.getElementById('keys-error').style.display = 'none';
+            document.getElementById('keys-list').style.display = 'none';
+            document.getElementById('keys-empty').style.display = 'none';
+        }
+
+        function showError() {
+            document.getElementById('keys-loading').style.display = 'none';
+            document.getElementById('keys-error').style.display = 'block';
+            document.getElementById('keys-list').style.display = 'none';
+            document.getElementById('keys-empty').style.display = 'none';
+        }
+
+        function showList() {
+            document.getElementById('keys-loading').style.display = 'none';
+            document.getElementById('keys-error').style.display = 'none';
+            document.getElementById('keys-list').style.display = 'block';
+            document.getElementById('keys-empty').style.display = 'none';
+        }
+
+        function showEmpty() {
+            document.getElementById('keys-loading').style.display = 'none';
+            document.getElementById('keys-error').style.display = 'none';
+            document.getElementById('keys-list').style.display = 'none';
+            document.getElementById('keys-empty').style.display = 'block';
+        }
+
+        // Utilities
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            return new Date(dateString).toLocaleDateString();
+        }
+
+        function formatDateTime(dateString) {
+            if (!dateString) return 'N/A';
+            return new Date(dateString).toLocaleString();
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeCreateModal();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -24,7 +24,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+import structlog
 from email.utils import parsedate_to_datetime
+
+logger = structlog.get_logger(__name__)
 
 # Optional OpenTelemetry instrumentation for HTTPX.
 # NOTE: instrumenting at import-time is a global side effect; we do it lazily and idempotently.
@@ -135,6 +138,9 @@ class OptimizedTWSClient:
                        Default is False to avoid requiring optional dependencies like socksio.
             settings: Optional override for application settings (for testing/DI).
         """
+        # Ensure observability is hooked up (OpenTelemetry instrumentation)
+        _ensure_httpx_instrumented()
+
         self.base_url = base_url.rstrip("/")
         self.auth = (username, password)
         self.engine_name = engine_name

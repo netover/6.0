@@ -32,7 +32,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from functools import lru_cache
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 from fastapi import Depends
 

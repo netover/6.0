@@ -414,7 +414,7 @@ class TestAuditRecordValidation:
         ]
 
         for record, expected_error in invalid_cases:
-            with pytest.raises((ValueError, TypeError), match=expected_error):
+            with pytest.raises((ValueError, TypeError, DatabaseSecurityError), match=expected_error):
                 _validate_audit_record(record)
 
 

@@ -129,7 +129,6 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
 
         if request.force:
             # Bypass filters - directly call _discover_and_store
-            import asyncio
             await create_tracked_task(
                 graphrag.discovery_service._discover_and_store(
                     request.job_name,

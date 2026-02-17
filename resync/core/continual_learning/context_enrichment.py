@@ -296,7 +296,7 @@ class ContextEnricher:
 
                     # Add duration if long-running
                     if pattern.avg_duration_seconds > 1800:  # > 30 min
-                        duration_min = pattern.avg_duration_seconds / 60
+                        pattern.avg_duration_seconds / 60
                         context_parts.append("Job {job_name} duração ~{duration_min:.0f}min")
 
                     # Add common errors

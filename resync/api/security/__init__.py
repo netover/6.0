@@ -381,7 +381,6 @@ from resync.api.security.validations import (
     SensitiveFieldValidator,
     TokenRequestWithValidation,
     UserCreateWithValidation,
-    password_hasher,
 )
 
 # =============================================================================

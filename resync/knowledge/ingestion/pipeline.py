@@ -20,14 +20,13 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from resync.knowledge.interfaces import Embedder, VectorStore
 
-from .document_converter import ConvertedDocument, DoclingConverter
+from .document_converter import DoclingConverter
 from .ingest import IngestService
 
 logger = logging.getLogger(__name__)

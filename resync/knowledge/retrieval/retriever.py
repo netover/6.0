@@ -36,16 +36,24 @@ class RagRetriever(Retriever):
 
         # Lightweight re-rank (cosine with vector from pgvector, if returned)
         if hits and "vector" in hits[0]:
+            query_norm = math.sqrt(sum(x * x for x in vec))
+            if query_norm == 0:
+                return hits
 
-            def cos(a: list[float], b: list[float]) -> float:
-                import math
-
-                da = math.sqrt(sum(x * x for x in a))
-                db = math.sqrt(sum(x * x for x in b))
-                if da == 0 or db == 0:
+            def cosine_similarity_score(doc_vector: list[float] | None) -> float:
+                if not doc_vector:
                     return 0.0
-                return sum(x * y for x, y in zip(a, b, strict=False)) / (da * db)
 
-            q = vec
-            hits.sort(key=lambda h: cos(q, h.get("vector") or []), reverse=True)
+                # Dot product
+                dot = sum(q * d for q, d in zip(vec, doc_vector, strict=False))
+
+                # Doc norm
+                doc_norm = math.sqrt(sum(d * d for d in doc_vector))
+
+                if doc_norm == 0:
+                    return 0.0
+
+                return dot / (query_norm * doc_norm)
+
+            hits.sort(key=lambda h: cosine_similarity_score(h.get("vector")), reverse=True)
         return hits

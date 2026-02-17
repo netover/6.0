@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable
+from typing import Any
 
 import structlog
 
@@ -134,7 +134,7 @@ def _safe_float(v: Any) -> float | None:
         if v is None:
             return None
         return float(v)
-    except Exception:
+    except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -219,6 +219,10 @@ async def fetch_job_history(
     Primary source: Postgres (tws.tws_job_status). Fallback: TWS REST current plan
     query (best-effort when DB history is unavailable).
     """
+    from resync.workflows.statistical_analysis import (
+        fetch_job_history_from_db,
+        fetch_job_history_from_tws,
+    )
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.fetch_job_history")
@@ -229,80 +233,17 @@ async def fetch_job_history(
     if not job_name:
         return []
 
-    # 1) DB history
     if _SQLA_AVAILABLE:
         try:
-            stmt = (
-                select(TWSJobStatus)
-                .where(TWSJobStatus.job_name == job_name)
-                .where(TWSJobStatus.timestamp >= since)
-                .order_by(TWSJobStatus.timestamp.desc())
-                .limit(limit)
-            )
-            res = await db.execute(stmt)
-            rows = res.scalars().all()
+            rows = await fetch_job_history_from_db(db, job_name, since, limit)
             if rows:
-                out: list[dict[str, Any]] = []
-                for r in rows:
-                    out.append(
-                        {
-                            "job_name": r.job_name,
-                            "job_stream": r.job_stream,
-                            "workstation": r.workstation,
-                            "status": r.status,
-                            "run_number": r.run_number,
-                            "start_time": r.start_time,
-                            "end_time": r.end_time,
-                            "duration_seconds": _duration_seconds(r.start_time, r.end_time),
-                            "return_code": r.return_code,
-                            "timestamp": r.timestamp,
-                            "metadata": r.metadata_ or {},
-                            "source": "db",
-                        }
-                    )
-                return list(reversed(out))  # oldest->newest
+                return rows
         except Exception as e:
             logger.warning("fetch_job_history_db_failed", job_name=job_name, error=str(e))
 
-    # 2) Fallback to TWS (current plan only)
     if _TWS_CLIENT_AVAILABLE and tws_client is not None:
         try:
-            plan = await tws_client.query_current_plan_jobs(q=job_name, limit=min(200, limit))
-            # IBM API typically returns an object with a list field; be defensive.
-            items = plan.get("jobs") if isinstance(plan, dict) else None
-            if items is None and isinstance(plan, dict):
-                # try a few common keys
-                for k in ("items", "results", "data"):
-                    if isinstance(plan.get(k), list):
-                        items = plan[k]
-                        break
-            if not isinstance(items, list):
-                items = []
-            out: list[dict[str, Any]] = []
-            for it in items:
-                if not isinstance(it, dict):
-                    continue
-                # Heuristic mapping for plan job objects
-                st = it.get("status") or it.get("jobStatus")
-                ws = it.get("workstation") or it.get("workStation") or it.get("workstationName")
-                ts = it.get("timestamp") or it.get("startTime") or it.get("lastUpdate")
-                out.append(
-                    {
-                        "job_name": it.get("name") or it.get("jobName") or job_name,
-                        "job_stream": it.get("jobStream") or it.get("jobstream"),
-                        "workstation": ws,
-                        "status": st,
-                        "run_number": it.get("runNumber") or 1,
-                        "start_time": it.get("startTime"),
-                        "end_time": it.get("endTime"),
-                        "duration_seconds": _safe_float(it.get("duration")),
-                        "return_code": it.get("returnCode"),
-                        "timestamp": ts,
-                        "metadata": it,
-                        "source": "tws",
-                    }
-                )
-            return out
+            return await fetch_job_history_from_tws(tws_client, job_name, limit)
         except Exception as e:
             logger.warning("fetch_job_history_tws_failed", job_name=job_name, error=str(e))
 
@@ -380,6 +321,12 @@ async def detect_degradation(
     * runtime trend increases > 10% over the recent window vs previous window
     * failure rate increases materially (z-score on failures)
     """
+    from resync.workflows.statistical_analysis import (
+        extract_runtimes_and_failures,
+        calculate_runtime_growth,
+        calculate_failure_metrics,
+        rolling_zscore,
+    )
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.detect_degradation")
@@ -387,19 +334,7 @@ async def detect_degradation(
     if not job_history:
         return {"detected": False, "type": None, "severity": 0.0, "details": {}}
 
-    # Build runtime series
-    runtimes: list[float] = []
-    failures: list[float] = []
-    for r in job_history:
-        dur = r.get("duration_seconds")
-        if dur is None:
-            dur = _duration_seconds(r.get("start_time"), r.get("end_time"))
-        dur_f = _safe_float(dur)
-        if dur_f is None:
-            continue
-        runtimes.append(dur_f)
-        st = (r.get("status") or "").upper()
-        failures.append(1.0 if st in {"ABEND", "ERROR", "FAILED", "FAIL"} else 0.0)
+    runtimes, failures = extract_runtimes_and_failures(job_history)
 
     if len(runtimes) < max(8, window * 2):
         return {
@@ -409,18 +344,9 @@ async def detect_degradation(
             "details": {"reason": "insufficient_history", "samples": len(runtimes)},
         }
 
-    # Compare recent vs prior window
-    recent = runtimes[-window:]
-    prior = runtimes[-2 * window : -window]
-    mu_recent = sum(recent) / len(recent)
-    mu_prior = sum(prior) / len(prior)
-    growth = (mu_recent - mu_prior) / max(1e-9, mu_prior)
-
-    # Failure anomaly
-    z_fail = _rolling_zscore(failures, window=window)
-    fail_recent = sum(failures[-window:]) / window
-    fail_prior = sum(failures[-2 * window : -window]) / window
-    fail_growth = (fail_recent - fail_prior)
+    mu_recent, mu_prior, growth = calculate_runtime_growth(runtimes, window)
+    z_fail = rolling_zscore(failures, window=window)
+    fail_recent, fail_prior, fail_growth, _ = calculate_failure_metrics(failures, window)
 
     detected = False
     dtype: str | None = None
@@ -431,7 +357,6 @@ async def detect_degradation(
         dtype = "runtime_growth"
         severity = min(1.0, max(0.0, growth / (runtime_growth_threshold * 3)))
 
-    # If failures spiked, upgrade severity
     if max(z_fail[-window:]) >= 2.5 or fail_growth >= 0.20:
         detected = True
         dtype = dtype or "failure_rate"
@@ -479,69 +404,30 @@ async def correlate_metrics(
     llm: Any | None = None,
 ) -> dict[str, Any]:
     """Correlate job runtime/failures with workstation metrics."""
+    from resync.workflows.statistical_analysis import (
+        extract_job_rows,
+        extract_workstation_rows,
+        aggregate_by_hour,
+        calculate_correlations,
+        select_best_factor,
+        interpret_factor,
+    )
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.correlate_metrics")
         return {"found": False, "root_cause": None, "factors": [], "details": {"reason": "disabled"}}
+
     if not job_history or not workstation_metrics:
         return {"found": False, "root_cause": None, "factors": [], "details": {"reason": "missing_data"}}
 
-    # Build aligned time buckets (hourly) to merge
-    def hour_bucket(ts: Any) -> datetime | None:
-        if isinstance(ts, datetime):
-            return ts.replace(minute=0, second=0, microsecond=0)
-        return None
+    job_rows = extract_job_rows(job_history)
+    ws_rows = extract_workstation_rows(workstation_metrics)
 
-    job_rows: list[dict[str, Any]] = []
-    for r in job_history:
-        ts = r.get("timestamp")
-        if not isinstance(ts, datetime):
-            continue
-        dur = r.get("duration_seconds")
-        dur_f = _safe_float(dur)
-        if dur_f is None:
-            dur_f = _safe_float(_duration_seconds(r.get("start_time"), r.get("end_time")))
-        if dur_f is None:
-            continue
-        st = (r.get("status") or "").upper()
-        job_rows.append(
-            {
-                "t": hour_bucket(ts),
-                "duration": dur_f,
-                "failed": 1.0 if st in {"ABEND", "ERROR", "FAILED", "FAIL"} else 0.0,
-            }
-        )
-
-    ws_rows: list[dict[str, Any]] = []
-    for m in workstation_metrics:
-        ts = m.get("timestamp")
-        if not isinstance(ts, datetime):
-            continue
-        ws_rows.append(
-            {
-                "t": hour_bucket(ts),
-                "cpu": _safe_float(m.get("cpu_usage")),
-                "mem": _safe_float(m.get("memory_usage")),
-                "active_jobs": _safe_float(m.get("active_jobs")),
-            }
-        )
-
-    # Aggregate per hour
-    def agg_mean(rows: list[dict[str, Any]], key: str) -> dict[datetime, float]:
-        buckets: dict[datetime, list[float]] = {}
-        for r in rows:
-            t = r.get("t")
-            v = r.get(key)
-            if t is None or v is None:
-                continue
-            buckets.setdefault(t, []).append(float(v))
-        return {t: sum(vs) / len(vs) for t, vs in buckets.items() if vs}
-
-    dur_by_t = agg_mean(job_rows, "duration")
-    fail_by_t = agg_mean(job_rows, "failed")
-    cpu_by_t = agg_mean(ws_rows, "cpu")
-    mem_by_t = agg_mean(ws_rows, "mem")
-    aj_by_t = agg_mean(ws_rows, "active_jobs")
+    dur_by_t = aggregate_by_hour(job_rows, "duration")
+    fail_by_t = aggregate_by_hour(job_rows, "failed")
+    cpu_by_t = aggregate_by_hour(ws_rows, "cpu")
+    mem_by_t = aggregate_by_hour(ws_rows, "mem")
+    aj_by_t = aggregate_by_hour(ws_rows, "active_jobs")
 
     common = sorted(set(dur_by_t) & set(cpu_by_t))
     if len(common) < 6:
@@ -555,57 +441,15 @@ async def correlate_metrics(
     duration = [dur_by_t[t] for t in common]
     cpu = [cpu_by_t.get(t, 0.0) for t in common]
     mem = [mem_by_t.get(t, 0.0) for t in common]
-    active_jobs = [aj_by_t.get(t, 0.0) for t in common]
+    active_jobs_list = [aj_by_t.get(t, 0.0) for t in common]
     failures = [fail_by_t.get(t, 0.0) for t in common]
 
-    # Use pandas correlation when available for convenience
-    corr_details: dict[str, Any] = {}
-    if _PANDAS_AVAILABLE:
-        df = _pd.DataFrame(
-            {
-                "duration": duration,
-                "cpu": cpu,
-                "mem": mem,
-                "active_jobs": active_jobs,
-                "failures": failures,
-            }
-        )
-        corr = df.corr(method="pearson")
-        corr_details["corr_matrix"] = corr.to_dict()
-        corr_dur = corr["duration"].to_dict()
-    else:
-        corr_dur = {
-            "cpu": _pearson_corr(duration, cpu),
-            "mem": _pearson_corr(duration, mem),
-            "active_jobs": _pearson_corr(duration, active_jobs),
-            "failures": _pearson_corr(duration, failures),
-        }
-        corr_details["corr_duration"] = corr_dur
+    corr_details = calculate_correlations(duration, cpu, mem, active_jobs_list, failures)
+    corr_dur = corr_details.get("corr_duration", {})
 
-    # Pick strongest factor by absolute correlation
-    scored = [(k, v) for k, v in corr_dur.items() if isinstance(v, (int, float)) and v is not None]
-    scored.sort(key=lambda kv: abs(kv[1]), reverse=True)
-    best = scored[0] if scored else (None, None)
-    best_key, best_val = best
-    found = best_key is not None and best_val is not None and abs(best_val) >= 0.45
+    best_key, best_val, found = select_best_factor(corr_dur)
+    root_cause, factors = interpret_factor(best_key) if found else (None, [])
 
-    factors: list[str] = []
-    root_cause: str | None = None
-    if found:
-        if best_key == "cpu":
-            root_cause = "CPU saturation correlates with increased job runtime"
-            factors.append("cpu")
-        elif best_key == "mem":
-            root_cause = "Memory pressure correlates with increased job runtime"
-            factors.append("memory")
-        elif best_key == "active_jobs":
-            root_cause = "High concurrency correlates with increased job runtime"
-            factors.append("active_jobs")
-        elif best_key == "failures":
-            root_cause = "Failures correlate with increased runtime (possible retries/resource issues)"
-            factors.append("failures")
-
-    # Optional LLM enrichment
     if llm is not None:
         try:
             prompt = (
@@ -620,7 +464,7 @@ async def correlate_metrics(
             logger.debug("correlate_metrics_llm_failed", error=str(e))
 
     return {
-        "found": bool(found),
+        "found": found,
         "root_cause": root_cause,
         "factors": factors,
         "details": {**corr_details, "best": {"factor": best_key, "value": best_val}},
@@ -645,6 +489,14 @@ async def predict_timeline(
     Uses a simple linear trend on runtime to estimate when it crosses a
     "danger" threshold (median + 3*mad). Also computes a confidence band.
     """
+    from resync.workflows.statistical_analysis import (
+        extract_runtime_series,
+        calculate_danger_threshold,
+        linear_regression,
+        calculate_confidence_interval,
+        calculate_failure_probability,
+        calculate_confidence_score,
+    )
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.predict_timeline")
@@ -654,6 +506,7 @@ async def predict_timeline(
             "confidence": 0.0,
             "details": {"reason": "disabled"},
         }
+
     if not degradation_detected or not job_history:
         return {
             "failure_probability": 0.0,
@@ -662,19 +515,7 @@ async def predict_timeline(
             "details": {"reason": "no_degradation"},
         }
 
-    # Extract runtimes by time
-    series: list[tuple[datetime, float]] = []
-    for r in job_history:
-        ts = r.get("timestamp")
-        if not isinstance(ts, datetime):
-            continue
-        dur = _safe_float(r.get("duration_seconds"))
-        if dur is None:
-            dur = _safe_float(_duration_seconds(r.get("start_time"), r.get("end_time")))
-        if dur is None:
-            continue
-        series.append((ts, dur))
-    series.sort(key=lambda x: x[0])
+    series = extract_runtime_series(job_history)
     if len(series) < 10:
         return {
             "failure_probability": min(1.0, 0.25 + degradation_severity * 0.5),
@@ -684,30 +525,21 @@ async def predict_timeline(
         }
 
     t0 = series[0][0]
-    xs = [(t - t0).total_seconds() / 86400.0 for t, _ in series]  # days
+    xs = [(t - t0).total_seconds() / 86400.0 for t, _ in series]
     ys = [v for _, v in series]
 
-    # Robust threshold based on MAD
-    med = sorted(ys)[len(ys) // 2]
-    mad = sorted([abs(v - med) for v in ys])[len(ys) // 2] or 1.0
-    danger = med + 3.0 * mad
+    med, mad, danger = calculate_danger_threshold(ys)
 
-    # Fit linear regression y = a + b*x
-    n = len(xs)
-    xbar = sum(xs) / n
-    ybar = sum(ys) / n
-    sxx = sum((x - xbar) ** 2 for x in xs)
-    if sxx == 0:
+    a, b, s = linear_regression(xs, ys)
+
+    if b == 0:
         return {
             "failure_probability": min(1.0, 0.3 + degradation_severity * 0.6),
             "estimated_failure_date": None,
             "confidence": 0.3,
             "details": {"reason": "no_time_variance"},
         }
-    b = sum((x - xbar) * (y - ybar) for x, y in zip(xs, ys)) / sxx
-    a = ybar - b * xbar
 
-    # Predict crossing
     est_days: float | None = None
     if b > 0:
         est_days = (danger - a) / b
@@ -715,50 +547,33 @@ async def predict_timeline(
             est_days = None
     est_date = (t0 + timedelta(days=est_days)) if est_days is not None else None
 
-    # Confidence interval for forecast (simple)
-    # Compute residual std
-    residuals = [y - (a + b * x) for x, y in zip(xs, ys)]
-    sse = sum(r**2 for r in residuals)
-    dof = max(1, n - 2)
-    s = (sse / dof) ** 0.5
+    n = len(xs)
+    xbar = sum(xs) / n
+    sxx = sum((x - xbar) ** 2 for x in xs)
 
-    # Estimate uncertainty of crossing time: approximate via delta method
-    # Var(y_hat) at x is s^2 * (1 + 1/n + (x-xbar)^2/sxx)
-    def _pred_se(x: float) -> float:
-        return s * (1.0 + 1.0 / n + ((x - xbar) ** 2) / sxx) ** 0.5
+    ci = calculate_confidence_interval(
+        slope=b,
+        intercept=a,
+        x_values=xs,
+        y_values=ys,
+        residual_std=s,
+        x_mean=xbar,
+        sxx=sxx,
+        n=n,
+        predicted_x=est_days,
+    )
 
-    # Choose critical value
-    if _SCIPY_AVAILABLE:
-        tcrit = float(_scipy_stats.t.ppf(0.975, dof))
-    else:
-        tcrit = 1.96
+    if est_days is not None and b != 0 and ci:
+        dt_days = ci.get("delta_days", 0)
+        ci = {
+            "lower": (t0 + timedelta(days=max(0.0, est_days - dt_days))).isoformat(),
+            "upper": (t0 + timedelta(days=est_days + dt_days)).isoformat(),
+            **ci,
+        }
 
-    ci: dict[str, Any] = {}
-    if est_days is not None:
-        se_at_est = _pred_se(est_days)
-        # Translate runtime CI into time CI approximately (divide by slope)
-        if b != 0:
-            dt_days = abs(tcrit * se_at_est / b)
-            ci = {
-                "lower": (t0 + timedelta(days=max(0.0, est_days - dt_days))).isoformat(),
-                "upper": (t0 + timedelta(days=est_days + dt_days)).isoformat(),
-                "tcrit": tcrit,
-                "slope": b,
-            }
-
-    # Failure probability heuristic
-    # If slope positive and estimated crossing in horizon => high probability
-    prob = min(1.0, 0.25 + 0.55 * degradation_severity)
-    if est_date is not None:
-        days_to = (est_date - _utcnow()).total_seconds() / 86400.0
-        if days_to <= horizon_days:
-            prob = min(1.0, max(prob, 0.75))
-        elif days_to <= horizon_days * 2:
-            prob = min(1.0, max(prob, 0.55))
-
-    confidence = min(1.0, max(0.1, 0.35 + 0.5 * degradation_severity - 0.1 * (s / max(1.0, ybar))))
-    if est_date is None:
-        confidence *= 0.7
+    ybar = sum(ys) / n
+    prob = calculate_failure_probability(degradation_severity, est_days, horizon_days, 0.0, ybar, s)
+    confidence = calculate_confidence_score(degradation_severity, s, ybar, est_date is not None)
 
     details = {
         "model": "linear",
@@ -805,66 +620,14 @@ async def generate_recommendations(
     llm: Any | None = None,
 ) -> dict[str, Any]:
     """Generate recommendations based on analysis."""
+    from resync.workflows.statistical_analysis import build_recommendations
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.generate_recommendations")
         return {"recommendations": [], "actions": [], "details": {"reason": "disabled"}}
-    recs: list[dict[str, Any]] = []
-    actions: list[dict[str, Any]] = []
 
-    root = (correlation or {}).get("root_cause")
-    factors = (correlation or {}).get("factors") or []
-    prob = (prediction or {}).get("failure_probability") or 0.0
+    recs, actions = build_recommendations(job_name, degradation_type, degradation_severity, correlation, prediction)
 
-    # Heuristics
-    if degradation_type == "runtime_growth":
-        recs.append(
-            {
-                "title": "Investigate runtime growth trend",
-                "priority": "high" if degradation_severity >= 0.6 else "medium",
-                "rationale": "Job runtime increased materially vs baseline",
-                "job": job_name,
-                "confidence": min(0.95, 0.5 + degradation_severity / 2),
-            }
-        )
-
-    if "cpu" in factors:
-        recs.append(
-            {
-                "title": "Check CPU saturation on workstation",
-                "priority": "high" if prob >= 0.7 else "medium",
-                "rationale": root or "CPU correlates with runtime degradation",
-                "job": job_name,
-                "confidence": 0.8,
-            }
-        )
-        actions.append({"type": "workstation_capacity_review", "target": "cpu", "job": job_name})
-
-    if "memory" in factors:
-        recs.append(
-            {
-                "title": "Check memory pressure / swap",
-                "priority": "high" if prob >= 0.7 else "medium",
-                "rationale": root or "Memory correlates with runtime degradation",
-                "job": job_name,
-                "confidence": 0.75,
-            }
-        )
-        actions.append({"type": "workstation_capacity_review", "target": "memory", "job": job_name})
-
-    if prob >= 0.75:
-        recs.append(
-            {
-                "title": "Schedule proactive validation run / controlled restart",
-                "priority": "high",
-                "rationale": "High probability of failure within horizon",
-                "job": job_name,
-                "confidence": 0.7,
-            }
-        )
-        actions.append({"type": "proactive_validation", "job": job_name})
-
-    # Optional LLM enrichment
     if llm is not None:
         try:
             prompt = (

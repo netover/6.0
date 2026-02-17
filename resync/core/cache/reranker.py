@@ -92,7 +92,7 @@ def get_reranker_model() -> Any:
             max_length=512,  # Limit input length for speed
         )
 
-        load_time = (time.perf_counter() - start) * 1000
+        (time.perf_counter() - start) * 1000
         logger.info("Cross-encoder loaded in {load_time:.0f}ms")
 
         return _reranker_model
