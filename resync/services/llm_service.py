@@ -34,13 +34,42 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 
 import logging
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 from typing import Any
 
-from resync.core.exceptions import BaseAppException, ConfigurationError, IntegrationError, ServiceUnavailableError
+from resync.core.exceptions import (
+    BaseAppException,
+    ConfigurationError,
+    IntegrationError,
+    ServiceUnavailableError,
+)
+
+# Token counting (optional - tiktoken provides better accuracy)
+try:
+    import tiktoken
+
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+
+
+def _count_tokens(text: str) -> int:
+    """Count tokens in text using tiktoken if available, fallback to word estimate."""
+    if TIKTOKEN_AVAILABLE:
+        try:
+            # Use cl100k_base (used by GPT-4, GPT-3.5-turbo, etc.)
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(text))
+        except Exception:
+            pass
+    # Fallback: rough estimate (words * 1.3 for BPE tokenization)
+    return int(len(text.split()) * 1.3)
+
+
 from resync.core.resilience import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -112,7 +141,9 @@ class LLMService:
         if not model:
             raise IntegrationError(
                 message="No LLM model configured",
-                details={"hint": "Define settings.llm_model or settings.agent_model_name"},
+                details={
+                    "hint": "Define settings.llm_model or settings.agent_model_name"
+                },
             )
         self.model: str = str(model)
 
@@ -129,7 +160,9 @@ class LLMService:
         if not base_url:
             raise IntegrationError(
                 message="Missing LLM base_url",
-                details={"hint": "Configure settings.llm_endpoint (NVIDIA OpenAI-compatible)"},
+                details={
+                    "hint": "Configure settings.llm_endpoint (NVIDIA OpenAI-compatible)"
+                },
             )
 
         if api_key:
@@ -152,10 +185,15 @@ class LLMService:
             # ------------------------------------------------------------------
             # Resilience defaults (production-grade)
             # ------------------------------------------------------------------
-            self._timeout_s: float = float(getattr(settings, "llm_timeout", 20.0) or 20.0)
+            self._timeout_s: float = float(
+                getattr(settings, "llm_timeout", 20.0) or 20.0
+            )
 
             # Bulkhead: cap concurrent in-flight LLM calls.
-            self._max_concurrency: int = int(getattr(settings, "llm_max_concurrency", None) or os.getenv("LLM_MAX_CONCURRENCY", "8"))
+            self._max_concurrency: int = int(
+                getattr(settings, "llm_max_concurrency", None)
+                or os.getenv("LLM_MAX_CONCURRENCY", "8")
+            )
             self._sem = asyncio.Semaphore(self._max_concurrency)
 
             # Retry with exponential backoff + jitter (only for transient errors).
@@ -188,7 +226,9 @@ class LLMService:
 
             # Opinion-Based Prompting for +30-50% context adherence improvement
             self._prompt_formatter = OpinionBasedPromptFormatter()
-            logger.debug("OpinionBasedPromptFormatter initialized for enhanced RAG accuracy")
+            logger.debug(
+                "OpinionBasedPromptFormatter initialized for enhanced RAG accuracy"
+            )
         except (
             AuthenticationError,
             RateLimitError,
@@ -198,7 +238,11 @@ class LLMService:
             APITimeoutError,
             APIStatusError,
         ) as exc:
-            logger.error("Failed to initialize LLM service (OpenAI error): %s", exc, exc_info=True)
+            logger.error(
+                "Failed to initialize LLM service (OpenAI error): %s",
+                exc,
+                exc_info=True,
+            )
             raise IntegrationError(
                 message="Failed to initialize LLM service",
                 details={
@@ -208,7 +252,10 @@ class LLMService:
             ) from exc
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # Re-raise critical system exceptions and programming errors
-            if isinstance(exc, (SystemExit, KeyboardInterrupt, ImportError, AttributeError, TypeError)):
+            if isinstance(
+                exc,
+                (SystemExit, KeyboardInterrupt, ImportError, AttributeError, TypeError),
+            ):
                 raise
             logger.error("Failed to initialize LLM service: %s", exc, exc_info=True)
             raise IntegrationError(
@@ -216,139 +263,183 @@ class LLMService:
                 details={"error": str(exc)},
             ) from exc
 
+    def _extract_retry_after_seconds(self, exc: Exception) -> int | None:
+        """Best-effort extraction of Retry-After (seconds) from OpenAI exceptions."""
+        resp = getattr(exc, "response", None)
+        headers = getattr(resp, "headers", None)
+        if not headers:
+            return None
+        ra = headers.get("retry-after") or headers.get("Retry-After")
+        if not ra:
+            return None
+        try:
+            return int(ra)
+        except ValueError:
+            return None
 
-def _extract_retry_after_seconds(self, exc: Exception) -> int | None:
-    """Best-effort extraction of Retry-After (seconds) from OpenAI exceptions."""
-    resp = getattr(exc, "response", None)
-    headers = getattr(resp, "headers", None)
-    if not headers:
-        return None
-    ra = headers.get("retry-after") or headers.get("Retry-After")
-    if not ra:
-        return None
-    try:
-        return int(ra)
-    except ValueError:
-        return None
-
-def _translate_openai_error(self, exc: Exception, *, operation: str) -> BaseAppException:
-    """Map OpenAI SDK errors into domain exceptions with correct retry semantics."""
-    request_id = getattr(exc, "request_id", None)
-    status_code = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
-
-    # Authentication/config errors: fail fast (no retry).
-    if isinstance(exc, AuthenticationError):
-        return ConfigurationError(
-            message=f"LLM authentication failed during {operation}",
-            details={"operation": operation, "request_id": request_id, "status_code": status_code},
-            original_exception=exc,
+    def _translate_openai_error(
+        self, exc: Exception, *, operation: str
+    ) -> BaseAppException:
+        """Map OpenAI SDK errors into domain exceptions with correct retry semantics."""
+        request_id = getattr(exc, "request_id", None)
+        status_code = getattr(exc, "status_code", None) or getattr(
+            getattr(exc, "response", None), "status_code", None
         )
 
-    # Caller / prompt errors: permanent (no retry).
-    if isinstance(exc, BadRequestError):
-        return IntegrationError(
-            message=f"LLM request rejected during {operation}",
-            details={"operation": operation, "request_id": request_id, "status_code": status_code, "error": str(exc)},
-            original_exception=exc,
-        )
-
-    # Rate limiting / transient upstream failures: retryable.
-    if isinstance(exc, RateLimitError):
-        return ServiceUnavailableError(
-            message=f"LLM rate limited during {operation}",
-            retry_after=self._extract_retry_after_seconds(exc),
-            details={"operation": operation, "request_id": request_id, "status_code": status_code},
-            original_exception=exc,
-        )
-
-    if isinstance(exc, (APIConnectionError, APITimeoutError)):
-        return ServiceUnavailableError(
-            message=f"LLM network/timeout failure during {operation}",
-            details={"operation": operation, "request_id": request_id},
-            original_exception=exc,
-        )
-
-    if isinstance(exc, APIStatusError):
-        # 5xx / 429: transient; other status: treat as non-retriable integration error.
-        if status_code == 429 or (isinstance(status_code, int) and status_code >= 500):
-            return ServiceUnavailableError(
-                message=f"LLM upstream error during {operation}",
-                retry_after=self._extract_retry_after_seconds(exc),
-                details={"operation": operation, "request_id": request_id, "status_code": status_code},
+        # Authentication/config errors: fail fast (no retry).
+        if isinstance(exc, AuthenticationError):
+            return ConfigurationError(
+                message=f"LLM authentication failed during {operation}",
+                details={
+                    "operation": operation,
+                    "request_id": request_id,
+                    "status_code": status_code,
+                },
                 original_exception=exc,
             )
-        return IntegrationError(
-            message=f"LLM returned non-retriable status during {operation}",
-            details={"operation": operation, "request_id": request_id, "status_code": status_code, "error": str(exc)},
-            original_exception=exc,
-        )
 
-    if isinstance(exc, APIError):
-        return ServiceUnavailableError(
-            message=f"LLM API error during {operation}",
-            details={"operation": operation, "request_id": request_id, "status_code": status_code},
-            original_exception=exc,
-        )
+        # Caller / prompt errors: permanent (no retry).
+        if isinstance(exc, BadRequestError):
+            return IntegrationError(
+                message=f"LLM request rejected during {operation}",
+                details={
+                    "operation": operation,
+                    "request_id": request_id,
+                    "status_code": status_code,
+                    "error": str(exc),
+                },
+                original_exception=exc,
+            )
 
-    # Unknown exception: preserve original but mark as integration.
-    return IntegrationError(
-        message=f"Unexpected LLM error during {operation}",
-        details={"operation": operation, "request_id": request_id, "status_code": status_code, "error": str(exc)},
-        original_exception=exc,
-    )
+        # Rate limiting / transient upstream failures: retryable.
+        if isinstance(exc, RateLimitError):
+            return ServiceUnavailableError(
+                message=f"LLM rate limited during {operation}",
+                retry_after=self._extract_retry_after_seconds(exc),
+                details={
+                    "operation": operation,
+                    "request_id": request_id,
+                    "status_code": status_code,
+                },
+                original_exception=exc,
+            )
 
-async def _call_openai(self, operation: str, coro_factory: Any, *, retry: bool = True) -> Any:
-    """Execute an OpenAI SDK call with bulkhead + timeout + retry + circuit breaker."""
+        if isinstance(exc, (APIConnectionError, APITimeoutError)):
+            return ServiceUnavailableError(
+                message=f"LLM network/timeout failure during {operation}",
+                details={"operation": operation, "request_id": request_id},
+                original_exception=exc,
+            )
 
-    async def _protected() -> Any:
-        async with self._sem:
-            try:
-                return await TimeoutManager.with_timeout(
-                    coro_factory(),
-                    timeout_seconds=self._timeout_s,
-                    timeout_exception=ServiceUnavailableError(
-                        message=f"LLM operation timed out during {operation}",
-                        details={"operation": operation, "timeout_s": self._timeout_s},
-                    ),
+        if isinstance(exc, APIStatusError):
+            # 5xx / 429: transient; other status: treat as non-retriable integration error.
+            if status_code == 429 or (
+                isinstance(status_code, int) and status_code >= 500
+            ):
+                return ServiceUnavailableError(
+                    message=f"LLM upstream error during {operation}",
+                    retry_after=self._extract_retry_after_seconds(exc),
+                    details={
+                        "operation": operation,
+                        "request_id": request_id,
+                        "status_code": status_code,
+                    },
+                    original_exception=exc,
                 )
-            except (
-                AuthenticationError,
-                RateLimitError,
-                APIConnectionError,
-                BadRequestError,
-                APIError,
-                APITimeoutError,
-                APIStatusError,
-            ) as exc:
-                raise self._translate_openai_error(exc, operation=operation) from exc
+            return IntegrationError(
+                message=f"LLM returned non-retriable status during {operation}",
+                details={
+                    "operation": operation,
+                    "request_id": request_id,
+                    "status_code": status_code,
+                    "error": str(exc),
+                },
+                original_exception=exc,
+            )
 
-    async def _cb_call() -> Any:
-        return await self._cb.call(_protected)
+        if isinstance(exc, APIError):
+            return ServiceUnavailableError(
+                message=f"LLM API error during {operation}",
+                details={
+                    "operation": operation,
+                    "request_id": request_id,
+                    "status_code": status_code,
+                },
+                original_exception=exc,
+            )
 
-    if not retry:
-        return await _cb_call()
+        # Unknown exception: preserve original but mark as integration.
+        return IntegrationError(
+            message=f"Unexpected LLM error during {operation}",
+            details={
+                "operation": operation,
+                "request_id": request_id,
+                "status_code": status_code,
+                "error": str(exc),
+            },
+            original_exception=exc,
+        )
 
-    return await self._retry.execute(_cb_call)
+    async def _call_openai(
+        self, operation: str, coro_factory: Any, *, retry: bool = True
+    ) -> Any:
+        """Execute an OpenAI SDK call with bulkhead + timeout + retry + circuit breaker."""
 
-async def _chat_completion(
-    self,
-    *,
-    operation: str,
-    messages: list[dict[str, str]] | list[dict[str, Any]],
-    stream: bool = False,
-    **kwargs: Any,
-) -> Any:
-    """Helper around ``chat.completions.create`` with resilience."""
-    return await self._call_openai(
-        operation,
-        lambda: self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            stream=stream,
-            **kwargs,
-        ),
-        retry=not stream,  # streaming retries are dangerous; only retry creation errors
-    )
+        async def _protected() -> Any:
+            async with self._sem:
+                try:
+                    return await TimeoutManager.with_timeout(
+                        coro_factory(),
+                        timeout_seconds=self._timeout_s,
+                        timeout_exception=ServiceUnavailableError(
+                            message=f"LLM operation timed out during {operation}",
+                            details={
+                                "operation": operation,
+                                "timeout_s": self._timeout_s,
+                            },
+                        ),
+                    )
+                except (
+                    AuthenticationError,
+                    RateLimitError,
+                    APIConnectionError,
+                    BadRequestError,
+                    APIError,
+                    APITimeoutError,
+                    APIStatusError,
+                ) as exc:
+                    raise self._translate_openai_error(
+                        exc, operation=operation
+                    ) from exc
+
+        async def _cb_call() -> Any:
+            return await self._cb.call(_protected)
+
+        if not retry:
+            return await _cb_call()
+
+        return await self._retry.execute(_cb_call)
+
+    async def _chat_completion(
+        self,
+        *,
+        operation: str,
+        messages: list[dict[str, str]] | list[dict[str, Any]],
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Helper around ``chat.completions.create`` with resilience."""
+        return await self._call_openai(
+            operation,
+            lambda: self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=stream,
+                **kwargs,
+            ),
+            retry=not stream,  # streaming retries are dangerous; only retry creation errors
+        )
+
     async def generate_response_with_tools(
         self,
         messages: list[dict[str, str]],
@@ -398,9 +489,9 @@ async def _chat_completion(
             max_tok = max_tokens if max_tokens is not None else self.default_max_tokens
 
             for iteration in range(max_tool_iterations):
-                # LLM call with tools
-                response = await self.client.chat.completions.create(
-                    model=self.model,
+                # LLM call with tools using _chat_completion for resilience
+                response = await self._chat_completion(
+                    operation="tool_completion",
                     messages=current_messages,
                     tools=tools if tools else None,
                     temperature=temp,
@@ -427,7 +518,10 @@ async def _chat_completion(
                             {
                                 "id": tc.id,
                                 "type": "function",
-                                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
                             }
                             for tc in message.tool_calls
                         ],
@@ -459,11 +553,24 @@ async def _chat_completion(
             return "Sorry, I reached the tool iteration limit. Please rephrase your question more specifically."
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, KeyError, AttributeError, IndexError)):
+            if isinstance(
+                e,
+                (
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    IndexError,
+                ),
+            ):
                 raise
             logger.error("Error in generate_response_with_tools: %s", e, exc_info=True)
             # Fallback para resposta sem tools
-            return await self.generate_response(messages, temperature=temperature, max_tokens=max_tokens)
+            return await self.generate_response(
+                messages, temperature=temperature, max_tokens=max_tokens
+            )
 
     async def generate_response(
         self,
@@ -496,10 +603,14 @@ async def _chat_completion(
         top_p = self.default_top_p if top_p is None else top_p
         max_tokens = self.default_max_tokens if max_tokens is None else max_tokens
         frequency_penalty = (
-            self.default_frequency_penalty if frequency_penalty is None else frequency_penalty
+            self.default_frequency_penalty
+            if frequency_penalty is None
+            else frequency_penalty
         )
         presence_penalty = (
-            self.default_presence_penalty if presence_penalty is None else presence_penalty
+            self.default_presence_penalty
+            if presence_penalty is None
+            else presence_penalty
         )
 
         logger.info("Generating LLM response with model: %s", self.model)
@@ -519,8 +630,8 @@ async def _chat_completion(
                     chunks.append(piece)
                 content = "".join(chunks)
             else:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
+                response = await self._chat_completion(
+                    operation="chat_completion",
                     messages=messages,
                     temperature=temperature,
                     top_p=top_p,
@@ -554,9 +665,21 @@ async def _chat_completion(
             ) from exc
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # Re-raise critical system exceptions and programming errors
-            if isinstance(exc, (BaseAppException, SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, AttributeError)):
+            if isinstance(
+                exc,
+                (
+                    BaseAppException,
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    AttributeError,
+                ),
+            ):
                 raise
-            logger.error("Unexpected error generating LLM response: %s", exc, exc_info=True)
+            logger.error(
+                "Unexpected error generating LLM response: %s", exc, exc_info=True
+            )
             raise IntegrationError(
                 message="Failed to generate LLM response",
                 details={"error": str(exc), "model": self.model},
@@ -613,7 +736,9 @@ async def _chat_completion(
             APITimeoutError,
             APIStatusError,
         ) as exc:
-            logger.error("Error generating streaming LLM response: %s", exc, exc_info=True)
+            logger.error(
+                "Error generating streaming LLM response: %s", exc, exc_info=True
+            )
             raise IntegrationError(
                 message="Failed to generate streaming LLM response",
                 details={
@@ -624,7 +749,17 @@ async def _chat_completion(
             ) from exc
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # Re-raise critical system exceptions and programming errors
-            if isinstance(exc, (BaseAppException, SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, AttributeError)):
+            if isinstance(
+                exc,
+                (
+                    BaseAppException,
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    AttributeError,
+                ),
+            ):
                 raise
             logger.error(
                 "Unexpected error generating streaming LLM response: %s",
@@ -660,7 +795,9 @@ async def _chat_completion(
         """
         agent_type = (agent_config or {}).get("type", "general")
         agent_name = (agent_config or {}).get("name", f"Agente {agent_id}")
-        agent_description = (agent_config or {}).get("description", f"Assistente {agent_type}")
+        agent_description = (agent_config or {}).get(
+            "description", f"Assistente {agent_type}"
+        )
 
         # Try to get prompt from LangFuse/PromptManager
         system_message = None
@@ -688,7 +825,9 @@ async def _chat_completion(
                     )
             except Exception as e:
                 # Re-raise critical system exceptions
-                if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+                if isinstance(
+                    e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+                ):
                     raise
                 logger.warning("prompt_manager_fallback", error=str(e))
 
@@ -709,11 +848,15 @@ async def _chat_completion(
         # Use tracer if available
         if LANGFUSE_INTEGRATION:
             tracer = get_tracer()
-            async with tracer.trace("generate_agent_response", model=self.model) as trace:
+            async with tracer.trace(
+                "generate_agent_response", model=self.model
+            ) as trace:
                 response = await self.generate_response(messages, max_tokens=800)
                 trace.output = response
-                trace.input_tokens = sum(len(m.get("content", "").split()) * 2 for m in messages)
-                trace.output_tokens = len(response.split()) * 2
+                trace.input_tokens = sum(
+                    _count_tokens(m.get("content", "")) for m in messages
+                )
+                trace.output_tokens = _count_tokens(response)
                 return response
 
         return await self.generate_response(messages, max_tokens=800)
@@ -752,7 +895,7 @@ async def _chat_completion(
                 context=context,
                 source_name=source_name,
                 strict_mode=True,
-                language="pt"  # Default to Portuguese for Resync
+                language="pt",  # Default to Portuguese for Resync
             )
 
             messages: list[dict[str, str]] = [
@@ -777,10 +920,14 @@ async def _chat_completion(
 
                     if prompt:
                         system_message = prompt.compile(rag_context=context)
-                        logger.debug("rag_prompt_loaded_from_manager", prompt_id=prompt.id)
+                        logger.debug(
+                            "rag_prompt_loaded_from_manager", prompt_id=prompt.id
+                        )
                 except Exception as e:
                     # Re-raise critical system exceptions
-                    if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+                    if isinstance(
+                        e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+                    ):
                         raise
                     logger.warning("rag_prompt_manager_fallback", error=str(e))
 
@@ -794,7 +941,9 @@ async def _chat_completion(
                     f"Relevant Context:\n{context}"
                 )
 
-            messages: list[dict[str, str]] = [{"role": "system", "content": system_message}]
+            messages: list[dict[str, str]] = [
+                {"role": "system", "content": system_message}
+            ]
             if conversation_history:
                 messages.extend(conversation_history[-3:])
 
@@ -803,13 +952,19 @@ async def _chat_completion(
         # Generate initial response
         response = await self.generate_response(messages, max_tokens=1000)
 
-        # === SELF-RAG: Hallucination Check ===
+        # === SELF-RAG: Hallucination Check (opt-in) ===
         # Verify that the response is grounded in the provided context
-        is_grounded, reflection = await self._check_hallucination(
-            query=query,
-            context=context,
-            response=response,
-        )
+        # Controlled by SELF_RAG_SAMPLE_RATE env var (default: 0.0 = disabled)
+        self_rag_sample_rate = float(os.getenv("SELF_RAG_SAMPLE_RATE", "0.0"))
+        is_grounded = True
+        reflection = "self_rag_disabled"
+
+        if random.random() < self_rag_sample_rate:
+            is_grounded, reflection = await self._check_hallucination(
+                query=query,
+                context=context,
+                response=response,
+            )
 
         if not is_grounded:
             logger.warning(
@@ -826,7 +981,9 @@ async def _chat_completion(
                     f"Context:\n{context}\n\nQuestion: {query}"
                 )
                 messages[-1] = {"role": "user", "content": strict_prompt}
-                response = await self.generate_response(messages, max_tokens=1000, temperature=0.2)
+                response = await self.generate_response(
+                    messages, max_tokens=1000, temperature=0.2
+                )
 
                 logger.info("self_rag_regenerated", query=query[:50])
             except Exception as e:
@@ -846,11 +1003,13 @@ async def _chat_completion(
                     "opinion_based": use_opinion_based,
                     "self_rag_grounded": is_grounded,
                     "self_rag_reflection": reflection,
-                }
+                },
             ) as trace:
                 trace.output = response
-                trace.input_tokens = sum(len(m.get("content", "").split()) * 2 for m in messages)
-                trace.output_tokens = len(response.split()) * 2
+                trace.input_tokens = sum(
+                    _count_tokens(m.get("content", "")) for m in messages
+                )
+                trace.output_tokens = _count_tokens(response)
                 return response
 
         return response
@@ -952,7 +1111,18 @@ Is the answer fully grounded in the context? Respond with ONLY:
             }
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, KeyError, AttributeError, IndexError)):
+            if isinstance(
+                exc,
+                (
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    IndexError,
+                ),
+            ):
                 raise
             logger.error("exception_caught", error=str(exc), exc_info=True)
             return {
@@ -970,7 +1140,6 @@ Is the answer fully grounded in the context? Respond with ONLY:
             if asyncio.iscoroutine(close_result):
                 await close_result
 
-
     async def close(self) -> None:
         """Alias for graceful shutdown (used by wiring teardown)."""
         await self.aclose()
@@ -980,9 +1149,16 @@ Is the answer fully grounded in the context? Respond with ONLY:
         await self.aclose()
 
 
-# Singleton idempotente, sem globals mutáveis
-@lru_cache(maxsize=1)
-def get_llm_service() -> LLMService:
-    """Get or create global LLM service instance."""
-    return LLMService()
+# Thread-safe singleton initialization
+_llm_service_lock = asyncio.Lock()
+_llm_service_instance: LLMService | None = None
 
+
+async def get_llm_service() -> LLMService:
+    """Get or create global LLM service instance (thread-safe)."""
+    global _llm_service_instance
+    if _llm_service_instance is None:
+        async with _llm_service_lock:
+            if _llm_service_instance is None:
+                _llm_service_instance = LLMService()
+    return _llm_service_instance

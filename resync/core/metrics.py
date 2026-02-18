@@ -315,6 +315,16 @@ class RuntimeMetrics:
         self.tws_connection_success_rate = MetricGauge()
         self.ai_agent_response_time = MetricHistogram(help_text="AI agent response time seconds")
 
+        # Orchestration Metrics (Multi-Agent Workflows)
+        self.orchestration_executions_total = MetricCounter()
+        self.orchestration_executions_success = MetricCounter()
+        self.orchestration_executions_failed = MetricCounter()
+        self.orchestration_steps_completed = MetricCounter()
+        self.orchestration_steps_failed = MetricCounter()
+        self.orchestration_active_executions = MetricGauge()
+        self.orchestration_execution_time = MetricHistogram(help_text="Orchestration execution duration seconds")
+        self.orchestration_step_time = MetricHistogram(help_text="Orchestration step duration seconds")
+
         # Correlation tracking
         self._correlation_context: dict[str, dict[str, Any]] = {}
         self._correlation_lock = threading.Lock()

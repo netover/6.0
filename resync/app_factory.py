@@ -82,23 +82,18 @@ class CachedStaticFiles(StarletteStaticFiles):
                     # Fallback: file stat not available, use path hash
                     file_metadata = None
 
-                if file_metadata is None:
-                    # Fallback to deterministic hash of path if metadata fails
-                    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
-                else:
+                if file_metadata is not None:
                     hash_len = getattr(
                         settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
                     )
                     digest = hashlib.sha256(file_metadata.encode()).hexdigest()[
                         :hash_len
                     ]
-
-                response.headers["ETag"] = f'"{digest}"'
+                    response.headers["ETag"] = f'"{digest}"'
             except Exception as exc:
                 logger.warning("failed_to_generate_etag", error=str(exc))
-                # Fallback to deterministic hash of path if metadata fails
-                digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
-                response.headers["ETag"] = f'"{digest}"'
+                # Don't generate ETag if we can't get file metadata
+                # This prevents serving stale content indefinitely
 
         return response
 
@@ -435,7 +430,9 @@ class ApplicationFactory:
             self.app.include_router(enhanced_router)
             self.app.include_router(orchestration_router, prefix="/api/v1")
             logger.info("enhanced_endpoints_registered", prefix="/api/v2")
-            logger.info("orchestration_router_registered", prefix="/api/v1/orchestration")
+            logger.info(
+                "orchestration_router_registered", prefix="/api/v1/orchestration"
+            )
         except ImportError as e:
             if settings.is_development:
                 logger.error("enhanced_endpoints_not_available", error=str(e))
@@ -694,7 +691,14 @@ class ApplicationFactory:
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
         async def csp_violation_report(request: Request):
-            """Handle CSP violation reports."""
+            """Handle CSP violation reports with payload size limit."""
+            # Limit payload size to prevent DoS
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > 4096:
+                return JSONResponse(
+                    {"status": "ignored", "reason": "payload_too_large"},
+                    status_code=413,
+                )
             return await self._handle_csp_report(request)
 
         logger.info("special_endpoints_registered")
@@ -734,7 +738,7 @@ class ApplicationFactory:
                 "settings": {
                     "project_name": settings.project_name,
                     "version": settings.project_version,
-                    "environment": settings.environment.value,
+                    # Security: don't expose environment to prevent fingerprinting
                 },
             }
             return self.templates.TemplateResponse(template_name, context)
