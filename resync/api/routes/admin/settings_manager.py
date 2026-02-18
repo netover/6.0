@@ -149,6 +149,17 @@ SETTINGS_SCHEMA = {
             "langgraph_require_approval": {"type": "boolean", "label": "Requer Aprovação Humana", "hot_reload": True},
         }
     },
+    "orchestration": {
+        "title": "Orquestração Multi-Agente",
+        "icon": "fa-project-diagram",
+        "description": "Configurações do novo motor de orquestração",
+        "fields": {
+            "orchestration_enabled": {"type": "boolean", "label": "Habilitado", "hot_reload": True},
+            "orchestration_execution_ttl_days": {"type": "number", "label": "Retenção de Execuções (dias)", "min": 1, "max": 365, "hot_reload": True},
+            "orchestration_default_strategy": {"type": "select", "options": ["sequential", "parallel", "consensus", "fallback"], "label": "Estratégia Padrão", "hot_reload": True},
+            "orchestration_parallel_max_workers": {"type": "number", "label": "Max Parallel Workers", "min": 1, "max": 32, "hot_reload": True},
+        }
+    },
     "a2a": {
         "title": "A2A Protocol",
         "icon": "fa-exchange-alt",

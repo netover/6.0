@@ -85,7 +85,7 @@ class RagComponentsManager:
 
             try:
                 self._embedding_service = EmbeddingService()
-                self._vector_store = await get_vector_store()
+                self._vector_store = get_vector_store()
                 self._retriever = RagRetriever(self._embedding_service, self._vector_store)
                 self._ingest_service = IngestService(self._embedding_service, self._vector_store)
 

@@ -430,9 +430,12 @@ class ApplicationFactory:
         # v5.9.9: Enhanced endpoints (orchestrator-based)
         try:
             from resync.api.enhanced_endpoints import enhanced_router
+            from resync.api.routes.orchestration import router as orchestration_router
 
             self.app.include_router(enhanced_router)
+            self.app.include_router(orchestration_router, prefix="/api/v1")
             logger.info("enhanced_endpoints_registered", prefix="/api/v2")
+            logger.info("orchestration_router_registered", prefix="/api/v1/orchestration")
         except ImportError as e:
             if settings.is_development:
                 logger.error("enhanced_endpoints_not_available", error=str(e))
