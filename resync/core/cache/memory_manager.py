@@ -4,51 +4,39 @@ Memory management functionality for the async cache system.
 This module provides the CacheMemoryManager class that handles memory bounds checking
 and intelligent eviction strategies for the async cache implementation.
 """
-
 from __future__ import annotations
-
 import logging
 import sys
 import time
 from typing import Any
-
-# Use runtime_metrics from the core metrics module instead of the non‑existent
-# `resync_new` namespace. The runtime_metrics proxy provides counters and
-# histogram functions for monitoring cache usage and correlations.
 try:
-    # Prefer the official metrics module
-    from resync.core.metrics import runtime_metrics  # type: ignore[attr-defined]
+    from resync.core.metrics import runtime_metrics
 except Exception as _e:
-    # Fallback: define a minimal runtime_metrics proxy with no‑ops to avoid
-    # runtime errors if the metrics subsystem is unavailable. This allows the
-    # cache memory manager to operate even when instrumentation is disabled.
+
     class _DummyRuntimeMetrics:
         """_ dummy runtime metrics."""
 
         def __getattr__(self, name):
+
             class _Metric:
                 """_ metric."""
 
-                def increment(self, *args, **kwargs):  # noqa: D401
+                def increment(self, *args, **kwargs):
                     """No‑op increment for missing metrics."""
 
-                def observe(self, *args, **kwargs):  # noqa: D401
+                def observe(self, *args, **kwargs):
                     """No‑op observe for missing metrics."""
 
-                def set(self, *args, **kwargs):  # noqa: D401
+                def set(self, *args, **kwargs):
                     """No‑op set for missing metrics."""
 
                 @property
-                def value(self):  # noqa: D401
+                def value(self):
                     """Returns a default value of 0 for missing metrics."""
                     return 0
-
             return _Metric()
-
-    runtime_metrics = _DummyRuntimeMetrics()  # type: ignore[assignment]
-
+    runtime_metrics = _DummyRuntimeMetrics()
 logger = logging.getLogger(__name__)
-
 
 class CacheEntry:
     """
@@ -62,22 +50,14 @@ class CacheEntry:
     """
 
     def __init__(self, data: Any, timestamp: float, ttl: float):
-        # Original API passes in a single timestamp. Treat this as the creation
-        # time. Both created_at and last_accessed_at are initially the same. A
-        # ``timestamp`` attribute is retained as an alias to last_accessed_at so
-        # existing callers referencing ``entry.timestamp`` continue to behave
-        # correctly (timestamp now reflects last access time).
         self.data = data
         self.created_at: float = timestamp
         self.last_accessed_at: float = timestamp
         self.ttl = ttl
-        # Provide alias for backwards compatibility
         self.timestamp: float = self.last_accessed_at
-        # ``value`` attribute maintained for direct access by higher level
-        # caching strategies.
         self.value = data
 
-    def is_expired(self, current_time: float | None = None) -> bool:
+    def is_expired(self, current_time: float | None=None) -> bool:
         """
         Check if the cache entry has expired based on its creation time and TTL.
 
@@ -89,10 +69,7 @@ class CacheEntry:
         """
         if current_time is None:
             current_time = time.time()
-        # Use created_at instead of last_accessed_at for TTL calculations. This
-        # ensures entries expire relative to when they were inserted, not when
-        # they were last accessed.
-        return current_time > (self.created_at + self.ttl)
+        return current_time > self.created_at + self.ttl
 
     def refresh_access(self) -> None:
         """
@@ -107,7 +84,6 @@ class CacheEntry:
         self.last_accessed_at = now
         self.timestamp = now
 
-
 class CacheMemoryManager:
     """
     Manages memory bounds and eviction strategies for the async cache.
@@ -121,13 +97,7 @@ class CacheMemoryManager:
     efficient memory management across multiple cache shards.
     """
 
-    def __init__(
-        self,
-        max_entries: int = 100000,
-        max_memory_mb: int = 100,
-        paranoia_mode: bool = False,
-        enable_weak_refs: bool = False,
-    ):
+    def __init__(self, max_entries: int=100000, max_memory_mb: int=100, paranoia_mode: bool=False, enable_weak_refs: bool=False):
         """
         Initialize the cache memory manager.
 
@@ -139,11 +109,9 @@ class CacheMemoryManager:
         self.max_entries = max_entries
         self.max_memory_mb = max_memory_mb
         self.paranoia_mode = paranoia_mode
-
-        # In paranoia mode, lower the bounds significantly
         if self.paranoia_mode:
-            self.max_entries = min(self.max_entries, 10000)  # Max 10K entries
-            self.max_memory_mb = min(self.max_memory_mb, 10)  # Max 10MB
+            self.max_entries = min(self.max_entries, 10000)
+            self.max_memory_mb = min(self.max_memory_mb, 10)
 
     def check_memory_bounds(self, shards: list[dict[str, CacheEntry]], current_size: int) -> bool:
         """
@@ -156,37 +124,19 @@ class CacheMemoryManager:
         Returns:
             True if within bounds, False if too large or memory usage exceeded
         """
-        # Check item count bounds first
         if not self._check_item_count_bounds(current_size):
             return False
-
-        # Check memory usage bounds
         return self._check_memory_usage_bounds(shards, current_size)
 
     def _check_item_count_bounds(self, current_size: int) -> bool:
         """Check if item count is within safe bounds."""
         max_safe_size = self.max_entries
-
         if current_size > max_safe_size:
-            logger.warning(
-                f"Cache size {current_size} exceeds safe bounds {max_safe_size}",
-                extra={
-                    "correlation_id": runtime_metrics.create_correlation_id(
-                        {
-                            "component": "cache_memory_manager",
-                            "operation": "bounds_check",
-                            "current_size": current_size,
-                            "max_safe_size": max_safe_size,
-                        }
-                    )
-                },
-            )
+            logger.warning(f'Cache size {current_size} exceeds safe bounds {max_safe_size}', extra={'correlation_id': runtime_metrics.create_correlation_id({'component': 'cache_memory_manager', 'operation': 'bounds_check', 'current_size': current_size, 'max_safe_size': max_safe_size})})
             return False
         return True
 
-    def _check_memory_usage_bounds(
-        self, shards: list[dict[str, CacheEntry]], current_size: int
-    ) -> bool:
+    def _check_memory_usage_bounds(self, shards: list[dict[str, CacheEntry]], current_size: int) -> bool:
         """
         Check if memory usage is within safe bounds using sampling.
 
@@ -199,109 +149,40 @@ class CacheMemoryManager:
         """
         try:
             estimated_memory_mb = 0
-
-            # Calculate more accurate memory usage by sampling some entries
-            sample_size = min(100, current_size)  # Sample up to 100 entries
+            sample_size = min(100, current_size)
             sample_count = 0
             sample_memory = 0
-
             for shard in shards:
                 for key, entry in shard.items():
                     if sample_count >= sample_size:
                         break
-                    # Estimate memory for key and value
                     sample_memory += sys.getsizeof(key)
                     sample_memory += sys.getsizeof(entry.data)
-                    # Include both created_at and last_accessed_at for more accurate memory usage
                     sample_memory += sys.getsizeof(entry.created_at)
                     sample_memory += sys.getsizeof(entry.last_accessed_at)
                     sample_memory += sys.getsizeof(entry.ttl)
                     sample_count += 1
                 if sample_count >= sample_size:
                     break
-
-            # Extrapolate to full cache size
             if sample_count > 0:
                 avg_memory_per_item = sample_memory / sample_count
-                estimated_memory_mb = (avg_memory_per_item * current_size) / (1024 * 1024)
+                estimated_memory_mb = avg_memory_per_item * current_size / (1024 * 1024)
             else:
-                # Fallback to rough calculation if no items sampled
-                estimated_memory_mb = current_size * 0.5  # ~500KB per 1000 entries
-
-            # Check if we're approaching the memory limit (80% threshold)
+                estimated_memory_mb = current_size * 0.5
             memory_threshold = self.max_memory_mb * 0.8
             if estimated_memory_mb > memory_threshold:
-                # Trigger graceful degradation measures when approaching the limit
-                logger.warning(
-                    "Cache memory usage {estimated_memory_mb:.1f}MB approaching limit of {self.max_memory_mb}MB",
-                    extra={
-                        "correlation_id": runtime_metrics.create_correlation_id(
-                            {
-                                "component": "cache_memory_manager",
-                                "operation": "memory_bounds_approaching",
-                                "estimated_mb": estimated_memory_mb,
-                                "current_size": current_size,
-                                "sample_count": sample_count,
-                                "avg_memory_per_item": (
-                                    avg_memory_per_item if sample_count > 0 else 0
-                                ),
-                                "max_memory_mb": self.max_memory_mb,
-                                "threshold_reached": "80%",
-                            }
-                        )
-                    },
-                )
-
-                # Implement auto-tuning for cache parameters to reduce memory usage
+                logger.warning('Cache memory usage {estimated_memory_mb:.1f}MB approaching limit of {self.max_memory_mb}MB', extra={'correlation_id': runtime_metrics.create_correlation_id({'component': 'cache_memory_manager', 'operation': 'memory_bounds_approaching', 'estimated_mb': estimated_memory_mb, 'current_size': current_size, 'sample_count': sample_count, 'avg_memory_per_item': avg_memory_per_item if sample_count > 0 else 0, 'max_memory_mb': self.max_memory_mb, 'threshold_reached': '80%'})})
                 if estimated_memory_mb > self.max_memory_mb:
-                    logger.warning(
-                        "Estimated cache memory usage {estimated_memory_mb:.1f}MB exceeds {self.max_memory_mb}MB limit",
-                        extra={
-                            "correlation_id": runtime_metrics.create_correlation_id(
-                                {
-                                    "component": "cache_memory_manager",
-                                    "operation": "memory_bounds_exceeded",
-                                    "estimated_mb": estimated_memory_mb,
-                                    "current_size": current_size,
-                                    "sample_count": sample_count,
-                                    "avg_memory_per_item": (
-                                        avg_memory_per_item if sample_count > 0 else 0
-                                    ),
-                                    "max_memory_mb": self.max_memory_mb,
-                                }
-                            )
-                        },
-                    )
+                    logger.warning('Estimated cache memory usage {estimated_memory_mb:.1f}MB exceeds {self.max_memory_mb}MB limit', extra={'correlation_id': runtime_metrics.create_correlation_id({'component': 'cache_memory_manager', 'operation': 'memory_bounds_exceeded', 'estimated_mb': estimated_memory_mb, 'current_size': current_size, 'sample_count': sample_count, 'avg_memory_per_item': avg_memory_per_item if sample_count > 0 else 0, 'max_memory_mb': self.max_memory_mb})})
                     return False
-
         except Exception as e:
-            # If memory estimation fails, log and continue with basic size check
-            logger.warning(
-                f"Failed to estimate memory usage: {e}, proceeding with basic size check",
-                extra={
-                    "correlation_id": runtime_metrics.create_correlation_id(
-                        {
-                            "component": "cache_memory_manager",
-                            "operation": "memory_bounds_check_error",
-                            "error": str(e),
-                        }
-                    )
-                },
-            )
-            # If we can't estimate memory, just check the size limit
+            logger.warning(f'Failed to estimate memory usage: {e}, proceeding with basic size check', extra={'correlation_id': runtime_metrics.create_correlation_id({'component': 'cache_memory_manager', 'operation': 'memory_bounds_check_error', 'error': str(e)})})
             max_safe_size = self.max_entries
             if current_size > max_safe_size:
                 return False
-
         return True
 
-    async def evict_to_fit(
-        self,
-        shards: list[dict[str, CacheEntry]],
-        shard_locks: list[Any],
-        required_bytes: int,
-        exclude_key: str | None = None,
-    ) -> int:
+    async def evict_to_fit(self, shards: list[dict[str, CacheEntry]], shard_locks: list[Any], required_bytes: int, exclude_key: str | None=None) -> int:
         """
         Evict entries asynchronously to make room for new data requiring the specified number of bytes.
 
@@ -319,38 +200,20 @@ class CacheMemoryManager:
         Returns:
             Approximate number of bytes freed via evictions.
         """
-        correlation_id = runtime_metrics.create_correlation_id(
-            {
-                "component": "cache_memory_manager",
-                "operation": "evict_to_fit",
-                "required_bytes": required_bytes,
-                "exclude_key": exclude_key,
-            }
-        )
-
+        correlation_id = runtime_metrics.create_correlation_id({'component': 'cache_memory_manager', 'operation': 'evict_to_fit', 'required_bytes': required_bytes, 'exclude_key': exclude_key})
         try:
             bytes_freed = 0
             eviction_count = 0
-            max_evictions = len(shards) * 2  # Prevent infinite loop
-
-            # Continue evicting while we need more space or are over memory bounds
-            while (
-                (bytes_freed < required_bytes)
-                or (not self._check_memory_usage_bounds(shards, sum(len(s) for s in shards)))
-            ) and eviction_count < max_evictions:
-                # Identify the LRU key to evict, skipping the newly added key
+            max_evictions = len(shards) * 2
+            while (bytes_freed < required_bytes or not self._check_memory_usage_bounds(shards, sum((len(s) for s in shards)))) and eviction_count < max_evictions:
                 lru_key = None
                 lru_shard_idx: int | None = None
-
-                # If exclude_key is provided, try to find LRU within its shard first
                 if exclude_key:
                     for i, shard in enumerate(shards):
                         if exclude_key in shard:
                             lru_key = self._get_lru_key(shard, exclude_key)
                             lru_shard_idx = i
                             break
-
-                # If not found or no exclude_key, search across all shards
                 if lru_key is None:
                     for i, shard in enumerate(shards):
                         candidate_key = self._get_lru_key(shard, exclude_key)
@@ -358,23 +221,16 @@ class CacheMemoryManager:
                             lru_key = candidate_key
                             lru_shard_idx = i
                             break
-
-                # If no candidate found, nothing more to evict
                 if not lru_key or lru_shard_idx is None:
                     break
-
                 shard = shards[lru_shard_idx]
                 lock = shard_locks[lru_shard_idx]
 
-                async def do_eviction(
-                    *, lock=lock, lru_key=lru_key, shard=shard
-                ) -> bool:
+                async def do_eviction(*, lock=lock, lru_key=lru_key, shard=shard) -> bool:
                     nonlocal bytes_freed
                     async with lock:
-                        # Double check existence after acquiring lock
                         if lru_key in shard:
                             entry = shard[lru_key]
-                            # Approximate freed bytes: key, data and metadata
                             bytes_freed += sys.getsizeof(lru_key)
                             bytes_freed += sys.getsizeof(entry.data)
                             bytes_freed += sys.getsizeof(entry.created_at)
@@ -384,40 +240,22 @@ class CacheMemoryManager:
                             runtime_metrics.cache_evictions.increment()
                             return True
                     return False
-
-                # Await eviction; do not call asyncio.run from within async
                 evicted = await do_eviction()
                 if evicted:
                     eviction_count += 1
-                    log_with_correlation(
-                        logging.DEBUG,
-                        f"LRU eviction freed key: {lru_key}",
-                        correlation_id,
-                    )
+                    log_with_correlation(logging.DEBUG, f'LRU eviction freed key: {lru_key}', correlation_id)
                 else:
                     break
-
-            log_with_correlation(
-                logging.DEBUG,
-                f"Eviction completed: freed {bytes_freed} bytes via {eviction_count} evictions",
-                correlation_id,
-            )
+            log_with_correlation(logging.DEBUG, f'Eviction completed: freed {bytes_freed} bytes via {eviction_count} evictions', correlation_id)
             return bytes_freed
-
         except Exception as e:
-            logger.error("exception_caught", error=str(e), exc_info=True)
-            log_with_correlation(
-                logging.ERROR,
-                f"Error during eviction: {e}",
-                correlation_id,
-            )
+            logger.error('exception_caught', exc_info=True, extra={'error': str(e)})
+            log_with_correlation(logging.ERROR, f'Error during eviction: {e}', correlation_id)
             return 0
         finally:
             runtime_metrics.close_correlation_id(correlation_id)
 
-    def _get_lru_key(
-        self, shard: dict[str, CacheEntry], exclude_key: str | None = None
-    ) -> str | None:
+    def _get_lru_key(self, shard: dict[str, CacheEntry], exclude_key: str | None=None) -> str | None:
         """
         Get the least recently used key in a shard, excluding specified key.
 
@@ -430,19 +268,14 @@ class CacheMemoryManager:
         """
         if not shard:
             return None
-
-        # Find the entry with the oldest timestamp
         lru_key = None
-        lru_timestamp = float("inf")
-
+        lru_timestamp = float('inf')
         for key, entry in shard.items():
             if exclude_key and key == exclude_key:
                 continue
-
             if entry.timestamp < lru_timestamp:
                 lru_timestamp = entry.timestamp
                 lru_key = key
-
         return lru_key
 
     def estimate_cache_memory_usage(self, shards: list[dict[str, CacheEntry]]) -> float:
@@ -458,31 +291,21 @@ class CacheMemoryManager:
         try:
             total_memory = 0
             total_entries = 0
-
             for shard in shards:
                 for key, entry in shard.items():
                     total_memory += sys.getsizeof(key)
                     total_memory += sys.getsizeof(entry.data)
-                    # Account for both creation and access timestamps separately. We keep
-                    # ``timestamp`` as an alias for last_accessed_at for backwards
-                    # compatibility; however, using both fields here provides a
-                    # more accurate approximation of total memory usage per entry.
                     total_memory += sys.getsizeof(entry.created_at)
                     total_memory += sys.getsizeof(entry.last_accessed_at)
                     total_memory += sys.getsizeof(entry.ttl)
                     total_entries += 1
-
             if total_entries == 0:
                 return 0.0
-
-            # Convert to MB
             return total_memory / (1024 * 1024)
-
         except Exception as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.warning("Failed to estimate cache memory usage: %s", e)
+            logger.warning('Failed to estimate cache memory usage: %s', e)
             return 0.0
 
     def get_memory_info(self, shards: list[dict[str, CacheEntry]]) -> dict[str, Any]:
@@ -495,35 +318,14 @@ class CacheMemoryManager:
         Returns:
             Dictionary with memory usage information
         """
-        current_size = sum(len(shard) for shard in shards)
+        current_size = sum((len(shard) for shard in shards))
         estimated_memory_mb = self.estimate_cache_memory_usage(shards)
-
-        return {
-            "current_size": current_size,
-            "estimated_memory_mb": estimated_memory_mb,
-            "max_entries": self.max_entries,
-            "max_memory_mb": self.max_memory_mb,
-            "paranoia_mode": self.paranoia_mode,
-            "within_bounds": self.check_memory_bounds(shards, current_size),
-            "memory_utilization_percent": (
-                (estimated_memory_mb / self.max_memory_mb * 100) if self.max_memory_mb > 0 else 0
-            ),
-        }
-
-
-# Import here to avoid circular imports
+        return {'current_size': current_size, 'estimated_memory_mb': estimated_memory_mb, 'max_entries': self.max_entries, 'max_memory_mb': self.max_memory_mb, 'paranoia_mode': self.paranoia_mode, 'within_bounds': self.check_memory_bounds(shards, current_size), 'memory_utilization_percent': estimated_memory_mb / self.max_memory_mb * 100 if self.max_memory_mb > 0 else 0}
 try:
-    # Use the log_with_correlation helper from the metrics module. This
-    # function logs messages and also records them against the current
-    # correlation_id in the runtime_metrics context. If the import fails we
-    # define a fallback implementation below.
-    from resync.core.metrics import log_with_correlation  # type: ignore[attr-defined]
+    from resync.core.metrics import log_with_correlation
 except Exception as e:
-    logger.error("exception_caught", error=str(e), exc_info=True)
+    logger.error('exception_caught', exc_info=True, extra={'error': str(e)})
 
-    # Fallback: basic logger when metrics is unavailable
-    def log_with_correlation(
-        level: int, message: str, correlation_id: str | None = None, **kwargs: Any
-    ) -> None:
+    def log_with_correlation(level: int, message: str, correlation_id: str | None=None, **kwargs: Any) -> None:
         """Log a message at the given level without correlation context."""
         logger.log(level, message, **kwargs)

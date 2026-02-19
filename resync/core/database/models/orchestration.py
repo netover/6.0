@@ -4,7 +4,7 @@ Orchestration Models - SQLAlchemy Async
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
@@ -102,7 +102,7 @@ class OrchestrationConfig(Base):
         Index("idx_configs_owner", "owner_id"),
         Index("idx_configs_tenant", "tenant_id"),
         Index("idx_configs_strategy", "strategy"),
-        Index("idx_configs_active", "is_active", postgresql_where=is_active == True),  # noqa: E712
+        Index("idx_configs_active", "is_active", postgresql_where=is_active.is_(True)),
     )
 
     def __repr__(self) -> str:

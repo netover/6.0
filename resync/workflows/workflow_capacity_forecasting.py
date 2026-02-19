@@ -25,6 +25,8 @@ import numpy as np
 import pandas as pd
 import structlog
 from resync.core.utils.llm_factories import LLMFactory
+from sqlalchemy.ext.asyncio import AsyncSession
+from resync.core.database import get_async_session
 
 POSTGRES_SAVER_AVAILABLE = False
 try:
@@ -40,25 +42,20 @@ try:
 except ImportError:
     END = "END"
     class StateGraph:  # type: ignore
-        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
 
 
-# AsyncPostgresSaver requires psycopg3 with libpq - fallback to MemorySaver if unavailable
 try:
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     POSTGRES_SAVER_AVAILABLE = True
 except ImportError:
-    # Fallback to older import path
     try:
         from langgraph_checkpoint_postgres import AsyncPostgresSaver
         POSTGRES_SAVER_AVAILABLE = True
     except ImportError:
         AsyncPostgresSaver = None  # type: ignore
         POSTGRES_SAVER_AVAILABLE = False
-
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from resync.core.database import get_async_session
 
 logger = structlog.get_logger(__name__)
 

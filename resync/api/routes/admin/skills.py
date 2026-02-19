@@ -99,11 +99,9 @@ async def get_skill(
         skill_name: Name of the skill
         include_content: Whether to include full content (default: True)
     """
-    from fastapi import Request
 
     # Get skill manager via DI
     # Note: Using direct instantiation as fallback
-    from resync.core.skill_manager import SkillManager
 
     skill_manager = SkillManager()
 
@@ -143,7 +141,6 @@ async def reload_skills(
     Admin-only endpoint. Useful after modifying SKILL.md files
     without restarting the server.
     """
-    from resync.core.skill_manager import SkillManager
 
     skill_manager = SkillManager()
     skill_manager.reload()
@@ -172,7 +169,6 @@ async def get_skills_for_intent(
 
     Useful for debugging intent-to-skill mapping.
     """
-    from resync.core.skill_manager import SkillManager
 
     skill_manager = SkillManager()
 

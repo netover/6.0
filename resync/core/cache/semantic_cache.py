@@ -18,7 +18,7 @@ import logging
 import struct
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from redisvl.index import SearchIndex
 from redisvl.query import VectorQuery
@@ -26,8 +26,6 @@ from redisvl.query import VectorQuery
 from resync.models.cache import CacheEntry, CacheResult
 from .embedding_model import (
     cosine_distance,
-    generate_embedding,
-    get_embedding_dimension,
 )
 from .redis_config import (
     RedisDatabase,
@@ -237,7 +235,6 @@ class SemanticCache:
         client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
         best_distance = float("inf")
         best_entry = None
-        best_key = None
 
         try:
             async for key in client.scan_iter(match=f"{self.KEY_PREFIX}*", count=100):
@@ -256,7 +253,6 @@ class SemanticCache:
                 if distance < best_distance:
                     best_distance = distance
                     best_entry = CacheEntry.from_dict(data)
-                    best_key = key
 
             if best_entry and best_distance <= self.threshold:
                 return CacheResult(hit=True, response=best_entry.response, distance=best_distance, entry=best_entry)

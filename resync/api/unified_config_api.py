@@ -14,6 +14,7 @@ Author: Resync Team
 Version: 5.9.9
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -68,9 +69,7 @@ async def get_all_configs():
         }
 
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get configs: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
 
@@ -109,9 +108,7 @@ async def get_config(config_name: str, section: str = None):
     except HTTPException:
         raise
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get config %s: %s", config_name, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
 
@@ -174,9 +171,7 @@ async def update_config(config_name: str, request: ConfigUpdateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to update config %s: %s", config_name, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
 
@@ -210,9 +205,7 @@ async def get_config_status():
         }
 
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get config status: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
 
@@ -336,9 +329,15 @@ async def restore_config_backup(filename: str):
                 detail="Backup not found"
             )
 
-        # Extract config name from filename
+        # Extract config name from filename using regex for safe parsing
         # Format: graphrag_20241225_150300.toml.bak
-        config_name = filename.split('_')[0]
+        match = re.match(r"^([a-zA-Z0-9]+)_", filename)
+        if not match:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid backup file nomenclature format. Expected: {config_name}_{timestamp}.toml.bak"
+            )
+        config_name = match.group(1)
 
         manager = get_config_manager()
 

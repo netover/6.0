@@ -1,7 +1,7 @@
 import json
 import pytest
 from pathlib import Path
-from resync.core.agent_router import IntentClassifier, Intent, RoutingMode
+from resync.core.agent_router import IntentClassifier, Intent
 
 def load_golden_cases():
     cases_path = Path(__file__).parent / "golden" / "intent_classifier_cases.json"

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from typing import Any
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.core.metrics.runtime_metrics import runtime_metrics
 
 router = APIRouter(prefix="/admin/routing", tags=["Admin", "Routing"])

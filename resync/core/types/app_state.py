@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Enterprise typed state stored on ``app.state.enterprise_state``.
 
 Starlette's ``app.state`` is dynamic. To make the application enterprise-grade and
@@ -15,6 +13,8 @@ We use a dataclass with ``slots=True`` to:
 References:
 - Starlette lifespan/state docs.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast

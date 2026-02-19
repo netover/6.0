@@ -54,6 +54,7 @@ from resync.core.langgraph.templates import (
     get_status_translation,
     render_template,
 )
+from resync.core.metrics import runtime_metrics
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 
@@ -66,8 +67,6 @@ try:
 except ImportError:
     SEMANTIC_CACHE_AVAILABLE = False
     SemanticCache = None
-
-from resync.core.metrics import runtime_metrics
 
 # LangGraph imports
 try:
@@ -236,7 +235,6 @@ def _get_router_cache() -> SemanticCache | None:
         # Note: In async context, prefer async_init_router_cache()
         try:
             # Try to acquire lock synchronously (works in sync context)
-            loop = asyncio.get_running_loop()
             # If we're in an async context, we can't use sync lock acquisition
             # Fall back to simple creation (best effort - race condition possible
             # but unlikely in practice due to GIL)

@@ -4,8 +4,7 @@ Orchestration Schemas
 Pydantic models for validation and typing of orchestration structures.
 """
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
-from uuid import UUID
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 

@@ -27,6 +27,22 @@ import httpx
 import structlog
 from email.utils import parsedate_to_datetime
 
+from resync.core.exceptions import (
+    TWSAuthenticationError,
+    TWSBadRequestError,
+    TWSConnectionError,
+    TWSRateLimitError,
+    TWSServerError,
+    TWSTimeoutError,
+    ResourceNotFoundError,
+)
+from resync.core.metrics_compat import Counter, Histogram
+from resync.services.tws_cache import (
+    CacheCategory,
+    enrich_response_with_cache_meta,
+    get_tws_cache,
+)
+
 logger = structlog.get_logger(__name__)
 
 # Optional OpenTelemetry instrumentation for HTTPX.
@@ -54,22 +70,6 @@ def _ensure_httpx_instrumented() -> None:
     finally:
         _HTTPX_OTEL_INSTRUMENTED = True
 
-
-from resync.core.exceptions import (
-    TWSAuthenticationError,
-    TWSBadRequestError,
-    TWSConnectionError,
-    TWSRateLimitError,
-    TWSServerError,
-    TWSTimeoutError,
-    ResourceNotFoundError,
-)
-from resync.core.metrics_compat import Counter, Histogram
-from resync.services.tws_cache import (
-    CacheCategory,
-    enrich_response_with_cache_meta,
-    get_tws_cache,
-)
 
 _ID_LIKE_SEGMENT_RE = re.compile(
     r"""(?ix)

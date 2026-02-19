@@ -1,8 +1,6 @@
-import json
 import pytest
-import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import FastAPI, WebSocketDisconnect
+from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 
 from resync.app_factory import ApplicationFactory
@@ -103,7 +101,7 @@ def test_websocket_auth_failure(app):
     # Mock authentication service to fail
     with patch("resync.api.auth.service.AuthService.verify_token", return_value=False):
         with pytest.raises(WebSocketDisconnect) as excinfo:
-            with client.websocket_connect("/ws/tws-general?token=invalid") as websocket:
+            with client.websocket_connect("/ws/tws-general?token=invalid"):
                 pass
         assert excinfo.value.code == 1008
 

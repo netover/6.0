@@ -91,7 +91,6 @@ class ConnectionManager:
         For proper async handling, use disconnect_async() instead.
         """
         try:
-            loop = asyncio.get_running_loop()
             # We're in async context - schedule the async disconnect
             asyncio.create_task(self.disconnect_async(websocket))
         except RuntimeError:

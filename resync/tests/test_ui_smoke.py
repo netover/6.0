@@ -125,7 +125,7 @@ def test_admin_ui_renders_and_serves_css() -> None:
     app = ApplicationFactory().create_application()
 
     # Override auth for smoke test
-    from resync.api.auth import verify_admin_credentials
+    from resync.api.routes.core.auth import verify_admin_credentials
 
     app.dependency_overrides[verify_admin_credentials] = lambda: {
         "username": "admin",

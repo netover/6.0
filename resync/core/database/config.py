@@ -21,6 +21,7 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -96,8 +97,6 @@ class DatabaseConfig:
             "pool_recycle": self.pool_recycle,
         }
 
-
-from typing import Optional
 
 def get_database_config() -> DatabaseConfig:
     """

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.core.fastapi_di import get_teams_integration, get_tws_client
 from resync.core.interfaces import ITWSClient
 from resync.core.teams_integration import TeamsIntegration

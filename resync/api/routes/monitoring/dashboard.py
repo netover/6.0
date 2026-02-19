@@ -9,7 +9,6 @@
 
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import logging
 import time
 from collections import deque

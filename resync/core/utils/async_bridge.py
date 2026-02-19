@@ -14,16 +14,12 @@ Design principles
   expects results synchronously. If a loop is running, we raise with guidance.
 * **Minimal deps**: avoids adding third-party dependencies.
 """
-
 from __future__ import annotations
-
 import asyncio
 from collections.abc import Coroutine
 from typing import Any, Optional
-
 import logging
 logger = logging.getLogger(__name__)
-
 
 def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
     """Run an async coroutine from synchronous code.
@@ -35,46 +31,31 @@ def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
     RuntimeError with guidance (because a synchronous caller cannot reliably
     "wait" for async work without blocking the loop).
     """
-
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
+    raise RuntimeError('run_sync() was called from within a running event loop. Convert the caller to async and `await` the coroutine instead.')
 
-    raise RuntimeError(
-        "run_sync() was called from within a running event loop. "
-        "Convert the caller to async and `await` the coroutine instead."
-    )
-
-
-def fire_and_forget(
-    coro: Coroutine[Any, Any, Any],
-    *,
-    logger: Optional[Any] = None,
-    name: str | None = None,
-) -> None:
+def fire_and_forget(coro: Coroutine[Any, Any, Any], *, logger: Optional[Any]=None, name: str | None=None) -> None:
     """Schedule a coroutine without awaiting it.
 
     This helper is intended for background refreshes and telemetry. It attaches
     a done-callback that logs exceptions instead of letting them get swallowed.
     If called from a thread without a running loop, this will raise.
     """
-
     loop = asyncio.get_running_loop()
     task = loop.create_task(coro, name=name)
 
     def _done(t: asyncio.Task) -> None:
         try:
             t.result()
-        except Exception as exc:  # pragma: no cover
-            # Re-raise programming errors — these are bugs, not runtime failures
+        except Exception as exc:
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             if logger is not None:
                 try:
-                    logger.warning("background_task_failed", task=name or str(t), error=str(exc))
+                    logger.warning('background_task_failed', extra={'task': name or str(t), 'error': str(exc)})
                 except Exception as exc:
-                    # If logger is misconfigured, avoid cascading failures.
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
-
+                    logger.debug('suppressed_exception', exc_info=True, extra={'error': str(exc)})
     task.add_done_callback(_done)

@@ -7,7 +7,6 @@ import asyncio
 import logging
 import json
 from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime, timezone
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

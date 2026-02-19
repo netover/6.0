@@ -11,8 +11,11 @@ Author: Resync Team
 Version: 5.4.1
 """
 
+import asyncio
+import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -46,15 +49,11 @@ router = APIRouter(tags=["Agents"])
 # =============================================================================
 # AGENT LISTING
 # =============================================================================
-
-import asyncio
-import time
-from pathlib import Path
-
 # Cache for agent configuration
 _AGENT_CACHE: dict[str, Any] | None = None
 _AGENT_CACHE_TIMESTAMP: float = 0
 _AGENT_CACHE_TTL: int = 300  # 5 minutes
+_AGENT_CACHE_LOCK = asyncio.Lock()
 
 
 async def _load_agents_config() -> dict[str, Any]:
@@ -63,34 +62,35 @@ async def _load_agents_config() -> dict[str, Any]:
     """
     global _AGENT_CACHE, _AGENT_CACHE_TIMESTAMP
 
-    # Check cache
-    now = time.time()
-    if _AGENT_CACHE and (now - _AGENT_CACHE_TIMESTAMP < _AGENT_CACHE_TTL):
-        return _AGENT_CACHE
+    async with _AGENT_CACHE_LOCK:
+        # Check cache
+        now = time.time()
+        if _AGENT_CACHE and (now - _AGENT_CACHE_TIMESTAMP < _AGENT_CACHE_TTL):
+            return _AGENT_CACHE
 
-    try:
-        import yaml
-        import aiofiles
+        try:
+            import yaml
+            import aiofiles
 
-        config_path = Path("config/agents.yaml")
-        if not config_path.exists():
-            return {}
+            config_path = Path("config/agents.yaml")
+            if not config_path.exists():
+                return {}
 
-        async with aiofiles.open(config_path, mode="r", encoding="utf-8") as f:
-            content = await f.read()
+            async with aiofiles.open(config_path, mode="r", encoding="utf-8") as f:
+                content = await f.read()
 
-        # Offload CPU-bound YAML parsing to thread
-        config = await asyncio.to_thread(yaml.safe_load, content)
+            # Offload CPU-bound YAML parsing to thread
+            config = await asyncio.to_thread(yaml.safe_load, content)
 
-        # Update cache
-        _AGENT_CACHE = config
-        _AGENT_CACHE_TIMESTAMP = now
-        return config
+            # Update cache
+            _AGENT_CACHE = config
+            _AGENT_CACHE_TIMESTAMP = now
+            return config
 
-    except Exception:
-        # In case of error (e.g. malformed YAML), return empty or existing cache
-        # logging would be good here but we don't have the logger instance
-        return _AGENT_CACHE or {}
+        except Exception:
+            # In case of error (e.g. malformed YAML), return empty or existing cache
+            # logging would be good here but we don't have the logger instance
+            return _AGENT_CACHE or {}
 
 
 @router.get("/", response_model=AgentListResponse)
@@ -199,8 +199,6 @@ async def execute_agent(
     v6.0: Now uses HybridRouter via DI (includes skill_manager).
     """
     import time
-    from fastapi import Request as FastAPIRequest
-    from resync.core.wiring import get_hybrid_router
 
     start_time = time.time()
     trace_id = str(uuid.uuid4())

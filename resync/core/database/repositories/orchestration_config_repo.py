@@ -104,8 +104,8 @@ class OrchestrationConfigRepository:
         
         if owner_id:
             query = query.where(
-                (OrchestrationConfig.owner_id == owner_id) | 
-                (OrchestrationConfig.is_global == True)
+                (OrchestrationConfig.owner_id == owner_id)
+                | (OrchestrationConfig.is_global.is_(True))
             )
         
         result = await self._session.execute(query)

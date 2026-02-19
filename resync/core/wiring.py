@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Enterprise-grade application wiring (HTTP DI canonical).
 
@@ -22,6 +20,8 @@ Global State:
     ``EnterpriseState`` dataclass).  No module-level mutable state exists
     in this module.
 """
+
+from __future__ import annotations
 
 import inspect
 from collections.abc import Iterator

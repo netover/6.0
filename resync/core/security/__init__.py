@@ -94,6 +94,14 @@ def generate_api_key(prefix: str = "rsk") -> tuple[str, str]:
     return key, hash_api_key(key)
 
 __all__ = [
+    "DANGEROUS_CHARS_PATTERN",
+    "EMAIL_PATTERN",
+    "SAFE_CHARS_ONLY",
+    "SAFE_STRING_PATTERN",
+    "STRICT_ALPHANUMERIC_PATTERN",
+    "STRICT_CHARS_ONLY",
+    "TWS_JOB_PATTERN",
+    "TWS_WORKSTATION_PATTERN",
     # Classes
     "InputSanitizer",
     "ValidationResult",

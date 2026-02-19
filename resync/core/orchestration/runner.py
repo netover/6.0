@@ -7,7 +7,7 @@ import asyncio
 import logging
 import traceback
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
@@ -18,7 +18,7 @@ from resync.core.database.repositories.orchestration_execution_repo import (
     OrchestrationStepRunRepository,
 )
 from resync.core.orchestration.agent_adapter import AgentAdapter
-from resync.core.orchestration.events import EventBus, EventType, OrchestrationEvent, event_bus
+from resync.core.orchestration.events import EventType, OrchestrationEvent, event_bus
 from resync.core.orchestration.schemas import WorkflowConfig, StepConfig
 from resync.core.orchestration.strategies import StrategyFactory
 

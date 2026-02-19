@@ -5,7 +5,7 @@ Endpoints for managing and executing orchestration workflows.
 """
 import asyncio
 import logging
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, status
@@ -16,7 +16,6 @@ from resync.core.database.engine import get_db_session
 from resync.core.database.repositories.orchestration_config_repo import OrchestrationConfigRepository
 from resync.core.database.repositories.orchestration_execution_repo import OrchestrationExecutionRepository
 from resync.core.orchestration.runner import OrchestrationRunner
-from resync.core.orchestration.schemas import WorkflowConfig
 from resync.core.orchestration.events import event_bus, EventType, OrchestrationEvent
 
 logger = logging.getLogger(__name__)
@@ -216,7 +215,7 @@ async def websocket_execute(
         logger.error(f"WebSocket error: {e}")
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-        except:
+        except Exception:
             pass
     finally:
         # Cleanup subscription (not implemented in simple EventBus, assuming it's weak ref or we leak?)

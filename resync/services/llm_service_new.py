@@ -36,32 +36,17 @@ import asyncio
 import os
 
 import logging
-from collections.abc import AsyncGenerator
-from functools import lru_cache
 from typing import Any
 
-from resync.core.exceptions import BaseAppException, ConfigurationError, IntegrationError, ServiceUnavailableError
+from resync.core.exceptions import ConfigurationError, IntegrationError, ServiceUnavailableError
 from resync.core.resilience import (
     CircuitBreaker,
     CircuitBreakerConfig,
     RetryConfig,
     RetryWithBackoff,
-    TimeoutManager,
 )
 from resync.core.utils.prompt_formatter import OpinionBasedPromptFormatter
 from resync.settings import settings
-
-# LangFuse integration (optional but recommended)
-try:
-    from resync.core.langfuse import (
-        PromptType,
-        get_prompt_manager,
-        get_tracer,
-    )
-
-    LANGFUSE_INTEGRATION = True
-except ImportError:
-    LANGFUSE_INTEGRATION = False
 
 try:
     # Import specific exceptions from OpenAI v1.x

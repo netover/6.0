@@ -146,17 +146,20 @@ def get_optimized_response_class() -> type[JSONResponse]:
     Get the best available JSON response class based on installed packages.
 
     Priority:
-    1. MsgSpecJSONResponse (if msgspec installed) - FASTEST
-    2. ORJSONResponse (if orjson installed) - FAST
-    3. JSONResponse (stdlib) - BASELINE
+    1. ORJSONResponse (if orjson installed) - FAST + handles Pydantic natively
+    2. JSONResponse (stdlib) - BASELINE
+    3. MsgSpecJSONResponse - Only if explicitly needed (requires MsgSpec.Struct types)
 
-    Returns:
-        Best available response class
+    Note: MsgSpecJSONResponse is NOT prioritized because it cannot serialize
+    Pydantic models natively. Use ORJSON for Pydantic compatibility.
     """
-    if MSGSPEC_AVAILABLE:
-        return MsgSpecJSONResponse
+    # FIX: Prioritize ORJSON over MsgSpec for Pydantic compatibility
+    # MsgSpec only handles msgspec.Struct types, not Pydantic BaseModel
     if ORJSON_AVAILABLE:
         return ORJSONResponse
+    if MSGSPEC_AVAILABLE:
+        # MsgSpec is available but not prioritized - warn developers to use explicitly
+        return MsgSpecJSONResponse
     return JSONResponse
 
 

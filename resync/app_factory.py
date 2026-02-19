@@ -14,7 +14,7 @@ No Global State:
 import hashlib
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.responses import HTMLResponse
@@ -596,7 +596,7 @@ class ApplicationFactory:
             ]
 
             # Register unified monitoring routes (with admin auth)
-            from resync.api.auth import verify_admin_credentials as _verify_admin
+            from resync.api.routes.core.auth import verify_admin_credentials as _verify_admin
 
             unified_monitoring_routers = [
                 (ai_monitoring_router, "/api/v1/monitoring", ["Monitoring - AI"]),

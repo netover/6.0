@@ -134,7 +134,63 @@ class RuntimeMetricsCollector:
         # Correlation tracking
         self._correlations: dict[str, dict[str, Any]] = {}
 
+        # Internal counter/gauge storage for dynamic metrics
+        self._dynamic_counters: dict[str, Any] = {}
+        self._dynamic_gauges: dict[str, Any] = {}
+
         logger.info("RuntimeMetricsCollector initialized")
+
+    # -------------------------------------------------------------------------
+    # Compatibility methods for legacy API (record_counter, record_gauge)
+    # These methods provide backward compatibility with code that expects
+    # runtime_metrics.record_counter(name, value, labels)
+    # -------------------------------------------------------------------------
+    def record_counter(self, name: str, value: float = 1, labels: dict[str, str] | None = None) -> None:
+        """
+        Record a counter increment. Creates counter if it doesn't exist.
+        
+        Args:
+            name: Counter name
+            value: Value to increment (default 1)
+            labels: Optional labels for the counter
+        """
+        if name not in self._dynamic_counters:
+            from resync.core.metrics_internal import create_counter
+            self._dynamic_counters[name] = create_counter(name, f"Dynamic counter: {name}", 
+                list(labels.keys()) if labels else None)
+        
+        if labels:
+            self._dynamic_counters[name].inc(value, labels)
+        else:
+            self._dynamic_counters[name].inc(value)
+
+    def record_gauge(self, name: str, value: float) -> None:
+        """
+        Record a gauge value. Creates gauge if it doesn't exist.
+        
+        Args:
+            name: Gauge name
+            value: Value to set
+        """
+        if name not in self._dynamic_gauges:
+            from resync.core.metrics_internal import create_gauge
+            self._dynamic_gauges[name] = create_gauge(name, f"Dynamic gauge: {name}")
+        
+        self._dynamic_gauges[name].set(value)
+
+    def record_histogram(self, name: str, value: float) -> None:
+        """
+        Record a histogram observation. Creates histogram if it doesn't exist.
+        
+        Args:
+            name: Histogram name
+            value: Value to observe
+        """
+        if name not in self._dynamic_gauges:
+            from resync.core.metrics_internal import create_histogram
+            self._dynamic_gauges[name] = create_histogram(name, f"Dynamic histogram: {name}")
+        
+        self._dynamic_gauges[name].observe(value)
 
     def create_correlation_id(self, operation: str, **kwargs) -> str:
         """Create a correlation ID for tracking an operation."""

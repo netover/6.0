@@ -5,10 +5,7 @@ Tests API parity, stats, and logical correctness.
 
 import asyncio
 import logging
-import sys
-import struct
 import json
-from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

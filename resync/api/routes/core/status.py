@@ -1,9 +1,9 @@
-import platform
-from datetime import datetime, timezone
-
 """
 System status routes for FastAPI
 """
+import platform
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Response
 
 from resync.api.dependencies_v2 import get_logger

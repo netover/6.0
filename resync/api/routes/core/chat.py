@@ -25,7 +25,6 @@ from fastapi import (
     Depends,
     Header,
     HTTPException,
-    Request,
     status,
 )
 import secrets

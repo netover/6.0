@@ -13,7 +13,6 @@ from resync.core.health import (
     get_unified_health_service,
     get_status_color,
     get_status_description,
-    shutdown_unified_health_service,
 )
 
 logger = logging.getLogger(__name__)

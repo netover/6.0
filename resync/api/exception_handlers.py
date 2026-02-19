@@ -70,9 +70,10 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
     # Adicionar headers específicos
     headers = {}
 
-    # Rate limiting
-    if isinstance(exc, RateLimitError) and exc.details.get("retry_after"):
-        headers["Retry-After"] = str(exc.details["retry_after"])
+    # Rate limiting - FIX: Safe access to details attribute
+    details = getattr(exc, "details", None) or {}
+    if isinstance(exc, RateLimitError) and details.get("retry_after"):
+        headers["Retry-After"] = str(details["retry_after"])
 
     # Correlation ID
     if exc.correlation_id:

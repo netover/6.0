@@ -17,6 +17,20 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from resync.api.security.models import (
+    LoginRequest,
+    OAuthToken,
+    TokenRequest,
+    UserCreate,
+    UserResponse,
+    password_hasher,
+)
+from resync.api.security.validations import (
+    EnhancedLoginRequest,
+    SensitiveFieldValidator,
+    TokenRequestWithValidation,
+    UserCreateWithValidation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -364,24 +378,6 @@ def create_access_token(
 
     return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
-
-# =============================================================================
-# Re-export from submodules
-# =============================================================================
-from resync.api.security.models import (
-    LoginRequest,
-    OAuthToken,
-    TokenRequest,
-    UserCreate,
-    UserResponse,
-    password_hasher,
-)
-from resync.api.security.validations import (
-    EnhancedLoginRequest,
-    SensitiveFieldValidator,
-    TokenRequestWithValidation,
-    UserCreateWithValidation,
-)
 
 # =============================================================================
 # Module Exports

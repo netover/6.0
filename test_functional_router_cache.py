@@ -11,12 +11,10 @@ from unittest.mock import AsyncMock, patch, MagicMock
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from resync.core.langgraph.models import Intent, RouterOutput
-# We need to import the module to patch the singleton getter
-import resync.core.langgraph.agent_graph as agent_graph
-
 async def run_functional_test():
     print("🧪 Functional Test: Router Cache Integration (With Mock Cache)\n")
+    from resync.core.langgraph.models import Intent, RouterOutput
+    import resync.core.langgraph.agent_graph as agent_graph
     
     # Mock message
     message = "Qual o status do job PAYROLL?"

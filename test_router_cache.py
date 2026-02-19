@@ -22,7 +22,6 @@ async def test_cache_methods():
     print("1️⃣ Testing imports...")
     try:
         from resync.core.cache.semantic_cache import SemanticCache
-        from resync.core.langgraph.models import Intent, RouterOutput
         print("   ✅ Imports successful\n")
     except ImportError as e:
         print(f"   ❌ Import failed: {e}\n")
