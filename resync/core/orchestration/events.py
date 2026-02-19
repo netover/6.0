@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Optional, Callable, List
+from typing import Any, Callable
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -45,11 +45,11 @@ class OrchestrationEvent(BaseModel):
     execution_id: UUID
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    step_id: Optional[str] = None
-    step_index: Optional[int] = None
+    step_id: str | None = None
+    step_index: int | None = None
 
-    data: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 @dataclass
@@ -57,7 +57,7 @@ class Subscription:
     """Represents a subscription with an ID for tracking."""
     subscription_id: str
     callback: Callable
-    event_type: Optional[EventType] = None  # None means global subscription
+    event_type: EventType | None = None  # None means global subscription
 
 
 class EventBus:
@@ -69,8 +69,8 @@ class EventBus:
     """
 
     def __init__(self):
-        self._subscribers: Dict[EventType, List[Subscription]] = {}
-        self._global_subscribers: List[Subscription] = {}
+        self._subscribers: dict[EventType, list[Subscription]] = {}
+        self._global_subscribers: dict[str, Subscription] = {}
 
     def subscribe(self, event_type: EventType, callback: Callable) -> str:
         """
@@ -90,11 +90,7 @@ class EventBus:
         )
         self._subscribers[event_type].append(subscription)
         
-        logger.debug(
-            "subscribed_to_event",
-            subscription_id=subscription_id,
-            event_type=event_type.value
-        )
+        logger.debug("subscribed_to_event id=%s event_type=%s", subscription_id, event_type.value)
         
         return subscription_id
 
@@ -114,10 +110,7 @@ class EventBus:
         )
         self._global_subscribers[subscription_id] = subscription
         
-        logger.debug(
-            "subscribed_to_all_events",
-            subscription_id=subscription_id
-        )
+        logger.debug("subscribed_to_all_events id=%s", subscription_id)
         
         return subscription_id
 
@@ -131,29 +124,20 @@ class EventBus:
         # Check global subscribers first
         if subscription_id in self._global_subscribers:
             del self._global_subscribers[subscription_id]
-            logger.debug(
-                "unsubscribed_from_all_events",
-                subscription_id=subscription_id
-            )
+            logger.debug("unsubscribed_from_all_events id=%s", subscription_id)
             return True
         
         # Check event-specific subscribers
         for event_type, subscriptions in self._subscribers.items():
+            initial_count = len(subscriptions)
             self._subscribers[event_type] = [
                 s for s in subscriptions if s.subscription_id != subscription_id
             ]
-            if subscription_id not in [s.subscription_id for s in self._subscribers[event_type]]:
-                logger.debug(
-                    "unsubscribed_from_event",
-                    subscription_id=subscription_id,
-                    event_type=event_type.value
-                )
+            if len(self._subscribers[event_type]) < initial_count:
+                logger.debug("unsubscribed_from_event id=%s event_type=%s", subscription_id, event_type.value)
                 return True
         
-        logger.warning(
-            "subscription_not_found",
-            subscription_id=subscription_id
-        )
+        logger.warning("subscription_not_found id=%s", subscription_id)
         return False
 
     async def publish(self, event: OrchestrationEvent):

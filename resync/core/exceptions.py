@@ -491,8 +491,11 @@ class TWSError(BaseAppException):
         )
 
 
-class LLMError(BaseAppException):
+class LLMOperationError(BaseAppException):
     """Erro específico para falhas em operações de LLM.
+
+    Mantido para compatibilidade com código legado; prefira ``LLMError``
+    definido na seção de erros de integração.
     """
 
     def __init__(
@@ -1484,11 +1487,13 @@ class BusinessError(BaseAppException):
     ):
         super().__init__(
             message=message,
-            component=component,
+            error_code=ErrorCode.BUSINESS_RULE_VIOLATION,
+            status_code=400,
             details=details or {},
             correlation_id=correlation_id,
             original_exception=original_exception,
         )
+        self.details.setdefault("component", component)
 
 
 class WebSocketError(BaseAppException):
@@ -1505,11 +1510,13 @@ class WebSocketError(BaseAppException):
     ):
         super().__init__(
             message=message,
-            component=component,
+            error_code=ErrorCode.WEBSOCKET_ERROR,
+            status_code=502,
             details=details or {},
             correlation_id=correlation_id,
             original_exception=original_exception,
         )
+        self.details.setdefault("component", component)
 
 
 # ============================================================================
@@ -1614,6 +1621,7 @@ __all__ = [
     "AuditError",
     "FileProcessingError",
     "LLMError",
+    "LLMOperationError",
     "LLMAuthenticationError",
     "LLMTimeoutError",
     "LLMRateLimitError",

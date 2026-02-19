@@ -118,7 +118,7 @@ volumes:
 """
 
 
-def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subprocess.CompletedProcess:
+def run_command(cmd: list[str], check: bool = True, cwd: str | None = None) -> subprocess.CompletedProcess:
     """Executa um comando shell."""
     print(f"Running: {' '.join(cmd)}")
     return subprocess.run(cmd, check=check, capture_output=True, text=True, cwd=cwd)

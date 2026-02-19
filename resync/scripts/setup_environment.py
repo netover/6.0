@@ -22,7 +22,7 @@ from pathlib import Path
 DOCKER_COMPOSE_FILE = "docker-compose.resync.yml"
 
 
-def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subprocess.CompletedProcess:
+def run_command(cmd: list[str], check: bool = True, cwd: str | None = None) -> subprocess.CompletedProcess:
     """Executa um comando shell."""
     print(f"\n{'='*60}")
     print(f"Running: {' '.join(cmd)}")
