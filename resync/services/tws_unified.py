@@ -552,6 +552,22 @@ class MockTWSClient(UnifiedTWSClient):
         self._responses = responses or {}
         self._calls: list[tuple[str, tuple, dict]] = []
 
+        # Initialize mock circuit breaker
+        self._circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=5,
+                recovery_timeout=60,
+                name="mock_tws_client",
+            )
+        )
+        self._retry_handler = RetryWithBackoff(
+            RetryConfig(max_retries=1, base_delay=0.1)
+        )
+
+    @property
+    def state(self) -> TWSClientState:
+        return self._state
+
     def connect(self) -> None:
         """Mock connect - always succeeds."""
         self._state = TWSClientState.CONNECTED

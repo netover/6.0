@@ -238,7 +238,7 @@ class UnifiedHealthService:
         try:
             return await asyncio.wait_for(
                 checker.check_health(),
-                timeout=self.config.component_timeout_seconds,
+                timeout=self.config.timeout_seconds,
             )
         except asyncio.TimeoutError:
             logger.warning("health_check_timeout", component=name)
@@ -261,7 +261,7 @@ class UnifiedHealthService:
             from .health_checkers.health_checker_factory import HealthCheckerFactory
 
             factory = HealthCheckerFactory()
-            self._checkers = factory.create_all_checkers()
+            self._checkers = factory.get_all_health_checkers()
 
         return self._checkers
 

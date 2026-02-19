@@ -17,6 +17,7 @@ import json
 import logging
 import struct
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -108,6 +109,10 @@ class SemanticCache:
             "reranks": 0,
             "rerank_rejections": 0,
         }
+        self._memory_only = False
+        self._memory_store: OrderedDict[str, tuple[CacheEntry, float, str | None]] = OrderedDict()
+        self._memory_lock = asyncio.Lock()
+        self._last_redis_check = 0.0
 
     async def initialize(self) -> bool:
         """Initialize connection and verify index/stack availability."""
@@ -115,19 +120,22 @@ class SemanticCache:
             return True
             
         try:
-            # Detect Redis Stack first
+            redis_client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            try:
+                await redis_client.ping()
+            except Exception as e:
+                self._memory_only = True
+                self._redis_stack_available = False
+                self._initialized = True
+                logger.warning("SemanticCache Redis unavailable: %s", e)
+                return True
+
             stack_info = await check_redis_stack_available()
             self._redis_stack_available = stack_info.get("search", False)
             
-            # Get standard async client
-            redis_client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
-            
             if self._redis_stack_available:
-                # RedisVL 0.3.1 workaround: it might need specific client type check
-                # but SearchIndex.set_client works if we provide the right flavor.
                 self.index.set_client(redis_client)
                 
-                # Check if index exists, create if not
                 if not await self.index.exists():
                     await self.index.create(overwrite=False)
                     logger.info("Created new RedisVL index: %s", self.index.name)
@@ -140,7 +148,84 @@ class SemanticCache:
             logger.error("Failed to initialize SemanticCache: %s", e)
             self._redis_stack_available = False # Force fallback if init fails
             self._initialized = True # Mark as initialized to allow fallback
-            return False
+            self._memory_only = True
+            return True
+
+    def _enter_memory_only(self, reason: str) -> None:
+        if not self._memory_only:
+            logger.warning("semantic_cache_memory_only", reason=reason)
+        self._memory_only = True
+        self._redis_stack_available = False
+
+    async def _try_restore_redis(self) -> None:
+        if not self._memory_only:
+            return
+        now = time.monotonic()
+        if now - self._last_redis_check < 5.0:
+            return
+        self._last_redis_check = now
+        try:
+            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            await client.ping()
+        except Exception:
+            return
+        try:
+            stack_info = await check_redis_stack_available()
+            self._redis_stack_available = stack_info.get("search", False)
+        except Exception:
+            self._redis_stack_available = False
+        self._memory_only = False
+
+    async def _memory_cleanup_locked(self) -> None:
+        now = time.monotonic()
+        keys_to_delete = [k for k, (_, exp, _) in self._memory_store.items() if exp <= now]
+        for key in keys_to_delete:
+            del self._memory_store[key]
+
+    async def _memory_set_entry(self, key: str, entry: CacheEntry, ttl: int, user_id: str | None) -> None:
+        expire_at = time.monotonic() + ttl
+        async with self._memory_lock:
+            if key in self._memory_store:
+                del self._memory_store[key]
+            self._memory_store[key] = (entry, expire_at, user_id)
+            await self._memory_cleanup_locked()
+            while len(self._memory_store) > self.max_entries:
+                self._memory_store.popitem(last=False)
+
+    async def _memory_invalidate_query(self, query: str) -> int:
+        async with self._memory_lock:
+            await self._memory_cleanup_locked()
+            keys_to_delete = [k for k, (entry, _, _) in self._memory_store.items() if entry.query == query]
+            for key in keys_to_delete:
+                del self._memory_store[key]
+            return len(keys_to_delete)
+
+    async def _memory_invalidate_pattern(self, pattern: str) -> int:
+        async with self._memory_lock:
+            await self._memory_cleanup_locked()
+            keys_to_delete = [
+                k for k, (entry, _, _) in self._memory_store.items()
+                if pattern.lower() in entry.query.lower()
+            ]
+            for key in keys_to_delete:
+                del self._memory_store[key]
+            return len(keys_to_delete)
+
+    async def _search_memory(self, query: str, embedding: List[float], user_id: str | None = None) -> CacheResult:
+        best_distance = float("inf")
+        best_entry: CacheEntry | None = None
+        async with self._memory_lock:
+            await self._memory_cleanup_locked()
+            for _, (entry, _, entry_user_id) in self._memory_store.items():
+                if user_id and entry_user_id != user_id:
+                    continue
+                distance = cosine_distance(embedding, entry.embedding)
+                if distance < best_distance:
+                    best_distance = distance
+                    best_entry = entry
+        if best_entry and best_distance <= self.threshold:
+            return CacheResult(hit=True, response=best_entry.response, distance=best_distance, entry=best_entry)
+        return CacheResult(hit=False)
 
     def _hash_query(self, query: str) -> str:
         """Generate hash for query."""
@@ -184,7 +269,12 @@ class SemanticCache:
             cache_key_text = self._build_cache_key(query, user_id)
             embedding = self.vectorizer.embed(cache_key_text)
             
-            if self._redis_stack_available:
+            if self._memory_only:
+                await self._try_restore_redis()
+
+            if self._memory_only:
+                result = await self._search_memory(query, embedding, user_id)
+            elif self._redis_stack_available:
                 result = await self._search_redisvl(query, embedding, user_id)
             else:
                 result = await self._search_fallback(query, embedding, user_id)
@@ -304,6 +394,8 @@ class SemanticCache:
                 return CacheResult(hit=True, response=best_entry.response, distance=best_distance, entry=best_entry)
         except Exception as e:
             logger.warning("Fallback search encountered error: %s", e)
+            self._enter_memory_only("fallback_search_failed")
+            return await self._search_memory(query, embedding, user_id)
             
         return CacheResult(hit=False)
 
@@ -345,12 +437,24 @@ class SemanticCache:
         if not self._initialized:
             await self.initialize()
             
+        metadata_payload = metadata or {}
+        if user_id is not None:
+            metadata_payload = {**metadata_payload, "user_id": user_id}
+        cache_key_text = self._build_cache_key(query, user_id)
+        query_hash = self._hash_query(cache_key_text)
+        embedding: list[float] = []
         try:
-            # Use user-scoped cache key for embedding to ensure proper isolation
-            cache_key_text = self._build_cache_key(query, user_id)
-            query_hash = self._hash_query(cache_key_text)
             embedding = self.vectorizer.embed(cache_key_text)
-            
+
+            if self._memory_only:
+                await self._try_restore_redis()
+
+            if self._memory_only:
+                entry = CacheEntry(query=query, response=response, embedding=embedding, metadata=metadata_payload)
+                await self._memory_set_entry(f"{user_id or ''}:{query_hash}", entry, ttl or self.default_ttl, user_id)
+                self._stats["sets"] += 1
+                return True
+
             data = {
                 "query_text": query,
                 "query_hash": query_hash,
@@ -358,21 +462,19 @@ class SemanticCache:
                 "embedding": embedding,
                 "timestamp": datetime.now(timezone.utc).timestamp(),
                 "hit_count": 0,
-                "metadata": json.dumps(metadata or {}),
-                "user_id": user_id or "",  # SECURITY: Store user_id for filtering
+                "metadata": json.dumps(metadata_payload),
+                "user_id": user_id or "",
             }
             
             if self._redis_stack_available:
                 keys = await self.index.load([data])
                 key = keys[0] if keys else None
             else:
-                # Manual HSET for fallback mode - include user_id in key for isolation
                 client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
                 if user_id:
                     key = f"{self.KEY_PREFIX}user:{user_id}:{query_hash}"
                 else:
                     key = f"{self.KEY_PREFIX}{query_hash}"
-                # Store embedding as binary for consistency
                 data["embedding"] = struct.pack(f"{len(embedding)}f", *embedding)
                 await client.hset(key, mapping=data)
             
@@ -387,33 +489,54 @@ class SemanticCache:
         except Exception as e:
             logger.error("Failed to set cache entry: %s", e)
             self._stats["errors"] += 1
-            return False
+            self._enter_memory_only("set_failed")
+            entry = CacheEntry(query=query, response=response, embedding=embedding, metadata=metadata_payload)
+            await self._memory_set_entry(f"{user_id or ''}:{query_hash}", entry, ttl or self.default_ttl, user_id)
+            self._stats["sets"] += 1
+            return True
 
     async def _increment_hit_count(self, entry: Optional[CacheEntry]) -> None:
         """Increment hit count for a cache entry."""
         if not entry:
             return
+        if self._memory_only:
+            entry.hit_count += 1
+            return
         try:
+            user_id = None
+            if isinstance(entry.metadata, dict):
+                user_id = entry.metadata.get("user_id")
+            cache_key_text = self._build_cache_key(entry.query, user_id)
+            query_hash = self._hash_query(cache_key_text)
+            if user_id:
+                key = f"{self.KEY_PREFIX}user:{user_id}:{query_hash}"
+            else:
+                key = f"{self.KEY_PREFIX}{query_hash}"
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
-            query_hash = self._hash_query(entry.query)
-            await client.hincrby(f"{self.KEY_PREFIX}{query_hash}", "hit_count", 1)
+            await client.hincrby(key, "hit_count", 1)
         except Exception:
-            pass
+            self._enter_memory_only("increment_hit_count_failed")
+            entry.hit_count += 1
 
     async def invalidate(self, query: str) -> bool:
         """Invalidate a specific cache entry."""
         try:
+            if self._memory_only:
+                return bool(await self._memory_invalidate_query(query))
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             query_hash = self._hash_query(query)
             deleted = await client.delete(f"{self.KEY_PREFIX}{query_hash}")
             return bool(deleted)
         except Exception as e:
             logger.error("Failed to invalidate cache entry: %s", e)
-            return False
+            self._enter_memory_only("invalidate_failed")
+            return bool(await self._memory_invalidate_query(query))
 
     async def invalidate_pattern(self, pattern: str) -> int:
         """Invalidate entries matching a pattern."""
         try:
+            if self._memory_only:
+                return await self._memory_invalidate_pattern(pattern)
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             count = 0
             async for key in client.scan_iter(match=f"{self.KEY_PREFIX}*"):
@@ -424,11 +547,17 @@ class SemanticCache:
             return count
         except Exception as e:
             logger.error("Failed to invalidate pattern: %s", e)
-            return 0
+            self._enter_memory_only("invalidate_pattern_failed")
+            return await self._memory_invalidate_pattern(pattern)
 
     async def clear(self) -> bool:
         """Clear the entire cache."""
         try:
+            if self._memory_only:
+                async with self._memory_lock:
+                    self._memory_store.clear()
+                self._stats = {k: 0 for k in self._stats}
+                return True
             if self._redis_stack_available and self._initialized:
                 await self.index.clear()
             else:
@@ -440,14 +569,45 @@ class SemanticCache:
             return True
         except Exception as e:
             logger.error("Failed to clear cache: %s", e)
-            return False
+            self._enter_memory_only("clear_failed")
+            async with self._memory_lock:
+                self._memory_store.clear()
+            self._stats = {k: 0 for k in self._stats}
+            return True
 
     async def get_stats(self) -> Dict[str, Any]:
         """Return comprehensive cache performance statistics."""
         try:
+            if self._memory_only:
+                async with self._memory_lock:
+                    await self._memory_cleanup_locked()
+                    count = len(self._memory_store)
+                total_requests = self._stats["hits"] + self._stats["misses"]
+                hit_rate = (self._stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+                avg_lookup_time = (self._stats["total_lookup_time_ms"] / total_requests) if total_requests > 0 else 0
+                reranker_info = get_reranker_info()
+                return {
+                    "version": "redisvl-6.4.1",
+                    "entries": count,
+                    "hits": self._stats["hits"],
+                    "misses": self._stats["misses"],
+                    "sets": self._stats["sets"],
+                    "errors": self._stats["errors"],
+                    "hit_rate_percent": round(hit_rate, 2),
+                    "avg_lookup_time_ms": round(avg_lookup_time, 2),
+                    "threshold": self.threshold,
+                    "default_ttl": self.default_ttl,
+                    "max_entries": self.max_entries,
+                    "redis_stack_available": False,
+                    "used_memory_human": "memory-only",
+                    "reranking_enabled": self.enable_reranking,
+                    "reranker_model": reranker_info.get("model"),
+                    "reranker_available": reranker_info.get("available", False),
+                    "reranks_total": self._stats["reranks"],
+                    "rerank_rejections": self._stats["rerank_rejections"],
+                }
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             
-            # Count total entries
             count = 0
             async for _ in client.scan_iter(match=f"{self.KEY_PREFIX}*"):
                 count += 1
@@ -456,7 +616,6 @@ class SemanticCache:
             hit_rate = (self._stats["hits"] / total_requests * 100) if total_requests > 0 else 0
             avg_lookup_time = (self._stats["total_lookup_time_ms"] / total_requests) if total_requests > 0 else 0
             
-            # Memory and system info
             info = await client.info("memory")
             reranker_info = get_reranker_info()
             
@@ -482,7 +641,8 @@ class SemanticCache:
             }
         except Exception as e:
             logger.error("Failed to get stats: %s", e)
-            return {"error": str(e)}
+            self._enter_memory_only("get_stats_failed")
+            return await self.get_stats()
 
     def update_threshold(self, new_threshold: float) -> None:
         """Update similarity threshold at runtime."""
@@ -530,8 +690,12 @@ class SemanticCache:
             cache_key_text = self._build_cache_key(query_text, user_id)
             embedding = self.vectorizer.embed(cache_key_text)
             
-            # Search using RedisVL or fallback
-            if self._redis_stack_available:
+            if self._memory_only:
+                await self._try_restore_redis()
+
+            if self._memory_only:
+                result = await self._search_memory(cache_key_text, embedding, user_id)
+            elif self._redis_stack_available:
                 result = await self._search_redisvl(cache_key_text, embedding, user_id)
             else:
                 result = await self._search_fallback(cache_key_text, embedding, user_id)

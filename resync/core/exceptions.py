@@ -448,15 +448,64 @@ class ServiceUnavailableError(BaseAppException):
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
     ):
-        if details is None:
-            details = {}
-        if retry_after:
-            details["retry_after"] = retry_after
+        # Performance: Use copy() to avoid mutating the original details dict
+        # and use dict.get() pattern for cleaner optional value handling
+        _details = details.copy() if details else {}
+        
+        # Only add retry_after if it's a positive value (edge case handling)
+        if retry_after is not None and retry_after > 0:
+            _details["retry_after"] = retry_after
 
         super().__init__(
             message=message,
             error_code=ErrorCode.SERVICE_UNAVAILABLE,
             status_code=503,
+            details=_details,
+            correlation_id=correlation_id,
+            severity=ErrorSeverity.ERROR,
+            original_exception=original_exception,
+        )
+
+
+class TWSError(BaseAppException):
+    """Erro específico para falhas na integração com TWS.
+
+    Usado para erros relacionados ao TWS Unified Client.
+    """
+
+    def __init__(
+        self,
+        message: str = "TWS integration error",
+        details: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
+        original_exception: Exception | None = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.INTEGRATION_ERROR,
+            status_code=502,
+            details=details,
+            correlation_id=correlation_id,
+            severity=ErrorSeverity.ERROR,
+            original_exception=original_exception,
+        )
+
+
+class LLMError(BaseAppException):
+    """Erro específico para falhas em operações de LLM.
+    """
+
+    def __init__(
+        self,
+        message: str = "LLM operation error",
+        details: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
+        original_exception: Exception | None = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.INTERNAL_ERROR,
+            status_code=500,
             details=details,
             correlation_id=correlation_id,
             severity=ErrorSeverity.ERROR,
@@ -478,10 +527,11 @@ class CircuitBreakerError(BaseAppException):
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
     ):
-        if details is None:
-            details = {}
+        # Use dict.copy() for better performance than creating new dict
+        _details = details.copy() if details else {}
+        
         if service_name:
-            details["service_name"] = service_name
+            _details["service_name"] = service_name
 
         super().__init__(
             message=message,

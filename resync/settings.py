@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
 from pathlib import Path
+import secrets
 from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr
@@ -128,6 +129,13 @@ class Settings(BaseSettings, SettingsValidators):
         default=SecretStr("redis://localhost:6379/0"),
         validation_alias=AliasChoices("REDIS_URL", "APP_REDIS_URL"),
         description="URL de conexão Redis",
+        repr=False,
+    )
+
+    database_url: SecretStr = Field(
+        default=SecretStr("postgresql+asyncpg://resync:resync@localhost:5432/resync"),
+        validation_alias=AliasChoices("DATABASE_URL", "APP_DATABASE_URL"),
+        description="URL de conexão com banco de dados PostgreSQL",
         repr=False,
     )
 
@@ -749,8 +757,8 @@ class Settings(BaseSettings, SettingsValidators):
     # SEGURANÇA
     # ============================================================================
     # JWT Configuration (v5.3.20 - consolidated from fastapi_app/core/config.py)
-    secret_key: SecretStr = Field(
-        default=SecretStr(""),
+    secret_key: SecretStr | None = Field(
+        default=None,
         validation_alias=AliasChoices("SECRET_KEY", "APP_SECRET_KEY"),
         description="Secret key for JWT signing. MUST be set via SECRET_KEY env var.",
         exclude=True,
@@ -1572,7 +1580,12 @@ class Settings(BaseSettings, SettingsValidators):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Factory para obter settings (útil para dependency injection)."""
-    return Settings()
+    settings = Settings()
+    if settings.secret_key is None:
+        env = settings.environment
+        if env != Environment.PRODUCTION:
+            settings.secret_key = SecretStr(secrets.token_urlsafe(32))
+    return settings
 
 
 def clear_settings_cache() -> None:

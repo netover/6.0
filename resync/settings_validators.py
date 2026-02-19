@@ -355,7 +355,7 @@ class SettingsValidators:
 
     @field_validator("secret_key")
     @classmethod
-    def validate_secret_key(cls, v: SecretStr, info: ValidationInfo) -> SecretStr:
+    def validate_secret_key(cls, v: SecretStr | None, info: ValidationInfo) -> SecretStr | None:
         """
         Validate secret_key for JWT signing.
 
@@ -364,16 +364,22 @@ class SettingsValidators:
         - Must be at least 32 characters for security
         """
         env = info.data.get("environment")
+        if v is None:
+            if env == Environment.PRODUCTION:
+                raise ValueError(
+                    "SECRET_KEY must be set via environment variable in production. "
+                    "Generate a secure random key: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+            return None
+
         secret_value = v.get_secret_value()
 
         if env == Environment.PRODUCTION:
-            # Check for default/placeholder values
             if "CHANGE_ME" in secret_value or secret_value == "":
                 raise ValueError(
                     "SECRET_KEY must be set via environment variable in production. "
                     "Generate a secure random key: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
-            # Enforce minimum length for security
             if len(secret_value) < 32:
                 raise ValueError(
                     "SECRET_KEY must be at least 32 characters in production for security."
@@ -615,7 +621,9 @@ class SettingsValidators:
             # Secret key length must meet minimum
             secret_key = getattr(self, "secret_key")
             min_len = getattr(self, "MIN_SECRET_KEY_LENGTH", 32)
-            if len(secret_key.get_secret_value()) < min_len:
+            if secret_key is None:
+                errors.append("secret_key must be set in production")
+            elif len(secret_key.get_secret_value()) < min_len:
                 errors.append(
                     f"secret_key length ({len(secret_key.get_secret_value())}) "
                     f"< MIN_SECRET_KEY_LENGTH ({min_len})"

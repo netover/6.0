@@ -76,6 +76,7 @@ from resync.core.cache.cache_with_stampede_protection import (
     CacheWithStampedeProtection,
 )
 
+from resync.core.factories.redis_factory import get_redis_client
 
 __all__ = [
     # Core
@@ -97,6 +98,7 @@ __all__ = [
     "CacheWarmer",
     "LLMCacheWrapper",
     "CacheWithStampedeProtection",
+    "get_redis_client",
     # Backward compatibility
     "ImprovedAsyncCache",
 ]

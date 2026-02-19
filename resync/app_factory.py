@@ -194,7 +194,11 @@ class ApplicationFactory:
                 errors.append("Insecure admin password in production")
 
             # JWT secret key
-            secret = settings.secret_key.get_secret_value()
+            secret = (
+                settings.secret_key.get_secret_value()
+                if settings.secret_key
+                else ""
+            )
             if (
                 not secret
                 or len(secret.strip()) < min_sk_len

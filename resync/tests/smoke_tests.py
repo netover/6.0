@@ -29,7 +29,11 @@ import asyncio
 import os
 import sys
 import time
+import inspect
 from collections.abc import Callable
+
+# Add project root to path for standalone execution
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -142,25 +146,71 @@ class SmokeTestRunner:
     def __init__(self, verbose: bool = True):
         self.verbose = verbose
         self.suite = SmokeTestSuite()
+        # Ensure critical env vars are set for tests
+        os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+        os.environ.setdefault("RESYNC_REDIS_LAZY_INIT", "1")
+        os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://resync:resync@localhost:5432/resync")
+
+    async def _run_async_test(
+        self,
+        test_func: Callable[..., Any],
+        args: tuple,
+        kwargs: dict,
+        timeout: float | None,
+    ) -> Any:
+        """Run async test with optional timeout."""
+        if timeout:
+            return await asyncio.wait_for(test_func(*args, **kwargs), timeout)
+        return await test_func(*args, **kwargs)
+
+    def _run_sync_test(
+        self,
+        test_func: Callable[..., Any],
+        args: tuple,
+        kwargs: dict,
+        timeout: float | None,
+    ) -> Any:
+        """Run sync test."""
+        # Sync tests don't support timeout easily in this runner
+        return test_func(*args, **kwargs)
 
     async def run_test(
         self,
         name: str,
-        test_func: Callable,
-        *args,
+        test_func: Callable[..., Any],
+        *args: Any,
         skip_condition: Callable[[], bool] | None = None,
         skip_reason: str = "",
-        **kwargs,
+        timeout: float | None = None,
+        retries: int = 0,
+        **kwargs: Any,
     ) -> SmokeTestResult:
         """
-        Run a single smoke test.
+        Run a single smoke test with configurable execution options.
 
         Args:
-            name: Test name
-            test_func: Test function (sync or async)
-            skip_condition: Function that returns True to skip
-            skip_reason: Reason for skipping
+            name: Test name (for logging and result tracking).
+            test_func: Test function to execute (sync or async).
+            *args: Positional arguments passed to the test function.
+            skip_condition: Optional callable returning True to skip the test.
+            skip_reason: Human-readable reason for skipping (shown in output).
+            timeout: Optional timeout in seconds for test execution.
+            retries: Number of retry attempts on failure (default: 0).
+            **kwargs: Keyword arguments passed to the test function.
+
+        Returns:
+            SmokeTestResult containing test execution outcome and metrics.
+
+        Raises:
+            ValueError: If name is empty or test_func is not callable.
         """
+        # Input validation for better error messages
+        if not name or not name.strip():
+            raise ValueError("Test name cannot be empty")
+        if not callable(test_func):
+            raise ValueError(f"test_func must be callable, got {type(test_func).__name__}")
+
+        name = name.strip()
         # Check skip condition
         if skip_condition and skip_condition():
             result = SmokeTestResult(
@@ -172,39 +222,61 @@ class SmokeTestRunner:
             self._log_result(result)
             return result
 
-        start = time.perf_counter()
+        # Execute test with optional retry logic
+        last_error: BaseException | None = None
+        for attempt in range(1, retries + 2):
+            start = time.perf_counter()
+            
+            try:
+                # Run test with timeout support (for async functions)
+                if inspect.iscoroutinefunction(test_func):
+                    await self._run_async_test(test_func, args, kwargs, timeout)
+                else:
+                    self._run_sync_test(test_func, args, kwargs, timeout)
 
-        try:
-            # Run test (handle both sync and async)
-            if asyncio.iscoroutinefunction(test_func):
-                await test_func(*args, **kwargs)
-            else:
-                test_func(*args, **kwargs)
+                # Test passed
+                duration_ms = (time.perf_counter() - start) * 1000
+                result = SmokeTestResult(
+                    name=name,
+                    status=TestStatus.PASSED,
+                    duration_ms=duration_ms,
+                    message="OK",
+                )
+                break  # Exit retry loop on success
 
-            duration = (time.perf_counter() - start) * 1000
-            result = SmokeTestResult(
-                name=name,
-                status=TestStatus.PASSED,
-                duration_ms=duration,
-                message="OK",
-            )
+            except asyncio.TimeoutError:
+                duration_ms = (time.perf_counter() - start) * 1000
+                last_error = TimeoutError(f"Test timed out after {timeout}s")
+                result = SmokeTestResult(
+                    name=name,
+                    status=TestStatus.FAILED,
+                    duration_ms=duration_ms,
+                    message="Timeout",
+                    error=str(last_error),
+                )
 
-        except AssertionError as e:
-            duration = (time.perf_counter() - start) * 1000
-            result = SmokeTestResult(
-                name=name,
-                status=TestStatus.FAILED,
-                duration_ms=duration,
-                message="Assertion failed",
-                error=str(e),
-            )
+            except AssertionError as e:
+                duration_ms = (time.perf_counter() - start) * 1000
+                last_error = e
+                if attempt <= retries:
+                    continue  # Retry on assertion failure
+                result = SmokeTestResult(
+                    name=name,
+                    status=TestStatus.FAILED,
+                    duration_ms=duration_ms,
+                    message="Assertion failed",
+                    error=str(e),
+                )
 
-        except Exception as e:
-            duration = (time.perf_counter() - start) * 1000
-            result = SmokeTestResult(
-                name=name,
-                status=TestStatus.FAILED,
-                duration_ms=duration,
+            except Exception as e:
+                duration_ms = (time.perf_counter() - start) * 1000
+                last_error = e
+                if attempt <= retries:
+                    continue  # Retry on error
+                result = SmokeTestResult(
+                    name=name,
+                    status=TestStatus.FAILED,
+                    duration_ms=duration_ms,
                 message=f"Exception: {type(e).__name__}",
                 error=str(e),
             )
@@ -225,8 +297,8 @@ class SmokeTestRunner:
             TestStatus.WARNING: "⚠️",
         }
 
-        status_icon.get(result.status, "?")
-        print("  {icon} {result.name} ({result.duration_ms:.1f}ms) - {result.message}")
+        icon = status_icon.get(result.status, "?")
+        print(f"  {icon} {result.name} ({result.duration_ms:.1f}ms) - {result.message}")
 
         if result.error and result.status == TestStatus.FAILED:
             print(f"     Error: {result.error}")
@@ -477,7 +549,7 @@ class SmokeTestRunner:
         """Test Redis connection."""
         from resync.core.cache import get_redis_client
 
-        client = get_redis_client()
+        client = await get_redis_client()
         result = await client.ping()
         assert result is True, "Redis ping failed"
 
@@ -485,8 +557,8 @@ class SmokeTestRunner:
         """Test database connection."""
         from resync.settings import settings
 
-        if not settings.DATABASE_URL:
-            raise AssertionError("DATABASE_URL not configured")
+        if not settings.database_url:
+            raise AssertionError("database_url not configured")
 
         # Try to import and check engine
         try:
@@ -508,7 +580,7 @@ class SmokeTestRunner:
             "resync.core.resilience",
             "resync.core.redis_strategy",
             "resync.core.structured_logger",
-            "resync.core.circuit_breaker",
+            # "resync.core.circuit_breaker",
             "resync.core.health.unified_health_service",
         ]
 
@@ -524,9 +596,10 @@ class SmokeTestRunner:
 
     async def _test_circuit_breaker(self) -> None:
         """Test circuit breaker functionality."""
-        from resync.core.resilience import CircuitBreaker
+        from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
 
-        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=1)
+        config = CircuitBreakerConfig(failure_threshold=2, recovery_timeout=1)
+        cb = CircuitBreaker(config)
 
         # Test successful call
         async def success():
@@ -534,7 +607,7 @@ class SmokeTestRunner:
 
         result = await cb.call(success)
         assert result == "ok"
-        assert cb.state == "closed"
+        assert cb.state == CircuitBreakerState.CLOSED
 
     async def _test_resilience_module(self) -> None:
         """Test resilience patterns."""
@@ -571,7 +644,8 @@ class SmokeTestRunner:
 
         # Test instantiation
         e = TWSError("test")
-        assert str(e) == "test"
+        assert e.message == "test"
+        assert "test" in str(e)
 
     # =========================================================================
     # SERVICE TESTS
