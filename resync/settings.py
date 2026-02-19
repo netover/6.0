@@ -324,6 +324,33 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
+    # ORCHESTRATION - MULTI-AGENT WORKFLOWS (v6.3.0)
+    # ============================================================================
+    orchestration_enabled: bool = Field(
+        default=True,
+        description="Habilitar o motor de orquestração multi-agente",
+    )
+
+    orchestration_execution_ttl_days: int = Field(
+        default=7,
+        ge=1,
+        le=365,
+        description="Dias para reter históricos de execução de orquestração",
+    )
+
+    orchestration_default_strategy: str = Field(
+        default="sequential",
+        description="Estratégia de execução padrão: sequential, parallel, consensus, fallback",
+    )
+
+    orchestration_parallel_max_workers: int = Field(
+        default=4,
+        ge=1,
+        le=32,
+        description="Máximo de workers para execução paralela de steps",
+    )
+
+    # ============================================================================
     # HYBRID RETRIEVER - BM25 + Vector Search (v5.2.3.22)
     # ============================================================================
     hybrid_vector_weight: float = Field(
@@ -787,6 +814,15 @@ class Settings(BaseSettings, SettingsValidators):
         description=(
             "Senha do administrador. Deve ser configurada via variável de ambiente."
         ),
+        exclude=True,
+        repr=False,
+    )
+
+    # v6.2.1: API Key for limited Operator access (outside admin)
+    operator_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("OPERATOR_API_KEY", "APP_OPERATOR_API_KEY"),
+        description="Chave de API para acesso limitado de operador",
         exclude=True,
         repr=False,
     )

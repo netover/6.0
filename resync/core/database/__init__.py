@@ -23,10 +23,6 @@ from .engine import (
     get_session,
     get_session_factory,
 )
-
-# Alias for backward compatibility
-get_db = get_db_session
-get_async_session = get_session  # Alias for workflows
 from .models import (
     ActiveLearningCandidate,
     AuditEntry,
@@ -79,6 +75,10 @@ from .schema import (
     create_tables,
     initialize_database,
 )
+
+# Alias for backward compatibility
+get_db = get_db_session
+get_async_session = get_session  # Alias for workflows
 
 __all__ = [
     # Config

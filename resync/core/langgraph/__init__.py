@@ -256,6 +256,15 @@ __all__ = [
     "DiagnosticState",
     "create_diagnostic_graph",
     "diagnose_problem",
+    "IncidentState",
+    "IncidentAnalysis",
+    "Severity",
+    "OutputChannel",
+    "create_incident_response_graph",
+    "get_incident_graph",
+    "handle_incident",
+    "integrate_with_anomaly_detector",
+    "integrate_with_chat",
     # Convenience
     "quick_diagnose",
 ]

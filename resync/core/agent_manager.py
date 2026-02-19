@@ -18,14 +18,21 @@ from typing import Any
 import structlog
 import yaml
 import aiofiles
+from pydantic import BaseModel, Field
 
+from resync.core.exceptions import AgentError
+from resync.core.metrics import runtime_metrics
+from resync.models.agents import AgentConfig, AgentType
 from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
+from resync.settings import settings
 from resync.tools.definitions.tws import (
     tws_status_tool,
     tws_troubleshooting_tool,
 )
+from .global_utils import get_environment_tags, get_global_correlation_id
 
 agent_logger = structlog.get_logger("resync.agent_manager")
+logger = structlog.get_logger(__name__)
 
 
 # =============================================================================
@@ -73,7 +80,9 @@ class Agent:
             # Injeção dinâmica da Skill no prompt do sistema
             full_instructions = self.instructions
             if skill_context:
-                full_instructions += f"\n\n--- CONHECIMENTO ESPECÍFICO APLICÁVEL ---\n{skill_context}"
+                full_instructions += (
+                    f"\n\n--- CONHECIMENTO ESPECÍFICO APLICÁVEL ---\n{skill_context}"
+                )
 
             system_prompt = (
                 f"You are {self.name}.\n"
@@ -102,9 +111,7 @@ class Agent:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            agent_logger.error(
-                "agent_arun_error", error=str(exc), agent=self.name
-            )
+            agent_logger.error("agent_arun_error", error=str(exc), agent=self.name)
             return self._fallback_response(message)
 
     def _fallback_response(self, message: str) -> str:
@@ -134,7 +141,9 @@ class Agent:
             )
         except Exception as e:
             agent_logger.error("fallback_response_error", error=str(e), agent=self.name)
-            return "Ocorreu um erro inesperado ao tentar gerar uma resposta alternativa."
+            return (
+                "Ocorreu um erro inesperado ao tentar gerar uma resposta alternativa."
+            )
 
     def run(self, message: str) -> str:
         """Synchronous wrapper around :meth:`arun`."""
@@ -169,26 +178,7 @@ MockAgent = Agent
 AGNO_AVAILABLE = True
 
 
-# =============================================================================
-# IMPORTS (after Agent so Agent is available to MockAgent alias)
-# =============================================================================
-
-from pydantic import BaseModel, Field
-
-from resync.core.exceptions import AgentError
-from resync.core.metrics import runtime_metrics
-from resync.settings import settings
-
-from .global_utils import get_environment_tags, get_global_correlation_id
-
-logger = structlog.get_logger(__name__)
-
-
 # --- Pydantic models --------------------------------------------------------
-
-from resync.models.agents import AgentConfig, AgentType
-
-
 class AgentsConfig(BaseModel):
     """Container for multiple agent configurations."""
 
@@ -333,9 +323,7 @@ class AgentManager:
     # YAML configuration loader
     # -----------------------------------------------------------------
 
-    async def load_agents_from_config(
-        self, config_path: str | None = None
-    ) -> None:
+    async def load_agents_from_config(self, config_path: str | None = None) -> None:
         """Load agent configurations from a YAML file.
 
         If the file is missing or invalid the hardcoded defaults are kept.
@@ -346,9 +334,7 @@ class AgentManager:
                 Path(__file__).parent.parent.parent / "config" / "agents.yaml",
                 Path("/app/config/agents.yaml"),
             ]
-            config_file = next(
-                (p for p in search_paths if p.exists()), None
-            )
+            config_file = next((p for p in search_paths if p.exists()), None)
         else:
             config_file = Path(config_path)
 
@@ -410,9 +396,7 @@ class AgentManager:
                         backstory=agent_data.get("backstory", "").strip(),
                         tools=agent_data.get("tools", []),
                         model_name=model_name,
-                        memory=agent_data.get(
-                            "memory", defaults.get("memory", True)
-                        ),
+                        memory=agent_data.get("memory", defaults.get("memory", True)),
                     )
                     loaded.append(config)
                     logger.debug(
@@ -472,14 +456,17 @@ class AgentManager:
         Uses an asyncio lock to prevent two coroutines from creating the
         same agent simultaneously.
         """
+        # First check without lock (fast path for existing agents)
         if agent_id in self.agents:
             return self.agents[agent_id]
 
+        # Acquire lock before creating agent to prevent race condition
         async with self._get_agent_lock():
-            # Double-check after acquiring lock
+            # Double-check: another coroutine may have created it while waiting
             if agent_id in self.agents:
                 return self.agents[agent_id]
 
+            # Now create agent inside the lock to ensure atomic creation
             agent = await self._create_agent(agent_id)
             if agent is not None:
                 self.agents[agent_id] = agent
@@ -492,9 +479,7 @@ class AgentManager:
                 (c for c in self.agent_configs if c.id == agent_id), None
             )
             if agent_config is None:
-                logger.warning(
-                    "agent_config_not_found", agent_id=agent_id
-                )
+                logger.warning("agent_config_not_found", agent_id=agent_id)
                 return None
 
             # Ensure TWS client is available for tools
@@ -533,9 +518,7 @@ class AgentManager:
             )
             return None
 
-    def _tools_for_config(
-        self, agent_config: AgentConfig
-    ) -> dict[str, Any]:
+    def _tools_for_config(self, agent_config: AgentConfig) -> dict[str, Any]:
         """Return only the tools that *agent_config.tools* allows.
 
         If the config lists no tools (empty list), no tools are injected.
@@ -581,9 +564,7 @@ class AgentManager:
                     client_type=type(self.tws_client).__name__,
                 )
             except Exception as exc:
-                logger.warning(
-                    "tws_client_init_failed", error=str(exc)
-                )
+                logger.warning("tws_client_init_failed", error=str(exc))
 
     async def get_tws_client(self) -> Any:
         """Public accessor — ensures client exists, then returns it."""
@@ -594,23 +575,23 @@ class AgentManager:
     # Read-only accessors
     # -----------------------------------------------------------------
 
-    def get_all_agents(self) -> list[AgentConfig]:
-        """Return all loaded agent configurations."""
+    async def get_all_agents(self) -> list[AgentConfig]:
+        """Return all loaded agent configurations (async)."""
         return list(self.agent_configs)
 
-    def get_agent_config(self, agent_id: str) -> AgentConfig | None:
-        """Retrieve the config for a single agent."""
-        return next(
-            (c for c in self.agent_configs if c.id == agent_id), None
-        )
+    async def get_agent_config(self, agent_id: str) -> AgentConfig | None:
+        """Retrieve the config for a single agent (async)."""
+        return next((c for c in self.agent_configs if c.id == agent_id), None)
 
     # -----------------------------------------------------------------
     # A2A Protocol support
     # -----------------------------------------------------------------
 
-    async def get_agent_card(self, agent_id: str, base_url: str = "http://localhost:8000") -> AgentCard | None:
+    async def get_agent_card(
+        self, agent_id: str, base_url: str = "http://localhost:8000"
+    ) -> AgentCard | None:
         """Generate an A2A Agent Card for the specified agent."""
-        config = self.get_agent_config(agent_id)
+        config = await self.get_agent_config(agent_id)
         if not config:
             return None
 
@@ -627,20 +608,19 @@ class AgentManager:
                 actions=config.tools,
                 communication_modes=["json-rpc", "websocket"],
                 supports_streaming=True,
-                supports_events=True
+                supports_events=True,
             ),
             contact=AgentContact(
                 endpoint=f"{base_url}/api/v1/a2a/{agent_id}/jsonrpc",
                 websocket_endpoint=f"ws://{base_url.split('://')[1]}/ws/{agent_id}",
-                auth_required=True
+                auth_required=True,
             ),
-            metadata={
-                "role": config.role,
-                "model": config.model_name
-            }
+            metadata={"role": config.role, "model": config.model_name},
         )
 
-    async def export_a2a_cards(self, base_url: str = "http://localhost:8000") -> list[AgentCard]:
+    async def export_a2a_cards(
+        self, base_url: str = "http://localhost:8000"
+    ) -> list[AgentCard]:
         """Export A2A cards for all configured agents."""
         cards = []
         for config in self.agent_configs:
@@ -715,14 +695,21 @@ class UnifiedAgent:
     _MAX_HISTORY: int = 100
     _TRIM_TO: int = 50
 
-    def __init__(self, agent_manager: AgentManager | None = None) -> None:
+    def __init__(
+        self,
+        agent_manager: AgentManager | None = None,
+        skill_manager: Any = None,
+    ) -> None:
         from resync.core.agent_router import create_router
 
         self._manager = agent_manager or get_agent_manager()
-        self._router = create_router(self._manager)
+        self._router = create_router(self._manager, skill_manager=skill_manager)
         # Per-conversation history: {conversation_id: [messages]}
         self._histories: dict[str, list[dict[str, str]]] = {}
-        logger.info("unified_agent_initialized")
+        logger.info(
+            "unified_agent_initialized",
+            skill_manager_enabled=skill_manager is not None,
+        )
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
         return self._histories.setdefault(conversation_id, [])
@@ -789,9 +776,7 @@ class UnifiedAgent:
 
         if tws_instance_id:
             context["tws_instance_id"] = tws_instance_id
-            logger.debug(
-                "tws_instance_context_set", instance_id=tws_instance_id
-            )
+            logger.debug("tws_instance_context_set", instance_id=tws_instance_id)
 
         if extra_context:
             context.update(extra_context)
@@ -815,13 +800,9 @@ class UnifiedAgent:
     def clear_history(self, conversation_id: str = "_default") -> None:
         """Clear history for a specific conversation."""
         self._histories.pop(conversation_id, None)
-        logger.debug(
-            "conversation_history_cleared", conversation_id=conversation_id
-        )
+        logger.debug("conversation_history_cleared", conversation_id=conversation_id)
 
-    def get_history(
-        self, conversation_id: str = "_default"
-    ) -> list[dict[str, str]]:
+    def get_history(self, conversation_id: str = "_default") -> list[dict[str, str]]:
         """Return a copy of history for *conversation_id*."""
         return list(self._get_history(conversation_id))
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -9,34 +10,45 @@ from resync.core.websocket_pool_manager import get_websocket_pool_manager
 logger = logging.getLogger(__name__)
 
 
+# --- Constants ---
+LOCK_TIMEOUT_SECONDS = 5.0
+
+
 class ConnectionManager:
     """
     Manages active WebSocket connections for real-time updates.
     Enhanced with connection pooling and monitoring capabilities.
+    Thread-safe implementation with asyncio.Lock for concurrent access.
     """
 
     def __init__(self) -> None:
         """Initializes the ConnectionManager with connection pooling support."""
         self.active_connections: dict[str, WebSocket] = {}
         self._pool_manager = None
+        self._pool_manager_lock = asyncio.Lock()
+        self._lock = asyncio.Lock()
         logger.info("ConnectionManager initialized with pooling support.")
 
     async def _get_pool_manager(self):
-        """Get or create the WebSocket pool manager."""
+        """Get or create the WebSocket pool manager (thread-safe)."""
         if self._pool_manager is None:
-            self._pool_manager = await get_websocket_pool_manager()
+            async with self._pool_manager_lock:
+                if self._pool_manager is None:
+                    self._pool_manager = await get_websocket_pool_manager()
         return self._pool_manager
 
     async def connect(self, websocket: WebSocket, client_id: str) -> None:
         """
         Accepts a new WebSocket connection and adds it to the active list.
         Integrates with the WebSocket pool manager for enhanced monitoring.
+        Thread-safe: uses lock to protect active_connections modifications.
         """
         pool_manager = await self._get_pool_manager()
         await pool_manager.connect(websocket, client_id)
 
         # Maintain backward compatibility with existing dictionary
-        self.active_connections[client_id] = websocket
+        async with self._lock:
+            self.active_connections[client_id] = websocket
         logger.info("New WebSocket connection accepted: %s", client_id)
         logger.info("Total active connections: %d", len(self.active_connections))
 
@@ -44,36 +56,58 @@ class ConnectionManager:
         """
         Removes a WebSocket connection from the active list.
         Integrates with the WebSocket pool manager for cleanup.
+        Thread-safe: uses lock to protect active_connections modifications.
         """
-        if client_id in self.active_connections:
-            # Remove from pool manager first
-            if self._pool_manager:
-                await self._pool_manager.disconnect(client_id)
-            # Maintain backward compatibility
-            del self.active_connections[client_id]
-            logger.info("WebSocket connection closed: %s", client_id)
-            logger.info("Total active connections: %d", len(self.active_connections))
+        async with self._lock:
+            if client_id not in self.active_connections:
+                return
+            websocket = self.active_connections.pop(client_id)
+
+        # Close websocket outside lock to avoid potential deadlocks
+        try:
+            await websocket.close()
+        except Exception as e:
+            logger.warning("Error closing websocket for client %s: %s", client_id, e)
+
+        if self._pool_manager:
+            await self._pool_manager.disconnect(client_id)
+
+        logger.info("WebSocket connection closed: %s", client_id)
+        logger.info("Total active connections: %d", len(self.active_connections))
 
     async def send_personal_message(self, message: str, client_id: str) -> None:
         """
         Sends a message to a specific client.
         Integrates with the WebSocket pool manager for enhanced delivery.
         """
-        # Try pool manager first for enhanced features
         if self._pool_manager:
             success = await self._pool_manager.send_personal_message(message, client_id)
             if success:
                 return
 
-        # Fallback to direct WebSocket delivery for backward compatibility
-        websocket = self.active_connections.get(client_id)
-        if websocket:
-            await websocket.send_text(message)
+        async with self._lock:
+            websocket = self.active_connections.get(client_id)
+            if not websocket:
+                return
+
+            try:
+                await websocket.send_text(message)
+            except (WebSocketDisconnect, ConnectionError) as e:
+                logger.warning("Connection error sending to client %s: %s", client_id, e)
+                self.active_connections.pop(client_id, None)
+            except RuntimeError as e:
+                if "websocket state" in str(e).lower():
+                    logger.warning("WebSocket in wrong state for client %s: %s", client_id, e)
+                else:
+                    logger.error("Runtime error sending to client %s: %s", client_id, e)
+            except Exception as e:
+                logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
         """
         Sends a plain text message to all connected clients.
         Uses the WebSocket pool manager for enhanced broadcasting.
+        Thread-safe: iterates over a copy of connections to avoid modification during iteration.
         """
         # Use pool manager for enhanced broadcasting with monitoring
         if self._pool_manager and self._pool_manager.connections:
@@ -86,13 +120,16 @@ class ConnectionManager:
             return
 
         # Fallback to legacy broadcasting for backward compatibility
-        if not self.active_connections:
-            logger.info("Broadcast requested, but no active connections.")
-            return
+        async with self._lock:
+            if not self.active_connections:
+                logger.info("Broadcast requested, but no active connections.")
+                return
+            # Create a copy of the connections to iterate safely
+            connections = list(self.active_connections.values())
 
-        logger.info("broadcasting_message", client_count=len(self.active_connections))
+        logger.info("broadcasting_message", client_count=len(connections))
         # Create a list of tasks to send messages concurrently
-        tasks = [connection.send_text(message) for connection in self.active_connections.values()]
+        tasks = [connection.send_text(message) for connection in connections]
         # In a high-load scenario, you might want to handle exceptions here
         # for failed sends, but for now, we keep it simple.
         for task in tasks:
@@ -115,6 +152,7 @@ class ConnectionManager:
         """
         Sends a JSON payload to all connected clients.
         Uses the WebSocket pool manager for enhanced broadcasting.
+        Thread-safe: iterates over a copy of connections to avoid modification during iteration.
         """
         # Use pool manager for enhanced JSON broadcasting with monitoring
         if self._pool_manager and self._pool_manager.connections:
@@ -127,12 +165,15 @@ class ConnectionManager:
             return
 
         # Fallback to legacy JSON broadcasting for backward compatibility
-        if not self.active_connections:
-            logger.info("JSON broadcast requested, but no active connections.")
-            return
+        async with self._lock:
+            if not self.active_connections:
+                logger.info("JSON broadcast requested, but no active connections.")
+                return
+            # Create a copy of the connections to iterate safely
+            connections = list(self.active_connections.values())
 
-        logger.info("Broadcasting JSON data to %d clients.", len(self.active_connections))
-        tasks = [connection.send_json(data) for connection in self.active_connections.values()]
+        logger.info("Broadcasting JSON data to %d clients.", len(connections))
+        tasks = [connection.send_json(data) for connection in connections]
         for task in tasks:
             try:
                 await task

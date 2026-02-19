@@ -149,6 +149,17 @@ SETTINGS_SCHEMA = {
             "langgraph_require_approval": {"type": "boolean", "label": "Requer Aprovação Humana", "hot_reload": True},
         }
     },
+    "orchestration": {
+        "title": "Orquestração Multi-Agente",
+        "icon": "fa-project-diagram",
+        "description": "Configurações do novo motor de orquestração",
+        "fields": {
+            "orchestration_enabled": {"type": "boolean", "label": "Habilitado", "hot_reload": True},
+            "orchestration_execution_ttl_days": {"type": "number", "label": "Retenção de Execuções (dias)", "min": 1, "max": 365, "hot_reload": True},
+            "orchestration_default_strategy": {"type": "select", "options": ["sequential", "parallel", "consensus", "fallback"], "label": "Estratégia Padrão", "hot_reload": True},
+            "orchestration_parallel_max_workers": {"type": "number", "label": "Max Parallel Workers", "min": 1, "max": 32, "hot_reload": True},
+        }
+    },
     "a2a": {
         "title": "A2A Protocol",
         "icon": "fa-exchange-alt",
@@ -415,7 +426,7 @@ def _get_all_settings_values(settings: Settings) -> dict[str, dict[str, Any]]:
 
     for section_key, section in SETTINGS_SCHEMA.items():
         section_values = {}
-        for field_key, field_config in section["fields"].items():
+        for field_key, field_config in section["fields"].items():  # type: ignore[attr-defined]
             # Check override first
             if field_key in overrides:
                 section_values[field_key] = overrides[field_key]
@@ -541,8 +552,8 @@ async def update_setting(update: SettingUpdate) -> dict[str, Any]:
     hot_reload = True
     restart_reason = None
 
-    for section in SETTINGS_SCHEMA.values():
-        if update.key in section["fields"]:
+    for section in SETTINGS_SCHEMA.values():  # type: ignore[attr-defined]
+        if update.key in section["fields"]:  # type: ignore[index]
             field_config = section["fields"][update.key]
             found = True
             hot_reload = field_config.get("hot_reload", True)
@@ -624,8 +635,8 @@ async def bulk_update_settings(update: BulkSettingsUpdate) -> dict[str, Any]:
         hot_reload = True
         restart_reason = None
 
-        for section in SETTINGS_SCHEMA.values():
-            if key in section["fields"]:
+        for section in SETTINGS_SCHEMA.values():  # type: ignore[attr-defined]
+            if key in section["fields"]:  # type: ignore[index]
                 found = True
                 field_config = section["fields"][key]
                 readonly = field_config.get("readonly", False)

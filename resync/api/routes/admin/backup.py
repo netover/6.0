@@ -209,7 +209,7 @@ async def create_database_backup(
         )
         return BackupResponse.from_backup_info(backup)
     except Exception as e:
-        logger.error("create_database_backup_failed", error=str(e))
+        logger.error("create_database_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
 
 
@@ -229,7 +229,7 @@ async def create_config_backup(request: CreateBackupRequest):
         )
         return BackupResponse.from_backup_info(backup)
     except Exception as e:
-        logger.error("create_config_backup_failed", error=str(e))
+        logger.error("create_config_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
 
 
@@ -246,7 +246,7 @@ async def create_full_backup(request: CreateBackupRequest):
         backup = await service.create_full_backup(description=request.description)
         return BackupResponse.from_backup_info(backup)
     except Exception as e:
-        logger.error("create_full_backup_failed", error=str(e))
+        logger.error("create_full_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
 
 

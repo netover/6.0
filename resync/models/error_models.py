@@ -1,6 +1,6 @@
 """Standardized error response models for the FastAPI application."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -36,7 +36,7 @@ class BaseErrorResponse(BaseModel):
     message: str = Field(..., description="Technical error message")
     correlation_id: str = Field(..., description="Correlation ID for tracing")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp of error occurrence"
+        default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of error occurrence"
     )
     severity: ErrorSeverity = Field(ErrorSeverity.MEDIUM, description="Error severity level")
     category: ErrorCategory = Field(..., description="Error category")

@@ -10,9 +10,6 @@ from .auth import (
     User,
     UserRole,
 )
-
-# AdminUser is an alias for User (for backward compatibility with admin repositories)
-AdminUser = User
 from .stores import (
     ActiveLearningCandidate,
     # Audit Models
@@ -46,6 +43,8 @@ from .stores import (
     # Helper
     get_all_models,
 )
+
+AdminUser = User
 
 __all__ = [
     # Base

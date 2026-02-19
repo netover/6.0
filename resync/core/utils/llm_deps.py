@@ -16,9 +16,9 @@ def get_litellm_exceptions() -> Tuple[type, ...]:
     from litellm.exceptions import (
         APIError,
         AuthenticationError,
+        BadRequestError,
         ContentPolicyViolationError,
         ContextWindowExceededError,
-        InvalidRequestError,
         RateLimitError,
         ServiceUnavailableError,
         Timeout,
@@ -26,9 +26,9 @@ def get_litellm_exceptions() -> Tuple[type, ...]:
     return (
         APIError,
         AuthenticationError,
+        BadRequestError,
         ContentPolicyViolationError,
         ContextWindowExceededError,
-        InvalidRequestError,
         RateLimitError,
         ServiceUnavailableError,
         Timeout,

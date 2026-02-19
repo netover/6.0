@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import os
 import ipaddress
+import warnings as _warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -435,10 +436,6 @@ def setup_rate_limiting(app: FastAPI) -> None:
 # =============================================================================
 # Middleware (DEPRECATED — does not perform actual rate limiting)
 # =============================================================================
-
-import warnings as _warnings
-
-
 class RateLimitMiddleware:
     """Rate limiting middleware for global limits.
 

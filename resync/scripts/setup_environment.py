@@ -36,8 +36,8 @@ def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subproce
 def check_python_version() -> bool:
     """Verifica versão do Python."""
     version = sys.version_info
-    if version.major < 3 or (version.major == 3 and version.minor < 10):
-        print(f"❌ Python 3.10+ necessário. Versão atual: {version.major}.{version.minor}")
+    if version.major < 3 or (version.major == 3 and version.minor < 14):
+        print(f"❌ Python 3.14+ necessário. Versão atual: {version.major}.{version.minor}")
         return False
     print(f"✅ Python {version.major}.{version.minor}.{version.micro}")
     return True

@@ -23,7 +23,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 import aiohttp
 
@@ -928,8 +928,6 @@ class SIEMCircuitBreaker:
 # Global SIEM integrator instance
 # Lazily instantiate the SIEMIntegrator to avoid import-time heavy initialization
 # (important for gunicorn --preload and faster module import).
-from typing import Optional
-
 _siem_integrator_instance: Optional["SIEMIntegrator"] = None
 
 def get_siem_integrator_sync() -> "SIEMIntegrator":

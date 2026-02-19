@@ -4,8 +4,6 @@ Verification script for RedisVL Semantic Cache.
 
 import asyncio
 import logging
-import sys
-from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

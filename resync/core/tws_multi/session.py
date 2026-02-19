@@ -37,8 +37,8 @@ class TWSSession:
 
     # State
     connected: bool = False
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    last_activity: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # View state (preserved per session)
     current_view: str = "dashboard"  # dashboard, jobs, schedules, logs

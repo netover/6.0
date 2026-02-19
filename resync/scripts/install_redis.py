@@ -300,6 +300,8 @@ def test_redis() -> None:
 
 
 def main():
+    global REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
+
     parser = argparse.ArgumentParser(description="Redis Setup for Resync")
     parser.add_argument(
         "--action",
@@ -313,7 +315,6 @@ def main():
 
     args = parser.parse_args()
 
-    global REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
     REDIS_HOST = args.host
     REDIS_PORT = args.port
     REDIS_PASSWORD = args.password

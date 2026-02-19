@@ -266,6 +266,11 @@ class RuntimeMetrics:
         self.cache_size = MetricGauge()
         self.cache_cleanup_cycles = MetricCounter()
 
+        # Router Cache (Intent Cache)
+        self.router_cache_hits = MetricCounter()
+        self.router_cache_misses = MetricCounter()
+        self.router_cache_sets = MetricCounter()
+
         # Audit
         self.audit_records_created = MetricCounter()
         self.audit_records_approved = MetricCounter()
@@ -309,6 +314,16 @@ class RuntimeMetrics:
         self.system_availability = MetricGauge()  # percentual agregado externamente
         self.tws_connection_success_rate = MetricGauge()
         self.ai_agent_response_time = MetricHistogram(help_text="AI agent response time seconds")
+
+        # Orchestration Metrics (Multi-Agent Workflows)
+        self.orchestration_executions_total = MetricCounter()
+        self.orchestration_executions_success = MetricCounter()
+        self.orchestration_executions_failed = MetricCounter()
+        self.orchestration_steps_completed = MetricCounter()
+        self.orchestration_steps_failed = MetricCounter()
+        self.orchestration_active_executions = MetricGauge()
+        self.orchestration_execution_time = MetricHistogram(help_text="Orchestration execution duration seconds")
+        self.orchestration_step_time = MetricHistogram(help_text="Orchestration step duration seconds")
 
         # Correlation tracking
         self._correlation_context: dict[str, dict[str, Any]] = {}
@@ -451,6 +466,12 @@ class RuntimeMetrics:
             return self.cache_hits.value / total_cache_ops
         return 0.0
 
+    def _calculate_router_cache_hit_ratio(self) -> float:
+        total_router_ops = self.router_cache_hits.value + self.router_cache_misses.value
+        if total_router_ops > 0:
+            return self.router_cache_hits.value / total_router_ops
+        return 0.0
+
     def get_snapshot(self) -> dict[str, Any]:
         # Erros por tipo
         error_metrics = {}
@@ -473,6 +494,12 @@ class RuntimeMetrics:
                 "size": self.cache_size.get(),
                 "cleanup_cycles": self.cache_cleanup_cycles.value,
                 "hit_rate": self._calculate_cache_hit_ratio(),
+            },
+            "router_cache": {
+                "hits": self.router_cache_hits.value,
+                "misses": self.router_cache_misses.value,
+                "sets": self.router_cache_sets.value,
+                "hit_rate": self._calculate_router_cache_hit_ratio(),
             },
             "audit": {
                 "records_created": self.audit_records_created.value,

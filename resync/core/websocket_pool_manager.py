@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from resync.core.metrics import runtime_metrics
 
@@ -80,17 +81,14 @@ class WebSocketPoolManager:
         if self._initialized or self._shutdown:
             return
 
+        self._cleanup_task = await create_tracked_task(self._cleanup_loop(), name="cleanup_loop")
+
         async with self._lock:
             if self._initialized:
                 return
-
-            # Start cleanup task
-            self._cleanup_task = await create_tracked_task(self._cleanup_loop(), name="cleanup_loop")
             self._initialized = True
 
             logger.info("WebSocket pool manager initialized")
-
-            # Record initialization metric
             runtime_metrics.record_gauge("websocket_pool.initialized", 1)
 
     async def shutdown(self) -> None:
@@ -100,21 +98,17 @@ class WebSocketPoolManager:
 
         self._shutdown = True
 
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._cleanup_task
+
+        await self._close_all_connections()
+
         async with self._lock:
-            # Cancel cleanup task
-            if self._cleanup_task:
-                self._cleanup_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._cleanup_task
-
-            # Close all active connections
-            await self._close_all_connections()
-
             self._initialized = False
 
             logger.info("WebSocket pool manager shutdown")
-
-            # Record shutdown metric
             runtime_metrics.record_gauge("websocket_pool.initialized", 0)
 
     async def _cleanup_loop(self) -> None:
@@ -132,6 +126,7 @@ class WebSocketPoolManager:
         current_time = datetime.now(timezone.utc)
         connections_to_remove = []
 
+        # Collect connections to remove under lock
         async with self._lock:
             for client_id, conn_info in self.connections.items():
                 # Check for stale connections (no activity for timeout period)
@@ -163,28 +158,33 @@ class WebSocketPoolManager:
                         logger.error("Error checking connection duration for %s: %s", client_id, e)
                         connections_to_remove.append(client_id)
 
-            # Remove stale/unhealthy connections
-            for client_id in connections_to_remove:
-                await self._remove_connection(client_id)
-
-            # Update stats
+            # Update stats under lock
             self.stats.cleanup_cycles += 1
             self.stats.last_cleanup = current_time
 
-            # Record cleanup metrics
-            runtime_metrics.record_counter(
-                "websocket_pool.cleanup_cycles",
-                len(connections_to_remove),
-                {"reason": "stale_or_unhealthy_or_long_lived"},
-            )
+        # Remove connections OUTSIDE the lock to avoid deadlock
+        for client_id in connections_to_remove:
+            try:
+                await self._remove_connection_safe(client_id)
+            except Exception as e:
+                logger.error("Error removing connection during cleanup: %s", e)
+
+        # Record cleanup metrics (after cleanup completes)
+        runtime_metrics.record_counter(
+            "websocket_pool.cleanup_cycles",
+            len(connections_to_remove),
+        )
 
     async def _close_all_connections(self) -> None:
         """Close all WebSocket connections."""
-        connections_to_close = list(self.connections.keys())
+        # Get copy of connections under lock
+        async with self._lock:
+            connections_to_close = list(self.connections.keys())
 
+        # Close each connection outside the lock
         for client_id in connections_to_close:
             try:
-                await self._remove_connection(client_id)
+                await self._remove_connection_safe(client_id)
             except Exception as e:
                 logger.error("Error closing WebSocket connection %s: %s", client_id, e)
 
@@ -245,40 +245,77 @@ class WebSocketPoolManager:
         """
         await self._remove_connection(client_id)
 
-    async def _remove_connection(self, client_id: str) -> None:
-        """Internal method to remove a connection."""
+    async def _remove_connection_safe(self, client_id: str) -> None:
+        """
+        Safe method to remove a connection - does NOT acquire lock.
+        Used internally to avoid deadlocks when called from methods that already hold the lock.
+        """
+        # Get connection info under lock, then remove and close outside
         async with self._lock:
             if client_id not in self.connections:
                 return
+            conn_info = self.connections.pop(client_id)
+            is_healthy = conn_info.is_healthy
 
-            conn_info = self.connections[client_id]
+        # Close WebSocket OUTSIDE the lock (async I/O)
+        try:
+            if conn_info.websocket.client_state != WebSocketState.DISCONNECTED:
+                await conn_info.websocket.close()
+        except Exception as e:
+            logger.error("Error closing WebSocket for %s: %s", client_id, e)
 
-            try:
-                # Close the WebSocket connection
-                if not conn_info.websocket.client_state.DISCONNECTED:
-                    await conn_info.websocket.close()
-            except Exception as e:
-                logger.error("Error closing WebSocket for %s: %s", client_id, e)
-
-            # Update statistics
-            if conn_info.is_healthy:
-                self.stats.healthy_connections -= 1
+        # Update statistics under lock
+        async with self._lock:
+            if is_healthy:
+                self.stats.healthy_connections = max(0, self.stats.healthy_connections - 1)
             else:
-                self.stats.unhealthy_connections -= 1
-
-            del self.connections[client_id]
+                self.stats.unhealthy_connections = max(0, self.stats.unhealthy_connections - 1)
             self.stats.active_connections = len(self.connections)
 
-            logger.info("WebSocket connection removed: %s", client_id)
-            logger.info("Total active WebSocket connections: %s", self.stats.active_connections)
+        logger.info("WebSocket connection removed: %s", client_id)
+        logger.info("Total active WebSocket connections: %s", self.stats.active_connections)
 
-            # Record disconnection metrics
-            runtime_metrics.record_counter(
-                "websocket_pool.connections_closed", 1, {"client_id": client_id}
-            )
-            runtime_metrics.record_gauge(
-                "websocket_pool.active_connections", self.stats.active_connections
-            )
+        # Record disconnection metrics
+        runtime_metrics.record_counter(
+            "websocket_pool.connections_closed", 1
+        )
+        runtime_metrics.record_gauge(
+            "websocket_pool.active_connections", self.stats.active_connections
+        )
+
+    async def _remove_connection(self, client_id: str) -> None:
+        """Internal method to remove a connection - acquires lock."""
+        async with self._lock:
+            if client_id not in self.connections:
+                return
+            conn_info = self.connections.pop(client_id)
+            is_healthy = conn_info.is_healthy
+
+        # Close WebSocket OUTSIDE the lock
+        try:
+            if conn_info.websocket.client_state != WebSocketState.DISCONNECTED:
+                await conn_info.websocket.close()
+        except Exception as e:
+            logger.error("Error closing WebSocket for %s: %s", client_id, e)
+
+        # Update statistics
+        async with self._lock:
+            if is_healthy:
+                self.stats.healthy_connections = max(0, self.stats.healthy_connections - 1)
+            else:
+                self.stats.unhealthy_connections = max(0, self.stats.unhealthy_connections - 1)
+            self.stats.active_connections = len(self.connections)
+
+        logger.info("WebSocket connection removed: %s", client_id)
+        logger.info("Total active WebSocket connections: %s", self.stats.active_connections)
+
+        # Record disconnection metrics
+        runtime_metrics.record_counter(
+            "websocket_pool.connections_closed", 1
+        )
+        runtime_metrics.record_gauge(
+            "websocket_pool.active_connections", self.stats.active_connections
+        )
 
     async def send_personal_message(self, message: str, client_id: str) -> bool:
         """
@@ -294,6 +331,12 @@ class WebSocketPoolManager:
         conn_info = self.connections.get(client_id)
         if not conn_info:
             logger.warning("Client %s not found for personal message", client_id)
+            return False
+
+        # Check WebSocket state before sending (ASGI compliance)
+        if conn_info.websocket.client_state != WebSocketState.CONNECTED:
+            logger.warning("Client %s WebSocket is not connected (state: %s)", client_id, conn_info.websocket.client_state)
+            await self.disconnect(client_id)
             return False
 
         try:
@@ -371,6 +414,12 @@ class WebSocketPoolManager:
         if not conn_info:
             return False
 
+        # Check WebSocket state before sending (ASGI compliance)
+        if conn_info.websocket.client_state != WebSocketState.CONNECTED:
+            logger.warning("Client %s WebSocket is not connected during broadcast (state: %s)", client_id, conn_info.websocket.client_state)
+            await self._remove_connection(client_id)
+            return False
+
         try:
             await conn_info.websocket.send_text(message)
             conn_info.update_activity()
@@ -436,6 +485,12 @@ class WebSocketPoolManager:
         """Send JSON data with proper error handling and connection cleanup."""
         conn_info = self.connections.get(client_id)
         if not conn_info:
+            return False
+
+        # Check WebSocket state before sending (ASGI compliance)
+        if conn_info.websocket.client_state != WebSocketState.CONNECTED:
+            logger.warning("Client %s WebSocket is not connected during JSON broadcast (state: %s)", client_id, conn_info.websocket.client_state)
+            await self._remove_connection(client_id)
             return False
 
         try:

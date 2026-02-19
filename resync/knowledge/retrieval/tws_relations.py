@@ -11,7 +11,7 @@ Versão: 5.4.0
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -178,8 +178,8 @@ class TWSNode:
     node_type: TWSNodeType
     name: str
     properties: dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tenant_id: str | None = None  # Para multi-tenant
 
     def to_dict(self) -> dict[str, Any]:
@@ -203,7 +203,7 @@ class TWSRelation:
     relation_type: TWSRelationType
     properties: dict[str, Any] = field(default_factory=dict)
     weight: float = 1.0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tenant_id: str | None = None  # Para multi-tenant
 
     def to_dict(self) -> dict[str, Any]:

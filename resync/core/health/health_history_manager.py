@@ -151,7 +151,7 @@ class HealthHistoryManager:
             except Exception as e:
                 logger.error("error_during_health_history_cleanup", error=str(e))
 
-    def _update_memory_usage(self) -> None:
+    async def _update_memory_usage(self) -> None:
         """Update memory usage tracking for health history."""
         try:
             # Estimate memory usage of health history

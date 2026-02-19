@@ -19,7 +19,15 @@ intent classification and complexity analysis.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    status,
+)
+import secrets
 
 # v5.4.1: Import HybridRouter (fallback to UnifiedAgent for compatibility)
 try:
@@ -54,7 +62,7 @@ _hybrid_router: HybridRouter | None = None
 
 class RagComponentsManager:
     """Singleton manager for RAG components to avoid global state issues."""
-    
+
     _instance: "RagComponentsManager | None" = None
     _initialized: bool = False
     _embedding_service = None
@@ -62,45 +70,80 @@ class RagComponentsManager:
     _retriever = None
     _ingest_service = None
     _hybrid_retriever = None
-    
+
     def __new__(cls) -> "RagComponentsManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     async def get_components(self):
         """Lazy initialization of RAG components within async context"""
         if self._initialized:
-            return self._embedding_service, self._vector_store, self._retriever, self._ingest_service
-        
-        try:
-            self._embedding_service = EmbeddingService()
-            self._vector_store = await get_vector_store()
-            self._retriever = RagRetriever(self._embedding_service, self._vector_store)
-            self._ingest_service = IngestService(self._embedding_service, self._vector_store)
+            return (
+                self._embedding_service,
+                self._vector_store,
+                self._retriever,
+                self._ingest_service,
+            )
+
+        # v5.7.1 FIX: Thread-safe initialization
+        if not hasattr(self, "_lock"):
+            import asyncio
+
+            self._lock = asyncio.Lock()
+
+        async with self._lock:
+            if self._initialized:
+                return (
+                    self._embedding_service,
+                    self._vector_store,
+                    self._retriever,
+                    self._ingest_service,
+                )
 
             try:
-                from resync.knowledge.retrieval.hybrid_retriever import HybridRetriever
+                self._embedding_service = EmbeddingService()
+                self._vector_store = get_vector_store()
+                self._retriever = RagRetriever(
+                    self._embedding_service, self._vector_store
+                )
+                self._ingest_service = IngestService(
+                    self._embedding_service, self._vector_store
+                )
 
-                self._hybrid_retriever = HybridRetriever(self._embedding_service, self._vector_store)
+                try:
+                    from resync.knowledge.retrieval.hybrid_retriever import (
+                        HybridRetriever,
+                    )
+
+                    self._hybrid_retriever = HybridRetriever(
+                        self._embedding_service, self._vector_store
+                    )
+                    if logger:
+                        logger.info("Hybrid retriever initialized (BM25 + Vector)")
+                except Exception as e:
+                    if logger:
+                        logger.warning(
+                            "Hybrid retriever not available, using standard: %s", e
+                        )
+
+                self._initialized = True
                 if logger:
-                    logger.info("Hybrid retriever initialized (BM25 + Vector)")
+                    logger.info("RAG components initialized successfully (lazy)")
             except Exception as e:
                 if logger:
-                    logger.warning("Hybrid retriever not available, using standard: %s", e)
+                    logger.error("Failed to initialize RAG components: %s", e)
+                self._embedding_service = None
+                self._vector_store = None
+                self._retriever = None
+                self._ingest_service = None
 
-            self._initialized = True
-            if logger:
-                logger.info("RAG components initialized successfully (lazy)")
-        except Exception as e:
-            if logger:
-                logger.error("Failed to initialize RAG components: %s", e)
-            self._embedding_service = None
-            self._vector_store = None
-            self._retriever = None
-            self._ingest_service = None
-
-        return self._embedding_service, self._vector_store, self._retriever, self._ingest_service
+        return (
+            self._embedding_service,
+            self._vector_store,
+            self._retriever,
+            self._ingest_service,
+        )
 
 
 # Singleton instance
@@ -142,6 +185,7 @@ async def chat_message(
     background_tasks: BackgroundTasks,
     x_session_id: str | None = Header(None, alias="X-Session-ID"),
     x_routing_mode: str | None = Header(None, alias="X-Routing-Mode"),
+    x_operator_key: str | None = Header(None, alias="X-Operator-Key"),
     # Temporarily disabled authentication for testing
     current_user: dict | None = Depends(get_current_user),
     hybrid_router=Depends(get_hybrid_router_provider),
@@ -161,15 +205,27 @@ async def chat_message(
     Pass X-Session-ID header to maintain conversation context.
     """
     from resync.settings import settings
-    if settings.is_production and not current_user:
+
+    # v6.2.1: Implemented secure Limited Access pattern
+    # Use 'operator_api_key' if provided in X-Operator-Key header
+    is_operator = False
+
+    if x_operator_key and settings.operator_api_key:
+        if secrets.compare_digest(
+            x_operator_key, settings.operator_api_key.get_secret_value()
+        ):
+            is_operator = True
+
+    if settings.is_production and not current_user and not is_operator:
+        logger_instance.warning("unauthorized_chat_access_attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    global logger, _hybrid_router
-    logger = logger_instance
+    # v5.7.1 FIX: Removed global logger injection to prevent context contamination
+    # logger = logger_instance
 
     try:
         # v5.4.0: Get or create conversation session
@@ -319,7 +375,9 @@ async def chat_message(
 
 
 @router.post("/chat/analyze", response_model=dict)
-async def analyze_message(request: ChatMessageRequest, logger_instance=Depends(get_logger)):
+async def analyze_message(
+    request: ChatMessageRequest, logger_instance=Depends(get_logger)
+):
     """
     Analyze a message without processing it.
 
@@ -327,8 +385,8 @@ async def analyze_message(request: ChatMessageRequest, logger_instance=Depends(g
     and which handler would process the message. Useful for debugging and
     understanding how the router interprets different queries.
     """
-    global logger
-    logger = logger_instance
+    # v5.7.1 FIX: Removed global logger injection
+    # logger = logger_instance
 
     try:
         from resync.core.agent_router import IntentClassifier
@@ -352,7 +410,8 @@ async def analyze_message(request: ChatMessageRequest, logger_instance=Depends(g
     except Exception as e:
         logger_instance.error("analyze_message_error", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to analyze message"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to analyze message",
         ) from e
 
 
@@ -362,6 +421,7 @@ async def chat_history(
     x_session_id: str | None = Header(None, alias="X-Session-ID"),
     # Temporarily disabled authentication for testing
     # current_user: dict = Depends(get_current_user)
+    logger_instance=Depends(get_logger),
 ):
     """Get chat history for the current session."""
     # v5.4.1: Try to get from memory first
@@ -376,7 +436,7 @@ async def chat_history(
                     "total_messages": len(context.messages),
                 }
         except Exception as exc:
-            logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+            logger_instance.debug("suppressed_exception", error=str(exc), exc_info=True)
 
     # Fallback
     if not _use_hybrid_router:
@@ -409,9 +469,14 @@ async def clear_chat_history(
             memory = get_conversation_memory()
             await memory.clear_session(x_session_id)
             logger_instance.info("chat_history_cleared", session_id=x_session_id)
-            return {"message": "Chat history cleared successfully", "session_id": x_session_id}
+            return {
+                "message": "Chat history cleared successfully",
+                "session_id": x_session_id,
+            }
         except Exception as exc:
-            logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+            logger.debug(
+                "suppressed_exception", error=str(exc), exc_info=True
+            )  # was: pass
 
     # Fallback
     if not _use_hybrid_router:

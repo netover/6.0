@@ -22,7 +22,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.knowledge.ingestion.document_converter import (
     DoclingConverter,
     FORMAT_EXTENSIONS,

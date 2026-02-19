@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, Float, Index, Integer, String
 from resync.core.database import Base
 
@@ -34,7 +34,7 @@ class WorkstationMetricsHistory(Base):
     received_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         index=True
     )
 

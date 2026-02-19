@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Enterprise-grade application wiring (HTTP DI canonical).
 
@@ -23,6 +21,8 @@ Global State:
     in this module.
 """
 
+from __future__ import annotations
+
 import inspect
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Final
@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from resync.core.context_store import ContextStore
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.interfaces import IFileIngestor, ITWSClient
+    from resync.core.skill_manager import SkillManager
     from resync.services.llm_service import LLMService
 
 logger = get_logger(__name__)
@@ -60,6 +61,7 @@ STATE_IDEMPOTENCY_MANAGER: Final[str] = "idempotency_manager"
 STATE_LLM_SERVICE: Final[str] = "llm_service"
 STATE_FILE_INGESTOR: Final[str] = "file_ingestor"
 STATE_A2A_HANDLER: Final[str] = "a2a_handler"
+STATE_SKILL_MANAGER: Final[str] = "skill_manager"
 
 # -----------------------------------------------------------------------------
 # Enterprise state contract (used by validate_app_state_contract)
@@ -76,6 +78,7 @@ _REQUIRED_SINGLETONS: Final[tuple[str, ...]] = (
     STATE_LLM_SERVICE,
     STATE_FILE_INGESTOR,
     STATE_A2A_HANDLER,
+    STATE_SKILL_MANAGER,
 )
 
 #: Boolean flags that must be present and typed correctly.
@@ -123,7 +126,7 @@ def validate_app_state_contract(app: FastAPI) -> None:
         )
 
 
-def init_domain_singletons(app: FastAPI) -> None:
+async def init_domain_singletons(app: FastAPI) -> None:
     """Initialise domain singletons and store on ``app.state.enterprise_state``.
 
     This is the **only** approved singleton mechanism for the HTTP path.
@@ -147,7 +150,9 @@ def init_domain_singletons(app: FastAPI) -> None:
     from resync.services.mock_tws_service import MockTWSClient
     from resync.services.rag_client import get_rag_client_singleton
     from resync.knowledge.store.pgvector_store import PgVectorStore
-    from resync.knowledge.ingestion.embedding_service import MultiProviderEmbeddingService
+    from resync.knowledge.ingestion.embedding_service import (
+        MultiProviderEmbeddingService,
+    )
     from resync.knowledge.ingestion.ingest import IngestService
     from resync.core.file_ingestor import FileIngestor
     from resync.core.a2a_handler import A2AHandler
@@ -168,15 +173,17 @@ def init_domain_singletons(app: FastAPI) -> None:
         # Use the resilient, unified client (async)
         # Note: wiring.py is mostly called in lifespan; we wrap it for consistency
         try:
-            # We use an internal helper to get it synchronously if needed or 
+            # We use an internal helper to get it synchronously if needed or
             # ensure it's initialized. UnifiedTWSClient manages its own connection.
             from resync.services.tws_unified import UnifiedTWSClient
+
             tws = UnifiedTWSClient()
             logger.info("tws_client_mode", mode="unified_resilient")
         except Exception as e:
             logger.error("resilient_tws_init_failed", error=str(e))
             # Fallback to standard optimized client if unified fails to init
             from resync.core.factories.tws_factory import get_tws_client_singleton
+
             tws = get_tws_client_singleton()
             logger.info("tws_client_mode", mode="optimized_fallback")
 
@@ -185,8 +192,15 @@ def init_domain_singletons(app: FastAPI) -> None:
         settings_module=settings, tws_client_factory=lambda: tws
     )
 
-    # Router depends on agent manager
-    hybrid_router = HybridRouter(agent_manager=agent_manager)
+    # Skill manager - loads skills metadata (lightweight, no heavy IO)
+    from resync.core.skill_manager import SkillManager
+
+    skill_manager = SkillManager()
+
+    # Router depends on agent manager and skill manager
+    hybrid_router = HybridRouter(
+        agent_manager=agent_manager, skill_manager=skill_manager
+    )
 
     # Idempotency manager depends on Redis client.
     # If Redis failed during startup checks but strict=False (degraded mode),
@@ -203,10 +217,11 @@ def init_domain_singletons(app: FastAPI) -> None:
             hint="Redis unavailable. Idempotent endpoints will return 503.",
         )
         from resync.core.idempotency.degraded import DegradedIdempotencyManager
+
         idempotency_manager = DegradedIdempotencyManager()  # type: ignore[assignment]
 
     # LLM service with automatic fallback and circuit breakers
-    llm_service = get_llm_service()
+    llm_service = await get_llm_service()
 
     # RAG client singleton (initializes and validates Config/URL)
     get_rag_client_singleton()
@@ -230,8 +245,9 @@ def init_domain_singletons(app: FastAPI) -> None:
         llm_service=llm_service,
         file_ingestor=file_ingestor,
         a2a_handler=a2a_handler,
+        skill_manager=skill_manager,
         startup_complete=False,
-        redis_available=redis_available,  # ✅ Now accurate based on actual Redis status
+        redis_available=redis_available,
         domain_shutdown_complete=False,
     )
     app.state.enterprise_state = enterprise_state
@@ -246,6 +262,7 @@ def init_domain_singletons(app: FastAPI) -> None:
 # -----------------------------------------------------------------------------
 # Shutdown helper
 # -----------------------------------------------------------------------------
+
 
 async def _safe_close(obj: object, label: str) -> None:
     """Call ``shutdown()`` or ``close()`` on *obj* if available, logging errors.
@@ -322,7 +339,9 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
         await close_rag_client_singleton()
         logger.info("rag_client_closed")
     except Exception as exc:
-        logger.warning("rag_client_close_error", error=type(exc).__name__, detail=str(exc))
+        logger.warning(
+            "rag_client_close_error", error=type(exc).__name__, detail=str(exc)
+        )
 
     # 6. Connection manager
     cm = getattr(st, STATE_CONNECTION_MANAGER, None)
@@ -356,6 +375,7 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 # These are thin read-only accessors into ``enterprise_state``.  They are
 # consumed via ``Depends(get_xxx)`` in route handlers.
 # -----------------------------------------------------------------------------
+
 
 def get_connection_manager(request: Request) -> ConnectionManager:
     """Provide the ``ConnectionManager`` singleton for a request."""
@@ -402,9 +422,15 @@ def get_a2a_handler(request: Request) -> A2AHandler:
     return enterprise_state_from_request(request).a2a_handler
 
 
+def get_skill_manager(request: Request) -> SkillManager:
+    """Provide the ``SkillManager`` singleton for a request."""
+    return enterprise_state_from_request(request).skill_manager
+
+
 # -----------------------------------------------------------------------------
 # Request-scoped resource example (Depends-compatible pattern)
 # -----------------------------------------------------------------------------
+
 
 def request_context() -> Iterator[dict[str, str]]:
     """Example request-scoped resource using ``yield`` semantics.

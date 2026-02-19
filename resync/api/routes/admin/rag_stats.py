@@ -75,7 +75,6 @@ async def get_rag_stats() -> RAGStatsResponse:
     
     index_exists = os.path.exists(index_path)
     index_size_bytes = os.path.getsize(index_path) if index_exists else None
-    index_size_mb = index_size_bytes / (1024 * 1024) if index_size_bytes else None
     
     index_modified = None
     if index_exists:

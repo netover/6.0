@@ -21,6 +21,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 logger = structlog.get_logger(__name__)
@@ -635,10 +636,6 @@ async def get_query_examples():
 # =============================================================================
 # DASHBOARD ROUTE
 # =============================================================================
-
-from fastapi.responses import HTMLResponse
-
-
 @monitoring_router.get("/dashboard", response_class=HTMLResponse)
 async def serve_dashboard():
     """Serve o dashboard de monitoramento em tempo real."""

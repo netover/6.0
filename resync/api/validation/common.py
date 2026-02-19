@@ -3,7 +3,7 @@
 import html
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from re import Pattern
 from typing import Annotated, Any
@@ -19,7 +19,7 @@ class ValidationErrorResponse(BaseModel):
     message: str = "Request validation failed. Please check the provided data."
     details: list[dict[str, Any]] = []
     severity: str = "error"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     request_id: str | None = None
     path: str | None = None
     method: str | None = None

@@ -1,4 +1,4 @@
-"""Interfaces for Resync components."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -176,16 +176,20 @@ class IFileIngestor(Protocol):
 class IAgentManager(Protocol):
     """Interface for managing AI agents."""
 
-    def load_agents_from_config(self) -> None:
-        """Loads agent configurations."""
+    async def load_agents_from_config(self, config_path: str | None = None) -> None:
+        """Loads agent configurations (async)."""
         ...
 
-    def get_agent(self, agent_id: str) -> Any:
-        """Retrieves an agent by its ID."""
+    async def get_agent(self, agent_id: str) -> Any:
+        """Retrieves an agent by its ID (async)."""
         ...
 
-    def get_all_agents(self) -> list["AgentConfig"]:
-        """Returns the configuration of all loaded agents."""
+    async def get_all_agents(self) -> list[AgentConfig]:
+        """Returns the configuration of all loaded agents (async)."""
+        ...
+
+    async def get_agent_config(self, agent_id: str) -> AgentConfig | None:
+        """Retrieve the config for a single agent (async)."""
         ...
 
 

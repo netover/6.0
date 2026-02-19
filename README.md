@@ -140,7 +140,7 @@ resync/
 
 ### Pré-requisitos
 
-- Python 3.10+
+- Python 3.14+
 - PostgreSQL 14+ (com extensão pgvector)
 - Redis 6+
 

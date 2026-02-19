@@ -300,7 +300,7 @@ class ToolExecutionTrace:
 
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     tool_name: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Input
     input_params: dict[str, Any] = field(default_factory=dict)

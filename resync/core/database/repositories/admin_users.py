@@ -139,7 +139,7 @@ class AdminUserRepository(BaseRepository[AdminUser]):
             return None
 
         # Verify password
-        if not verify_password(password, user.password_hash):
+        if not verify_password(password, user.password_hash):  # type: ignore[attr-defined]
             await self._handle_failed_login(user)
             return None
 

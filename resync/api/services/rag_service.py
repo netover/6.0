@@ -11,6 +11,7 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -331,11 +332,11 @@ class RAGIntegrationService:
                 return False
         return True
 
-    def get_document(self, file_id: str) -> RAGDocument | None:
+    async def get_document(self, file_id: str) -> RAGDocument | None:
         """Get document by ID."""
         return self._documents.get(file_id)
 
-    def list_documents(
+    async def list_documents(
         self,
         status: str | None = None,
         limit: int = 100,
@@ -348,24 +349,27 @@ class RAGIntegrationService:
 
         return docs[:limit]
 
-    def delete_document(self, file_id: str) -> bool:
+    async def delete_document(self, file_id: str) -> bool:
         """Delete a document and its chunks."""
         if file_id in self._documents:
             del self._documents[file_id]
             if file_id in self._chunks:
                 del self._chunks[file_id]
 
-            # Delete file from disk
-            for path in self.upload_dir.glob(f"{file_id}_*"):
-                try:
-                    path.unlink()
-                except Exception as e:
-                    logger.warning("Failed to delete file %s: %s", path, e)
+            # Delete file from disk (run blocking I/O in thread pool)
+            def _delete_files():
+                for path in self.upload_dir.glob(f"{file_id}_*"):
+                    try:
+                        path.unlink()
+                    except Exception as e:
+                        logger.warning("Failed to delete file %s: %s", path, e)
+
+            await asyncio.to_thread(_delete_files)
 
             return True
         return False
 
-    def get_stats(self) -> dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get RAG system statistics."""
         total_chunks = sum(len(c) for c in self._chunks.values())
 

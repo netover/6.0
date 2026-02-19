@@ -633,7 +633,8 @@ class HumanApprovalNode(BaseNode):
 
         # Update Redis
         ttl = await redis.ttl(key)
-        if ttl < 0: ttl = 300 
+        if ttl < 0:
+            ttl = 300
         
         await redis.setex(key, ttl, json.dumps(request.to_dict()))
 
@@ -663,7 +664,8 @@ class HumanApprovalNode(BaseNode):
         
         # Update Redis
         ttl = await redis.ttl(key)
-        if ttl < 0: ttl = 300
+        if ttl < 0:
+            ttl = 300
         
         await redis.setex(key, ttl, json.dumps(request.to_dict()))
 
@@ -717,4 +719,3 @@ class HumanApprovalNode(BaseNode):
                 except Exception:
                     continue
         return pending
-

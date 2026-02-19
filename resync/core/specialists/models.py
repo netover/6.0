@@ -8,7 +8,7 @@ Author: Resync Team
 Version: 5.2.3.29
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -66,7 +66,7 @@ class SpecialistResponse(BaseModel):
     processing_time_ms: int = Field(default=0, ge=0, description="Processing time in milliseconds")
     error: str | None = Field(default=None, description="Error message if processing failed")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
 
     @property
     def is_successful(self) -> bool:
@@ -93,7 +93,7 @@ class TeamResponse(BaseModel):
     )
     query_classification: str | None = Field(default=None, description="Detected query type/intent")
     confidence: float = Field(default=0.8, ge=0.0, le=1.0, description="Overall confidence")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
 
     @property
     def successful_specialists(self) -> int:

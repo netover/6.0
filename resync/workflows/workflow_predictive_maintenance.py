@@ -25,6 +25,17 @@ from typing import Any, Literal, Optional, TypedDict
 import structlog
 from pydantic import BaseModel, Field, field_validator
 from resync.core.utils.llm_factories import LLMFactory
+from sqlalchemy.ext.asyncio import AsyncSession
+from resync.core.database import get_async_session
+from resync.workflows.nodes import (
+    correlate_metrics,
+    detect_degradation,
+    fetch_job_history,
+    fetch_workstation_metrics,
+    generate_recommendations,
+    notify_operators,
+    predict_timeline,
+)
 
 # --- Optional Dependencies Check ---
 LANGGRAPH_AVAILABLE = False
@@ -47,19 +58,6 @@ except ImportError:
     END = "END"
     StateGraph = None  # type: ignore
     PostgresSaver = None  # type: ignore
-
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from resync.core.database import get_async_session
-from resync.workflows.nodes import (
-    correlate_metrics,
-    detect_degradation,
-    fetch_job_history,
-    fetch_workstation_metrics,
-    generate_recommendations,
-    notify_operators,
-    predict_timeline,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -1025,4 +1023,3 @@ async def approve_workflow(
         updated_state,
         config=config
     )
-

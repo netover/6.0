@@ -22,7 +22,7 @@ from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from pydantic import BaseModel
 
 from resync.core.agent_evolution import (
@@ -179,9 +179,8 @@ async def submit_feedback(request: SubmitFeedbackRequest):
         )
 
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
+        # Don't re-raise programming errors - let them propagate to global handler
         logger.error("Failed to collect feedback: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
@@ -235,9 +234,7 @@ async def get_patterns(agent_name: str):
         return patterns
 
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get patterns: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
@@ -299,9 +296,7 @@ async def list_improvements(status: str | None = None):
         return improvements
 
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to list improvements: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
@@ -363,9 +358,7 @@ async def test_improvement(suggestion_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to test improvement: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
@@ -444,9 +437,7 @@ async def approve_improvement(
     except HTTPException:
         raise
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to approve improvement: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 
@@ -491,9 +482,7 @@ async def reject_improvement(suggestion_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to reject improvement: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
 

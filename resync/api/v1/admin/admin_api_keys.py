@@ -77,7 +77,7 @@ class APIKey(Base):
     usage_count = Column(Integer, nullable=False, default=0)
 
     # Audit
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     created_by = Column(String(100), nullable=False)
 
     def __repr__(self):
@@ -519,15 +519,15 @@ async def get_api_keys_stats(
     # Count active (is_active=True AND is_revoked=False)
     stmt_active = select(func.count()).select_from(APIKey).where(
         and_(
-            APIKey.is_active == True,
-            APIKey.is_revoked == False
+            APIKey.is_active.is_(True),
+            APIKey.is_revoked.is_(False)
         )
     )
     active = (await db.execute(stmt_active)).scalar() or 0
 
     # Count revoked
     stmt_revoked = select(func.count()).select_from(APIKey).where(
-        APIKey.is_revoked == True
+        APIKey.is_revoked.is_(True)
     )
     revoked = (await db.execute(stmt_revoked)).scalar() or 0
 

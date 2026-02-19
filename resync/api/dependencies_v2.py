@@ -116,7 +116,6 @@ async def get_tws_store() -> TWSStore:
     global _tws_store
     if _tws_store is None:
         async with _get_lock("tws"):
-            # Double-check pattern: verify again after acquiring lock
             if _tws_store is None:
                 logger.info("Initializing TWSStore singleton...")
                 store = TWSStore()

@@ -6,7 +6,7 @@ Provides dynamic threshold tuning for continual learning using PostgreSQL.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -55,7 +55,7 @@ class ThresholdMetrics:
     current_value: float
     hit_count: int = 0
     miss_count: int = 0
-    last_updated: datetime = field(default_factory=datetime.utcnow)
+    last_updated: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def hit_rate(self) -> float:
@@ -79,7 +79,7 @@ class ThresholdRecommendation:
 class AuditLogEntry:
     """Audit log entry for threshold changes."""
     id: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     action: str = ""
     threshold_name: str = ""
     old_value: float | None = None

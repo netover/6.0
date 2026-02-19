@@ -99,21 +99,19 @@ class SecureAuthenticator:
         - Account lockout
         - Audit logging
         """
-        # Check if IP is locked out
-        async with self._get_lockout_lock():
-            if await self._is_locked_out(request_ip):
-                logger.warning(
-                    "Authentication attempt from locked out IP",
-                    extra={"ip": request_ip},
-                )
-                # Still perform full verification to maintain constant time
-                # but will return failure regardless
-                lockout_remaining = await self._get_lockout_remaining(request_ip)
-                await asyncio.sleep(0.5)  # Artificial delay
-                return (
-                    False,
-                    f"Too many failed attempts. Try again in {lockout_remaining} minutes",
-                )
+        # Check if IP is locked out (outside lock to avoid holding lock during I/O)
+        is_locked = await self._is_locked_out(request_ip)
+        if is_locked:
+            lockout_remaining = await self._get_lockout_remaining(request_ip)
+            logger.warning(
+                "Authentication attempt from locked out IP",
+                extra={"ip": request_ip},
+            )
+            await asyncio.sleep(0.5)
+            return (
+                False,
+                f"Too many failed attempts. Try again in {lockout_remaining} minutes",
+            )
 
         # Always hash both provided and expected values to maintain constant time
         provided_username_hash = self._hash_credential(username)

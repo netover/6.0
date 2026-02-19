@@ -18,7 +18,7 @@ import logging
 import struct
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from redisvl.index import SearchIndex
 from redisvl.query import VectorQuery
@@ -26,8 +26,6 @@ from redisvl.query import VectorQuery
 from resync.models.cache import CacheEntry, CacheResult
 from .embedding_model import (
     cosine_distance,
-    generate_embedding,
-    get_embedding_dimension,
 )
 from .redis_config import (
     RedisDatabase,
@@ -69,6 +67,7 @@ SCHEMA = {
         {"name": "timestamp", "type": "numeric"},
         {"name": "hit_count", "type": "numeric"},
         {"name": "metadata", "type": "text"},
+        {"name": "user_id", "type": "tag"},  # SECURITY: User isolation field
     ],
 }
 
@@ -148,20 +147,47 @@ class SemanticCache:
         normalized = query.strip().lower()
         return hashlib.md5(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
-    async def get(self, query: str) -> CacheResult:
-        """Look up query in cache with fallback and reranking support."""
+    def _build_cache_key(self, query_text: str, user_id: str | None = None) -> str:
+        """
+        Build a cache key that includes user_id for per-user caching.
+        
+        SECURITY: This prevents cross-user data leakage by scoping cache entries
+        to specific users.
+        
+        Args:
+            query_text: The user's message/query
+            user_id: Optional user identifier
+            
+        Returns:
+            Cache key text with user scoping
+        """
+        if user_id:
+            # Scope cache key to user to prevent cross-user leakage
+            return f"user:{user_id}:{query_text}"
+        return query_text
+
+    async def get(self, query: str, user_id: str | None = None) -> CacheResult:
+        """Look up query in cache with fallback and reranking support.
+        
+        SECURITY: user_id parameter ensures proper user isolation at query time.
+        
+        Args:
+            query: The query text to look up
+            user_id: The user identifier for filtering (prevents cross-user data leakage)
+        """
         if not self._initialized:
             await self.initialize()
             
         start_time = time.perf_counter()
         try:
-            # Generate embedding vector
-            embedding = self.vectorizer.embed(query)
+            # Generate embedding vector (use user-scoped cache key for embedding)
+            cache_key_text = self._build_cache_key(query, user_id)
+            embedding = self.vectorizer.embed(cache_key_text)
             
             if self._redis_stack_available:
-                result = await self._search_redisvl(query, embedding)
+                result = await self._search_redisvl(query, embedding, user_id)
             else:
-                result = await self._search_fallback(query, embedding)
+                result = await self._search_fallback(query, embedding, user_id)
                 
             # Apply conditional reranking for gray zone matches
             if result.hit and self.enable_reranking and should_rerank(result.distance):
@@ -185,14 +211,31 @@ class SemanticCache:
             self._stats["errors"] += 1
             return CacheResult(hit=False)
 
-    async def _search_redisvl(self, query: str, embedding: List[float]) -> CacheResult:
-        """Search using RedisVL VectorQuery."""
+    async def _search_redisvl(self, query: str, embedding: List[float], user_id: str | None = None) -> CacheResult:
+        """Search using RedisVL VectorQuery with user_id filtering.
+        
+        SECURITY: user_id filter ensures only entries belonging to the same user are returned.
+        
+        Args:
+            query: The query text (used for embedding)
+            embedding: The pre-computed embedding vector
+            user_id: The user identifier for filtering (prevents cross-user data leakage)
+        """
+        # Create filter for user_id if provided
+        filter_expr = None
+        if user_id:
+            # Use RedisVL FilterExpression for proper user isolation at query time
+            # This is more secure than embedding user_id in the query text
+            from redisvl.query.filter import Tag, FilterExpression
+            filter_expr = FilterExpression(Tag("user_id").equals(user_id))
+        
         v_query = VectorQuery(
             vector=embedding,
             vector_field_name="embedding",
             num_results=1,
-            return_fields=["query_text", "response", "timestamp", "hit_count", "metadata"],
-            return_score=True
+            return_fields=["query_text", "response", "timestamp", "hit_count", "metadata", "user_id"],
+            return_score=True,
+            filter=filter_expr
         )
         
         results = await self.index.query(v_query)
@@ -213,17 +256,36 @@ class SemanticCache:
         
         return CacheResult(hit=False)
 
-    async def _search_fallback(self, query: str, embedding: List[float]) -> CacheResult:
-        """Fallback search using Python-based brute-force similarity."""
+    async def _search_fallback(self, query: str, embedding: List[float], user_id: str | None = None) -> CacheResult:
+        """Fallback search using Python-based brute-force similarity with user_id filtering.
+        
+        SECURITY: user_id filter ensures only entries belonging to the same user are returned.
+        
+        Args:
+            query: The query text (used for embedding)
+            embedding: The pre-computed embedding vector
+            user_id: The user identifier for filtering (prevents cross-user data leakage)
+        """
         client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
         best_distance = float("inf")
         best_entry = None
-        best_key = None
+
+        # SECURITY: Use user-scoped key pattern for lookup
+        if user_id:
+            key_pattern = f"{self.KEY_PREFIX}user:{user_id}:*"
+        else:
+            key_pattern = f"{self.KEY_PREFIX}*"
 
         try:
-            async for key in client.scan_iter(match=f"{self.KEY_PREFIX}*", count=100):
+            async for key in client.scan_iter(match=key_pattern, count=100):
                 data = await client.hgetall(key)
                 if not data or "embedding" not in data:
+                    continue
+                
+                # SECURITY: Additional check for user_id field in data (for backward compatibility)
+                stored_user_id = data.get("user_id") or ""
+                if user_id and stored_user_id != user_id:
+                    # Skip entries that don't belong to the requesting user
                     continue
                 
                 # Decode binary embedding if stored as bytes (RedisVL format)
@@ -237,7 +299,6 @@ class SemanticCache:
                 if distance < best_distance:
                     best_distance = distance
                     best_entry = CacheEntry.from_dict(data)
-                    best_key = key
 
             if best_entry and best_distance <= self.threshold:
                 return CacheResult(hit=True, response=best_entry.response, distance=best_distance, entry=best_entry)
@@ -268,14 +329,27 @@ class SemanticCache:
         response: str,
         ttl: int | None = None,
         metadata: dict[str, Any] | None = None,
+        user_id: str | None = None,
     ) -> bool:
-        """Store entry in cache."""
+        """Store entry in cache with user isolation.
+        
+        SECURITY: user_id is stored as a tag field and used for filtering at query time.
+        
+        Args:
+            query: The query text to cache
+            response: The response to cache
+            ttl: Optional TTL override
+            metadata: Optional metadata dict
+            user_id: The user identifier for isolation (prevents cross-user data leakage)
+        """
         if not self._initialized:
             await self.initialize()
             
         try:
-            query_hash = self._hash_query(query)
-            embedding = self.vectorizer.embed(query)
+            # Use user-scoped cache key for embedding to ensure proper isolation
+            cache_key_text = self._build_cache_key(query, user_id)
+            query_hash = self._hash_query(cache_key_text)
+            embedding = self.vectorizer.embed(cache_key_text)
             
             data = {
                 "query_text": query,
@@ -284,16 +358,20 @@ class SemanticCache:
                 "embedding": embedding,
                 "timestamp": datetime.now(timezone.utc).timestamp(),
                 "hit_count": 0,
-                "metadata": json.dumps(metadata or {})
+                "metadata": json.dumps(metadata or {}),
+                "user_id": user_id or "",  # SECURITY: Store user_id for filtering
             }
             
             if self._redis_stack_available:
                 keys = await self.index.load([data])
                 key = keys[0] if keys else None
             else:
-                # Manual HSET for fallback mode
+                # Manual HSET for fallback mode - include user_id in key for isolation
                 client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
-                key = f"{self.KEY_PREFIX}{query_hash}"
+                if user_id:
+                    key = f"{self.KEY_PREFIX}user:{user_id}:{query_hash}"
+                else:
+                    key = f"{self.KEY_PREFIX}{query_hash}"
                 # Store embedding as binary for consistency
                 data["embedding"] = struct.pack(f"{len(embedding)}f", *embedding)
                 await client.hset(key, mapping=data)
@@ -419,6 +497,139 @@ class SemanticCache:
             return False
         self.enable_reranking = enabled
         return enabled
+
+    async def check_intent(
+        self,
+        query_text: str,
+        user_id: str | None = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if a query's intent is cached (Router Cache).
+        
+        Returns the cached intent data (intent, entities, confidence) if found
+        with similarity above threshold, otherwise None.
+        
+        This is used by router_node to skip LLM classification for known queries.
+        
+        SECURITY: The cache key now includes user_id to prevent cross-user data leakage.
+        Only intents from the same user can access cached data.
+        
+        Args:
+            query_text: The user's message/query
+            user_id: The user identifier to scope the cache per-user
+            
+        Returns:
+            Dict with keys: intent, entities, confidence if cache hit, else None
+        """
+        if not self._initialized:
+            await self.initialize()
+        
+        try:
+            # Generate embedding for the query with user scoping
+            # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+            cache_key_text = self._build_cache_key(query_text, user_id)
+            embedding = self.vectorizer.embed(cache_key_text)
+            
+            # Search using RedisVL or fallback
+            if self._redis_stack_available:
+                result = await self._search_redisvl(cache_key_text, embedding, user_id)
+            else:
+                result = await self._search_fallback(cache_key_text, embedding, user_id)
+            
+            if not result.hit:
+                return None
+            
+            # Parse the cached response as JSON (intent data)
+            try:
+                cached_data = json.loads(result.response)
+                
+                # Validate that it has the expected intent cache structure
+                if "intent" in cached_data and "entities" in cached_data:
+                    logger.debug(
+                        "intent_cache_hit",
+                        intent=cached_data.get("intent"),
+                        distance=result.distance,
+                    )
+                    return cached_data
+                else:
+                    # Not an intent cache entry, ignore
+                    return None
+                    
+            except json.JSONDecodeError:
+                logger.warning(
+                    "intent_cache_decode_error",
+                    response=result.response[:100],
+                )
+                return None
+                
+        except Exception as e:
+            logger.warning("intent_cache_check_failed", error=str(e))
+            return None
+    
+    async def store_intent(
+        self,
+        query_text: str,
+        intent_data: Dict[str, Any],
+        ttl: int | None = None,
+        user_id: str | None = None,
+    ) -> bool:
+        """
+        Store the router's intent classification in cache.
+        
+        This caches the UNDERSTANDING of the query (intent + entities),
+        NOT the final response. This allows us to skip expensive LLM calls
+        while still executing real-time data queries.
+        
+        SECURITY: The cache key now includes user_id to prevent cross-user data leakage.
+        Only intents from the same user can access cached data.
+        
+        Args:
+            query_text: The user's message/query
+            intent_data: Dict containing intent, entities, confidence
+            ttl: Optional TTL override (default: self.default_ttl)
+            user_id: The user identifier to scope the cache per-user
+            
+        Returns:
+            True if successfully stored, False otherwise
+        """
+        if not self._initialized:
+            await self.initialize()
+        
+        try:
+            # Serialize intent data as JSON
+            intent_json = json.dumps(intent_data, ensure_ascii=False)
+            
+            # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+            cache_key_text = self._build_cache_key(query_text, user_id)
+            
+            # Use the existing set() method with metadata to mark as intent cache
+            metadata = {
+                "type": "router_cache",
+                "intent": intent_data.get("intent"),
+                "confidence": intent_data.get("confidence"),
+                "user_id": user_id,  # Track which user cached this
+            }
+            
+            success = await self.set(
+                query=cache_key_text,
+                response=intent_json,
+                ttl=ttl,
+                metadata=metadata,
+                user_id=user_id,
+            )
+            
+            if success:
+                logger.debug(
+                    "intent_cache_stored",
+                    intent=intent_data.get("intent"),
+                    confidence=intent_data.get("confidence"),
+                )
+            
+            return success
+            
+        except Exception as e:
+            logger.error("intent_cache_store_failed", error=str(e))
+            return False
 
 # Singleton Management
 _cache_instance: SemanticCache | None = None

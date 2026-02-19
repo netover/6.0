@@ -4,17 +4,26 @@ This module provides WebSocket endpoints for real-time chat interactions
 with AI agents, supporting both streaming and non-streaming responses.
 It handles agent management, conversation context, and error handling
 for chat-based interactions.
+
+v6.0 REFACTORING:
+- Now uses HybridRouter as single source of truth for routing
+- Uses enterprise_state_from_app to access dependencies
+- Removes double "is_final" response issue
+- Proper ContextStore integration for conversation persistence
+- Normalized payload per WebSocketMessage validation model
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
+from datetime import datetime, timezone
 from resync.core.task_tracker import create_tracked_task
-import logging
+import structlog
 import weakref
 from typing import Any, Protocol
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from resync.core.exceptions import (
     AgentExecutionError,
@@ -24,17 +33,16 @@ from resync.core.exceptions import (
     LLMError,
     ToolExecutionError,
 )
-from resync.core.fastapi_di import get_agent_manager, get_knowledge_graph
+from resync.core.fastapi_di import get_agent_manager
 from resync.core.ia_auditor import analyze_and_flag_memories
-from resync.core.interfaces import IAgentManager, IKnowledgeGraph
+from resync.core.interfaces import IAgentManager
+from resync.core.context import set_trace_id, reset_trace_id
 from resync.core.security import SafeAgentID, sanitize_input
+from resync.core.types.app_state import enterprise_state_from_app
+from resync.settings import settings
 
 # --- Logging Setup ---
-logger = logging.getLogger(__name__)
-
-# Module-level dependencies to avoid B008 errors
-agent_manager_dependency = Depends(get_agent_manager)
-knowledge_graph_dependency = Depends(get_knowledge_graph)
+logger = structlog.get_logger(__name__)
 
 # --- APIRouter Initialization ---
 chat_router = APIRouter()
@@ -53,7 +61,14 @@ class SupportsAgentMeta(Protocol):
     model: Any | None  # type: ignore[assignment]
 
 
-async def send_error_message(websocket: WebSocket, message: str) -> None:
+def _now_iso() -> str:
+    """Get current timestamp in ISO format."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+async def send_error_message(
+    websocket: WebSocket, message: str, agent_id: str, session_id: str
+) -> None:
     """
     Helper function to send error messages to the client.
     Handles exceptions if the WebSocket connection is already closed.
@@ -64,6 +79,11 @@ async def send_error_message(websocket: WebSocket, message: str) -> None:
                 "type": "error",
                 "sender": "system",
                 "message": message,
+                "agent_id": agent_id,
+                "session_id": session_id,
+                "is_final": True,
+                "timestamp": _now_iso(),
+                "metadata": {},
             }
         )
     except WebSocketDisconnect:
@@ -78,7 +98,9 @@ async def send_error_message(websocket: WebSocket, message: str) -> None:
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         # Last resort to prevent the application from crashing if sending fails.
-        logger.warning("Failed to send error message due to an unexpected error.", exc_info=True)
+        logger.warning(
+            "Failed to send error message due to an unexpected error.", exc_info=True
+        )
 
 
 async def run_auditor_safely() -> None:
@@ -109,179 +131,195 @@ async def run_auditor_safely() -> None:
         )
 
 
-async def _finalize_and_store_interaction(
+async def _handle_agent_interaction(
     websocket: WebSocket,
-    knowledge_graph: IKnowledgeGraph,
-    agent: SupportsAgentMeta | Any,
     agent_id: SafeAgentID,
-    sanitized_query: str,
-    full_response: str,
+    data: str,
 ) -> None:
-    """Sends the final message, stores the conversation, and schedules the auditor."""
-    # Send a final message indicating the stream has ended
+    """
+    Handles the core logic of agent interaction using HybridRouter.
+
+    v6.0 REFACTORING:
+    - Uses HybridRouter as single source of truth
+    - Gets dependencies from enterprise_state (not Depends injection)
+    - Sends only ONE final response (no double is_final)
+    - Proper ContextStore integration with correct signature
+    - Normalized payload per WebSocketMessage validation model
+    """
+    from resync.core.context_store import ContextStore
+
+    sanitized = sanitize_input(data)
+
+    # Get enterprise state (includes hybrid_router and knowledge_graph)
+    st = enterprise_state_from_app(websocket.app)
+    router = st.hybrid_router
+    kg: ContextStore = st.knowledge_graph  # Now properly typed as ContextStore
+
+    # Get or create session_id from query params
+    session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+    agent_id_str = str(agent_id)
+
+    # Send user's message back to UI for display
+    # Per WebSocketMessage model: type, sender, message, agent_id, session_id, timestamp, metadata
     await websocket.send_json(
         {
             "type": "message",
-            "sender": "agent",
-            "message": full_response,
-            "is_final": True,
+            "sender": "user",
+            "message": sanitized,
+            "agent_id": agent_id_str,
+            "session_id": session_id,
+            "is_final": False,
+            "timestamp": _now_iso(),
+            "metadata": {},
         }
     )
-    logger.info("Agent '%s' full response: %s", agent_id, full_response)
-
-    # Safe access to agent attributes - FIXED
-    agent_name = getattr(agent, "name", "Unknown Agent")
-    agent_description = getattr(agent, "description", "No description")
-    agent_model = getattr(agent, "llm_model", getattr(agent, "model", "Unknown Model"))
-
-    # Store the interaction in the Knowledge Graph
-    await knowledge_graph.add_conversation(
-        user_query=sanitized_query,
-        agent_response=full_response,
-        agent_id=agent_id,
-        context={
-            "agent_name": agent_name,
-            "agent_description": agent_description,
-            "model_used": str(agent_model),
-        },
-    )
-
-    # Schedule the IA Auditor to run in the background
-    logger.info("Scheduling IA Auditor to run in the background.")
-    task = await create_tracked_task(run_auditor_safely(), name="run_auditor_safely")
-    _bg_tasks.add(task)
-
-
-async def _handle_agent_interaction(
-    websocket: WebSocket,
-    agent: SupportsAgentMeta | Any,
-    agent_id: SafeAgentID,
-    knowledge_graph: IKnowledgeGraph,
-    data: str,
-) -> None:
-    """Handles the core logic of agent interaction with structured query processing."""
-    from resync.core.graphrag_integration import get_graphrag_integration
-    from resync.core.query_processor import QueryProcessor
-    from resync.services.llm_service import get_llm_service
-
-    sanitized_data = sanitize_input(data)
-    # Send the user's message back to the UI for display
-    await websocket.send_json({"type": "message", "sender": "user", "message": sanitized_data})
 
     try:
-        # 1. Processar query de forma estruturada
-        llm = get_llm_service()
-        processor = QueryProcessor(llm, knowledge_graph)
-
-        structured_query = await processor.process_query(sanitized_data)
-
-        logger.info(
-            f"Query structured: type={structured_query.query_type}, "
-            f"entities={structured_query.entities}, "
-            f"intent={structured_query.intent}"
-        )
-
-        # 2. Enriquecer contexto com GraphRAG (se disponível)
-        graphrag = get_graphrag_integration()
-        if graphrag and structured_query.entities.get("job_names"):
-            # Use subgraph retrieval for job-related queries
-            job_name = structured_query.entities["job_names"][0]
-            try:
-                subgraph_context = await graphrag.get_enriched_context(job_name)
-
-                # Add subgraph context to messages
-                if subgraph_context and subgraph_context.get("dependencies"):
-                    context_text = graphrag.subgraph_retriever.format_for_llm(subgraph_context)
-                    structured_query.context_requirements["subgraph"] = context_text
-
-                    logger.info("GraphRAG context added for %s", job_name)
-            except Exception as e:
-                logger.warning("GraphRAG context failed, continuing: %s", e)
-
-        # 3. Formatar para LLM
-        messages = processor.format_for_llm(structured_query)
-
-        # 4. Gerar resposta (com tools se disponíveis)
+        # Persist user turn (best-effort, don't block on failure)
         try:
-            response = await llm.generate_response_with_tools(
-                messages=messages,
-                user_role="operator",
-                session_id=str(id(websocket)),  # Usar websocket id como session
-                max_tool_iterations=3,  # Limitar para não travar
+            await kg.add_conversation(
+                session_id=session_id,
+                role="user",
+                content=sanitized,
+                metadata={"agent_id": agent_id_str},
             )
         except Exception as e:
-            logger.warning("Tool-based generation failed, falling back to simple: %s", e)
-            # Fallback para geração simples sem tools
-            response = await llm.generate_response(messages=messages, max_tokens=1000)
+            logger.warning("Failed to persist user message: %s", e)
 
-        # 5. Enviar resposta
+        # Route via HybridRouter (single source of truth)
+        start_time = time.time()
+
+        result = await router.route(
+            sanitized,
+            context={"agent_id": agent_id_str, "session_id": session_id},
+        )
+
+        processing_time_ms = int((time.time() - start_time) * 1000)
+
+        # Send final response ONCE with metadata in correct location
+        # Per WebSocketMessage: routing info goes in metadata, not at top level
         await websocket.send_json(
             {
                 "type": "message",
                 "sender": "agent",
-                "message": response,
-                "query_type": structured_query.query_type.value,
-                "entities": structured_query.entities,
+                "message": result.response,
+                "agent_id": agent_id_str,
+                "session_id": session_id,
                 "is_final": True,
+                "timestamp": _now_iso(),
+                "correlation_id": result.trace_id,
+                "metadata": {
+                    # Routing info
+                    "routing_mode": result.routing_mode.value,
+                    "intent": result.intent,
+                    "confidence": result.confidence,
+                    "handler": result.handler,
+                    "tools_used": result.tools_used,
+                    "entities": result.entities,
+                    "processing_time_ms": processing_time_ms,
+                    "requires_approval": result.requires_approval,
+                    "approval_id": result.approval_id,
+                    # Backward compatibility aliases
+                    "query_type": result.intent,
+                },
             }
         )
 
-        # 6. Armazenar interação
-        await _finalize_and_store_interaction(
-            websocket=websocket,
-            knowledge_graph=knowledge_graph,
-            agent=agent,
-            agent_id=agent_id,
-            sanitized_query=sanitized_data,
-            full_response=response,
+        logger.info(
+            "Agent '%s' response: mode=%s, intent=%s, tools=%s",
+            agent_id,
+            result.routing_mode.value,
+            result.intent,
+            result.tools_used,
         )
+
+        # Persist assistant turn (best-effort, don't block on failure)
+        try:
+            await kg.add_conversation(
+                session_id=session_id,
+                role="assistant",
+                content=result.response,
+                metadata={
+                    "agent_id": agent_id_str,
+                    "routing_mode": result.routing_mode.value,
+                    "intent": result.intent,
+                    "confidence": result.confidence,
+                    "tools_used": result.tools_used,
+                    "entities": result.entities,
+                    "processing_time_ms": processing_time_ms,
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to persist assistant message: %s", e)
+
+        # Schedule the IA Auditor to run in the background
+        logger.info("Scheduling IA Auditor to run in the background.")
+        task = await create_tracked_task(
+            run_auditor_safely(), name="run_auditor_safely"
+        )
+        _bg_tasks.add(task)
 
     except Exception as e:
         logger.error("Error in agent interaction: %s", e, exc_info=True)
-        await send_error_message(websocket, "Erro ao processar sua mensagem. Tente novamente.")
+        await send_error_message(
+            websocket,
+            "Erro ao processar sua mensagem. Tente novamente.",
+            agent_id_str,
+            session_id,
+        )
 
 
 async def _setup_websocket_session(
     websocket: WebSocket, agent_id: SafeAgentID
-) -> SupportsAgentMeta | Any:
+) -> tuple[SupportsAgentMeta | Any, str]:
     """Handles WebSocket connection setup and agent retrieval."""
     await websocket.accept()
     logger.info("WebSocket connection established for agent %s", agent_id)
 
     # WebSocket endpoints cannot use FastAPI Depends(get_agent_manager) which
     # requires a Request object.  Access the singleton directly from app state.
-    from resync.core.types.app_state import enterprise_state_from_app
-
     st = enterprise_state_from_app(websocket.app)
     agent_manager: IAgentManager = st.agent_manager
-    agent = await agent_manager.get_agent(agent_id)
+
+    # Get agent asynchronously from the manager
+    agent = await agent_manager.get_agent(str(agent_id))
+    agent_id_str = str(agent_id)
+    session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
 
     if not agent:
         logger.warning("Agent '%s' not found.", agent_id)
-        await send_error_message(websocket, f"Agente '{agent_id}' não encontrado.")
+        await send_error_message(
+            websocket, f"Agente '{agent_id}' não encontrado.", agent_id_str, session_id
+        )
         raise WebSocketDisconnect(code=1008, reason=f"Agent '{agent_id}' not found")
 
+    # Welcome message - per WebSocketMessage model with type="system"
     welcome_data = {
-        "type": "info",
+        "type": "system",
         "sender": "system",
         "message": (
             f"Conectado ao agente: {getattr(agent, 'name', 'Unknown Agent')}. "
             "Digite sua mensagem..."
         ),
+        "agent_id": agent_id_str,
+        "session_id": session_id,
+        "is_final": False,
+        "timestamp": _now_iso(),
+        "metadata": {},
     }
     await websocket.send_json(welcome_data)
     logger.info(
         "Agent '%s' ready for WebSocket communication",
         getattr(agent, "name", "Unknown Agent"),
     )
-    return agent
+    return agent, session_id
 
 
 async def _message_processing_loop(
     websocket: WebSocket,
     agent: SupportsAgentMeta | Any,
     agent_id: SafeAgentID,
-    knowledge_graph: IKnowledgeGraph,
+    session_id: str,
 ) -> None:
     """Main loop for receiving and processing messages from the client."""
     while True:
@@ -292,7 +330,7 @@ async def _message_processing_loop(
         if not validation["is_valid"]:
             continue
 
-        await _handle_agent_interaction(websocket, agent, agent_id, knowledge_graph, raw_data)
+        await _handle_agent_interaction(websocket, agent_id, raw_data)
 
 
 @chat_router.websocket("/ws/{agent_id}")
@@ -300,9 +338,14 @@ async def websocket_endpoint(
     websocket: WebSocket,
     agent_id: SafeAgentID,
     token: str | None = None,
-    knowledge_graph: IKnowledgeGraph = knowledge_graph_dependency,
 ) -> None:
-    """Main WebSocket endpoint for real-time chat with an agent.
+    """
+    Main WebSocket endpoint for real-time chat with an agent.
+
+    v6.0 REFACTORING:
+    - Removed knowledge_graph dependency injection (now gets from enterprise_state)
+    - Uses HybridRouter as single source of truth
+    - Normalized payload per WebSocketMessage validation model
 
     Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
     """
@@ -315,11 +358,33 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="Authentication required")
             return
     except Exception:
-        logger.warning("WebSocket auth check failed, allowing connection (auth service unavailable)")
+        if settings.is_production:
+            logger.error("WebSocket auth service unavailable, rejecting connection")
+            await websocket.close(
+                code=1008, reason="Authentication service unavailable"
+            )
+            return
+        logger.warning(
+            "WebSocket auth check failed, allowing connection (auth service unavailable - DEV ONLY)"
+        )
+
+    # Criar trace_id para sessão WebSocket
+    import uuid
+
+    trace_id = str(uuid.uuid4())
+    trace_token = set_trace_id(trace_id)
+
+    if structlog:
+        structlog.contextvars.bind_contextvars(
+            trace_id=trace_id,
+            websocket_session=True,
+            agent_id=str(agent_id),
+        )
 
     try:
-        agent = await _setup_websocket_session(websocket, agent_id)
-        await _message_processing_loop(websocket, agent, agent_id, knowledge_graph)
+        agent, session_id = await _setup_websocket_session(websocket, agent_id)
+        # Note: No knowledge_graph passed - it's now obtained from enterprise_state
+        await _message_processing_loop(websocket, agent, agent_id, session_id)
     except WebSocketDisconnect:
         code = getattr(websocket.state, "code", "unknown")
         reason = getattr(websocket.state, "reason", "unknown")
@@ -331,15 +396,38 @@ async def websocket_endpoint(
         )
     except (LLMError, ToolExecutionError, AgentExecutionError) as exc:
         logger.error(
-            "Agent-related error in WebSocket for agent '%s': %s", agent_id, exc, exc_info=True
+            "Agent-related error in WebSocket for agent '%s': %s",
+            agent_id,
+            exc,
+            exc_info=True,
         )
-        await send_error_message(websocket, "Ocorreu um erro com o agente. Tente novamente.")
+        agent_id_str = str(agent_id)
+        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+        await send_error_message(
+            websocket,
+            "Ocorreu um erro com o agente. Tente novamente.",
+            agent_id_str,
+            session_id,
+        )
     except Exception as _e:  # pylint: disable=broad-exception-caught
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.critical("Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True)
-        await send_error_message(websocket, "Ocorreu um erro inesperado no servidor.")
+        logger.critical(
+            "Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True
+        )
+        agent_id_str = str(agent_id)
+        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+        await send_error_message(
+            websocket,
+            "Ocorreu um erro inesperado no servidor.",
+            agent_id_str,
+            session_id,
+        )
+    finally:
+        reset_trace_id(trace_token)
+        if structlog:
+            structlog.contextvars.clear_contextvars()
 
 
 async def _validate_input(
@@ -348,8 +436,13 @@ async def _validate_input(
     """Validate input data for size and potential injection attempts."""
     # Input validation and size check
     if len(raw_data) > 10000:  # Limit message size to 10KB
+        agent_id_str = str(agent_id)
+        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(
-            websocket, "Mensagem muito longa. Máximo de 10.000 caracteres permitido."
+            websocket,
+            "Mensagem muito longa. Máximo de 10.000 caracteres permitido.",
+            agent_id_str,
+            session_id,
         )
         return {"is_valid": False}
 
@@ -360,7 +453,11 @@ async def _validate_input(
             agent_id,
             raw_data[:100],
         )
-        await send_error_message(websocket, "Conteúdo não permitido detectado.")
+        agent_id_str = str(agent_id)
+        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+        await send_error_message(
+            websocket, "Conteúdo não permitido detectado.", agent_id_str, session_id
+        )
         return {"is_valid": False}
 
     return {"is_valid": True}

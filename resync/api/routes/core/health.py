@@ -13,7 +13,6 @@ from resync.core.health import (
     get_unified_health_service,
     get_status_color,
     get_status_description,
-    shutdown_unified_health_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -617,14 +616,3 @@ async def list_components() -> dict[str, list[dict[str, str]]]:
     return {"components": components}
 
 
-@router.on_event("shutdown")
-async def shutdown_health_service():
-    """Shutdown health check service on application shutdown."""
-    try:
-        await shutdown_unified_health_service()
-        logger.info("Health service shutdown completed")
-    except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
-        logger.error("Error during health service shutdown: %s", e, exc_info=True)

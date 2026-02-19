@@ -27,7 +27,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.core.structured_logger import get_logger
 from resync.settings import get_settings
 

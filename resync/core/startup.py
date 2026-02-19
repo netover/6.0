@@ -644,7 +644,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             from resync.core.tws_monitor import get_tws_monitor
             from resync.api_gateway.container import setup_dependencies
 
-            init_domain_singletons(app)
+            await init_domain_singletons(app)
             st = enterprise_state_from_app(app)
             
             await get_tws_monitor(st.tws_client)
@@ -833,8 +833,22 @@ async def _shutdown_services(app: FastAPI) -> None:
         except Exception as e:
             logger.warning("tws_monitor_shutdown_error", error=str(e))
     
+    # 4. Shutdown Health Service
+    async def _shutdown_health():
+        from resync.core.health import shutdown_unified_health_service
+        try:
+            await asyncio.wait_for(shutdown_unified_health_service(), timeout=5.0)
+            logger.info("health_service_shutdown")
+        except Exception as e:
+            logger.warning("health_service_shutdown_error", error=str(e))
+
     # Execute: tasks first, then resources in parallel
     await _cancel_tasks()
-    await asyncio.gather(_shutdown_singletons(), _shutdown_tws(), return_exceptions=True)
+    await asyncio.gather(
+        _shutdown_singletons(), 
+        _shutdown_tws(), 
+        _shutdown_health(),
+        return_exceptions=True
+    )
     
     logger.info("application_shutdown_completed")

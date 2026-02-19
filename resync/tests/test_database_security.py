@@ -10,24 +10,15 @@ This module provides automated testing for SQL injection vulnerabilities:
 Tests cover common attack vectors and edge cases.
 """
 
+import asyncio
 import importlib.util
+
 import pytest
 
 if importlib.util.find_spec("sqlalchemy") is None:
     pytest.skip("sqlalchemy not installed in this environment", allow_module_level=True)
-
-
-import pytest
-
-try:
-    import structlog  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
+if importlib.util.find_spec("structlog") is None:
     pytest.skip("Optional dependency 'structlog' not installed", allow_module_level=True)
-
-
-import asyncio
-
-import pytest
 
 from resync.api.middleware.database_security_middleware import DatabaseSecurityMiddleware
 from resync.core.audit_db import _validate_audit_record

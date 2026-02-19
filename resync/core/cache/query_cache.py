@@ -14,6 +14,8 @@ import hashlib
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import lru_cache
+import re
 from typing import Any
 
 from resync.core.structured_logger import get_logger
@@ -27,13 +29,8 @@ logger = get_logger(__name__)
 # PRE-COMPILED REGEX PATTERNS (Performance optimization)
 # =============================================================================
 # Compiled once at module load, not on every call
-import re as _re
-
-_FROM_PATTERN = _re.compile(r"\bfrom\s+(\w+)", _re.IGNORECASE)
-_JOIN_PATTERN = _re.compile(r"\bjoin\s+(\w+)", _re.IGNORECASE)
-
-# LRU cache for table extraction (avoids recomputing for same SQL)
-from functools import lru_cache
+_FROM_PATTERN = re.compile(r"\bfrom\s+(\w+)", re.IGNORECASE)
+_JOIN_PATTERN = re.compile(r"\bjoin\s+(\w+)", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1024)

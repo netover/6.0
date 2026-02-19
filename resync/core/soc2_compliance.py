@@ -6,7 +6,7 @@ individual strategies, making the code more modular, testable, and maintainable.
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
+import contextlib
 import hashlib
 import time
 from collections import defaultdict, deque
@@ -14,16 +14,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from resync.core.compliance.types import SOC2ComplianceManager as BaseSOC2ComplianceManager
+from resync.core.compliance.types import SOC2TrustServiceCriteria
+from resync.core.task_tracker import track_task
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
-
-
-# Import shared types to avoid circular dependency
-import contextlib
-
-from resync.core.compliance.types import SOC2ComplianceManager as BaseSOC2ComplianceManager
-from resync.core.compliance.types import SOC2TrustServiceCriteria
 
 
 class ControlCategory(Enum):

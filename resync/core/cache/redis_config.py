@@ -159,7 +159,7 @@ def get_redis_client(
         ConnectionError: If Redis is unreachable
     """
     try:
-        from redis.asyncio import Redis, from_url
+        from redis.asyncio import from_url
     except ImportError as e:
         raise RuntimeError("redis-py not installed. Run: pip install redis[hiredis]") from e
 

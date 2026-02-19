@@ -9,6 +9,8 @@ used throughout the application.
 import logging
 import time
 import uuid
+from collections import deque
+from datetime import datetime, timezone
 from typing import Any
 
 from resync.core.metrics_internal import (
@@ -53,6 +55,11 @@ class RuntimeMetricsCollector:
         self.cache_cleanup_cycles = create_counter("cache_cleanup_cycles", "Cache cleanup cycles")
         self.cache_avg_latency = create_gauge("cache_avg_latency", "Average cache latency")
         self.cache_size = create_gauge("cache_size", "Current cache size")
+
+        # Router Cache Metrics (Intent Cache)
+        self.router_cache_hits = create_counter("router_cache_hits", "Router cache hits")
+        self.router_cache_misses = create_counter("router_cache_misses", "Router cache misses")
+        self.router_cache_sets = create_counter("router_cache_sets", "Router cache sets")
 
         # TWS Metrics
         self.tws_requests_total = create_counter("tws_requests_total", "Total TWS requests")
@@ -114,10 +121,77 @@ class RuntimeMetricsCollector:
         self.rag_query_duration = create_histogram("rag_query_duration", "RAG query duration in seconds")
         self.rag_index_build_duration = create_histogram("rag_index_build_duration", "BM25 index build duration")
 
+        # Routing Monitoring (Phase 2)
+        self.routing_decisions_total = create_counter(
+            "routing_decisions_total", "Total routing decisions", labels=["mode", "intent"]
+        )
+        self.routing_errors_total = create_counter("routing_errors_total", "Total routing errors")
+        self.routing_duration_seconds = create_histogram(
+            "routing_duration_seconds", "Routing duration in seconds"
+        )
+        self.recent_decisions = deque(maxlen=50)
+
         # Correlation tracking
         self._correlations: dict[str, dict[str, Any]] = {}
 
+        # Internal counter/gauge storage for dynamic metrics
+        self._dynamic_counters: dict[str, Any] = {}
+        self._dynamic_gauges: dict[str, Any] = {}
+        self._dynamic_histograms: dict[str, Any] = {}
+
         logger.info("RuntimeMetricsCollector initialized")
+
+    # -------------------------------------------------------------------------
+    # Compatibility methods for legacy API (record_counter, record_gauge)
+    # These methods provide backward compatibility with code that expects
+    # runtime_metrics.record_counter(name, value, labels)
+    # -------------------------------------------------------------------------
+    def record_counter(self, name: str, value: float = 1, labels: dict[str, str] | None = None) -> None:
+        """
+        Record a counter increment. Creates counter if it doesn't exist.
+        
+        Args:
+            name: Counter name
+            value: Value to increment (default 1)
+            labels: Optional labels for the counter
+        """
+        if name not in self._dynamic_counters:
+            from resync.core.metrics_internal import create_counter
+            self._dynamic_counters[name] = create_counter(name, f"Dynamic counter: {name}", 
+                list(labels.keys()) if labels else None)
+        
+        if labels:
+            self._dynamic_counters[name].inc(value, labels)
+        else:
+            self._dynamic_counters[name].inc(value)
+
+    def record_gauge(self, name: str, value: float) -> None:
+        """
+        Record a gauge value. Creates gauge if it doesn't exist.
+        
+        Args:
+            name: Gauge name
+            value: Value to set
+        """
+        if name not in self._dynamic_gauges:
+            from resync.core.metrics_internal import create_gauge
+            self._dynamic_gauges[name] = create_gauge(name, f"Dynamic gauge: {name}")
+        
+        self._dynamic_gauges[name].set(value)
+
+    def record_histogram(self, name: str, value: float) -> None:
+        """
+        Record a histogram observation. Creates histogram if it doesn't exist.
+        
+        Args:
+            name: Histogram name
+            value: Value to observe
+        """
+        if name not in self._dynamic_histograms:
+            from resync.core.metrics_internal import create_histogram
+            self._dynamic_histograms[name] = create_histogram(name, f"Dynamic histogram: {name}")
+        
+        self._dynamic_histograms[name].observe(value)
 
     def create_correlation_id(self, operation: str, **kwargs) -> str:
         """Create a correlation ID for tracking an operation."""
@@ -176,6 +250,36 @@ class RuntimeMetricsCollector:
         else:
             self.cache_misses.inc()
 
+    def record_routing_decision(
+        self,
+        mode: str,
+        intent: str,
+        confidence: float,
+        latency_ms: float,
+        trace_id: str | None = None,
+        error: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        """Record a routing decision (Phase 2)."""
+        self.routing_decisions_total.labels(mode=mode, intent=intent).inc()
+        self.routing_duration_seconds.observe(latency_ms / 1000)
+
+        if error:
+            self.routing_errors_total.inc()
+
+        self.recent_decisions.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "mode": mode,
+                "intent": intent,
+                "confidence": confidence,
+                "latency_ms": latency_ms,
+                "trace_id": trace_id,
+                "error": error,
+                "message": message[:100] if message else None,  # Truncate for safety
+            }
+        )
+
     def get_stats(self) -> dict[str, Any]:
         """Get all metrics as a dictionary."""
         cache_hits = self.cache_hits.get()
@@ -194,6 +298,12 @@ class RuntimeMetricsCollector:
                 "misses": cache_misses,
                 "evictions": self.cache_evictions.get(),
                 "hit_rate": cache_hit_rate,
+            },
+            "router_cache": {
+                "hits": self.router_cache_hits.get(),
+                "misses": self.router_cache_misses.get(),
+                "sets": self.router_cache_sets.get(),
+                "hit_rate": (self.router_cache_hits.get() / (self.router_cache_hits.get() + self.router_cache_misses.get()) * 100) if (self.router_cache_hits.get() + self.router_cache_misses.get()) > 0 else 0.0,
             },
             "tws": {
                 "requests_total": self.tws_requests_total.get(),
@@ -229,10 +339,19 @@ class RuntimeMetricsCollector:
                     "searches": self.rag_chat_searches.get(),
                 },
                 "cache": {
-                    "size": self.rag_cache_size.get(),
                     "hits": self.rag_cache_hits.get(),
                     "misses": self.rag_cache_misses.get(),
                 },
+            },
+            "routing": {
+                "total_decisions": self.routing_decisions_total.get_sum(),
+                "errors": self.routing_errors_total.get(),
+                "avg_latency_ms": (
+                    self.routing_duration_seconds.get_percentile(50) * 1000
+                    if self.routing_duration_seconds.get_percentile(50)
+                    else 0
+                ),
+                "recent_decisions": list(self.recent_decisions),
             },
         }
 

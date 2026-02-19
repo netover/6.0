@@ -36,6 +36,8 @@ from enum import Enum
 from typing import Any, Protocol
 
 import structlog
+from resync.core.context import get_trace_id
+from resync.core.metrics.runtime_metrics import runtime_metrics
 
 logger = structlog.get_logger(__name__)
 
@@ -50,10 +52,25 @@ logger = structlog.get_logger(__name__)
 # =============================================================================
 
 ACTION_TRIGGERS = [
-    "por que", "porque", "causa", "root cause", "motivo",
-    "ajuda", "help", "como resolver", "resolver", "corrigir", "fix",
-    "o que faço", "o que fazer", "recomenda", "recomendação",
-    "investigar", "analisar", "análise", "diagnosticar"
+    "por que",
+    "porque",
+    "causa",
+    "root cause",
+    "motivo",
+    "ajuda",
+    "help",
+    "como resolver",
+    "resolver",
+    "corrigir",
+    "fix",
+    "o que faço",
+    "o que fazer",
+    "recomenda",
+    "recomendação",
+    "investigar",
+    "analisar",
+    "análise",
+    "diagnosticar",
 ]
 
 
@@ -125,7 +142,9 @@ class IntentClassification:
     entities: dict[str, Any] = field(default_factory=dict)
     requires_tools: bool = False
     suggested_routing: RoutingMode = RoutingMode.RAG_ONLY
-    matched_skills: list[str] = field(default_factory=list)  # Maps Intent to Skill names
+    matched_skills: list[str] = field(
+        default_factory=list
+    )  # Maps Intent to Skill names
 
     @property
     def is_high_confidence(self) -> bool:
@@ -184,12 +203,12 @@ class IntentClassifier:
             r"\bs0c\d\b",
         ],
         Intent.JOB_MANAGEMENT: [
-            r"\bexecutar\b",
-            r"\brodar\b",
+            r"\bexecut\w*\b",
+            r"\broda\w*\b",
             r"\brun\b",
-            r"\bstart\b",
+            r"\bstart\w*\b",
             r"\bparar\b",
-            r"\bstop\b",
+            r"\bstop\w*\b",
             r"\bcancel\b",
             r"\bkill\b",
             r"\brerun\b",
@@ -246,10 +265,13 @@ class IntentClassifier:
             r"\bhelp\b",
             r"\bo\s*que\s*(é|são|significa)\b",
             r"\bwhat\s*is\b",
-            r"\bcomo\s+(funciona|usar|faz)\b",
-            r"\bhow\s+(to|do|does)\b",
+            r"\bcomo\s+(?:.*?\s+)?(funciona|usar|faz|fazer|criar|solicitar|pedir)\b",
             r"\bexplica\w*\b",
             r"\bexplain\b",
+            # English how to/do/does patterns
+            r"\bhow\s+to\b",
+            r"\bhow\s+do\b",
+            r"\bhow\s+does\b",
         ],
     }
 
@@ -262,6 +284,9 @@ class IntentClassifier:
         "time_reference": r"\b(hoje|ontem|última\s+hora|last\s+hour|yesterday|today)\b",
     }
 
+    # Class-level cache for compiled regex patterns
+    _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
+
     def __init__(self, llm_classifier: Callable | None = None):
         """
         Initialize the classifier.
@@ -270,15 +295,20 @@ class IntentClassifier:
             llm_classifier: Optional async function for LLM-based classification
         """
         self.llm_classifier = llm_classifier
-        self._compiled_patterns: dict[Intent, list[re.Pattern]] = {}
-        self._compile_patterns()
+        self._ensure_compiled()
+
+    @classmethod
+    def _ensure_compiled(cls) -> None:
+        """Ensure regex patterns are compiled at class level."""
+        if not cls._compiled_patterns:
+            for intent, patterns in cls.INTENT_PATTERNS.items():
+                cls._compiled_patterns[intent] = [
+                    re.compile(p, re.IGNORECASE | re.UNICODE) for p in patterns
+                ]
 
     def _compile_patterns(self) -> None:
-        """Pre-compile regex patterns for performance."""
-        for intent, patterns in self.INTENT_PATTERNS.items():
-            self._compiled_patterns[intent] = [
-                re.compile(p, re.IGNORECASE | re.UNICODE) for p in patterns
-            ]
+        """Deprecated: Patterns are now compiled at class level via _ensure_compiled."""
+        self._ensure_compiled()  # Maintain compatibility if called manually
 
     def classify(self, message: str) -> IntentClassification:
         """
@@ -301,6 +331,9 @@ class IntentClassifier:
 
         # Score each intent based on pattern matches
         scores: dict[Intent, float] = {}
+
+        # Ensure patterns are compiled
+        self._ensure_compiled()
 
         for intent, patterns in self._compiled_patterns.items():
             match_count = sum(1 for pattern in patterns if pattern.search(message))
@@ -343,19 +376,19 @@ class IntentClassifier:
 
         # Map Intent to Skills (gerúndio) - with validation (GAP A: Safe Mapping)
         from resync.core.skill_manager import get_skill_manager
-        
+
         matched_skills: list[str] = []
-        
+
         # Obter skills disponíveis
         sm = get_skill_manager()
         available = {s.name for s in sm.skills_metadata}
-        
+
         def add_if_exists(skill_name: str) -> None:
             if skill_name in available:
                 matched_skills.append(skill_name)
             else:
                 logger.warning("mapped_skill_missing_in_classifier", skill=skill_name)
-        
+
         # Mapear intents para skills (com validação)
         if primary_intent == Intent.TROUBLESHOOTING:
             add_if_exists("analyzing-job-logs")
@@ -447,9 +480,20 @@ class Handler(Protocol):
 class BaseHandler(ABC):
     """Base class for all handlers."""
 
-    def __init__(self, agent_manager: Any = None):
+    def __init__(self, agent_manager: Any = None, skill_manager: Any = None):
         self.agent_manager = agent_manager
+        self.skill_manager = skill_manager
         self.last_tools_used: list[str] = []
+        self._specialist_team = None  # lazy-loaded TWSSpecialistTeam
+
+    @property
+    def specialist_team(self):
+        """Lazy-load TWSSpecialistTeam (shared across handlers)."""
+        if self._specialist_team is None:
+            from resync.core.specialists.agents import TWSSpecialistTeam
+
+            self._specialist_team = TWSSpecialistTeam()
+        return self._specialist_team
 
     @abstractmethod
     def handle(
@@ -469,7 +513,9 @@ class BaseHandler(ABC):
             return result
         return None
 
-    async def _get_agent_response(self, agent_id: str, message: str, skill_context: str = "") -> str:
+    async def _get_agent_response(
+        self, agent_id: str, message: str, skill_context: str = ""
+    ) -> str:
         """Get response from a specific agent injecting skill context."""
         if self.agent_manager:
             agent = await self.agent_manager.get_agent(agent_id)
@@ -478,12 +524,22 @@ class BaseHandler(ABC):
         return ""
 
     def _build_skill_context(self, classification: IntentClassification) -> str:
-        """Build skill context from matched_skills for agent injection."""
-        from resync.core.skill_manager import get_skill_manager
+        """Build skill context from matched_skills for agent injection.
 
+        Uses injected skill_manager (DI) if available, falls back to
+        deprecated global singleton for backward compatibility.
+        """
         skills = getattr(classification, "matched_skills", None) or []
         if not skills:
             return ""
+
+        # Use injected skill_manager (preferred) or fall back to deprecated global
+        if self.skill_manager is not None:
+            # New path: use SkillManager.build_skill_context (O(1) lookup, cached)
+            return self.skill_manager.build_skill_context(skills)
+
+        # Fallback: deprecated global singleton (will emit DeprecationWarning)
+        from resync.core.skill_manager import get_skill_manager
 
         sm = get_skill_manager()
         available = {s.name for s in sm.skills_metadata}
@@ -592,15 +648,21 @@ class AgenticHandler(BaseHandler):
     - Parallel execution for read-only operations
     - Sub-agent dispatch for complex searches
 
+    v6.0 Enhancements:
+    - Skill injection via DI (skill_manager)
+    - Uses SkillManager.build_skill_context for O(1) lookup
+
     Executes multi-step tasks with tool use.
     Controlled by tool_call_limit and max_steps.
     """
 
-    def __init__(self, agent_manager: Any = None):
+    def __init__(self, agent_manager: Any = None, skill_manager: Any = None):
         super().__init__(agent_manager)
+        self.skill_manager = skill_manager
         self.tool_call_limit = 10
         self.max_steps = 15
         self._parallel_executor = None
+        self._specialist_team = None
 
     @property
     def parallel_executor(self):
@@ -610,6 +672,20 @@ class AgenticHandler(BaseHandler):
 
             self._parallel_executor = ParallelToolExecutor()
         return self._parallel_executor
+
+    @property
+    def specialist_team(self):
+        """
+        Lazy load TWSSpecialistTeam for advanced agentic reasoning.
+
+        v6.0: Integrated into AgenticHandler and DiagnosticHandler
+        to provide comprehensive context before LLM interpretation.
+        """
+        if self._specialist_team is None:
+            from resync.core.specialists.agents import TWSSpecialistTeam
+
+            self._specialist_team = TWSSpecialistTeam()
+        return self._specialist_team
 
     async def handle(
         self,
@@ -634,7 +710,9 @@ class AgenticHandler(BaseHandler):
 
             # Default: use general agent
             skill_context = self._build_skill_context(classification)
-            return await self._get_agent_response("tws-general", message, skill_context=skill_context)
+            return await self._get_agent_response(
+                "tws-general", message, skill_context=skill_context
+            )
 
         except Exception as e:
             logger.error("Agentic handler error: %s", e)
@@ -704,7 +782,9 @@ class AgenticHandler(BaseHandler):
                     if isinstance(result, dict):
                         if "workstations" in result:
                             for ws in result["workstations"]:
-                                status_icon = "🟢" if ws.get("status") == "ONLINE" else "🔴"
+                                status_icon = (
+                                    "🟢" if ws.get("status") == "ONLINE" else "🔴"
+                                )
                                 response_parts.append(
                                     f"{status_icon} **{ws.get('name')}**: "
                                     f"{ws.get('status')} - {ws.get('jobs_running', 0)} jobs"
@@ -722,7 +802,9 @@ class AgenticHandler(BaseHandler):
                     if isinstance(result, dict):
                         job = result.get("job_name", "Job")
                         status = result.get("status", "UNKNOWN")
-                        status_icon = "✅" if status in ["COMPLETED", "SUCCESS"] else "❌"
+                        status_icon = (
+                            "✅" if status in ["COMPLETED", "SUCCESS"] else "❌"
+                        )
                         response_parts.append(f"{status_icon} **{job}**: {status}")
 
         if len(response_parts) == 1:
@@ -750,7 +832,9 @@ PERGUNTA DO USUÁRIO:
 {message}
 """.strip()
 
-            return await self._get_agent_response("tws-general", agent_prompt, skill_context=skill_context)
+            return await self._get_agent_response(
+                "tws-general", agent_prompt, skill_context=skill_context
+            )
 
         return raw
 
@@ -783,7 +867,9 @@ PERGUNTA DO USUÁRIO:
         for r in responses:
             if r.success and r.result and r.tool_name == "get_system_metrics":
                 m = r.result.get("metrics", r.result)
-                response += f"Taxa de sucesso: {m.get('job_success_rate', 0) * 100:.1f}%\n"
+                response += (
+                    f"Taxa de sucesso: {m.get('job_success_rate', 0) * 100:.1f}%\n"
+                )
                 response += f"Workstations ativas: {m.get('active_workstations', 0)}\n"
                 response += f"Jobs na fila: {m.get('queue_depth', 0)}\n"
                 response += f"Taxa de erros: {m.get('error_rate', 0) * 100:.1f}%\n"
@@ -807,7 +893,9 @@ PERGUNTA DO USUÁRIO:
 {message}
 """.strip()
 
-            return await self._get_agent_response("tws-general", agent_prompt, skill_context=skill_context)
+            return await self._get_agent_response(
+                "tws-general", agent_prompt, skill_context=skill_context
+            )
 
         return response
 
@@ -835,7 +923,9 @@ PERGUNTA DO USUÁRIO:
                 self.last_tools_used = ["dispatch_parallel_sub_agents"]
 
                 response = "**📈 Análise Paralela de Jobs**\n\n"
-                for _i, (job, result) in enumerate(zip(job_names, results, strict=False)):
+                for _i, (job, result) in enumerate(
+                    zip(job_names, results, strict=False)
+                ):
                     status_icon = "✅" if result.status.value == "completed" else "⚠️"
                     response += f"{status_icon} **{job}**: {result.summary}\n"
 
@@ -868,8 +958,28 @@ PERGUNTA DO USUÁRIO:
         # Buscar o conteúdo das skills (Deep Loading) usando helper
         skill_context = self._build_skill_context(classification)
 
+        # v6.0: Optionally run specialist team for complex analysis
+        if classification.primary_intent == Intent.ANALYSIS:
+            try:
+                team_resp = await self.specialist_team.process(
+                    query=message,
+                    context={"entities": classification.entities},
+                    use_all_specialists=False,
+                )
+                team_summary = getattr(team_resp, "synthesized_response", "")
+                if team_summary:
+                    # Inject specialist team summary into skill context
+                    skill_context = (
+                        f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
+                    )
+                    self.last_tools_used.append("specialist_team")
+            except Exception as e:
+                logger.warning("Specialist team analysis failed: %s", e)
+
         # Quando for chamar o agente, passe a skill
-        return await self._get_agent_response("tws-troubleshooting", message, skill_context=skill_context)
+        return await self._get_agent_response(
+            "tws-troubleshooting", message, skill_context=skill_context
+        )
 
     async def _handle_job_management(
         self,
@@ -919,7 +1029,11 @@ PERGUNTA DO USUÁRIO:
                 f"'Confirmo {message.lower()}'"
             )
 
-        return await self._get_agent_response("tws-general", message, skill_context=self._build_skill_context(classification))
+        return await self._get_agent_response(
+            "tws-general",
+            message,
+            skill_context=self._build_skill_context(classification),
+        )
 
 
 # =============================================================================
@@ -949,6 +1063,22 @@ class DiagnosticHandler(BaseHandler):
 
             # GAP C: Build skill context for diagnostic injection
             skill_context = self._build_skill_context(classification)
+
+            # v6.0: Run specialist team for diagnostic context (best-effort)
+            # This provides additional context before LangGraph diagnosis
+            try:
+                team_resp = await self.specialist_team.process(
+                    query=message,
+                    context={"entities": classification.entities},
+                    use_all_specialists=True,
+                )
+                team_summary = getattr(team_resp, "synthesized_response", "")
+                if team_summary:
+                    # Inject specialist team findings into skill context
+                    skill_context = f"# Specialist Team Diagnostic Findings\n{team_summary}\n\n{skill_context}"
+                    self.last_tools_used.append("specialist_team")
+            except Exception as e:
+                logger.warning("Specialist team diagnostic failed: %s", e)
 
             result = await diagnose_problem(
                 problem_description=message,
@@ -1042,9 +1172,13 @@ class DiagnosticHandler(BaseHandler):
                     response_parts.append(
                         f"\n**Return Code {rc}:** {analysis.get('description', '')}"
                     )
-                    response_parts.append(f"Severidade: {analysis.get('severity', 'N/A')}")
+                    response_parts.append(
+                        f"Severidade: {analysis.get('severity', 'N/A')}"
+                    )
                 except ValueError as exc:
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                    logger.debug(
+                        "suppressed_exception", error=str(exc), exc_info=True
+                    )  # was: pass
 
         # Get job log if job name provided
         if job_names:
@@ -1067,7 +1201,9 @@ class DiagnosticHandler(BaseHandler):
                 for rec in history["recommendations"][:2]:
                     response_parts.append(f"• {rec}")
         except Exception as exc:
-            logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+            logger.debug(
+                "suppressed_exception", error=str(exc), exc_info=True
+            )  # was: pass
 
         if len(response_parts) == 1:
             response_parts.append(
@@ -1098,20 +1234,25 @@ class HybridRouter:
         self,
         agent_manager: Any = None,
         classifier: IntentClassifier | None = None,
+        skill_manager: Any = None,
     ):
         self.agent_manager = agent_manager
         self.classifier = classifier or IntentClassifier()
+        self.skill_manager = skill_manager
 
         # Initialize handlers
         self._handlers: dict[RoutingMode, BaseHandler] = {
             RoutingMode.RAG_ONLY: RAGOnlyHandler(agent_manager),
-            RoutingMode.AGENTIC: AgenticHandler(agent_manager),
+            RoutingMode.AGENTIC: AgenticHandler(
+                agent_manager, skill_manager=skill_manager
+            ),
             RoutingMode.DIAGNOSTIC: DiagnosticHandler(agent_manager),
         }
 
         logger.info(
             "hybrid_router_initialized",
             modes=list(self._handlers.keys()),
+            skill_manager_enabled=skill_manager is not None,
         )
 
     async def route(
@@ -1156,7 +1297,9 @@ class HybridRouter:
         # Execute handler
         try:
             response = await handler.handle(message, context, classification)
-            tools_used = handler.last_tools_used if hasattr(handler, "last_tools_used") else []
+            tools_used = (
+                handler.last_tools_used if hasattr(handler, "last_tools_used") else []
+            )
         except Exception as e:
             logger.error("Handler error: %s", e)
             response = f"Erro ao processar: {e}"
@@ -1164,7 +1307,7 @@ class HybridRouter:
 
         processing_time = int((time.time() - start_time) * 1000)
 
-        return RoutingResult(
+        result = RoutingResult(
             response=response,
             routing_mode=routing_mode,
             intent=classification.primary_intent.value,
@@ -1174,6 +1317,21 @@ class HybridRouter:
             entities=classification.entities,
             processing_time_ms=processing_time,
         )
+
+        # Record decision in metrics (Phase 2)
+        try:
+            runtime_metrics.record_routing_decision(
+                mode=routing_mode.value,
+                intent=classification.primary_intent.value,
+                confidence=classification.confidence,
+                latency_ms=processing_time,
+                trace_id=get_trace_id(),
+                message=message,
+            )
+        except Exception as e:
+            logger.warning("failed_to_record_routing_metric", error=str(e))
+
+        return result
 
 
 # =============================================================================
@@ -1186,22 +1344,30 @@ class AgentRouter(HybridRouter):
     """Backward-compatible alias for HybridRouter."""
 
 
-def create_router(agent_manager: Any) -> HybridRouter:
+def create_router(
+    agent_manager: Any,
+    skill_manager: Any = None,
+    classifier: IntentClassifier | None = None,
+) -> HybridRouter:
     """
     Factory function to create a configured HybridRouter.
 
     Args:
         agent_manager: The AgentManager instance
+        skill_manager: Optional SkillManager instance (DI)
+        classifier: Optional IntentClassifier instance
 
     Returns:
         Configured HybridRouter ready for use
     """
-    classifier = IntentClassifier()
-    router = HybridRouter(agent_manager, classifier)
+    if classifier is None:
+        classifier = IntentClassifier()
+    router = HybridRouter(agent_manager, classifier, skill_manager=skill_manager)
 
     logger.info(
         "agent_router_created",
         routing_modes=list(router._handlers.keys()),
+        skill_manager_enabled=skill_manager is not None,
     )
 
     return router
