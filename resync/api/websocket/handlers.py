@@ -6,21 +6,24 @@ import asyncio
 import json
 
 from fastapi import WebSocket, WebSocketDisconnect, status
+from langfuse.decorators import langfuse_context
 
+from resync.core.context import set_trace_id, set_user_id
+from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
 
-async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> bool:
-    """Verify WebSocket authentication.
+async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
+    """Verify WebSocket authentication and return user_id.
 
     Args:
         websocket: The WebSocket connection
         token: Optional JWT token from query parameter
 
     Returns:
-        True if authenticated, False otherwise
+        User ID if authenticated, None otherwise
     """
     try:
         # Check for token in query parameter
@@ -28,8 +31,9 @@ async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> boo
             from resync.api.auth.service import get_auth_service
 
             auth_service = get_auth_service()
-            if auth_service.verify_token(token):
-                return True
+            payload = auth_service.verify_token(token)
+            if payload:
+                return str(payload.sub)
 
         # Check for token in Authorization header
         auth_header = websocket.headers.get("authorization", "")
@@ -38,13 +42,13 @@ async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> boo
             from resync.api.security import decode_token
 
             payload = decode_token(token)
-            if payload:
-                return True
+            if payload and "sub" in payload:
+                return str(payload["sub"])
 
-        return False
+        return None
     except Exception as e:
         logger.debug("WebSocket authentication failed: %s", type(e).__name__)
-        return False
+        return None
 
 
 class ConnectionManager:
@@ -175,12 +179,24 @@ async def websocket_handler(
         token: Optional JWT token for authentication
     """
     # Authenticate before accepting connection - fail closed (deny by default)
-    if not await _verify_ws_auth(websocket, token):
+    user_id = await _verify_ws_auth(websocket, token)
+    if not user_id:
         logger.warning("WebSocket auth failed for agent %s", agent_id)
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required"
         )
         return
+
+    # Set trace context
+    trace_id = normalize_trace_id(
+        websocket.headers.get("x-correlation-id") or websocket.headers.get("x-request-id")
+    )
+    set_trace_id(trace_id)
+    set_user_id(user_id)
+
+    # Update Langfuse context with secure user ID
+    hashed_user = hash_user_id(user_id)
+    langfuse_context.update_current_trace(user_id=hashed_user)
 
     await manager.connect(websocket, agent_id)
 

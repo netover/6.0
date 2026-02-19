@@ -42,6 +42,18 @@ def _get_knowledge_graph():
 audit_lock = DistributedAuditLock()
 audit_queue = AsyncAuditQueue()
 
+# Concurrency control for LLM analysis to prevent rate limiting
+# Default to 5 concurrent analyses
+_analysis_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_analysis_semaphore() -> asyncio.Semaphore:
+    """Get or create the analysis semaphore."""
+    global _analysis_semaphore
+    if _analysis_semaphore is None:
+        _analysis_semaphore = asyncio.Semaphore(5)
+    return _analysis_semaphore
+
 
 async def _validate_memory_for_analysis(mem: dict[str, Any]) -> bool:
     """Checks if a memory is valid for analysis."""
@@ -226,13 +238,18 @@ async def _store_flagged_memories(flagged: list[dict[str, Any]]) -> None:
     """Stores flagged memories in audit queue for human review."""
     for mem in flagged:
         try:
-            await audit_queue.enqueue_for_review(
-                memory_id=str(mem["id"]),
-                reason=mem.get("ia_audit_reason", "Flagged by IA"),
-                confidence=float(mem.get("ia_audit_confidence", 0.0)),
-                memory_content=mem,
+            # Use generic enqueue since enqueue_for_review is not available in AsyncAuditQueue
+            await audit_queue.enqueue(
+                action="review_memory",
+                payload={
+                    "memory_id": str(mem["id"]),
+                    "reason": mem.get("ia_audit_reason", "Flagged by IA"),
+                    "confidence": float(mem.get("ia_audit_confidence", 0.0)),
+                    "memory_content": mem,
+                },
+                priority=1,  # High priority for flagged items
             )
-        except DatabaseError as e:
+        except (DatabaseError, AttributeError) as e:
             logger.error(
                 "failed_to_enqueue_flagged_memory",
                 memory_id=str(mem.get("id")),
@@ -246,45 +263,57 @@ async def analyze_memory(
 ) -> tuple[str, str | dict[str, Any]] | None:
     """Analyzes a single memory and returns an action if necessary."""
     memory_id = str(mem.get("id", ""))
-    try:
-        async with await audit_lock.acquire(memory_id, timeout=30):
-            if not await _validate_memory_for_analysis(mem):
-                return None
+    
+    # Use semaphore to limit concurrent analysis and prevent rate limiting
+    async with _get_analysis_semaphore():
+        try:
+            async with await audit_lock.acquire(memory_id, timeout=30):
+                if not await _validate_memory_for_analysis(mem):
+                    return None
 
-            # Check if memory is already flagged or approved before LLM analysis
-            if await _get_knowledge_graph().is_memory_flagged(memory_id):
-                logger.debug("memory_already_flagged_by_ia", memory_id=memory_id)
-                return None
+                # Check if memory is already flagged or approved before LLM analysis
+                if await _get_knowledge_graph().is_memory_flagged(memory_id):
+                    logger.debug("memory_already_flagged_by_ia", memory_id=memory_id)
+                    return None
 
-            if await _get_knowledge_graph().is_memory_approved(memory_id):
-                logger.debug("memory_already_approved_by_human", memory_id=memory_id)
-                return None
+                if await _get_knowledge_graph().is_memory_approved(memory_id):
+                    logger.debug("memory_already_approved_by_human", memory_id=memory_id)
+                    return None
 
-            analysis = await _get_llm_analysis(
-                str(mem.get("user_query", "")), str(mem.get("agent_response", ""))
+                analysis = await _get_llm_analysis(
+                    str(mem.get("user_query", "")), str(mem.get("agent_response", ""))
+                )
+                if not analysis:
+                    return None
+
+                return await _perform_action_on_memory(mem, analysis)
+
+        except LLMError:
+            # Error already logged in _get_llm_analysis, just bubble it up if needed
+            logger.warning("skipping_memory_due_to_llm_failure", memory_id=memory_id)
+            return None
+        except AuditError as e:
+            # Lock acquisition failure
+            logger.warning("could_not_acquire_lock_for_memory", memory_id=memory_id, error=str(e))
+            return None
+        except (KnowledgeGraphError, DatabaseError) as e:
+            # Catch specific data access errors
+            logger.error(
+                "database_or_knowledge_graph_error_analyzing_memory",
+                memory_id=memory_id,
+                error=str(e),
+                exc_info=True,
             )
-            if not analysis:
-                return None
-
-            return await _perform_action_on_memory(mem, analysis)
-
-    except LLMError:
-        # Error already logged in _get_llm_analysis, just bubble it up if needed
-        logger.warning("skipping_memory_due_to_llm_failure", memory_id=memory_id)
-        return None
-    except AuditError as e:
-        # Lock acquisition failure
-        logger.warning("could_not_acquire_lock_for_memory", memory_id=memory_id, error=str(e))
-        return None
-    except (KnowledgeGraphError, DatabaseError) as e:
-        # Catch specific data access errors
-        logger.error(
-            "database_or_knowledge_graph_error_analyzing_memory",
-            memory_id=memory_id,
-            error=str(e),
-            exc_info=True,
-        )
-        return None
+            return None
+        except Exception as e:
+            # Catch unexpected errors to prevent crashing the batch
+            logger.error(
+                "unexpected_error_analyzing_memory",
+                memory_id=memory_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
 
 
 async def _cleanup_locks() -> None:
