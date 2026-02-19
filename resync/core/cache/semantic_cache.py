@@ -67,6 +67,7 @@ SCHEMA = {
         {"name": "timestamp", "type": "numeric"},
         {"name": "hit_count", "type": "numeric"},
         {"name": "metadata", "type": "text"},
+        {"name": "user_id", "type": "tag"},  # SECURITY: User isolation field
     ],
 }
 
@@ -165,20 +166,28 @@ class SemanticCache:
             return f"user:{user_id}:{query_text}"
         return query_text
 
-    async def get(self, query: str) -> CacheResult:
-        """Look up query in cache with fallback and reranking support."""
+    async def get(self, query: str, user_id: str | None = None) -> CacheResult:
+        """Look up query in cache with fallback and reranking support.
+        
+        SECURITY: user_id parameter ensures proper user isolation at query time.
+        
+        Args:
+            query: The query text to look up
+            user_id: The user identifier for filtering (prevents cross-user data leakage)
+        """
         if not self._initialized:
             await self.initialize()
             
         start_time = time.perf_counter()
         try:
-            # Generate embedding vector
-            embedding = self.vectorizer.embed(query)
+            # Generate embedding vector (use user-scoped cache key for embedding)
+            cache_key_text = self._build_cache_key(query, user_id)
+            embedding = self.vectorizer.embed(cache_key_text)
             
             if self._redis_stack_available:
-                result = await self._search_redisvl(query, embedding)
+                result = await self._search_redisvl(query, embedding, user_id)
             else:
-                result = await self._search_fallback(query, embedding)
+                result = await self._search_fallback(query, embedding, user_id)
                 
             # Apply conditional reranking for gray zone matches
             if result.hit and self.enable_reranking and should_rerank(result.distance):
@@ -202,14 +211,31 @@ class SemanticCache:
             self._stats["errors"] += 1
             return CacheResult(hit=False)
 
-    async def _search_redisvl(self, query: str, embedding: List[float]) -> CacheResult:
-        """Search using RedisVL VectorQuery."""
+    async def _search_redisvl(self, query: str, embedding: List[float], user_id: str | None = None) -> CacheResult:
+        """Search using RedisVL VectorQuery with user_id filtering.
+        
+        SECURITY: user_id filter ensures only entries belonging to the same user are returned.
+        
+        Args:
+            query: The query text (used for embedding)
+            embedding: The pre-computed embedding vector
+            user_id: The user identifier for filtering (prevents cross-user data leakage)
+        """
+        # Create filter for user_id if provided
+        filter_expr = None
+        if user_id:
+            # Use RedisVL FilterExpression for proper user isolation at query time
+            # This is more secure than embedding user_id in the query text
+            from redisvl.query.filter import Tag, FilterExpression
+            filter_expr = FilterExpression(Tag("user_id").equals(user_id))
+        
         v_query = VectorQuery(
             vector=embedding,
             vector_field_name="embedding",
             num_results=1,
-            return_fields=["query_text", "response", "timestamp", "hit_count", "metadata"],
-            return_score=True
+            return_fields=["query_text", "response", "timestamp", "hit_count", "metadata", "user_id"],
+            return_score=True,
+            filter=filter_expr
         )
         
         results = await self.index.query(v_query)
@@ -230,16 +256,36 @@ class SemanticCache:
         
         return CacheResult(hit=False)
 
-    async def _search_fallback(self, query: str, embedding: List[float]) -> CacheResult:
-        """Fallback search using Python-based brute-force similarity."""
+    async def _search_fallback(self, query: str, embedding: List[float], user_id: str | None = None) -> CacheResult:
+        """Fallback search using Python-based brute-force similarity with user_id filtering.
+        
+        SECURITY: user_id filter ensures only entries belonging to the same user are returned.
+        
+        Args:
+            query: The query text (used for embedding)
+            embedding: The pre-computed embedding vector
+            user_id: The user identifier for filtering (prevents cross-user data leakage)
+        """
         client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
         best_distance = float("inf")
         best_entry = None
 
+        # SECURITY: Use user-scoped key pattern for lookup
+        if user_id:
+            key_pattern = f"{self.KEY_PREFIX}user:{user_id}:*"
+        else:
+            key_pattern = f"{self.KEY_PREFIX}*"
+
         try:
-            async for key in client.scan_iter(match=f"{self.KEY_PREFIX}*", count=100):
+            async for key in client.scan_iter(match=key_pattern, count=100):
                 data = await client.hgetall(key)
                 if not data or "embedding" not in data:
+                    continue
+                
+                # SECURITY: Additional check for user_id field in data (for backward compatibility)
+                stored_user_id = data.get("user_id") or ""
+                if user_id and stored_user_id != user_id:
+                    # Skip entries that don't belong to the requesting user
                     continue
                 
                 # Decode binary embedding if stored as bytes (RedisVL format)
@@ -283,14 +329,27 @@ class SemanticCache:
         response: str,
         ttl: int | None = None,
         metadata: dict[str, Any] | None = None,
+        user_id: str | None = None,
     ) -> bool:
-        """Store entry in cache."""
+        """Store entry in cache with user isolation.
+        
+        SECURITY: user_id is stored as a tag field and used for filtering at query time.
+        
+        Args:
+            query: The query text to cache
+            response: The response to cache
+            ttl: Optional TTL override
+            metadata: Optional metadata dict
+            user_id: The user identifier for isolation (prevents cross-user data leakage)
+        """
         if not self._initialized:
             await self.initialize()
             
         try:
-            query_hash = self._hash_query(query)
-            embedding = self.vectorizer.embed(query)
+            # Use user-scoped cache key for embedding to ensure proper isolation
+            cache_key_text = self._build_cache_key(query, user_id)
+            query_hash = self._hash_query(cache_key_text)
+            embedding = self.vectorizer.embed(cache_key_text)
             
             data = {
                 "query_text": query,
@@ -299,16 +358,20 @@ class SemanticCache:
                 "embedding": embedding,
                 "timestamp": datetime.now(timezone.utc).timestamp(),
                 "hit_count": 0,
-                "metadata": json.dumps(metadata or {})
+                "metadata": json.dumps(metadata or {}),
+                "user_id": user_id or "",  # SECURITY: Store user_id for filtering
             }
             
             if self._redis_stack_available:
                 keys = await self.index.load([data])
                 key = keys[0] if keys else None
             else:
-                # Manual HSET for fallback mode
+                # Manual HSET for fallback mode - include user_id in key for isolation
                 client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
-                key = f"{self.KEY_PREFIX}{query_hash}"
+                if user_id:
+                    key = f"{self.KEY_PREFIX}user:{user_id}:{query_hash}"
+                else:
+                    key = f"{self.KEY_PREFIX}{query_hash}"
                 # Store embedding as binary for consistency
                 data["embedding"] = struct.pack(f"{len(embedding)}f", *embedding)
                 await client.hset(key, mapping=data)

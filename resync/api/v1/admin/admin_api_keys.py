@@ -77,7 +77,7 @@ class APIKey(Base):
     usage_count = Column(Integer, nullable=False, default=0)
 
     # Audit
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     created_by = Column(String(100), nullable=False)
 
     def __repr__(self):

@@ -35,6 +35,81 @@ from .reranker_interface import IReranker, RerankGatingConfig, RerankGatingPolic
 logger = logging.getLogger(__name__)
 INDEX_STORAGE_PATH = os.environ.get('BM25_INDEX_PATH', os.path.join('data', 'bm25_index.bin.gz'))
 
+# Magic bytes for secure BM25 index format (JSON + gzip)
+# Format: magic_bytes (8 bytes) + version (2 bytes) + compressed_json_data
+BM25_INDEX_MAGIC = b'RESYNCBM'
+BM25_INDEX_VERSION = b'01'
+
+# Fallback to joblib for backward compatibility with existing indexes
+def _try_load_joblib(path: str):
+    """Attempt to load index using joblib (backward compatibility)."""
+    import joblib
+    try:
+        with gzip.open(path, 'rb') as f:
+            index = joblib.load(f)
+        # Validate basic structure
+        if not hasattr(index, 'documents') or not hasattr(index, 'inverted_index'):
+            raise ValueError("Invalid joblib index structure")
+        logger.warning('bm25_index_loaded_joblib_compat', extra={
+            'path': path,
+            'num_docs': len(index.documents),
+            'num_terms': len(index.inverted_index)
+        })
+        return index
+    except Exception as e:
+        logger.warning('bm25_index_joblib_load_failed', extra={'error': str(e)})
+        raise
+
+def _validate_index_data(data: dict) -> bool:
+    """Validate the loaded index data has required fields."""
+    required_fields = ['k1', 'b', 'field_boosts', 'documents', 'doc_lengths',
+                       'avg_doc_length', 'inverted_index', 'doc_freq']
+    return all(field in data for field in required_fields)
+
+def _load_secure_json(path: str):
+    """Load BM25 index from JSON format with validation."""
+    try:
+        with gzip.open(path, 'rb') as f:
+            # Read and verify magic bytes
+            magic = f.read(8)
+            if magic != BM25_INDEX_MAGIC:
+                raise ValueError(f"Invalid magic bytes: {magic}")
+            
+            # Read version
+            version = f.read(2)
+            if version != BM25_INDEX_VERSION:
+                raise ValueError(f"Unsupported version: {version}")
+            
+            # Read and decompress JSON data
+            json_data = f.read()
+            data = json.loads(json_data.decode('utf-8'))
+        
+        # Validate structure
+        if not _validate_index_data(data):
+            raise ValueError("Invalid index data structure - missing required fields")
+        
+        # Reconstruct BM25Index from validated dict
+        index = BM25Index(
+            k1=data.get('k1', 1.5),
+            b=data.get('b', 0.75),
+            field_boosts=data.get('field_boosts', {}),
+            documents=data.get('documents', []),
+            doc_lengths=data.get('doc_lengths', []),
+            avg_doc_length=data.get('avg_doc_length', 0.0),
+            inverted_index=data.get('inverted_index', {}),
+            doc_freq=data.get('doc_freq', {})
+        )
+        
+        logger.info('bm25_index_loaded_secure', extra={
+            'path': path,
+            'size_bytes': os.path.getsize(path),
+            'num_docs': len(index.documents),
+            'num_terms': len(index.inverted_index)
+        })
+        return index
+    except (json.JSONDecodeError, ValueError, OSError) as e:
+        raise ValueError(f"Failed to load secure index: {e}") from e
+
 @dataclass
 class BM25Index:
     """
@@ -208,7 +283,7 @@ class BM25Index:
 
     def save(self, path: str) -> bool:
         """
-        Persist BM25 index to disk with compression.
+        Persist BM25 index to disk with compression and secure JSON format.
 
         Args:
             path: Path to save the index file (.bin.gz)
@@ -225,9 +300,25 @@ class BM25Index:
             lock = FileLock(lock_path, timeout=10)
             try:
                 with lock.acquire(timeout=10):
-                    import joblib
+                    # Convert index to dict for JSON serialization
+                    index_data = {
+                        'k1': self.k1,
+                        'b': self.b,
+                        'field_boosts': self.field_boosts,
+                        'documents': self.documents,
+                        'doc_lengths': self.doc_lengths,
+                        'avg_doc_length': self.avg_doc_length,
+                        'inverted_index': dict(self.inverted_index),
+                        'doc_freq': dict(self.doc_freq)
+                    }
+                    json_bytes = json.dumps(index_data, ensure_ascii=False).encode('utf-8')
+                    
+                    # Write with magic bytes and version header
                     with gzip.open(path, 'wb') as f:
-                        joblib.dump(self, f)
+                        f.write(BM25_INDEX_MAGIC)
+                        f.write(BM25_INDEX_VERSION)
+                        f.write(json_bytes)
+                    
                     logger.info('bm25_index_saved', extra={'path': path, 'size_bytes': os.path.getsize(path), 'num_docs': len(self.documents), 'num_terms': len(self.inverted_index)})
                     return True
             except Timeout:
@@ -240,7 +331,7 @@ class BM25Index:
     @classmethod
     def load(cls, path: str) -> 'BM25Index':
         """
-        Load BM25 index from disk with auto-recovery.
+        Load BM25 index from disk with auto-recovery and security validation.
 
         Args:
             path: Path to the index file
@@ -256,14 +347,18 @@ class BM25Index:
             return cls()
         lock_path = f'{path}.lock'
         try:
-            import joblib
             lock = FileLock(lock_path, timeout=5)
             try:
                 with lock.acquire(timeout=5):
-                    with gzip.open(path, 'rb') as f:
-                        index = joblib.load(f)
-                    logger.info('bm25_index_loaded', extra={'path': path, 'size_bytes': os.path.getsize(path), 'num_docs': len(index.documents), 'num_terms': len(index.inverted_index)})
-                    return index
+                    # Try secure JSON loading first
+                    try:
+                        index = _load_secure_json(path)
+                        return index
+                    except ValueError as secure_error:
+                        # Fall back to joblib for backward compatibility
+                        logger.warning('bm25_index_trying_joblib_fallback', extra={'reason': str(secure_error)})
+                        index = _try_load_joblib(path)
+                        return index
             except Timeout:
                 logger.warning('bm25_index_locked_using_empty', extra={'path': path})
                 return cls()
@@ -624,4 +719,5 @@ class HybridRetriever:
         else:
             results = results[:top_k]
         return results
+
 __all__ = ['BM25Index', 'HybridRetriever', 'HybridRetrieverConfig']

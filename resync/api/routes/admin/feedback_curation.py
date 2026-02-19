@@ -149,9 +149,22 @@ async def _update_feedback(feedback_id: int, **updates):
 # =============================================================================
 
 
-@router.get("/pending", response_model=list[FeedbackListItem])
+class PaginatedFeedbackResponse(BaseModel):
+    """Resposta paginada de feedbacks."""
+
+    items: list[FeedbackListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
+
+
+@router.get("/pending", response_model=PaginatedFeedbackResponse)
 async def list_pending_feedback(
-    limit: int = Query(50, ge=1, le=200, description="Máximo de itens"),
+    page: int = Query(1, ge=1, description="Número da página"),
+    page_size: int = Query(50, ge=1, le=200, description="Itens por página"),
     has_negative_rating: bool | None = Query(
         None, description="Filtrar por rating negativo"
     ),
@@ -171,41 +184,88 @@ async def list_pending_feedback(
         from resync.core.database import Feedback, get_session
 
         async with get_session() as session:
-            query = select(Feedback).where(Feedback.curation_status == "pending")
+            # Build base query with filters
+            base_query = select(Feedback).where(Feedback.curation_status == "pending")
 
             if has_negative_rating is True:
-                query = query.where(Feedback.rating <= 2)
+                base_query = base_query.where(Feedback.rating <= 2)
             elif has_negative_rating is False:
-                query = query.where(Feedback.rating > 2)
+                base_query = base_query.where(Feedback.rating > 2)
 
             if has_correction is True:
-                query = query.where(Feedback.feedback_text.isnot(None))
+                base_query = base_query.where(Feedback.feedback_text.isnot(None))
             elif has_correction is False:
-                query = query.where(Feedback.feedback_text.is_(None))
+                base_query = base_query.where(Feedback.feedback_text.is_(None))
 
-            # Ordenar por rating (mais negativos primeiro) e data
-            query = query.order_by(Feedback.rating.asc(), Feedback.created_at.desc())
-            query = query.limit(limit)
+            # Get total count
+            count_query = select(Feedback).where(Feedback.curation_status == "pending")
+            if has_negative_rating is True:
+                count_query = count_query.where(Feedback.rating <= 2)
+            elif has_negative_rating is False:
+                count_query = count_query.where(Feedback.rating > 2)
+            if has_correction is True:
+                count_query = count_query.where(Feedback.feedback_text.isnot(None))
+            elif has_correction is False:
+                count_query = count_query.where(Feedback.feedback_text.is_(None))
+
+            total_result = await session.execute(count_query)
+            total = len(total_result.scalars().all())
+
+            # Calculate total_pages with division by zero guard
+            # Guard: page_size > 0 is ensured by Query validation (ge=1)
+            # But we still guard against total = 0
+            if page_size > 0 and total > 0:
+                total_pages = (total + page_size - 1) // page_size  # Ceiling division
+            else:
+                total_pages = 0 if total == 0 else 1
+
+            # Ensure page is within valid range
+            if page < 1:
+                page = 1
+            if total > 0 and page > total_pages:
+                page = total_pages
+
+            # Calculate offset
+            offset = (page - 1) * page_size
+
+            # Fetch items with pagination
+            query = base_query.order_by(
+                Feedback.rating.asc(), Feedback.created_at.desc()
+            )
+            query = query.offset(offset).limit(page_size)
 
             result = await session.execute(query)
             feedbacks = result.scalars().all()
 
-            return [
-                FeedbackListItem(
-                    id=fb.id,
-                    session_id=fb.session_id,
-                    query_text=fb.query_text,
-                    response_text=fb.response_text[:200] + "..."
-                    if fb.response_text and len(fb.response_text) > 200
-                    else fb.response_text,
-                    rating=fb.rating,
-                    feedback_text=fb.feedback_text,
-                    curation_status=fb.curation_status,
-                    created_at=fb.created_at.isoformat() if fb.created_at else "",
-                    has_correction=bool(fb.feedback_text),
-                )
-                for fb in feedbacks
-            ]
+            has_next = page < total_pages if total_pages > 0 else False
+            has_previous = page > 1
+
+            return PaginatedFeedbackResponse(
+                items=[
+                    FeedbackListItem(
+                        id=fb.id,
+                        session_id=fb.session_id,
+                        query_text=fb.query_text,
+                        response_text=fb.response_text[:200] + "..."
+                        if fb.response_text and len(fb.response_text) > 200
+                        else fb.response_text,
+                        rating=fb.rating,
+                        feedback_text=fb.feedback_text,
+                        curation_status=fb.curation_status,
+                        created_at=fb.created_at.isoformat()
+                        if fb.created_at
+                        else "",
+                        has_correction=bool(fb.feedback_text),
+                    )
+                    for fb in feedbacks
+                ],
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                has_next=has_next,
+                has_previous=has_previous,
+            )
 
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures

@@ -38,6 +38,9 @@ def _iter_target_files(project_root: str) -> Iterable[str]:
 
     api_root = os.path.join(project_root, "resync", "api")
     for root, _, files in os.walk(api_root):
+        # Skip __pycache__ directories
+        if "__pycache__" in root:
+            continue
         for name in files:
             if not name.endswith(".py"):
                 continue

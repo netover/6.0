@@ -1,6 +1,6 @@
 """Teams Notifications - Database Models."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
@@ -20,8 +20,8 @@ class TeamsChannel(Base):
     is_active = Column(Boolean, default=True)
     color = Column(String(20), default="#0078D4")  # Cor no frontend
     icon = Column(String(20), default="📢")  # Emoji/ícone
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     last_notification_sent = Column(DateTime)
     notification_count = Column(Integer, default=0)
 
@@ -39,8 +39,8 @@ class TeamsJobMapping(Base):
     channel_id = Column(Integer, nullable=False)  # FK to teams_channels
     priority = Column(Integer, default=0)  # Para ordenação
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f"<TeamsJobMapping(job={self.job_name}, channel_id={self.channel_id})>"
@@ -58,9 +58,9 @@ class TeamsPatternRule(Base):
     priority = Column(Integer, default=0)  # Ordem de avaliação (maior = primeiro)
     pattern_type = Column(String(20), default="glob")  # glob, regex, prefix, suffix
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    match_count = Column(Integer, default=0)  # Quantas vezes foi usado
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    match_count = Column(Integer, default=0)
 
     def __repr__(self):
         return f"<TeamsPatternRule(pattern={self.pattern}, channel_id={self.channel_id})>"
@@ -87,7 +87,7 @@ class TeamsNotificationConfig(Base):
     # Outros
     include_mention_on_critical = Column(Boolean, default=False)
     mention_text = Column(String(100), default="@Operations")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f"<TeamsNotificationConfig(id={self.id})>"
@@ -109,7 +109,7 @@ class TeamsNotificationLog(Base):
     notification_sent = Column(Boolean, default=False)
     response_status = Column(Integer)
     error = Column(Text)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     def __repr__(self):
         return f"<TeamsNotificationLog(job={self.job_name}, channel={self.channel_name})>"

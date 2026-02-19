@@ -87,8 +87,8 @@ class PromptConfig(BaseModel):
     is_default: bool = Field(default=False, description="Whether this is the default for its type")
 
     # Tracking
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(default="system")
 
     # A/B Testing

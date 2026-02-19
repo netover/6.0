@@ -163,6 +163,7 @@ async def websocket_execute(
     await websocket.accept()
     
     queue = asyncio.Queue()
+    subscription_id = None  # Initialize for finally block
     
     async def event_handler(event: OrchestrationEvent):
         await queue.put(event)
@@ -186,10 +187,11 @@ async def websocket_execute(
         
         # Subscribe to all types we care about
         # Ideally EventBus supports wildcards or we verify in handler
-        event_bus.subscribe_all(filtered_handler)
+        # Store the subscription_id so we can unsubscribe later
+        subscription_id = event_bus.subscribe_all(filtered_handler)
         
         await websocket.send_json({
-            "type": "started", 
+            "type": "started",
             "trace_id": trace_id
         })
         
@@ -218,7 +220,12 @@ async def websocket_execute(
         except Exception:
             pass
     finally:
-        # Cleanup subscription (not implemented in simple EventBus, assuming it's weak ref or we leak?)
-        # Our EventBus implementation was simple list append. It WILL leak if we don't unsubscribe.
-        # TODO: Add unsubscribe to EventBus.
-        pass
+        # CRITICAL: Cleanup subscription to prevent memory leak
+        # Unsubscribe when WebSocket disconnects
+        if subscription_id:
+            event_bus.unsubscribe(subscription_id)
+            logger.info(
+                "websocket_subscription_cleaned_up",
+                subscription_id=subscription_id,
+                trace_id=trace_id if 'trace_id' in locals() else "unknown"
+            )

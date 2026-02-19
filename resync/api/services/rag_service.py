@@ -331,11 +331,11 @@ class RAGIntegrationService:
                 return False
         return True
 
-    def get_document(self, file_id: str) -> RAGDocument | None:
+    async def get_document(self, file_id: str) -> RAGDocument | None:
         """Get document by ID."""
         return self._documents.get(file_id)
 
-    def list_documents(
+    async def list_documents(
         self,
         status: str | None = None,
         limit: int = 100,
@@ -348,7 +348,7 @@ class RAGIntegrationService:
 
         return docs[:limit]
 
-    def delete_document(self, file_id: str) -> bool:
+    async def delete_document(self, file_id: str) -> bool:
         """Delete a document and its chunks."""
         if file_id in self._documents:
             del self._documents[file_id]
@@ -365,7 +365,7 @@ class RAGIntegrationService:
             return True
         return False
 
-    def get_stats(self) -> dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get RAG system statistics."""
         total_chunks = sum(len(c) for c in self._chunks.values())
 

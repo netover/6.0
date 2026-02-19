@@ -64,7 +64,7 @@ class LLMCallTrace:
     name: str = ""
 
     # Timing
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: datetime | None = None
     duration_ms: float | None = None
 
@@ -132,7 +132,7 @@ class TraceSession:
 
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str | None = None
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     traces: list[LLMCallTrace] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 

@@ -49,7 +49,7 @@ class MetricPoint:
 
     name: str
     value: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tags: dict[str, str] = field(default_factory=dict)
     unit: str | None = None
 

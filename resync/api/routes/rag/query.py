@@ -116,7 +116,7 @@ async def search_rag(query: str=Query(..., description='Search query', min_lengt
 async def list_rag_files(status_filter: str | None=Query(default=None, description='Filter by status'), limit: int=Query(default=100, ge=1, le=1000), current_user: dict=Depends(get_current_user), logger_instance=Depends(get_logger), rag_service: RAGIntegrationService=Depends(get_rag)):
     """List uploaded RAG files with optional filtering."""
     try:
-        docs = rag_service.list_documents(status=status_filter, limit=limit)
+        docs = await rag_service.list_documents(status=status_filter, limit=limit)
         files = [{'file_id': doc.file_id, 'filename': doc.filename, 'status': doc.status, 'chunks_count': doc.chunks_count, 'created_at': doc.created_at, 'processed_at': doc.processed_at} for doc in docs]
         logger_instance.info('rag_files_listed', user_id=current_user.get('user_id'), file_count=len(files))
         return {'files': files, 'total': len(files)}
@@ -129,7 +129,7 @@ async def list_rag_files(status_filter: str | None=Query(default=None, descripti
 @router.get('/rag/files/{file_id}')
 async def get_rag_file(file_id: str, current_user: dict=Depends(get_current_user), logger_instance=Depends(get_logger), rag_service: RAGIntegrationService=Depends(get_rag)):
     """Get details of a specific RAG file."""
-    doc = rag_service.get_document(file_id)
+    doc = await rag_service.get_document(file_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Document {file_id} not found')
     return {'file_id': doc.file_id, 'filename': doc.filename, 'status': doc.status, 'chunks_count': doc.chunks_count, 'created_at': doc.created_at, 'processed_at': doc.processed_at, 'metadata': doc.metadata}
@@ -138,7 +138,7 @@ async def get_rag_file(file_id: str, current_user: dict=Depends(get_current_user
 async def delete_rag_file(file_id: str, current_user: dict=Depends(get_current_user), logger_instance=Depends(get_logger), rag_service: RAGIntegrationService=Depends(get_rag)):
     """Delete RAG file and its associated chunks."""
     try:
-        deleted = rag_service.delete_document(file_id)
+        deleted = await rag_service.delete_document(file_id)
         if not deleted:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Document {file_id} not found')
         logger_instance.info('rag_file_deleted', user_id=current_user.get('user_id'), file_id=file_id)
@@ -154,4 +154,4 @@ async def delete_rag_file(file_id: str, current_user: dict=Depends(get_current_u
 @router.get('/rag/stats')
 async def get_rag_stats(current_user: dict=Depends(get_current_user), rag_service: RAGIntegrationService=Depends(get_rag)):
     """Get RAG system statistics."""
-    return rag_service.get_stats()
+    return await rag_service.get_stats()

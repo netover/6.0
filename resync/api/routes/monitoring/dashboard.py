@@ -623,6 +623,7 @@ async def monitoring_health():
 
 # WebSocket para atualizações em tempo real
 connected_clients: list[WebSocket] = []
+_clients_lock = asyncio.Lock()
 
 
 @router.websocket("/ws")
@@ -640,7 +641,8 @@ async def websocket_metrics(websocket: WebSocket):
         return
     
     await websocket.accept()
-    connected_clients.append(websocket)
+    async with _clients_lock:
+        connected_clients.append(websocket)
 
     try:
         store = get_metrics_store()
@@ -654,8 +656,10 @@ async def websocket_metrics(websocket: WebSocket):
             await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
 
     except WebSocketDisconnect:
-        connected_clients.remove(websocket)
+        async with _clients_lock:
+            connected_clients.remove(websocket)
     except Exception as e:
         logger.error("WebSocket error: %s", e)
-        if websocket in connected_clients:
-            connected_clients.remove(websocket)
+        async with _clients_lock:
+            if websocket in connected_clients:
+                connected_clients.remove(websocket)

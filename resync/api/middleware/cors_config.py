@@ -98,14 +98,18 @@ class CORSPolicy(BaseModel):
         if not v:
             return v
         environment = info.data.get('environment')
+        
+        # Check environment FIRST (fail fast) - avoid unnecessary regex compilation
+        if environment == Environment.PRODUCTION:
+            raise ValueError('Regex patterns are not allowed in production. Use explicit domain names in allowed_origins instead.')
+        
+        # Only compile regex if not production
         validated_patterns = []
         for pattern in v:
             try:
                 re.compile(pattern)
             except re.error as e:
                 raise ValueError(f"Invalid regex pattern '{pattern}': {e}") from e
-            if environment == Environment.PRODUCTION:
-                raise ValueError('Regex patterns are not allowed in production. Use explicit domain names in allowed_origins instead.')
             validated_patterns.append(pattern)
         return validated_patterns
 

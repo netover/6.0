@@ -55,7 +55,8 @@ class ConnectionManager:
         async with self._lock:
             if client_id not in self.active_connections:
                 return
-            del self.active_connections[client_id]
+            websocket = self.active_connections.pop(client_id)
+            await websocket.close()
 
         if self._pool_manager:
             await self._pool_manager.disconnect(client_id)

@@ -109,8 +109,11 @@ def fix_file_ast(file_path: str, dry_run: bool = True) -> List[Tuple[int, str, s
 
 
 def main():
+    import os
     dry_run = '--dry-run' in sys.argv
-    base_path = Path('d:/Python/GITHUB/resync/6.0-new1')
+    # Use relative path from script location
+    script_dir = Path(__file__).parent.resolve()
+    base_path = script_dir
     
     files_to_fix = [
         'resync/api/auth_legacy.py',

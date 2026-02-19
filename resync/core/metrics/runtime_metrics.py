@@ -137,6 +137,7 @@ class RuntimeMetricsCollector:
         # Internal counter/gauge storage for dynamic metrics
         self._dynamic_counters: dict[str, Any] = {}
         self._dynamic_gauges: dict[str, Any] = {}
+        self._dynamic_histograms: dict[str, Any] = {}
 
         logger.info("RuntimeMetricsCollector initialized")
 
@@ -186,11 +187,11 @@ class RuntimeMetricsCollector:
             name: Histogram name
             value: Value to observe
         """
-        if name not in self._dynamic_gauges:
+        if name not in self._dynamic_histograms:
             from resync.core.metrics_internal import create_histogram
-            self._dynamic_gauges[name] = create_histogram(name, f"Dynamic histogram: {name}")
+            self._dynamic_histograms[name] = create_histogram(name, f"Dynamic histogram: {name}")
         
-        self._dynamic_gauges[name].observe(value)
+        self._dynamic_histograms[name].observe(value)
 
     def create_correlation_id(self, operation: str, **kwargs) -> str:
         """Create a correlation ID for tracking an operation."""

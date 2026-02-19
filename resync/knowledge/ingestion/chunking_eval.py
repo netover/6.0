@@ -59,9 +59,9 @@ class FailureSlice(str, Enum):
     DEFINITION_TRUNCATED = 'definition_truncated'
     """Definition split mid-way, missing constraints or examples."""
     LIST_ITEM_ORPHANED = 'list_item_orphaned'
-    'List item retrieved without its intro sentence or context.'
+    """List item retrieved without its intro sentence or context."""
     UNKNOWN = 'unknown'
-    "Failure doesn't fit other categories."
+    """Failure doesn't fit other categories."""
 
 class FailureSeverity(str, Enum):
     """Severity level of a retrieval failure."""

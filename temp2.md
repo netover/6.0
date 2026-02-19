@@ -534,3 +534,5 @@ def modify_file_in_place(filepath: str, modifications: list[tuple]):
 
 *Documento gerado em: 2026-02-19*
 *PR Reference: https://github.com/netover/6.0/pull/35*
+
+OBERVAÇÂO, projeto nunca foi para produção

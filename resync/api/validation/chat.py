@@ -1,6 +1,6 @@
 """Chat and WebSocket message validation models."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Any
 
@@ -70,7 +70,7 @@ class ChatMessage(BaseValidatedModel):
 
     status: MessageStatus = Field(default=MessageStatus.PENDING, description="Message status")
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Message timestamp")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -165,7 +165,7 @@ class WebSocketMessage(BaseValidatedModel):
         default_factory=dict, description="Additional message metadata", max_length=10
     )
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Message timestamp")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -229,7 +229,7 @@ class ChatSession(BaseValidatedModel):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Session creation timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Session creation timestamp"
     )
 
     updated_at: datetime | None = Field(None, description="Last update timestamp")
@@ -309,7 +309,7 @@ class MessageReaction(BaseValidatedModel):
 
     user_id: StringConstraints.SAFE_TEXT = Field(..., description="User ID who added the reaction")
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Reaction timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Reaction timestamp")
 
     model_config = ConfigDict(
         extra="forbid",

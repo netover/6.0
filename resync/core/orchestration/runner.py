@@ -6,7 +6,7 @@ Core engine for executing orchestration workflows.
 import asyncio
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from uuid import UUID
 
@@ -225,7 +225,7 @@ class OrchestrationRunner:
                     execution_id, 
                     "completed", 
                     output=final_output,
-                    completed_at=datetime.utcnow()
+                    completed_at=datetime.now(timezone.utc)
                 )
                 
                 await self.event_bus.publish(OrchestrationEvent(
@@ -251,7 +251,7 @@ class OrchestrationRunner:
         Execute a single step wrapper.
         Updates DB status and calls adapter.
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         await step_repo.update_status(step_run_id, "running")
         
         trace_id = context.get("trace_id", "unknown")
@@ -285,7 +285,7 @@ class OrchestrationRunner:
                 context
             )
             
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             latency = int((end_time - start_time).total_seconds() * 1000)
             
             await step_repo.update_status(
@@ -307,7 +307,7 @@ class OrchestrationRunner:
 
         except Exception as e:
             logger.error(f"Step {step_config.id} execution failed: {e}")
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             latency = int((end_time - start_time).total_seconds() * 1000)
             
             state = "failed"

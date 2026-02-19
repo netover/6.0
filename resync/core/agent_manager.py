@@ -456,14 +456,18 @@ class AgentManager:
         Uses an asyncio lock to prevent two coroutines from creating the
         same agent simultaneously.
         """
+        # First check without lock (fast path for existing agents)
         if agent_id in self.agents:
             return self.agents[agent_id]
 
-        agent = await self._create_agent(agent_id)
-
+        # Acquire lock before creating agent to prevent race condition
         async with self._get_agent_lock():
+            # Double-check: another coroutine may have created it while waiting
             if agent_id in self.agents:
                 return self.agents[agent_id]
+
+            # Now create agent inside the lock to ensure atomic creation
+            agent = await self._create_agent(agent_id)
             if agent is not None:
                 self.agents[agent_id] = agent
             return agent

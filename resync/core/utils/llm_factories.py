@@ -37,9 +37,9 @@ class LLMFactory:
         from litellm.exceptions import (
             APIError,
             AuthenticationError,
+            BadRequestError,
             ContentPolicyViolationError,
             ContextWindowExceededError,
-            InvalidRequestError,
             RateLimitError,
         )
 
@@ -125,7 +125,7 @@ class LLMFactory:
         except RateLimitError as e:
             logger.warning("llm_rate_limit_exceeded", error=str(e))
             raise LLMError(f"Rate limit exceeded: {str(e)}") from e
-        except InvalidRequestError as e:
+        except BadRequestError as e:
             logger.error("llm_invalid_request", error=str(e))
             raise LLMError(f"Invalid request: {str(e)}") from e
         except APIError as e:

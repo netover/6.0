@@ -225,9 +225,12 @@ def fix_syntax_error_install_redis(file_path: str) -> bool:
 
 
 def main():
+    import os
     dry_run = '--dry-run' in sys.argv
     
-    base_path = Path('d:/Python/GITHUB/resync/6.0-new1')
+    # Use relative path from script location
+    script_dir = Path(__file__).parent.resolve()
+    base_path = script_dir
     
     # Files to process (from temp1.md analysis)
     files_to_fix = [

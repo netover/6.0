@@ -6,7 +6,7 @@ Represents a single TWS/HWA server connection with its configuration.
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -84,8 +84,8 @@ class TWSInstanceConfig:
     sort_order: int = 0
 
     # Metadata
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = ""
 
     def to_dict(self) -> dict[str, Any]:

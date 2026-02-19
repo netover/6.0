@@ -115,11 +115,11 @@ async def get_tws_store() -> TWSStore:
     """
     global _tws_store
     if _tws_store is None:
-        store = TWSStore()
-        await store.initialize()
         async with _get_lock("tws"):
             if _tws_store is None:
                 logger.info("Initializing TWSStore singleton...")
+                store = TWSStore()
+                await store.initialize()
                 _tws_store = store
                 logger.info("TWSStore singleton initialized successfully")
     return _tws_store
