@@ -611,12 +611,14 @@ class SemanticCache:
             }
             
             success = await self.set(
-                query=cache_key_text,
+                query=query_text,
                 response=intent_json,
                 ttl=ttl,
                 metadata=metadata,
                 user_id=user_id,
             )
+            
+            return success
             
             if success:
                 logger.debug(

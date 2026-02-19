@@ -91,8 +91,9 @@ class ConnectionManager:
         For proper async handling, use disconnect_async() instead.
         """
         try:
-            # We're in async context - schedule the async disconnect
-            asyncio.create_task(self.disconnect_async(websocket))
+            # Use ensure_future instead of create_task to prevent garbage collection
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.disconnect_async(websocket))
         except RuntimeError:
             # No running loop - we're in sync context, do best-effort cleanup
             # This is not thread-safe but better than nothing for sync contexts

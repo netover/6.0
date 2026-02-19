@@ -137,10 +137,6 @@ def _build_metric_sample(
     router_misses = _safe_int(router_cache.get("misses"))
     router_total = router_hits + router_misses
 
-    cache_hits = _safe_int(cache.get("hits"))
-    cache_misses = _safe_int(cache.get("misses"))
-    cache_total = cache_hits + cache_misses
-
     return MetricSample(
         timestamp=now_wall,
         datetime_str=dt_str,

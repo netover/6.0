@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 import socket
@@ -143,11 +144,12 @@ class CORSPolicy(BaseModel):
             if host.lower() == 'localhost':
                 return True
             if ':' in host:
+                # Use ipaddress module for robust IP validation
                 try:
-                    socket.inet_pton(socket.AF_INET6, host.strip('[]'))
+                    ipaddress.ip_address(host.strip('[]'))
                     return True
-                except OSError as exc:
-                    logger.debug('suppressed_exception', exc_info=True, extra={'error': str(exc)})
+                except ValueError:
+                    pass
             elif '.' in host:
                 try:
                     socket.inet_aton(host)

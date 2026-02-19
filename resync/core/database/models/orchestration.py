@@ -168,7 +168,7 @@ class OrchestrationExecution(Base):
 
     # Metrics
     total_latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    estimated_cost: Mapped[Optional[float]] = mapped_column(Numeric(precision=10, scale=6), nullable=True)
+    estimated_cost: Mapped[Optional[float]] = mapped_column(Numeric(precision=10, scale=6, asdecimal=False), nullable=True)
 
     # Control
     created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

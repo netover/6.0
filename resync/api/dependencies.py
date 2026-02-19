@@ -89,7 +89,7 @@ async def require_idempotency_key(
 
     try:
         uuid_obj = uuid.UUID(x_idempotency_key)
-    except ValueError:
+    except ValueError as e:
         raise ValidationError(
             message="Invalid idempotency key format",
             details={
@@ -97,7 +97,7 @@ async def require_idempotency_key(
                 "expected": "Valid UUID (any version)",
                 "received": x_idempotency_key,
             },
-        )
+        ) from e
 
     return str(uuid_obj)
 
@@ -191,7 +191,7 @@ async def get_current_user(
         raise AuthenticationError(
             message="Authentication service unavailable",
             details={"error": str(e)},
-        )
+        ) from e
 
 
 async def require_authentication(

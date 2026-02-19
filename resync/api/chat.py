@@ -317,9 +317,7 @@ async def _setup_websocket_session(
 
 async def _message_processing_loop(
     websocket: WebSocket,
-    agent: SupportsAgentMeta | Any,
     agent_id: SafeAgentID,
-    session_id: str,
 ) -> None:
     """Main loop for receiving and processing messages from the client."""
     while True:
@@ -384,7 +382,7 @@ async def websocket_endpoint(
     try:
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
         # Note: No knowledge_graph passed - it's now obtained from enterprise_state
-        await _message_processing_loop(websocket, agent, agent_id, session_id)
+        await _message_processing_loop(websocket, agent_id)
     except WebSocketDisconnect:
         code = getattr(websocket.state, "code", "unknown")
         reason = getattr(websocket.state, "reason", "unknown")

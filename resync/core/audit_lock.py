@@ -51,7 +51,7 @@ class DistributedAuditLock:
         self.client: AsyncRedis | None = None
         self._lock_prefix: str = 'audit_lock'
         self.release_script_sha: str | None = None
-        logger.info('DistributedAuditLock initialized with Redis', extra={'redis_url': _redact_url_credentials(self.redis_url)})
+        logger.info('DistributedAuditLock initialized with Redis', redis_url=_redact_url_credentials(self.redis_url))
 
     async def connect(self) -> None:
         """Initialize Redis connection."""
@@ -132,7 +132,7 @@ class DistributedAuditLock:
         lock_key = self._get_lock_key(memory_id)
         result = await self.client.delete(lock_key)
         if result:
-            logger.warning('forcefully_released_audit_lock_for_memory', extra={'memory_id': memory_id})
+            logger.warning('forcefully_released_audit_lock_for_memory', memory_id=memory_id)
         return bool(result)
 
     async def cleanup_expired_locks(self, max_age: int=60) -> int:
@@ -235,7 +235,7 @@ class AuditLockContext:
                 lua_script = '\n                if redis.call("get", KEYS[1]) == ARGV[1] then\n                    return redis.call("del", KEYS[1])\n                else\n                    return 0\n                end\n                '
                 result = await self.client.eval(lua_script, 1, self.lock_key, self.lock_value)
             if result == 1:
-                logger.debug('successfully_released_audit_lock', extra={'lock_key': self.lock_key})
+                logger.debug('successfully_released_audit_lock', lock_key=self.lock_key)
             else:
                 current_value = await self.client.get(self.lock_key)
                 if current_value is not None:
@@ -249,8 +249,8 @@ class AuditLockContext:
             logger.error('Value error during lock release: %s', e)
             raise AuditError(f'Value error during lock release: {e}') from e
         except Exception as e:
-            logger.error('Unexpected error during lock release', extra={'error': str(e)})
-            logger.error('lock_details', extra={'key': self.lock_key, 'value': self.lock_value[:8] if self.lock_value else None})
+            logger.error('Unexpected error during lock release', error=str(e))
+            logger.error('lock_details', key=self.lock_key, value=self.lock_value[:8] if self.lock_value else None)
             raise AuditError(f'Unexpected error during lock release: {e}') from e
 
     async def release(self) -> None:

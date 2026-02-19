@@ -42,7 +42,7 @@ async def _get_health_report() -> dict[str, Any]:
     dict
         A dictionary with boolean flags indicating the status of key services.
     """
-    report = {'database': True, 'cache': True, 'teams': False, 'llm': True, 'timestamp': datetime.datetime.now(timezone.utc).isoformat() + 'Z'}
+    report = {'database': True, 'cache': True, 'teams': False, 'llm': True, 'timestamp': datetime.datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}
     cfg = await _load_config()
     teams_cfg = cfg.get('teams_config', DEFAULT_CONFIG['teams_config'])
     report['teams'] = bool(teams_cfg.get('enabled'))
@@ -65,8 +65,19 @@ async def _load_config() -> dict[str, Any]:
             with CONFIG_PATH.open('r', encoding='utf-8') as f:
                 return json.load(f)
         data = await asyncio.to_thread(_read)
+        
+        # Deep merge by section
         merged = DEFAULT_CONFIG.copy()
-        merged.update(data)
+        for section in merged:
+            if section in data and isinstance(merged[section], dict) and isinstance(data[section], dict):
+                merged[section] = {**merged[section], **data[section]}
+            elif section in data:
+                merged[section] = data[section]
+        # Also merge any new sections not in default config
+        for section in data:
+            if section not in merged:
+                merged[section] = data[section]
+        
         return merged
     except Exception as e:
         logger.error('config_load_failed', exc_info=True, extra={'error': str(e)})
@@ -214,11 +225,13 @@ async def get_logs(file: str='app.log', lines: int=100) -> dict[str, Any]:
     log_path = logs_dir / file
     
     # SECURITY: Validate path to prevent directory traversal attacks
-    # Ensure the resolved path is within the logs directory
+    # Ensure the resolved path is within the logs directory using is_relative_to()
     try:
         log_path = log_path.resolve()
         logs_dir = logs_dir.resolve()
-        if not str(log_path).startswith(str(logs_dir)):
+        
+        # Use is_relative_to() for proper path containment check
+        if not log_path.is_relative_to(logs_dir):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path: directory traversal not allowed')
     except RuntimeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path')

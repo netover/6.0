@@ -19,7 +19,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
             hashed_password = hashed_password.encode('utf-8')
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
     except Exception as e:
-        logger.error('password_verification_failed', extra={'error': str(e)})
+        logger.exception('password_verification_failed')
         return False
 
 def get_password_hash(password: str) -> str:
@@ -43,7 +43,8 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    to_encode = {'exp': expire, 'sub': str(subject)}
+    # Convert expire to Unix timestamp for JWT standard compliance
+    to_encode = {'exp': int(expire.timestamp()), 'sub': str(subject)}
     encoded_jwt = jwt.encode(to_encode, settings.secret_key.get_secret_value(), algorithm=ALGORITHM)
     return encoded_jwt
 

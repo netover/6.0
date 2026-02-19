@@ -39,8 +39,8 @@ class TeamsJobMapping(Base):
     channel_id = Column(Integer, nullable=False)  # FK to teams_channels
     priority = Column(Integer, default=0)  # Para ordenação
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f"<TeamsJobMapping(job={self.job_name}, channel_id={self.channel_id})>"
@@ -58,8 +58,8 @@ class TeamsPatternRule(Base):
     priority = Column(Integer, default=0)  # Ordem de avaliação (maior = primeiro)
     pattern_type = Column(String(20), default="glob")  # glob, regex, prefix, suffix
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     match_count = Column(Integer, default=0)
 
     def __repr__(self):

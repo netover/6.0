@@ -178,6 +178,8 @@ async def submit_feedback(request: SubmitFeedbackRequest):
             message="Feedback collected. Pattern analysis triggered automatically."
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         # Don't re-raise programming errors - let them propagate to global handler
@@ -233,6 +235,8 @@ async def get_patterns(agent_name: str):
 
         return patterns
 
+    except HTTPException:
+        raise
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get patterns: %s", e, exc_info=True)
@@ -295,6 +299,8 @@ async def list_improvements(status: str | None = None):
 
         return improvements
 
+    except HTTPException:
+        raise
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to list improvements: %s", e, exc_info=True)

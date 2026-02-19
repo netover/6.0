@@ -9,6 +9,10 @@ import sys
 from pathlib import Path
 from typing import List, Tuple, Set
 
+# Verify Python version is 3.9 or higher
+if sys.version_info < (3, 9):
+    raise RuntimeError("This script requires Python 3.9 or higher")
+
 
 class LoggingFixer(ast.NodeTransformer):
     """Corrige logger calls que usam kwargs direto ao invés de extra={}"""

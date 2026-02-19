@@ -7,6 +7,7 @@ This middleware provides comprehensive protection against SQL injection attacks:
 - Database operation monitoring
 - Automatic audit logging
 """
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -14,6 +15,9 @@ from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from resync.core.database_security import DatabaseAuditor, log_database_access
 logger = logging.getLogger(__name__)
+
+# Lock for thread-safe counter updates
+_counter_lock = asyncio.Lock()
 
 class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -55,7 +59,10 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         """
         if not self.enabled:
             return await call_next(request)
-        self.total_requests += 1
+        
+        async with _counter_lock:
+            self.total_requests += 1
+        
         try:
             await self._analyze_request_for_sql_injection(request)
             response = await call_next(request)
@@ -81,7 +88,8 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         for key, value in request_data.items():
             if self._contains_sql_injection(value):
                 DatabaseAuditor.log_security_violation('sql_injection_detected', f'{key}={value}', getattr(request.state, 'user_id', None))
-                self.blocked_requests += 1
+                async with _counter_lock:
+                    self.blocked_requests += 1
                 logger.warning('sql_injection_blocked', extra={'key': key, 'value_preview': str(value)[:100], 'client_host': request.client.host if request.client else 'unknown'})
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Potential SQL injection detected. Request blocked.')
 
@@ -109,6 +117,8 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
                 content_type = request.headers.get('content-type', '')
                 if 'application/json' in content_type:
                     body = await request.json()
+                    # Cache body and re-inject for downstream handlers
+                    request._body_cache = body
                     if isinstance(body, dict):
                         for key, value in body.items():
                             data[f'body.{key}'] = value
@@ -116,6 +126,8 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
                         data['body'] = body
                 elif 'application/x-www-form-urlencoded' in content_type:
                     form = await request.form()
+                    # Cache form and re-inject for downstream handlers
+                    request._body_cache = dict(form)
                     for key, value in form.items():
                         data[f'form.{key}'] = value
         except Exception as e:
