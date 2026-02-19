@@ -644,7 +644,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             from resync.core.tws_monitor import get_tws_monitor
             from resync.api_gateway.container import setup_dependencies
 
-            init_domain_singletons(app)
+            await init_domain_singletons(app)
             st = enterprise_state_from_app(app)
             
             await get_tws_monitor(st.tws_client)

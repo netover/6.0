@@ -126,7 +126,7 @@ def validate_app_state_contract(app: FastAPI) -> None:
         )
 
 
-def init_domain_singletons(app: FastAPI) -> None:
+async def init_domain_singletons(app: FastAPI) -> None:
     """Initialise domain singletons and store on ``app.state.enterprise_state``.
 
     This is the **only** approved singleton mechanism for the HTTP path.
@@ -221,7 +221,7 @@ def init_domain_singletons(app: FastAPI) -> None:
         idempotency_manager = DegradedIdempotencyManager()  # type: ignore[assignment]
 
     # LLM service with automatic fallback and circuit breakers
-    llm_service = get_llm_service()
+    llm_service = await get_llm_service()
 
     # RAG client singleton (initializes and validates Config/URL)
     get_rag_client_singleton()

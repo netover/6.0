@@ -168,12 +168,12 @@ class AuditToKGPipeline:
             await self._rag_feedback.initialize()
         return self._rag_feedback
 
-    def _get_llm(self):
+    async def _get_llm(self):
         """Get LLM client."""
         if self._llm is None:
             from resync.services.llm_service import get_llm_service
 
-            self._llm = get_llm_service()
+            self._llm = await get_llm_service()
         return self._llm
 
     # =========================================================================
@@ -421,7 +421,7 @@ class AuditToKGPipeline:
     async def _generate_triplets_with_llm(self, finding: AuditFinding) -> list[ErrorTriplet]:
         """Use LLM to extract additional triplets."""
         try:
-            llm = self._get_llm()
+            llm = await self._get_llm()
 
             prompt = f"""Analyze this error identified by an AI auditor in a TWS (Workload Automation) system.
 

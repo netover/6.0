@@ -41,23 +41,23 @@ class FailureSlice(str, Enum):
     Each slice represents a specific pattern of retrieval failure.
     """
     MISSING_EXCEPTION = 'missing_exception'
-    'Retrieved the rule but missed the exception/condition.'
+    """Retrieved the rule but missed the exception/condition."""
     WRONG_SCOPE_VERSION = 'wrong_scope_version'
-    'Retrieved content from wrong scope (beta vs prod) or outdated version.'
+    """Retrieved content from wrong scope (beta vs prod) or outdated version."""
     LOST_TABLE_HEADER = 'lost_table_header'
-    'Table row retrieved without its header, making it uninterpretable.'
+    """Table row retrieved without its header, making it uninterpretable."""
     REDUNDANT_OVERLAPS = 'redundant_overlaps'
-    'Multiple near-identical chunks from overlap, wasting context.'
+    """Multiple near-identical chunks from overlap, wasting context."""
     NEEDS_CROSS_SECTION = 'needs_cross_section_context'
-    'Answer requires combining information from multiple sections.'
+    """Answer requires combining information from multiple sections."""
     MISSING_PROCEDURE_STEP = 'missing_procedure_step'
-    'Procedure chunk missing critical step or prerequisite.'
+    """Procedure chunk missing critical step or prerequisite."""
     CODE_WITHOUT_CONTEXT = 'code_without_context'
-    'Code block retrieved without explanation or usage context.'
+    """Code block retrieved without explanation or usage context."""
     ERROR_CODE_INCOMPLETE = 'error_code_incomplete'
-    'Error documentation missing cause, solution, or explanation.'
+    """Error documentation missing cause, solution, or explanation."""
     DEFINITION_TRUNCATED = 'definition_truncated'
-    'Definition split mid-way, missing constraints or examples.'
+    """Definition split mid-way, missing constraints or examples."""
     LIST_ITEM_ORPHANED = 'list_item_orphaned'
     'List item retrieved without its intro sentence or context.'
     UNKNOWN = 'unknown'
