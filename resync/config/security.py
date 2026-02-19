@@ -28,4 +28,4 @@ def add_additional_security_headers(app: FastAPI) -> None:
     from resync.settings import settings
     configure_enhanced_security(app)
     app.add_middleware(SecurityHeadersMiddleware, enforce_https=settings.is_production, hsts_max_age=63072000, hsts_include_subdomains=True, hsts_preload=False)
-    logger.info('security_headers_configured', extra={'enforce_https': settings.is_production, 'environment': settings.environment.value})
+    logger.info('security_headers_configured', enforce_https=settings.is_production, environment=settings.environment.value)

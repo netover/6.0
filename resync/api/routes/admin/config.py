@@ -212,6 +212,17 @@ async def get_logs(file: str='app.log', lines: int=100) -> dict[str, Any]:
     """
     logs_dir = Path(__file__).resolve().parent.parent.parent.parent / 'logs'
     log_path = logs_dir / file
+    
+    # SECURITY: Validate path to prevent directory traversal attacks
+    # Ensure the resolved path is within the logs directory
+    try:
+        log_path = log_path.resolve()
+        logs_dir = logs_dir.resolve()
+        if not str(log_path).startswith(str(logs_dir)):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path: directory traversal not allowed')
+    except RuntimeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path')
+    
     if not log_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Log file not found')
     try:
@@ -243,7 +254,7 @@ async def create_backup() -> dict[str, str]:
         backup_data = [{'id': e.id, 'action': e.action, 'user_id': e.user_id, 'entity_type': e.entity_type, 'entity_id': e.entity_id, 'timestamp': e.timestamp.isoformat() if e.timestamp else None} for e in entries]
         backup_file = backup_dir / f'audit_backup_{timestamp}.json'
         async with aiofiles.open(backup_file, 'w') as f:
-            json.dump(backup_data, f, indent=2)
+            await f.write(json.dumps(backup_data, indent=2))
         return {'created': [backup_file.name], 'count': len(backup_data)}
     except Exception as exc:
         logger.error('backup_failed', exc_info=True, extra={'error': str(exc)})

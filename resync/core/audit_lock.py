@@ -4,6 +4,7 @@ Distributed Audit Lock for Resync
 This module provides a dedicated distributed locking mechanism for audit operations
 to prevent race conditions during concurrent memory processing.
 """
+import re
 import structlog
 import uuid
 from collections.abc import AsyncIterator
@@ -14,6 +15,22 @@ from redis.exceptions import RedisError
 from resync.core.exceptions import AuditError, DatabaseError
 from resync.settings import settings
 logger = structlog.get_logger(__name__)
+
+
+def _redact_url_credentials(url: str) -> str:
+    """Redact credentials from a URL for safe logging.
+    
+    Args:
+        url: The URL to redact (e.g., 'redis://user:password@host:6379/0')
+    
+    Returns:
+        The URL with credentials redacted (e.g., 'redis://***:***@host:6379/0')
+    """
+    if not url:
+        return url
+    # Match pattern user:password@host or just :password@host or just user:@host
+    redacted = re.sub(r'(://)([^:@]+:[^@]+)(@)', r'\1***:***\3', url)
+    return redacted
 
 class DistributedAuditLock:
     """
@@ -34,7 +51,7 @@ class DistributedAuditLock:
         self.client: AsyncRedis | None = None
         self._lock_prefix: str = 'audit_lock'
         self.release_script_sha: str | None = None
-        logger.info('DistributedAuditLock initialized with Redis', extra={'redis_url': self.redis_url})
+        logger.info('DistributedAuditLock initialized with Redis', extra={'redis_url': _redact_url_credentials(self.redis_url)})
 
     async def connect(self) -> None:
         """Initialize Redis connection."""

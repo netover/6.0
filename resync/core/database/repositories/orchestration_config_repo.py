@@ -6,7 +6,7 @@ Provides data access methods for orchestration configurations.
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database.models.orchestration import OrchestrationConfig
@@ -107,6 +107,12 @@ class OrchestrationConfigRepository:
                 (OrchestrationConfig.owner_id == owner_id)
                 | (OrchestrationConfig.is_global.is_(True))
             )
+        
+        # Order by: non-global configs first (owner-specific), then by created_at descending
+        query = query.order_by(
+            asc(OrchestrationConfig.is_global),  # Non-global (False) first
+            desc(OrchestrationConfig.created_at)  # Most recent first
+        ).limit(1)
         
         result = await self._session.execute(query)
         return result.scalar_one_or_none()

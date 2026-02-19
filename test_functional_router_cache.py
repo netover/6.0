@@ -46,9 +46,10 @@ async def run_functional_test():
         "confidence": 0.95
     }]
 
-    with patch("resync.core.langgraph.agent_graph._get_router_cache", return_value=mock_cache), \
+    with patch("resync.core.langgraph.agent_graph.async_init_router_cache", new_callable=AsyncMock) as mock_cache_init, \
          patch("resync.core.utils.llm.call_llm_structured", new_callable=AsyncMock) as mock_llm:
         
+        mock_cache_init.return_value = mock_cache
         mock_llm.return_value = mock_llm_result
         
         # 1. First Call: Should be a MISS and call LLM

@@ -53,6 +53,7 @@ def app():
         llm_service=MagicMock(),
         file_ingestor=MagicMock(),
         a2a_handler=MagicMock(),
+        skill_manager=MagicMock(),
         startup_complete=True,
         redis_available=False,
         domain_shutdown_complete=False

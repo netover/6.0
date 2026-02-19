@@ -150,7 +150,7 @@ class CORSMonitoringMiddleware:
                 access_method = request.headers.get('access-control-request-method')
                 if origin:
                     self.cors_monitor.monitor_request(request, CORSOperation.PREFLIGHT)
-                    is_allowed = any((allowed_origin == '*' or origin == allowed_origin or (allowed_origin.startswith('.') and origin.endswith(allowed_origin[1:])) for allowed_origin in self.allowed_origins))
+                    is_allowed = any((allowed_origin == '*' or origin == allowed_origin or (allowed_origin.startswith('.') and origin.endswith(allowed_origin)) for allowed_origin in self.allowed_origins))
                     if not is_allowed:
                         self.cors_monitor.log_violation(origin, request.url.path, f'Origin not in allowed list during preflight. Allowed: {list(self.allowed_origins)}', access_method or request.method)
             return await send(message)

@@ -388,11 +388,16 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
+        dead_connections = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception:
-                pass
+                dead_connections.append(connection)
+        # Remove dead connections after iteration to prevent memory leak
+        for dead in dead_connections:
+            if dead in self.active_connections:
+                self.active_connections.remove(dead)
 manager = ConnectionManager()
 
 @router.websocket('/ws')
@@ -409,6 +414,32 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
+            # Use asyncio.wait to properly detect WebSocket disconnection
+            # This ensures WebSocketDisconnect is raised when client disconnects
+            receive_task = asyncio.create_task(websocket.receive_text())
+            
+            # Wait for either a message from client or 5 second timeout
+            done, pending = await asyncio.wait(
+                [receive_task, asyncio.create_task(asyncio.sleep(5))],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel any pending tasks
+            for task in pending:
+                task.cancel()
+            
+            # Check if we received a message (client disconnect or message)
+            if receive_task in done:
+                try:
+                    await receive_task
+                except WebSocketDisconnect:
+                    logger.info('Metrics Dashboard WebSocket client disconnected')
+                    break
+                except Exception as e:
+                    logger.warning(f'WebSocket receive error: {e}')
+                    break
+            
+            # Client is still connected, send metrics
             store = get_metrics_store()
             from resync.core.metrics import RuntimeMetricsCollector
             collector = RuntimeMetricsCollector()
@@ -448,7 +479,6 @@ async def websocket_endpoint(websocket: WebSocket):
             system_metrics = SystemMetrics(uptime_hours=round(snapshot.get('system', {}).get('uptime_hours', 0.0), 2), requests_today=snapshot.get('system', {}).get('requests_today', 0), errors_today=snapshot.get('system', {}).get('errors_today', 0), active_connections=active_connections, memory_usage_mb=round(memory_mb, 2), cpu_usage_percent=round(cpu_percent, 2))
             dashboard_metrics = DashboardMetrics(timestamp=datetime.now(timezone.utc), cache=cache_metrics, router=router_metrics, reranker=reranker_metrics, validators=validator_metrics, warming=warming_metrics, system=system_metrics)
             await websocket.send_json(dashboard_metrics.model_dump(mode='json'))
-            await asyncio.sleep(5)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:

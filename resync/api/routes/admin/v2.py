@@ -143,7 +143,7 @@ async def get_realtime_health():
     try:
         from resync.core.health.health_checkers.database_health_checker import DatabaseHealthChecker
         db_checker = DatabaseHealthChecker()
-        db_health = await db_checker.check()
+        db_health = await db_checker.check_health()
         services.append(ServiceHealth(name='database', status=HealthStatus.HEALTHY if db_health.get('healthy') else HealthStatus.UNHEALTHY, latency_ms=db_health.get('latency_ms'), message=db_health.get('message'), last_check=datetime.now(timezone.utc), details={'pool_size': db_health.get('pool_size'), 'active_connections': db_health.get('active_connections')}))
         if not db_health.get('healthy'):
             overall_healthy = False

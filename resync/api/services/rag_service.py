@@ -11,6 +11,7 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -355,12 +356,15 @@ class RAGIntegrationService:
             if file_id in self._chunks:
                 del self._chunks[file_id]
 
-            # Delete file from disk
-            for path in self.upload_dir.glob(f"{file_id}_*"):
-                try:
-                    path.unlink()
-                except Exception as e:
-                    logger.warning("Failed to delete file %s: %s", path, e)
+            # Delete file from disk (run blocking I/O in thread pool)
+            def _delete_files():
+                for path in self.upload_dir.glob(f"{file_id}_*"):
+                    try:
+                        path.unlink()
+                    except Exception as e:
+                        logger.warning("Failed to delete file %s: %s", path, e)
+
+            await asyncio.to_thread(_delete_files)
 
             return True
         return False

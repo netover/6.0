@@ -268,6 +268,10 @@ class IntentClassifier:
             r"\bcomo\s+(?:.*?\s+)?(funciona|usar|faz|fazer|criar|solicitar|pedir)\b",
             r"\bexplica\w*\b",
             r"\bexplain\b",
+            # English how to/do/does patterns
+            r"\bhow\s+to\b",
+            r"\bhow\s+do\b",
+            r"\bhow\s+does\b",
         ],
     }
 

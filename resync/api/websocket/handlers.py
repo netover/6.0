@@ -116,7 +116,7 @@ class ConnectionManager:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("Failed to send message to WebSocket: %s", e)
-            self.disconnect(websocket)
+            await self.disconnect_async(websocket)
 
     async def broadcast_to_agent(self, message: str, agent_id: str):
         """Broadcast message to all connections for specific agent"""
@@ -136,7 +136,7 @@ class ConnectionManager:
 
         # Clean up disconnected websockets
         for websocket in disconnected:
-            self.disconnect(websocket)
+            await self.disconnect_async(websocket)
 
     async def broadcast_to_all(self, message: str):
         """Broadcast message to all active connections"""
@@ -156,7 +156,7 @@ class ConnectionManager:
 
         # Clean up disconnected websockets
         for websocket in disconnected:
-            self.disconnect(websocket)
+            await self.disconnect_async(websocket)
 
 
 # Global connection manager instance

@@ -532,9 +532,9 @@ class SemanticCache:
             
             # Search using RedisVL or fallback
             if self._redis_stack_available:
-                result = await self._search_redisvl(cache_key_text, embedding)
+                result = await self._search_redisvl(cache_key_text, embedding, user_id)
             else:
-                result = await self._search_fallback(cache_key_text, embedding)
+                result = await self._search_fallback(cache_key_text, embedding, user_id)
             
             if not result.hit:
                 return None
@@ -615,6 +615,7 @@ class SemanticCache:
                 response=intent_json,
                 ttl=ttl,
                 metadata=metadata,
+                user_id=user_id,
             )
             
             if success:

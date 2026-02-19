@@ -128,15 +128,15 @@ class AuthService:
         """
         user_data = await self.repository.get_by_username(username)
         if not user_data:
-            logger.warning("Authentication failed: user not found", user_id=username)
+            logger.warning("Authentication failed: user not found", extra={"user_id": username})
             return None
 
         if not self._verify_password(password, user_data["hashed_password"]):
-            logger.warning("Authentication failed: invalid password", user_id=username)
+            logger.warning("Authentication failed: invalid password", extra={"user_id": username})
             return None
 
         if not user_data["is_active"]:
-            logger.warning("Authentication failed: inactive user", user_id=username)
+            logger.warning("Authentication failed: inactive user", extra={"user_id": username})
             return None
 
         # Update last login

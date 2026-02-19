@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy import UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -168,7 +168,7 @@ class OrchestrationExecution(Base):
 
     # Metrics
     total_latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    estimated_cost: Mapped[Optional[float]] = mapped_column(nullable=True)
+    estimated_cost: Mapped[Optional[float]] = mapped_column(Numeric(precision=10, scale=6), nullable=True)
 
     # Control
     created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

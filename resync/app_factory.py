@@ -696,7 +696,12 @@ class ApplicationFactory:
             """Handle CSP violation reports with payload size limit."""
             # Limit payload size to prevent DoS
             content_length = request.headers.get("content-length")
-            if content_length and int(content_length) > 4096:
+            # Safely parse content-length, defaulting to 0 if invalid
+            try:
+                parsed_length = int(content_length) if content_length else 0
+            except ValueError:
+                parsed_length = 0
+            if parsed_length > 4096:
                 return JSONResponse(
                     {"status": "ignored", "reason": "payload_too_large"},
                     status_code=413,

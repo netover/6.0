@@ -333,6 +333,12 @@ class WebSocketPoolManager:
             logger.warning("Client %s not found for personal message", client_id)
             return False
 
+        # Check WebSocket state before sending (ASGI compliance)
+        if conn_info.websocket.client_state != WebSocketState.CONNECTED:
+            logger.warning("Client %s WebSocket is not connected (state: %s)", client_id, conn_info.websocket.client_state)
+            await self.disconnect(client_id)
+            return False
+
         try:
             await conn_info.websocket.send_text(message)
             conn_info.update_activity()
@@ -408,6 +414,12 @@ class WebSocketPoolManager:
         if not conn_info:
             return False
 
+        # Check WebSocket state before sending (ASGI compliance)
+        if conn_info.websocket.client_state != WebSocketState.CONNECTED:
+            logger.warning("Client %s WebSocket is not connected during broadcast (state: %s)", client_id, conn_info.websocket.client_state)
+            await self._remove_connection(client_id)
+            return False
+
         try:
             await conn_info.websocket.send_text(message)
             conn_info.update_activity()
@@ -473,6 +485,12 @@ class WebSocketPoolManager:
         """Send JSON data with proper error handling and connection cleanup."""
         conn_info = self.connections.get(client_id)
         if not conn_info:
+            return False
+
+        # Check WebSocket state before sending (ASGI compliance)
+        if conn_info.websocket.client_state != WebSocketState.CONNECTED:
+            logger.warning("Client %s WebSocket is not connected during JSON broadcast (state: %s)", client_id, conn_info.websocket.client_state)
+            await self._remove_connection(client_id)
             return False
 
         try:

@@ -10,6 +10,10 @@ from resync.core.websocket_pool_manager import get_websocket_pool_manager
 logger = logging.getLogger(__name__)
 
 
+# --- Constants ---
+LOCK_TIMEOUT_SECONDS = 5.0
+
+
 class ConnectionManager:
     """
     Manages active WebSocket connections for real-time updates.
@@ -21,14 +25,16 @@ class ConnectionManager:
         """Initializes the ConnectionManager with connection pooling support."""
         self.active_connections: dict[str, WebSocket] = {}
         self._pool_manager = None
-        # Lock for protecting concurrent access to active_connections
+        self._pool_manager_lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         logger.info("ConnectionManager initialized with pooling support.")
 
     async def _get_pool_manager(self):
-        """Get or create the WebSocket pool manager."""
+        """Get or create the WebSocket pool manager (thread-safe)."""
         if self._pool_manager is None:
-            self._pool_manager = await get_websocket_pool_manager()
+            async with self._pool_manager_lock:
+                if self._pool_manager is None:
+                    self._pool_manager = await get_websocket_pool_manager()
         return self._pool_manager
 
     async def connect(self, websocket: WebSocket, client_id: str) -> None:
@@ -56,7 +62,12 @@ class ConnectionManager:
             if client_id not in self.active_connections:
                 return
             websocket = self.active_connections.pop(client_id)
+
+        # Close websocket outside lock to avoid potential deadlocks
+        try:
             await websocket.close()
+        except Exception as e:
+            logger.warning("Error closing websocket for client %s: %s", client_id, e)
 
         if self._pool_manager:
             await self._pool_manager.disconnect(client_id)
@@ -69,16 +80,28 @@ class ConnectionManager:
         Sends a message to a specific client.
         Integrates with the WebSocket pool manager for enhanced delivery.
         """
-        # Try pool manager first for enhanced features
         if self._pool_manager:
             success = await self._pool_manager.send_personal_message(message, client_id)
             if success:
                 return
 
-        # Fallback to direct WebSocket delivery for backward compatibility
-        websocket = self.active_connections.get(client_id)
-        if websocket:
-            await websocket.send_text(message)
+        async with self._lock:
+            websocket = self.active_connections.get(client_id)
+            if not websocket:
+                return
+
+            try:
+                await websocket.send_text(message)
+            except (WebSocketDisconnect, ConnectionError) as e:
+                logger.warning("Connection error sending to client %s: %s", client_id, e)
+                self.active_connections.pop(client_id, None)
+            except RuntimeError as e:
+                if "websocket state" in str(e).lower():
+                    logger.warning("WebSocket in wrong state for client %s: %s", client_id, e)
+                else:
+                    logger.error("Runtime error sending to client %s: %s", client_id, e)
+            except Exception as e:
+                logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
         """

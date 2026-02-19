@@ -179,7 +179,7 @@ async def list_pending_feedback(
     uma correção sugerida pelo usuário.
     """
     try:
-        from sqlalchemy import select
+        from sqlalchemy import func, select
 
         from resync.core.database import Feedback, get_session
 
@@ -198,7 +198,7 @@ async def list_pending_feedback(
                 base_query = base_query.where(Feedback.feedback_text.is_(None))
 
             # Get total count
-            count_query = select(Feedback).where(Feedback.curation_status == "pending")
+            count_query = select(func.count(Feedback.id)).select_from(Feedback).where(Feedback.curation_status == "pending")
             if has_negative_rating is True:
                 count_query = count_query.where(Feedback.rating <= 2)
             elif has_negative_rating is False:
@@ -209,7 +209,7 @@ async def list_pending_feedback(
                 count_query = count_query.where(Feedback.feedback_text.is_(None))
 
             total_result = await session.execute(count_query)
-            total = len(total_result.scalars().all())
+            total = total_result.scalar() or 0
 
             # Calculate total_pages with division by zero guard
             # Guard: page_size > 0 is ensured by Query validation (ge=1)

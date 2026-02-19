@@ -20,9 +20,9 @@ class TeamsChannel(Base):
     is_active = Column(Boolean, default=True)
     color = Column(String(20), default="#0078D4")  # Cor no frontend
     icon = Column(String(20), default="📢")  # Emoji/ícone
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    last_notification_sent = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_notification_sent = Column(DateTime(timezone=True))
     notification_count = Column(Integer, default=0)
 
     def __repr__(self):

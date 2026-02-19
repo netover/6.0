@@ -7,7 +7,7 @@ plus admin-only reload capability.
 v6.0 - Part of Skills Orchestration refactoring.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -59,6 +59,7 @@ class ReloadResponse(BaseModel):
 
 @router.get("/", response_model=SkillListResponse)
 async def list_skills(
+    skill_manager: SkillManager = Depends(get_skill_manager),
     logger_instance=Depends(get_logger),
 ) -> SkillListResponse:
     """
@@ -67,7 +68,8 @@ async def list_skills(
     Returns metadata only (no content) for performance.
     Use GET /skills/{name} to get full content.
     """
-    skill_manager = get_skill_manager.__wrapped__.__self__
+    # List all available skills.
+    # Uses FastAPI dependency injection for SkillManager
     skills = skill_manager.list_skills()
 
     return SkillListResponse(

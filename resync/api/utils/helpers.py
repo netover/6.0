@@ -44,9 +44,9 @@ def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable format"""
     for _unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024.0:
-            return '.1f'
+            return f'{size_bytes:.1f}{_unit}'
         size_bytes /= 1024.0
-    return '.1f'
+    return f'{size_bytes:.1f}TB'
 
 def extract_text_from_filename(filename: str) -> str:
     """Extract text content indicator based on file type."""
@@ -67,7 +67,7 @@ def extract_text_from_filename(filename: str) -> str:
 def create_pagination_info(total_items: int, limit: int, offset: int, current_page: int | None=None) -> dict[str, Any]:
     """Create pagination information"""
     total_pages = (total_items + limit - 1) // limit if limit > 0 else 1
-    current_page = current_page or offset // limit + 1
+    current_page = current_page or (offset // limit + 1 if limit > 0 else 1)
     return {'total_items': total_items, 'total_pages': total_pages, 'current_page': current_page, 'items_per_page': limit, 'has_next': current_page < total_pages, 'has_previous': current_page > 1}
 
 def mask_sensitive_data(data: str, mask_char: str='*') -> str:
