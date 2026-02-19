@@ -1,0 +1,558 @@
+# =============================================================================
+# TWS ONTOLOGY SCHEMA v5.9.2
+# =============================================================================
+# Defines the complete TWS domain model for ontology-driven extraction.
+# Used by OntologyManager to:
+#   1. Generate extraction prompts
+#   2. Validate extracted entities
+#   3. Resolve entity duplicates
+#   4. Track provenance
+# =============================================================================
+
+metadata:
+  name: "TWS Ontology"
+  version: "5.9.2"
+  domain: "tws"
+  description: "IBM Tivoli Workload Scheduler domain ontology for Resync"
+  author: "Resync Team"
+  last_updated: "2024-12-16"
+
+# =============================================================================
+# ENTITY TYPES
+# =============================================================================
+
+entity_types:
+  # ---------------------------------------------------------------------------
+  # JOB - Core execution unit
+  # ---------------------------------------------------------------------------
+  - name: "Job"
+    description: "A scheduled task or script execution unit in TWS"
+    aliases: ["job", "JOB", "task", "batch job", "scheduled job"]
+    extraction_strategy: "hybrid"  # LLM + regex
+    
+    properties:
+      - name: "job_name"
+        data_type: "string"
+        required: true
+        description: "Unique job identifier within a job stream"
+        validation_rules:
+          pattern: "^[A-Z][A-Z0-9_]{1,39}$"
+          max_length: 40
+        extraction_patterns:
+          - "(?:job|JOB)\\s+([A-Z][A-Z0-9_]{1,39})"
+          - "([A-Z][A-Z0-9_]{2,39})\\s+(?:failed|succeeded|abended|running)"
+      
+      - name: "job_stream"
+        data_type: "string"
+        required: false
+        description: "Parent job stream containing this job"
+        validation_rules:
+          pattern: "^[A-Z][A-Z0-9_]{1,39}$"
+      
+      - name: "folder"
+        data_type: "string"
+        required: false
+        description: "Folder path where job is defined (for hierarchical resolution)"
+        validation_rules:
+          pattern: "^/[a-zA-Z0-9_/]+$"
+      
+      - name: "script"
+        data_type: "string"
+        required: false
+        description: "Script or command to execute"
+      
+      - name: "user"
+        data_type: "string"
+        required: false
+        description: "User account for job execution"
+        validation_rules:
+          pattern: "^[a-z][a-z0-9_]{0,31}$"
+      
+      - name: "workstation"
+        data_type: "string"
+        required: false
+        description: "Target workstation for execution"
+      
+      - name: "status"
+        data_type: "string"
+        required: false
+        description: "Current execution status"
+        validation_rules:
+          allowed_values: ["SUCC", "ABEND", "EXEC", "READY", "HOLD", "CANCEL", "WAIT", "SCHED", "PEND", "STUCK", "INTRO", "EXTRN"]
+      
+      - name: "return_code"
+        data_type: "integer"
+        required: false
+        description: "Exit code from job execution"
+        validation_rules:
+          min_value: 0
+          max_value: 255
+      
+      - name: "priority"
+        data_type: "integer"
+        required: false
+        description: "Execution priority (higher = more urgent)"
+        validation_rules:
+          min_value: 0
+          max_value: 101
+      
+      - name: "estimated_duration"
+        data_type: "string"
+        required: false
+        description: "Expected execution time (HH:MM:SS)"
+        validation_rules:
+          pattern: "^\\d{2}:\\d{2}:\\d{2}$"
+
+  # ---------------------------------------------------------------------------
+  # JOB STREAM - Container for related jobs
+  # ---------------------------------------------------------------------------
+  - name: "JobStream"
+    description: "A collection of related jobs with dependencies"
+    aliases: ["job stream", "jobstream", "JOBSTREAM", "stream", "schedule", "application"]
+    extraction_strategy: "hybrid"
+    
+    properties:
+      - name: "stream_name"
+        data_type: "string"
+        required: true
+        description: "Unique job stream identifier"
+        validation_rules:
+          pattern: "^[A-Z][A-Z0-9_]{1,39}$"
+          max_length: 40
+      
+      - name: "folder"
+        data_type: "string"
+        required: false
+        description: "Folder path for hierarchical organization"
+      
+      - name: "description"
+        data_type: "string"
+        required: false
+        description: "Human-readable description"
+      
+      - name: "owner"
+        data_type: "string"
+        required: false
+        description: "Team or person responsible"
+      
+      - name: "calendar"
+        data_type: "string"
+        required: false
+        description: "Associated run calendar"
+      
+      - name: "time_zone"
+        data_type: "string"
+        required: false
+        description: "Time zone for scheduling"
+        validation_rules:
+          pattern: "^[A-Z][a-z]+/[A-Z][a-z_]+$"
+
+  # ---------------------------------------------------------------------------
+  # WORKSTATION - Execution target
+  # ---------------------------------------------------------------------------
+  - name: "Workstation"
+    description: "A compute resource where jobs execute"
+    aliases: ["workstation", "WORKSTATION", "WS", "cpu", "server", "agent"]
+    extraction_strategy: "hybrid"
+    
+    properties:
+      - name: "ws_name"
+        data_type: "string"
+        required: true
+        description: "Unique workstation identifier"
+        validation_rules:
+          pattern: "^[A-Z][A-Z0-9_]{1,15}$"
+          max_length: 16
+      
+      - name: "ws_type"
+        data_type: "string"
+        required: false
+        description: "Workstation type"
+        validation_rules:
+          allowed_values: ["FTA", "MASTER", "DOMAIN_MANAGER", "BACKUP_MASTER", "AGENT", "POOL", "DYNAMIC"]
+      
+      - name: "domain"
+        data_type: "string"
+        required: false
+        description: "TWS domain membership"
+      
+      - name: "host"
+        data_type: "string"
+        required: false
+        description: "Hostname or IP address"
+      
+      - name: "port"
+        data_type: "integer"
+        required: false
+        description: "Communication port"
+        validation_rules:
+          min_value: 1
+          max_value: 65535
+      
+      - name: "os_type"
+        data_type: "string"
+        required: false
+        description: "Operating system type"
+        validation_rules:
+          allowed_values: ["UNIX", "WINDOWS", "ZOS", "AS400", "OTHER"]
+      
+      - name: "cpu_limit"
+        data_type: "integer"
+        required: false
+        description: "Maximum concurrent jobs"
+        validation_rules:
+          min_value: 1
+          max_value: 999
+
+  # ---------------------------------------------------------------------------
+  # DEPENDENCY - Relationship between jobs
+  # ---------------------------------------------------------------------------
+  - name: "Dependency"
+    description: "A dependency relationship between two jobs or resources"
+    aliases: ["dependency", "depends on", "predecessor", "successor", "follows"]
+    extraction_strategy: "llm"
+    
+    properties:
+      - name: "source_job"
+        data_type: "string"
+        required: true
+        description: "Job that has the dependency"
+      
+      - name: "target_job"
+        data_type: "string"
+        required: true
+        description: "Job that must complete first"
+      
+      - name: "dependency_type"
+        data_type: "string"
+        required: false
+        description: "Type of dependency"
+        validation_rules:
+          allowed_values: ["SUCC", "ANY", "FAIL", "CONDITIONAL"]
+      
+      - name: "condition"
+        data_type: "string"
+        required: false
+        description: "Condition expression for conditional dependencies"
+      
+      - name: "is_external"
+        data_type: "boolean"
+        required: false
+        description: "Whether dependency is on external job stream"
+
+  # ---------------------------------------------------------------------------
+  # ERROR CODE - TWS and system errors
+  # ---------------------------------------------------------------------------
+  - name: "ErrorCode"
+    description: "An error code from TWS or system execution"
+    aliases: ["error", "erro", "AWSB error", "return code", "RC", "abend code"]
+    extraction_strategy: "regex"
+    
+    properties:
+      - name: "code"
+        data_type: "string"
+        required: true
+        description: "Error code identifier"
+        extraction_patterns:
+          - "AWSB[0-9]{4}[A-Z]"
+          - "(?:RC|rc|RC=|rc=)\\s*([0-9]{1,3})"
+          - "(?:error|ERROR)\\s+([A-Z0-9]{4,10})"
+      
+      - name: "severity"
+        data_type: "string"
+        required: false
+        description: "Error severity level"
+        validation_rules:
+          allowed_values: ["info", "warning", "error", "critical"]
+      
+      - name: "message"
+        data_type: "string"
+        required: false
+        description: "Human-readable error message"
+      
+      - name: "category"
+        data_type: "string"
+        required: false
+        description: "Error category"
+        validation_rules:
+          allowed_values: ["network", "database", "filesystem", "permission", "resource", "timeout", "configuration", "other"]
+      
+      - name: "resolution"
+        data_type: "string"
+        required: false
+        description: "Suggested resolution steps"
+
+  # ---------------------------------------------------------------------------
+  # RESOURCE - Shared resources and locks
+  # ---------------------------------------------------------------------------
+  - name: "Resource"
+    description: "A shared resource that can be allocated to jobs"
+    aliases: ["resource", "recurso", "lock", "semaphore", "file resource"]
+    extraction_strategy: "hybrid"
+    
+    properties:
+      - name: "resource_name"
+        data_type: "string"
+        required: true
+        description: "Unique resource identifier"
+        validation_rules:
+          pattern: "^[A-Z][A-Z0-9_]{1,39}$"
+      
+      - name: "resource_type"
+        data_type: "string"
+        required: false
+        description: "Type of resource"
+        validation_rules:
+          allowed_values: ["FILE", "SEMAPHORE", "LOCK", "DATABASE", "NETWORK", "CUSTOM"]
+      
+      - name: "quantity"
+        data_type: "integer"
+        required: false
+        description: "Available quantity (for semaphores)"
+        validation_rules:
+          min_value: 1
+          max_value: 9999
+      
+      - name: "allocation_mode"
+        data_type: "string"
+        required: false
+        description: "How resource is allocated"
+        validation_rules:
+          allowed_values: ["EXCLUSIVE", "SHARED", "GET", "PUT"]
+
+  # ---------------------------------------------------------------------------
+  # CALENDAR - Run schedules
+  # ---------------------------------------------------------------------------
+  - name: "Calendar"
+    description: "A calendar defining when jobs can run"
+    aliases: ["calendar", "calendário", "run calendar", "schedule calendar"]
+    extraction_strategy: "hybrid"
+    
+    properties:
+      - name: "calendar_name"
+        data_type: "string"
+        required: true
+        description: "Unique calendar identifier"
+        validation_rules:
+          pattern: "^[A-Z][A-Z0-9_]{1,39}$"
+      
+      - name: "calendar_type"
+        data_type: "string"
+        required: false
+        description: "Calendar type"
+        validation_rules:
+          allowed_values: ["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM", "HOLIDAY"]
+      
+      - name: "description"
+        data_type: "string"
+        required: false
+        description: "Human-readable description"
+
+  # ---------------------------------------------------------------------------
+  # EVENT - Triggers and notifications
+  # ---------------------------------------------------------------------------
+  - name: "Event"
+    description: "An event that can trigger job execution"
+    aliases: ["event", "evento", "trigger", "file event", "time event"]
+    extraction_strategy: "llm"
+    
+    properties:
+      - name: "event_name"
+        data_type: "string"
+        required: true
+        description: "Unique event identifier"
+      
+      - name: "event_type"
+        data_type: "string"
+        required: false
+        description: "Type of event"
+        validation_rules:
+          allowed_values: ["FILE_ARRIVAL", "TIME", "MESSAGE", "MANUAL", "EXTERNAL"]
+      
+      - name: "rule_name"
+        data_type: "string"
+        required: false
+        description: "Associated event rule"
+      
+      - name: "file_pattern"
+        data_type: "string"
+        required: false
+        description: "File pattern for file arrival events"
+
+# =============================================================================
+# RELATIONSHIP TYPES
+# =============================================================================
+
+relationship_types:
+  # Dependency relationships
+  - name: "DEPENDS_ON"
+    description: "Job A depends on Job B completing successfully"
+    source_types: ["Job"]
+    target_types: ["Job"]
+    properties:
+      - name: "condition"
+        data_type: "string"
+        description: "SUCC, ANY, FAIL, or conditional expression"
+      - name: "type"
+        data_type: "string"
+        description: "blocking, non-blocking"
+      - name: "is_external"
+        data_type: "boolean"
+        description: "Cross-stream dependency"
+  
+  - name: "FOLLOWS"
+    description: "Job A runs after Job B (temporal sequence)"
+    source_types: ["Job"]
+    target_types: ["Job"]
+    properties:
+      - name: "offset"
+        data_type: "string"
+        description: "Time offset after predecessor"
+  
+  - name: "TRIGGERS"
+    description: "Job A triggers Job B on completion"
+    source_types: ["Job", "Event"]
+    target_types: ["Job", "JobStream"]
+    properties:
+      - name: "condition"
+        data_type: "string"
+  
+  # Resource relationships
+  - name: "RUNS_ON"
+    description: "Job executes on a specific workstation"
+    source_types: ["Job"]
+    target_types: ["Workstation"]
+    properties:
+      - name: "priority"
+        data_type: "integer"
+  
+  - name: "ALLOCATES"
+    description: "Job allocates/requires a resource"
+    source_types: ["Job"]
+    target_types: ["Resource"]
+    properties:
+      - name: "quantity"
+        data_type: "integer"
+      - name: "mode"
+        data_type: "string"
+  
+  - name: "EXCLUSIVE_WITH"
+    description: "Jobs cannot run simultaneously"
+    source_types: ["Job"]
+    target_types: ["Job"]
+    properties:
+      - name: "reason"
+        data_type: "string"
+  
+  # Hierarchy relationships
+  - name: "BELONGS_TO"
+    description: "Job belongs to a job stream"
+    source_types: ["Job"]
+    target_types: ["JobStream"]
+  
+  - name: "USES_CALENDAR"
+    description: "Job stream uses a calendar for scheduling"
+    source_types: ["JobStream"]
+    target_types: ["Calendar"]
+  
+  # Error relationships
+  - name: "HAS_ERROR"
+    description: "Job encountered an error"
+    source_types: ["Job"]
+    target_types: ["ErrorCode"]
+    properties:
+      - name: "timestamp"
+        data_type: "datetime"
+      - name: "occurrence_count"
+        data_type: "integer"
+  
+  # Provenance relationships
+  - name: "HAS_SOURCE"
+    description: "Entity was extracted from a document chunk"
+    source_types: ["Job", "JobStream", "Workstation", "ErrorCode", "Resource", "Calendar", "Event"]
+    target_types: ["DocumentChunk"]
+    properties:
+      - name: "extraction_model"
+        data_type: "string"
+      - name: "confidence_score"
+        data_type: "float"
+      - name: "extracted_at"
+        data_type: "datetime"
+      - name: "verified"
+        data_type: "boolean"
+
+# =============================================================================
+# VALIDATION RULES (Global)
+# =============================================================================
+
+validation_rules:
+  # Return code ranges by context
+  return_code_ranges:
+    success: [0]
+    warning: [1, 2, 3, 4]
+    error: [5, 6, 7, 8, 9, 10, 11, 12]
+    critical: [13, 14, 15, 16]
+    system_error: [128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 255]
+  
+  # Common AWSB error patterns
+  awsb_patterns:
+    info: "AWSB[0-9]{4}I"
+    warning: "AWSB[0-9]{4}W"
+    error: "AWSB[0-9]{4}E"
+    severe: "AWSB[0-9]{4}S"
+
+# =============================================================================
+# EXTRACTION PROMPTS (Templates)
+# =============================================================================
+
+extraction_prompts:
+  job: |
+    Extract Job entities from the following TWS documentation or log.
+    
+    A Job must have:
+    - job_name: Uppercase alphanumeric with underscores, max 40 chars (REQUIRED)
+    - job_stream: Parent stream name (optional)
+    - status: One of SUCC, ABEND, EXEC, READY, HOLD, CANCEL, WAIT, SCHED, PEND
+    - return_code: Integer 0-255 (optional)
+    - workstation: Where it runs (optional)
+    
+    Return a JSON array of Job objects.
+    
+    Text: {text}
+  
+  error_code: |
+    Extract Error Codes from the following TWS log or documentation.
+    
+    Look for:
+    - AWSB errors: Format AWSB####X (e.g., AWSB1234E)
+    - Return codes: RC=##, rc ##, return code ##
+    - System errors: Referenced error numbers
+    
+    For each error, identify:
+    - code: The error code (REQUIRED)
+    - severity: info, warning, error, critical
+    - message: Associated error message
+    - category: network, database, filesystem, permission, resource, timeout, configuration
+    
+    Return a JSON array of ErrorCode objects.
+    
+    Text: {text}
+  
+  dependency: |
+    Extract job dependencies from the following TWS documentation.
+    
+    Look for phrases like:
+    - "Job X depends on Job Y"
+    - "X runs after Y"
+    - "X requires Y to complete"
+    - "Predecessor: Y, Successor: X"
+    
+    For each dependency:
+    - source_job: The job that has the dependency (REQUIRED)
+    - target_job: The job that must complete first (REQUIRED)
+    - dependency_type: SUCC (success), ANY, FAIL, CONDITIONAL
+    - condition: Specific condition if mentioned
+    
+    Return a JSON array of Dependency objects.
+    
+    Text: {text}

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self'; connect-src 'self';">
+    <title>Resync Admin | Dynamic Intelligence</title>
+
+    <!-- CSS Foundation -->
+    <link href="/static/css/admin-neumorphic.css" rel="stylesheet">
+    <link href="/static/css/admin-components.css" rel="stylesheet">
+
+    <style>
+        /* Embedded Icons (Minimal SVG set) */
+        .icon {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            stroke-width: 0;
+            stroke: currentColor;
+            fill: currentColor;
+            vertical-align: middle;
+        }
+
+        .icon-heartbeat {
+            color: var(--danger);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 2rem; font-weight: 800;">Admin Access</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" id="username" class="form-input" placeholder="admin" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" id="password" class="form-input" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary"
+                    style="width: 100%; justify-content: center; margin-top: 1rem;">
+                    Authenticate
+                </button>
+            </form>
+            <p style="margin-top: 2rem; font-size: 0.8rem; color: var(--text-secondary);">
+                Resync Admin v6.0.0
+            </p>
+        </div>
+    </div>
+
+    <!-- Main SPA Application -->
+    <div id="app" style="display:none;">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>RESYNC ADMIN</h2>
+            </div>
+
+            <nav>
+                <div class="nav-group">
+                    <p class="nav-group-title">Monitoring</p>
+                    <a href="#health" class="nav-link">
+                        <span style="margin-right: 12px;">❤️</span> System Health
+                    </a>
+                    <a href="#routing" class="nav-link">
+                        <span style="margin-right: 12px;">🔀</span> Routing Decisions
+                    </a>
+                </div>
+
+                <div class="nav-group">
+                    <p class="nav-group-title">Configuration</p>
+                    <a href="#teams-config" class="nav-link">
+                        <span style="margin-right: 12px;">💬</span> Teams Integration
+                    </a>
+                    <a href="#tws-config" class="nav-link">
+                        <span style="margin-right: 12px;">⚙️</span> TWS Setup
+                    </a>
+                    <a href="#litellm-config" class="nav-link">
+                        <span style="margin-right: 12px;">🧠</span> AI Models
+                    </a>
+                </div>
+
+                <div class="nav-group">
+                    <p class="nav-group-title">Specialized</p>
+                    <a href="#graphrag" class="nav-link">
+                        <span style="margin-right: 12px;">🕸️</span> GraphRAG
+                    </a>
+                    <a href="#audit" class="nav-link">
+                        <span style="margin-right: 12px;">📜</span> Audit Log
+                    </a>
+                </div>
+
+                <div class="nav-group" style="margin-top: auto;">
+                    <a href="#enterprise-overview" class="nav-link">
+                        <span style="margin-right: 12px;">🏢</span> Enterprise
+                    </a>
+                    <button id="logoutBtn" class="btn btn-neu"
+                        style="width: 100%; margin-top: 1rem; justify-content: center;">
+                        <span>🚪</span> Logout
+                    </button>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div id="content">
+                <!-- Content injected via JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- JS Foundation -->
+    <script src="/static/js/sanitize-utils.js"></script>
+    <script src="/static/js/admin-api-client.js"></script>
+    <script src="/static/js/admin-router.js"></script>
+    <script src="/static/js/admin-config.js"></script>
+    <script src="/static/js/admin-resources.js"></script>
+    <script src="/static/js/admin-backup.js"></script>
+    <script src="/static/js/admin-audit.js"></script>
+    <script src="/static/js/admin-feedback.js"></script>
+    <script src="/static/js/admin-rag.js"></script>
+    <script src="/static/js/admin-tuning.js"></script>
+    <script src="/static/js/admin-core.js"></script>
+</body>
+
+</html>

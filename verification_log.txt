@@ -1,0 +1,34 @@
+2026-02-17 03:12:14,214 - resync.core.metrics.runtime_metrics - INFO - RuntimeMetricsCollector initialized
+[32m03:12:14[0m [34mverify_refinement[0m [1;30mINFO[0m   Initializing Refined SemanticCache...
+[32m03:12:18[0m [34mresync.core.cache.reranker[0m [1;30mINFO[0m   Cross-encoder reranker is available
+[32m03:12:18[0m [34mresync.core.cache.embedding_model[0m [1;30mINFO[0m   Loading embedding model: all-MiniLM-L6-v2
+[32m03:12:18[0m [34msentence_transformers.SentenceTransformer[0m [1;30mINFO[0m   Use pytorch device_name: cpu
+[32m03:12:18[0m [34msentence_transformers.SentenceTransformer[0m [1;30mINFO[0m   Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+[32m03:12:20[0m [34mresync.core.cache.embedding_model[0m [1;30mINFO[0m   Embedding model loaded successfully. Dimension: 384
+[32m03:12:20[0m [34mresync.core.cache.redisvl_adapter[0m [1;30mINFO[0m   ResyncVectorizer initialized with 384 dimensions
+[32m03:12:22[0m [34mresync.core.cache.redis_config[0m [1;30mWARNING[0m   [33mFailed to check Redis Stack availability: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:22[0m [34mresync.core.cache.semantic_cache[0m [1;30mINFO[0m   Redis Stack not available. Using fallback mode (brute force).
+[32m03:12:22[0m [34mverify_refinement[0m [1;30mINFO[0m   Setting cache for query: 'How to upgrade the system firmware?'
+[32m03:12:24[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to set cache entry: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:24[0m [34mverify_refinement[0m [1;30mINFO[0m   Testing retrieval and metadata...
+[32m03:12:26[0m [34mresync.core.cache.semantic_cache[0m [1;30mWARNING[0m   [33mFallback search encountered error: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:26[0m [34mverify_refinement[0m [1;30mERROR[0m   [31mFAILURE: Cache miss for exact match.[0m
+[32m03:12:26[0m [34mverify_refinement[0m [1;30mINFO[0m   Testing invalidate()...
+[32m03:12:28[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to invalidate cache entry: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:28[0m [34mverify_refinement[0m [1;30mERROR[0m   [31mFAILURE: Invalidation returned False.[0m
+[32m03:12:28[0m [34mverify_refinement[0m [1;30mINFO[0m   Testing get_stats()...
+[32m03:12:31[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to set cache entry: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:33[0m [34mresync.core.cache.semantic_cache[0m [1;30mWARNING[0m   [33mFallback search encountered error: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:35[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to get stats: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:35[0m [34mverify_refinement[0m [1;30mERROR[0m   [31mFAILURE: Missing stats keys: ['entries', 'hits', 'misses', 'sets', 'avg_lookup_time_ms', 'threshold', 'redis_stack_available'][0m
+[32m03:12:35[0m [34mverify_refinement[0m [1;30mINFO[0m   Testing update_threshold()...
+[32m03:12:35[0m [34mresync.core.cache.semantic_cache[0m [1;30mINFO[0m   Updated cache threshold to 0.99
+[32m03:12:35[0m [34mverify_refinement[0m [1;30mINFO[0m   SUCCESS: Threshold updated.
+[32m03:12:35[0m [34mresync.core.cache.semantic_cache[0m [1;30mINFO[0m   Updated cache threshold to 0.25
+[32m03:12:35[0m [34mverify_refinement[0m [1;30mINFO[0m   Testing invalidate_pattern()...
+[32m03:12:37[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to set cache entry: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:39[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to set cache entry: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:41[0m [34mresync.core.cache.semantic_cache[0m [1;30mERROR[0m   [31mFailed to invalidate pattern: Error 22 connecting to localhost:6379. O computador remoto recusou a conexÒo de rede.[0m
+[32m03:12:41[0m [34mverify_refinement[0m [1;30mINFO[0m   Invalidated 0 entries by pattern 'update'.
+[32m03:12:41[0m [34mverify_refinement[0m [1;30mERROR[0m   [31mFAILURE: Pattern invalidation count too low: 0[0m
+[32m03:12:41[0m [34mverify_refinement[0m [1;30mINFO[0m   === REFINEMENT VERIFICATION COMPLETE ===

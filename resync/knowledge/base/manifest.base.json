@@ -1,0 +1,14 @@
+{
+  "priority": 100,
+  "files": [
+    { "path": "awspimst.md", "tags": ["BASE", "aws", "policy"] },
+    { "path": "awsrgmst_compressed.md", "tags": ["BASE", "aws", "resource-groups"] },
+    { "path": "awstrmst.md", "tags": ["BASE", "aws", "troubleshooting"] },
+    { "path": "tswebmst.md", "tags": ["BASE", "tsweb"] },
+    { "path": "WA_API3_v2.json", "tags": ["BASE", "api", "tws"] },
+    { "path": "awsadmst.md", "tags": ["BASE", "aws", "administration"] },
+    { "path": "awsaimst.md", "tags": ["BASE", "aws", "identity-management"] },
+    { "path": "awsaumst.md", "tags": ["BASE", "aws", "audit"] },
+    { "path": "awsdvmst.md", "tags": ["BASE", "aws", "data-volumes"] }
+  ]
+}
