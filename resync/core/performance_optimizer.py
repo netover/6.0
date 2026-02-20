@@ -391,10 +391,9 @@ class ResourceManager:
                     if hasattr(resource, "close"):
                         if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
-                        else:
-                           cleanup_result = await asyncio.to_thread(cleanup_fn, resource)
-                        if inspect.isawaitable(cleanup_result):
-                            await cleanup_result
+                            close_result = await asyncio.to_thread(resource.close)
+                            if inspect.isawaitable(close_result):
+                                await close_result
                 except Exception as e:
                     logger.error("Error cleaning up resource %s: %s", resource_id, e)
                 finally:
