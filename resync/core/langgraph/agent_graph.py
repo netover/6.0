@@ -60,6 +60,14 @@ from resync.settings import settings
 
 logger = get_logger(__name__)
 
+def _metric_inc(metric: Any, value: float = 1.0) -> None:
+    """Increment metric counters compatible with both wrapper and Prometheus APIs."""
+    if hasattr(metric, "increment"):
+        metric.increment(value)
+        return
+    if hasattr(metric, "inc"):
+        metric.inc(value)
+
 # Import SemanticCache for router intent caching
 try:
     from resync.core.cache.semantic_cache import SemanticCache
@@ -430,7 +438,7 @@ async def router_node(state: AgentState) -> AgentState:
                 )
 
                 # Increment metric
-                runtime_metrics.router_cache_hits.increment()
+                _metric_inc(runtime_metrics.router_cache_hits)
 
                 # Populate state with cached data
                 intent_value = cached_intent.get("intent")
@@ -458,7 +466,7 @@ async def router_node(state: AgentState) -> AgentState:
             logger.warning("router_cache_check_error", error=str(e))
 
     # Cache miss - increment metric
-    runtime_metrics.router_cache_misses.increment()
+    _metric_inc(runtime_metrics.router_cache_misses)
 
     # Classify intent using LLM with structured output
     try:
@@ -498,7 +506,7 @@ async def router_node(state: AgentState) -> AgentState:
                         user_id=user_id,
                     )
                     # Increment metric
-                    runtime_metrics.router_cache_sets.increment()
+                    _metric_inc(runtime_metrics.router_cache_sets)
                 except Exception as cache_err:
                     # Non-critical - log and continue
                     logger.warning("router_cache_store_error", error=str(cache_err))

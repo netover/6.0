@@ -202,9 +202,9 @@ def register_dashboard_route(app: FastAPI) -> None:
         config = get_monitoring_config()
 
         return templates.TemplateResponse(
+            request,
             "realtime_dashboard.html",
             {
-                "request": request,
                 "config": config.to_frontend_config() if config else {},
             },
         )
@@ -217,9 +217,9 @@ def register_dashboard_route(app: FastAPI) -> None:
         config = get_monitoring_config()
 
         return templates.TemplateResponse(
+            request,
             "realtime_dashboard.html",
             {
-                "request": request,
                 "config": config.to_frontend_config() if config else {},
             },
         )

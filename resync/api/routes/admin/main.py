@@ -106,7 +106,7 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 
         templates_dir = Path(settings.BASE_DIR) / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
-        return templates.TemplateResponse("admin.html", {"request": request})
+        return templates.TemplateResponse(request, "admin.html")
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -135,7 +135,7 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
 
         templates_dir = Path(settings.BASE_DIR) / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
-        return templates.TemplateResponse("api_keys_admin.html", {"request": request})
+        return templates.TemplateResponse(request, "api_keys_admin.html")
     except Exception as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

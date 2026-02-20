@@ -167,8 +167,12 @@ def setup_langfuse() -> bool:
         )
         return True
 
-    except ImportError:
-        logger.warning("langfuse_not_installed", hint="pip install langfuse")
+    except Exception as exc:
+        logger.warning(
+            "langfuse_not_available",
+            hint="pip install langfuse",
+            reason=type(exc).__name__,
+        )
         return False
     except Exception as e:
         logger.error("langfuse_init_failed", error=str(e))

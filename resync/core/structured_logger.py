@@ -370,8 +370,8 @@ def configure_structured_logging(
     # Escolher renderer baseado no modo
     if development_mode or not json_logs:
         renderer = structlog.dev.ConsoleRenderer(colors=True)
-    # else:
-    #     # renderer: structlog.processors.JSONRenderer | structlog.dev.ConsoleRenderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.processors.JSONRenderer()
 
     # 1. Configurar structlog
     structlog.configure(

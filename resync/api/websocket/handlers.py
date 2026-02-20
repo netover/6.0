@@ -6,13 +6,21 @@ import asyncio
 import json
 
 from fastapi import WebSocket, WebSocketDisconnect, status
-from langfuse.decorators import langfuse_context
 
 from resync.core.context import set_trace_id, set_user_id
 from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
+
+try:
+    from langfuse.decorators import langfuse_context
+
+    LANGFUSE_AVAILABLE = True
+except Exception as exc:
+    LANGFUSE_AVAILABLE = False
+    langfuse_context = None
+    logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
 
 
 async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:

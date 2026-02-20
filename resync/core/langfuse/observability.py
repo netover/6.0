@@ -40,11 +40,15 @@ try:
     from langfuse.decorators import langfuse_context, observe
 
     LANGFUSE_AVAILABLE = True
-except ImportError:
+except Exception as exc:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     observe = None
     langfuse_context = None
+    logger.warning(
+        "langfuse_disabled reason=%s",
+        type(exc).__name__,
+    )
 
 
 # Type variable for decorated functions

@@ -89,8 +89,9 @@ class MetricSummary(BaseModel):
 async def metrics_dashboard(request: Request):
     """Serve the metrics dashboard HTML page."""
     return templates.TemplateResponse(
+        request,
         "metrics_dashboard.html",
-        {"request": request, "title": "Continual Learning Metrics"},
+        {"title": "Continual Learning Metrics"},
     )
 
 
