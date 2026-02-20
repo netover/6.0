@@ -230,13 +230,9 @@ async def get_dashboard_data(
             + summary.get("storage", {}).get("aggregated_records", 0),
         }
 
-        # Add DB size
-        try:
-            # Using PostgreSQL - no local db file
-            if False:  # SQLite removed
-                system["db_size_mb"] = 0  # PostgreSQL - use pg_database_size()
-        except Exception:
-            system["db_size_mb"] = 0
+        # DB size placeholder for PostgreSQL deployments.
+        # Future improvement: expose pg_database_size() via repository/metrics service.
+        system["db_size_mb"] = 0
 
         return DashboardResponse(
             summary=summary,

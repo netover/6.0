@@ -120,6 +120,7 @@ class CacheMemoryManager:
         self.max_entries = max_entries
         self.max_memory_mb = max_memory_mb
         self.paranoia_mode = paranoia_mode
+        self.enable_weak_refs = enable_weak_refs
         if self.paranoia_mode:
             self.max_entries = min(self.max_entries, 10000)
             self.max_memory_mb = min(self.max_memory_mb, 10)
