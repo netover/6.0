@@ -126,8 +126,6 @@ def test_websocket_invalid_agent(app):
             assert "não encontrado" in err_msg["message"]
 
             # 2. Then expect the disconnect
-            try:
+            with pytest.raises(WebSocketDisconnect) as excinfo:
                 websocket.receive_json()
-                pytest.fail("Connection should have been closed with 1008")
-            except WebSocketDisconnect as e:
-                assert e.code == 1008
+            assert excinfo.value.code == 1008
