@@ -2,10 +2,11 @@
 """Teams Webhook Administration API."""
 
 from datetime import datetime, timezone
+from importlib.util import find_spec
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,14 @@ from resync.core.database.session import get_db
 from resync.core.teams_permissions import TeamsPermissionsManager
 
 logger = structlog.get_logger(__name__)
+
+
+# pydantic.EmailStr requires the optional `email-validator` package.
+# Keep router import resilient when this extra dependency is absent.
+if find_spec("email_validator") is not None:
+    from pydantic import EmailStr
+else:
+    EmailStr = str
 
 router = APIRouter(
     prefix="/admin/teams-webhook",
@@ -237,7 +246,7 @@ async def get_stats(db: Session = Depends(get_db)):
         db.query(func.count(TeamsWebhookAudit.id))
         .filter(
             TeamsWebhookAudit.command_type == "execute",
-            not TeamsWebhookAudit.was_authorized,
+            TeamsWebhookAudit.was_authorized.is_(False),
         )
         .scalar()
     )

@@ -6,6 +6,7 @@ across multiple modules in the application.
 """
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from functools import wraps
@@ -123,7 +124,7 @@ def retry_on_exception(
     """
 
     def decorator(func: F) -> F:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
