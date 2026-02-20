@@ -19,6 +19,7 @@ from __future__ import annotations
 # mypy: ignore-errors
 
 import asyncio
+import inspect
 import contextlib
 import functools
 import time
@@ -557,7 +558,7 @@ class DistributedTracingManager:
                         duration = time.time() - start_time
                         span.set_attribute("performance.duration_seconds", duration)
 
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 return async_wrapper
             return sync_wrapper
 
@@ -763,20 +764,31 @@ def traced(operation_name: str, **attributes):
     """
 
     def decorator(func):
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 manager = await get_distributed_tracing_manager()
-                with manager.trace_context(operation_name, **attributes):
-                    return await func(*args, **kwargs)
+                with manager.trace_context(operation_name, **attributes) as span:
+                    try:
+                        return await func(*args, **kwargs)
+                    except Exception as exc:
+                        if span is not None:
+                            span.record_exception(exc)
+                        raise
 
             return async_wrapper
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
-            # For sync functions, we'll use a simplified approach
-            return func(*args, **kwargs)
+            manager = distributed_tracing_manager
+            with manager.trace_context(operation_name, **attributes) as span:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as exc:
+                    if span is not None:
+                        span.record_exception(exc)
+                    raise
 
         return sync_wrapper
 

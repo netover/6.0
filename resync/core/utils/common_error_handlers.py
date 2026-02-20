@@ -6,6 +6,7 @@ across multiple modules in the application.
 """
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from functools import wraps
@@ -123,7 +124,7 @@ def retry_on_exception(
     """
 
     def decorator(func: F) -> F:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
@@ -132,6 +133,11 @@ def retry_on_exception(
                 # Extract retry-specific arguments from kwargs
                 current_max_retries = kwargs.pop("max_retries", max_retries)
                 current_delay = kwargs.pop("initial_backoff", delay)
+
+                if current_max_retries < 0:
+                    raise ValueError("max_retries must be non-negative")
+                if current_delay <= 0:
+                    raise ValueError("initial_backoff must be positive")
 
                 cleaned_kwargs = kwargs
 
@@ -170,6 +176,11 @@ def retry_on_exception(
             logger_instance = logger or logging.getLogger(func.__module__)
             current_max_retries = kwargs.pop("max_retries", max_retries)
             current_delay = kwargs.pop("initial_backoff", delay)
+
+            if current_max_retries < 0:
+                raise ValueError("max_retries must be non-negative")
+            if current_delay <= 0:
+                raise ValueError("initial_backoff must be positive")
 
             for attempt in range(current_max_retries + 1):
                 try:

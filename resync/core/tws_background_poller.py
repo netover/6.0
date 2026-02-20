@@ -16,6 +16,7 @@ Versão: 5.2
 """
 
 import asyncio
+import inspect
 from resync.core.task_tracker import track_task
 import contextlib
 import time
@@ -757,10 +758,10 @@ class TWSBackgroundPoller:
         """Notifica todos os handlers de evento."""
         for handler in self._event_handlers:
             try:
-                if asyncio.iscoroutinefunction(handler):
+                if inspect.iscoroutinefunction(handler):
                     await handler(event)
                 else:
-                    handler(event)
+                    await asyncio.to_thread(handler, event)
             except Exception as e:
                 logger.error(
                     "event_handler_error",
@@ -772,10 +773,10 @@ class TWSBackgroundPoller:
         """Notifica todos os handlers de snapshot."""
         for handler in self._snapshot_handlers:
             try:
-                if asyncio.iscoroutinefunction(handler):
+                if inspect.iscoroutinefunction(handler):
                     await handler(snapshot)
                 else:
-                    handler(snapshot)
+                    await asyncio.to_thread(handler, snapshot)
             except Exception as e:
                 logger.error("snapshot_handler_error", error=str(e))
 

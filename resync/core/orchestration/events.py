@@ -5,6 +5,7 @@ Manages internal events for the orchestration engine.
 """
 
 import asyncio
+import inspect
 import logging
 import uuid
 from dataclasses import dataclass
@@ -168,10 +169,10 @@ class EventBus:
 
     async def _invoke_callback(self, callback: Callable, event: OrchestrationEvent):
         """Helper to invoke sync or async callbacks."""
-        if asyncio.iscoroutinefunction(callback):
+        if inspect.iscoroutinefunction(callback):
             await callback(event)
         else:
-            callback(event)
+            await asyncio.to_thread(callback, event)
 
     def get_subscription_count(self) -> int:
         """Get total number of active subscriptions (for debugging/monitoring)."""

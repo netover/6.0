@@ -18,7 +18,7 @@ Now integrated with LangFuse for:
 Usage:
     from resync.services.llm_service import get_llm_service
 
-    llm = get_llm_service()
+    llm = await get_llm_service()
     response = await llm.generate_agent_response(
         agent_id="tws-agent",
         user_message="Quais jobs estão em ABEND?",

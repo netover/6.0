@@ -821,10 +821,10 @@ async def _init_graphrag(app: FastAPI) -> None:
             from resync.services.tws_service import get_tws_client
 
             initialize_graphrag(
-                llm_service=get_llm_service(),
+                llm_service=await get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
                 tws_client=get_tws_client(),
-                redis_client=get_redis_client() if get_redis_client else None,
+                redis_client=get_redis_client(),
                 enabled=True,
             )
     except Exception as exc:

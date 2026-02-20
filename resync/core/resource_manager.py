@@ -7,6 +7,7 @@ Java's try-with-resources and Python's context managers.
 """
 
 import asyncio
+import inspect
 import logging
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
@@ -117,10 +118,10 @@ class DatabaseConnectionResource(ManagedResource):
     async def _cleanup(self) -> None:
         """Close the database connection."""
         if hasattr(self.connection, "close"):
-            if asyncio.iscoroutinefunction(self.connection.close):
+            if inspect.iscoroutinefunction(self.connection.close):
                 await self.connection.close()
             else:
-                self.connection.close()
+                await asyncio.to_thread(self.connection.close)
 
 
 class FileResource(ManagedResource):
@@ -133,10 +134,10 @@ class FileResource(ManagedResource):
     async def _cleanup(self) -> None:
         """Close the file handle."""
         if hasattr(self.file_handle, "close"):
-            if asyncio.iscoroutinefunction(self.file_handle.close):
+            if inspect.iscoroutinefunction(self.file_handle.close):
                 await self.file_handle.close()
             else:
-                self.file_handle.close()
+                await asyncio.to_thread(self.file_handle.close)
 
     def _cleanup_sync(self) -> None:
         """Close the file handle synchronously."""
@@ -154,10 +155,10 @@ class NetworkSocketResource(ManagedResource):
     async def _cleanup(self) -> None:
         """Close the network socket."""
         if hasattr(self.socket, "close"):
-            if asyncio.iscoroutinefunction(self.socket.close):
+            if inspect.iscoroutinefunction(self.socket.close):
                 await self.socket.close()
             else:
-                self.socket.close()
+                await asyncio.to_thread(self.socket.close)
 
 
 @asynccontextmanager
@@ -272,7 +273,7 @@ class ResourcePool:
             resource_id = f"{resource_type}_{self._resource_counter}"
 
             # Create the resource
-            if asyncio.iscoroutinefunction(factory):
+            if inspect.iscoroutinefunction(factory):
                 resource = await factory()
             else:
                 resource = factory()
@@ -304,10 +305,10 @@ class ResourcePool:
                 # Cleanup the resource
                 try:
                     if hasattr(resource, "close"):
-                        if asyncio.iscoroutinefunction(resource.close):
+                        if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
                         else:
-                            resource.close()
+                            await asyncio.to_thread(resource.close)
                 except Exception as e:
                     logger.error("Error closing resource %s: %s", resource_id, e)
 
@@ -416,15 +417,15 @@ class BatchResourceManager:
         for resource_id, resource, cleanup_fn in reversed(self.resources):
             try:
                 if cleanup_fn:
-                    if asyncio.iscoroutinefunction(cleanup_fn):
+                    if inspect.iscoroutinefunction(cleanup_fn):
                         await cleanup_fn(resource)
                     else:
-                        cleanup_fn(resource)
+                        await asyncio.to_thread(cleanup_fn, resource)
                 elif hasattr(resource, "close"):
-                    if asyncio.iscoroutinefunction(resource.close):
+                    if inspect.iscoroutinefunction(resource.close):
                         await resource.close()
                     else:
-                        resource.close()
+                        await asyncio.to_thread(resource.close)
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
             except Exception as e:

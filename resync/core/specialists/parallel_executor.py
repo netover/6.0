@@ -15,6 +15,7 @@ Version: 5.4.2
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -343,10 +344,10 @@ class ParallelToolExecutor:
         """Call a tool function (handles sync and async)."""
         func = tool.function
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return await func(**params)
         # Run sync function in thread pool
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: func(**params))
 
 

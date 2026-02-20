@@ -7,6 +7,7 @@ easy extension with new cache implementations.
 """
 
 import asyncio
+import inspect
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
@@ -124,11 +125,12 @@ class EnhancedCache(MemoryCache):
         # Start computing
         self._computing[key] = asyncio.Event()
         try:
-            value = (
-                await compute_fn()
-                if asyncio.iscoroutinefunction(compute_fn)
-                else compute_fn()
-            )
+            if inspect.iscoroutinefunction(compute_fn):
+                value = await compute_fn()
+            else:
+                value = await asyncio.to_thread(compute_fn)
+                if inspect.isawaitable(value):
+                    value = await value
             await self.set(key, value, ttl)
             return value
         finally:

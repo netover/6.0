@@ -205,7 +205,8 @@ async def close_engine(timeout: float = 30.0):
     logger.info("Database shutdown initiated, waiting for active sessions...")
 
     # Aguardar sessões ativas com timeout
-    start_time = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
     while True:
         async with _get_active_sessions_lock():
             active = _active_sessions
@@ -214,7 +215,7 @@ async def close_engine(timeout: float = 30.0):
             logger.info("All database sessions completed")
             break
 
-        elapsed = asyncio.get_event_loop().time() - start_time
+        elapsed = loop.time() - start_time
         if elapsed >= timeout:
             logger.warning(
                 f"Shutdown timeout reached with {active} active sessions. Forcing close."
