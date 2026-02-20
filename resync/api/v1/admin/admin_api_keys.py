@@ -22,7 +22,19 @@ from datetime import datetime, timezone, timedelta
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, and_, delete, func, select, update
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    String,
+    and_,
+    delete,
+    func,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database import Base, get_db
@@ -34,6 +46,7 @@ logger = structlog.get_logger(__name__)
 # ============================================================================
 # DATABASE MODEL
 # ============================================================================
+
 
 class APIKey(Base):
     """
@@ -77,7 +90,9 @@ class APIKey(Base):
     usage_count = Column(Integer, nullable=False, default=0)
 
     # Audit
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True
+    )
     created_by = Column(String(100), nullable=False)
 
     def __repr__(self):
@@ -100,32 +115,27 @@ class APIKey(Base):
 # PYDANTIC MODELS
 # ============================================================================
 
+
 class APIKeyCreate(BaseModel):
     """Request model para criar API key."""
 
     name: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="Nome descritivo da API key"
+        ..., min_length=3, max_length=100, description="Nome descritivo da API key"
     )
     description: str | None = Field(
-        None,
-        max_length=500,
-        description="Descrição opcional"
+        None, max_length=500, description="Descrição opcional"
     )
     scopes: list[str] = Field(
-        default=["metrics:write"],
-        description="Scopes/permissões da key"
+        default=["metrics:write"], description="Scopes/permissões da key"
     )
     expires_in_days: int | None = Field(
         None,
         ge=1,
         le=3650,  # Max 10 anos
-        description="Dias até expiração (None = nunca expira)"
+        description="Dias até expiração (None = nunca expira)",
     )
 
-    @field_validator('scopes')
+    @field_validator("scopes")
     @classmethod
     def validate_scopes(cls, v):
         """Valida scopes."""
@@ -135,26 +145,27 @@ class APIKeyCreate(BaseModel):
             "admin:read",
             "admin:write",
             "workflows:read",
-            "workflows:write"
+            "workflows:write",
         }
 
         for scope in v:
             if scope not in valid_scopes:
                 raise ValueError(
-                    f"Invalid scope: {scope}. "
-                    f"Valid scopes: {', '.join(valid_scopes)}"
+                    f"Invalid scope: {scope}. Valid scopes: {', '.join(valid_scopes)}"
                 )
 
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "FTA Production Metrics",
                 "description": "API key for production FTAs to send metrics",
                 "scopes": ["metrics:write"],
-                "expires_in_days": 365
+                "expires_in_days": 365,
             }
-        })
+        }
+    )
 
 
 class APIKeyResponse(BaseModel):
@@ -190,7 +201,8 @@ class APIKeyCreatedResponse(BaseModel):
     expires_at: datetime | None = None
     created_at: datetime
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "key": "rsk_abc123xyz789...",
@@ -199,19 +211,16 @@ class APIKeyCreatedResponse(BaseModel):
                 "description": "API key for production FTAs",
                 "scopes": ["metrics:write"],
                 "expires_at": "2025-12-25T00:00:00Z",
-                "created_at": "2024-12-25T10:00:00Z"
+                "created_at": "2024-12-25T10:00:00Z",
             }
-        })
+        }
+    )
 
 
 class APIKeyRevoke(BaseModel):
     """Request para revogar key."""
 
-    reason: str | None = Field(
-        None,
-        max_length=500,
-        description="Motivo da revogação"
-    )
+    reason: str | None = Field(None, max_length=500, description="Motivo da revogação")
 
 
 class APIKeyListResponse(BaseModel):
@@ -225,15 +234,13 @@ class APIKeyListResponse(BaseModel):
 # ROUTER
 # ============================================================================
 
-router = APIRouter(
-    prefix="/api/v1/admin/api-keys",
-    tags=["Admin - API Keys"]
-)
+router = APIRouter(prefix="/api/v1/admin/api-keys", tags=["Admin - API Keys"])
 
 
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
+
 
 @router.post(
     "",
@@ -247,12 +254,12 @@ router = APIRouter(
     Guarde-a em local seguro.
 
     Requer autenticação admin.
-    """
+    """,
 )
 async def create_api_key(
     payload: APIKeyCreate,
     admin_token: str = Depends(verify_admin_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Cria nova API key."""
 
@@ -268,7 +275,9 @@ async def create_api_key(
     # Calculate expiration
     expires_at = None
     if payload.expires_in_days:
-        expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=payload.expires_in_days
+        )
 
     # Create DB record
     api_key = APIKey(
@@ -279,7 +288,7 @@ async def create_api_key(
         description=payload.description,
         scopes=payload.scopes,
         expires_at=expires_at,
-        created_by=admin_token["user"]  # From admin token
+        created_by=admin_token["user"],  # From admin token
     )
 
     db.add(api_key)
@@ -292,7 +301,7 @@ async def create_api_key(
             "api_key_created",
             key_id=key_id,
             name=payload.name,
-            created_by=admin_token["user"]
+            created_by=admin_token["user"],
         )
 
         return APIKeyCreatedResponse(
@@ -303,7 +312,7 @@ async def create_api_key(
             description=api_key.description,
             scopes=api_key.scopes,
             expires_at=api_key.expires_at,
-            created_at=api_key.created_at
+            created_at=api_key.created_at,
         )
 
     except Exception as e:
@@ -311,7 +320,7 @@ async def create_api_key(
         logger.error("api_key_creation_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create API key. Check server logs for details."
+            detail="Failed to create API key. Check server logs for details.",
         ) from None
 
 
@@ -319,12 +328,12 @@ async def create_api_key(
     "",
     response_model=APIKeyListResponse,
     summary="List API keys",
-    description="Lista todas API keys (sem mostrar key completa)"
+    description="Lista todas API keys (sem mostrar key completa)",
 )
 async def list_api_keys(
     include_revoked: bool = False,
     admin_token: str = Depends(verify_admin_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Lista todas API keys."""
 
@@ -355,26 +364,23 @@ async def list_api_keys(
                 last_used_at=key.last_used_at,
                 usage_count=key.usage_count,
                 created_at=key.created_at,
-                created_by=key.created_by
+                created_by=key.created_by,
             )
         )
 
-    return APIKeyListResponse(
-        total=len(key_responses),
-        keys=key_responses
-    )
+    return APIKeyListResponse(total=len(key_responses), keys=key_responses)
 
 
 @router.get(
     "/{key_id}",
     response_model=APIKeyResponse,
     summary="Get API key details",
-    description="Retorna detalhes de uma API key específica"
+    description="Retorna detalhes de uma API key específica",
 )
 async def get_api_key(
     key_id: str,
     admin_token: str = Depends(verify_admin_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get API key details."""
 
@@ -384,8 +390,7 @@ async def get_api_key(
 
     if not api_key:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"API key {key_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"API key {key_id} not found"
         )
 
     return APIKeyResponse(
@@ -402,7 +407,7 @@ async def get_api_key(
         last_used_at=api_key.last_used_at,
         usage_count=api_key.usage_count,
         created_at=api_key.created_at,
-        created_by=api_key.created_by
+        created_by=api_key.created_by,
     )
 
 
@@ -410,13 +415,13 @@ async def get_api_key(
     "/{key_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Revoke API key",
-    description="Revoga (desativa) uma API key"
+    description="Revoga (desativa) uma API key",
 )
 async def revoke_api_key(
     key_id: str,
     payload: APIKeyRevoke,
     admin_token: str = Depends(verify_admin_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Revoke API key."""
 
@@ -427,23 +432,25 @@ async def revoke_api_key(
 
     if not api_key:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"API key {key_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"API key {key_id} not found"
         )
 
     if api_key.is_revoked:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="API key already revoked"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="API key already revoked"
         )
 
     # Revoke
-    stmt = update(APIKey).where(APIKey.id == key_id).values(
-        is_revoked=True,
-        is_active=False,
-        revoked_at=datetime.now(timezone.utc),
-        revoked_by=admin_token["user"],
-        revoked_reason=payload.reason
+    stmt = (
+        update(APIKey)
+        .where(APIKey.id == key_id)
+        .values(
+            is_revoked=True,
+            is_active=False,
+            revoked_at=datetime.now(timezone.utc),
+            revoked_by=admin_token["user"],
+            revoked_reason=payload.reason,
+        )
     )
 
     await db.execute(stmt)
@@ -453,7 +460,7 @@ async def revoke_api_key(
         "api_key_revoked",
         key_id=key_id,
         revoked_by=admin_token["user"],
-        reason=payload.reason
+        reason=payload.reason,
     )
 
     return
@@ -463,12 +470,12 @@ async def revoke_api_key(
     "/{key_id}/permanent",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete API key permanently",
-    description="Deleta permanentemente uma API key (não pode ser desfeito!)"
+    description="Deleta permanentemente uma API key (não pode ser desfeito!)",
 )
 async def delete_api_key_permanent(
     key_id: str,
     admin_token: str = Depends(verify_admin_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete API key permanently."""
 
@@ -479,8 +486,7 @@ async def delete_api_key_permanent(
 
     if not api_key:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"API key {key_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"API key {key_id} not found"
         )
 
     # Delete
@@ -489,9 +495,7 @@ async def delete_api_key_permanent(
     await db.commit()
 
     logger.warning(
-        "api_key_deleted_permanently",
-        key_id=key_id,
-        deleted_by=admin_token["user"]
+        "api_key_deleted_permanently", key_id=key_id, deleted_by=admin_token["user"]
     )
 
     return
@@ -501,14 +505,14 @@ async def delete_api_key_permanent(
 # HEALTH & STATS
 # ============================================================================
 
+
 @router.get(
     "/stats/summary",
     summary="API keys statistics",
-    description="Estatísticas de uso das API keys"
+    description="Estatísticas de uso das API keys",
 )
 async def get_api_keys_stats(
-    admin_token: str = Depends(verify_admin_token),
-    db: AsyncSession = Depends(get_db)
+    admin_token: str = Depends(verify_admin_token), db: AsyncSession = Depends(get_db)
 ):
     """Get API keys usage statistics."""
 
@@ -517,23 +521,24 @@ async def get_api_keys_stats(
     total = (await db.execute(stmt_total)).scalar() or 0
 
     # Count active (is_active=True AND is_revoked=False)
-    stmt_active = select(func.count()).select_from(APIKey).where(
-        and_(
-            APIKey.is_active.is_(True),
-            APIKey.is_revoked.is_(False)
-        )
+    stmt_active = (
+        select(func.count())
+        .select_from(APIKey)
+        .where(and_(APIKey.is_active.is_(True), APIKey.is_revoked.is_(False)))
     )
     active = (await db.execute(stmt_active)).scalar() or 0
 
     # Count revoked
-    stmt_revoked = select(func.count()).select_from(APIKey).where(
-        APIKey.is_revoked.is_(True)
+    stmt_revoked = (
+        select(func.count()).select_from(APIKey).where(APIKey.is_revoked.is_(True))
     )
     revoked = (await db.execute(stmt_revoked)).scalar() or 0
 
     # Count expired
-    stmt_expired = select(func.count()).select_from(APIKey).where(
-        APIKey.expires_at < datetime.now(timezone.utc)
+    stmt_expired = (
+        select(func.count())
+        .select_from(APIKey)
+        .where(APIKey.expires_at < datetime.now(timezone.utc))
     )
     expired = (await db.execute(stmt_expired)).scalar() or 0
 
@@ -550,14 +555,14 @@ async def get_api_keys_stats(
             "total": total,
             "active": active,
             "revoked": revoked,
-            "expired": expired
+            "expired": expired,
         },
         "most_used": [
             {
                 "id": k.id,
                 "name": k.name,
                 "usage_count": k.usage_count,
-                "last_used_at": k.last_used_at
+                "last_used_at": k.last_used_at,
             }
             for k in most_used
         ],
@@ -566,8 +571,8 @@ async def get_api_keys_stats(
                 "id": k.id,
                 "name": k.name,
                 "created_at": k.created_at,
-                "created_by": k.created_by
+                "created_by": k.created_by,
             }
             for k in recent
-        ]
+        ],
     }

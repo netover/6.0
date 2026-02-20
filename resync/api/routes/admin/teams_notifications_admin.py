@@ -26,13 +26,14 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(
     prefix="/admin/teams-notifications",
     tags=["Teams Notifications Admin"],
-    dependencies=[Depends(verify_admin_credentials)]
+    dependencies=[Depends(verify_admin_credentials)],
 )
 
 
 # ============================================================================
 # MODELS
 # ============================================================================
+
 
 class ChannelCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -87,7 +88,9 @@ class PatternRuleCreate(BaseModel):
     channel_id: int
     description: str | None = Field(None, max_length=500)
     priority: int = Field(default=0)
-    pattern_type: str = Field(default="glob", pattern="^(glob|regex|prefix|suffix|contains)$")
+    pattern_type: str = Field(
+        default="glob", pattern="^(glob|regex|prefix|suffix|contains)$"
+    )
 
 
 class PatternRuleResponse(BaseModel):
@@ -107,8 +110,12 @@ class PatternRuleResponse(BaseModel):
 class ConfigUpdate(BaseModel):
     notify_on_status: list[str] | None = None
     quiet_hours_enabled: bool | None = None
-    quiet_hours_start: str | None = Field(None, pattern="^([0-1][0-9]|2[0-3]):[0-5][0-9]$")
-    quiet_hours_end: str | None = Field(None, pattern="^([0-1][0-9]|2[0-3]):[0-5][0-9]$")
+    quiet_hours_start: str | None = Field(
+        None, pattern="^([0-1][0-9]|2[0-3]):[0-5][0-9]$"
+    )
+    quiet_hours_end: str | None = Field(
+        None, pattern="^([0-1][0-9]|2[0-3]):[0-5][0-9]$"
+    )
     rate_limit_enabled: bool | None = None
     max_notifications_per_job: int | None = Field(None, ge=1, le=100)
     rate_limit_window_minutes: int | None = Field(None, ge=1, le=1440)
@@ -131,11 +138,9 @@ class StatsResponse(BaseModel):
 # CHANNELS ENDPOINTS
 # ============================================================================
 
+
 @router.get("/channels", response_model=list[ChannelResponse])
-async def list_channels(
-    active_only: bool = False,
-    db: Session = Depends(get_db)
-):
+async def list_channels(active_only: bool = False, db: Session = Depends(get_db)):
     """Lista todos os canais configurados."""
     stmt = select(TeamsChannel)
     if active_only:
@@ -147,24 +152,23 @@ async def list_channels(
     return [
         ChannelResponse(
             **channel.__dict__,
-            webhook_url_masked=_mask_webhook_url(str(channel.webhook_url))
+            webhook_url_masked=_mask_webhook_url(str(channel.webhook_url)),
         )
         for channel in channels
     ]
 
 
-@router.post("/channels", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED)
-async def create_channel(
-    channel_data: ChannelCreate,
-    db: Session = Depends(get_db)
-):
+@router.post(
+    "/channels", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_channel(channel_data: ChannelCreate, db: Session = Depends(get_db)):
     """Cria novo canal."""
     # Verificar duplicados
     stmt = select(TeamsChannel).where(TeamsChannel.name == channel_data.name)
     if db.execute(stmt).scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Canal '{channel_data.name}' já existe"
+            detail=f"Canal '{channel_data.name}' já existe",
         )
 
     channel = TeamsChannel(
@@ -172,7 +176,7 @@ async def create_channel(
         description=channel_data.description,
         webhook_url=str(channel_data.webhook_url),
         color=channel_data.color,
-        icon=channel_data.icon
+        icon=channel_data.icon,
     )
     db.add(channel)
     db.commit()
@@ -182,15 +186,13 @@ async def create_channel(
 
     return ChannelResponse(
         **channel.__dict__,
-        webhook_url_masked=_mask_webhook_url(str(channel.webhook_url))
+        webhook_url_masked=_mask_webhook_url(str(channel.webhook_url)),
     )
 
 
 @router.put("/channels/{channel_id}", response_model=ChannelResponse)
 async def update_channel(
-    channel_id: int,
-    update_data: ChannelUpdate,
-    db: Session = Depends(get_db)
+    channel_id: int, update_data: ChannelUpdate, db: Session = Depends(get_db)
 ):
     """Atualiza canal."""
     channel = db.get(TeamsChannel, channel_id)
@@ -216,7 +218,7 @@ async def update_channel(
 
     return ChannelResponse(
         **channel.__dict__,
-        webhook_url_masked=_mask_webhook_url(str(channel.webhook_url))
+        webhook_url_masked=_mask_webhook_url(str(channel.webhook_url)),
     )
 
 
@@ -241,7 +243,7 @@ async def test_channel(channel_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Falha ao enviar notificação de teste"
+            detail="Falha ao enviar notificação de teste",
         )
 
     return {"success": True, "message": "Notificação de teste enviada com sucesso"}
@@ -251,36 +253,36 @@ async def test_channel(channel_id: int, db: Session = Depends(get_db)):
 # JOB MAPPINGS ENDPOINTS
 # ============================================================================
 
+
 @router.get("/mappings", response_model=list[JobMappingResponse])
 async def list_job_mappings(db: Session = Depends(get_db)):
     """Lista todos os mapeamentos de jobs."""
     stmt = select(TeamsJobMapping).order_by(
-        TeamsJobMapping.priority.desc(),
-        TeamsJobMapping.job_name
+        TeamsJobMapping.priority.desc(), TeamsJobMapping.job_name
     )
     mappings = db.execute(stmt).scalars().all()
 
     result = []
     for mapping in mappings:
         channel = db.get(TeamsChannel, mapping.channel_id)
-        result.append(JobMappingResponse(
-            **mapping.__dict__,
-            channel_name=channel.name if channel else None
-        ))
+        result.append(
+            JobMappingResponse(
+                **mapping.__dict__, channel_name=channel.name if channel else None
+            )
+        )
 
     return result
 
 
 @router.post("/mappings", response_model=JobMappingResponse, status_code=201)
 async def create_job_mapping(
-    mapping_data: JobMappingCreate,
-    db: Session = Depends(get_db)
+    mapping_data: JobMappingCreate, db: Session = Depends(get_db)
 ):
     """Cria novo mapeamento de job."""
     mapping = TeamsJobMapping(
         job_name=mapping_data.job_name,
         channel_id=mapping_data.channel_id,
-        priority=mapping_data.priority
+        priority=mapping_data.priority,
     )
     db.add(mapping)
     db.commit()
@@ -288,8 +290,7 @@ async def create_job_mapping(
 
     channel = db.get(TeamsChannel, mapping.channel_id)
     return JobMappingResponse(
-        **mapping.__dict__,
-        channel_name=channel.name if channel else None
+        **mapping.__dict__, channel_name=channel.name if channel else None
     )
 
 
@@ -308,29 +309,28 @@ async def delete_job_mapping(mapping_id: int, db: Session = Depends(get_db)):
 # PATTERN RULES ENDPOINTS
 # ============================================================================
 
+
 @router.get("/rules", response_model=list[PatternRuleResponse])
 async def list_pattern_rules(db: Session = Depends(get_db)):
     """Lista todas as regras de padrões."""
-    stmt = select(TeamsPatternRule).order_by(
-        TeamsPatternRule.priority.desc()
-    )
+    stmt = select(TeamsPatternRule).order_by(TeamsPatternRule.priority.desc())
     rules = db.execute(stmt).scalars().all()
 
     result = []
     for rule in rules:
         channel = db.get(TeamsChannel, rule.channel_id)
-        result.append(PatternRuleResponse(
-            **rule.__dict__,
-            channel_name=channel.name if channel else None
-        ))
+        result.append(
+            PatternRuleResponse(
+                **rule.__dict__, channel_name=channel.name if channel else None
+            )
+        )
 
     return result
 
 
 @router.post("/rules", response_model=PatternRuleResponse, status_code=201)
 async def create_pattern_rule(
-    rule_data: PatternRuleCreate,
-    db: Session = Depends(get_db)
+    rule_data: PatternRuleCreate, db: Session = Depends(get_db)
 ):
     """Cria nova regra de padrão."""
     rule = TeamsPatternRule(
@@ -338,7 +338,7 @@ async def create_pattern_rule(
         channel_id=rule_data.channel_id,
         description=rule_data.description,
         priority=rule_data.priority,
-        pattern_type=rule_data.pattern_type
+        pattern_type=rule_data.pattern_type,
     )
     db.add(rule)
     db.commit()
@@ -346,8 +346,7 @@ async def create_pattern_rule(
 
     channel = db.get(TeamsChannel, rule.channel_id)
     return PatternRuleResponse(
-        **rule.__dict__,
-        channel_name=channel.name if channel else None
+        **rule.__dict__, channel_name=channel.name if channel else None
     )
 
 
@@ -366,15 +365,14 @@ async def delete_pattern_rule(rule_id: int, db: Session = Depends(get_db)):
 # CONFIG ENDPOINTS
 # ============================================================================
 
+
 @router.get("/config")
 async def get_config(db: Session = Depends(get_db)):
     """Obtém configuração global."""
     config = db.query(TeamsNotificationConfig).first()
     if not config:
         # Criar configuração padrão
-        config = TeamsNotificationConfig(
-            notify_on_status=["ABEND", "ERROR", "FAILED"]
-        )
+        config = TeamsNotificationConfig(notify_on_status=["ABEND", "ERROR", "FAILED"])
         db.add(config)
         db.commit()
         db.refresh(config)
@@ -383,10 +381,7 @@ async def get_config(db: Session = Depends(get_db)):
 
 
 @router.put("/config")
-async def update_config(
-    config_data: ConfigUpdate,
-    db: Session = Depends(get_db)
-):
+async def update_config(config_data: ConfigUpdate, db: Session = Depends(get_db)):
     """Atualiza configuração global."""
     config = db.query(TeamsNotificationConfig).first()
     if not config:
@@ -407,39 +402,49 @@ async def update_config(
 # STATS ENDPOINTS
 # ============================================================================
 
+
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(db: Session = Depends(get_db)):
     """Obtém estatísticas de uso."""
     total_channels = db.query(func.count(TeamsChannel.id)).scalar()
-    active_channels = db.query(func.count(TeamsChannel.id)).filter(
-        TeamsChannel.is_active
-    ).scalar()
+    active_channels = (
+        db.query(func.count(TeamsChannel.id)).filter(TeamsChannel.is_active).scalar()
+    )
 
     total_mappings = db.query(func.count(TeamsJobMapping.id)).scalar()
     total_rules = db.query(func.count(TeamsPatternRule.id)).scalar()
 
     today = datetime.now(timezone.utc).date()
-    notifications_sent_today = db.query(func.count(TeamsNotificationLog.id)).filter(
-        func.date(TeamsNotificationLog.timestamp) == today,
-        TeamsNotificationLog.notification_sent
-    ).scalar()
+    notifications_sent_today = (
+        db.query(func.count(TeamsNotificationLog.id))
+        .filter(
+            func.date(TeamsNotificationLog.timestamp) == today,
+            TeamsNotificationLog.notification_sent,
+        )
+        .scalar()
+    )
 
-    notifications_failed_today = db.query(func.count(TeamsNotificationLog.id)).filter(
-        func.date(TeamsNotificationLog.timestamp) == today,
-        not TeamsNotificationLog.notification_sent
-    ).scalar()
+    notifications_failed_today = (
+        db.query(func.count(TeamsNotificationLog.id))
+        .filter(
+            func.date(TeamsNotificationLog.timestamp) == today,
+            not TeamsNotificationLog.notification_sent,
+        )
+        .scalar()
+    )
 
     # Top jobs notificados
-    top_jobs = db.query(
-        TeamsNotificationLog.job_name,
-        func.count(TeamsNotificationLog.id).label('count')
-    ).filter(
-        func.date(TeamsNotificationLog.timestamp) == today
-    ).group_by(
-        TeamsNotificationLog.job_name
-    ).order_by(
-        desc('count')
-    ).limit(10).all()
+    top_jobs = (
+        db.query(
+            TeamsNotificationLog.job_name,
+            func.count(TeamsNotificationLog.id).label("count"),
+        )
+        .filter(func.date(TeamsNotificationLog.timestamp) == today)
+        .group_by(TeamsNotificationLog.job_name)
+        .order_by(desc("count"))
+        .limit(10)
+        .all()
+    )
 
     return StatsResponse(
         total_channels=total_channels,
@@ -448,23 +453,20 @@ async def get_stats(db: Session = Depends(get_db)):
         total_rules=total_rules,
         notifications_sent_today=notifications_sent_today,
         notifications_failed_today=notifications_failed_today,
-        top_notified_jobs=[
-            {"job": job, "count": count}
-            for job, count in top_jobs
-        ]
+        top_notified_jobs=[{"job": job, "count": count} for job, count in top_jobs],
     )
 
 
 @router.get("/logs")
 async def get_notification_logs(
-    limit: int = 100,
-    channel_id: int | None = None,
-    db: Session = Depends(get_db)
+    limit: int = 100, channel_id: int | None = None, db: Session = Depends(get_db)
 ):
     """Obtém logs de notificações."""
-    stmt = select(TeamsNotificationLog).order_by(
-        desc(TeamsNotificationLog.timestamp)
-    ).limit(limit)
+    stmt = (
+        select(TeamsNotificationLog)
+        .order_by(desc(TeamsNotificationLog.timestamp))
+        .limit(limit)
+    )
 
     if channel_id:
         stmt = stmt.where(TeamsNotificationLog.channel_id == channel_id)
@@ -474,26 +476,29 @@ async def get_notification_logs(
 
 
 @router.post("/test")
-async def send_test_notification(
-    test_data: dict = None,
-    db: Session = Depends(get_db)
-):
+async def send_test_notification(test_data: dict = None, db: Session = Depends(get_db)):
     """Envia uma notificação de teste para o canal padrão."""
     manager = TeamsNotificationManager(db)
-    
+
     # Verifica se há um canal padrão configurado
     config = db.query(TeamsNotificationConfig).first()
     if not config or not config.default_channel_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No default channel configured. Please configure a default channel first."
+            detail="No default channel configured. Please configure a default channel first.",
         )
-    
+
     # Dados do teste
-    job_name = test_data.get("job_name", "TEST_JOB_ALERT") if test_data else "TEST_JOB_ALERT"
+    job_name = (
+        test_data.get("job_name", "TEST_JOB_ALERT") if test_data else "TEST_JOB_ALERT"
+    )
     job_status = test_data.get("job_status", "ABEND") if test_data else "ABEND"
-    error_message = test_data.get("error_message", "This is a test alert from Resync Admin") if test_data else "This is a test alert from Resync Admin"
-    
+    error_message = (
+        test_data.get("error_message", "This is a test alert from Resync Admin")
+        if test_data
+        else "This is a test alert from Resync Admin"
+    )
+
     # Envia notificação
     success = await manager.send_job_notification(
         job_name=job_name,
@@ -501,21 +506,22 @@ async def send_test_notification(
         instance_name="TEST_INSTANCE",
         return_code=999,
         error_message=error_message,
-        timestamp=datetime.now(timezone.utc).isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
-    
+
     if success:
         return {"status": "success", "message": "Test notification sent successfully"}
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send test notification"
+            detail="Failed to send test notification",
         )
 
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
 
 def _mask_webhook_url(url: str) -> str:
     """Mascara URL do webhook para segurança."""

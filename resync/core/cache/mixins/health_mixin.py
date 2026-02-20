@@ -153,7 +153,9 @@ class CacheHealthMixin:
     def _health_check_background_tasks(self, correlation_id: str) -> dict[str, Any]:
         """Check background task status."""
         try:
-            cleanup_running = self.cleanup_task is not None and not self.cleanup_task.done()
+            cleanup_running = (
+                self.cleanup_task is not None and not self.cleanup_task.done()
+            )
 
             status = "healthy" if cleanup_running or not self.is_running else "warning"
 

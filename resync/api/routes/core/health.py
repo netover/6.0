@@ -149,7 +149,9 @@ async def get_health_summary(
             _get_runtime_metrics().health_check_with_auto_enable.increment()
         except (AttributeError, ImportError, Exception) as metrics_e:
             # Log metrics failure but don't fail the health check
-            logger.warning("Failed to increment health check metrics: %s", metrics_e, exc_info=True)
+            logger.warning(
+                "Failed to increment health check metrics: %s", metrics_e, exc_info=True
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Health check system error: {str(original_exception)}",
@@ -207,7 +209,9 @@ async def get_core_health() -> CoreHealthResponse:
                 1 for c in core_components.values() if c.status == HealthStatus.HEALTHY
             ),
             "unhealthy_core_components": sum(
-                1 for c in core_components.values() if c.status == HealthStatus.UNHEALTHY
+                1
+                for c in core_components.values()
+                if c.status == HealthStatus.UNHEALTHY
             ),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -232,8 +236,12 @@ async def get_core_health() -> CoreHealthResponse:
 
 @router.get("/detailed", response_model=DetailedHealthResponse)
 async def get_detailed_health(
-    include_history: bool = Query(False, description="Include health history in response"),
-    history_hours: int = Query(24, description="Hours of history to include", ge=1, le=168),
+    include_history: bool = Query(
+        False, description="Include health history in response"
+    ),
+    history_hours: int = Query(
+        24, description="Hours of history to include", ge=1, le=168
+    ),
 ) -> DetailedHealthResponse:
     """
     Get detailed health check with all components and optional history.
@@ -325,7 +333,8 @@ async def readiness_probe() -> dict[str, Any]:
 
         # System is ready if all core components are healthy
         ready = all(
-            component.status == HealthStatus.HEALTHY for component in core_components.values()
+            component.status == HealthStatus.HEALTHY
+            for component in core_components.values()
         )
 
         response_data = {
@@ -390,7 +399,8 @@ async def liveness_probe() -> dict[str, Any]:
         # System is considered alive if it has performed health checks recently
         # or if it's the first check (last_check is None)
         alive = (
-            last_check is None or (current_time - last_check).total_seconds() < 300  # 5 minutes
+            last_check is None
+            or (current_time - last_check).total_seconds() < 300  # 5 minutes
         )
 
         if not alive:
@@ -451,16 +461,22 @@ async def recover_component(component_name: str) -> dict[str, Any]:
             "component": component_name,
             "recovery_attempted": True,
             "recovery_successful": recovery_success,
-            "current_status": (component_health.status.value if component_health else "unknown"),
+            "current_status": (
+                component_health.status.value if component_health else "unknown"
+            ),
             "status_color": (
                 get_status_color(component_health.status) if component_health else "⚪"
             ),
-            "message": (component_health.message if component_health else "Component not found"),
+            "message": (
+                component_health.message if component_health else "Component not found"
+            ),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if not recovery_success:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response_data)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=response_data
+            )
 
         return response_data
 
@@ -515,7 +531,9 @@ async def get_redis_health() -> dict[str, Any]:
             "status_color": get_status_color(redis_component.status),
             "message": redis_component.message,
             "last_check": (
-                redis_component.last_check.isoformat() if redis_component.last_check else None
+                redis_component.last_check.isoformat()
+                if redis_component.last_check
+                else None
             ),
             "response_time_ms": redis_component.response_time_ms,
             "details": redis_component.metadata or {},
@@ -614,5 +632,3 @@ async def list_components() -> dict[str, list[dict[str, str]]]:
     ]
 
     return {"components": components}
-
-

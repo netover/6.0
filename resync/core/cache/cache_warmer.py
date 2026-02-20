@@ -81,7 +81,9 @@ class CacheWarmer:
         WarmingQuery("erro AWSBCT001I", "error_codes", 1, "error_lookup"),
         WarmingQuery("return code 4", "error_codes", 1, "error_lookup"),
         # Dependencies (medium priority)
-        WarmingQuery("quais as dependências do job", "dependency", 2, "dependency_chain"),
+        WarmingQuery(
+            "quais as dependências do job", "dependency", 2, "dependency_chain"
+        ),
         WarmingQuery("jobs predecessores", "dependency", 2, "dependency_chain"),
         WarmingQuery("cadeia de dependências", "dependency", 2, "dependency_chain"),
         WarmingQuery("jobs que rodam antes", "dependency", 2, "dependency_chain"),
@@ -141,7 +143,9 @@ class CacheWarmer:
             Number of queries effectively cached
         """
         queries = [q for q in self.STATIC_QUERIES if q.priority <= priority]
-        logger.info("Warming %s static queries (priority <= %s)", len(queries), priority)
+        logger.info(
+            "Warming %s static queries (priority <= %s)", len(queries), priority
+        )
         return await self._process_queries(queries)
 
     async def warm_critical_jobs(self, job_names: list[str] | None = None) -> int:
@@ -264,7 +268,9 @@ class CacheWarmer:
                         "intent": classification.intent.value
                         if classification
                         else wq.expected_intent,
-                        "confidence": classification.confidence if classification else 0.0,
+                        "confidence": classification.confidence
+                        if classification
+                        else 0.0,
                         "source": "cache_warmer",
                         "category": wq.category,
                         "priority": wq.priority,
@@ -273,7 +279,8 @@ class CacheWarmer:
 
                     if hasattr(result, "documents"):
                         response_data["documents"] = [
-                            d.model_dump() if hasattr(d, "model_dump") else d for d in result.documents
+                            d.model_dump() if hasattr(d, "model_dump") else d
+                            for d in result.documents
                         ]
 
                     if hasattr(result, "graph_data"):
@@ -319,7 +326,10 @@ class CacheWarmer:
             Warming statistics
         """
         if self._warming_in_progress:
-            return {"error": "Warming already in progress", "stats": self._stats.to_dict()}
+            return {
+                "error": "Warming already in progress",
+                "stats": self._stats.to_dict(),
+            }
 
         self._warming_in_progress = True
         start_time = datetime.now(timezone.utc)
@@ -338,7 +348,7 @@ class CacheWarmer:
             self._stats.last_warm = start_time
             self._stats.duration_seconds = duration
 
-            results["total_cached"] = sum(results.values())
+            results["total_cached"] = int(sum(results.values()))
             results["duration_seconds"] = round(duration, 2)
             results["stats"] = self._stats.to_dict()
 
@@ -417,7 +427,9 @@ async def warm_cache_on_startup(priority: int = 1) -> dict[str, Any]:
         # Warming only high priority queries on startup
         result = await warmer.warm_static_queries(priority=priority)
 
-        logger.info("Initial cache warming: %s queries (priority <= %s)", result, priority)
+        logger.info(
+            "Initial cache warming: %s queries (priority <= %s)", result, priority
+        )
 
         return {
             "queries_warmed": result,

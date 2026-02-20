@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(
     prefix="/admin/teams-webhook",
     tags=["Teams Webhook Admin"],
-    dependencies=[Depends(verify_admin_credentials)]
+    dependencies=[Depends(verify_admin_credentials)],
 )
 
 
@@ -77,10 +77,7 @@ class StatsResponse(BaseModel):
 
 # Endpoints
 @router.get("/users", response_model=list[UserResponse])
-async def list_users(
-    active_only: bool = True,
-    db: Session = Depends(get_db)
-):
+async def list_users(active_only: bool = True, db: Session = Depends(get_db)):
     """Lista todos os usuários cadastrados."""
     stmt = select(TeamsWebhookUser)
     if active_only:
@@ -94,10 +91,7 @@ async def list_users(
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    user_data: UserCreate,
-    db: Session = Depends(get_db)
-):
+async def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """Cria novo usuário."""
     # Verifica se já existe
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.email == user_data.email)
@@ -106,7 +100,7 @@ async def create_user(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"User with email {user_data.email} already exists"
+            detail=f"User with email {user_data.email} already exists",
         )
 
     pm = TeamsPermissionsManager(db)
@@ -115,25 +109,21 @@ async def create_user(
         name=user_data.name,
         role=user_data.role,
         can_execute=user_data.can_execute_commands,
-        aad_object_id=user_data.aad_object_id
+        aad_object_id=user_data.aad_object_id,
     )
 
     return UserResponse.model_validate(user)
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_user(user_id: int, db: Session = Depends(get_db)):
     """Obtém usuário por ID."""
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.id == user_id)
     user = db.execute(stmt).scalar_one_or_none()
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
     return UserResponse.model_validate(user)
@@ -141,9 +131,7 @@ async def get_user(
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: int,
-    update_data: UserUpdate,
-    db: Session = Depends(get_db)
+    user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)
 ):
     """Atualiza usuário."""
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.id == user_id)
@@ -151,8 +139,7 @@ async def update_user(
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
     if update_data.name is not None:
@@ -174,18 +161,14 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
     """Deleta usuário (soft delete - marca como inativo)."""
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.id == user_id)
     user = db.execute(stmt).scalar_one_or_none()
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
     user.is_active = False
@@ -197,9 +180,7 @@ async def delete_user(
 
 @router.get("/audit-logs", response_model=list[AuditLogResponse])
 async def get_audit_logs(
-    limit: int = 100,
-    user_email: str | None = None,
-    db: Session = Depends(get_db)
+    limit: int = 100, user_email: str | None = None, db: Session = Depends(get_db)
 ):
     """Obtém logs de auditoria."""
     stmt = select(TeamsWebhookAudit)
@@ -222,31 +203,44 @@ async def get_stats(db: Session = Depends(get_db)):
 
     # Total de usuários
     total_users = db.query(func.count(TeamsWebhookUser.id)).scalar()
-    active_users = db.query(func.count(TeamsWebhookUser.id)).filter(
-        TeamsWebhookUser.is_active
-    ).scalar()
-    users_with_execute = db.query(func.count(TeamsWebhookUser.id)).filter(
-        TeamsWebhookUser.can_execute_commands,
-        TeamsWebhookUser.is_active
-    ).scalar()
+    active_users = (
+        db.query(func.count(TeamsWebhookUser.id))
+        .filter(TeamsWebhookUser.is_active)
+        .scalar()
+    )
+    users_with_execute = (
+        db.query(func.count(TeamsWebhookUser.id))
+        .filter(TeamsWebhookUser.can_execute_commands, TeamsWebhookUser.is_active)
+        .scalar()
+    )
 
     # Interações
     total_interactions = db.query(func.count(TeamsWebhookAudit.id)).scalar()
 
     today = datetime.now(timezone.utc).date()
-    interactions_today = db.query(func.count(TeamsWebhookAudit.id)).filter(
-        func.date(TeamsWebhookAudit.timestamp) == today
-    ).scalar()
+    interactions_today = (
+        db.query(func.count(TeamsWebhookAudit.id))
+        .filter(func.date(TeamsWebhookAudit.timestamp) == today)
+        .scalar()
+    )
 
-    authorized_commands = db.query(func.count(TeamsWebhookAudit.id)).filter(
-        TeamsWebhookAudit.command_type == "execute",
-        TeamsWebhookAudit.was_authorized
-    ).scalar()
+    authorized_commands = (
+        db.query(func.count(TeamsWebhookAudit.id))
+        .filter(
+            TeamsWebhookAudit.command_type == "execute",
+            TeamsWebhookAudit.was_authorized,
+        )
+        .scalar()
+    )
 
-    unauthorized_attempts = db.query(func.count(TeamsWebhookAudit.id)).filter(
-        TeamsWebhookAudit.command_type == "execute",
-        not TeamsWebhookAudit.was_authorized
-    ).scalar()
+    unauthorized_attempts = (
+        db.query(func.count(TeamsWebhookAudit.id))
+        .filter(
+            TeamsWebhookAudit.command_type == "execute",
+            not TeamsWebhookAudit.was_authorized,
+        )
+        .scalar()
+    )
 
     return StatsResponse(
         total_users=total_users,
@@ -255,5 +249,5 @@ async def get_stats(db: Session = Depends(get_db)):
         total_interactions=total_interactions,
         interactions_today=interactions_today,
         authorized_commands=authorized_commands,
-        unauthorized_attempts=unauthorized_attempts
+        unauthorized_attempts=unauthorized_attempts,
     )

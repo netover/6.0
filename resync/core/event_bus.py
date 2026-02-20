@@ -245,7 +245,9 @@ class EventBus:
         """Atualiza tipos de assinatura de um cliente."""
         async with self.websocket_lock:
             if client_id in self._websocket_clients:
-                self._websocket_clients[client_id].subscription_types = subscription_types
+                self._websocket_clients[
+                    client_id
+                ].subscription_types = subscription_types
 
     async def _send_recent_events(self, client_id: str, count: int = 50) -> None:
         """Envia eventos recentes para um cliente."""
@@ -389,7 +391,9 @@ class EventBus:
                 )
                 return client.client_id
 
-        results = await asyncio.gather(*[_send_to_client(c) for c in clients], return_exceptions=False)
+        results = await asyncio.gather(
+            *[_send_to_client(c) for c in clients], return_exceptions=False
+        )
         disconnected = [cid for cid in results if cid]
 
         # Remove clientes desconectados
@@ -436,7 +440,9 @@ class EventBus:
 
     def get_critical_events(self, count: int = 20) -> list[dict[str, Any]]:
         """Retorna eventos críticos."""
-        events = [e for e in self._event_history if e.get("severity") in ["critical", "error"]]
+        events = [
+            e for e in self._event_history if e.get("severity") in ["critical", "error"]
+        ]
         return events[-count:]
 
     def get_metrics(self) -> dict[str, Any]:
@@ -488,12 +494,16 @@ class EventBus:
                 )
                 return False
 
-        results = await asyncio.gather(*[_send(c) for c in clients], return_exceptions=False)
+        results = await asyncio.gather(
+            *[_send(c) for c in clients], return_exceptions=False
+        )
         delivered = sum(1 for r in results if r)
         failed = len(results) - delivered
 
         if failed > 0:
-            logger.debug("websocket_broadcast_partial", delivered=delivered, failed=failed)
+            logger.debug(
+                "websocket_broadcast_partial", delivered=delivered, failed=failed
+            )
 
         return delivered
 

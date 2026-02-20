@@ -83,7 +83,9 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict:
         return {
             "job_name": job_name,
             "status": status_data.get("state", status_data.get("status", "UNKNOWN")),
-            "return_code": status_data.get("returnCode", status_data.get("return_code")),
+            "return_code": status_data.get(
+                "returnCode", status_data.get("return_code")
+            ),
             "last_run": status_data.get("last_execution"),
             "next_run": status_data.get("next_execution"),
             "workspace": workspace,
@@ -132,7 +134,9 @@ async def get_failed_jobs(hours: int = 24) -> dict:
                     "name": j.get("name", j.get("jobName", "UNKNOWN")),
                     "status": j.get("status", "UNKNOWN"),
                     "return_code": j.get("returnCode", j.get("return_code")),
-                    "error": j.get("errorMessage", j.get("error_msg", "No error message")),
+                    "error": j.get(
+                        "errorMessage", j.get("error_msg", "No error message")
+                    ),
                     "failed_at": j.get("failed_at", j.get("endTime")),
                 }
                 for j in jobs[:50]  # Limitar a 50 jobs
@@ -290,7 +294,9 @@ def pydantic_to_openai_schema(model: type[BaseModel]) -> dict:
 # =============================================================================
 
 
-def get_llm_tools(user_role: UserRole | None = None, tags: list[str] | None = None) -> list[dict]:
+def get_llm_tools(
+    user_role: UserRole | None = None, tags: list[str] | None = None
+) -> list[dict]:
     """
     Gera automaticamente lista de tools para LLM baseado no registry.
 
@@ -325,7 +331,9 @@ def get_llm_tools(user_role: UserRole | None = None, tags: list[str] | None = No
             }
         )
 
-    logger.info("Generated %s LLM tools for role=%s, tags=%s", len(llm_tools), user_role, tags)
+    logger.info(
+        "Generated %s LLM tools for role=%s, tags=%s", len(llm_tools), user_role, tags
+    )
     return llm_tools
 
 
@@ -370,7 +378,9 @@ async def execute_tool_call(
     # 2. Check permission
     can_exec, reason = catalog.can_execute(tool_name, user_role)
     if not can_exec:
-        logger.warning("Permission denied: %s", reason, extra={"user_role": user_role.value})
+        logger.warning(
+            "Permission denied: %s", reason, extra={"user_role": user_role.value}
+        )
         return {"error": reason}
 
     # 3. Parse arguments

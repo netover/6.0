@@ -196,7 +196,9 @@ class EnhancedCacheManager:
             )
 
         except Exception as e:
-            logger.error("Failed to invalidate pattern %s: %s", pattern, e, exc_info=True)
+            logger.error(
+                "Failed to invalidate pattern %s: %s", pattern, e, exc_info=True
+            )
             raise
 
     async def invalidate_job_cache(self, job_name: str):

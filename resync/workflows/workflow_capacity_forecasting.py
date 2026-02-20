@@ -32,15 +32,19 @@ POSTGRES_SAVER_AVAILABLE = False
 try:
     from langchain_core.messages import HumanMessage, SystemMessage
 except ImportError:
+
     class HumanMessage:
         pass
+
     class SystemMessage:
         pass
+
 
 try:
     from langgraph.graph import END, StateGraph
 except ImportError:
     END = "END"
+
     class StateGraph:  # type: ignore
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
@@ -48,10 +52,12 @@ except ImportError:
 
 try:
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
     POSTGRES_SAVER_AVAILABLE = True
 except ImportError:
     try:
         from langgraph_checkpoint_postgres import AsyncPostgresSaver
+
         POSTGRES_SAVER_AVAILABLE = True
     except ImportError:
         AsyncPostgresSaver = None  # type: ignore
@@ -64,33 +70,35 @@ logger = structlog.get_logger(__name__)
 # HELPER FUNCTIONS
 # ============================================================================
 
+
 def _get_checkpointer_db_url() -> str:
     """Get PostgreSQL connection URL for checkpointer."""
     import os
     from resync.settings import settings
-    
+
     # Try settings first
     if hasattr(settings, "database_url") and settings.database_url:
         return settings.database_url
-    
+
     # Try environment variable
     db_url = os.getenv("DATABASE_URL")
     if db_url:
         return db_url
-    
+
     # Build from components
     host = getattr(settings, "db_host", None) or os.getenv("DB_HOST", "localhost")
     port = getattr(settings, "db_port", None) or os.getenv("DB_PORT", "5432")
     user = getattr(settings, "db_user", None) or os.getenv("DB_USER", "postgres")
     password = getattr(settings, "db_password", None) or os.getenv("DB_PASSWORD", "")
     database = getattr(settings, "db_name", None) or os.getenv("DB_NAME", "resync")
-    
+
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
 
 # ============================================================================
 # STATE DEFINITION
 # ============================================================================
+
 
 class CapacityForecastState(TypedDict):
     """State para workflow de Capacity Forecasting."""
@@ -143,9 +151,9 @@ class CapacityForecastState(TypedDict):
 # NODES
 # ============================================================================
 
+
 async def fetch_metrics_node(
-    state: CapacityForecastState,
-    db: AsyncSession
+    state: CapacityForecastState, db: AsyncSession
 ) -> CapacityForecastState:
     """
     Step 1: Fetch historical metrics.
@@ -157,7 +165,7 @@ async def fetch_metrics_node(
     logger.info(
         "capacity_forecast.fetch_metrics",
         workstation=state["workstation"],
-        lookback_days=state["lookback_days"]
+        lookback_days=state["lookback_days"],
     )
 
     try:
@@ -168,44 +176,32 @@ async def fetch_metrics_node(
 
         # Fetch metrics
         metrics_history = await fetch_workstation_metrics_history(
-            db=db,
-            workstation=state["workstation"],
-            days=state["lookback_days"]
+            db=db, workstation=state["workstation"], days=state["lookback_days"]
         )
 
         # Fetch job history
         job_history = await fetch_job_execution_history(
-            db=db,
-            workstation=state["workstation"],
-            days=state["lookback_days"]
+            db=db, workstation=state["workstation"], days=state["lookback_days"]
         )
 
         logger.info(
             "capacity_forecast.data_fetched",
             metrics_count=len(metrics_history),
-            jobs_count=len(job_history)
+            jobs_count=len(job_history),
         )
 
-        return {
-            **state,
-            "metrics_history": metrics_history,
-            "job_history": job_history
-        }
+        return {**state, "metrics_history": metrics_history, "job_history": job_history}
 
     except Exception as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("capacity_forecast.fetch_failed", error=str(e))
-        return {
-            **state,
-            "status": "failed",
-            "error": f"Failed to fetch data: {str(e)}"
-        }
+        return {**state, "status": "failed", "error": f"Failed to fetch data: {str(e)}"}
 
 
 async def analyze_trends_node(
     state: CapacityForecastState,
-    llm: Any # Typed as Any to support flexible backend (ChatLiteLLM)
+    llm: Any,  # Typed as Any to support flexible backend (ChatLiteLLM)
 ) -> CapacityForecastState:
     """
     Step 2: Detect trends.
@@ -224,43 +220,47 @@ async def analyze_trends_node(
             "cpu_trend": {"type": "none", "slope": 0},
             "memory_trend": {"type": "none", "slope": 0},
             "disk_trend": {"type": "none", "slope": 0},
-            "workload_trend": {"type": "none", "slope": 0}
+            "workload_trend": {"type": "none", "slope": 0},
         }
 
     try:
         # Convert to DataFrame
         df = pd.DataFrame(state["metrics_history"])
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df = df.sort_values('timestamp')
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.sort_values("timestamp")
 
         # Analyze CPU trend
-        cpu_trend = analyze_metric_trend(df, 'cpu_percent')
+        cpu_trend = analyze_metric_trend(df, "cpu_percent")
 
         # Analyze Memory trend
-        memory_trend = analyze_metric_trend(df, 'memory_percent')
+        memory_trend = analyze_metric_trend(df, "memory_percent")
 
         # Analyze Disk trend
-        disk_trend = analyze_metric_trend(df, 'disk_percent')
+        disk_trend = analyze_metric_trend(df, "disk_percent")
 
         # Analyze Workload trend (job counts per day)
         workload_df = pd.DataFrame(state["job_history"])
         if not workload_df.empty:
-            workload_df['date'] = pd.to_datetime(workload_df['start_time']).dt.date
-            daily_jobs = workload_df.groupby('date').size().reset_index(name='job_count')
+            workload_df["date"] = pd.to_datetime(workload_df["start_time"]).dt.date
+            daily_jobs = (
+                workload_df.groupby("date").size().reset_index(name="job_count")
+            )
             workload_trend = analyze_workload_trend(daily_jobs)
         else:
             workload_trend = {"type": "none", "slope": 0}
 
         # Use LLM to enrich analysis
-        llm_analysis = await llm.ainvoke([
-            SystemMessage(content="You are a capacity planning expert."),
-            HumanMessage(content=f"""
+        llm_analysis = await llm.ainvoke(
+            [
+                SystemMessage(content="You are a capacity planning expert."),
+                HumanMessage(
+                    content=f"""
                 Analyze these trends:
 
-                CPU: {cpu_trend['type']} trend, slope {cpu_trend['slope']:.2f}%/day
-                Memory: {memory_trend['type']} trend, slope {memory_trend['slope']:.2f}%/day
-                Disk: {disk_trend['type']} trend, slope {disk_trend['slope']:.2f}%/day
-                Workload: {workload_trend['type']} trend, slope {workload_trend['slope']:.2f} jobs/day
+                CPU: {cpu_trend["type"]} trend, slope {cpu_trend["slope"]:.2f}%/day
+                Memory: {memory_trend["type"]} trend, slope {memory_trend["slope"]:.2f}%/day
+                Disk: {disk_trend["type"]} trend, slope {disk_trend["slope"]:.2f}%/day
+                Workload: {workload_trend["type"]} trend, slope {workload_trend["slope"]:.2f} jobs/day
 
                 Provide insights on:
                 1. Most concerning trend
@@ -268,13 +268,17 @@ async def analyze_trends_node(
                 3. Business impact
 
                 Respond in JSON format.
-            """)
-        ])
+            """
+                ),
+            ]
+        )
 
         # Parse LLM response (simplified)
         insights = {
-            "most_concerning": "cpu" if cpu_trend['slope'] > max(memory_trend['slope'], disk_trend['slope']) else "memory",
-            "analysis": llm_analysis.content
+            "most_concerning": "cpu"
+            if cpu_trend["slope"] > max(memory_trend["slope"], disk_trend["slope"])
+            else "memory",
+            "analysis": llm_analysis.content,
         }
 
         return {
@@ -282,7 +286,7 @@ async def analyze_trends_node(
             "cpu_trend": {**cpu_trend, "insights": insights},
             "memory_trend": memory_trend,
             "disk_trend": disk_trend,
-            "workload_trend": workload_trend
+            "workload_trend": workload_trend,
         }
 
     except Exception as e:
@@ -332,7 +336,7 @@ def analyze_metric_trend(df: pd.DataFrame, metric: str) -> dict[str, Any]:
         "slope": slope_per_day,
         "r_squared": r_squared,
         "current_value": float(df[metric].iloc[-1]),
-        "mean_value": float(df[metric].mean())
+        "mean_value": float(df[metric].mean()),
     }
 
 
@@ -342,7 +346,7 @@ def analyze_workload_trend(df: pd.DataFrame) -> dict[str, Any]:
         return {"type": "none", "slope": 0}
 
     X = np.arange(len(df)).reshape(-1, 1)
-    y = df['job_count'].values
+    y = df["job_count"].values
 
     coeffs = np.polyfit(X.flatten(), y, 1)
     slope_per_day = coeffs[0]
@@ -356,15 +360,12 @@ def analyze_workload_trend(df: pd.DataFrame) -> dict[str, Any]:
     return {
         "type": trend_type,
         "slope": slope_per_day,
-        "current_value": int(df['job_count'].iloc[-1]),
-        "mean_value": float(df['job_count'].mean())
+        "current_value": int(df["job_count"].iloc[-1]),
+        "mean_value": float(df["job_count"].mean()),
     }
 
 
-def forecast_node(
-    state: CapacityForecastState,
-    llm: Any
-) -> CapacityForecastState:
+def forecast_node(state: CapacityForecastState, llm: Any) -> CapacityForecastState:
     """
     Step 3: Forecast 3 months ahead.
 
@@ -373,31 +374,20 @@ def forecast_node(
     - Exponential smoothing
     - LLM para ajustes (seasonal, events)
     """
-    logger.info(
-        "capacity_forecast.forecast",
-        forecast_days=state["forecast_days"]
-    )
+    logger.info("capacity_forecast.forecast", forecast_days=state["forecast_days"])
 
     try:
         # Generate forecasts
-        cpu_forecast = generate_forecast(
-            state["cpu_trend"],
-            state["forecast_days"]
-        )
+        cpu_forecast = generate_forecast(state["cpu_trend"], state["forecast_days"])
 
         memory_forecast = generate_forecast(
-            state["memory_trend"],
-            state["forecast_days"]
+            state["memory_trend"], state["forecast_days"]
         )
 
-        disk_forecast = generate_forecast(
-            state["disk_trend"],
-            state["forecast_days"]
-        )
+        disk_forecast = generate_forecast(state["disk_trend"], state["forecast_days"])
 
         workload_forecast = generate_forecast(
-            state["workload_trend"],
-            state["forecast_days"]
+            state["workload_trend"], state["forecast_days"]
         )
 
         return {
@@ -405,7 +395,7 @@ def forecast_node(
             "cpu_forecast": cpu_forecast,
             "memory_forecast": memory_forecast,
             "disk_forecast": disk_forecast,
-            "workload_forecast": workload_forecast
+            "workload_forecast": workload_forecast,
         }
 
     except Exception as e:
@@ -428,18 +418,20 @@ def generate_forecast(trend: dict[str, Any], days: int) -> list[dict[str, Any]]:
         if "percent" in str(trend):
             predicted_value = max(0, min(100, predicted_value))
 
-        forecast.append({
-            "day": day,
-            "date": (datetime.now(timezone.utc) + timedelta(days=day)).date().isoformat(),
-            "value": round(predicted_value, 2)
-        })
+        forecast.append(
+            {
+                "day": day,
+                "date": (datetime.now(timezone.utc) + timedelta(days=day))
+                .date()
+                .isoformat(),
+                "value": round(predicted_value, 2),
+            }
+        )
 
     return forecast
 
 
-def analyze_saturation_node(
-    state: CapacityForecastState
-) -> CapacityForecastState:
+def analyze_saturation_node(state: CapacityForecastState) -> CapacityForecastState:
     """
     Step 4: Identify saturation points.
 
@@ -448,28 +440,22 @@ def analyze_saturation_node(
     logger.info("capacity_forecast.analyze_saturation")
 
     # CPU saturation
-    cpu_saturation = find_saturation_date(
-        state["cpu_forecast"],
-        threshold=95
-    )
+    cpu_saturation = find_saturation_date(state["cpu_forecast"], threshold=95)
 
     # Memory saturation
-    memory_saturation = find_saturation_date(
-        state["memory_forecast"],
-        threshold=95
-    )
+    memory_saturation = find_saturation_date(state["memory_forecast"], threshold=95)
 
     # Disk saturation
     disk_saturation = find_saturation_date(
         state["disk_forecast"],
-        threshold=90  # Lower threshold for disk
+        threshold=90,  # Lower threshold for disk
     )
 
     # Calculate confidence based on R²
     confidence = min(
         state["cpu_trend"].get("r_squared", 0),
         state["memory_trend"].get("r_squared", 0),
-        state["disk_trend"].get("r_squared", 0)
+        state["disk_trend"].get("r_squared", 0),
     )
 
     return {
@@ -477,11 +463,13 @@ def analyze_saturation_node(
         "cpu_saturation_date": cpu_saturation,
         "memory_saturation_date": memory_saturation,
         "disk_saturation_date": disk_saturation,
-        "saturation_confidence": confidence
+        "saturation_confidence": confidence,
     }
 
 
-def find_saturation_date(forecast: list[dict[str, Any]], threshold: float) -> datetime | None:
+def find_saturation_date(
+    forecast: list[dict[str, Any]], threshold: float
+) -> datetime | None:
     """Find when metric will exceed threshold."""
     for item in forecast:
         if item["value"] >= threshold:
@@ -490,10 +478,7 @@ def find_saturation_date(forecast: list[dict[str, Any]], threshold: float) -> da
     return None
 
 
-def recommend_node(
-    state: CapacityForecastState,
-    llm: Any
-) -> CapacityForecastState:
+def recommend_node(state: CapacityForecastState, llm: Any) -> CapacityForecastState:
     """
     Step 5: Generate recommendations.
 
@@ -513,25 +498,29 @@ def recommend_node(
     if state["cpu_saturation_date"]:
         days_until = (state["cpu_saturation_date"] - datetime.now(timezone.utc)).days
 
-        recommendations.append({
-            "priority": "high" if days_until < 30 else "medium",
-            "resource": "cpu",
-            "action": "scale_up",
-            "reason": f"CPU will saturate in {days_until} days",
-            "options": [
-                "Upgrade to 16 cores (from 8)",
-                "Optimize job scheduling",
-                "Redistribute heavy jobs"
-            ]
-        })
+        recommendations.append(
+            {
+                "priority": "high" if days_until < 30 else "medium",
+                "resource": "cpu",
+                "action": "scale_up",
+                "reason": f"CPU will saturate in {days_until} days",
+                "options": [
+                    "Upgrade to 16 cores (from 8)",
+                    "Optimize job scheduling",
+                    "Redistribute heavy jobs",
+                ],
+            }
+        )
 
-        scaling_options.append({
-            "resource": "cpu",
-            "current": "8 cores",
-            "recommended": "16 cores",
-            "cost_monthly": 500,
-            "timeline": f"{days_until} days"
-        })
+        scaling_options.append(
+            {
+                "resource": "cpu",
+                "current": "8 cores",
+                "recommended": "16 cores",
+                "cost_monthly": 500,
+                "timeline": f"{days_until} days",
+            }
+        )
 
         estimated_costs["cpu_upgrade"] = 500
 
@@ -539,25 +528,29 @@ def recommend_node(
     if state["memory_saturation_date"]:
         days_until = (state["memory_saturation_date"] - datetime.now(timezone.utc)).days
 
-        recommendations.append({
-            "priority": "high" if days_until < 30 else "medium",
-            "resource": "memory",
-            "action": "scale_up",
-            "reason": f"Memory will saturate in {days_until} days",
-            "options": [
-                "Increase to 64GB (from 32GB)",
-                "Implement memory limits per job",
-                "Review memory leaks"
-            ]
-        })
+        recommendations.append(
+            {
+                "priority": "high" if days_until < 30 else "medium",
+                "resource": "memory",
+                "action": "scale_up",
+                "reason": f"Memory will saturate in {days_until} days",
+                "options": [
+                    "Increase to 64GB (from 32GB)",
+                    "Implement memory limits per job",
+                    "Review memory leaks",
+                ],
+            }
+        )
 
-        scaling_options.append({
-            "resource": "memory",
-            "current": "32GB",
-            "recommended": "64GB",
-            "cost_monthly": 300,
-            "timeline": f"{days_until} days"
-        })
+        scaling_options.append(
+            {
+                "resource": "memory",
+                "current": "32GB",
+                "recommended": "64GB",
+                "cost_monthly": 300,
+                "timeline": f"{days_until} days",
+            }
+        )
 
         estimated_costs["memory_upgrade"] = 300
 
@@ -565,25 +558,29 @@ def recommend_node(
     if state["disk_saturation_date"]:
         days_until = (state["disk_saturation_date"] - datetime.now(timezone.utc)).days
 
-        recommendations.append({
-            "priority": "critical" if days_until < 14 else "high",
-            "resource": "disk",
-            "action": "expand_storage",
-            "reason": f"Disk will saturate in {days_until} days",
-            "options": [
-                "Add 500GB storage",
-                "Archive logs older than 90 days",
-                "Implement data lifecycle policy"
-            ]
-        })
+        recommendations.append(
+            {
+                "priority": "critical" if days_until < 14 else "high",
+                "resource": "disk",
+                "action": "expand_storage",
+                "reason": f"Disk will saturate in {days_until} days",
+                "options": [
+                    "Add 500GB storage",
+                    "Archive logs older than 90 days",
+                    "Implement data lifecycle policy",
+                ],
+            }
+        )
 
-        scaling_options.append({
-            "resource": "disk",
-            "current": "500GB",
-            "recommended": "1TB",
-            "cost_monthly": 200,
-            "timeline": f"{days_until} days"
-        })
+        scaling_options.append(
+            {
+                "resource": "disk",
+                "current": "500GB",
+                "recommended": "1TB",
+                "cost_monthly": 200,
+                "timeline": f"{days_until} days",
+            }
+        )
 
         estimated_costs["disk_expansion"] = 200
 
@@ -591,13 +588,11 @@ def recommend_node(
         **state,
         "recommendations": recommendations,
         "scaling_options": scaling_options,
-        "estimated_costs": estimated_costs
+        "estimated_costs": estimated_costs,
     }
 
 
-def generate_report_node(
-    state: CapacityForecastState
-) -> CapacityForecastState:
+def generate_report_node(state: CapacityForecastState) -> CapacityForecastState:
     """
     Step 6: Generate report + visualizations.
 
@@ -614,7 +609,7 @@ def generate_report_node(
     visualizations = [
         f"/tmp/cpu_forecast_{state['workflow_id']}.png",
         f"/tmp/memory_forecast_{state['workflow_id']}.png",
-        f"/tmp/disk_forecast_{state['workflow_id']}.png"
+        f"/tmp/disk_forecast_{state['workflow_id']}.png",
     ]
 
     return {
@@ -622,7 +617,7 @@ def generate_report_node(
         "report_path": report_path,
         "visualizations": visualizations,
         "status": "completed",
-        "completed_at": datetime.now(timezone.utc)
+        "completed_at": datetime.now(timezone.utc),
     }
 
 
@@ -630,10 +625,9 @@ def generate_report_node(
 # WORKFLOW GRAPH
 # ============================================================================
 
+
 def create_capacity_forecast_workflow(
-    llm: Any,
-    db: AsyncSession,
-    checkpointer: Any
+    llm: Any, db: AsyncSession, checkpointer: Any
 ) -> StateGraph:
     """Create Capacity Forecasting workflow graph."""
 
@@ -663,16 +657,17 @@ def create_capacity_forecast_workflow(
 # RUNNER
 # ============================================================================
 
+
 async def run_capacity_forecast(
-    workstation: str | None = None,
-    lookback_days: int = 30,
-    forecast_days: int = 90
+    workstation: str | None = None, lookback_days: int = 30, forecast_days: int = 90
 ) -> dict[str, Any]:
     """Run Capacity Forecasting workflow."""
 
     from resync.settings import settings
-    
-    model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
+
+    model_name = getattr(settings, "agent_model_name", None) or getattr(
+        settings, "llm_model", "gpt-4o"
+    )
     llm = LLMFactory.get_langchain_llm(model=model_name)
 
     # Create checkpointer first (outside the db session)
@@ -684,20 +679,22 @@ async def run_capacity_forecast(
         except Exception as e:
             logger.warning("postgres_checkpointer_failed_using_memory", error=str(e))
             from langgraph.checkpoint.memory import MemorySaver
+
             checkpointer = MemorySaver()
     else:
         from langgraph.checkpoint.memory import MemorySaver
+
         checkpointer = MemorySaver()
 
     # Then use db for the workflow
     async with get_async_session() as db:
         workflow = create_capacity_forecast_workflow(
-            llm=llm,
-            db=db,
-            checkpointer=checkpointer
+            llm=llm, db=db, checkpointer=checkpointer
         )
 
-        workflow_id = f"cf_{workstation or 'all'}_{datetime.now(timezone.utc).timestamp()}"
+        workflow_id = (
+            f"cf_{workstation or 'all'}_{datetime.now(timezone.utc).timestamp()}"
+        )
 
         initial_state: CapacityForecastState = {
             "workstation": workstation,
@@ -726,7 +723,7 @@ async def run_capacity_forecast(
             "started_at": datetime.now(timezone.utc),
             "completed_at": None,
             "status": "running",
-            "error": None
+            "error": None,
         }
 
         config = {"configurable": {"thread_id": workflow_id}}
@@ -736,7 +733,7 @@ async def run_capacity_forecast(
         logger.info(
             "capacity_forecast.completed",
             workflow_id=workflow_id,
-            status=result["status"]
+            status=result["status"],
         )
 
         return result

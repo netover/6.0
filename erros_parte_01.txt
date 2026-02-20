@@ -1,0 +1,1109 @@
+RELATÓRIO DE ANÁLISE DO CÓDIGO
+==================================================
+
+
+=== 1. RUFF (Linting & Bugs) === [AGRUPADO POR FICHEIRO/ERRO]
+
+--> resync\core\__init__.py:21:1
+--> resync\core\cache\semantic_cache.py:846:13
+--> resync\knowledge\retrieval\hybrid_retriever.py:111:20
+--> resync\knowledge\retrieval\hybrid_retriever.py:139:13
+--> resync\knowledge\retrieval\hybrid_retriever.py:368:34
+--> resync\services\llm_service.py:66:1
+--> resync\services\llm_service.py:73:1
+--> resync\services\llm_service.py:74:1
+109 |             # Read and decompress JSON data
+110 |             json_data = f.read()
+111 |             data = json.loads(json_data.decode("utf-8"))
+112 |
+113 |         # Validate structure
+137 |         )
+138 |         return index
+139 |     except (json.JSONDecodeError, ValueError, OSError) as e:
+140 |         raise ValueError(f"Failed to load secure index: {e}") from e
+19 |   MAX_GLOBAL_EVENTS = 100
+20 |   VALIDATION_CACHE_TTL = 60
+21 | / from resync.core.exceptions import (
+22 | |     AgentExecutionError,
+23 | |     AuditError,
+24 | |     AuthenticationError,
+25 | |     BaseAppException,
+26 | |     DatabaseError,
+27 | |     InvalidConfigError,
+28 | |     LLMError,
+29 | |     PoolExhaustedError,
+30 | |     RedisConnectionError,
+31 | |     ToolProcessingError,
+32 | | )
+33 |
+34 |   logger = logging.getLogger(__name__)
+366 |                         "doc_freq": dict(self.doc_freq),
+367 |                     }
+368 |                     json_bytes = json.dumps(index_data, ensure_ascii=False).encode(
+369 |                         "utf-8"
+370 |                     )
+66 | / from resync.core.resilience import (
+67 | |     CircuitBreaker,
+68 | |     CircuitBreakerConfig,
+69 | |     RetryConfig,
+70 | |     RetryWithBackoff,
+71 |     TimeoutManager,
+71 | |     TimeoutManager,
+72 | )
+72 | )
+72 | | )
+73 |   from resync.core.utils.prompt_formatter import OpinionBasedPromptFormatter
+73 | from resync.core.utils.prompt_formatter import OpinionBasedPromptFormatter
+73 | from resync.core.utils.prompt_formatter import OpinionBasedPromptFormatter
+74 |   from resync.settings import settings
+74 | from resync.settings import settings
+74 | from resync.settings import settings
+75 |
+76 | try:
+845 |             # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+846 |             cache_key_text = self._build_cache_key(query_text, user_id)
+847 |
+848 |             # Use the existing set() method with metadata to mark as intent cache
+==================================================
+E402 Module level import not at top of file
+E402 Module level import not at top of file
+E402 Module level import not at top of file
+E402 Module level import not at top of file
+F821 Undefined name `json`
+F821 Undefined name `json`
+F821 Undefined name `json`
+F841 Local variable `cache_key_text` is assigned to but never used
+Found 8 errors.
+No fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).
+help: Remove assignment to unused variable `cache_key_text`
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|                                  ^^^^
+|                    ^^^^
+|             ^^^^
+|             ^^^^^^^^^^^^^^
+| ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+| ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+| |_^
+| |_^
+
+
+=== 2. MYPY (Typing) === [AGRUPADO POR FICHEIRO/ERRO]
+
+==================================================
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "debug" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "debug" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "debug" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "debug" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "debug" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "error" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "error" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "error" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "error" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "error" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "info" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "info" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "info" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "info" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "warning" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "warning" of "Logger" defined here
+C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\site-packages\mypy\typeshed\stdlib\logging\__init__.pyi: note: "warning" of "Logger" defined here
+Found 1513 errors in 238 files (checked 531 source files)
+resync\api\auth\service.py:105: error: "UserRepository" has no attribute "get_by_username"  [attr-defined]
+resync\api\auth\service.py:113: error: "UserRepository" has no attribute "create"  [attr-defined]
+resync\api\auth\service.py:137: error: "UserRepository" has no attribute "get_by_username"  [attr-defined]
+resync\api\auth\service.py:155: error: "UserRepository" has no attribute "update"  [attr-defined]
+resync\api\auth\service.py:246: error: "UserRepository" has no attribute "get_by_id"; maybe "get_user_by_id"?  [attr-defined]
+resync\api\auth\service.py:280: error: "UserRepository" has no attribute "update"  [attr-defined]
+resync\api\auth\service.py:296: error: "UserRepository" has no attribute "delete"  [attr-defined]
+resync\api\auth\service.py:309: error: "UserRepository" has no attribute "list_all"  [attr-defined]
+resync\api\auth\service.py:336: error: "UserRepository" has no attribute "get_by_id"; maybe "get_user_by_id"?  [attr-defined]
+resync\api\auth\service.py:343: error: "UserRepository" has no attribute "update"  [attr-defined]
+resync\api\auth\service.py:358: error: "UserRepository" has no attribute "get_by_id"; maybe "get_user_by_id"?  [attr-defined]
+resync\api\auth\service.py:365: error: "UserRepository" has no attribute "update"  [attr-defined]
+resync\api\auth\service.py:66: error: Library stubs not installed for "passlib.context"  [import-untyped]
+resync\api\auth\service.py:66: note: (or run "mypy --install-types" to install all missing stub packages)
+resync\api\auth\service.py:66: note: Hint: "python3 -m pip install types-passlib"
+resync\api\auth\service.py:66: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+resync\api\core\security.py:21: error: Incompatible types in assignment (expression has type "bytes", variable has type "str")  [assignment]
+resync\api\core\security.py:22: error: Argument 2 to "checkpw" has incompatible type "str"; expected "bytes"  [arg-type]
+resync\api\core\security.py:57: error: Item "None" of "SecretStr | None" has no attribute "get_secret_value"  [union-attr]
+resync\api\core\security.py:71: error: Item "None" of "SecretStr | None" has no attribute "get_secret_value"  [union-attr]
+resync\api\core\security.py:7: error: Library stubs not installed for "jose"  [import-untyped]
+resync\api\core\security.py:7: note: Hint: "python3 -m pip install types-python-jose"
+resync\api\dependencies_v2.py:128: error: "initialize" of "TWSStore" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\graphrag_admin.py:270: error: Need type annotation for "graphrag_config" (hint: "graphrag_config: dict[<type>, <type>] = ...")  [var-annotated]
+resync\api\graphrag_admin.py:343: error: Value of type "Coroutine[Any, Any, None]" must be used  [unused-coroutine]
+resync\api\graphrag_admin.py:343: note: Are you missing an await?
+resync\api\middleware\__init__.py:24: error: Cannot assign to a type  [misc]
+resync\api\middleware\__init__.py:24: note: Error code "misc" not covered by "type: ignore" comment
+resync\api\middleware\__init__.py:25: error: Cannot assign to a type  [misc]
+resync\api\middleware\__init__.py:25: note: Error code "misc" not covered by "type: ignore" comment
+resync\api\middleware\correlation_id.py:139: error: Argument 3 has incompatible type "Callable[[dict[Any, Any]], Coroutine[Any, Any, None]]"; expected "Callable[[MutableMapping[str, Any]], Awaitable[None]]"  [arg-type]
+resync\api\middleware\correlation_id.py:31: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+resync\api\middleware\correlation_id.py:48: error: Cannot find implementation or library stub for module named "langfuse.decorators"  [import-not-found]
+resync\api\middleware\cors_monitoring.py:200: error: Incompatible default for argument "allowed_origins" (default has type "None", argument has type "list[str]")  [assignment]
+resync\api\middleware\cors_monitoring.py:200: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\middleware\cors_monitoring.py:200: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\middleware\csp_middleware.py:100: error: Incompatible types in assignment (expression has type "_SettingsProxy", variable has type "None")  [assignment]
+resync\api\middleware\csp_middleware.py:225: error: Incompatible return value type (got "BaseHTTPMiddleware", expected "CSPMiddleware")  [return-value]
+resync\api\middleware\csrf_protection.py:50: error: Item "None" of "Address | None" has no attribute "host"  [union-attr]
+resync\api\middleware\database_security_middleware.py:159: error: "Request" has no attribute "_body_cache"  [attr-defined]
+resync\api\middleware\database_security_middleware.py:168: error: "Request" has no attribute "_body_cache"  [attr-defined]
+resync\api\middleware\database_security_middleware.py:169: error: Incompatible types in assignment (expression has type "UploadFile | str", variable has type "str")  [assignment]
+resync\api\middleware\database_security_middleware.py:194: error: Incompatible default for argument "error" (default has type "None", argument has type "str")  [assignment]
+resync\api\middleware\database_security_middleware.py:194: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\middleware\database_security_middleware.py:194: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\middleware\error_handler.py:71: error: "RuntimeMetricsCollector" has no attribute "record_error"  [attr-defined]
+resync\api\models\links.py:288: error: Unexpected keyword argument "links" for "HATEOASResponse"; did you mean "_links"?  [call-arg]
+resync\api\monitoring_dashboard.py:262: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\monitoring_dashboard.py:310: error: "RuntimeMetricsCollector" has no attribute "get_snapshot"  [attr-defined]
+resync\api\monitoring_dashboard.py:408: error: Argument 1 to "_format_metrics_dict" of "DashboardMetricsStore" has incompatible type "dict[Any, Any] | list[Any]"; expected "dict[Any, Any]"  [arg-type]
+resync\api\monitoring_dashboard.py:428: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:431: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:433: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:437: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:442: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:445: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:449: error: Item "list[Any]" of "dict[Any, Any] | list[Any]" has no attribute "get"  [union-attr]
+resync\api\monitoring_dashboard.py:513: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\monitoring_dashboard.py:515: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\monitoring_dashboard.py:584: error: Argument 1 to "_local_broadcast" of "WebSocketManager" has incompatible type "str | Any | None"; expected "str"  [arg-type]
+resync\api\monitoring_dashboard.py:730: error: "RuntimeMetricsCollector" has no attribute "get_snapshot"  [attr-defined]
+resync\api\responses.py:166: error: Incompatible return value type (got "type[MsgSpecJSONResponse]", expected "type[JSONResponse]")  [return-value]
+resync\api\responses.py:33: error: Cannot find implementation or library stub for module named "msgspec"  [import-not-found]
+resync\api\routes\admin\config.py:366: error: Dict entry 0 has incompatible type "str": "list[str]"; expected "str": "str"  [dict-item]
+resync\api\routes\admin\config.py:366: error: Dict entry 1 has incompatible type "str": "int"; expected "str": "str"  [dict-item]
+resync\api\routes\admin\environment.py:463: error: Need type annotation for "categories" (hint: "categories: dict[<type>, <type>] = ...")  [var-annotated]
+resync\api\routes\admin\environment.py:791: error: Value of type "Coroutine[Any, Any, int]" must be used  [unused-coroutine]
+resync\api\routes\admin\environment.py:791: note: Are you missing an await?
+resync\api\routes\admin\rag_stats.py:75: error: Module "resync.core.metrics" has no attribute "get_runtime_metrics"; maybe "runtime_metrics"?  [attr-defined]
+resync\api\routes\admin\semantic_cache.py:211: error: "update_threshold" of "SemanticCache" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\admin\settings_manager.py:1247: error: Value of type "Collection[str]" is not indexable  [index]
+resync\api\routes\admin\settings_manager.py:1335: error: Value of type "Collection[str]" is not indexable  [index]
+resync\api\routes\admin\teams_webhook_admin.py:146: error: Incompatible types in assignment (expression has type "str", variable has type "Column[str]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:148: error: Incompatible types in assignment (expression has type "str", variable has type "Column[str]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:150: error: Incompatible types in assignment (expression has type "bool", variable has type "Column[bool]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:152: error: Incompatible types in assignment (expression has type "bool", variable has type "Column[bool]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:154: error: Incompatible types in assignment (expression has type "datetime", variable has type "Column[datetime]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:174: error: Incompatible types in assignment (expression has type "bool", variable has type "Column[bool]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:175: error: Incompatible types in assignment (expression has type "datetime", variable has type "Column[datetime]")  [assignment]
+resync\api\routes\admin\teams_webhook_admin.py:240: error: Argument 2 to "filter" of "Query" has incompatible type "bool"; expected "ColumnElement[bool] | _HasClauseElement[bool] | SQLCoreOperations[bool] | ExpressionElementRole[bool] | TypedColumnsClauseRole[bool] | Callable[[], ColumnElement[bool]] | LambdaElement"  [arg-type]
+resync\api\routes\admin\v2.py:162: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\routes\admin\v2.py:358: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\routes\admin\v2.py:423: error: Incompatible types in assignment (expression has type "CircuitBreaker", variable has type "CircuitBreakers")  [assignment]
+resync\api\routes\admin\v2.py:429: error: "CircuitBreakers" has no attribute "_failure_count"  [attr-defined]
+resync\api\routes\admin\v2.py:430: error: "CircuitBreakers" has no attribute "_state"  [attr-defined]
+resync\api\routes\agents\agents.py:250: error: Missing named argument "approval_status" for "ExecutionTrace"  [call-arg]
+resync\api\routes\agents\agents.py:250: error: Missing named argument "approved_by" for "ExecutionTrace"  [call-arg]
+resync\api\routes\agents\agents.py:250: error: Missing named argument "error" for "ExecutionTrace"  [call-arg]
+resync\api\routes\agents\agents.py:250: error: Missing named argument "required_approval" for "ExecutionTrace"  [call-arg]
+resync\api\routes\agents\agents.py:250: error: Missing named argument "user_id" for "ExecutionTrace"  [call-arg]
+resync\api\routes\agents\agents.py:276: error: Missing named argument "pending_action" for "AgentExecuteResponse"  [call-arg]
+resync\api\routes\agents\agents.py:447: error: Missing named argument "error" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:447: error: Missing named argument "trace_id" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:456: error: Missing named argument "result" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:494: error: "ToolCatalog" has no attribute "get_pending_approvals"  [attr-defined]
+resync\api\routes\agents\agents.py:515: error: Missing named argument "expires_at" for "PendingApproval"  [call-arg]
+resync\api\routes\agents\agents.py:565: error: "ToolCatalog" has no attribute "approve_execution"  [attr-defined]
+resync\api\routes\agents\agents.py:581: error: Missing named argument "duration_ms" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:581: error: Missing named argument "error" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:588: error: Missing named argument "duration_ms" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:588: error: Missing named argument "result" for "ToolResult"  [call-arg]
+resync\api\routes\agents\agents.py:613: error: "ToolCatalog" has no attribute "reject_execution"; maybe "record_execution"?  [attr-defined]
+resync\api\routes\agents\agents.py:628: error: Missing named argument "approved_at" for "ApprovalResponse"  [call-arg]
+resync\api\routes\agents\agents.py:628: error: Missing named argument "execution_result" for "ApprovalResponse"  [call-arg]
+resync\api\routes\agents\agents.py:681: error: Unexpected keyword argument "tws_instance_id" for "diagnose_problem"  [call-arg]
+resync\api\routes\agents\agents.py:689: error: Missing named argument "approval_id" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:689: error: Missing named argument "iterations" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:689: error: Missing named argument "requires_approval" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:716: error: Missing named argument "session_id" for "DiagnosticResponse"  [call-arg]
+resync\api\routes\agents\agents.py:716: error: Missing named argument "trace" for "DiagnosticResponse"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "approval_id" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "iterations" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "processing_time_ms" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "proposed_solution" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "requires_action" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "requires_approval" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "risk_level" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "root_cause" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:725: error: Missing named argument "root_cause_confidence" for "DiagnosticResult"  [call-arg]
+resync\api\routes\agents\agents.py:731: error: Missing named argument "session_id" for "DiagnosticResponse"  [call-arg]
+resync\api\routes\agents\agents.py:731: error: Missing named argument "trace" for "DiagnosticResponse"  [call-arg]
+resync\api\routes\agents\agents.py:787: error: "ToolExecutionTrace" has no attribute "to_dict"  [attr-defined]
+resync\api\routes\agents\agents.py:827: error: "ToolRun" has no attribute "to_dict"  [attr-defined]
+resync\api\routes\agents\agents.py:854: error: "ToolCatalog" has no attribute "cancel_run"  [attr-defined]
+resync\api\routes\agents\agents.py:902: error: "ToolCatalog" has no attribute "get_undoable_operations"  [attr-defined]
+resync\api\routes\agents\agents.py:950: error: "ToolCatalog" has no attribute "undo_operation"  [attr-defined]
+resync\api\routes\audit.py:265: error: "add_observations" of "IKnowledgeGraph" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\audit.py:305: error: "delete_memory" of "IKnowledgeGraph" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\audit.py:541: error: Argument "response_data" to "cache_response" of "IdempotencyManager" has incompatible type "dict[str, Any] | AuditRecordResponse"; expected "dict[str, Any]"  [arg-type]
+resync\api\routes\audit.py:558: error: Incompatible default for argument "details" (default has type "None", argument has type "dict[Any, Any]")  [assignment]
+resync\api\routes\audit.py:558: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\routes\audit.py:558: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\routes\audit.py:565: error: Incompatible default for argument "details" (default has type "None", argument has type "dict[Any, Any]")  [assignment]
+resync\api\routes\audit.py:565: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\routes\audit.py:565: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\routes\audit.py:570: error: Missing named argument "correlation_id" for "AuditRecordResponse"  [call-arg]
+resync\api\routes\audit.py:570: error: Missing named argument "ip_address" for "AuditRecordResponse"  [call-arg]
+resync\api\routes\audit.py:570: error: Missing named argument "user_agent" for "AuditRecordResponse"  [call-arg]
+resync\api\routes\cache.py:404: error: "invalidate_system_cache" of "ITWSClient" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\cache.py:414: error: "invalidate_all_jobs" of "ITWSClient" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\cache.py:424: error: "invalidate_all_workstations" of "ITWSClient" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\core\auth.py:160: error: Incompatible return value type (got "bool", expected "tuple[bool, str | None]")  [return-value]
+resync\api\routes\core\auth.py:399: error: Incompatible types in assignment (expression has type "Any | None", variable has type "str")  [assignment]
+resync\api\routes\core\chat.py:302: error: Argument "timestamp" to "ChatMessageResponse" has incompatible type "str"; expected "datetime"  [arg-type]
+resync\api\routes\core\chat.py:355: error: Argument "timestamp" to "ChatMessageResponse" has incompatible type "str"; expected "datetime"  [arg-type]
+resync\api\routes\core\chat.py:431: error: "ConversationMemory" has no attribute "get_session"; maybe "delete_session" or "save_session"?  [attr-defined]
+resync\api\routes\core\chat.py:470: error: "ConversationMemory" has no attribute "clear_session"  [attr-defined]
+resync\api\routes\core\chat.py:477: error: "None" has no attribute "debug"  [attr-defined]
+resync\api\routes\core\health.py:135: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\api\routes\core\health.py:198: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\api\routes\core\health.py:222: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\api\routes\core\health.py:269: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\api\routes\core\health.py:282: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\api\routes\core\health.py:293: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\api\routes\core\health.py:297: error: Argument "alerts" to "DetailedHealthResponse" has incompatible type "list[dict[str, Any]]"; expected "list[str]"  [arg-type]
+resync\api\routes\core\health.py:455: error: "UnifiedHealthService" has no attribute "attempt_recovery"  [attr-defined]
+resync\api\routes\core\status.py:16: error: Need type annotation for "_status_store"  [var-annotated]
+resync\api\routes\core\status.py:184: error: Dict entry 1 has incompatible type "str": "dict[Any, Any]"; expected "str": "str | None"  [dict-item]
+resync\api\routes\core\status.py:25: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\api\routes\core\status.py:25: note: Hint: "python3 -m pip install types-psutil"
+resync\api\routes\enterprise\enterprise.py:115: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\api\routes\monitoring\admin_monitoring.py:18: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\api\routes\monitoring\ai_monitoring.py:775: error: Argument "config" to "create_specialist_team" has incompatible type "TeamConfig"; expected "SpecialistConfig | None"  [arg-type]
+resync\api\routes\monitoring\ai_monitoring.py:775: error: Incompatible types in "await" (actual type "TWSSpecialistTeam", expected type "Awaitable[Any]")  [misc]
+resync\api\routes\monitoring\dashboard.py:454: error: Module "resync.core.metrics" has no attribute "get_runtime_metrics"; maybe "runtime_metrics"?  [attr-defined]
+resync\api\routes\monitoring\metrics.py:115: error: "initialize" of "LightweightMetricsStore" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\monitoring\metrics.py:118: error: "LightweightMetricsStore" has no attribute "get_summary"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:124: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:135: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:146: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:157: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:15: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\api\routes\monitoring\metrics.py:171: error: "LightweightMetricsStore" has no attribute "get_gauge"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:186: error: "LightweightMetricsStore" has no attribute "get_counter"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:187: error: "LightweightMetricsStore" has no attribute "get_counter"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:205: error: "LightweightMetricsStore" has no attribute "get_counter"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:206: error: "LightweightMetricsStore" has no attribute "get_counter"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:270: error: "initialize" of "LightweightMetricsStore" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\monitoring\metrics.py:272: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:468: error: "initialize" of "LightweightMetricsStore" does not return a value (it only ever returns None)  [func-returns-value]
+resync\api\routes\monitoring\metrics.py:471: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:477: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics.py:483: error: "LightweightMetricsStore" has no attribute "get_aggregated"  [attr-defined]
+resync\api\routes\monitoring\metrics_dashboard.py:188: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\routes\monitoring\metrics_dashboard.py:189: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\routes\monitoring\metrics_dashboard.py:273: error: "RuntimeMetricsCollector" has no attribute "get_snapshot"  [attr-defined]
+resync\api\routes\monitoring\metrics_dashboard.py:32: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\api\routes\monitoring\metrics_dashboard.py:388: error: "RuntimeMetricsCollector" has no attribute "get_snapshot"  [attr-defined]
+resync\api\routes\monitoring\metrics_dashboard.py:430: error: "RuntimeMetricsCollector" has no attribute "get_snapshot"  [attr-defined]
+resync\api\routes\monitoring\metrics_dashboard.py:505: error: Need type annotation for "queries_by_priority"  [var-annotated]
+resync\api\routes\monitoring\metrics_dashboard.py:506: error: Need type annotation for "queries_by_category" (hint: "queries_by_category: dict[<type>, <type>] = ...")  [var-annotated]
+resync\api\routes\monitoring\metrics_dashboard.py:545: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:547: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:549: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:551: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:556: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:560: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:562: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:564: error: Unsupported target for indexed assignment ("Collection[str]")  [index]
+resync\api\routes\monitoring\metrics_dashboard.py:566: error: "Collection[str]" has no attribute "items"  [attr-defined]
+resync\api\routes\monitoring\metrics_dashboard.py:578: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\routes\monitoring\metrics_dashboard.py:650: error: "RuntimeMetricsCollector" has no attribute "get_snapshot"  [attr-defined]
+resync\api\routes\monitoring\routes.py:217: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:261: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:311: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:332: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:365: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:408: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:434: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\monitoring\routes.py:460: error: Module "resync.core.tws_status_store" has no attribute "get_status_store"; maybe "get_tws_status_store"?  [attr-defined]
+resync\api\routes\orchestration.py:172: error: Need type annotation for "queue"  [var-annotated]
+resync\api\routes\orchestration.py:238: error: Unexpected keyword argument "subscription_id" for "info" of "Logger"  [call-arg]
+resync\api\routes\orchestration.py:238: error: Unexpected keyword argument "trace_id" for "info" of "Logger"  [call-arg]
+resync\api\routes\performance.py:125: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:148: error: Incompatible types in "await" (actual type "PoolManager", expected type "Awaitable[Any]")  [misc]
+resync\api\routes\performance.py:151: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:172: error: Incompatible types in "await" (actual type "PoolManager", expected type "Awaitable[Any]")  [misc]
+resync\api\routes\performance.py:175: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:201: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:241: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:270: error: Incompatible types in "await" (actual type "PoolManager", expected type "Awaitable[Any]")  [misc]
+resync\api\routes\performance.py:309: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:55: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\performance.py:94: error: Incompatible return value type (got "JSONResponse", expected "dict[str, Any]")  [return-value]
+resync\api\routes\rag\query.py:147: error: Argument "upload_time" to "FileUploadResponse" has incompatible type "str"; expected "datetime"  [arg-type]
+resync\api\routes\rag\upload.py:58: error: Incompatible types in "await" (actual type "Path", expected type "Awaitable[Any]")  [misc]
+resync\api\routes\system\config.py:1080: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\api\security\models.py:3: error: Library stubs not installed for "passlib.context"  [import-untyped]
+resync\api\security\validations.py:3: error: Library stubs not installed for "passlib.context"  [import-untyped]
+resync\api\services\rag_service.py:178: error: "None" has no attribute "ingest_document"  [attr-defined]
+resync\api\services\rag_service.py:221: error: "None" has no attribute "retrieve"  [attr-defined]
+resync\api\unified_config_api.py:83: error: Incompatible default for argument "section" (default has type "None", argument has type "str")  [assignment]
+resync\api\unified_config_api.py:83: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\unified_config_api.py:83: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\utils\helpers.py:56: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\api\validation\common.py:417: error: "type" has no attribute "__iter__" (not iterable)  [attr-defined]
+resync\api\validation\common.py:419: error: "type" has no attribute "__iter__" (not iterable)  [attr-defined]
+resync\api\validation\config.py:389: error: Library stubs not installed for "toml"  [import-untyped]
+resync\api\validation\config.py:389: note: Hint: "python3 -m pip install types-toml"
+resync\api\validation\config.py:424: error: Incompatible types in assignment (expression has type "bool", variable has type "str")  [assignment]
+resync\api\validation\config.py:426: error: Incompatible types in assignment (expression has type "int", variable has type "str")  [assignment]
+resync\api\validation\config.py:428: error: Incompatible types in assignment (expression has type "float", variable has type "str")  [assignment]
+resync\api\validation\config.py:431: error: Incompatible types in assignment (expression has type "list[str]", variable has type "str")  [assignment]
+resync\api\validation\config.py:457: error: Item "None" of "ValidationConfigModel | None" has no attribute "model_dump"  [union-attr]
+resync\api\validation\enhanced_security.py:279: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:289: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:29: error: Library stubs not installed for "passlib.context"  [import-untyped]
+resync\api\validation\enhanced_security.py:302: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:318: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:342: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:351: error: Missing named argument "error_message" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:351: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:377: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:377: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:385: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:396: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:396: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:404: error: Missing named argument "error_message" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:404: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:441: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:453: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:461: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:471: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:479: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:486: error: Missing named argument "error_message" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:486: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:486: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:489: error: Incompatible default for argument "algorithms" (default has type "None", argument has type "list[str]")  [assignment]
+resync\api\validation\enhanced_security.py:489: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\validation\enhanced_security.py:489: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\validation\enhanced_security.py:534: error: Incompatible default for argument "trusted_ranges" (default has type "None", argument has type "list[str]")  [assignment]
+resync\api\validation\enhanced_security.py:534: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\api\validation\enhanced_security.py:534: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\api\validation\enhanced_security.py:554: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:554: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:572: error: Missing named argument "error_message" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:572: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:597: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:614: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:614: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:623: error: Missing named argument "sanitized_value" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:641: error: Missing named argument "error_message" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:641: error: Missing named argument "threat_detected" for "InputValidationResult"  [call-arg]
+resync\api\validation\enhanced_security.py:658: error: Invalid index type "int" for "dict[str, ThreatType | None]"; expected type "str"  [index]
+resync\api\validation\enhanced_security.py:688: error: Invalid index type "int" for "dict[str, ThreatType | None]"; expected type "str"  [index]
+resync\api\validation\middleware.py:221: error: "Request" has no attribute "files"  [attr-defined]
+resync\api\validation\middleware.py:239: error: List item 0 has incompatible type "str"; expected "InitErrorDetails"  [list-item]
+resync\api\validation\middleware.py:247: error: List item 0 has incompatible type "str"; expected "InitErrorDetails"  [list-item]
+resync\api\validation\middleware.py:270: error: Need type annotation for "converted_params" (hint: "converted_params: dict[<type>, <type>] = ...")  [var-annotated]
+resync\api\validation\middleware.py:276: error: Incompatible types in assignment (expression has type "list[Never]", target has type "str")  [assignment]
+resync\api\validation\middleware.py:277: error: "str" has no attribute "append"  [attr-defined]
+resync\api\validation\middleware.py:298: error: List item 0 has incompatible type "str"; expected "InitErrorDetails"  [list-item]
+resync\api\validation\middleware.py:507: error: Argument 1 to "loads" has incompatible type "Coroutine[Any, Any, bytes]"; expected "str | bytes | bytearray"  [arg-type]
+resync\api\validation\middleware.py:507: note: Maybe you forgot to use "await"?
+resync\api\validation\middleware.py:513: error: List item 0 has incompatible type "str"; expected "InitErrorDetails"  [list-item]
+resync\api\validation\middleware.py:535: error: Need type annotation for "converted_params" (hint: "converted_params: dict[<type>, <type>] = ...")  [var-annotated]
+resync\api\validation\middleware.py:540: error: Incompatible types in assignment (expression has type "list[Never]", target has type "str")  [assignment]
+resync\api\validation\middleware.py:541: error: "str" has no attribute "append"  [attr-defined]
+resync\api\websocket\handlers.py:150: error: Need type annotation for "all_websockets" (hint: "all_websockets: list[<type>] = ...")  [var-annotated]
+resync\api\websocket\handlers.py:192: error: Argument 1 to "normalize_trace_id" has incompatible type "str | None"; expected "str"  [arg-type]
+resync\api\websocket\handlers.py:249: error: "Coroutine[Any, Any, LLMService]" has no attribute "generate_agent_response"  [attr-defined]
+resync\api\websocket\handlers.py:249: note: Maybe you forgot to use "await"?
+resync\api\websocket\handlers.py:314: error: "Coroutine[Any, Any, LLMService]" has no attribute "generate_agent_response"  [attr-defined]
+resync\api\websocket\handlers.py:314: note: Maybe you forgot to use "await"?
+resync\api\websocket\handlers.py:44: error: Incompatible types in assignment (expression has type "dict[str, Any]", variable has type "TokenPayload | None")  [assignment]
+resync\api\websocket\handlers.py:45: error: Unsupported operand types for in ("str" and "TokenPayload")  [operator]
+resync\api\websocket\handlers.py:46: error: Value of type "TokenPayload" is not indexable  [index]
+resync\api\websocket\handlers.py:58: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\websocket\handlers.py:60: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\api\websocket\handlers.py:9: error: Cannot find implementation or library stub for module named "langfuse.decorators"  [import-not-found]
+resync\api_gateway\container.py:100: error: Accessing "__init__" on an instance is unsound, since instance.__init__ could be from an incompatible subclass  [misc]
+resync\api_gateway\services.py:124: error: Incompatible types in "await" (actual type "list[dict[str, Any]]", expected type "Awaitable[Any]")  [misc]
+resync\api_gateway\services.py:153: error: Incompatible types in "await" (actual type "list[dict[str, Any]]", expected type "Awaitable[Any]")  [misc]
+resync\api_gateway\services.py:182: error: Incompatible types in "await" (actual type "list[dict[str, Any]]", expected type "Awaitable[Any]")  [misc]
+resync\api_gateway\services.py:222: error: Incompatible types in "await" (actual type "list[dict[str, Any]]", expected type "Awaitable[Any]")  [misc]
+resync\api_gateway\services.py:297: error: Incompatible types in "await" (actual type "list[dict[str, Any]]", expected type "Awaitable[Any]")  [misc]
+resync\api_gateway\services.py:312: error: Incompatible types in "await" (actual type "str", expected type "Awaitable[Any]")  [misc]
+resync\api_gateway\services.py:331: error: Incompatible return value type (got "TWSService", expected "ITWSService")  [return-value]
+resync\api_gateway\services.py:331: note:         def get_critical_path_status(self) -> Coroutine[Any, Any, list[CriticalJob]]
+resync\api_gateway\services.py:331: note:         def get_critical_path_status(self) -> list[CriticalJob]
+resync\api_gateway\services.py:331: note:         def get_job_status_batch(self, job_ids: list[str]) -> Coroutine[Any, Any, dict[str, JobStatus | None]]
+resync\api_gateway\services.py:331: note:         def get_job_status_batch(self, job_ids: list[str]) -> dict[str, JobStatus | None]
+resync\api_gateway\services.py:331: note:     <3 more conflict(s) not shown>
+resync\api_gateway\services.py:331: note:     Expected:
+resync\api_gateway\services.py:331: note:     Expected:
+resync\api_gateway\services.py:331: note:     Got:
+resync\api_gateway\services.py:331: note:     Got:
+resync\api_gateway\services.py:331: note: Following member(s) of "TWSService" have conflicts:
+resync\api_gateway\services.py:336: error: Incompatible return value type (got "AgentService", expected "IAgentService")  [return-value]
+resync\api_gateway\services.py:336: note:         def get_all_agents(self) -> Coroutine[Any, Any, list[Any]]
+resync\api_gateway\services.py:336: note:         def get_all_agents(self) -> list[Any]
+resync\api_gateway\services.py:336: note:     Expected:
+resync\api_gateway\services.py:336: note:     Got:
+resync\api_gateway\services.py:336: note: Following member(s) of "AgentService" have conflicts:
+resync\api_gateway\services.py:341: error: Incompatible return value type (got "KnowledgeService", expected "IKnowledgeService")  [return-value]
+resync\api_gateway\services.py:341: note:         def get_relevant_context(self, user_query: str) -> Coroutine[Any, Any, str]
+resync\api_gateway\services.py:341: note:         def get_relevant_context(self, user_query: str) -> str
+resync\api_gateway\services.py:341: note:         def search_similar_issues(self, query: str, limit: int = ...) -> Coroutine[Any, Any, list[dict[str, Any]]]
+resync\api_gateway\services.py:341: note:         def search_similar_issues(self, query: str, limit: int = ...) -> list[dict[str, Any]]
+resync\api_gateway\services.py:341: note:     Expected:
+resync\api_gateway\services.py:341: note:     Expected:
+resync\api_gateway\services.py:341: note:     Got:
+resync\api_gateway\services.py:341: note:     Got:
+resync\api_gateway\services.py:341: note: Following member(s) of "KnowledgeService" have conflicts:
+resync\api_gateway\services.py:97: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\config\enhanced_security.py:254: error: Argument 1 to "add_middleware" of "Starlette" has incompatible type "type[EnhancedSecurityMiddleware]"; expected "_MiddlewareFactory[[KwArg(Any)]]"  [arg-type]
+resync\config\enhanced_security.py:254: note:         def __call__(self, Callable[[MutableMapping[str, Any], Callable[[], Awaitable[MutableMapping[str, Any]]], Callable[[MutableMapping[str, Any]], Awaitable[None]]], Awaitable[None]], /, **Any) -> Callable[[MutableMapping[str, Any], Callable[[], Awaitable[MutableMapping[str, Any]]], Callable[[MutableMapping[str, Any]], Awaitable[None]]], Awaitable[None]]
+resync\config\enhanced_security.py:254: note:         def __init__(app: FastAPI, enable_hsts: bool = ..., enable_csp: bool = ..., enable_referrer_policy: bool = ..., enable_permissions_policy: bool = ..., enable_feature_policy: bool = ..., enable_xss_protection: bool = ..., enable_content_type_options: bool = ..., enable_frame_options: bool = ..., strict_transport_security_max_age: int = ..., content_security_policy: str | None = ..., referrer_policy: str = ..., permissions_policy: str | None = ..., feature_policy: str | None = ...) -> EnhancedSecurityMiddleware
+resync\config\enhanced_security.py:254: note:     Expected:
+resync\config\enhanced_security.py:254: note:     Got:
+resync\config\enhanced_security.py:254: note: "_MiddlewareFactory[[KwArg(Any)]].__call__" has type "Callable[[Callable[[MutableMapping[str, Any], Callable[[], Awaitable[MutableMapping[str, Any]]], Callable[[MutableMapping[str, Any]], Awaitable[None]]], Awaitable[None]], KwArg(Any)], Callable[[MutableMapping[str, Any], Callable[[], Awaitable[MutableMapping[str, Any]]], Callable[[MutableMapping[str, Any]], Awaitable[None]]], Awaitable[None]]]"
+resync\config\enhanced_security.py:254: note: Following member(s) of "EnhancedSecurityMiddleware" have conflicts:
+resync\core\__init__.py:232: error: All conditional function variants must have identical signatures  [misc]
+resync\core\__init__.py:232: note:     def _get_logger_func(name: Any) -> Any
+resync\core\__init__.py:232: note:     def get_logger(name: str | None = ...) -> Any
+resync\core\__init__.py:232: note: Original:
+resync\core\__init__.py:232: note: Redefinition:
+resync\core\__init__.py:89: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\__init__.py:90: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\__init__.py:91: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\__init__.py:94: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\a2a_handler.py:33: error: Incompatible default for argument "error" (default has type "None", argument has type "str")  [assignment]
+resync\core\a2a_handler.py:33: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\a2a_handler.py:33: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\agent_evolution.py:319: error: Need type annotation for "grouped" (hint: "grouped: dict[<type>, <type>] = ...")  [var-annotated]
+resync\core\agent_evolution.py:398: error: List comprehension has incompatible type List[str | None]; expected List[str]  [misc]
+resync\core\agent_manager.py:225: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, Collection[str]]"; expected "str"  [arg-type]
+resync\core\agent_manager.py:247: error: Missing named argument "max_rpm" for "AgentConfig"  [call-arg]
+resync\core\agent_manager.py:261: error: Missing named argument "max_rpm" for "AgentConfig"  [call-arg]
+resync\core\agent_manager.py:390: error: Missing named argument "max_rpm" for "AgentConfig"  [call-arg]
+resync\core\agent_manager.py:603: error: Missing named argument "protocol_version" for "AgentCard"  [call-arg]
+resync\core\agent_manager.py:607: error: Missing named argument "max_concurrent_tasks" for "AgentCapabilities"  [call-arg]
+resync\core\agent_manager.py:607: error: Missing named argument "supports_push_notifications" for "AgentCapabilities"  [call-arg]
+resync\core\agent_manager.py:613: error: Missing named argument "event_endpoint" for "AgentContact"  [call-arg]
+resync\core\agent_manager.py:613: error: Missing named argument "protocol" for "AgentContact"  [call-arg]
+resync\core\agent_manager.py:749: error: "RoutingResult" has no attribute "handler_name"  [attr-defined]
+resync\core\agent_manager.py:750: error: "RoutingResult" has no attribute "classification"  [attr-defined]
+resync\core\agent_manager.py:751: error: "RoutingResult" has no attribute "classification"  [attr-defined]
+resync\core\agent_manager.py:791: error: "RoutingResult" has no attribute "classification"  [attr-defined]
+resync\core\agent_manager.py:792: error: "RoutingResult" has no attribute "classification"  [attr-defined]
+resync\core\agent_manager.py:793: error: "RoutingResult" has no attribute "handler_name"  [attr-defined]
+resync\core\agent_manager.py:795: error: "RoutingResult" has no attribute "classification"  [attr-defined]
+resync\core\agent_router.py:1052: error: Return type "Coroutine[Any, Any, str]" of "handle" incompatible with return type "str" in supertype "BaseHandler"  [override]
+resync\core\agent_router.py:1083: error: Unexpected keyword argument "tws_instance_id" for "diagnose_problem"  [call-arg]
+resync\core\agent_router.py:1299: error: Incompatible types in "await" (actual type "str", expected type "Awaitable[Any]")  [misc]
+resync\core\agent_router.py:578: error: Return type "Coroutine[Any, Any, str]" of "handle" incompatible with return type "str" in supertype "BaseHandler"  [override]
+resync\core\agent_router.py:690: error: Return type "Coroutine[Any, Any, str]" of "handle" incompatible with return type "str" in supertype "BaseHandler"  [override]
+resync\core\anomaly_detector.py:151: error: Need type annotation for "training_data"  [var-annotated]
+resync\core\anomaly_detector.py:175: error: "None" has no attribute "decision_function"  [attr-defined]
+resync\core\anomaly_detector.py:233: error: "None" has no attribute "fit"  [attr-defined]
+resync\core\anomaly_detector.py:235: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\anomaly_detector.py:27: error: Skipping analyzing "sklearn.ensemble": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\anomaly_detector.py:28: error: Skipping analyzing "sklearn.preprocessing": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\anomaly_detector.py:292: error: Need type annotation for "training_data"  [var-annotated]
+resync\core\anomaly_detector.py:29: error: Skipping analyzing "sklearn.svm": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\anomaly_detector.py:315: error: "None" has no attribute "decision_function"  [attr-defined]
+resync\core\anomaly_detector.py:364: error: "None" has no attribute "fit"  [attr-defined]
+resync\core\anomaly_detector.py:366: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\anomaly_detector.py:427: error: "object" has no attribute "detect"  [attr-defined]
+resync\core\anomaly_detector.py:434: error: Need type annotation for "feature_importance"  [var-annotated]
+resync\core\anomaly_detector.py:442: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\anomaly_detector.py:451: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\anomaly_detector.py:481: error: "object" has no attribute "add_training_sample"  [attr-defined]
+resync\core\anomaly_detector.py:510: error: Incompatible types in assignment (expression has type "OneClassSVMDetector", variable has type "IsolationForestDetector")  [assignment]
+resync\core\anomaly_detector.py:512: error: Incompatible types in assignment (expression has type "EnsembleAnomalyDetector", variable has type "IsolationForestDetector")  [assignment]
+resync\core\anomaly_detector.py:523: error: Need type annotation for "metrics_buffer"  [var-annotated]
+resync\core\anomaly_detector.py:524: error: Need type annotation for "anomaly_history"  [var-annotated]
+resync\core\anomaly_detector.py:609: error: Item "None" of "AnomalyMetrics | None" has no attribute "user_id"  [union-attr]
+resync\core\anomaly_detector.py:725: error: Need type annotation for "risk_distribution"  [var-annotated]
+resync\core\audit_lock.py:78: error: "Redis[Any]" has no attribute "aclose"; maybe "close"?  [attr-defined]
+resync\core\auto_recovery.py:112: error: "PoolManager" has no attribute "pools"  [attr-defined]
+resync\core\auto_recovery.py:147: error: "CircuitBreaker" has no attribute "get_enhanced_stats"  [attr-defined]
+resync\core\auto_recovery.py:285: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\core\auto_recovery.py:348: error: Incompatible return value type (got "None", expected "dict[str, Any]")  [return-value]
+resync\core\auto_recovery.py:366: error: Incompatible return value type (got "None", expected "dict[str, Any]")  [return-value]
+resync\core\auto_recovery.py:384: error: Incompatible return value type (got "None", expected "dict[str, Any]")  [return-value]
+resync\core\auto_recovery.py:92: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\core\backup\backup_service.py:138: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\backup\backup_service.py:197: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\backup\backup_service.py:198: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\backup\backup_service.py:201: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\backup\backup_service.py:366: error: Argument "stdin" to "create_subprocess_exec" has incompatible type "StreamReader | None"; expected "int | IO[Any] | None"  [arg-type]
+resync\core\backup\backup_service.py:367: error: Argument "stdout" to "create_subprocess_exec" has incompatible type "AsyncBufferedIOBase"; expected "int | IO[Any] | None"  [arg-type]
+resync\core\backup\backup_service.py:383: error: Argument "stdout" to "create_subprocess_exec" has incompatible type "AsyncTextIOWrapper"; expected "int | IO[Any] | None"  [arg-type]
+resync\core\cache\advanced_cache.py:140: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:141: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:144: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:214: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:223: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:224: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:237: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\advanced_cache.py:249: error: Incompatible types in "await" (actual type "RedisInitializer", expected type "Awaitable[Any]")  [misc]
+resync\core\cache\advanced_cache.py:329: error: "AdvancedCacheManager" has no attribute "_set_memory"; maybe "_set_memory_entry"?  [attr-defined]
+resync\core\cache\advanced_cache.py:686: error: "bool" not callable  [operator]
+resync\core\cache\advanced_cache.py:748: error: Incompatible types in assignment (expression has type "AdvancedCacheManager", variable has type "None")  [assignment]
+resync\core\cache\advanced_cache.py:749: error: Incompatible return value type (got "None", expected "AdvancedCacheManager")  [return-value]
+resync\core\cache\advanced_cache.py:767: error: Incompatible return value type (got "_LazyAdvancedCacheManager", expected "AdvancedCacheManager")  [return-value]
+resync\core\cache\advanced_cache.py:777: error: Incompatible default for argument "manager" (default has type "None", argument has type "AdvancedCacheManager")  [assignment]
+resync\core\cache\advanced_cache.py:777: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\cache\advanced_cache.py:777: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\cache\advanced_cache.py:84: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\cache\async_cache.py:349: note: "set" of "AsyncTTLCache" defined here
+resync\core\cache\async_cache.py:389: error: "RuntimeMetricsCollector" has no attribute "cache_sets"; maybe "cache_misses", "cache_hits", or "cache_size"?  [attr-defined]
+resync\core\cache\async_cache.py:393: error: "WriteAheadLog" has no attribute "append"  [attr-defined]
+resync\core\cache\async_cache.py:438: error: "WriteAheadLog" has no attribute "append"  [attr-defined]
+resync\core\cache\cache_factory.py:111: error: Function "builtins.callable" is not valid as a type  [valid-type]
+resync\core\cache\cache_factory.py:111: note: Perhaps you meant "typing.Callable" instead of "callable"?
+resync\core\cache\cache_factory.py:128: error: callable? not callable  [misc]
+resync\core\cache\cache_factory.py:130: error: callable? not callable  [misc]
+resync\core\cache\cache_factory.py:167: error: Return type "Coroutine[Any, Any, bool]" of "set" incompatible with return type "bool" in supertype "resync.core.cache.base_cache.BaseCache"  [override]
+resync\core\cache\cache_factory.py:174: error: Return type "Coroutine[Any, Any, bool]" of "delete" incompatible with return type "bool" in supertype "resync.core.cache.base_cache.BaseCache"  [override]
+resync\core\cache\cache_factory.py:182: error: Return type "Coroutine[Any, Any, None]" of "clear" incompatible with return type "None" in supertype "resync.core.cache.base_cache.BaseCache"  [override]
+resync\core\cache\cache_factory.py:198: error: Incompatible default for argument "config" (default has type "None", argument has type "CacheConfig")  [assignment]
+resync\core\cache\cache_factory.py:198: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\cache\cache_factory.py:198: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\cache\cache_factory.py:221: error: Incompatible default for argument "config" (default has type "None", argument has type "CacheConfig")  [assignment]
+resync\core\cache\cache_factory.py:221: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\cache\cache_factory.py:221: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\cache\cache_factory.py:243: error: Incompatible default for argument "config" (default has type "None", argument has type "CacheConfig")  [assignment]
+resync\core\cache\cache_factory.py:243: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\cache\cache_factory.py:243: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\cache\cache_factory.py:64: error: Return type "Coroutine[Any, Any, bool]" of "set" incompatible with return type "bool" in supertype "resync.core.cache.base_cache.BaseCache"  [override]
+resync\core\cache\cache_factory.py:75: error: Return type "Coroutine[Any, Any, bool]" of "delete" incompatible with return type "bool" in supertype "resync.core.cache.base_cache.BaseCache"  [override]
+resync\core\cache\cache_factory.py:82: error: Return type "Coroutine[Any, Any, None]" of "clear" incompatible with return type "None" in supertype "resync.core.cache.base_cache.BaseCache"  [override]
+resync\core\cache\cache_warmer.py:352: error: Incompatible types in assignment (expression has type "float", target has type "int")  [assignment]
+resync\core\cache\cache_with_stampede_protection.py:147: error: "Lock" has no attribute "__enter__"  [attr-defined]
+resync\core\cache\cache_with_stampede_protection.py:147: error: "Lock" has no attribute "__exit__"  [attr-defined]
+resync\core\cache\embedding_model.py:126: error: Need type annotation for "vectors" (hint: "vectors: list[<type>] = ...")  [var-annotated]
+resync\core\cache\embedding_model.py:246: error: Incompatible return value type (got "int | None", expected "int")  [return-value]
+resync\core\cache\memory_manager.py:152: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, object]"; expected "str"  [arg-type]
+resync\core\cache\memory_manager.py:196: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\cache\memory_manager.py:198: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\cache\memory_manager.py:201: error: Unexpected keyword argument "correlation_id" for "warning" of "Logger"  [call-arg]
+resync\core\cache\memory_manager.py:204: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str | float | int]"; expected "str"  [arg-type]
+resync\core\cache\memory_manager.py:219: error: Unexpected keyword argument "correlation_id" for "warning" of "Logger"  [call-arg]
+resync\core\cache\memory_manager.py:222: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str | float | int]"; expected "str"  [arg-type]
+resync\core\cache\memory_manager.py:241: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\cache\memory_manager.py:279: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, int | str | None]"; expected "str"  [arg-type]
+resync\core\cache\memory_manager.py:41: error: Incompatible types in assignment (expression has type "_DummyRuntimeMetrics", variable has type "RuntimeMetricsCollector")  [assignment]
+resync\core\cache\memory_manager.py:443: error: All conditional function variants must have identical signatures  [misc]
+resync\core\cache\memory_manager.py:443: note:     def log_with_correlation(level: int, message: str, correlation_id: str | None = ..., **kwargs: Any) -> None
+resync\core\cache\memory_manager.py:443: note:     def log_with_correlation(level: int, message: str, correlation_id: str | None = ..., component: str = ..., operation: str | None = ..., error: Exception | None = ..., **extra_fields: Any) -> None
+resync\core\cache\memory_manager.py:443: note: Original:
+resync\core\cache\memory_manager.py:443: note: Redefinition:
+resync\core\cache\mixins\health_mixin.py:104: error: "CacheHealthMixin" has no attribute "set"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:107: error: "CacheHealthMixin" has no attribute "get"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:110: error: "CacheHealthMixin" has no attribute "delete"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:130: error: "CacheHealthMixin" has no attribute "shards"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:131: error: "CacheHealthMixin" has no attribute "shard_locks"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:157: error: "CacheHealthMixin" has no attribute "cleanup_task"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:160: error: "CacheHealthMixin" has no attribute "is_running"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:165: error: "CacheHealthMixin" has no attribute "is_running"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:177: error: "CacheHealthMixin" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\cache\mixins\health_mixin.py:36: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\cache\mixins\health_mixin.py:43: error: No overload variant of "gather" matches argument types "Coroutine[Any, Any, dict[str, Any]]", "Coroutine[Any, Any, dict[str, Any]]", "dict[str, Any]", "dict[str, Any]", "dict[str, Any]", "bool"  [call-overload]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3, _T4, _T5, _T6] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], Future[_T6] | Awaitable[_T6], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3, _T4, _T5, _T6]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3, _T4, _T5, _T6] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], Future[_T6] | Awaitable[_T6], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException, _T4 | BaseException, _T5 | BaseException, _T6 | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3, _T4, _T5] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3, _T4, _T5]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3, _T4, _T5] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException, _T4 | BaseException, _T5 | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3, _T4] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3, _T4]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3, _T4] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException, _T4 | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2, _T3] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1, _T2] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1] gather(Future[_T1] | Awaitable[_T1], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T1] gather(Future[_T1] | Awaitable[_T1], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T] gather(*coros_or_futures: Future[_T] | Awaitable[_T], return_exceptions: Literal[False] = ...) -> Future[list[_T]]
+resync\core\cache\mixins\health_mixin.py:43: note:     def [_T] gather(*coros_or_futures: Future[_T] | Awaitable[_T], return_exceptions: bool) -> Future[list[_T | BaseException]]
+resync\core\cache\mixins\health_mixin.py:43: note: Possible overload variants:
+resync\core\cache\mixins\snapshot_mixin.py:36: error: "CacheSnapshotMixin" has no attribute "shards"  [attr-defined]
+resync\core\cache\mixins\snapshot_mixin.py:44: error: "object" has no attribute "append"  [attr-defined]
+resync\core\cache\mixins\snapshot_mixin.py:46: error: "CacheSnapshotMixin" has no attribute "shards"  [attr-defined]
+resync\core\cache\mixins\snapshot_mixin.py:46: error: Generator has incompatible item type "int"; expected "bool"  [misc]
+resync\core\cache\mixins\snapshot_mixin.py:68: error: "CacheSnapshotMixin" has no attribute "clear"  [attr-defined]
+resync\core\cache\mixins\snapshot_mixin.py:77: error: "CacheSnapshotMixin" has no attribute "shards"  [attr-defined]
+resync\core\cache\mixins\snapshot_mixin.py:80: error: "CacheSnapshotMixin" has no attribute "shard_locks"  [attr-defined]
+resync\core\cache\mixins\snapshot_mixin.py:86: error: "CacheSnapshotMixin" has no attribute "shards"  [attr-defined]
+resync\core\cache\mixins\transaction_mixin.py:72: error: "CacheTransactionMixin" has no attribute "delete"  [attr-defined]
+resync\core\cache\mixins\transaction_mixin.py:74: error: "CacheTransactionMixin" has no attribute "set"  [attr-defined]
+resync\core\cache\mixins\transaction_mixin.py:76: error: "CacheTransactionMixin" has no attribute "set"  [attr-defined]
+resync\core\cache\query_cache.py:200: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\query_cache.py:201: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\query_cache.py:202: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\cache\query_cache.py:549: error: List comprehension has incompatible type List[Coroutine[Any, Any, QueryResult]]; expected List[Coroutine[Any, Any, list[QueryResult]]]  [misc]
+resync\core\cache\query_cache.py:629: error: Incompatible types in assignment (expression has type "QueryCacheManager", variable has type "None")  [assignment]
+resync\core\cache\query_cache.py:630: error: Incompatible return value type (got "None", expected "QueryCacheManager")  [return-value]
+resync\core\cache\query_cache.py:648: error: Incompatible return value type (got "_LazyQueryCacheManager", expected "QueryCacheManager")  [return-value]
+resync\core\cache\query_cache.py:78: error: Incompatible return value type (got "str | None", expected "str")  [return-value]
+resync\core\cache\query_cache.py:92: error: Incompatible return value type (got "set[str] | None", expected "set[str]")  [return-value]
+resync\core\cache\redis_config.py:265: error: Unexpected keyword argument "error" for "debug" of "Logger"  [call-arg]
+resync\core\cache\redis_config.py:283: error: Incompatible return value type (got "dict[str, object]", expected "dict[str, bool]")  [return-value]
+resync\core\cache\redis_config.py:71: error: Item "None" of "Any | None" has no attribute "get_secret_value"  [union-attr]
+resync\core\cache\redis_config.py:91: error: Item "None" of "str | None" has no attribute "get_secret_value"  [union-attr]
+resync\core\cache\redisvl_adapter.py:12: error: Skipping analyzing "redisvl.utils.vectorize": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\cache\redisvl_adapter.py:44: error: Function "builtins.callable" is not valid as a type  [valid-type]
+resync\core\cache\redisvl_adapter.py:44: note: Perhaps you meant "typing.Callable" instead of "callable"?
+resync\core\cache\redisvl_adapter.py:50: error: callable? not callable  [misc]
+resync\core\cache\redisvl_adapter.py:57: error: Incompatible return value type (got "bytes", expected "list[float]")  [return-value]
+resync\core\cache\redisvl_adapter.py:63: error: Function "builtins.callable" is not valid as a type  [valid-type]
+resync\core\cache\redisvl_adapter.py:63: note: Perhaps you meant "typing.Callable" instead of "callable"?
+resync\core\cache\redisvl_adapter.py:70: error: callable? not callable  [misc]
+resync\core\cache\redisvl_adapter.py:77: error: List comprehension has incompatible type List[bytes]; expected List[list[float]]  [misc]
+resync\core\cache\semantic_cache.py:161: error: Unexpected keyword argument "reason" for "warning" of "Logger"  [call-arg]
+resync\core\cache\semantic_cache.py:24: error: Skipping analyzing "redisvl.index": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\cache\semantic_cache.py:25: error: Skipping analyzing "redisvl.query": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\cache\semantic_cache.py:344: error: Skipping analyzing "redisvl.query.filter": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+resync\core\cache\semantic_cache.py:535: error: Argument "mapping" to "hset" of "AsyncHashCommands" has incompatible type "dict[str, object]"; expected "Mapping[str | bytes, bytes | float | int | str]"  [arg-type]
+resync\core\cache\semantic_cache.py:787: error: Argument 1 to "loads" has incompatible type "str | None"; expected "str | bytes | bytearray"  [arg-type]
+resync\core\cache\semantic_cache.py:791: error: Unexpected keyword argument "distance" for "debug" of "Logger"  [call-arg]
+resync\core\cache\semantic_cache.py:791: error: Unexpected keyword argument "intent" for "debug" of "Logger"  [call-arg]
+resync\core\cache\semantic_cache.py:802: error: Unexpected keyword argument "response" for "warning" of "Logger"  [call-arg]
+resync\core\cache\semantic_cache.py:804: error: Value of type "str | None" is not indexable  [index]
+resync\core\cache\semantic_cache.py:809: error: Unexpected keyword argument "error" for "warning" of "Logger"  [call-arg]
+resync\core\cache\semantic_cache.py:81: error: Value of type "Collection[object]" is not indexable  [index]
+resync\core\cache\semantic_cache.py:82: error: Value of type "Collection[object]" is not indexable  [index]
+resync\core\cache\semantic_cache.py:876: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:1034: error: Argument after ** must be a mapping, not "object"  [arg-type]
+resync\core\chaos_engineering.py:1035: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:1046: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:1047: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:1048: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:105: error: No overload variant of "gather" matches argument types "list[object]", "bool"  [call-overload]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3, _T4, _T5, _T6] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], Future[_T6] | Awaitable[_T6], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3, _T4, _T5, _T6]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3, _T4, _T5, _T6] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], Future[_T6] | Awaitable[_T6], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException, _T4 | BaseException, _T5 | BaseException, _T6 | BaseException]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3, _T4, _T5] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3, _T4, _T5]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3, _T4, _T5] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], Future[_T5] | Awaitable[_T5], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException, _T4 | BaseException, _T5 | BaseException]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3, _T4] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3, _T4]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3, _T4] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], Future[_T4] | Awaitable[_T4], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException, _T4 | BaseException]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2, _T3]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2, _T3] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], Future[_T3] | Awaitable[_T3], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException, _T3 | BaseException]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1, _T2]]
+resync\core\chaos_engineering.py:105: note:     def [_T1, _T2] gather(Future[_T1] | Awaitable[_T1], Future[_T2] | Awaitable[_T2], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException, _T2 | BaseException]]
+resync\core\chaos_engineering.py:105: note:     def [_T1] gather(Future[_T1] | Awaitable[_T1], /, *, return_exceptions: Literal[False] = ...) -> Future[tuple[_T1]]
+resync\core\chaos_engineering.py:105: note:     def [_T1] gather(Future[_T1] | Awaitable[_T1], /, *, return_exceptions: bool) -> Future[tuple[_T1 | BaseException]]
+resync\core\chaos_engineering.py:105: note:     def [_T] gather(*coros_or_futures: Future[_T] | Awaitable[_T], return_exceptions: Literal[False] = ...) -> Future[list[_T]]
+resync\core\chaos_engineering.py:105: note:     def [_T] gather(*coros_or_futures: Future[_T] | Awaitable[_T], return_exceptions: bool) -> Future[list[_T | BaseException]]
+resync\core\chaos_engineering.py:105: note: Possible overload variants:
+resync\core\chaos_engineering.py:1088: error: Module "resync.core.audit_db" has no attribute "add_audit_record"; maybe "add_audit_records_batch" or "_validate_audit_record"?  [attr-defined]
+resync\core\chaos_engineering.py:1095: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:1097: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:1098: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:1101: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:1104: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:1105: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:1107: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:178: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:209: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:218: error: "AsyncTTLCache" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:246: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:279: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:311: error: Unexpected keyword argument "error" for "debug" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:317: error: "AgentManager" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:329: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:356: error: Argument 1 to "len" has incompatible type "int"; expected "Sized"  [arg-type]
+resync\core\chaos_engineering.py:357: error: "int" has no attribute "__iter__"; maybe "__int__"? (not iterable)  [attr-defined]
+resync\core\chaos_engineering.py:357: error: Generator has incompatible item type "int"; expected "bool"  [misc]
+resync\core\chaos_engineering.py:360: error: Argument 1 to "len" has incompatible type "int"; expected "Sized"  [arg-type]
+resync\core\chaos_engineering.py:363: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:370: error: "AuditLog" has no attribute "get_audit_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:375: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:389: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:415: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:437: error: Unexpected keyword argument "ttl_seconds" for "set" of "AsyncTTLCache"  [call-arg]
+resync\core\chaos_engineering.py:443: error: "AsyncTTLCache" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:450: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:456: error: "AsyncTTLCache" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:487: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:515: error: "AgentManager" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:520: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:549: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, str]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:590: error: "AgentManager" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:593: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:609: error: "AuditLog" has no attribute "get_audit_metrics"  [attr-defined]
+resync\core\chaos_engineering.py:615: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:625: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:714: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, object]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:761: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:76: error: Argument 1 to "create_correlation_id" of "RuntimeMetricsCollector" has incompatible type "dict[str, object]"; expected "str"  [arg-type]
+resync\core\chaos_engineering.py:835: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:837: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:838: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:841: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:842: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:843: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:882: error: Incompatible types in assignment (expression has type "dict[str, str]", target has type "str")  [assignment]
+resync\core\chaos_engineering.py:896: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:898: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:899: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:901: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:904: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:906: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:907: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:910: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:911: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:912: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:951: error: Unexpected keyword argument "ttl_seconds" for "set" of "AsyncTTLCache"  [call-arg]
+resync\core\chaos_engineering.py:955: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:957: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:958: error: "object" has no attribute "append"  [attr-defined]
+resync\core\chaos_engineering.py:963: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\chaos_engineering.py:964: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\chaos_engineering.py:965: error: "object" has no attribute "append"  [attr-defined]
+resync\core\circuit_breaker_registry.py:246: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\circuit_breaker_registry.py:494: error: "_Wrapped[[VarArg(Any), KwArg(Any)], Awaitable[T], [VarArg(Any), KwArg(Any)], Coroutine[Any, Any, T]]" has no attribute "circuit_breaker"  [attr-defined]
+resync\core\circuit_breaker_registry.py:495: error: "_Wrapped[[VarArg(Any), KwArg(Any)], Awaitable[T], [VarArg(Any), KwArg(Any)], Coroutine[Any, Any, T]]" has no attribute "circuit_type"  [attr-defined]
+resync\core\circuit_breaker_registry.py:552: error: Incompatible types in assignment (expression has type "Exception", variable has type "CircuitBreakerError | None")  [assignment]
+resync\core\compliance\report_generator.py:64: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\compliance\report_strategies.py:209: error: Need type annotation for "criteria_compliance"  [var-annotated]
+resync\core\compliance\report_strategies.py:334: error: Need type annotation for "status_counts"  [var-annotated]
+resync\core\compliance\report_strategies.py:372: error: Need type annotation for "evidence_counts"  [var-annotated]
+resync\core\compliance\report_strategies.py:552: error: Need type annotation for "incident_counts"  [var-annotated]
+resync\core\compliance\report_strategies.py:630: error: Argument 2 of "execute" is incompatible with supertype "ReportStrategy"; supertype defines the argument type as "dict[str, Any] | None"  [override]
+resync\core\compliance\report_strategies.py:630: error: Incompatible default for argument "report" (default has type "None", argument has type "dict[str, Any]")  [assignment]
+resync\core\compliance\report_strategies.py:630: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\compliance\report_strategies.py:630: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+resync\core\compliance\report_strategies.py:630: note: This violates the Liskov substitution principle
+resync\core\compliance\report_strategies.py:630: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\compliance\report_strategies.py:673: error: "ComplianceManagerProtocol" has no attribute "_get_current_timestamp"; maybe "get_current_timestamp"?  [attr-defined]
+resync\core\compliance\report_strategies.py:677: error: "ComplianceManagerProtocol" has no attribute "_get_period_start"; maybe "get_period_start"?  [attr-defined]
+resync\core\compliance\report_strategies.py:680: error: "ComplianceManagerProtocol" has no attribute "_get_period_end"; maybe "get_period_end"?  [attr-defined]
+resync\core\config_hot_reload.py:202: error: Incompatible types in assignment (expression has type "Any | None", variable has type "dict[str, Any]")  [assignment]
+resync\core\config_hot_reload.py:37: error: Cannot find implementation or library stub for module named "watchdog.events"  [import-not-found]
+resync\core\config_hot_reload.py:38: error: Cannot find implementation or library stub for module named "watchdog.observers"  [import-not-found]
+resync\core\config_hot_reload.py:45: error: Name "FileSystemEventHandler" already defined (possibly by an import)  [no-redef]
+resync\core\config_hot_reload.py:45: note: Error code "no-redef" not covered by "type: ignore" comment
+resync\core\config_persistence.py:18: error: Library stubs not installed for "toml"  [import-untyped]
+resync\core\config_persistence.py:21: error: Cannot find implementation or library stub for module named "tomli_w"  [import-not-found]
+resync\core\config_persistence.py:307: error: Need type annotation for "errors" (hint: "errors: list[<type>] = ...")  [var-annotated]
+resync\core\connection_manager.py:134: error: Unexpected keyword argument "client_count" for "info" of "Logger"  [call-arg]
+resync\core\connection_pool_manager.py:166: error: Need type annotation for "load_trend"  [var-annotated]
+resync\core\connection_pool_manager.py:371: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\connection_pool_manager.py:372: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\connection_pool_manager.py:373: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\connection_pool_manager.py:375: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\connection_pool_manager.py:383: error: Incompatible types in "await" (actual type "PoolManager", expected type "Awaitable[Any]")  [misc]
+resync\core\connection_pool_manager.py:420: error: "PoolManager" has no attribute "close_all"  [attr-defined]
+resync\core\connection_pool_manager.py:449: error: "PoolManager" has no attribute "get_pool"  [attr-defined]
+resync\core\connection_pool_manager.py:467: error: "PoolManager" has no attribute "pools"  [attr-defined]
+resync\core\connection_pool_manager.py:468: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\connection_pool_manager.py:482: error: Need type annotation for "results"  [var-annotated]
+resync\core\connection_pool_manager.py:491: error: "PoolManager" has no attribute "pools"  [attr-defined]
+resync\core\continual_learning\active_learning.py:138: note: "check_for_review" defined here
+resync\core\continual_learning\audit_to_kg_pipeline.py:147: error: Need type annotation for "found" (hint: "found: set[<type>] = ...")  [var-annotated]
+resync\core\continual_learning\context_enrichment.py:138: error: Too many arguments for "TWSLearningStore"  [call-arg]
+resync\core\continual_learning\context_enrichment.py:279: error: Need type annotation for "context_parts" (hint: "context_parts: list[<type>] = ...")  [var-annotated]
+resync\core\continual_learning\context_enrichment.py:324: error: Need type annotation for "context_parts" (hint: "context_parts: list[<type>] = ...")  [var-annotated]
+resync\core\continual_learning\context_enrichment.py:353: error: Need type annotation for "context_parts" (hint: "context_parts: list[<type>] = ...")  [var-annotated]
+resync\core\continual_learning\feedback_retriever.py:130: error: "FeedbackStore" has no attribute "get_query_document_scores"  [attr-defined]
+resync\core\continual_learning\feedback_retriever.py:253: error: "FeedbackStore" has no attribute "record_feedback"  [attr-defined]
+resync\core\continual_learning\feedback_retriever.py:268: error: Argument "rating" to "record_feedback" of "FeedbackAwareRetriever" has incompatible type "FeedbackRating"; expected "int"  [arg-type]
+resync\core\continual_learning\feedback_retriever.py:280: error: Argument "rating" to "record_feedback" of "FeedbackAwareRetriever" has incompatible type "FeedbackRating"; expected "int"  [arg-type]
+resync\core\continual_learning\knowledge_incorporator.py:259: error: "object" has no attribute "append"  [attr-defined]
+resync\core\continual_learning\knowledge_incorporator.py:260: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\continual_learning\knowledge_incorporator.py:262: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\continual_learning\knowledge_incorporator.py:263: error: "object" has no attribute "append"  [attr-defined]
+resync\core\continual_learning\orchestrator.py:312: error: "ActiveLearningDecision" has no attribute "warning_message"  [attr-defined]
+resync\core\database\models\teams.py:11: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams.py:11: error: Variable "resync.core.database.models.teams.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams.py:11: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\models\teams.py:35: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams.py:35: error: Variable "resync.core.database.models.teams.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams.py:35: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\models\teams_notifications.py:11: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams_notifications.py:11: error: Variable "resync.core.database.models.teams_notifications.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams_notifications.py:11: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\models\teams_notifications.py:120: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams_notifications.py:120: error: Variable "resync.core.database.models.teams_notifications.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams_notifications.py:120: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\models\teams_notifications.py:38: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams_notifications.py:38: error: Variable "resync.core.database.models.teams_notifications.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams_notifications.py:38: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\models\teams_notifications.py:61: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams_notifications.py:61: error: Variable "resync.core.database.models.teams_notifications.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams_notifications.py:61: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\models\teams_notifications.py:89: error: Invalid base class "Base"  [misc]
+resync\core\database\models\teams_notifications.py:89: error: Variable "resync.core.database.models.teams_notifications.Base" is not valid as a type  [valid-type]
+resync\core\database\models\teams_notifications.py:89: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+resync\core\database\repositories\admin_users.py:167: error: Incompatible types in assignment (expression has type "datetime", target has type "int")  [assignment]
+resync\core\database\repositories\base.py:109: error: "type[ModelT]" has no attribute "id"  [attr-defined]
+resync\core\database\repositories\base.py:215: error: "type[ModelT]" has no attribute "id"  [attr-defined]
+resync\core\database\repositories\base.py:260: error: "type[ModelT]" has no attribute "id"  [attr-defined]
+resync\core\database\repositories\orchestration_execution_repo.py:121: error: Incompatible types in assignment (expression has type "dict[Any, Any]", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:124: error: Incompatible types in assignment (expression has type "datetime", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:127: error: Incompatible types in assignment (expression has type "int", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:130: error: Incompatible types in assignment (expression has type "float", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:133: error: Incompatible types in assignment (expression has type "datetime", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:256: error: Incompatible types in assignment (expression has type "dict[Any, Any]", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:268: error: Incompatible types in assignment (expression has type "int", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:271: error: Incompatible types in assignment (expression has type "int", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:274: error: Incompatible types in assignment (expression has type "int", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:277: error: Incompatible types in assignment (expression has type "float", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:280: error: Incompatible types in assignment (expression has type "datetime", target has type "str")  [assignment]
+resync\core\database\repositories\orchestration_execution_repo.py:283: error: Incompatible types in assignment (expression has type "datetime", target has type "str")  [assignment]
+resync\core\database\repositories\stores.py:182: error: Incompatible types in assignment (expression has type "ContextContent", variable has type "Conversation")  [assignment]
+resync\core\database\repositories\stores.py:185: error: "Conversation" has no attribute "content_type"  [attr-defined]
+resync\core\database\repositories\stores.py:187: error: "Conversation" has no attribute "title"  [attr-defined]
+resync\core\database\repositories\stores.py:188: error: "Conversation" has no attribute "source"  [attr-defined]
+resync\core\database\repositories\stores.py:375: error: Incompatible types in assignment (expression has type "int", target has type "datetime")  [assignment]
+resync\core\database\repositories\stores.py:377: error: Incompatible types in assignment (expression has type "int", target has type "datetime")  [assignment]
+resync\core\database\repositories\stores.py:379: error: Incompatible return value type (got "UserProfile | None", expected "UserProfile")  [return-value]
+resync\core\database\repositories\stores.py:388: error: Incompatible return value type (got "UserProfile | None", expected "UserProfile")  [return-value]
+resync\core\database\repositories\stores.py:467: error: Argument 1 to "or_" has incompatible type "InstrumentedAttribute[bool | None]"; expected "Literal[False] | ColumnElement[bool] | _HasClauseElement[bool] | SQLCoreOperations[bool] | ExpressionElementRole[bool] | TypedColumnsClauseRole[bool] | Callable[[], ColumnElement[bool]] | LambdaElement"  [arg-type]
+resync\core\database\repositories\stores.py:478: error: Argument 1 to "or_" has incompatible type "bool"; expected "Literal[False] | ColumnElement[bool] | _HasClauseElement[bool] | SQLCoreOperations[bool] | ExpressionElementRole[bool] | TypedColumnsClauseRole[bool] | Callable[[], ColumnElement[bool]] | LambdaElement"  [arg-type]
+resync\core\database\repositories\stores.py:512: error: Incompatible return value type (got "LearningThreshold | None", expected "LearningThreshold")  [return-value]
+resync\core\database_security.py:519: error: Incompatible default for argument "limit" (default has type "None", argument has type "int | str")  [assignment]
+resync\core\database_security.py:519: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+resync\core\database_security.py:519: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+resync\core\database_security.py:538: error: Incompatible types in assignment (expression has type "int", target has type "str")  [assignment]
+resync\core\database_security.py:541: error: Incompatible types in assignment (expression has type "list[str]", target has type "str")  [assignment]
+resync\core\database_security.py:567: error: Incompatible types in assignment (expression has type "str", target has type "bool")  [assignment]
+resync\core\di_container.py:103: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\di_container.py:104: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\di_container.py:105: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\di_container.py:106: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\di_container.py:51: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\document_graphrag.py:110: error: Unexpected keyword argument "error" for "warning" of "Logger"  [call-arg]
+resync\core\embedding_router.py:382: error: Argument "key" to "max" has incompatible type overloaded function; expected "Callable[[RouterIntent], SupportsDunderLT[Any] | SupportsDunderGT[Any]]"  [arg-type]
+resync\core\embedding_router.py:441: error: "Coroutine[Any, Any, LLMService]" has no attribute "generate"  [attr-defined]
+resync\core\encoding_utils.py:22: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\encrypted_audit.py:142: error: Incompatible return value type (got "float | bool | None", expected "bool")  [return-value]
+resync\core\encrypted_audit.py:523: error: "object" has no attribute "append"  [attr-defined]
+resync\core\encrypted_audit.py:530: error: "object" has no attribute "append"  [attr-defined]
+resync\core\encrypted_audit.py:537: error: "object" has no attribute "extend"  [attr-defined]
+resync\core\encrypted_audit.py:542: error: "object" has no attribute "append"  [attr-defined]
+resync\core\encrypted_audit.py:726: error: Incompatible types in assignment (expression has type "bytes", variable has type "str")  [assignment]
+resync\core\encrypted_audit.py:730: error: Incompatible types in assignment (expression has type "bytes", variable has type "str")  [assignment]
+resync\core\encrypted_audit.py:733: error: Argument 1 to "encrypt" of "Fernet" has incompatible type "str"; expected "bytes"  [arg-type]
+resync\core\enterprise\manager.py:484: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\enterprise\manager.py:487: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\enterprise\manager.py:490: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\enterprise\manager.py:493: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\enterprise\manager.py:496: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\enterprise\manager.py:513: error: "EncryptedAuditTrail" has no attribute "log_entry"; maybe "log_event"?  [attr-defined]
+resync\core\enterprise\manager.py:529: error: "IncidentResponseEngine" has no attribute "create_incident"; maybe "get_incident", "active_incidents", or "create_incident_manually"?  [attr-defined]
+resync\core\enterprise\manager.py:547: error: "SIEMIntegrator" has no attribute "send_event"  [attr-defined]
+resync\core\event_driven_discovery.py:17: error: Cannot find implementation or library stub for module named "langchain_core.prompts"  [import-not-found]
+resync\core\event_driven_discovery.py:27: error: Library stubs not installed for "toml"  [import-untyped]
+resync\core\factories\redis_factory.py:124: error: Need type annotation for "pool"  [var-annotated]
+resync\core\factories\redis_factory.py:84: error: Incompatible return value type (got "_SettingsProxy", expected "Settings")  [return-value]
+resync\core\fastapi_di.py:33: error: Invariant type variable "T" used in protocol where covariant one is expected  [misc]
+resync\core\file_ingestor.py:102: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:102: error: Unexpected keyword argument "path" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:114: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:36: error: Return type "Coroutine[Any, Any, Path]" of "save_uploaded_file" incompatible with return type "Path" in supertype "resync.core.interfaces.IFileIngestor"  [override]
+resync\core\file_ingestor.py:62: error: Unexpected keyword argument "path" for "info" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:65: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:65: error: Unexpected keyword argument "path" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:68: error: Return type "Coroutine[Any, Any, bool]" of "ingest_file" incompatible with return type "bool" in supertype "resync.core.interfaces.IFileIngestor"  [override]
+resync\core\file_ingestor.py:73: error: Unexpected keyword argument "path" for "info" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:78: error: Unexpected keyword argument "error" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:78: error: Unexpected keyword argument "path" for "error" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:97: error: Unexpected keyword argument "chunks" for "info" of "Logger"  [call-arg]
+resync\core\file_ingestor.py:97: error: Unexpected keyword argument "path" for "info" of "Logger"  [call-arg]
+resync\core\gdpr_compliance.py:305: error: Incompatible types in assignment (expression has type "Fernet", variable has type "None")  [assignment]
+resync\core\gdpr_compliance.py:306: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+resync\core\gdpr_compliance.py:313: error: "None" has no attribute "encrypt"  [attr-defined]
+resync\core\gdpr_compliance.py:320: error: "None" has no attribute "decrypt"  [attr-defined]
+resync\core\gdpr_compliance.py:626: error: Incompatible types in assignment (expression has type "str", target has type "int")  [assignment]
+resync\core\graphrag_integration.py:138: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\core\graphrag_integration.py:143: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\core\health\circuit_breaker_manager.py:273: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\health\circuit_breaker_manager.py:275: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\health\circuit_breaker_manager.py:277: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\health\circuit_breaker_manager.py:279: error: Unsupported operand types for + ("object" and "int")  [operator]
+resync\core\health\circuit_breaker_manager.py:30: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\circuit_breaker_manager.py:31: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\component_cache_manager.py:148: error: No overload variant of "__sub__" of "datetime" matches argument type "None"  [operator]
+resync\core\health\component_cache_manager.py:148: note:     def __sub__(self, datetime, /) -> timedelta
+resync\core\health\component_cache_manager.py:148: note:     def __sub__(self, timedelta, /) -> datetime
+resync\core\health\component_cache_manager.py:148: note: Possible overload variants:
+resync\core\health\component_cache_manager.py:148: note: Right operand is of type "datetime | None"
+resync\core\health\component_cache_manager.py:193: error: No overload variant of "__sub__" of "datetime" matches argument type "None"  [operator]
+resync\core\health\component_cache_manager.py:193: note:     def __sub__(self, datetime, /) -> timedelta
+resync\core\health\component_cache_manager.py:193: note:     def __sub__(self, timedelta, /) -> datetime
+resync\core\health\component_cache_manager.py:193: note: Possible overload variants:
+resync\core\health\component_cache_manager.py:193: note: Right operand is of type "datetime | None"
+resync\core\health\component_cache_manager.py:210: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\component_cache_manager.py:210: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\component_cache_manager.py:280: error: No overload variant of "__sub__" of "datetime" matches argument type "None"  [operator]
+resync\core\health\component_cache_manager.py:280: note:     def __sub__(self, datetime, /) -> timedelta
+resync\core\health\component_cache_manager.py:280: note:     def __sub__(self, timedelta, /) -> datetime
+resync\core\health\component_cache_manager.py:280: note: Possible overload variants:
+resync\core\health\component_cache_manager.py:280: note: Right operand is of type "datetime | None"
+resync\core\health\component_cache_manager.py:345: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\component_cache_manager.py:345: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\component_cache_manager.py:63: error: No overload variant of "__sub__" of "datetime" matches argument type "None"  [operator]
+resync\core\health\component_cache_manager.py:63: note:     def __sub__(self, datetime, /) -> timedelta
+resync\core\health\component_cache_manager.py:63: note:     def __sub__(self, timedelta, /) -> datetime
+resync\core\health\component_cache_manager.py:63: note: Possible overload variants:
+resync\core\health\component_cache_manager.py:63: note: Right operand is of type "datetime | None"
+resync\core\health\health_alerting.py:124: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:124: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:160: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_alerting.py:161: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_alerting.py:200: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:200: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:255: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:255: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:278: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:278: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:293: error: any? has no attribute "upper"  [attr-defined]
+resync\core\health\health_alerting.py:295: error: Value of type any? is not indexable  [index]
+resync\core\health\health_alerting.py:296: error: Value of type any? is not indexable  [index]
+resync\core\health\health_alerting.py:297: error: Value of type any? is not indexable  [index]
+resync\core\health\health_alerting.py:298: error: Value of type any? is not indexable  [index]
+resync\core\health\health_alerting.py:304: error: any? has no attribute "__iter__" (not iterable)  [attr-defined]
+resync\core\health\health_alerting.py:335: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_alerting.py:336: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_alerting.py:339: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:339: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:340: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:340: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:358: error: Need type annotation for "all_components" (hint: "all_components: dict[<type>, <type>] = ...")  [var-annotated]
+resync\core\health\health_alerting.py:36: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:36: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:414: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:414: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:426: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:426: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_alerting.py:98: error: Function "builtins.any" is not valid as a type  [valid-type]
+resync\core\health\health_alerting.py:98: note: Perhaps you meant "typing.Any" instead of "any"?
+resync\core\health\health_checkers\base_health_checker.py:116: error: "type[ComponentType]" has no attribute "UNKNOWN"  [attr-defined]
+resync\core\health\health_checkers\base_health_checker.py:98: error: Argument "status" to "ComponentHealth" has incompatible type "ComponentType"; expected "HealthStatus"  [arg-type]
+resync\core\health\health_checkers\cache_health_checker.py:78: error: "AsyncTTLCache" has no attribute "get_detailed_metrics"  [attr-defined]
+resync\core\health\health_checkers\connection_pools_health_checker.py:61: error: "PoolManager" has no attribute "get_pool_stats"  [attr-defined]
+resync\core\health\health_checkers\cpu_health_checker.py:55: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\core\health\health_checkers\database_health_checker.py:61: error: "PoolManager" has no attribute "acquire_connection"  [attr-defined]
+resync\core\health\health_checkers\database_health_checker.py:77: error: "PoolManager" has no attribute "get_pool_stats"  [attr-defined]
+resync\core\health\health_checkers\filesystem_health_checker.py:12: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\core\health\health_checkers\memory_health_checker.py:54: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\core\health\health_config_manager.py:184: error: Incompatible types in assignment (expression has type "float", target has type "int")  [assignment]
+resync\core\health\health_config_manager.py:188: error: Incompatible types in assignment (expression has type "str", target has type "int")  [assignment]
+resync\core\health\health_config_manager.py:244: error: "HealthCheckConfig" has no attribute "model_dump"  [attr-defined]
+resync\core\health\health_config_manager.py:264: error: "HealthCheckConfig" has no attribute "model_dump"  [attr-defined]
+resync\core\health\health_config_manager.py:303: error: "HealthCheckConfig" has no attribute "model_dump"  [attr-defined]
+resync\core\health\health_config_manager.py:63: error: "HealthCheckConfig" has no attribute "model_dump"  [attr-defined]
+resync\core\health\health_config_manager.py:93: error: "HealthCheckConfig" has no attribute "model_dump"  [attr-defined]
+resync\core\health\health_history_manager.py:145: error: Unsupported operand types for <= ("datetime" and "None")  [operator]
+resync\core\health\health_history_manager.py:145: note: Left operand is of type "datetime | None"
+resync\core\health\health_history_manager.py:249: error: Unsupported operand types for <= ("datetime" and "None")  [operator]
+resync\core\health\health_history_manager.py:249: note: Left operand is of type "datetime | None"
+resync\core\health\health_history_manager.py:287: error: Unsupported operand types for <= ("datetime" and "None")  [operator]
+resync\core\health\health_history_manager.py:287: note: Left operand is of type "datetime | None"
+resync\core\health\health_history_manager.py:323: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\core\health\health_history_manager.py:323: error: Value of type variable "SupportsRichComparisonT" of "min" cannot be "datetime | None"  [type-var]
+resync\core\health\health_history_manager.py:324: error: Item "None" of "datetime | None" has no attribute "isoformat"  [union-attr]
+resync\core\health\health_history_manager.py:324: error: Value of type variable "SupportsRichComparisonT" of "max" cannot be "datetime | None"  [type-var]
+resync\core\health\health_monitoring_observer.py:235: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_monitoring_observer.py:297: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_monitoring_observer.py:298: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_monitoring_observer.py:299: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_monitoring_observer.py:60: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\health_service_facade.py:351: error: Item "None" of "datetime | None" has no attribute "timestamp"  [union-attr]
+resync\core\health\memory_usage_tracker.py:15: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\core\health\memory_usage_tracker.py:444: error: "Collection[str]" has no attribute "append"  [attr-defined]
+resync\core\health\memory_usage_tracker.py:450: error: "Collection[str]" has no attribute "append"  [attr-defined]
+resync\core\health\memory_usage_tracker.py:454: error: "Collection[str]" has no attribute "append"  [attr-defined]
+resync\core\health\memory_usage_tracker.py:459: error: "Collection[str]" has no attribute "append"  [attr-defined]
+resync\core\health\monitoring_aggregator.py:136: error: Argument "alerts" to "HealthReport" has incompatible type "list[dict[str, Any]]"; expected "list[str]"  [arg-type]
+resync\core\health\monitoring_aggregator.py:174: error: Item "None" of "HealthReport | None" has no attribute "component_health"  [union-attr]
+resync\core\health\monitoring_aggregator.py:205: error: Argument "alerts" to "HealthCheckResult" has incompatible type "list[str]"; expected "list[dict[str, Any]]"  [arg-type]
+resync\core\health\monitoring_aggregator.py:345: error: "ComponentHealthSummary" has no attribute "average_response_time"; maybe "average_response_time_ms"?  [attr-defined]
+resync\core\health\monitors\redis_monitor.py:200: error: No overload variant of "__sub__" of "datetime" matches argument type "None"  [operator]
+resync\core\health\monitors\redis_monitor.py:200: note:     def __sub__(self, datetime, /) -> timedelta
+resync\core\health\monitors\redis_monitor.py:200: note:     def __sub__(self, timedelta, /) -> datetime
+resync\core\health\monitors\redis_monitor.py:200: note: Possible overload variants:
+resync\core\health\monitors\redis_monitor.py:200: note: Right operand is of type "datetime | None"
+resync\core\health\monitors\redis_monitor.py:38: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\monitors\redis_monitor.py:39: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\performance_metrics_collector.py:12: error: Library stubs not installed for "psutil"  [import-untyped]
+resync\core\health\performance_metrics_collector.py:31: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\performance_metrics_collector.py:32: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\performance_metrics_collector.py:82: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\core\health\proactive_monitor.py:110: error: "object" has no attribute "append"  [attr-defined]
+resync\core\health\proactive_monitor.py:119: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\health\proactive_monitor.py:124: error: Argument 1 to "len" has incompatible type "object"; expected "Sized"  [arg-type]
+resync\core\health\proactive_monitor.py:125: error: Argument 1 to "len" has incompatible type "object"; expected "Sized"  [arg-type]
+resync\core\health\proactive_monitor.py:142: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\core\health\proactive_monitor.py:165: error: "PoolManager" has no attribute "pools"  [attr-defined]
+resync\core\health\proactive_monitor.py:200: error: "CircuitBreaker" has no attribute "get_enhanced_stats"  [attr-defined]
+resync\core\health\proactive_monitor.py:32: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\proactive_monitor.py:66: error: "object" has no attribute "append"  [attr-defined]
+resync\core\health\proactive_monitor.py:67: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\health\proactive_monitor.py:71: error: "object" has no attribute "append"  [attr-defined]
+resync\core\health\proactive_monitor.py:81: error: "object" has no attribute "append"  [attr-defined]
+resync\core\health\proactive_monitor.py:92: error: "object" has no attribute "append"  [attr-defined]
+resync\core\health\proactive_monitor.py:93: error: Unsupported target for indexed assignment ("object")  [index]
+resync\core\health\proactive_monitor.py:98: error: "object" has no attribute "append"  [attr-defined]
+resync\core\health\recovery_manager.py:343: error: "PoolManager" has no attribute "acquire_connection"  [attr-defined]
+resync\core\health\recovery_manager.py:36: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\health\recovery_manager.py:372: error: Incompatible types in "await" (actual type "CacheHierarchy", expected type "Awaitable[Any]")  [misc]
+resync\core\health\recovery_manager.py:523: error: Unsupported operand types for <= ("datetime" and "None")  [operator]
+resync\core\health\recovery_manager.py:523: note: Left operand is of type "datetime | None"
+resync\core\health\recovery_manager.py:535: error: Argument "key" to "sort" of "list" has incompatible type "Callable[[RecoveryResult], datetime | None]"; expected "Callable[[RecoveryResult], SupportsDunderLT[Any] | SupportsDunderGT[Any]]"  [arg-type]
+resync\core\health\recovery_manager.py:535: error: Incompatible return value type (got "datetime | None", expected "SupportsDunderLT[Any] | SupportsDunderGT[Any]")  [return-value]
+resync\core\health\recovery_manager.py:566: error: Incompatible types in assignment (expression has type "float", target has type "int")  [assignment]
+resync\core\health\recovery_manager.py:74: error: Incompatible types in "await" (actual type "dict[str, Any]", expected type "Awaitable[Any]")  [misc]
+resync\core\health\recovery_manager.py:80: error: "AdvancedConnectionPoolManager" has no attribute "reset_pool"  [attr-defined]
+resync\core\health\recovery_manager.py:94: error: "PoolManager" has no attribute "reset_pool"  [attr-defined]
+resync\core\health\recovery_manager.py:96: error: Incompatible types in assignment (expression has type "str", target has type "dict[str, Any]")  [assignment]
+resync\core\health\unified_health_service.py:198: error: Argument "alerts" to "HealthCheckResult" has incompatible type "list[str]"; expected "list[dict[str, Any]]"  [arg-type]
+resync\core\health\unified_health_service.py:207: error: Unsupported operand types for + ("float" and "None")  [operator]
+resync\core\health\unified_health_service.py:207: note: Right operand is of type "float | None"
+resync\core\health\unified_health_service.py:228: error: List item 0 has incompatible type "str"; expected "dict[str, Any]"  [list-item]
+resync\core\health\unified_health_service.py:340: error: "type[ComponentType]" has no attribute "SERVICE"  [attr-defined]
+resync\core\health\unified_health_service.py:394: error: Unsupported operand types for <= ("datetime" and "None")  [operator]
+resync\core\health\unified_health_service.py:394: note: Left operand is of type "datetime | None"
+resync\core\ia_auditor.py:240: error: "BaseException" object is not iterable  [misc]
+resync\core\ia_auditor.py:250: error: Incompatible return value type (got "tuple[list[str | dict[str, Any] | Any], list[str | dict[str, Any] | Any]]", expected "tuple[list[str], list[dict[str, Any]]]")  [return-value]
+resync\core\incident_response.py:499: error: Need type annotation for "executed_actions" (hint: "executed_actions: list[<type>] = ...")  [var-annotated]
+resync\core\incident_response.py:977: error: Generator has incompatible item type "float"; expected "bool"  [misc]
+resync\core\incident_response.py:977: error: Unsupported operand types for - ("None" and "float")  [operator]
+resync\core\incident_response.py:977: note: Left operand is of type "float | None"
+resync\core\incident_response.py:983: error: Need type annotation for "severity_distribution" (hint: "severity_distribution: dict[<type>, <type>] = ...")  [var-annotated]
+resync\core\incident_response.py:989: error: Need type annotation for "category_distribution" (hint: "category_distribution: dict[<type>, <type>] = ...")  [var-annotated]
+resync\core\jwt_utils.py:44: error: Library stubs not installed for "jose"  [import-untyped]
+resync\core\langfuse\observability.py:230: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\langfuse\observability.py:231: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\langfuse\observability.py:232: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\langfuse\observability.py:254: error: Incompatible return value type (got "Any | Literal[False] | None", expected "bool")  [return-value]
+resync\core\langfuse\observability.py:39: error: Cannot find implementation or library stub for module named "langfuse"  [import-not-found]
+resync\core\langfuse\observability.py:40: error: Cannot find implementation or library stub for module named "langfuse.decorators"  [import-not-found]
+resync\core\langfuse\prompt_manager.py:214: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\langfuse\prompt_manager.py:215: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\langfuse\prompt_manager.py:216: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+resync\core\langfuse\prompt_manager.py:266: error: Incompatible return value type (got "Any | Literal[False] | None", expected "bool")  [return-value]
+resync\core\langfuse\prompt_manager.py:274: error: Missing named argument "ab_test_group" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:274: error: Missing named argument "max_tokens_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:298: error: Missing named argument "ab_test_group" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:298: error: Missing named argument "max_tokens_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:321: error: Missing named argument "ab_test_group" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:345: error: Missing named argument "ab_test_group" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:345: error: Missing named argument "max_tokens_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:345: error: Missing named argument "model_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:345: error: Missing named argument "temperature_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:367: error: Missing named argument "ab_test_group" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:367: error: Missing named argument "max_tokens_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:367: error: Missing named argument "model_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:367: error: Missing named argument "temperature_hint" for "PromptConfig"  [call-arg]
+resync\core\langfuse\prompt_manager.py:38: error: Cannot find implementation or library stub for module named "langfuse"  [import-not-found]
+resync\core\langfuse\prompt_manager.py:397: error: Argument 1 to "safe_load" has incompatible type "AsyncTextIOWrapper"; expected "str | bytes | SupportsRead[str] | SupportsRead[bytes]"  [arg-type]
+resync\core\langfuse\prompt_manager.py:397: note:         def read(self, int = ..., /) -> bytes
+resync\core\langfuse\prompt_manager.py:397: note:         def read(self, int = ..., /) -> str

@@ -56,9 +56,15 @@ async def fetch_job_history(
             "status": row.get("status") or "UNKNOWN",
             "return_code": row.get("return_code") or 0,
             "runtime_seconds": row.get("runtime_seconds") or 0,
-            "scheduled_time": row["scheduled_time"].isoformat() if row.get("scheduled_time") else None,
-            "actual_start_time": row["actual_start_time"].isoformat() if row.get("actual_start_time") else None,
-            "completed_time": row["completed_time"].isoformat() if row.get("completed_time") else None,
+            "scheduled_time": row["scheduled_time"].isoformat()
+            if row.get("scheduled_time")
+            else None,
+            "actual_start_time": row["actual_start_time"].isoformat()
+            if row.get("actual_start_time")
+            else None,
+            "completed_time": row["completed_time"].isoformat()
+            if row.get("completed_time")
+            else None,
             "source": "verbose_db",
         }
         for row in rows
@@ -101,13 +107,27 @@ async def fetch_workstation_metrics(
         {
             "timestamp": row["timestamp"].isoformat() if row.get("timestamp") else None,
             "workstation": row.get("workstation"),
-            "cpu_percent": float(row["cpu_percent"]) if row.get("cpu_percent") is not None else 0.0,
-            "memory_percent": float(row["memory_percent"]) if row.get("memory_percent") is not None else 0.0,
-            "disk_percent": float(row["disk_percent"]) if row.get("disk_percent") is not None else 0.0,
-            "load_avg_1min": float(row["load_avg_1min"]) if row.get("load_avg_1min") is not None else 0.0,
-            "cpu_count": int(row["cpu_count"]) if row.get("cpu_count") is not None else 0,
-            "total_memory_gb": float(row["total_memory_gb"]) if row.get("total_memory_gb") is not None else 0.0,
-            "total_disk_gb": float(row["total_disk_gb"]) if row.get("total_disk_gb") is not None else 0.0,
+            "cpu_percent": float(row["cpu_percent"])
+            if row.get("cpu_percent") is not None
+            else 0.0,
+            "memory_percent": float(row["memory_percent"])
+            if row.get("memory_percent") is not None
+            else 0.0,
+            "disk_percent": float(row["disk_percent"])
+            if row.get("disk_percent") is not None
+            else 0.0,
+            "load_avg_1min": float(row["load_avg_1min"])
+            if row.get("load_avg_1min") is not None
+            else 0.0,
+            "cpu_count": int(row["cpu_count"])
+            if row.get("cpu_count") is not None
+            else 0,
+            "total_memory_gb": float(row["total_memory_gb"])
+            if row.get("total_memory_gb") is not None
+            else 0.0,
+            "total_disk_gb": float(row["total_disk_gb"])
+            if row.get("total_disk_gb") is not None
+            else 0.0,
             "source": "verbose_db",
         }
         for row in rows
@@ -141,16 +161,24 @@ async def fetch_job_execution_history(
             "status": row["status"] or "UNKNOWN",
             "return_code": row["return_code"] or 0,
             "runtime_seconds": row["runtime_seconds"] or 0,
-            "scheduled_time": row["scheduled_time"].isoformat() if row["scheduled_time"] else None,
-            "actual_start_time": row["actual_start_time"].isoformat() if row["actual_start_time"] else None,
-            "completed_time": row["completed_time"].isoformat() if row["completed_time"] else None,
+            "scheduled_time": row["scheduled_time"].isoformat()
+            if row["scheduled_time"]
+            else None,
+            "actual_start_time": row["actual_start_time"].isoformat()
+            if row["actual_start_time"]
+            else None,
+            "completed_time": row["completed_time"].isoformat()
+            if row["completed_time"]
+            else None,
         }
         for row in rows
     ]
     return job_history
 
 
-async def fetch_workstation_metrics_history(db: Any, workstation: str | None = None) -> list[dict[str, Any]]:
+async def fetch_workstation_metrics_history(
+    db: Any, workstation: str | None = None
+) -> list[dict[str, Any]]:
     query_str = "SELECT * FROM metrics WHERE 1=1"
     params: dict[str, Any] = {}
     if workstation:
@@ -166,13 +194,25 @@ async def fetch_workstation_metrics_history(db: Any, workstation: str | None = N
         {
             "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
             "workstation": row["workstation"],
-            "cpu_percent": float(row["cpu_percent"]) if row["cpu_percent"] is not None else 0.0,
-            "memory_percent": float(row["memory_percent"]) if row["memory_percent"] is not None else 0.0,
-            "disk_percent": float(row["disk_percent"]) if row["disk_percent"] is not None else 0.0,
-            "load_avg_1min": float(row["load_avg_1min"]) if row["load_avg_1min"] is not None else 0.0,
+            "cpu_percent": float(row["cpu_percent"])
+            if row["cpu_percent"] is not None
+            else 0.0,
+            "memory_percent": float(row["memory_percent"])
+            if row["memory_percent"] is not None
+            else 0.0,
+            "disk_percent": float(row["disk_percent"])
+            if row["disk_percent"] is not None
+            else 0.0,
+            "load_avg_1min": float(row["load_avg_1min"])
+            if row["load_avg_1min"] is not None
+            else 0.0,
             "cpu_count": int(row["cpu_count"]) if row["cpu_count"] is not None else 0,
-            "total_memory_gb": float(row["total_memory_gb"]) if row["total_memory_gb"] is not None else 0.0,
-            "total_disk_gb": float(row["total_disk_gb"]) if row["total_disk_gb"] is not None else 0.0,
+            "total_memory_gb": float(row["total_memory_gb"])
+            if row["total_memory_gb"] is not None
+            else 0.0,
+            "total_disk_gb": float(row["total_disk_gb"])
+            if row["total_disk_gb"] is not None
+            else 0.0,
         }
         for row in rows
     ]
@@ -210,4 +250,8 @@ async def generate_recommendations(*args: Any, **kwargs: Any) -> dict[str, Any]:
 async def notify_operators(*args: Any, **kwargs: Any) -> None:
     """No-op notification placeholder for verbose mode."""
     await asyncio.sleep(0)
-    logger.info("notify_operators_verbose_noop", args_count=len(args), kwargs_keys=sorted(kwargs.keys()))
+    logger.info(
+        "notify_operators_verbose_noop",
+        args_count=len(args),
+        kwargs_keys=sorted(kwargs.keys()),
+    )

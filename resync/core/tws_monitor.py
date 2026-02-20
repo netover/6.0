@@ -104,7 +104,9 @@ class TWSMonitor:
             return
 
         self._is_monitoring = True
-        self._monitoring_task = track_task(self._monitoring_loop(), name="monitoring_loop")
+        self._monitoring_task = track_task(
+            self._monitoring_loop(), name="monitoring_loop"
+        )
         logger.info("tws_monitoring_started")
 
     async def stop_monitoring(self) -> None:
@@ -127,7 +129,9 @@ class TWSMonitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("error_in_tws_monitoring_loop", error=str(e), exc_info=True)
+                logger.error(
+                    "error_in_tws_monitoring_loop", error=str(e), exc_info=True
+                )
                 await asyncio.sleep(10)  # Brief pause on error
 
     async def _collect_metrics(self) -> None:
@@ -322,7 +326,9 @@ class TWSMonitor:
                 exc_info=True,
             )
 
-    async def monitor_job_status_change(self, job_data: dict[str, Any], instance_name: str) -> None:
+    async def monitor_job_status_change(
+        self, job_data: dict[str, Any], instance_name: str
+    ) -> None:
         """Monitor job status changes and send notifications for configured statuses.
 
         Args:
@@ -343,7 +349,8 @@ class TWSMonitor:
             # Check if this instance is being monitored
             if (
                 teams_integration.config.monitored_tws_instances
-                and instance_name not in teams_integration.config.monitored_tws_instances
+                and instance_name
+                not in teams_integration.config.monitored_tws_instances
             ):
                 return
 
@@ -409,7 +416,8 @@ class TWSMonitor:
                 alert
                 for alert in self.alerts
                 if not alert.resolved
-                and (datetime.now(timezone.utc) - alert.timestamp).total_seconds() < 3600  # Last hour
+                and (datetime.now(timezone.utc) - alert.timestamp).total_seconds()
+                < 3600  # Last hour
             ]
 
             return {
@@ -437,10 +445,18 @@ class TWSMonitor:
                 "summary": {
                     "total_alerts": len([a for a in self.alerts if not a.resolved]),
                     "critical_alerts": len(
-                        [a for a in self.alerts if not a.resolved and a.severity == "critical"]
+                        [
+                            a
+                            for a in self.alerts
+                            if not a.resolved and a.severity == "critical"
+                        ]
                     ),
                     "high_alerts": len(
-                        [a for a in self.alerts if not a.resolved and a.severity == "high"]
+                        [
+                            a
+                            for a in self.alerts
+                            if not a.resolved and a.severity == "high"
+                        ]
                     ),
                 },
             }

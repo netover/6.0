@@ -148,7 +148,9 @@ class FeedbackAwareRetriever(Retriever):
 
         # Apply feedback-based reranking
         if apply_feedback:
-            hits = await self._apply_feedback_reranking(hits, query, query_embedding, user_id)
+            hits = await self._apply_feedback_reranking(
+                hits, query, query_embedding, user_id
+            )
             self._feedback_applied_count += 1
 
         # Apply traditional reranking if enabled
@@ -390,7 +392,9 @@ class AdaptiveFeedbackRetriever(FeedbackAwareRetriever):
             self.feedback_weight = self.base_feedback_weight
 
         # Use parent's reranking logic
-        return await super()._apply_feedback_reranking(hits, query, query_embedding, user_id)
+        return await super()._apply_feedback_reranking(
+            hits, query, query_embedding, user_id
+        )
 
 
 # Factory function

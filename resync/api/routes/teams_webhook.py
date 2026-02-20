@@ -15,7 +15,10 @@ from sqlalchemy.orm import Session
 from resync.core.database.session import get_db
 from resync.core.teams_permissions import TeamsPermissionsManager
 from resync.core.teams_webhook_handler import TeamsWebhookHandler
-from resync.core.teams_webhook_security import extract_bearer_token, verify_teams_hmac_signature
+from resync.core.teams_webhook_security import (
+    extract_bearer_token,
+    verify_teams_hmac_signature,
+)
 from resync.settings import settings
 
 logger = structlog.get_logger(__name__)
@@ -27,8 +30,10 @@ router = APIRouter(prefix="/api/teams", tags=["Teams Webhook"])
 # MODELS
 # =============================================================================
 
+
 class TeamsMessageFrom(BaseModel):
     """Informações do remetente."""
+
     name: str
     id: str
     aadObjectId: str | None = None
@@ -37,12 +42,14 @@ class TeamsMessageFrom(BaseModel):
 
 class TeamsConversation(BaseModel):
     """Informações da conversa."""
+
     id: str
     name: str | None = None
 
 
 class TeamsMessage(BaseModel):
     """Mensagem recebida do Teams."""
+
     type: str = "message"
     text: str
     channelId: str
@@ -56,6 +63,7 @@ class TeamsMessage(BaseModel):
 
 class TeamsResponse(BaseModel):
     """Resposta para o Teams."""
+
     type: str = "message"
     text: str
 
@@ -63,6 +71,7 @@ class TeamsResponse(BaseModel):
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 
 def extract_user_email(message: TeamsMessage) -> str:
     """
@@ -82,6 +91,7 @@ def extract_user_email(message: TeamsMessage) -> str:
 async def get_agent_manager():
     """Dependency: retorna Agent Manager."""
     from resync.core.agent_manager import get_agent_manager as get_am
+
     return get_am()
 
 
@@ -89,11 +99,12 @@ async def get_agent_manager():
 # ENDPOINTS
 # =============================================================================
 
+
 @router.post("/webhook", response_model=TeamsResponse)
 async def teams_outgoing_webhook_endpoint(
     request: Request,
     authorization: str | None = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     **Endpoint principal do Teams Outgoing Webhook.**
@@ -120,7 +131,7 @@ async def teams_outgoing_webhook_endpoint(
         logger.warning("teams_webhook_disabled_attempted_access")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Teams webhook is currently disabled"
+            detail="Teams webhook is currently disabled",
         )
 
     # Lê corpo da requisição
@@ -133,14 +144,14 @@ async def teams_outgoing_webhook_endpoint(
         logger.error("teams_webhook_no_security_token_configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Security token not configured"
+            detail="Security token not configured",
         )
 
     if not authorization:
         logger.warning("teams_webhook_missing_authorization_header")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header"
+            detail="Missing Authorization header",
         )
 
     # Extrai signature do header
@@ -149,18 +160,17 @@ async def teams_outgoing_webhook_endpoint(
         logger.warning("teams_webhook_invalid_authorization_format")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Authorization header format"
+            detail="Invalid Authorization header format",
         )
 
     # Verifica HMAC
     if not verify_teams_hmac_signature(body_bytes, signature, security_token):
         logger.warning(
             "teams_webhook_invalid_hmac_signature",
-            signature_preview=signature[:20] if len(signature) > 20 else signature
+            signature_preview=signature[:20] if len(signature) > 20 else signature,
         )
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid HMAC signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid HMAC signature"
         )
 
     logger.debug("teams_webhook_hmac_validated_successfully")
@@ -172,7 +182,7 @@ async def teams_outgoing_webhook_endpoint(
         logger.error("teams_webhook_invalid_message_format", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid message format. Check server logs for details."
+            detail="Invalid message format. Check server logs for details.",
         ) from None
 
     # Extrai informações do usuário
@@ -185,7 +195,7 @@ async def teams_outgoing_webhook_endpoint(
         user_name=user_name,
         user_email=user_email,
         channel=channel_name,
-        message_preview=message.text[:100]
+        message_preview=message.text[:100],
     )
 
     # Inicializa componentes
@@ -201,13 +211,13 @@ async def teams_outgoing_webhook_endpoint(
             user_name=user_name,
             channel_id=message.channelId,
             channel_name=channel_name,
-            webhook_name=config.get("webhook_name", "resync")
+            webhook_name=config.get("webhook_name", "resync"),
         )
 
         logger.info(
             "teams_webhook_response_sent",
             user_email=user_email,
-            response_length=len(answer)
+            response_length=len(answer),
         )
 
         return TeamsResponse(text=answer)
@@ -217,7 +227,7 @@ async def teams_outgoing_webhook_endpoint(
             "teams_webhook_processing_error",
             error=str(e),
             user_email=user_email,
-            exc_info=True
+            exc_info=True,
         )
 
         # Retorna mensagem de erro amigável
@@ -246,5 +256,5 @@ async def teams_webhook_health():
         "webhook_enabled": config.get("enabled", False),
         "webhook_configured": bool(config.get("security_token")),
         "webhook_name": config.get("webhook_name", "resync"),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

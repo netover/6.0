@@ -72,13 +72,34 @@ class OpinionBasedPromptFormatter:
 
     # Question words for detection
     QUESTION_WORDS_EN = {
-        "what", "who", "where", "when", "why", "how",
-        "which", "whose", "whom", "is", "are", "can", "does"
+        "what",
+        "who",
+        "where",
+        "when",
+        "why",
+        "how",
+        "which",
+        "whose",
+        "whom",
+        "is",
+        "are",
+        "can",
+        "does",
     }
 
     QUESTION_WORDS_PT = {
-        "qual", "quem", "onde", "quando", "por que", "como",
-        "o que", "quais", "é", "são", "pode", "faz"
+        "qual",
+        "quem",
+        "onde",
+        "quando",
+        "por que",
+        "como",
+        "o que",
+        "quais",
+        "é",
+        "são",
+        "pode",
+        "faz",
     }
 
     def format_question(
@@ -86,7 +107,7 @@ class OpinionBasedPromptFormatter:
         question: str,
         source: str = "the context",
         style: PromptStyle = "document",
-        language: str = "en"
+        language: str = "en",
     ) -> str:
         """
         Reformat question using opinion-based attribution.
@@ -138,7 +159,8 @@ class OpinionBasedPromptFormatter:
 
         # Select template based on language
         templates = (
-            self.ATTRIBUTION_TEMPLATES_PT if language == "pt"
+            self.ATTRIBUTION_TEMPLATES_PT
+            if language == "pt"
             else self.ATTRIBUTION_TEMPLATES
         )
 
@@ -158,7 +180,7 @@ class OpinionBasedPromptFormatter:
         self,
         agent_role: str = "assistant",
         strict_mode: bool = True,
-        language: str = "en"
+        language: str = "en",
     ) -> str:
         """
         Create opinion-based system prompt emphasizing context adherence.
@@ -215,7 +237,7 @@ the provided context, but you may use general knowledge when appropriate."""
         style: PromptStyle = "document",
         include_system: bool = True,
         language: str = "en",
-        strict_mode: bool = True
+        strict_mode: bool = True,
     ) -> dict[str, str]:
         """
         Format complete RAG prompt with opinion-based framing.
@@ -250,10 +272,7 @@ the provided context, but you may use general knowledge when appropriate."""
         """
         # Reformat question with attribution
         formatted_question = self.format_question(
-            question=query,
-            source=source_name,
-            style=style,
-            language=language
+            question=query, source=source_name, style=style, language=language
         )
 
         # Build user prompt
@@ -288,7 +307,7 @@ INSTRUCTIONS:
             result["system"] = self.format_system_prompt(
                 agent_role="documentation assistant",
                 strict_mode=strict_mode,
-                language=language
+                language=language,
             )
 
         return result
@@ -298,8 +317,7 @@ INSTRUCTIONS:
         text_lower = text.lower().strip()
 
         question_words = (
-            self.QUESTION_WORDS_PT if language == "pt"
-            else self.QUESTION_WORDS_EN
+            self.QUESTION_WORDS_PT if language == "pt" else self.QUESTION_WORDS_EN
         )
 
         return any(text_lower.startswith(word) for word in question_words)
@@ -322,7 +340,7 @@ def format_contextual_query(
     query: str,
     context: str,
     source: str = "the provided documentation",
-    language: str = "en"
+    language: str = "en",
 ) -> dict[str, str]:
     """
     Quick wrapper for formatting RAG queries with opinion-based prompting.
@@ -345,17 +363,12 @@ def format_contextual_query(
         >>> # Ready to use with LLM
     """
     return _default_formatter.format_rag_prompt(
-        query=query,
-        context=context,
-        source_name=source,
-        language=language
+        query=query, context=context, source_name=source, language=language
     )
 
 
 def format_question_with_attribution(
-    question: str,
-    source: str = "the context",
-    language: str = "en"
+    question: str, source: str = "the context", language: str = "en"
 ) -> str:
     """
     Quick wrapper for formatting a single question.
@@ -377,9 +390,7 @@ def format_question_with_attribution(
         'According to the company announcement, what is the CEO?'
     """
     return _default_formatter.format_question(
-        question=question,
-        source=source,
-        language=language
+        question=question, source=source, language=language
     )
 
 

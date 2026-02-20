@@ -51,25 +51,41 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
 
         # 3. Prepare configuration
         monitoring_config = {
-            "polling_interval_seconds": getattr(settings, "tws_polling_interval_seconds", 30),
+            "polling_interval_seconds": getattr(
+                settings, "tws_polling_interval_seconds", 30
+            ),
             "polling_mode": getattr(settings, "tws_polling_mode", "fixed"),
-            "job_stuck_threshold_minutes": getattr(settings, "tws_job_stuck_threshold_minutes", 60),
-            "job_late_threshold_minutes": getattr(settings, "tws_job_late_threshold_minutes", 30),
+            "job_stuck_threshold_minutes": getattr(
+                settings, "tws_job_stuck_threshold_minutes", 60
+            ),
+            "job_late_threshold_minutes": getattr(
+                settings, "tws_job_late_threshold_minutes", 30
+            ),
             "anomaly_failure_rate_threshold": getattr(
                 settings, "tws_anomaly_failure_rate_threshold", 0.1
             ),
             "retention_days_full": getattr(settings, "tws_retention_days_full", 7),
-            "retention_days_summary": getattr(settings, "tws_retention_days_summary", 30),
-            "retention_days_patterns": getattr(settings, "tws_retention_days_patterns", 90),
-            "pattern_detection_enabled": getattr(settings, "tws_pattern_detection_enabled", True),
+            "retention_days_summary": getattr(
+                settings, "tws_retention_days_summary", 30
+            ),
+            "retention_days_patterns": getattr(
+                settings, "tws_retention_days_patterns", 90
+            ),
+            "pattern_detection_enabled": getattr(
+                settings, "tws_pattern_detection_enabled", True
+            ),
             "pattern_detection_interval_minutes": getattr(
                 settings, "tws_pattern_detection_interval_minutes", 60
             ),
-            "pattern_min_confidence": getattr(settings, "tws_pattern_min_confidence", 0.5),
+            "pattern_min_confidence": getattr(
+                settings, "tws_pattern_min_confidence", 0.5
+            ),
             "solution_correlation_enabled": getattr(
                 settings, "tws_solution_correlation_enabled", True
             ),
-            "solution_min_success_rate": getattr(settings, "tws_solution_min_success_rate", 0.6),
+            "solution_min_success_rate": getattr(
+                settings, "tws_solution_min_success_rate", 0.6
+            ),
             "browser_notifications_enabled": getattr(
                 settings, "tws_browser_notifications_enabled", True
             ),
@@ -78,7 +94,9 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
             ),
             "teams_webhook_url": getattr(settings, "tws_teams_webhook_url", None),
             "dashboard_theme": getattr(settings, "tws_dashboard_theme", "auto"),
-            "dashboard_refresh_seconds": getattr(settings, "tws_dashboard_refresh_seconds", 5),
+            "dashboard_refresh_seconds": getattr(
+                settings, "tws_dashboard_refresh_seconds", 5
+            ),
         }
 
         # 4. Initialize monitoring system
@@ -119,7 +137,9 @@ async def shutdown_proactive_monitoring(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     try:
-        from resync.core.proactive_monitoring_manager import shutdown_proactive_monitoring
+        from resync.core.proactive_monitoring_manager import (
+            shutdown_proactive_monitoring,
+        )
 
         await shutdown_proactive_monitoring()
 
@@ -215,8 +235,8 @@ def register_dashboard_route(app: FastAPI) -> None:
 def _get_tws_client(app: "FastAPI") -> Any | None:
     """Get TWS client from the dependency container."""
     try:
-        
         from resync.core.wiring import STATE_TWS_CLIENT
+
         return getattr(app.state, STATE_TWS_CLIENT)
 
     except Exception as e:
@@ -230,8 +250,8 @@ def _get_tws_client(app: "FastAPI") -> Any | None:
 def _get_llm_client(app: "FastAPI") -> Any | None:
     """Get LLM client from the dependency container."""
     try:
-        
         from resync.core.wiring import STATE_LLM_SERVICE
+
         return getattr(app.state, STATE_LLM_SERVICE)
 
     except Exception as e:
@@ -279,7 +299,9 @@ def _create_mock_tws_client() -> Any:
 
             for i in range(random.randint(20, 50)):
                 job_status = random.choice(statuses)
-                start_time = datetime.now(timezone.utc) - timedelta(minutes=random.randint(5, 120))
+                start_time = datetime.now(timezone.utc) - timedelta(
+                    minutes=random.randint(5, 120)
+                )
 
                 job = {
                     "id": f"job_{i}",
@@ -291,7 +313,9 @@ def _create_mock_tws_client() -> Any:
                     if job_status == "SUCC"
                     else (8 if job_status == "ABEND" else None),
                     "startTime": start_time.isoformat(),
-                    "endTime": (start_time + timedelta(minutes=random.randint(1, 30))).isoformat()
+                    "endTime": (
+                        start_time + timedelta(minutes=random.randint(1, 30))
+                    ).isoformat()
                     if job_status in ["SUCC", "ABEND"]
                     else None,
                     "errorMessage": "Database connection error"

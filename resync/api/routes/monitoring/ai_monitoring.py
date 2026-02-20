@@ -32,7 +32,9 @@ router = APIRouter(prefix="/ai", tags=["Admin - AI Configuration"])
 # ============================================================================
 
 CONFIG_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent / "config" / "ai_config.json"
+    Path(__file__).resolve().parent.parent.parent.parent.parent
+    / "config"
+    / "ai_config.json"
 )
 
 
@@ -54,7 +56,10 @@ class ResourceLimitsConfig(BaseModel):
         default=300, ge=30, le=3600, description="Maximum execution time"
     )
     nice_level: int = Field(
-        default=10, ge=0, le=19, description="Process nice level (higher = lower priority)"
+        default=10,
+        ge=0,
+        le=19,
+        description="Process nice level (higher = lower priority)",
     )
 
 
@@ -63,10 +68,18 @@ class SpecialistAgentConfig(BaseModel):
 
     enabled: bool = Field(default=True, description="Whether the specialist is enabled")
     model_name: str = Field(default="gpt-4o", description="LLM model to use")
-    temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Model temperature")
-    max_tokens: int = Field(default=2048, ge=100, le=8192, description="Maximum response tokens")
-    timeout_seconds: int = Field(default=30, ge=5, le=120, description="Request timeout")
-    retry_attempts: int = Field(default=3, ge=0, le=5, description="Retry attempts on failure")
+    temperature: float = Field(
+        default=0.3, ge=0.0, le=2.0, description="Model temperature"
+    )
+    max_tokens: int = Field(
+        default=2048, ge=100, le=8192, description="Maximum response tokens"
+    )
+    timeout_seconds: int = Field(
+        default=30, ge=5, le=120, description="Request timeout"
+    )
+    retry_attempts: int = Field(
+        default=3, ge=0, le=5, description="Retry attempts on failure"
+    )
     custom_instructions: str | None = Field(
         default=None, description="Additional custom instructions"
     )
@@ -81,11 +94,15 @@ class SpecialistsConfig(BaseModel):
         pattern="^(coordinate|collaborate|route|parallel)$",
         description="Team execution mode",
     )
-    parallel_execution: bool = Field(default=True, description="Run specialists in parallel")
+    parallel_execution: bool = Field(
+        default=True, description="Run specialists in parallel"
+    )
     max_parallel_specialists: int = Field(
         default=4, ge=1, le=10, description="Max parallel specialists"
     )
-    timeout_seconds: int = Field(default=45, ge=10, le=180, description="Overall team timeout")
+    timeout_seconds: int = Field(
+        default=45, ge=10, le=180, description="Overall team timeout"
+    )
     orchestrator_model: str = Field(default="gpt-4o", description="Orchestrator model")
     synthesizer_model: str = Field(default="gpt-4o", description="Synthesizer model")
     fallback_to_general: bool = Field(
@@ -120,24 +137,37 @@ class MonitoringScheduleConfig(BaseModel):
         description="Time to run (HH:MM) for daily/weekly",
     )
     day_of_week: int | None = Field(
-        default=None, ge=0, le=6, description="Day of week for weekly (0=Monday, 6=Sunday)"
+        default=None,
+        ge=0,
+        le=6,
+        description="Day of week for weekly (0=Monday, 6=Sunday)",
     )
 
 
 class DriftDetectionConfig(BaseModel):
     """Drift detection configuration."""
 
-    data_drift_enabled: bool = Field(default=True, description="Monitor data/query drift")
-    prediction_drift_enabled: bool = Field(default=True, description="Monitor prediction drift")
-    target_drift_enabled: bool = Field(default=True, description="Monitor target/feedback drift")
+    data_drift_enabled: bool = Field(
+        default=True, description="Monitor data/query drift"
+    )
+    prediction_drift_enabled: bool = Field(
+        default=True, description="Monitor prediction drift"
+    )
+    target_drift_enabled: bool = Field(
+        default=True, description="Monitor target/feedback drift"
+    )
     drift_threshold: float = Field(
         default=0.15, ge=0.01, le=0.5, description="Drift detection threshold"
     )
     alert_threshold: float = Field(
         default=0.25, ge=0.05, le=0.5, description="Alert trigger threshold"
     )
-    reference_window_days: int = Field(default=7, ge=1, le=90, description="Reference data window")
-    current_window_hours: int = Field(default=24, ge=1, le=168, description="Current data window")
+    reference_window_days: int = Field(
+        default=7, ge=1, le=90, description="Reference data window"
+    )
+    current_window_hours: int = Field(
+        default=24, ge=1, le=168, description="Current data window"
+    )
 
 
 class AIMonitoringConfig(BaseModel):
@@ -147,8 +177,12 @@ class AIMonitoringConfig(BaseModel):
     schedule: MonitoringScheduleConfig = Field(default_factory=MonitoringScheduleConfig)
     drift_detection: DriftDetectionConfig = Field(default_factory=DriftDetectionConfig)
     resource_limits: ResourceLimitsConfig = Field(default_factory=ResourceLimitsConfig)
-    reports_path: str = Field(default="data/evidently_reports", description="Path to store reports")
-    max_reports_stored: int = Field(default=30, ge=1, le=365, description="Max reports to retain")
+    reports_path: str = Field(
+        default="data/evidently_reports", description="Path to store reports"
+    )
+    max_reports_stored: int = Field(
+        default=30, ge=1, le=365, description="Max reports to retain"
+    )
 
 
 class AIConfigResponse(BaseModel):
@@ -520,7 +554,9 @@ async def get_monitoring_status() -> dict[str, Any]:
     return {
         "enabled": config.get("monitoring", {}).get("enabled", False),
         "running": False,
-        "schedule": config.get("monitoring", {}).get("schedule", {}).get("type", "manual"),
+        "schedule": config.get("monitoring", {})
+        .get("schedule", {})
+        .get("type", "manual"),
         "last_run": None,
         "total_alerts": 0,
         "recent_alerts": 0,
@@ -630,7 +666,9 @@ async def list_monitoring_reports(
 ) -> dict[str, Any]:
     """List available monitoring reports."""
     config = _load_config()
-    reports_path = Path(config.get("monitoring", {}).get("reports_path", "data/evidently_reports"))
+    reports_path = Path(
+        config.get("monitoring", {}).get("reports_path", "data/evidently_reports")
+    )
 
     reports = []
     if reports_path.exists():
@@ -640,13 +678,17 @@ async def list_monitoring_reports(
                     "name": report_file.name,
                     "path": str(report_file),
                     "size_kb": report_file.stat().st_size / 1024,
-                    "created": datetime.fromtimestamp(report_file.stat().st_ctime).isoformat(),
+                    "created": datetime.fromtimestamp(
+                        report_file.stat().st_ctime
+                    ).isoformat(),
                 }
             )
 
     return {
         "reports_path": str(reports_path),
-        "total_reports": len(list(reports_path.glob("*.html"))) if reports_path.exists() else 0,
+        "total_reports": len(list(reports_path.glob("*.html")))
+        if reports_path.exists()
+        else 0,
         "reports": reports,
     }
 
@@ -702,14 +744,20 @@ async def _reload_specialists(specialists_config: dict[str, Any]) -> None:
     """Reload specialist agents with new configuration."""
     try:
         from resync.core.specialists import create_specialist_team
-        from resync.core.specialists.models import SpecialistConfig, SpecialistType, TeamConfig
+        from resync.core.specialists.models import (
+            SpecialistConfig,
+            SpecialistType,
+            TeamConfig,
+        )
 
         # Build team config from dict
         team_config = TeamConfig(
             enabled=specialists_config.get("enabled", True),
             execution_mode=specialists_config.get("execution_mode", "coordinate"),
             parallel_execution=specialists_config.get("parallel_execution", True),
-            max_parallel_specialists=specialists_config.get("max_parallel_specialists", 4),
+            max_parallel_specialists=specialists_config.get(
+                "max_parallel_specialists", 4
+            ),
             timeout_seconds=specialists_config.get("timeout_seconds", 45),
             orchestrator_model=specialists_config.get("orchestrator_model", "gpt-4o"),
             synthesizer_model=specialists_config.get("synthesizer_model", "gpt-4o"),
@@ -739,7 +787,10 @@ async def _reload_specialists(specialists_config: dict[str, Any]) -> None:
 async def _toggle_monitoring_service(enabled: bool) -> None:
     """Start or stop monitoring service."""
     try:
-        from resync.core.monitoring import get_monitoring_service, init_monitoring_service
+        from resync.core.monitoring import (
+            get_monitoring_service,
+            init_monitoring_service,
+        )
 
         service = get_monitoring_service()
 

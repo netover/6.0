@@ -86,16 +86,26 @@ class AgentConfig(BaseModel):
     )
 
     model_name: StringConstraints.MODEL_NAME = Field(
-        default="llama3:latest", description="LLM model name", examples=["llama3:latest"]
+        default="llama3:latest",
+        description="LLM model name",
+        examples=["llama3:latest"],
     )
 
-    memory: bool = Field(default=True, description="Whether the agent has memory enabled")
+    memory: bool = Field(
+        default=True, description="Whether the agent has memory enabled"
+    )
 
-    verbose: bool = Field(default=False, description="Whether the agent operates in verbose mode")
+    verbose: bool = Field(
+        default=False, description="Whether the agent operates in verbose mode"
+    )
 
-    type: AgentType = Field(default=AgentType.TWS_SPECIALIST, description="Type of agent")
+    type: AgentType = Field(
+        default=AgentType.TWS_SPECIALIST, description="Type of agent"
+    )
 
-    status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Current agent status")
+    status: AgentStatus = Field(
+        default=AgentStatus.ACTIVE, description="Current agent status"
+    )
 
     description: (
         Annotated[
@@ -115,7 +125,9 @@ class AgentConfig(BaseModel):
         max_length=50,
     )
 
-    tags: list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]] = Field(
+    tags: list[
+        Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]
+    ] = Field(
         default_factory=list, description="Agent tags for categorization", max_length=10
     )
 
@@ -123,7 +135,9 @@ class AgentConfig(BaseModel):
         None, ge=100, le=100000, description="Maximum tokens for model responses"
     )
 
-    temperature: float | None = Field(None, ge=0.0, le=2.0, description="Model temperature setting")
+    temperature: float | None = Field(
+        None, ge=0.0, le=2.0, description="Model temperature setting"
+    )
 
     model_config = ConfigDict(
         use_enum_values=True,
@@ -234,9 +248,13 @@ class AgentUpdateRequest(BaseModel):
         | None
     ) = Field(None, description="Updated agent name")
 
-    role: StringConstraints.ROLE_TEXT | None = Field(None, description="Updated agent role")
+    role: StringConstraints.ROLE_TEXT | None = Field(
+        None, description="Updated agent role"
+    )
 
-    goal: StringConstraints.ROLE_TEXT | None = Field(None, description="Updated agent goal")
+    goal: StringConstraints.ROLE_TEXT | None = Field(
+        None, description="Updated agent goal"
+    )
 
     backstory: StringConstraints.ROLE_TEXT | None = Field(
         None, description="Updated agent backstory"
@@ -246,7 +264,9 @@ class AgentUpdateRequest(BaseModel):
         None, description="Updated tools list", max_length=20
     )
 
-    model_name: StringConstraints.MODEL_NAME | None = Field(None, description="Updated model name")
+    model_name: StringConstraints.MODEL_NAME | None = Field(
+        None, description="Updated model name"
+    )
 
     memory: bool | None = Field(None, description="Updated memory setting")
 
@@ -272,13 +292,18 @@ class AgentUpdateRequest(BaseModel):
         None, description="Updated configuration", max_length=50
     )
 
-    tags: list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]] | None = (
-        Field(None, description="Updated tags", max_length=10)
+    tags: (
+        list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]]
+        | None
+    ) = Field(None, description="Updated tags", max_length=10)
+
+    max_tokens: int | None = Field(
+        None, ge=100, le=100000, description="Updated max tokens"
     )
 
-    max_tokens: int | None = Field(None, ge=100, le=100000, description="Updated max tokens")
-
-    temperature: float | None = Field(None, ge=0.0, le=2.0, description="Updated temperature")
+    temperature: float | None = Field(
+        None, ge=0.0, le=2.0, description="Updated temperature"
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -335,19 +360,22 @@ class AgentQueryParams(BaseModel):
         None, description="Filter by specific agent ID"
     )
 
-    name: Annotated[str, PydanticStringConstraints(min_length=1, max_length=100)] | None = Field(
-        None, description="Filter by agent name (partial match)"
-    )
+    name: (
+        Annotated[str, PydanticStringConstraints(min_length=1, max_length=100)] | None
+    ) = Field(None, description="Filter by agent name (partial match)")
 
     type: AgentType | None = Field(None, description="Filter by agent type")
 
     status: AgentStatus | None = Field(None, description="Filter by agent status")
 
-    tags: list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]] | None = (
-        Field(None, description="Filter by tags", max_length=5)
-    )
+    tags: (
+        list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]]
+        | None
+    ) = Field(None, description="Filter by tags", max_length=5)
 
-    include_inactive: bool = Field(default=False, description="Include inactive agents in results")
+    include_inactive: bool = Field(
+        default=False, description="Include inactive agents in results"
+    )
 
     sort_by: str | None = Field(
         default="name",

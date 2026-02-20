@@ -13,7 +13,11 @@ from typing import Any
 
 import structlog
 
-from resync.core.health.health_models import ComponentHealth, ComponentType, HealthCheckConfig
+from resync.core.health.health_models import (
+    ComponentHealth,
+    ComponentType,
+    HealthCheckConfig,
+)
 
 logger = structlog.get_logger(__name__)
 

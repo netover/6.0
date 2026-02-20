@@ -47,6 +47,7 @@ logger = structlog.get_logger(__name__)
 # Local no‑op tracer/span implementations
 # -----------------------------------------------------------------------------
 
+
 class _NoOpSpan:
     """A minimal span that does nothing."""
 
@@ -62,6 +63,7 @@ class _NoOpSpan:
             trace_id = 0
             span_id = 0
             is_valid = False
+
         return _Ctx()
 
 
@@ -242,6 +244,7 @@ def get_tracer(name: str = __name__) -> Any:
         return _NoOpTracer()
     try:
         from opentelemetry import trace  # type: ignore
+
         return trace.get_tracer(name)
     except Exception:
         return _NoOpTracer()
@@ -253,6 +256,7 @@ def get_current_span() -> Any:
         return _NoOpSpan()
     try:
         from opentelemetry import trace  # type: ignore
+
         return trace.get_current_span()
     except Exception:
         return _NoOpSpan()
@@ -300,7 +304,9 @@ def add_span_attributes(attributes: dict[str, Any]) -> None:
             span.set_attribute(key, value)
 
 
-def record_exception(exception: Exception, attributes: dict[str, Any] | None = None) -> None:
+def record_exception(
+    exception: Exception, attributes: dict[str, Any] | None = None
+) -> None:
     """Record an exception on the current span."""
     span = get_current_span()
     if span:
@@ -312,6 +318,7 @@ def set_span_status_error(message: str) -> None:
     # If OpenTelemetry is available, set error status on current span; otherwise no‑op
     try:
         from opentelemetry.trace import Status, StatusCode  # type: ignore
+
         span = get_current_span()
         if getattr(span, "set_status", None):
             span.set_status(Status(StatusCode.ERROR, message))
@@ -327,7 +334,9 @@ def set_span_status_error(message: str) -> None:
 # =============================================================================
 
 
-def inject_trace_context(logger: logging.Logger, method_name: str, event_dict: dict) -> dict:
+def inject_trace_context(
+    logger: logging.Logger, method_name: str, event_dict: dict
+) -> dict:
     """
     Structlog processor to inject trace context into logs.
 
@@ -371,7 +380,13 @@ def setup_prometheus_metrics(app: FastAPI) -> None:
             should_ignore_untemplated=True,
             should_respect_env_var=True,
             should_instrument_requests_inprogress=True,
-            excluded_handlers=["/health", "/metrics", "/docs", "/redoc", "/openapi.json"],
+            excluded_handlers=[
+                "/health",
+                "/metrics",
+                "/docs",
+                "/redoc",
+                "/openapi.json",
+            ],
             env_var_name="PROMETHEUS_ENABLED",
             inprogress_name="http_requests_inprogress",
             inprogress_labels=True,

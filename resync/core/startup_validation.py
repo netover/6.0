@@ -47,7 +47,9 @@ class ConfigurationValidationError(Exception):
 class DependencyUnavailableError(Exception):
     """Raised when required dependencies are unavailable."""
 
-    def __init__(self, message: str, dependency: str, details: dict[str, Any] | None = None):
+    def __init__(
+        self, message: str, dependency: str, details: dict[str, Any] | None = None
+    ):
         self.message = message
         self.dependency = dependency
         self.details = details or {}
@@ -137,13 +139,17 @@ def validate_environment_variables() -> dict[str, str]:
     if missing_vars:
         error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
         startup_logger.error(
-            "required_env_vars_missing", missing_vars=missing_vars, error_message=error_msg
+            "required_env_vars_missing",
+            missing_vars=missing_vars,
+            error_message=error_msg,
         )
         raise ConfigurationValidationError(error_msg, {"missing_vars": missing_vars})
 
     if invalid_vars:
         error_msg = f"Invalid environment variables: {', '.join(invalid_vars)}"
-        startup_logger.error("invalid_env_vars", invalid_vars=invalid_vars, error_message=error_msg)
+        startup_logger.error(
+            "invalid_env_vars", invalid_vars=invalid_vars, error_message=error_msg
+        )
         raise ConfigurationValidationError(error_msg, {"invalid_vars": invalid_vars})
 
     startup_logger.info(
@@ -229,7 +235,9 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
                     {
                         "attempts": max_retries,
                         "last_error": str(e),
-                        "redis_url": redis_url.split("@")[-1] if "@" in redis_url else redis_url,
+                        "redis_url": redis_url.split("@")[-1]
+                        if "@" in redis_url
+                        else redis_url,
                     },
                 ) from e
 
@@ -238,10 +246,13 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
             startup_logger.error(
                 "redis_unexpected_error",
                 error_type=type(e).__name__,
-                error_message=str(e) if os.getenv("ENVIRONMENT") != "production" else None,
+                error_message=str(e)
+                if os.getenv("ENVIRONMENT") != "production"
+                else None,
             )
             raise StartupError(
-                f"Unexpected Redis validation error: {type(e).__name__}", {"error": str(e)}
+                f"Unexpected Redis validation error: {type(e).__name__}",
+                {"error": str(e)},
             ) from e
 
     return False
@@ -282,13 +293,13 @@ def validate_tws_configuration() -> dict[str, str]:
             # CACHE_GUIDE.md for rationale. This change aligns port validation
             # with the full range of allowed TCP ports.
             if not (1 <= tws_port <= 65535):
-                validation_errors.append(
-                    f"TWS_PORT {tws_port} must be between 1-65535"
-                )
+                validation_errors.append(f"TWS_PORT {tws_port} must be between 1-65535")
             else:
                 tws_config["port"] = str(tws_port)
         except ValueError:
-            validation_errors.append(f"TWS_PORT '{tws_port_str}' must be a valid integer")
+            validation_errors.append(
+                f"TWS_PORT '{tws_port_str}' must be a valid integer"
+            )
 
     # Validate TWS credentials
     tws_user = os.getenv("TWS_USER")
@@ -305,16 +316,22 @@ def validate_tws_configuration() -> dict[str, str]:
         tws_config["password"] = tws_password.strip()
 
     if validation_errors:
-        error_msg = f"TWS configuration validation failed: {'; '.join(validation_errors)}"
+        error_msg = (
+            f"TWS configuration validation failed: {'; '.join(validation_errors)}"
+        )
         startup_logger.error(
             "tws_configuration_invalid",
             validation_errors=validation_errors,
             error_message=error_msg,
         )
-        raise ConfigurationValidationError(error_msg, {"validation_errors": validation_errors})
+        raise ConfigurationValidationError(
+            error_msg, {"validation_errors": validation_errors}
+        )
 
     startup_logger.info(
-        "tws_configuration_validated", tws_host=tws_config["host"], tws_port=tws_config["port"]
+        "tws_configuration_validated",
+        tws_host=tws_config["host"],
+        tws_port=tws_config["port"],
     )
 
     return tws_config
@@ -352,18 +369,24 @@ def validate_security_settings() -> dict[str, str]:
     # Validate secret key
     secret_key = os.getenv("SECRET_KEY")
     if not secret_key or len(secret_key.strip()) < 32:
-        validation_errors.append("SECRET_KEY must be at least 32 characters for security")
+        validation_errors.append(
+            "SECRET_KEY must be at least 32 characters for security"
+        )
     else:
         security_config["secret_key"] = secret_key.strip()
 
     if validation_errors:
-        error_msg = f"Security settings validation failed: {'; '.join(validation_errors)}"
+        error_msg = (
+            f"Security settings validation failed: {'; '.join(validation_errors)}"
+        )
         startup_logger.error(
             "security_settings_invalid",
             validation_errors=validation_errors,
             error_message=error_msg,
         )
-        raise ConfigurationValidationError(error_msg, {"validation_errors": validation_errors})
+        raise ConfigurationValidationError(
+            error_msg, {"validation_errors": validation_errors}
+        )
 
     startup_logger.info("security_settings_validated")
 

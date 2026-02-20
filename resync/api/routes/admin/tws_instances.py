@@ -108,7 +108,9 @@ async def get_instances_summary():
     return manager.get_summary()
 
 
-@router.post("/tws-instances", status_code=status.HTTP_201_CREATED, tags=["TWS Instances"])
+@router.post(
+    "/tws-instances", status_code=status.HTTP_201_CREATED, tags=["TWS Instances"]
+)
 async def create_tws_instance(instance: TWSInstanceCreate):
     """
     Create a new TWS instance.

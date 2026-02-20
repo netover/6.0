@@ -50,8 +50,10 @@ def _get_dev_fallback_secret() -> str:
     global _DEVELOPMENT_FALLBACK_SECRET
     if _DEVELOPMENT_FALLBACK_SECRET is None:
         import os
+
         _DEVELOPMENT_FALLBACK_SECRET = os.urandom(32).hex()
     return _DEVELOPMENT_FALLBACK_SECRET
+
 
 def _is_secret_key_secure(secret: str | None) -> bool:
     if not secret:
@@ -82,7 +84,6 @@ def _get_configured_secret_key() -> str | None:
     return str(key)
 
 
-
 def get_jwt_secret_key() -> str:
     """Resolve JWT secret key.
 
@@ -94,7 +95,10 @@ def get_jwt_secret_key() -> str:
 
     if getattr(settings, "is_production", False):
         if not _is_secret_key_secure(configured):
-            logger.critical("auth_secret_key_missing_or_insecure", extra={"configured": bool(configured)})
+            logger.critical(
+                "auth_secret_key_missing_or_insecure",
+                extra={"configured": bool(configured)},
+            )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Authentication is not configured (get_jwt_secret_key() missing).",
@@ -106,7 +110,9 @@ def get_jwt_secret_key() -> str:
     if not configured:
         logger.warning("auth_secret_key_not_set_using_dev_fallback")
         return _get_dev_fallback_secret()
-    logger.warning("auth_secret_key_insecure_nonprod", extra={"length": len(configured)})
+    logger.warning(
+        "auth_secret_key_insecure_nonprod", extra={"length": len(configured)}
+    )
     return configured
 
 
@@ -130,7 +136,9 @@ class SecureAuthenticator:
         """
         # Atomically check lockout and prepare to record attempt
         # Note: We check first with success=True to see if locked, then record actual result
-        is_locked, remaining, _ = await self._check_and_record_attempt(request_ip, success=True)
+        is_locked, remaining, _ = await self._check_and_record_attempt(
+            request_ip, success=True
+        )
         if is_locked:
             logger.warning(
                 "Authentication attempt from locked out IP",
@@ -152,12 +160,18 @@ class SecureAuthenticator:
             return False
 
         expected_username_hash = self._hash_credential(settings.admin_username)
-        expected_password_hash = self._hash_credential(settings.admin_password.get_secret_value())
+        expected_password_hash = self._hash_credential(
+            settings.admin_password.get_secret_value()
+        )
 
         # Constant-time comparison using secrets.compare_digest
-        username_valid = secrets.compare_digest(provided_username_hash, expected_username_hash)
+        username_valid = secrets.compare_digest(
+            provided_username_hash, expected_username_hash
+        )
 
-        password_valid = secrets.compare_digest(provided_password_hash, expected_password_hash)
+        password_valid = secrets.compare_digest(
+            provided_password_hash, expected_password_hash
+        )
 
         # Combine results without short-circuiting
         credentials_valid = username_valid and password_valid
@@ -190,7 +204,10 @@ class SecureAuthenticator:
 
         logger.info(
             "Successful authentication",
-            extra={"ip": request_ip, "timestamp": datetime.now(timezone.utc).isoformat()},
+            extra={
+                "ip": request_ip,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
         )
 
         return True, None
@@ -207,16 +224,16 @@ class SecureAuthenticator:
         try:
             redis = get_redis_client()
             key = f"{self._redis_prefix}:{ip}"
-            
+
             now = time.time()
             cutoff = now - self._lockout_duration_seconds
-            
+
             # Remove old attempts
             await redis.zremrangebyscore(key, "-inf", cutoff)
-            
+
             # Get current attempt count
             attempt_count = await redis.zcard(key)
-            
+
             if attempt_count >= self._max_attempts:
                 # Calculate remaining time from the oldest attempt still in window
                 oldest = await redis.zrange(key, 0, 0, withscores=True)
@@ -225,26 +242,27 @@ class SecureAuthenticator:
                     remaining = int((ts + self._lockout_duration_seconds - now) / 60)
                     return True, max(1, remaining)
                 return True, 1
-            
+
             return False, 0
         except Exception as e:
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0
 
-
     # Removed: _record_failed_attempt is now part of _check_and_record_attempt
     # to prevent TOCTOU race conditions
 
-    async def _check_and_record_attempt(self, ip: str, success: bool) -> tuple[bool, int, int]:
+    async def _check_and_record_attempt(
+        self, ip: str, success: bool
+    ) -> tuple[bool, int, int]:
         """Atomically check lockout state and record attempt.
-        
+
         This prevents TOCTOU race conditions by combining check + record in a single
         Redis Lua script that executes atomically.
-        
+
         Args:
             ip: Client IP address
             success: Whether the authentication succeeded
-            
+
         Returns:
             (is_locked, remaining_minutes, attempt_count)
         """
@@ -253,7 +271,7 @@ class SecureAuthenticator:
             key = f"{self._redis_prefix}:{ip}"
             now = time.time()
             cutoff = now - self._lockout_duration_seconds
-            
+
             # Lua script for atomic check + record
             # Returns: [is_locked, remaining_seconds, attempt_count]
             lua_script = """
@@ -292,7 +310,7 @@ class SecureAuthenticator:
             
             return {is_locked, remaining, count}
             """
-            
+
             result = await redis.eval(
                 lua_script,
                 1,  # number of keys
@@ -301,22 +319,22 @@ class SecureAuthenticator:
                 str(cutoff),
                 str(self._max_attempts),
                 str(self._lockout_duration_seconds),
-                str(success)
+                str(success),
             )
-            
+
             is_locked = bool(result[0])
             remaining_minutes = int(result[1] / 60) + 1 if result[1] > 0 else 0
             attempt_count = int(result[2])
-            
+
             # Log warning if approaching lockout
             if not success and attempt_count >= self._max_attempts - 1:
                 logger.warning(
                     "ip_approaching_lockout",
-                    extra={"ip": ip, "count": attempt_count, "max": self._max_attempts}
+                    extra={"ip": ip, "count": attempt_count, "max": self._max_attempts},
                 )
-            
+
             return is_locked, remaining_minutes, attempt_count
-            
+
         except Exception as e:
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0, 0
@@ -353,7 +371,11 @@ def verify_admin_credentials(
     """
     try:
         # 1) Try Authorization header (Bearer)
-        token = credentials.credentials if (credentials and credentials.credentials) else None
+        token = (
+            credentials.credentials
+            if (credentials and credentials.credentials)
+            else None
+        )
 
         # 2) Fallback: HttpOnly cookie "access_token"
         if not token:
@@ -402,11 +424,15 @@ def verify_admin_credentials(
         )
 
 
-def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
+def create_access_token(
+    data: dict[str, Any], expires_delta: timedelta | None = None
+) -> str:
     """
     Create a new JWT access token using centralized security utility.
     """
-    return jwt_security.create_access_token(subject=data.get("sub", ""), expires_delta=expires_delta)
+    return jwt_security.create_access_token(
+        subject=data.get("sub", ""), expires_delta=expires_delta
+    )
 
 
 async def authenticate_admin(username: str, password: str) -> bool:
@@ -422,7 +448,9 @@ async def authenticate_admin(username: str, password: str) -> bool:
 
     # Use the SecureAuthenticator for constant-time comparison
     client_ip = "unknown"  # In this context, we don't have the request object
-    is_valid, _ = await (await get_authenticator()).verify_credentials(username, password, client_ip)
+    is_valid, _ = await (await get_authenticator()).verify_credentials(
+        username, password, client_ip
+    )
     return is_valid
 
 
@@ -433,12 +461,14 @@ async def authenticate_admin(username: str, password: str) -> bool:
 
 class LoginRequest(BaseModel):
     """Login request model."""
+
     username: str
     password: str
 
 
 class TokenResponse(BaseModel):
     """Token response model."""
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int = ACCESS_TOKEN_EXPIRE_MINUTES * 60
@@ -446,6 +476,7 @@ class TokenResponse(BaseModel):
 
 class LoginResponse(BaseModel):
     """Login response model."""
+
     success: bool
     message: str
     token: TokenResponse | None = None
@@ -467,15 +498,13 @@ async def login(request: Request, login_data: LoginRequest) -> LoginResponse:
     client_ip = request.client.host if request.client else "unknown"
 
     is_valid, error_message = await (await get_authenticator()).verify_credentials(
-        login_data.username,
-        login_data.password,
-        client_ip
+        login_data.username, login_data.password, client_ip
     )
 
     if not is_valid:
         logger.warning(
             "login_failed",
-            extra={"ip": client_ip, "username": login_data.username[:3] + "***"}
+            extra={"ip": client_ip, "username": login_data.username[:3] + "***"},
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -486,18 +515,17 @@ async def login(request: Request, login_data: LoginRequest) -> LoginResponse:
     # Create JWT token
     access_token = create_access_token(
         data={"sub": login_data.username},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
     logger.info(
-        "login_successful",
-        extra={"ip": client_ip, "username": login_data.username}
+        "login_successful", extra={"ip": client_ip, "username": login_data.username}
     )
 
     return LoginResponse(
         success=True,
         message="Login successful",
-        token=TokenResponse(access_token=access_token)
+        token=TokenResponse(access_token=access_token),
     )
 
 
@@ -515,15 +543,12 @@ async def logout(request: Request) -> dict[str, Any]:
     client_ip = request.client.host if request.client else "unknown"
     logger.info("logout_requested", extra={"ip": client_ip})
 
-    return {
-        "success": True,
-        "message": "Logout successful. Please discard your token."
-    }
+    return {"success": True, "message": "Logout successful. Please discard your token."}
 
 
 @router.get("/verify")
 async def verify_token(
-    username: str | None = Depends(verify_admin_credentials)
+    username: str | None = Depends(verify_admin_credentials),
 ) -> dict[str, Any]:
     """
     Verify JWT token validity.
@@ -534,8 +559,4 @@ async def verify_token(
     Returns:
         Token verification status
     """
-    return {
-        "valid": True,
-        "username": username,
-        "message": "Token is valid"
-    }
+    return {"valid": True, "username": username, "message": "Token is valid"}

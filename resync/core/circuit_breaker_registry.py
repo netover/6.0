@@ -332,7 +332,11 @@ class CircuitBreakerRegistry:
 
     def get_open_breakers(self) -> list[str]:
         """Get list of open circuit breakers."""
-        return [name for name, cb in self._breakers.items() if cb.state == CircuitBreakerState.OPEN]
+        return [
+            name
+            for name, cb in self._breakers.items()
+            if cb.state == CircuitBreakerState.OPEN
+        ]
 
     def get_health_report(self) -> dict[str, Any]:
         """Get health report for all circuit breakers."""
@@ -554,7 +558,9 @@ def multi_circuit_protected(
                     continue
 
             # All circuits failed
-            raise CircuitBreakerError(f"All circuits failed for {func.__name__}: {last_error}")
+            raise CircuitBreakerError(
+                f"All circuits failed for {func.__name__}: {last_error}"
+            )
 
         return wrapper
 

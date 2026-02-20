@@ -47,7 +47,10 @@ class TWSStatusTool(TWSToolReadOnly):
                 [f"{ws.name} ({ws.status})" for ws in status.workstations]
             )
             job_summary = ", ".join(
-                [f"{job.name} on {job.workstation} ({job.status})" for job in status.jobs]
+                [
+                    f"{job.name} on {job.workstation} ({job.status})"
+                    for job in status.jobs
+                ]
             )
 
             return (
@@ -62,11 +65,15 @@ class TWSStatusTool(TWSToolReadOnly):
             ) from e
         except ValueError as e:
             logger.error("Value error in TWSStatusTool: %s", e, exc_info=True)
-            raise ToolProcessingError("Erro ao processar os dados de status do TWS.") from e
+            raise ToolProcessingError(
+                "Erro ao processar os dados de status do TWS."
+            ) from e
         except Exception as e:
             logger.error("Unexpected error in TWSStatusTool: %s", e, exc_info=True)
             # Catch-all for other unexpected errors
-            raise ToolExecutionError("Ocorreu um erro inesperado ao obter o status do TWS.") from e
+            raise ToolExecutionError(
+                "Ocorreu um erro inesperado ao obter o status do TWS."
+            ) from e
 
 
 class TWSTroubleshootingTool(TWSToolReadOnly):
@@ -77,17 +84,23 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
         Analyzes failed jobs and down workstations to identify root causes.
         """
         if not self.tws_client:
-            raise ToolExecutionError("TWS client not available for TWSTroubleshootingTool.")
+            raise ToolExecutionError(
+                "TWS client not available for TWSTroubleshootingTool."
+            )
 
         try:
             logger.info("TWSTroubleshootingTool: Fetching system status for analysis.")
             status = await self.tws_client.get_system_status()
 
             failed_jobs = [j for j in status.jobs if j.status.upper() == "ABEND"]
-            down_workstations = [w for w in status.workstations if w.status.upper() != "LINKED"]
+            down_workstations = [
+                w for w in status.workstations if w.status.upper() != "LINKED"
+            ]
 
             if not failed_jobs and not down_workstations:
-                return "Nenhuma falha crítica encontrada. O ambiente TWS parece estável."
+                return (
+                    "Nenhuma falha crítica encontrada. O ambiente TWS parece estável."
+                )
 
             analysis = "Análise de Problemas no TWS:\n"
             if failed_jobs:
@@ -99,13 +112,17 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
 
             if down_workstations:
                 analysis += f"- Workstations com Problemas ({len(down_workstations)}): "
-                analysis += ", ".join([f"{w.name} (status: {w.status})" for w in down_workstations])
+                analysis += ", ".join(
+                    [f"{w.name} (status: {w.status})" for w in down_workstations]
+                )
                 analysis += "\n"
 
             return analysis
 
         except TWSConnectionError as e:
-            logger.error("TWS connection error in TWSTroubleshootingTool: %s", e, exc_info=True)
+            logger.error(
+                "TWS connection error in TWSTroubleshootingTool: %s", e, exc_info=True
+            )
             raise ToolConnectionError(
                 "Falha de comunicação com o TWS ao analisar as falhas."
             ) from e
@@ -115,9 +132,13 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
                 e,
                 exc_info=True,
             )
-            raise ToolProcessingError("Erro ao processar os dados de falhas do TWS.") from e
+            raise ToolProcessingError(
+                "Erro ao processar os dados de falhas do TWS."
+            ) from e
         except Exception as e:
-            logger.error("Unexpected error in TWSTroubleshootingTool: %s", e, exc_info=True)
+            logger.error(
+                "Unexpected error in TWSTroubleshootingTool: %s", e, exc_info=True
+            )
             raise ToolExecutionError(
                 "Ocorreu um erro inesperado ao analisar as falhas do TWS."
             ) from e

@@ -83,7 +83,9 @@ async def _validate_memory_for_analysis(mem: dict[str, Any]) -> bool:
     return True
 
 
-async def _get_llm_analysis(user_query: str, agent_response: str) -> dict[str, Any] | None:
+async def _get_llm_analysis(
+    user_query: str, agent_response: str
+) -> dict[str, Any] | None:
     """Gets the analysis of a memory from the LLM."""
     prompt = f"""
     You are an expert TWS (IBM MQ/Workload Scheduler) auditor.
@@ -103,7 +105,9 @@ async def _get_llm_analysis(user_query: str, agent_response: str) -> dict[str, A
     try:
         # Increased max_tokens from 200 to 500 to allow for more detailed analysis
         # and comprehensive reasoning in the auditor's evaluation of agent responses
-        result = await call_llm(prompt, model=settings.AUDITOR_MODEL_NAME, max_tokens=500)
+        result = await call_llm(
+            prompt, model=settings.AUDITOR_MODEL_NAME, max_tokens=500
+        )
         if not result:
             return None
 
@@ -131,7 +135,10 @@ async def _perform_action_on_memory(
     memory_id = str(mem.get("id", ""))
     confidence = float(analysis.get("confidence", 0))
 
-    if analysis.get("is_incorrect") and confidence > AUDIT_DELETION_CONFIDENCE_THRESHOLD:
+    if (
+        analysis.get("is_incorrect")
+        and confidence > AUDIT_DELETION_CONFIDENCE_THRESHOLD
+    ):
         logger.info(
             "deleting_memory",
             memory_id=memory_id,
@@ -161,9 +168,14 @@ async def _perform_action_on_memory(
         success = await _get_knowledge_graph().atomic_check_and_delete(memory_id)
         return ("delete", memory_id) if success else None
 
-    if analysis.get("is_incorrect") and confidence > AUDIT_FLAGGING_CONFIDENCE_THRESHOLD:
+    if (
+        analysis.get("is_incorrect")
+        and confidence > AUDIT_FLAGGING_CONFIDENCE_THRESHOLD
+    ):
         reason = str(analysis.get("reason", "N/A"))
-        logger.warning("flagging_memory", memory_id=memory_id, confidence=confidence, reason=reason)
+        logger.warning(
+            "flagging_memory", memory_id=memory_id, confidence=confidence, reason=reason
+        )
 
         # === CONTINUAL LEARNING INTEGRATION ===
         # Convert audit finding to knowledge graph entries (for flagged items too)
@@ -184,7 +196,9 @@ async def _perform_action_on_memory(
             logger.warning("continual_learning_pipeline_error", error=str(e))
         # === END CONTINUAL LEARNING INTEGRATION ===
 
-        success = await _get_knowledge_graph().atomic_check_and_flag(memory_id, reason, confidence)
+        success = await _get_knowledge_graph().atomic_check_and_flag(
+            memory_id, reason, confidence
+        )
         if success:
             mem["ia_audit_reason"] = reason
             mem["ia_audit_confidence"] = confidence
@@ -196,7 +210,9 @@ async def _perform_action_on_memory(
 async def _fetch_recent_memories() -> list[dict[str, Any]]:
     """Fetches recent memories from knowledge graph."""
     try:
-        memories = await _get_knowledge_graph().get_memories(limit=RECENT_MEMORIES_FETCH_LIMIT)
+        memories = await _get_knowledge_graph().get_memories(
+            limit=RECENT_MEMORIES_FETCH_LIMIT
+        )
         return memories or []
     except KnowledgeGraphError as e:
         logger.error("failed_to_fetch_memories", error=str(e), exc_info=True)
@@ -263,7 +279,7 @@ async def analyze_memory(
 ) -> tuple[str, str | dict[str, Any]] | None:
     """Analyzes a single memory and returns an action if necessary."""
     memory_id = str(mem.get("id", ""))
-    
+
     # Use semaphore to limit concurrent analysis and prevent rate limiting
     async with _get_analysis_semaphore():
         try:
@@ -277,7 +293,9 @@ async def analyze_memory(
                     return None
 
                 if await _get_knowledge_graph().is_memory_approved(memory_id):
-                    logger.debug("memory_already_approved_by_human", memory_id=memory_id)
+                    logger.debug(
+                        "memory_already_approved_by_human", memory_id=memory_id
+                    )
                     return None
 
                 analysis = await _get_llm_analysis(
@@ -294,7 +312,9 @@ async def analyze_memory(
             return None
         except AuditError as e:
             # Lock acquisition failure
-            logger.warning("could_not_acquire_lock_for_memory", memory_id=memory_id, error=str(e))
+            logger.warning(
+                "could_not_acquire_lock_for_memory", memory_id=memory_id, error=str(e)
+            )
             return None
         except (KnowledgeGraphError, DatabaseError) as e:
             # Catch specific data access errors

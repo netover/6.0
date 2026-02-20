@@ -77,7 +77,9 @@ class Metric:
 class Counter:
     """A counter that only increases."""
 
-    def __init__(self, name: str, description: str = "", labels: list[str] | None = None):
+    def __init__(
+        self, name: str, description: str = "", labels: list[str] | None = None
+    ):
         self.name = name
         self.description = description
         self.label_names = labels or []
@@ -118,7 +120,9 @@ class _LabeledCounter:
 class Gauge:
     """A gauge that can go up or down."""
 
-    def __init__(self, name: str, description: str = "", labels: list[str] | None = None):
+    def __init__(
+        self, name: str, description: str = "", labels: list[str] | None = None
+    ):
         self.name = name
         self.description = description
         self.label_names = labels or []
@@ -202,7 +206,9 @@ class Histogram:
             if len(self._observations[label_key]) > 10000:
                 self._observations[label_key] = self._observations[label_key][-10000:]
 
-    def get_percentile(self, percentile: float, labels: dict[str, str] | None = None) -> float | None:
+    def get_percentile(
+        self, percentile: float, labels: dict[str, str] | None = None
+    ) -> float | None:
         """Get a percentile value."""
         label_key = tuple(sorted((labels or {}).items()))
         observations = self._observations.get(label_key, [])
@@ -315,14 +321,18 @@ class MetricsRegistry:
 registry = MetricsRegistry()
 
 
-def create_counter(name: str, description: str = "", labels: list[str] | None = None) -> Counter:
+def create_counter(
+    name: str, description: str = "", labels: list[str] | None = None
+) -> Counter:
     """Create and register a counter."""
     counter = Counter(name, description, labels)
     registry.register(counter)
     return counter
 
 
-def create_gauge(name: str, description: str = "", labels: list[str] | None = None) -> Gauge:
+def create_gauge(
+    name: str, description: str = "", labels: list[str] | None = None
+) -> Gauge:
     """Create and register a gauge."""
     gauge = Gauge(name, description, labels)
     registry.register(gauge)

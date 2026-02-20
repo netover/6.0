@@ -237,7 +237,17 @@ class UnifiedTWSClient:
 
             except Exception as e:
                 # Re-raise critical system exceptions and programming errors
-                if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, AttributeError, NameError)):
+                if isinstance(
+                    e,
+                    (
+                        SystemExit,
+                        KeyboardInterrupt,
+                        asyncio.CancelledError,
+                        TypeError,
+                        AttributeError,
+                        NameError,
+                    ),
+                ):
                     raise
                 self._state = TWSClientState.ERROR
                 self._metrics.last_error = str(e)
@@ -273,7 +283,9 @@ class UnifiedTWSClient:
                     await self._client.close()
                 except Exception as e:
                     # Re-raise critical system exceptions
-                    if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+                    if isinstance(
+                        e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+                    ):
                         raise
                     logger.warning("tws_client_close_error", error=str(e))
                 finally:
@@ -281,7 +293,9 @@ class UnifiedTWSClient:
                     self._state = TWSClientState.DISCONNECTED
                     logger.info("tws_client_disconnected")
 
-    async def _execute_with_resilience(self, operation: str, func, *args, **kwargs) -> Any:
+    async def _execute_with_resilience(
+        self, operation: str, func, *args, **kwargs
+    ) -> Any:
         """
         Execute operation with circuit breaker and retry.
 
@@ -338,9 +352,19 @@ class UnifiedTWSClient:
 
         except Exception as e:
             # Re-raise critical system exceptions and programming errors
-            if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, AttributeError, NameError)):
+            if isinstance(
+                e,
+                (
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    AttributeError,
+                    NameError,
+                ),
+            ):
                 raise
-            
+
             self._metrics.failed_requests += 1
             self._metrics.last_failure = datetime.now(timezone.utc)
             self._metrics.last_error = str(e)
@@ -446,10 +470,14 @@ class UnifiedTWSClient:
             "circuit_breaker_trips": self._metrics.circuit_breaker_trips,
             "circuit_breaker_state": self._circuit_breaker.state.value,
             "last_success": (
-                self._metrics.last_success.isoformat() if self._metrics.last_success else None
+                self._metrics.last_success.isoformat()
+                if self._metrics.last_success
+                else None
             ),
             "last_failure": (
-                self._metrics.last_failure.isoformat() if self._metrics.last_failure else None
+                self._metrics.last_failure.isoformat()
+                if self._metrics.last_failure
+                else None
             ),
             "last_error": self._metrics.last_error,
         }

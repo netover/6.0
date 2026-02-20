@@ -131,6 +131,7 @@ async def get_file_ingestor(request: Request):
 
     try:
         from resync.core.wiring import get_file_ingestor as _get
+
         return _get(request)
     except Exception as exc:
         raise HTTPException(

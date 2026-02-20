@@ -189,7 +189,8 @@ async def websocket_handler(
 
     # Set trace context
     trace_id = normalize_trace_id(
-        websocket.headers.get("x-correlation-id") or websocket.headers.get("x-request-id")
+        websocket.headers.get("x-correlation-id")
+        or websocket.headers.get("x-request-id")
     )
     set_trace_id(trace_id)
     set_user_id(user_id)

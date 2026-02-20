@@ -20,6 +20,7 @@ from typing import Any
 
 import structlog
 import toml
+
 try:
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
@@ -47,7 +48,7 @@ class ConfigChangeEvent:
 class ConfigFileHandler(FileSystemEventHandler):
     """File system event handler for config changes."""
 
-    def __init__(self, config_manager: 'UnifiedConfigManager'):
+    def __init__(self, config_manager: "UnifiedConfigManager"):
         self.config_manager = config_manager
         self.last_modified = {}
 
@@ -59,7 +60,7 @@ class ConfigFileHandler(FileSystemEventHandler):
         file_path = Path(event.src_path)
 
         # Only process TOML files
-        if file_path.suffix != '.toml':
+        if file_path.suffix != ".toml":
             return
 
         # Debounce - ignore rapid successive events
@@ -118,8 +119,7 @@ class UnifiedConfigManager:
         for name, path in self.CONFIG_FILES.items():
             if path.exists():
                 self.persistence_managers[name] = ConfigPersistenceManager(
-                    config_file=path,
-                    backup_dir=self.CONFIG_DIR / "backups"
+                    config_file=path, backup_dir=self.CONFIG_DIR / "backups"
                 )
 
         logger.info("UnifiedConfigManager initialized")
@@ -146,14 +146,11 @@ class UnifiedConfigManager:
         self.observer = Observer()
 
         self.observer.schedule(
-            event_handler,
-            path=str(self.CONFIG_DIR),
-            recursive=False
+            event_handler, path=str(self.CONFIG_DIR), recursive=False
         )
 
         self.observer.start()
         logger.info("Hot reload started - watching config directory")
-
 
     def _schedule_reload_from_thread(self, file_path: Path) -> None:
         """Schedule a config reload from the watchdog thread.
@@ -169,7 +166,9 @@ class UnifiedConfigManager:
             )
             return
 
-        future = asyncio.run_coroutine_threadsafe(self.reload_config_file(file_path), self._loop)
+        future = asyncio.run_coroutine_threadsafe(
+            self.reload_config_file(file_path), self._loop
+        )
 
         def _done_callback(fut):
             try:
@@ -225,8 +224,7 @@ class UnifiedConfigManager:
             self.configs[config_name] = new_config
 
             logger.info(
-                f"Config reloaded (hot reload): {config_name}",
-                file=str(file_path)
+                f"Config reloaded (hot reload): {config_name}", file=str(file_path)
             )
 
             # Notify listeners
@@ -239,7 +237,9 @@ class UnifiedConfigManager:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("Failed to reload config file %s: %s", file_path, e, exc_info=True)
+            logger.error(
+                "Failed to reload config file %s: %s", file_path, e, exc_info=True
+            )
 
     async def _notify_change(self, config_name: str, old_value: Any, new_value: Any):
         """Notify registered callbacks about config change."""
@@ -276,7 +276,12 @@ class UnifiedConfigManager:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("Failed to apply config changes for %s: %s", config_name, e, exc_info=True)
+            logger.error(
+                "Failed to apply config changes for %s: %s",
+                config_name,
+                e,
+                exc_info=True,
+            )
 
     def _apply_graphrag_config(self, config: dict):
         """Apply GraphRAG configuration changes."""
@@ -290,7 +295,9 @@ class UnifiedConfigManager:
         if "max_discoveries_per_day" in budget:
             DiscoveryConfig.MAX_DISCOVERIES_PER_DAY = budget["max_discoveries_per_day"]
         if "max_discoveries_per_hour" in budget:
-            DiscoveryConfig.MAX_DISCOVERIES_PER_HOUR = budget["max_discoveries_per_hour"]
+            DiscoveryConfig.MAX_DISCOVERIES_PER_HOUR = budget[
+                "max_discoveries_per_hour"
+            ]
 
         # Cache
         cache = graphrag.get("cache", {})
@@ -300,7 +307,9 @@ class UnifiedConfigManager:
         # Triggers
         triggers = graphrag.get("triggers", {})
         if "min_failures_to_trigger" in triggers:
-            DiscoveryConfig.MIN_FAILURES_TO_TRIGGER = triggers["min_failures_to_trigger"]
+            DiscoveryConfig.MIN_FAILURES_TO_TRIGGER = triggers[
+                "min_failures_to_trigger"
+            ]
 
         # Validation
         validation = graphrag.get("validation", {})
@@ -351,7 +360,7 @@ class UnifiedConfigManager:
         logger.info(
             "LLM config applied to runtime",
             provider=llm.get("provider"),
-            default_model=llm.get("default_model")
+            default_model=llm.get("default_model"),
         )
 
     def register_change_callback(self, config_name: str, callback: Callable):
@@ -371,11 +380,7 @@ class UnifiedConfigManager:
         logger.debug("Registered callback for %s", config_name)
 
     async def update_config(
-        self,
-        config_name: str,
-        section: str,
-        data: dict,
-        create_backup: bool = True
+        self, config_name: str, section: str, data: dict, create_backup: bool = True
     ):
         """
         Update configuration section and persist to file.
@@ -400,9 +405,7 @@ class UnifiedConfigManager:
         _cfg = self.configs.get(config_name, {})  # TODO: use returned config
         # Save to file
         await persistence.save_config(
-            section=section,
-            data=data,
-            create_backup=create_backup
+            section=section, data=data, create_backup=create_backup
         )
 
         # Reload (triggers hot reload)
@@ -410,8 +413,7 @@ class UnifiedConfigManager:
         await self.reload_config_file(config_file)
 
         logger.info(
-            f"Config updated: {config_name}.{section}",
-            fields=list(data.keys())
+            f"Config updated: {config_name}.{section}", fields=list(data.keys())
         )
 
     def get_config(self, config_name: str, section: str | None = None) -> dict:

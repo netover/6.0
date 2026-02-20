@@ -10,9 +10,7 @@ logger = structlog.get_logger(__name__)
 
 
 def verify_teams_hmac_signature(
-    request_body: bytes,
-    signature: str,
-    security_token: str
+    request_body: bytes, signature: str, security_token: str
 ) -> bool:
     """
     Verifica assinatura HMAC-SHA256 do Teams.
@@ -33,9 +31,7 @@ def verify_teams_hmac_signature(
 
         # Calcula HMAC-SHA256
         calculated_hmac = hmac.new(
-            security_token.encode("utf-8"),
-            request_body,
-            hashlib.sha256
+            security_token.encode("utf-8"), request_body, hashlib.sha256
         ).digest()
 
         # Compara de forma segura (evita timing attacks)
@@ -45,7 +41,7 @@ def verify_teams_hmac_signature(
             logger.warning(
                 "hmac_signature_mismatch",
                 expected_len=len(expected_signature),
-                calculated_len=len(calculated_hmac)
+                calculated_len=len(calculated_hmac),
             )
 
         return is_valid

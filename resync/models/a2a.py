@@ -44,7 +44,9 @@ class AgentCapabilities(BaseModel):
         default_factory=["json-rpc"],
         description="Supported modes: json-rpc, websocket, sse, webhooks.",
     )
-    supports_streaming: bool = Field(False, description="Whether SSE/streaming is supported.")
+    supports_streaming: bool = Field(
+        False, description="Whether SSE/streaming is supported."
+    )
     supports_push_notifications: bool = Field(
         False, description="Whether webhooks are supported."
     )
@@ -58,8 +60,12 @@ class AgentContact(BaseModel):
     protocol: str = Field("A2A", description="Protocol name.")
     endpoint: str = Field(..., description="Main JSON-RPC HTTP endpoint.")
     event_endpoint: Optional[str] = Field(None, description="SSE endpoint URL.")
-    websocket_endpoint: Optional[str] = Field(None, description="WebSocket endpoint URL.")
-    auth_required: bool = Field(False, description="Whether authentication is mandatory.")
+    websocket_endpoint: Optional[str] = Field(
+        None, description="WebSocket endpoint URL."
+    )
+    auth_required: bool = Field(
+        False, description="Whether authentication is mandatory."
+    )
 
 
 class AgentCard(BaseModel):

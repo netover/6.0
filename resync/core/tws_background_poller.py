@@ -396,7 +396,8 @@ class TWSBackgroundPoller:
             # Calcula thresholds dinâmicos baseados no volume
             # Usa o MAIOR entre: threshold absoluto mínimo OU porcentagem do total
             failure_threshold_degraded = max(
-                self.failure_threshold_min, int(total_jobs * self.failure_threshold_percentage)
+                self.failure_threshold_min,
+                int(total_jobs * self.failure_threshold_percentage),
             )
             failure_threshold_critical = max(
                 self.failure_threshold_critical_min,
@@ -471,11 +472,15 @@ class TWSBackgroundPoller:
             end_time = None
             if item.get("startTime"):
                 with contextlib.suppress(ValueError, TypeError):
-                    start_time = datetime.fromisoformat(item["startTime"].replace("Z", "+00:00"))
+                    start_time = datetime.fromisoformat(
+                        item["startTime"].replace("Z", "+00:00")
+                    )
 
             if item.get("endTime"):
                 with contextlib.suppress(ValueError, TypeError):
-                    end_time = datetime.fromisoformat(item["endTime"].replace("Z", "+00:00"))
+                    end_time = datetime.fromisoformat(
+                        item["endTime"].replace("Z", "+00:00")
+                    )
 
             # Calcula duração
             duration = None
@@ -555,7 +560,10 @@ class TWSBackgroundPoller:
                                 AlertSeverity.INFO,
                                 job.job_name,
                                 f"Job {job.job_name} completado com sucesso",
-                                {"job": job.to_dict(), "duration": job.duration_seconds},
+                                {
+                                    "job": job.to_dict(),
+                                    "duration": job.duration_seconds,
+                                },
                                 previous_state=prev_job.status,
                                 current_state=job.status,
                             )
@@ -595,7 +603,9 @@ class TWSBackgroundPoller:
 
         return events
 
-    def _detect_workstation_changes(self, workstations: list[WorkstationStatus]) -> list[TWSEvent]:
+    def _detect_workstation_changes(
+        self, workstations: list[WorkstationStatus]
+    ) -> list[TWSEvent]:
         """Detecta mudanças em workstations."""
         events = []
         current_ws = {ws.name: ws for ws in workstations}
@@ -672,7 +682,9 @@ class TWSBackgroundPoller:
                             "jobs_failed": snapshot.jobs_failed,
                             "jobs_running": snapshot.jobs_running,
                             "workstations_offline": sum(
-                                1 for ws in snapshot.workstations if ws.status != "LINKED"
+                                1
+                                for ws in snapshot.workstations
+                                if ws.status != "LINKED"
                             ),
                         },
                         previous_state=prev_health,

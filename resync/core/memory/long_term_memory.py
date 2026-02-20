@@ -60,33 +60,37 @@ logger = logging.getLogger(__name__)
 
 class MemoryType(str, Enum):
     """Types of long-term memory."""
+
     DECLARATIVE = "declarative"  # Facts, preferences, static info
-    PROCEDURAL = "procedural"    # Behavior patterns, workflows
+    PROCEDURAL = "procedural"  # Behavior patterns, workflows
 
 
 class DeclarativeCategory(str, Enum):
     """Categories of declarative (factual) memory."""
-    PREFERENCE = "preference"       # "Prefere respostas em português"
+
+    PREFERENCE = "preference"  # "Prefere respostas em português"
     RESPONSIBILITY = "responsibility"  # "Gerencia jobs do BATCH_NOTURNO"
-    ENVIRONMENT = "environment"     # "Trabalha com ambiente PROD"
-    EXPERTISE = "expertise"         # "Especialista em jobs DB2"
-    CONSTRAINT = "constraint"       # "Só pode reiniciar jobs após 18h"
-    RELATIONSHIP = "relationship"   # "Job X depende de Y"
+    ENVIRONMENT = "environment"  # "Trabalha com ambiente PROD"
+    EXPERTISE = "expertise"  # "Especialista em jobs DB2"
+    CONSTRAINT = "constraint"  # "Só pode reiniciar jobs após 18h"
+    RELATIONSHIP = "relationship"  # "Job X depende de Y"
 
 
 class ProceduralCategory(str, Enum):
     """Categories of procedural (behavioral) memory."""
+
     TROUBLESHOOTING = "troubleshooting"  # "Verifica logs antes de reiniciar"
     DECISION_MAKING = "decision_making"  # "Prefere ver dependências primeiro"
-    COMMUNICATION = "communication"      # "Gosta de respostas detalhadas"
-    WORKFLOW = "workflow"                # "Sempre confirma antes de ações"
-    INVESTIGATION = "investigation"      # "Começa análise pelo predecessor"
+    COMMUNICATION = "communication"  # "Gosta de respostas detalhadas"
+    WORKFLOW = "workflow"  # "Sempre confirma antes de ações"
+    INVESTIGATION = "investigation"  # "Começa análise pelo predecessor"
 
 
 class RetrievalMode(str, Enum):
     """How to retrieve memories."""
+
     PROACTIVE = "proactive"  # Always include (push)
-    REACTIVE = "reactive"    # On-demand semantic search (pull)
+    REACTIVE = "reactive"  # On-demand semantic search (pull)
 
 
 # Confidence thresholds
@@ -108,6 +112,7 @@ class MemoryProvenance:
     Tracks where the memory came from and how reliable it is.
     Essential for debugging and trust.
     """
+
     source_session_id: str
     source_message: str  # The message that generated this memory
     created_at: datetime = field(default_factory=datetime.now)
@@ -146,8 +151,12 @@ class MemoryProvenance:
         return cls(
             source_session_id=data.get("source_session_id", ""),
             source_message=data.get("source_message", ""),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc),
-            last_verified=datetime.fromisoformat(data["last_verified"]) if "last_verified" in data else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"])
+            if "created_at" in data
+            else datetime.now(timezone.utc),
+            last_verified=datetime.fromisoformat(data["last_verified"])
+            if "last_verified" in data
+            else datetime.now(timezone.utc),
             times_referenced=data.get("times_referenced", 0),
             times_confirmed=data.get("times_confirmed", 0),
             times_contradicted=data.get("times_contradicted", 0),
@@ -167,6 +176,7 @@ class DeclarativeMemory:
 
     These are relatively static facts that don't change often.
     """
+
     id: str
     user_id: str
     category: DeclarativeCategory
@@ -197,7 +207,7 @@ class DeclarativeMemory:
         """Generate deterministic ID based on content."""
         content_hash = hashlib.md5(
             f"{self.user_id}:{self.category}:{self.content}".encode(),
-            usedforsecurity=False
+            usedforsecurity=False,
         ).hexdigest()[:12]
         return f"decl_{content_hash}"
 
@@ -256,14 +266,26 @@ class DeclarativeMemory:
             related_workstations=data.get("related_workstations", []),
             environment=data.get("environment"),
             provenance=provenance,
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(timezone.utc),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
+            created_at=datetime.fromisoformat(data["created_at"])
+            if "created_at" in data
+            else datetime.now(timezone.utc),
+            updated_at=datetime.fromisoformat(data["updated_at"])
+            if "updated_at" in data
+            else datetime.now(timezone.utc),
+            expires_at=datetime.fromisoformat(data["expires_at"])
+            if data.get("expires_at")
+            else None,
         )
 
     def to_prompt_text(self) -> str:
         """Format memory for inclusion in LLM prompt."""
-        confidence_label = "alta" if self.is_high_confidence else "média" if self.effective_confidence >= CONFIDENCE_MEDIUM else "baixa"
+        confidence_label = (
+            "alta"
+            if self.is_high_confidence
+            else "média"
+            if self.effective_confidence >= CONFIDENCE_MEDIUM
+            else "baixa"
+        )
         return f"[{self.category.value}] {self.content} (confiança: {confidence_label})"
 
 
@@ -280,6 +302,7 @@ class ProceduralMemory:
 
     These capture dynamic behavior patterns learned over time.
     """
+
     id: str
     user_id: str
     category: ProceduralCategory
@@ -310,7 +333,7 @@ class ProceduralMemory:
         """Generate deterministic ID based on content."""
         content_hash = hashlib.md5(
             f"{self.user_id}:{self.category}:{self.pattern}".encode(),
-            usedforsecurity=False
+            usedforsecurity=False,
         ).hexdigest()[:12]
         return f"proc_{content_hash}"
 
@@ -376,14 +399,22 @@ class ProceduralMemory:
             times_observed=data.get("times_observed", 1),
             retrieval_mode=RetrievalMode(data.get("retrieval_mode", "reactive")),
             provenance=provenance,
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(timezone.utc),
-            last_observed=datetime.fromisoformat(data["last_observed"]) if "last_observed" in data else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"])
+            if "created_at" in data
+            else datetime.now(timezone.utc),
+            updated_at=datetime.fromisoformat(data["updated_at"])
+            if "updated_at" in data
+            else datetime.now(timezone.utc),
+            last_observed=datetime.fromisoformat(data["last_observed"])
+            if "last_observed" in data
+            else datetime.now(timezone.utc),
         )
 
     def to_prompt_text(self) -> str:
         """Format memory for inclusion in LLM prompt."""
-        return f"[{self.category.value}] {self.pattern} (observado {self.times_observed}x)"
+        return (
+            f"[{self.category.value}] {self.pattern} (observado {self.times_observed}x)"
+        )
 
 
 # Type alias for any memory type
@@ -494,9 +525,15 @@ class InMemoryLongTermStore(LongTermMemoryStore):
 
             # Filter by type
             if memory_type:
-                if isinstance(memory, DeclarativeMemory) and memory_type != MemoryType.DECLARATIVE:
+                if (
+                    isinstance(memory, DeclarativeMemory)
+                    and memory_type != MemoryType.DECLARATIVE
+                ):
                     continue
-                if isinstance(memory, ProceduralMemory) and memory_type != MemoryType.PROCEDURAL:
+                if (
+                    isinstance(memory, ProceduralMemory)
+                    and memory_type != MemoryType.PROCEDURAL
+                ):
                     continue
 
             # Filter by category
@@ -551,9 +588,9 @@ class InMemoryLongTermStore(LongTermMemoryStore):
         """Get memories marked for proactive retrieval."""
         memories = await self.get_user_memories(user_id)
         return [
-            m for m in memories
-            if m.retrieval_mode == RetrievalMode.PROACTIVE
-            or m.is_high_confidence
+            m
+            for m in memories
+            if m.retrieval_mode == RetrievalMode.PROACTIVE or m.is_high_confidence
         ]
 
 
@@ -587,6 +624,7 @@ class RedisLongTermStore(LongTermMemoryStore):
                 redis_url = self._redis_url
                 if not redis_url:
                     from resync.settings import settings
+
                     redis_url = getattr(settings, "redis_url", "redis://localhost:6379")
 
                 self._redis = await aioredis.from_url(
@@ -663,9 +701,15 @@ class RedisLongTermStore(LongTermMemoryStore):
 
             # Apply filters (same logic as InMemoryStore)
             if memory_type:
-                if isinstance(memory, DeclarativeMemory) and memory_type != MemoryType.DECLARATIVE:
+                if (
+                    isinstance(memory, DeclarativeMemory)
+                    and memory_type != MemoryType.DECLARATIVE
+                ):
                     continue
-                if isinstance(memory, ProceduralMemory) and memory_type != MemoryType.PROCEDURAL:
+                if (
+                    isinstance(memory, ProceduralMemory)
+                    and memory_type != MemoryType.PROCEDURAL
+                ):
                     continue
 
             if category and memory.category.value != category:
@@ -711,9 +755,9 @@ class RedisLongTermStore(LongTermMemoryStore):
     async def get_proactive_memories(self, user_id: str) -> list[Memory]:
         memories = await self.get_user_memories(user_id)
         return [
-            m for m in memories
-            if m.retrieval_mode == RetrievalMode.PROACTIVE
-            or m.is_high_confidence
+            m
+            for m in memories
+            if m.retrieval_mode == RetrievalMode.PROACTIVE or m.is_high_confidence
         ]
 
     async def close(self) -> None:
@@ -797,6 +841,7 @@ class MemoryExtractor:
         # Default: try to use project's LLM utility
         try:
             from resync.core.utils.llm import call_llm
+
             return await call_llm(
                 prompt=prompt,
                 model="gpt-4o-mini",  # Use smaller model for extraction
@@ -828,10 +873,9 @@ class MemoryExtractor:
             return []
 
         # Format conversation for prompt
-        conv_text = "\n".join([
-            f"{msg['role'].upper()}: {msg['content']}"
-            for msg in conversation
-        ])
+        conv_text = "\n".join(
+            [f"{msg['role'].upper()}: {msg['content']}" for msg in conversation]
+        )
 
         prompt = MEMORY_EXTRACTION_PROMPT.format(conversation=conv_text)
 
@@ -862,7 +906,9 @@ class MemoryExtractor:
                     memory = DeclarativeMemory(
                         id="",  # Will be generated
                         user_id=user_id,
-                        category=DeclarativeCategory(decl.get("category", "preference")),
+                        category=DeclarativeCategory(
+                            decl.get("category", "preference")
+                        ),
                         content=decl.get("content", ""),
                         confidence=float(decl.get("confidence", 0.5)),
                         related_jobs=decl.get("related_jobs", []),
@@ -889,9 +935,7 @@ class MemoryExtractor:
                 except Exception as e:
                     logger.warning("Failed to create procedural memory: %s", e)
 
-            logger.info(
-                f"Extracted {len(memories)} memories from session {session_id}"
-            )
+            logger.info(f"Extracted {len(memories)} memories from session {session_id}")
             return memories
 
         except json.JSONDecodeError as e:
@@ -947,6 +991,7 @@ class LongTermMemoryManager:
         # Try Redis first
         try:
             from resync.settings import settings
+
             if not getattr(settings, "disable_redis", False):
                 self._store = RedisLongTermStore()
                 logger.info("Using Redis for long-term memory")
@@ -1036,16 +1081,22 @@ class LongTermMemoryManager:
 
         # Check for content similarity
         for mem in existing:
-            if isinstance(new_memory, DeclarativeMemory) and isinstance(mem, DeclarativeMemory):
+            if isinstance(new_memory, DeclarativeMemory) and isinstance(
+                mem, DeclarativeMemory
+            ):
                 if self._content_similar(new_memory.content, mem.content):
                     return mem
-            elif isinstance(new_memory, ProceduralMemory) and isinstance(mem, ProceduralMemory):
+            elif isinstance(new_memory, ProceduralMemory) and isinstance(
+                mem, ProceduralMemory
+            ):
                 if self._content_similar(new_memory.pattern, mem.pattern):
                     return mem
 
         return None
 
-    def _content_similar(self, content1: str, content2: str, threshold: float = 0.7) -> bool:
+    def _content_similar(
+        self, content1: str, content2: str, threshold: float = 0.7
+    ) -> bool:
         """Check if two content strings are similar."""
         # Simple word overlap similarity
         words1 = set(content1.lower().split())
@@ -1085,7 +1136,9 @@ class LongTermMemoryManager:
                         existing.examples.pop(0)
 
         # For declarative, update content if newer is more confident
-        if isinstance(existing, DeclarativeMemory) and isinstance(new, DeclarativeMemory):
+        if isinstance(existing, DeclarativeMemory) and isinstance(
+            new, DeclarativeMemory
+        ):
             if new.confidence > existing.confidence:
                 existing.content = new.content
             # Merge related entities

@@ -138,7 +138,9 @@ class CacheDependencyGraph:
 
     def __init__(self):
         self.dependencies: dict[str, set[str]] = defaultdict(set)  # key -> dependents
-        self.reverse_dependencies: dict[str, set[str]] = defaultdict(set)  # key -> dependencies
+        self.reverse_dependencies: dict[str, set[str]] = defaultdict(
+            set
+        )  # key -> dependencies
         self.tags: dict[str, set[str]] = defaultdict(set)  # tag -> keys
 
     def add_dependency(self, key: str, depends_on: str) -> None:
@@ -255,8 +257,12 @@ class AdvancedCacheManager:
         self._running = True
 
         # Start background tasks
-        self._cleanup_task = await create_tracked_task(self._cleanup_loop(), name="cleanup_loop")
-        self._warming_task = await create_tracked_task(self._warming_loop(), name="warming_loop")
+        self._cleanup_task = await create_tracked_task(
+            self._cleanup_loop(), name="cleanup_loop"
+        )
+        self._warming_task = await create_tracked_task(
+            self._warming_loop(), name="warming_loop"
+        )
 
         logger.info("Advanced cache manager initialized")
 
@@ -487,7 +493,11 @@ class AdvancedCacheManager:
                 logger.debug("Warmed cache key: %s", key)
 
             except Exception as e:
-                logger.warning("Failed to warm cache key %s: %s", key_config.get('key', 'unknown'), e)
+                logger.warning(
+                    "Failed to warm cache key %s: %s",
+                    key_config.get("key", "unknown"),
+                    e,
+                )
 
         logger.info("Cache warming completed: %s keys warmed", warmed)
         return warmed
@@ -537,7 +547,9 @@ class AdvancedCacheManager:
                 # Update access statistics
                 entry.last_accessed = time.time()
                 entry.access_count += 1
-                entry.hit_rate = entry.access_count / max(1, entry.age / 60)  # hits per minute
+                entry.hit_rate = entry.access_count / max(
+                    1, entry.age / 60
+                )  # hits per minute
 
                 return entry.value
 
@@ -550,7 +562,10 @@ class AdvancedCacheManager:
             if len(self.memory_cache) >= self.stats.max_entries:
                 await self._evict_entries()
 
-            if self.stats.memory_usage_bytes + entry.size_bytes > self.stats.max_memory_bytes:
+            if (
+                self.stats.memory_usage_bytes + entry.size_bytes
+                > self.stats.max_memory_bytes
+            ):
                 await self._evict_entries()
 
             self.memory_cache[entry.key] = entry
@@ -607,7 +622,9 @@ class AdvancedCacheManager:
             def eviction_score(entry_tuple):
                 key, entry = entry_tuple
                 # Lower score = more likely to evict
-                return entry.idle_time * (2 - entry.hit_rate) * (entry.size_bytes / 1000)
+                return (
+                    entry.idle_time * (2 - entry.hit_rate) * (entry.size_bytes / 1000)
+                )
 
             entries.sort(key=eviction_score, reverse=True)  # Highest scores first
 
@@ -664,7 +681,9 @@ class AdvancedCacheManager:
 
                 async with self._lock:
                     expired_keys = [
-                        key for key, entry in self.memory_cache.items() if entry.should_evict()
+                        key
+                        for key, entry in self.memory_cache.items()
+                        if entry.should_evict()
                     ]
 
                     for key in expired_keys:
@@ -674,7 +693,9 @@ class AdvancedCacheManager:
                             self.dependency_graph.remove_key(key)
 
                     if expired_keys:
-                        logger.debug("Cleaned up %s expired cache entries", len(expired_keys))
+                        logger.debug(
+                            "Cleaned up %s expired cache entries", len(expired_keys)
+                        )
 
             except asyncio.CancelledError:
                 break
@@ -700,7 +721,9 @@ class AdvancedCacheManager:
                         new_ttl = entry.calculate_dynamic_ttl({})
                         if new_ttl > entry.ttl:
                             entry.ttl = new_ttl
-                            logger.debug("Extended TTL for hot key %s to %ss", key, new_ttl)
+                            logger.debug(
+                                "Extended TTL for hot key %s to %ss", key, new_ttl
+                            )
 
             except asyncio.CancelledError:
                 break
@@ -743,14 +766,16 @@ async def get_advanced_cache_manager() -> AdvancedCacheManager:
         await advanced_cache_manager.initialize()
     return advanced_cache_manager
 
+
 # Backward compatibility aliases
 AdvancedApplicationCache = AdvancedCacheManager
 
+
 class CacheInvalidator:
     """Legacy invalidator class shim."""
+
     def __init__(self, manager: AdvancedCacheManager = None):
         self.manager = manager or advanced_cache_manager
 
     async def invalidate(self, key: str, cascade: bool = True) -> int:
         return await self.manager.invalidate(key, cascade)
-

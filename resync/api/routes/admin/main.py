@@ -119,10 +119,10 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 
 
 @admin_router.get(
-    "/api-keys", 
-    response_class=HTMLResponse, 
+    "/api-keys",
+    response_class=HTMLResponse,
     summary="API Key Management",
-    dependencies=[Depends(verify_admin_credentials)]
+    dependencies=[Depends(verify_admin_credentials)],
 )
 async def api_keys_admin_page(request: Request) -> HTMLResponse:
     """Serve the API Key Management admin page.

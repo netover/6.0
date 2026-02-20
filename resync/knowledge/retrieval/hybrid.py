@@ -497,7 +497,9 @@ class HybridRAG:
         self._rag = rag_retriever
         self._llm = llm_service
         self._use_llm_router = use_llm_router
-        self._classifier = QueryClassifier(llm_service=llm_service, use_llm_fallback=use_llm_router)
+        self._classifier = QueryClassifier(
+            llm_service=llm_service, use_llm_fallback=use_llm_router
+        )
         self._kg = None  # Lazy load
 
         # Opinion-Based Prompting for +30-50% context adherence improvement
@@ -614,12 +616,17 @@ class HybridRAG:
 
         # Execute graph query if needed
         if classification.use_graph:
-            result["graph_results"] = await self._execute_graph_query(classification, query_text)
+            result["graph_results"] = await self._execute_graph_query(
+                classification, query_text
+            )
 
         # Execute RAG query if needed (use enriched query for better retrieval)
         if classification.use_rag:
             # Use Fusion RAG for GENERAL or TROUBLESHOOTING intents (ambiguous queries)
-            if classification.intent in {QueryIntent.GENERAL, QueryIntent.TROUBLESHOOTING}:
+            if classification.intent in {
+                QueryIntent.GENERAL,
+                QueryIntent.TROUBLESHOOTING,
+            }:
                 result["rag_results"] = await self._execute_fusion_rag_query(
                     enriched_query, classification.entities
                 )
@@ -630,7 +637,9 @@ class HybridRAG:
 
         # Generate response if requested
         if generate_response:
-            result["response"] = await self._generate_response(query_text, result, classification)
+            result["response"] = await self._generate_response(
+                query_text, result, classification
+            )
 
             # === CONTINUAL LEARNING: Active Learning Check ===
             if enable_continual_learning and result["response"]:
@@ -744,7 +753,11 @@ class HybridRAG:
             # Execute semantic search
             results = await rag.retrieve(query_text, top_k=5)
 
-            return {"type": "semantic_search", "query": query_text, "documents": results}
+            return {
+                "type": "semantic_search",
+                "query": query_text,
+                "documents": results,
+            }
 
         except Exception as e:
             logger.error("rag_query_failed", error=str(e))
@@ -782,7 +795,9 @@ Original question: {query}
 Provide ONLY the variations, one per line, without numbering or explanation."""
 
             response = await llm.generate(prompt)
-            variations = [line.strip() for line in response.strip().split('\n') if line.strip()]
+            variations = [
+                line.strip() for line in response.strip().split("\n") if line.strip()
+            ]
 
             # Always include original query
             all_queries = [query] + variations[:num_variations]
@@ -826,7 +841,11 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
         for result_set in results_list:
             for rank, doc in enumerate(result_set, start=1):
                 # Use document ID or content hash as key
-                doc_id = doc.get("id") or doc.get("document_id") or str(hash(doc.get("content", "")[:100]))
+                doc_id = (
+                    doc.get("id")
+                    or doc.get("document_id")
+                    or str(hash(doc.get("content", "")[:100]))
+                )
 
                 # RRF score contribution
                 rrf_score = 1.0 / (k + rank)
@@ -922,7 +941,10 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
     # =========================================================================
 
     async def _generate_response(
-        self, query_text: str, results: dict[str, Any], classification: QueryClassification
+        self,
+        query_text: str,
+        results: dict[str, Any],
+        classification: QueryClassification,
     ) -> str:
         """
         Generate natural language response from results.
@@ -958,15 +980,13 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
             context=context,
             source_name="TWS documentation and knowledge base",
             strict_mode=True,  # Enforce context-only responses
-            language="en"  # Default to English
+            language="en",  # Default to English
         )
 
         try:
             # Generate with opinion-based prompts
             # Expected improvement: +30-50% accuracy, -60% hallucination rate
-            return await llm.generate(
-                f"{formatted['system']}\n\n{formatted['user']}"
-            )
+            return await llm.generate(f"{formatted['system']}\n\n{formatted['user']}")
         except Exception as e:
             logger.error("response_generation_failed", error=str(e))
             return self._format_results_as_text(results)
@@ -1009,7 +1029,9 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                     f"have no resource conflicts."
                 )
 
-            conflict_list = [f"  - {c['name']} ({c['conflict_type']})" for c in conflicts]
+            conflict_list = [
+                f"  - {c['name']} ({c['conflict_type']})" for c in conflicts
+            ]
             return (
                 f"Resource conflicts between {results.get('job_a')} and {results.get('job_b')}:\n"
                 + "\n".join(conflict_list)
@@ -1070,7 +1092,9 @@ def get_hybrid_rag() -> HybridRAG:
     return _hybrid_rag
 
 
-async def hybrid_query(query_text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+async def hybrid_query(
+    query_text: str, context: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Execute a hybrid KG+RAG query.
 

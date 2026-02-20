@@ -12,7 +12,9 @@ class WorkstationStatus(BaseModel):
         ...,
         description="The current status of the workstation (e.g., 'LINKED', 'DOWN').",
     )
-    type: str = Field(..., description="The type of the workstation (e.g., 'FTA', 'MASTER').")
+    type: str = Field(
+        ..., description="The type of the workstation (e.g., 'FTA', 'MASTER')."
+    )
 
 
 class JobStatus(BaseModel):
@@ -30,7 +32,9 @@ class JobStatus(BaseModel):
 class CriticalJob(BaseModel):
     """Represents a job that is part of the critical path (TWS 'plan')."""
 
-    job_id: int = Field(..., description="The unique identifier for the job in the plan.")
+    job_id: int = Field(
+        ..., description="The unique identifier for the job in the plan."
+    )
     job_name: str = Field(..., description="The name of the job.")
     status: str = Field(..., description="The status of the critical job.")
     start_time: str = Field(..., description="The scheduled start time for the job.")
@@ -47,7 +51,9 @@ class JobExecution(BaseModel):
     start_time: datetime = Field(..., description="When the job execution started")
     end_time: datetime | None = Field(None, description="When the job execution ended")
     duration: str | None = Field(None, description="Duration of the execution")
-    error_message: str | None = Field(None, description="Error message if execution failed")
+    error_message: str | None = Field(
+        None, description="Error message if execution failed"
+    )
 
 
 class JobDetails(BaseModel):
@@ -58,8 +64,12 @@ class JobDetails(BaseModel):
     workstation: str = Field(..., description="The workstation where the job runs")
     status: str = Field(..., description="The current status of the job")
     job_stream: str = Field(..., description="The job stream the job belongs to")
-    full_definition: dict[str, Any] = Field(..., description="Complete job definition from TWS")
-    dependencies: list[str] = Field(default_factory=list, description="List of job dependencies")
+    full_definition: dict[str, Any] = Field(
+        ..., description="Complete job definition from TWS"
+    )
+    dependencies: list[str] = Field(
+        default_factory=list, description="List of job dependencies"
+    )
     resource_requirements: dict[str, Any] = Field(
         default_factory=dict, description="Resource requirements for the job"
     )
@@ -74,7 +84,9 @@ class PlanDetails(BaseModel):
     plan_id: str = Field(..., description="The unique identifier for the plan")
     creation_date: datetime = Field(..., description="When the plan was created")
     jobs_count: int = Field(..., description="Total number of jobs in the plan")
-    estimated_completion: datetime | None = Field(None, description="Estimated completion time")
+    estimated_completion: datetime | None = Field(
+        None, description="Estimated completion time"
+    )
     status: str = Field(..., description="Current status of the plan")
 
 
@@ -82,11 +94,17 @@ class ResourceStatus(BaseModel):
     """Information about resource usage in TWS."""
 
     resource_name: str = Field(..., description="The name of the resource")
-    resource_type: str = Field(..., description="The type of resource (CPU, memory, etc.)")
-    total_capacity: float | None = Field(None, description="Total capacity of the resource")
+    resource_type: str = Field(
+        ..., description="The type of resource (CPU, memory, etc.)"
+    )
+    total_capacity: float | None = Field(
+        None, description="Total capacity of the resource"
+    )
     used_capacity: float | None = Field(None, description="Currently used capacity")
     available_capacity: float | None = Field(None, description="Available capacity")
-    utilization_percentage: float | None = Field(None, description="Utilization as percentage")
+    utilization_percentage: float | None = Field(
+        None, description="Utilization as percentage"
+    )
 
 
 class Event(BaseModel):
@@ -99,7 +117,9 @@ class Event(BaseModel):
     source: str = Field(..., description="The source of the event")
     message: str = Field(..., description="The event message")
     job_id: str | None = Field(None, description="Associated job ID if applicable")
-    workstation: str | None = Field(None, description="Associated workstation if applicable")
+    workstation: str | None = Field(
+        None, description="Associated workstation if applicable"
+    )
 
 
 class PerformanceData(BaseModel):
@@ -120,8 +140,12 @@ class DependencyTree(BaseModel):
     """Represents the dependency tree for a job."""
 
     job_id: str = Field(..., description="The job ID this tree represents")
-    dependencies: list[str] = Field(default_factory=list, description="Direct dependencies")
-    dependents: list[str] = Field(default_factory=list, description="Jobs that depend on this job")
+    dependencies: list[str] = Field(
+        default_factory=list, description="Direct dependencies"
+    )
+    dependents: list[str] = Field(
+        default_factory=list, description="Jobs that depend on this job"
+    )
     dependency_graph: dict[str, list[str]] = Field(
         default_factory=dict, description="Complete dependency graph"
     )

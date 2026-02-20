@@ -6,7 +6,15 @@ import logging
 import os
 from datetime import datetime, timezone, timedelta
 
-from .models import Token, TokenPayload, User, UserCreate, UserInDB, UserRole, UserUpdate
+from .models import (
+    Token,
+    TokenPayload,
+    User,
+    UserCreate,
+    UserInDB,
+    UserRole,
+    UserUpdate,
+)
 from .repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -128,11 +136,15 @@ class AuthService:
         """
         user_data = await self.repository.get_by_username(username)
         if not user_data:
-            logger.warning(f"Authentication failed: user not found (user_id={username})")
+            logger.warning(
+                f"Authentication failed: user not found (user_id={username})"
+            )
             return None
 
         if not self._verify_password(password, user_data["hashed_password"]):
-            logger.warning(f"Authentication failed: invalid password (user_id={username})")
+            logger.warning(
+                f"Authentication failed: invalid password (user_id={username})"
+            )
             return None
 
         if not user_data["is_active"]:
@@ -140,7 +152,9 @@ class AuthService:
             return None
 
         # Update last login
-        await self.repository.update(user_data["id"], {"last_login": datetime.now(timezone.utc).isoformat()})
+        await self.repository.update(
+            user_data["id"], {"last_login": datetime.now(timezone.utc).isoformat()}
+        )
 
         logger.info("User %s authenticated successfully", username)
 
@@ -172,7 +186,9 @@ class AuthService:
         """
         from resync.core.jwt_utils import jwt
 
-        expire = datetime.now(timezone.utc) + timedelta(minutes=self.access_token_expire_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=self.access_token_expire_minutes
+        )
 
         payload = {
             "sub": user.id,
@@ -257,7 +273,9 @@ class AuthService:
 
         # Hash password if provided
         if "password" in update_dict:
-            update_dict["hashed_password"] = self._hash_password(update_dict.pop("password"))
+            update_dict["hashed_password"] = self._hash_password(
+                update_dict.pop("password")
+            )
 
         updated = await self.repository.update(user_id, update_dict)
         if not updated:

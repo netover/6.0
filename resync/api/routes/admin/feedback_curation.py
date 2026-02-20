@@ -198,7 +198,11 @@ async def list_pending_feedback(
                 base_query = base_query.where(Feedback.feedback_text.is_(None))
 
             # Get total count
-            count_query = select(func.count(Feedback.id)).select_from(Feedback).where(Feedback.curation_status == "pending")
+            count_query = (
+                select(func.count(Feedback.id))
+                .select_from(Feedback)
+                .where(Feedback.curation_status == "pending")
+            )
             if has_negative_rating is True:
                 count_query = count_query.where(Feedback.rating <= 2)
             elif has_negative_rating is False:
@@ -252,9 +256,7 @@ async def list_pending_feedback(
                         rating=fb.rating,
                         feedback_text=fb.feedback_text,
                         curation_status=fb.curation_status,
-                        created_at=fb.created_at.isoformat()
-                        if fb.created_at
-                        else "",
+                        created_at=fb.created_at.isoformat() if fb.created_at else "",
                         has_correction=bool(fb.feedback_text),
                     )
                     for fb in feedbacks
@@ -272,7 +274,10 @@ async def list_pending_feedback(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("list_pending_feedback_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/{feedback_id}", response_model=FeedbackDetail)
@@ -310,7 +315,10 @@ async def get_feedback_detail(feedback_id: int):
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("get_feedback_detail_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/stats", response_model=CurationStats)
@@ -363,7 +371,10 @@ async def get_curation_stats():
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("get_curation_stats_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.post("/{feedback_id}/approve", response_model=ApprovalResponse)
@@ -463,7 +474,10 @@ async def approve_and_incorporate(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("approve_feedback_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.post("/{feedback_id}/reject")
@@ -520,7 +534,10 @@ async def reject_feedback(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("reject_feedback_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.delete("/{feedback_id}/rollback")
@@ -541,9 +558,7 @@ async def rollback_incorporation(
             raise HTTPException(status_code=404, detail="Feedback não encontrado")
 
         if feedback.curation_status != "incorporated":
-            raise HTTPException(
-                status_code=400, detail="Feedback não está incorporado"
-            )
+            raise HTTPException(status_code=400, detail="Feedback não está incorporado")
 
         if not feedback.incorporated_doc_id:
             raise HTTPException(
@@ -590,7 +605,10 @@ async def rollback_incorporation(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("rollback_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.post("/bulk-approve")
@@ -651,4 +669,7 @@ async def bulk_approve(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("bulk_approve_error", error=str(e))  # type: ignore[call-arg]
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e

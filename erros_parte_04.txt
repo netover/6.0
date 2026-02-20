@@ -1,0 +1,1103 @@
+==resync.api.routes.admin.v2:[31:38]
+==resync.api.routes.admin.v2:[435:441]
+==resync.api.routes.admin.v2:[435:442]
+==resync.api.routes.admin.v2:[436:441]
+==resync.api.routes.admin.v2:[438:443]
+==resync.api.routes.admin.v2:[473:485]
+==resync.api.routes.admin.v2:[530:536]
+==resync.api.routes.admin.v2:[531:536]
+==resync.api.routes.admin.v2:[688:694]
+==resync.api.routes.admin.v2:[689:694]
+==resync.api.routes.admin.v2:[808:821]
+==resync.api.routes.agents.agents:[1175:1183]
+==resync.api.routes.agents.agents:[257:262]
+==resync.api.routes.agents.agents:[633:641]
+==resync.api.routes.agents.agents:[635:641]
+==resync.api.routes.agents.agents:[867:875]
+==resync.api.routes.agents.agents:[869:875]
+==resync.api.routes.agents.agents:[963:971]
+==resync.api.routes.cache:[432:440]
+==resync.api.routes.cache:[433:440]
+==resync.api.routes.core.auth:[167:183]
+==resync.api.routes.core.auth:[185:197]
+==resync.api.routes.core.auth:[204:217]
+==resync.api.routes.core.auth:[371:390]
+==resync.api.routes.core.auth:[398:418]
+==resync.api.routes.core.auth:[442:450]
+==resync.api.routes.core.chat:[273:278]
+==resync.api.routes.core.chat:[305:310]
+==resync.api.routes.monitoring.admin_monitoring:[23:58]
+==resync.api.routes.monitoring.admin_monitoring:[43:52]
+==resync.api.routes.monitoring.ai_monitoring:[48:65]
+==resync.api.routes.monitoring.ai_monitoring:[69:80]
+==resync.api.routes.monitoring.dashboard:[23:59]
+==resync.api.routes.monitoring.dashboard:[65:116]
+==resync.api.routes.monitoring.metrics:[252:268]
+==resync.api.routes.monitoring.metrics:[298:310]
+==resync.api.routes.monitoring.metrics:[326:338]
+==resync.api.routes.monitoring.metrics:[383:395]
+==resync.api.routes.monitoring.metrics:[448:466]
+==resync.api.routes.monitoring.metrics_dashboard:[482:488]
+==resync.api.routes.monitoring.metrics_dashboard:[482:489]
+==resync.api.routes.rag.query:[157:162]
+==resync.api.routes.rag.query:[300:305]
+==resync.api.routes.rag.query:[52:65]
+==resync.api.routes.rag.query:[79:84]
+==resync.api.routes.system.config:[1067:1081]
+==resync.api.unified_config_api:[304:312]
+==resync.api.unified_config_api:[376:384]
+==resync.api.unified_config_api:[376:386]
+==resync.api.unified_config_api:[378:384]
+==resync.api.validation.__init__:[132:145]
+==resync.api.validation.__init__:[145:154]
+==resync.api.validation.__init__:[154:161]
+==resync.api.validation.__init__:[166:172]
+==resync.api.validation.__init__:[172:185]
+==resync.api.validation.agents:[389:403]
+==resync.api.validation.auth:[93:107]
+==resync.api.validation.chat:[304:311]
+==resync.api.validation.chat:[327:346]
+==resync.api.validation.common:[245:254]
+==resync.api.validation.config:[19:28]
+==resync.api.validation.config:[554:565]
+==resync.api.validation.enhanced_security:[324:340]
+==resync.api.validation.files:[290:297]
+==resync.api.validation.files:[573:581]
+==resync.api.validation.middleware:[550:555]
+==resync.api.validation.middleware:[85:92]
+==resync.api.validation.monitoring:[30:39]
+==resync.api.validation.monitoring:[444:451]
+==resync.api.validation.monitoring:[48:57]
+==resync.api.validation.monitoring:[565:572]
+==resync.api.validation.query_params:[255:271]
+==resync.api.validation.query_params:[350:364]
+==resync.api.validation.query_params:[378:385]
+==resync.api.validation.query_params:[469:481]
+==resync.core.agent_evolution:[103:112]
+==resync.core.agent_evolution:[67:77]
+==resync.core.agent_evolution:[83:93]
+==resync.core.audit_db:[88:96]
+==resync.core.auto_recovery:[108:120]
+==resync.core.auto_recovery:[135:162]
+==resync.core.auto_recovery:[149:154]
+==resync.core.auto_recovery:[32:70]
+==resync.core.auto_recovery:[88:108]
+==resync.core.auto_recovery:[88:166]
+==resync.core.backup.backup_service:[173:183]
+==resync.core.backup.backup_service:[924:932]
+==resync.core.compliance.report_strategies:[685:695]
+==resync.core.connection_pool_manager:[348:357]
+==resync.core.context_enrichment:[477:514]
+==resync.core.context_store:[82:87]
+==resync.core.continual_learning.audit_to_kg_pipeline:[143:149]
+==resync.core.continual_learning.context_enrichment:[156:162]
+==resync.core.continual_learning.context_enrichment:[457:480]
+==resync.core.continual_learning.feedback_store:[61:68]
+==resync.core.database.__init__:[120:130]
+==resync.core.database.__init__:[130:139]
+==resync.core.database.models.__init__:[57:69]
+==resync.core.database.models.__init__:[74:86]
+==resync.core.database.repositories.admin_users:[118:141]
+==resync.core.database.repositories.stores:[119:124]
+==resync.core.database.repositories.stores:[219:227]
+==resync.core.database.repositories.stores:[451:458]
+==resync.core.database.repositories.tws_repository:[455:466]
+==resync.core.database.repositories.user_repository:[94:123]
+==resync.core.embedding_router:[43:53]
+==resync.core.event_driven_discovery:[18:32]
+==resync.core.factories.__init__:[38:45]
+==resync.core.factories.tws_factory:[152:157]
+==resync.core.gdpr_compliance:[801:811]
+==resync.core.health.circuit_breaker_manager:[135:140]
+==resync.core.health.health_alerting:[175:180]
+==resync.core.health.health_check_retry:[68:77]
+==resync.core.health.health_check_utils:[122:127]
+==resync.core.health.health_check_utils:[74:81]
+==resync.core.health.health_checkers.cache_health_checker:[82:88]
+==resync.core.health.health_checkers.connection_pools_health_checker:[111:118]
+==resync.core.health.health_checkers.connection_pools_health_checker:[113:120]
+==resync.core.health.health_checkers.connection_pools_health_checker:[43:55]
+==resync.core.health.health_checkers.cpu_health_checker:[112:118]
+==resync.core.health.health_checkers.cpu_health_checker:[74:85]
+==resync.core.health.health_checkers.cpu_health_checker:[75:82]
+==resync.core.health.health_checkers.cpu_health_checker:[77:82]
+==resync.core.health.health_checkers.cpu_health_checker:[89:97]
+==resync.core.health.health_checkers.cpu_health_checker:[89:98]
+==resync.core.health.health_checkers.database_health_checker:[142:147]
+==resync.core.health.health_checkers.database_health_checker:[142:149]
+==resync.core.health.health_checkers.database_health_checker:[43:55]
+==resync.core.health.health_checkers.database_health_checker:[60:73]
+==resync.core.health.health_checkers.filesystem_health_checker:[67:78]
+==resync.core.health.health_checkers.filesystem_health_checker:[82:91]
+==resync.core.health.health_checkers.health_checker_factory:[99:119]
+==resync.core.health.health_checkers.memory_health_checker:[105:111]
+==resync.core.health.health_checkers.redis_health_checker:[105:113]
+==resync.core.health.health_checkers.redis_health_checker:[81:87]
+==resync.core.health.health_checkers.redis_health_checker:[86:95]
+==resync.core.health.health_checkers.websocket_pool_health_checker:[57:64]
+==resync.core.health.health_config_manager:[422:446]
+==resync.core.health.health_monitoring_coordinator:[58:64]
+==resync.core.health.memory_usage_tracker:[72:77]
+==resync.core.health.monitors.redis_monitor:[114:120]
+==resync.core.health.monitors.redis_monitor:[87:96]
+==resync.core.health.proactive_monitor:[117:128]
+==resync.core.health.proactive_monitor:[130:161]
+==resync.core.health.proactive_monitor:[138:219]
+==resync.core.health.proactive_monitor:[278:315]
+==resync.core.health.proactive_monitor:[324:335]
+==resync.core.health.proactive_monitor:[47:74]
+==resync.core.health.proactive_monitor:[75:84]
+==resync.core.health.proactive_monitor:[85:108]
+==resync.core.health.recovery_manager:[342:353]
+==resync.core.langfuse.observability:[220:229]
+==resync.core.langfuse.observability:[34:44]
+==resync.core.langfuse.observability:[34:45]
+==resync.core.langfuse.prompt_manager:[200:213]
+==resync.core.langfuse.prompt_manager:[33:50]
+==resync.core.langgraph.__init__:[185:193]
+==resync.core.langgraph.__init__:[193:201]
+==resync.core.langgraph.__init__:[219:225]
+==resync.core.langgraph.__init__:[225:237]
+==resync.core.langgraph.__init__:[237:245]
+==resync.core.langgraph.__init__:[245:253]
+==resync.core.langgraph.__init__:[264:270]
+==resync.core.langgraph.agent_graph:[1903:1911]
+==resync.core.langgraph.agent_graph:[1916:1923]
+==resync.core.langgraph.agent_graph:[72:81]
+==resync.core.langgraph.checkpointer:[63:86]
+==resync.core.langgraph.diagnostic_graph:[51:66]
+==resync.core.langgraph.hallucination_grader:[754:764]
+==resync.core.langgraph.incident_response:[48:57]
+==resync.core.langgraph.incident_response:[48:66]
+==resync.core.langgraph.incident_response:[802:809]
+==resync.core.langgraph.models:[263:271]
+==resync.core.langgraph.parallel_graph:[57:75]
+==resync.core.langgraph.parallel_graph:[78:85]
+==resync.core.langgraph.roma_graph:[16:24]
+==resync.core.langgraph.subgraphs:[599:612]
+==resync.core.langgraph.subgraphs:[71:83]
+==resync.core.langgraph.templates:[247:254]
+==resync.core.log_aggregator:[732:740]
+==resync.core.log_aggregator:[858:866]
+==resync.core.log_aggregator:[894:901]
+==resync.core.log_aggregator:[937:945]
+==resync.core.logging_utils:[28:44]
+==resync.core.memory.__init__:[58:68]
+==resync.core.memory.__init__:[68:75]
+==resync.core.memory.__init__:[75:82]
+==resync.core.memory.__init__:[82:93]
+==resync.core.memory.conversation_memory:[409:421]
+==resync.core.memory.conversation_memory:[555:563]
+==resync.core.memory.integration:[390:404]
+==resync.core.memory.long_term_memory:[1374:1382]
+==resync.core.memory.long_term_memory:[1384:1392]
+==resync.core.memory.long_term_memory:[983:995]
+==resync.core.metrics.__init__:[50:63]
+==resync.core.metrics.lightweight_store:[18:28]
+==resync.core.metrics_internal:[19:29]
+==resync.core.monitoring.__init__:[33:48]
+==resync.core.monitoring.evidently_monitor:[1044:1059]
+==resync.core.monitoring.evidently_monitor:[126:143]
+==resync.core.monitoring.evidently_monitor:[776:784]
+==resync.core.observability.telemetry:[383:388]
+==resync.core.performance_optimizer:[387:395]
+==resync.core.proactive_monitoring:[106:116]
+==resync.core.proactive_monitoring:[116:144]
+==resync.core.proactive_monitoring:[124:144]
+==resync.core.proactive_monitoring:[149:160]
+==resync.core.proactive_monitoring:[179:205]
+==resync.core.proactive_monitoring:[215:226]
+==resync.core.proactive_monitoring:[45:72]
+==resync.core.proactive_monitoring:[73:82]
+==resync.core.proactive_monitoring:[83:106]
+==resync.core.resource_manager:[304:310]
+==resync.core.service_discovery:[703:712]
+==resync.core.service_discovery:[703:718]
+==resync.core.service_discovery:[707:718]
+==resync.core.service_discovery:[731:739]
+==resync.core.service_discovery:[757:765]
+==resync.core.service_discovery:[796:805]
+==resync.core.service_discovery:[796:811]
+==resync.core.service_discovery:[838:846]
+==resync.core.shared_types:[157:166]
+==resync.core.shared_types:[157:167]
+==resync.core.shared_types:[216:226]
+==resync.core.siem_integrator:[290:307]
+==resync.core.siem_integrator:[421:438]
+==resync.core.siem_integrator:[476:483]
+==resync.core.siem_integrator:[620:635]
+==resync.core.smart_cache_validator:[16:30]
+==resync.core.smart_pooling:[498:508]
+==resync.core.soc2_compliance:[674:685]
+==resync.core.soc2_compliance:[807:817]
+==resync.core.specialists.__init__:[78:83]
+==resync.core.specialists.__init__:[86:92]
+==resync.core.specialists.agents:[659:665]
+==resync.core.specialists.agents:[788:793]
+==resync.core.specialists.models:[40:51]
+==resync.core.specialists.parallel_executor:[206:213]
+==resync.core.specialists.tools:[108:123]
+==resync.core.specialists.tools:[163:177]
+==resync.core.specialists.tools:[2010:2015]
+==resync.core.specialists.tools:[363:403]
+==resync.core.specialists.tools:[403:411]
+==resync.core.specialists.tools:[40:108]
+==resync.core.specialists.tools:[416:460]
+==resync.core.specialists.tools:[490:504]
+==resync.core.specialists.tools:[654:713]
+==resync.core.specialists.tools:[714:830]
+==resync.core.specialists.tools:[845:878]
+==resync.core.specialists.tools:[897:914]
+==resync.core.structured_logger:[218:235]
+==resync.core.teams_integration:[493:498]
+==resync.core.tws_background_poller:[59:69]
+==resync.core.tws_history_rag:[42:52]
+==resync.core.tws_history_rag:[61:71]
+==resync.core.tws_monitor:[113:119]
+==resync.core.tws_monitor:[114:119]
+==resync.core.tws_rag_queries:[68:78]
+==resync.core.tws_rag_queries:[81:90]
+==resync.core.tws_status_store:[107:118]
+==resync.core.utils.__init__:[19:27]
+==resync.core.utils.correlation:[380:388]
+==resync.knowledge.config:[15:32]
+==resync.knowledge.ingestion.advanced_chunking:[38:47]
+==resync.knowledge.ingestion.chunking:[30:42]
+==resync.knowledge.ingestion.chunking:[97:106]
+==resync.knowledge.ingestion.ingest:[199:207]
+==resync.knowledge.kg_store.ddl:[35:44]
+==resync.knowledge.kg_store.store:[19:29]
+==resync.knowledge.retrieval.hybrid:[41:53]
+==resync.knowledge.retrieval.reranker_interface:[31:47]
+==resync.knowledge.store.pgvector_store:[22:30]
+==resync.scripts.install_postgres:[433:443]
+==resync.scripts.install_postgres:[496:506]
+==resync.scripts.install_redis:[107:115]
+==resync.scripts.install_redis:[130:140]
+==resync.scripts.install_redis:[98:105]
+==resync.scripts.manual_verify:[237:249]
+==resync.scripts.setup_environment:[145:152]
+==resync.scripts.setup_environment:[152:160]
+==resync.scripts.update_dashboard_final:[33:41]
+==resync.scripts.update_dashboard_final:[83:92]
+==resync.scripts.update_dashboard_final:[8:29]
+==resync.scripts.update_dashboard_refine:[125:133]
+==resync.scripts.update_dashboard_refine:[35:55]
+==resync.scripts.update_dashboard_refine:[68:77]
+==resync.services.config_manager:[95:106]
+==resync.services.llm_fallback:[353:359]
+==resync.services.llm_fallback:[913:920]
+==resync.services.llm_service:[146:186]
+==resync.services.llm_service:[190:224]
+==resync.services.llm_service:[234:245]
+==resync.services.llm_service:[350:360]
+==resync.services.llm_service:[477:491]
+==resync.services.llm_service:[562:571]
+==resync.services.llm_service:[585:590]
+==resync.services.llm_service:[640:650]
+==resync.services.llm_service:[665:670]
+==resync.services.llm_service:[81:145]
+==resync.services.llm_service:[938:949]
+==resync.services.llm_service_new:[129:182]
+==resync.services.llm_service_new:[184:221]
+==resync.services.llm_service_new:[190:200]
+==resync.services.llm_service_new:[191:200]
+==resync.services.llm_service_new:[191:201]
+==resync.services.llm_service_new:[54:128]
+==resync.services.rag_client:[155:169]
+==resync.services.tws_unified:[173:179]
+==resync.services.tws_unified:[237:246]
+==resync.services.tws_unified:[242:247]
+==resync.services.tws_unified:[352:361]
+==resync.services.tws_unified:[357:362]
+==resync.services.tws_unified:[452:459]
+==resync.settings_validators:[26:36]
+==resync.tools.__init__:[47:66]
+==resync.tools.definitions.__init__:[41:72]
+==resync.tools.definitions.schemas:[119:141]
+==resync.tools.definitions.schemas:[254:285]
+==resync.tools.definitions.schemas:[26:59]
+==resync.tools.registry:[102:110]
+==resync.tools.registry:[142:177]
+==resync.tools.registry:[182:188]
+==resync.tools.registry:[195:239]
+==resync.tools.registry:[271:285]
+==resync.tools.registry:[30:93]
+==resync.tools.registry:[363:421]
+==resync.tools.registry:[422:543]
+==resync.tools.registry:[543:562]
+==resync.tools.registry:[93:102]
+==resync.workflows.nodes:[69:76]
+==resync.workflows.nodes:[91:103]
+==resync.workflows.nodes_optimized:[140:148]
+==resync.workflows.nodes_optimized:[153:158]
+==resync.workflows.nodes_optimized:[792:802]
+==resync.workflows.nodes_optimized:[796:802]
+==resync.workflows.statistical_analysis:[193:199]
+==resync.workflows.statistical_analysis:[225:234]
+==resync.workflows.workflow_capacity_forecasting:[33:42]
+==resync.workflows.workflow_capacity_forecasting:[721:733]
+==resync.workflows.workflow_capacity_forecasting:[79:102]
+==resync.workflows.workflow_predictive_maintenance:[49:61]
+==resync.workflows.workflow_predictive_maintenance:[841:853]
+@classmethod
+@classmethod
+@classmethod
+@dataclass
+@dataclass
+@dataclass (duplicate-code)
+@dataclass (duplicate-code)
+@field_validator("end_date")
+@field_validator("metric_types", "severity_filter")
+@field_validator("search_query")
+@functools.wraps(func)
+@router.get("/feedback-analysis")
+@router.get("/health")
+@router.get("/rag/chunking")
+@router.get("/resources", response_model=SystemResourcesResponse)
+@router.get("/summary")
+@router.get("/tws-instances/{instance_id}", tags=["TWS Instances"])
+@router.get("/{feedback_id}", response_model=FeedbackDetail)
+@router.post("/{feedback_id}/approve", response_model=ApprovalResponse)
+ADMIN = "admin"  # Administrative operations
+ADMIN = "admin"  # Full access
+APIConnectionError,
+APIConnectionError,
+APIConnectionError,
+APIConnectionError,
+APIConnectionError,
+APIError,
+APIError,
+APIError,
+APIError,
+APIError,
+APIStatusError,
+APIStatusError,
+APIStatusError,
+APIStatusError,
+APIStatusError,
+APITimeoutError,
+APITimeoutError,
+APITimeoutError,
+APITimeoutError,
+APITimeoutError,
+ASYNCPG_AVAILABLE = False
+ASYNCPG_AVAILABLE = True
+AggregationPeriod,
+Annotated[
+Annotated[
+Aprova feedback e incorpora como conhecimento.
+Args:
+Args:
+AsyncOpenAI,
+AttributeError,
+AttributeError,
+AttributeError,
+AttributeError,
+AttributeError, (duplicate-code)
+AttributeError, (duplicate-code)
+Authenticate user with username and password.
+AuthenticationError,
+AuthenticationError,
+AuthenticationError,
+AuthenticationError,
+AuthenticationError,
+BLOCKED_ON_USER = "blocked_on_user"
+BadRequestError,
+BadRequestError,
+BadRequestError,
+BadRequestError,
+BadRequestError,
+CANCELLED = "cancelled"
+COUNTER = "counter"
+CRITICAL = "critical"
+CRITICAL = "critical"
+CRITICAL = "critical"
+CRITICAL_JOBS = "critical_jobs"  # "What are the most critical jobs?"
+Central catalog for all available tools.
+CircuitBreakerConfig(
+Convenience function to enrich a query.
+DEGRADED = "degraded"
+DEPENDENCY_CHAIN = "dependency_chain"  # "What are the dependencies of X?"
+DOCUMENTATION = "documentation"  # "How do I configure X?"
+DONE = "done"
+Decorator to mark a function as a tool with guardrails.
+END = "END"
+END = "END" (duplicate-code)
+ERROR = "error"
+ERROR = "error"
+ERROR = "error"
+EXECUTE = "execute"  # Can execute actions on external systems
+EXPLANATION = "explanation"  # "What is X?"
+Este é o endpoint principal do fluxo "Golden Record":
+F = TypeVar("F", bound=Callable[..., Any])
+False, (duplicate-code)
+GAUGE = "gauge"
+Get DATABASE_URL with security validation.
+Get current system resource usage.
+Get list of all available health checker names.
+HEALTHY = "healthy"
+HIGH = "high"
+HISTOGRAM = "histogram"
+Handles account lockout for too many failed attempts.
+IMPACT_ANALYSIS = "impact_analysis"  # "What happens if X fails?"
+INFO = "info"
+INFO = "info"
+IN_PROGRESS = "in_progress"
+IndexError,
+IndexError,
+IndexError,
+IndexError,
+JOB_LINEAGE = "job_lineage"  # "Show the full lineage of X"
+KeyError,
+KeyError,
+KeyError,
+KeyError,
+KeyboardInterrupt,
+KeyboardInterrupt,
+KeyboardInterrupt,
+KeyboardInterrupt,
+KeyboardInterrupt,
+KeyboardInterrupt,
+KeyboardInterrupt,
+KeyboardInterrupt,
+LANGFUSE_AVAILABLE = False
+LANGFUSE_AVAILABLE = False (duplicate-code)
+LANGFUSE_AVAILABLE = True
+LANGFUSE_AVAILABLE = True
+LANGGRAPH_AVAILABLE = False
+LANGGRAPH_AVAILABLE = False
+LANGGRAPH_AVAILABLE = False (duplicate-code)
+LANGGRAPH_AVAILABLE = True
+LANGGRAPH_AVAILABLE = True
+LANGGRAPH_AVAILABLE = True
+LOW = "low"
+Langfuse = None
+List of component names
+MEDIUM = "medium"
+MODERATE = "moderate"
+MetricNames,
+NONE = "none"
+None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Date (YYYY-MM-DD)"
+O documento criado tem máxima prioridade no retrieval porque:
+OPENAI_AVAILABLE = False
+OPENAI_AVAILABLE = True
+OPERATOR = "operator"  # Can execute approved actions
+Observable tool run state for reactive UI.
+PERMISSIVE = "permissive"
+PRIMARY KEY (tenant, graph_version, edge_id)
+Provides real-time progress tracking, cancellation support,
+Provides:
+PydanticStringConstraints(
+PydanticStringConstraints(
+QUEUED = "queued"
+READ_ONLY = "read_only"  # Can read data, no state changes
+RESOURCE_CONFLICT = "resource_conflict"  # "Can X and Y run together?"
+ROLE_PERMISSIONS: dict[UserRole, set[ToolPermission]] = {
+RateLimitError,
+RateLimitError,
+RateLimitError,
+RateLimitError,
+RateLimitError,
+RetryConfig(
+RetryConfig(
+Returns True if authenticated as admin, False otherwise.
+Returns enriched query string (or original if no context found).
+Returns user if authentication successful, None otherwise.
+Returns:
+Returns:
+STRICT = "strict"
+SUMMARY = "summary"
+SYSTEM = "system"  # Internal system calls
+StateGraph = None
+StateGraph = None
+SystemExit,
+SystemExit,
+SystemExit,
+SystemExit,
+SystemExit,
+SystemExit,
+SystemExit,
+SystemExit,
+TROUBLESHOOTING = "troubleshooting"  # "How to fix error X?"
+ToolPermission.ADMIN,
+ToolPermission.ADMIN,
+ToolPermission.EXECUTE,
+ToolPermission.EXECUTE,
+ToolPermission.READ_ONLY,
+ToolPermission.READ_ONLY,
+ToolPermission.WRITE,
+ToolPermission.WRITE,
+TypeError,
+TypeError,
+TypeError,
+TypeError,
+TypeError,
+TypeError,
+TypeError, (duplicate-code)
+TypeError, (duplicate-code)
+UNHEALTHY = "unhealthy"
+UNKNOWN = "unknown"
+User if authentication successful, None otherwise
+UserRole.ADMIN: {
+UserRole.OPERATOR: {ToolPermission.READ_ONLY, ToolPermission.WRITE},
+UserRole.SYSTEM: {
+UserRole.VIEWER: {ToolPermission.READ_ONLY},
+VIEWER = "viewer"  # Read-only access
+WARNING = "warning"
+WARNING = "warning"
+WRITE = "write"  # Can modify state
+Your code has been rated at 8.88/10 (previous run: 8.14/10, +0.74)
+\"\"\"Apenas um worker coleta por vez (Liderança via Redis Lock).\"\"\"
+\"\"\"Persiste amostra indicando falha na coleta.\"\"\"
+]
+]
+]
+]
+] (duplicate-code)
+] (duplicate-code)
+] (duplicate-code)
+] (duplicate-code)
+] (duplicate-code)
+] (duplicate-code)
+],
+_ENC = None
+_ENC = tiktoken.get_encoding("cl100k_base")
+_HAS_TIKTOKEN = False
+_HAS_TIKTOKEN = True
+__all__ = [
+__all__ = [
+__all__ = [
+__all__ = [
+__all__ = [
+__all__ = [
+__all__ = [
+__all__ = [
+_catalog = ToolCatalog()
+_catalog.record_execution(trace)
+_catalog.record_execution(trace)
+_catalog.record_execution(trace)
+_catalog.register(tool_def)
+_enricher = ContextEnricher()
+_enricher: ContextEnricher | None = None
+_initialized: bool = False
+_instance: ToolCatalog | None = None
+abend_code: str | None = None
+action=action,
+actions = []
+actions.append(
+actions.append(
+adaptive_llm_api_breaker,
+adaptive_tws_api_breaker,
+admin_user = getattr(settings, "ADMIN_USERNAME", None) or getattr(
+admin_user = getattr(settings, "ADMIN_USERNAME", None) or getattr(
+advanced_manager = get_advanced_connection_pool_manager()
+advanced_manager = get_advanced_connection_pool_manager()
+advanced_manager = get_advanced_connection_pool_manager()
+advanced_manager = get_advanced_connection_pool_manager()
+agent_name: str
+agents_active: int = 0
+agents_created: int = 0
+agents_failed: int = 0
+allowed_permissions = ROLE_PERMISSIONS.get(user_role, set())
+allowed_permissions = ROLE_PERMISSIONS.get(user_role, set())
+and permission handling for collaborative safety.
+api_key = _coerce_secret(getattr(settings, "llm_api_key", None))
+api_key=api_key,
+approval_id = _catalog.request_approval(trace)
+approval_id=approval_id,
+args,
+args: tuple,
+async def _attempt_component_recovery(self) -> list[dict[str, Any]]:
+async def _check_connection_pool_health(self) -> dict[str, Any]:
+async def _ensure_store(self) -> MemoryStore:
+async def _process_data_erasure(self, request: DataErasureRequest) -> None:
+async def approve_and_incorporate(
+async def authenticate(
+async def enrich_query(
+async def force_health_check(self) -> dict[str, Any]:
+async def get_chunking_config():
+async def get_events(
+async def get_feedback_analysis(
+async def get_feedback_detail(feedback_id: int):
+async def get_metrics_summary():
+async def get_system_resources():
+async def get_tws_instance(instance_id: str):
+async def metrics_health():
+async with pool_manager.acquire_connection("default") as conn:
+async_operations_active: int = 0
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncio.CancelledError,
+asyncpg = None
+attempt=attempt + 1,
+audit_entry = {
+auth_header = websocket.headers.get("authorization", "")
+avg_latency = (
+await asyncio.sleep(60)  # Wait before retry
+await asyncio.sleep(secrets.randbelow(100) / 1000)  # 0-100ms random delay
+await asyncio.sleep(wait_time)
+await cursor.close()
+await cursor.execute("SELECT 1")
+await cursor.fetchone()
+await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
+await resource.close()
+await result.fetchone()
+await self._monitoring_task
+await self._monitoring_task
+await self.add_sample(sample)""" (duplicate-code)
+base_delay=float(os.getenv("LLM_RETRY_BASE_DELAY", "0.5")),
+base_delay=self.config.retry_base_delay,
+base_url = getattr(settings, "llm_endpoint", None)
+base_url=base_url,
+baseline_comparison = self._compare_with_baseline()
+basic_metrics = {}
+basic_metrics = {}
+basic_metrics[pool_name] = {
+basic_metrics[pool_name] = {
+break
+break
+break
+break
+breaker.get_stats()
+breaker.get_stats()
+breakers = {
+breakers = {
+cache_evictions: int = 0
+cache_hit_ratio: float = 0.0
+cache_hits: int = 0
+cache_misses: int = 0
+cache_size: int = 0
+can_exec, reason = _catalog.can_execute(func.__name__, trace.user_role)
+circuit_health = self._check_circuit_breaker_health()
+circuit_health = self._check_circuit_breaker_health()
+class AlertSeverity(str, Enum):
+class AlertSeverity(str, Enum):
+class ApprovalRequiredError(Exception):
+class HealthStatus(str, Enum):
+class HumanMessage:
+class JobHistoryInput(BaseModel):
+class JobLogInput(BaseModel):
+class JobLogOutput(BaseModel):
+class LLMService:
+class MetricSample:
+class MetricType(str, Enum):
+class RAGSearchInput(BaseModel):
+class RAGSearchOutput(BaseModel):
+class RiskLevel(str, Enum):
+class SanitizationLevel(str, Enum):
+class SystemMessage:
+class ToolCatalog:
+class ToolDefinition:
+class ToolPermission(str, Enum):
+class ToolRun:
+class ToolRunStatus(str, Enum):
+class UserRole(str, Enum):
+client_ip = "unknown"  # In this context, we don't have the request object (duplicate-code)
+cls._instance = super().__new__(cls)
+cls._instance = super().__new__(cls)
+cls._instance = super().__new__(cls)
+cls._instance._active_runs: dict[str, ToolRun] = {}
+cls._instance._execution_history: list[ToolExecutionTrace] = []
+cls._instance._initialized = False
+cls._instance._pending_approvals: dict[str, ToolExecutionTrace] = {}
+cls._instance._tools: dict[str, ToolDefinition] = {}
+component_name=component_name,
+component_type=self.component_type,
+component_type=self.component_type,
+component_type=self.component_type,
+component_type=self.component_type,
+component_type=self.component_type,
+component_type=self.component_type,
+confidence: float
+confidence=result.confidence,
+config = toml.load(config_file) (duplicate-code)
+config = {"configurable": {"thread_id": workflow_id}}
+config_file = Path(__file__).parent.parent.parent / "config" / "graphrag.toml"
+configuration:1:0: E0603: Undefined variable name 'CircuitBreakerManager' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'ComponentHealth' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'ComponentType' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'HealthCheckConfig' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'HealthCheckResult' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'HealthStatus' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'SystemHealthStatus' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'get_health_check_service' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'get_health_status' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'get_status_color' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'get_status_description' in __all__ (undefined-all-variable)
+configuration:1:0: E0603: Undefined variable name 'shutdown_health_check_service' in __all__ (undefined-all-variable)
+container_name: resync-redis
+content=content,
+content_type=content_type,
+correlation_id=f"proactive_{int(start_time)}",
+correlation_ids_active: int = 0
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+credentials.credentials
+credentials_valid = username_valid and password_valid
+ctx=ErrorContext(
+ctx=ErrorContext(
+current_accuracy: float
+current_prompt: str
+cursor = await conn.cursor()
+data: dict[str, Any]
+database = getattr(settings, "db_name", None) or os.getenv("DB_NAME", "resync")
+datetime.now(timezone.utc)
+datetime.now(timezone.utc)
+datetime.now(timezone.utc)
+datetime.now(timezone.utc) - timedelta(days=int(m.group(1))),
+datetime.now(timezone.utc) - timedelta(hours=int(m.group(1))),
+datetime.now(timezone.utc),
+datetime.now(timezone.utc),
+datetime.now(timezone.utc),
+datetime_str: str
+days: int = Field(7, ge=1, le=365)
+days: int = Query(7, ge=1, le=30),
+db_url = os.getenv("DATABASE_URL")
+def __init__(self) -> None:
+def __init__(self):
+def __init__(self):
+def __init__(self, message: str, approval_id: str, trace: ToolExecutionTrace):
+def __new__(cls) -> PromptManager:
+def __new__(cls) -> ToolCatalog: (duplicate-code)
+def _bool(env: str, default: bool = False) -> bool:
+def _check_circuit_breaker_health(self) -> dict[str, Any]:
+def _coerce_secret(value: Any) -> str | None:
+def _duration_seconds(start: Any, end: Any) -> float | None:
+def _execute_tool_with_guardrails(
+def _get_database_url() -> str:
+def _get_schedule_interval(self) -> int:
+def _hash_credential(self, credential: str) -> bytes:
+def _translate_openai_error(
+def _verify_ws_admin(websocket: WebSocket) -> bool:
+def can_execute(self, tool_name: str, user_role: UserRole) -> tuple[bool, str]:
+def decorator(func: F) -> F:
+def get(self, name: str) -> ToolDefinition | None:
+def get_circuit_breakers(self) -> dict[str, CircuitBreaker]:
+def get_context_enricher() -> ContextEnricher:
+def get_health_checker_names(self) -> list[str]:
+def get_read_only_tools(self) -> list[ToolDefinition]:
+def get_tool_catalog() -> ToolCatalog:
+def install_postgres_windows() -> None:
+def list_tools(
+def load_validation_config():
+def tool(
+def validate_date_range(cls, v, info):
+def validate_list_fields(cls, v):
+def validate_search_query(cls, v):
+def wrapper(*args, **kwargs): (duplicate-code)
+default=0.3, ge=0.0, le=2.0, description="Model temperature"
+default=10,
+default=2048, ge=100, le=8192, description="Maximum response tokens"
+default=25.0, ge=5.0, le=100.0, description="Maximum CPU usage percentage"
+default=30, ge=5, le=120, description="Request timeout"
+default=300, ge=30, le=3600, description="Maximum execution time"
+default=512, ge=128, le=4096, description="Maximum memory usage in MB"
+description: str
+description: str
+description="Process nice level (higher = lower priority)",
+description=func.__doc__ or "",
+detail="Could not validate credentials",
+detail="Credentials not provided",
+detail="Failed to update config. Check server logs for details.",
+detail="Failed to update configuration. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Internal server error. Check server logs for details.",
+detail="Invalid admin credentials",
+detail="Invalid request. Check server logs for details.",
+details=details,
+details={
+details={
+details={
+details={"install_command": "pip install openai"},
+dt_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+duration=time.time() - start_time,
+duration_seconds: int | None = None
+e,
+e,
+e,
+e,
+e,
+e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+edge_id TEXT NOT NULL,
+elif hasattr(conn, "cursor"):
+elif isinstance(roles_claim, list):
+elif isinstance(roles_claim, list):
+elif sys.platform == "darwin":
+else 0
+else None
+else breaker.get_enhanced_stats()
+else breaker.get_enhanced_stats()
+else:
+else:
+else:
+else:
+else:
+enabled_components = {
+end_time: str | None = None
+enricher = get_context_enricher()
+entities: dict[str, list[str]] = {}
+entity_id=entity_id,
+entity_type=entity_type,
+error: str | None
+error=str(e),
+error_count: int = 0
+error_count=1,
+error_details: str | None = None
+error_msg = raw_msg[:197] + "..." if len(raw_msg) > 200 else raw_msg
+error_rate: float = 0.0
+estimated_impact: str (duplicate-code)
+event_type=event_type,
+evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
+examples: list[str]
+exc,
+exc,
+exc_info=True,
+exc_info=True,
+except (
+except (
+except (
+except (
+except ApprovalRequiredError:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as e:
+except Exception as exc:
+except Exception:
+except Exception: pass
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except HTTPException:
+except ImportError:
+except ImportError:
+except ImportError:
+except ImportError:
+except ImportError:
+except ImportError:
+except ImportError:
+except ImportError:
+except ImportError:
+except ValidationError as e:
+except ValidationError as e:
+except ValueError as e:
+except ValueError as e:
+except ValueError as e:
+except ValueError:
+except ValueError:
+except asyncio.CancelledError:
+except asyncio.CancelledError:
+except asyncio.CancelledError:
+except asyncio.CancelledError:
+exclude_exceptions=(ConfigurationError, IntegrationError),
+expected_exception=ServiceUnavailableError,
+expected_exceptions=(ServiceUnavailableError,),
+extra="forbid",
+extra="forbid",
+extra={
+extra={
+extra={"error": str(e), "error_type": type(e).__name__},
+f"Approval required for {func.__name__}",
+failure_threshold=int(os.getenv("LLM_CB_FAILURE_THRESHOLD", "5")),
+feedback_id: int,
+feedback_text=feedback_text,
+feedback_type=feedback_type,
+filters: dict[str, Any] = Field(default_factory=dict)
+finally:
+for cb_name, cb_status in circuit_health.items():
+for cb_name, cb_status in circuit_health.items():
+for entity_type, patterns in self._entity_patterns.items():
+for i, resp in enumerate(responses):
+for item in result.get("items", [])
+for name, breaker in breakers.items():
+for name, breaker in breakers.items():
+for pattern in patterns:
+for pool_name, pool in pool_manager.pools.items():
+for pool_name, pool in pool_manager.pools.items():
+found = set()
+frequency: int
+from langfuse import Langfuse
+from langfuse import Langfuse
+from langfuse.decorators import langfuse_context, observe
+from langgraph.graph import END, StateGraph
+from langgraph.graph import END, StateGraph
+from langgraph.graph import END, StateGraph
+from langgraph.types import interrupt
+from openai import (
+from pathlib import Path
+from resync.core.metrics import (
+from resync.core.metrics import get_metrics_store
+from resync.core.metrics import get_metrics_store
+from resync.core.pools.pool_manager import get_connection_pool_manager
+from resync.core.resilience_singletons import (
+from resync.services.config_manager import get_config_manager
+from resync.settings import settings
+func,
+func._is_tool = True
+func._tool_description = func.__doc__ or ""
+func._tool_name = func.__name__
+func._tool_permission = permission
+func._tool_requires_approval = requires_approval
+func: Callable,
+function: Callable
+function=func,
+ge=0,
+get_metrics_store,
+get_secret = getattr(value, "get_secret_value", None)
+getattr(settings, "llm_max_concurrency", None)
+getattr(settings, "llm_timeout", 20.0) or 20.0
+global _enricher
+global_uptime = await self.get_global_uptime()
+handler=result.handler,
+headers={"WWW-Authenticate": "Bearer"},
+headers={"WWW-Authenticate": "Bearer"},
+headers={"WWW-Authenticate": "Bearer"},
+health_results = await advanced_manager.force_health_check()
+healthcheck:
+host = getattr(settings, "db_host", None) or os.getenv("DB_HOST", "localhost")
+id: str
+id: str
+if (credentials and credentials.credentials)
+if _NUMPY_AVAILABLE:
+if _enricher is None:
+if advanced_manager:
+if advanced_manager:
+if advanced_manager:
+if advanced_manager:
+if api_key: (duplicate-code)
+if asyncio.iscoroutinefunction(resource.close):
+if breaker:
+if breaker:
+if cb_status.get("state") == "open":
+if cb_status.get("state") == "open":
+if cls._instance is None:
+if cls._instance is None:
+if cls._instance is None:
+if config_file.exists():
+if db_url:
+if error is not None:
+if hasattr(breaker, "get_stats")
+if hasattr(breaker, "get_stats")
+if hasattr(conn, "execute"):
+if hasattr(resource, "close"):
+if hasattr(result, "fetchone"):
+if hasattr(settings, "database_url") and settings.database_url:
+if input_schema:
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+if isinstance(resp, Exception):
+if isinstance(val, SecretStr):
+if isinstance(value, str):
+if item.get("index", {}).get("status") == 201
+if last_failure and (time.time() - last_failure) > 300:  # 5 minutes
+if len(s) <= 4:
+if len(v) != len(set(v)): (duplicate-code)
+if len(x) != len(y) or len(x) < 3:
+if message is not None:
+if model is None:
+if not OPENAI_AVAILABLE:
+if not auth_header.startswith("Bearer "):
+if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=15, nx=True):
+if not base_url:
+if not can_exec:
+if not credentials_valid: (duplicate-code)
+if not getattr(settings, "disable_redis", False): (duplicate-code)
+if not model:
+if not payload:
+if not pool_manager:
+if not ra:
+if not run:
+if not s:
+if not start or not end:
+if not token:

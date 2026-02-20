@@ -1,0 +1,2 @@
+resync\knowledge\retrieval\hybrid_retriever.py:1022: error: Unexpected indent  [syntax]
+Found 1 error in 1 file (errors prevented further checking)

@@ -376,7 +376,11 @@ class ChunkingConfig:
     enable_multi_view: bool = True
     # Which views to generate
     enabled_views: list[ChunkViewType] = field(
-        default_factory=lambda: [ChunkViewType.RAW, ChunkViewType.SUMMARY, ChunkViewType.ENTITIES]
+        default_factory=lambda: [
+            ChunkViewType.RAW,
+            ChunkViewType.SUMMARY,
+            ChunkViewType.ENTITIES,
+        ]
     )
     # Enable FAQ conversion for policies/procedures
     enable_faq_conversion: bool = True
@@ -685,7 +689,9 @@ def detect_procedure(text: str) -> bool:
         r"^\s*[-•]\s+",  # - Step or • Step
     ]
     lines = text.split("\n")
-    step_count = sum(1 for line in lines if any(re.match(p, line) for p in step_patterns))
+    step_count = sum(
+        1 for line in lines if any(re.match(p, line) for p in step_patterns)
+    )
     return step_count >= 2
 
 
@@ -904,14 +910,20 @@ def generate_entities_view(content: str, metadata: ChunkMetadata) -> str:
     return " | ".join(parts) if parts else content[:100]
 
 
-def generate_faq_view(content: str, section_path: str, chunk_type: ChunkType) -> str | None:
+def generate_faq_view(
+    content: str, section_path: str, chunk_type: ChunkType
+) -> str | None:
     """
     Generate a Q/A format view for policies and procedures.
 
     Converts structured content into a question-answer format
     that matches natural language queries better.
     """
-    if chunk_type not in (ChunkType.PROCEDURE, ChunkType.ERROR_DOC, ChunkType.DEFINITION):
+    if chunk_type not in (
+        ChunkType.PROCEDURE,
+        ChunkType.ERROR_DOC,
+        ChunkType.DEFINITION,
+    ):
         return None
 
     # Extract topic from section path
@@ -955,11 +967,13 @@ def create_multi_view_chunk(chunk: EnrichedChunk, doc_id: str) -> MultiViewChunk
 
     # Generate FAQ view (optional)
     faq_view = None
-    if chunk.metadata.chunk_type in (ChunkType.PROCEDURE, ChunkType.ERROR_DOC, ChunkType.DEFINITION):
+    if chunk.metadata.chunk_type in (
+        ChunkType.PROCEDURE,
+        ChunkType.ERROR_DOC,
+        ChunkType.DEFINITION,
+    ):
         faq_view = generate_faq_view(
-            chunk.content,
-            chunk.metadata.section_path,
-            chunk.metadata.chunk_type
+            chunk.content, chunk.metadata.section_path, chunk.metadata.chunk_type
         )
 
     return MultiViewChunk(
@@ -1037,7 +1051,11 @@ def generate_stable_id(doc_id: str, section_path: str, chunk_index: int) -> str:
     - Stable references across re-indexing
     """
     # Normalize section path to ID format
-    section_id = section_path.lower().replace(" > ", "_").replace(" ", "-") if section_path else "root"
+    section_id = (
+        section_path.lower().replace(" > ", "_").replace(" ", "-")
+        if section_path
+        else "root"
+    )
 
     # Remove special characters
     section_id = re.sub(r"[^a-z0-9_-]", "", section_id)
@@ -1236,7 +1254,9 @@ class AdvancedChunker:
             # Process children only
             for child in section.children:
                 chunks.extend(
-                    self._process_section(child, source, document_title, current_ancestors)
+                    self._process_section(
+                        child, source, document_title, current_ancestors
+                    )
                 )
             return chunks
 
@@ -1276,16 +1296,22 @@ class AdvancedChunker:
                 )
             else:
                 # Split procedure by steps
-                chunks.extend(self._split_procedure(content, source, document_title, section_path))
+                chunks.extend(
+                    self._split_procedure(content, source, document_title, section_path)
+                )
         else:
             # Regular content: apply semantic or size-based chunking
             chunks.extend(
-                self._chunk_content(content, source, document_title, section_path, chunk_type)
+                self._chunk_content(
+                    content, source, document_title, section_path, chunk_type
+                )
             )
 
         # Process children
         for child in section.children:
-            chunks.extend(self._process_section(child, source, document_title, current_ancestors))
+            chunks.extend(
+                self._process_section(child, source, document_title, current_ancestors)
+            )
 
         return chunks
 
@@ -1315,7 +1341,9 @@ class AdvancedChunker:
         # If too large, we still need to split carefully
         if token_count > self.config.max_tokens * 2:
             # Fall back to careful splitting
-            return self._chunk_content(content, source, document_title, section_path, chunk_type)
+            return self._chunk_content(
+                content, source, document_title, section_path, chunk_type
+            )
 
         metadata = ChunkMetadata(
             source_file=source,
@@ -1367,13 +1395,21 @@ class AdvancedChunker:
                         for sub in sub_chunks:
                             chunks.append(
                                 self._create_chunk(
-                                    sub, source, document_title, section_path, chunk_type
+                                    sub,
+                                    source,
+                                    document_title,
+                                    section_path,
+                                    chunk_type,
                                 )
                             )
                     else:
                         chunks.append(
                             self._create_chunk(
-                                chunk_text, source, document_title, section_path, chunk_type
+                                chunk_text,
+                                source,
+                                document_title,
+                                section_path,
+                                chunk_type,
                             )
                         )
 
@@ -1382,7 +1418,9 @@ class AdvancedChunker:
                 logger.warning("Semantic chunking failed: %s", e)
 
         # Fallback to size-based
-        return self._chunk_by_size(content, source, document_title, section_path, chunk_type)
+        return self._chunk_by_size(
+            content, source, document_title, section_path, chunk_type
+        )
 
     def _chunk_by_size(
         self,
@@ -1407,7 +1445,11 @@ class AdvancedChunker:
                 if current_text:
                     chunks.append(
                         self._create_chunk(
-                            current_text.strip(), source, document_title, section_path, chunk_type
+                            current_text.strip(),
+                            source,
+                            document_title,
+                            section_path,
+                            chunk_type,
                         )
                     )
 
@@ -1415,7 +1457,9 @@ class AdvancedChunker:
                 if chunks and self.config.overlap_tokens > 0:
                     # Add last part of previous chunk
                     last_chunk = chunks[-1].content
-                    overlap_text = self._get_overlap_text(last_chunk, self.config.overlap_tokens)
+                    overlap_text = self._get_overlap_text(
+                        last_chunk, self.config.overlap_tokens
+                    )
                     current_text = overlap_text + "\n\n" + para
                     current_tokens = count_tokens(current_text)
                 else:
@@ -1432,7 +1476,11 @@ class AdvancedChunker:
         if current_text:
             chunks.append(
                 self._create_chunk(
-                    current_text.strip(), source, document_title, section_path, chunk_type
+                    current_text.strip(),
+                    source,
+                    document_title,
+                    section_path,
+                    chunk_type,
                 )
             )
 
@@ -1576,9 +1624,13 @@ class AdvancedChunker:
         for i, chunk in enumerate(chunks):
             # Add summaries of adjacent chunks
             if i > 0:
-                chunk.metadata.prev_chunk_summary = generate_chunk_summary(chunks[i - 1].content)
+                chunk.metadata.prev_chunk_summary = generate_chunk_summary(
+                    chunks[i - 1].content
+                )
             if i < len(chunks) - 1:
-                chunk.metadata.next_chunk_summary = generate_chunk_summary(chunks[i + 1].content)
+                chunk.metadata.next_chunk_summary = generate_chunk_summary(
+                    chunks[i + 1].content
+                )
 
             # Create contextualized content
             chunk.contextualized_content = create_contextual_prefix(
@@ -1622,11 +1674,15 @@ class AdvancedChunker:
 
             if count_tokens(content) <= self.config.max_tokens:
                 chunks.append(
-                    self._create_chunk(content, source, document_title, section_path, chunk_type)
+                    self._create_chunk(
+                        content, source, document_title, section_path, chunk_type
+                    )
                 )
             else:
                 chunks.extend(
-                    self._chunk_content(content, source, document_title, section_path, chunk_type)
+                    self._chunk_content(
+                        content, source, document_title, section_path, chunk_type
+                    )
                 )
 
         return chunks
@@ -1642,12 +1698,16 @@ class AdvancedChunker:
             logger.warning("Semantic chunker not available, falling back to recursive")
             return self._chunk_recursive(text, source, document_title)
 
-        semantic_chunks = self.semantic_chunker.chunk(text, min_tokens=self.config.min_tokens)
+        semantic_chunks = self.semantic_chunker.chunk(
+            text, min_tokens=self.config.min_tokens
+        )
 
         chunks = []
         for chunk_text in semantic_chunks:
             chunk_type = self._detect_chunk_type(chunk_text)
-            chunks.append(self._create_chunk(chunk_text, source, document_title, "", chunk_type))
+            chunks.append(
+                self._create_chunk(chunk_text, source, document_title, "", chunk_type)
+            )
 
         return chunks
 
@@ -1669,7 +1729,9 @@ class AdvancedChunker:
 
         for large_idx, large_chunk in enumerate(large_chunks):
             # Level 2: Medium chunks
-            medium_chunks = self._chunk_by_token_limit(large_chunk, self.config.hierarchy_levels[1])
+            medium_chunks = self._chunk_by_token_limit(
+                large_chunk, self.config.hierarchy_levels[1]
+            )
 
             for med_idx, medium_chunk in enumerate(medium_chunks):
                 # Level 3: Small chunks (leaf nodes)
@@ -1760,7 +1822,9 @@ class AdvancedChunker:
         chunks = []
         for chunk_text in text_chunks:
             chunk_type = self._detect_chunk_type(chunk_text)
-            chunks.append(self._create_chunk(chunk_text, source, document_title, "", chunk_type))
+            chunks.append(
+                self._create_chunk(chunk_text, source, document_title, "", chunk_type)
+            )
 
         return chunks
 
@@ -1783,7 +1847,9 @@ class AdvancedChunker:
 
                 chunk_type = self._detect_chunk_type(chunk_text)
                 chunks.append(
-                    self._create_chunk(chunk_text, source, document_title, "", chunk_type)
+                    self._create_chunk(
+                        chunk_text, source, document_title, "", chunk_type
+                    )
                 )
 
                 start = max(0, end - self.config.overlap_tokens)
@@ -1799,7 +1865,9 @@ class AdvancedChunker:
 
                 chunk_type = self._detect_chunk_type(chunk_text)
                 chunks.append(
-                    self._create_chunk(chunk_text, source, document_title, "", chunk_type)
+                    self._create_chunk(
+                        chunk_text, source, document_title, "", chunk_type
+                    )
                 )
 
                 start = max(0, end - overlap_chars)

@@ -52,8 +52,12 @@ class TWS_LLMOptimizer:
 
         # Model routing based on complexity
         self.model_routing = {
-            "simple": getattr(settings, "AUDITOR_MODEL_NAME", "gpt-3.5-turbo"),  # For basic queries
-            "complex": getattr(settings, "AGENT_MODEL_NAME", "gpt-4o"),  # For complex analysis
+            "simple": getattr(
+                settings, "AUDITOR_MODEL_NAME", "gpt-3.5-turbo"
+            ),  # For basic queries
+            "complex": getattr(
+                settings, "AGENT_MODEL_NAME", "gpt-4o"
+            ),  # For complex analysis
             "troubleshooting": getattr(
                 settings, "AGENT_MODEL_NAME", "gpt-4o"
             ),  # For troubleshooting
@@ -107,7 +111,9 @@ class TWS_LLMOptimizer:
         ]
 
         query_lower = query.lower()
-        is_complex = any(indicator in query_lower for indicator in complexity_indicators)
+        is_complex = any(
+            indicator in query_lower for indicator in complexity_indicators
+        )
 
         # Check if we have a LiteLLM router available for advanced model selection
         router = get_litellm_router()
@@ -139,10 +145,14 @@ class TWS_LLMOptimizer:
                             f"{settings.LLM_ENDPOINT}/api/tags"
                         )  # Assuming Ollama endpoint
                         if response.status_code == 200:
-                            return "ollama/mistral"  # Use local model for simple queries
+                            return (
+                                "ollama/mistral"  # Use local model for simple queries
+                            )
                 except Exception as e:
                     # Log Ollama availability check error and continue with normal selection
-                    logger.debug("Ollama availability check failed, using fallback: %s", e)
+                    logger.debug(
+                        "Ollama availability check failed, using fallback: %s", e
+                    )
 
         if is_complex:
             return self.model_routing["complex"]
@@ -312,7 +322,7 @@ class TWS_LLMOptimizer:
             return full_response
 
         except Exception as e:
-            logger.error("Error in LLM streaming", error=str(e))
+            logger.error("Error in LLM streaming", exc_info=True)
             # Fallback to original method (which now also uses LiteLLM)
             result = await call_llm(prompt, model=model, max_tokens=1000)
             await self.response_cache.set(cache_key, result)
@@ -330,7 +340,6 @@ class TWS_LLMOptimizer:
             "prompt_cache": self.prompt_cache.get_metrics(),
             "response_cache": self.response_cache.get_metrics(),
         }
-
 
 
 # Global instance (lazy loaded)

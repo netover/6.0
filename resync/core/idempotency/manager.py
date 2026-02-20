@@ -8,7 +8,11 @@ from typing import Any
 from redis.asyncio import Redis
 
 from resync.core.idempotency.config import config
-from resync.core.idempotency.exceptions import IdempotencyConflictError, IdempotencyKeyError, IdempotencyStorageError
+from resync.core.idempotency.exceptions import (
+    IdempotencyConflictError,
+    IdempotencyKeyError,
+    IdempotencyStorageError,
+)
 from resync.core.idempotency.metrics import IdempotencyMetrics
 from resync.core.idempotency.models import IdempotencyRecord
 from resync.core.idempotency.storage import IdempotencyStorage
@@ -183,7 +187,9 @@ class IdempotencyManager:
 
             record = IdempotencyRecord(
                 idempotency_key=idempotency_key,
-                request_hash=(self._hash_request_data(request_data) if request_data else ""),
+                request_hash=(
+                    self._hash_request_data(request_data) if request_data else ""
+                ),
                 response_data=response_data,
                 status_code=status_code,
                 created_at=now,
@@ -281,7 +287,9 @@ class IdempotencyManager:
             )
             return False
 
-    async def mark_processing(self, idempotency_key: str, ttl_seconds: int = 300) -> bool:
+    async def mark_processing(
+        self, idempotency_key: str, ttl_seconds: int = 300
+    ) -> bool:
         """
         Marca operação como em processamento (atômico — SET NX EX).
 
@@ -381,7 +389,9 @@ class IdempotencyManager:
             if deleted:
                 logger.debug("Processing mark cleared", idempotency_key=idempotency_key)
             else:
-                logger.debug("No processing mark to clear", idempotency_key=idempotency_key)
+                logger.debug(
+                    "No processing mark to clear", idempotency_key=idempotency_key
+                )
 
             return True
 

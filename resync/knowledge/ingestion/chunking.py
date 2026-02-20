@@ -49,7 +49,9 @@ def _split_sentences(text: str) -> list[str]:
     return re.split(r"(?<=[.!?])\s+", text) if text else []
 
 
-def chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 64) -> Iterator[str]:
+def chunk_text(
+    text: str, max_tokens: int = 512, overlap_tokens: int = 64
+) -> Iterator[str]:
     """
     Chunk text in a token-aware way, respecting sentence boundaries and applying overlap.
 

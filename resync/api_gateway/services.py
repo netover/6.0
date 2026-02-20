@@ -124,7 +124,9 @@ class TWSService:
             result = await self.tws_client.get_workstations_status()
 
             # Store in cache
-            await self.cache.set(cache_key, [ws.model_dump() for ws in result], ttl_seconds=30)
+            await self.cache.set(
+                cache_key, [ws.model_dump() for ws in result], ttl_seconds=30
+            )
 
             return result
         except Exception as e:
@@ -151,7 +153,9 @@ class TWSService:
             result = await self.tws_client.get_jobs_status()
 
             # Store in cache
-            await self.cache.set(cache_key, [job.model_dump() for job in result], ttl_seconds=30)
+            await self.cache.set(
+                cache_key, [job.model_dump() for job in result], ttl_seconds=30
+            )
 
             return result
         except Exception as e:
@@ -178,7 +182,9 @@ class TWSService:
             result = await self.tws_client.get_critical_path_status()
 
             # Store in cache
-            await self.cache.set(cache_key, [cj.model_dump() for cj in result], ttl_seconds=30)
+            await self.cache.set(
+                cache_key, [cj.model_dump() for cj in result], ttl_seconds=30
+            )
 
             return result
         except Exception as e:
@@ -192,7 +198,9 @@ class TWSService:
             )
             raise
 
-    async def get_job_status_batch(self, job_ids: list[str]) -> dict[str, JobStatus | None]:
+    async def get_job_status_batch(
+        self, job_ids: list[str]
+    ) -> dict[str, JobStatus | None]:
         """Get the status of multiple jobs in a batch."""
         try:
             results = {}
@@ -203,13 +211,17 @@ class TWSService:
                 cache_key = f"service_job_status_{job_id}"
                 cached_result = await self.cache.get(cache_key)
                 if cached_result:
-                    results[job_id] = JobStatus(**cached_result) if cached_result else None
+                    results[job_id] = (
+                        JobStatus(**cached_result) if cached_result else None
+                    )
                 else:
                     uncached_job_ids.append(job_id)
 
             # Fetch uncached jobs from TWS client
             if uncached_job_ids:
-                uncached_results = await self.tws_client.get_job_status_batch(uncached_job_ids)
+                uncached_results = await self.tws_client.get_job_status_batch(
+                    uncached_job_ids
+                )
                 for job_id, job_status in uncached_results.items():
                     results[job_id] = job_status
                     # Cache the individual result
@@ -277,7 +289,9 @@ class KnowledgeService:
         self.knowledge_graph = knowledge_graph
         self.logger = logging.getLogger(__name__)
 
-    async def search_similar_issues(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    async def search_similar_issues(
+        self, query: str, limit: int = 5
+    ) -> list[dict[str, Any]]:
         """Search for similar issues in the knowledge graph."""
         try:
             return await self.knowledge_graph.search_similar_issues(query, limit=limit)

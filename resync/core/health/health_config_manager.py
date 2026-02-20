@@ -53,14 +53,14 @@ class HealthCheckConfigurationManager:
             history_cleanup_batch_size=100,
         )
 
-    def update_config(self, **kwargs) -> None:
+    def update_config(self, **kwargs: Any) -> None:
         """
         Update configuration with new values.
 
         Args:
             **kwargs: Configuration parameters to update
         """
-        old_config = self.config.model_dump()
+        old_config = self.config.model_dump()  # type: ignore[attr-defined]
 
         # Update configuration
         for key, value in kwargs.items():
@@ -72,7 +72,9 @@ class HealthCheckConfigurationManager:
         # Store in history
         self._add_to_config_history(old_config, kwargs)
 
-        logger.info("health_check_config_updated", updated_parameters=list(kwargs.keys()))
+        logger.info(
+            "health_check_config_updated", updated_parameters=list(kwargs.keys())
+        )
 
     def get_config(self) -> HealthCheckConfig:
         """Get current configuration."""
@@ -88,7 +90,7 @@ class HealthCheckConfigurationManager:
         Returns:
             Dictionary with component-specific configuration
         """
-        config_dict = self.config.model_dump()
+        config_dict = self.config.model_dump()  # type: ignore[attr-defined]
         component_configs = {
             "database": {
                 "connection_threshold_percent": config_dict.get(
@@ -212,11 +214,15 @@ class HealthCheckConfigurationManager:
             errors.append("timeout_seconds must be positive")
 
         if self.config.timeout_seconds > self.config.check_interval_seconds:
-            errors.append("timeout_seconds cannot be greater than check_interval_seconds")
+            errors.append(
+                "timeout_seconds cannot be greater than check_interval_seconds"
+            )
 
         # Validate thresholds
         if not (0 < self.config.database_connection_threshold_percent <= 100):
-            errors.append("database_connection_threshold_percent must be between 0 and 100")
+            errors.append(
+                "database_connection_threshold_percent must be between 0 and 100"
+            )
 
         if self.config.memory_usage_threshold_mb < 0:
             errors.append("memory_usage_threshold_mb cannot be negative")
@@ -235,7 +241,7 @@ class HealthCheckConfigurationManager:
 
     def get_config_summary(self) -> dict[str, Any]:
         """Get a summary of current configuration."""
-        config_dict = self.config.model_dump()
+        config_dict = self.config.model_dump()  # type: ignore[attr-defined]
         return {
             "check_interval_seconds": config_dict.get("check_interval_seconds", 30),
             "timeout_seconds": config_dict.get("timeout_seconds", 30),
@@ -243,7 +249,9 @@ class HealthCheckConfigurationManager:
                 "database_connection_threshold_percent", 80
             ),
             "alert_enabled": config_dict.get("alert_enabled", True),
-            "memory_monitoring_enabled": config_dict.get("enable_memory_monitoring", True),
+            "memory_monitoring_enabled": config_dict.get(
+                "enable_memory_monitoring", True
+            ),
             "max_history_entries": config_dict.get("max_history_entries", 10000),
             "history_retention_days": config_dict.get("history_retention_days", 30),
             "memory_threshold_mb": config_dict.get("memory_usage_threshold_mb", 100.0),
@@ -253,14 +261,16 @@ class HealthCheckConfigurationManager:
 
     def reset_to_defaults(self) -> None:
         """Reset configuration to default values."""
-        old_config = self.config.model_dump()
+        old_config = self.config.model_dump()  # type: ignore[attr-defined]
         self.config = self._create_default_config()
 
         self._add_to_config_history(old_config, {})
 
         logger.info("health_check_config_reset_to_defaults")
 
-    def _add_to_config_history(self, old_config: dict[str, Any], changes: dict[str, Any]) -> None:
+    def _add_to_config_history(
+        self, old_config: dict[str, Any], changes: dict[str, Any]
+    ) -> None:
         """Add configuration change to history."""
         self._config_history.append(
             {
@@ -290,7 +300,7 @@ class HealthCheckConfigurationManager:
 
     def export_config(self) -> dict[str, Any]:
         """Export current configuration as dictionary."""
-        config_dict = self.config.model_dump()
+        config_dict = self.config.model_dump()  # type: ignore[attr-defined]
         return {
             "config": config_dict,
             "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -367,7 +377,9 @@ class HealthCheckConfigurationManager:
             },
         )
 
-    def set_component_thresholds(self, component_name: str, thresholds: dict[str, float]) -> None:
+    def set_component_thresholds(
+        self, component_name: str, thresholds: dict[str, float]
+    ) -> None:
         """
         Set threshold values for a specific component.
 
@@ -377,7 +389,7 @@ class HealthCheckConfigurationManager:
         """
         if component_name == "database" and "connection_usage_warning" in thresholds:
             self.update_config(
-                database_connection_threshold_percent=int(thresholds["connection_usage_warning"])
+                database_connection_threshold_percent=thresholds["connection_usage_warning"]
             )
 
         logger.info(
@@ -442,4 +454,6 @@ class HealthCheckConfigurationManager:
             "websocket_pool": {"max_retries": 2, "backoff_multiplier": 2},
         }
 
-        return component_configs.get(component_name, {"max_retries": 2, "backoff_multiplier": 2})
+        return component_configs.get(
+            component_name, {"max_retries": 2, "backoff_multiplier": 2}
+        )

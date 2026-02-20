@@ -38,7 +38,11 @@ import os
 import logging
 from typing import Any
 
-from resync.core.exceptions import ConfigurationError, IntegrationError, ServiceUnavailableError
+from resync.core.exceptions import (
+    ConfigurationError,
+    IntegrationError,
+    ServiceUnavailableError,
+)
 from resync.core.resilience import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -97,7 +101,9 @@ class LLMService:
         if not model:
             raise IntegrationError(
                 message="No LLM model configured",
-                details={"hint": "Define settings.llm_model or settings.agent_model_name"},
+                details={
+                    "hint": "Define settings.llm_model or settings.agent_model_name"
+                },
             )
         self.model: str = str(model)
 
@@ -114,7 +120,9 @@ class LLMService:
         if not base_url:
             raise IntegrationError(
                 message="Missing LLM base_url",
-                details={"hint": "Configure settings.llm_endpoint (NVIDIA OpenAI-compatible)"},
+                details={
+                    "hint": "Configure settings.llm_endpoint (NVIDIA OpenAI-compatible)"
+                },
             )
 
         if api_key:
@@ -137,10 +145,15 @@ class LLMService:
             # ------------------------------------------------------------------
             # Resilience defaults (production-grade)
             # ------------------------------------------------------------------
-            self._timeout_s: float = float(getattr(settings, "llm_timeout", 20.0) or 20.0)
+            self._timeout_s: float = float(
+                getattr(settings, "llm_timeout", 20.0) or 20.0
+            )
 
             # Bulkhead: cap concurrent in-flight LLM calls.
-            self._max_concurrency: int = int(getattr(settings, "llm_max_concurrency", None) or os.getenv("LLM_MAX_CONCURRENCY", "8"))
+            self._max_concurrency: int = int(
+                getattr(settings, "llm_max_concurrency", None)
+                or os.getenv("LLM_MAX_CONCURRENCY", "8")
+            )
             self._sem = asyncio.Semaphore(self._max_concurrency)
 
             # Retry with exponential backoff + jitter (only for transient errors).
@@ -173,7 +186,9 @@ class LLMService:
 
             # Opinion-Based Prompting for +30-50% context adherence improvement
             self._prompt_formatter = OpinionBasedPromptFormatter()
-            logger.debug("OpinionBasedPromptFormatter initialized for enhanced RAG accuracy")
+            logger.debug(
+                "OpinionBasedPromptFormatter initialized for enhanced RAG accuracy"
+            )
         except (
             AuthenticationError,
             RateLimitError,
@@ -183,7 +198,11 @@ class LLMService:
             APITimeoutError,
             APIStatusError,
         ) as exc:
-            logger.error("Failed to initialize LLM service (OpenAI error): %s", exc, exc_info=True)
+            logger.error(
+                "Failed to initialize LLM service (OpenAI error): %s",
+                exc,
+                exc_info=True,
+            )
             raise IntegrationError(
                 message="Failed to initialize LLM service",
                 details={
@@ -193,7 +212,10 @@ class LLMService:
             ) from exc
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # Re-raise critical system exceptions and programming errors
-            if isinstance(exc, (SystemExit, KeyboardInterrupt, ImportError, AttributeError, TypeError)):
+            if isinstance(
+                exc,
+                (SystemExit, KeyboardInterrupt, ImportError, AttributeError, TypeError),
+            ):
                 raise
             logger.error("Failed to initialize LLM service: %s", exc, exc_info=True)
             raise IntegrationError(

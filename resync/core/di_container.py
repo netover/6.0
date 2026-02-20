@@ -26,7 +26,9 @@ TImplementation = TypeVar("TImplementation")
 
 # --- Context Variable for Request-Scoped Services ---
 # This ensures each async task/request has its own isolated scope
-_current_scope: ContextVar[ServiceScope | None] = ContextVar("di_current_scope", default=None)
+_current_scope: ContextVar[ServiceScope | None] = ContextVar(
+    "di_current_scope", default=None
+)
 
 
 class ServiceLifetime(Enum):
@@ -127,7 +129,9 @@ class DIContainer:
         self._factories[interface] = (factory, lifetime)
         if lifetime == ServiceLifetime.SINGLETON:
             self._locks[interface] = asyncio.Lock()
-        logger.debug("service_registered", interface=interface.__name__, lifetime=lifetime.value)
+        logger.debug(
+            "service_registered", interface=interface.__name__, lifetime=lifetime.value
+        )
 
     def register_instance(self, interface: type[T], instance: T) -> None:
         """

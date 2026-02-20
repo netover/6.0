@@ -59,7 +59,9 @@ class MockTWSClient:
         """
         mock_data_path = Path(__file__).parent.parent.parent / "mock_tws_data.json"
         if not mock_data_path.exists():
-            logger.warning("Mock data file not found at %s. Returning empty data.", mock_data_path)
+            logger.warning(
+                "Mock data file not found at %s. Returning empty data.", mock_data_path
+            )
             return
 
         try:
@@ -169,7 +171,9 @@ class MockTWSClient:
                 try:
                     workstations.append(WorkstationStatus(**ws))
                 except Exception as e:
-                    logger.warning("Failed to create WorkstationStatus from data: %s", e)
+                    logger.warning(
+                        "Failed to create WorkstationStatus from data: %s", e
+                    )
         return workstations
 
     async def get_jobs_status(self) -> list[JobStatus]:
@@ -226,7 +230,9 @@ class MockTWSClient:
         workstations = await self.get_workstations_status()
         jobs = await self.get_jobs_status()
         critical_jobs = await self.get_critical_path_status()
-        return SystemStatus(workstations=workstations, jobs=jobs, critical_jobs=critical_jobs)
+        return SystemStatus(
+            workstations=workstations, jobs=jobs, critical_jobs=critical_jobs
+        )
 
     async def restart_job(self, job_id: str) -> dict[str, Any]:
         """

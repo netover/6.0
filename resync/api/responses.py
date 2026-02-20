@@ -24,12 +24,14 @@ from typing import Any
 
 try:
     import orjson
+
     ORJSON_AVAILABLE = True
 except ImportError:
     ORJSON_AVAILABLE = False
 
 try:
     import msgspec
+
     MSGSPEC_AVAILABLE = True
 except ImportError:
     MSGSPEC_AVAILABLE = False
@@ -72,6 +74,7 @@ class ORJSONResponse(JSONResponse):
         if not ORJSON_AVAILABLE:
             # Fallback to stdlib json if orjson not installed
             import json
+
             return json.dumps(
                 content,
                 ensure_ascii=False,
@@ -83,10 +86,10 @@ class ORJSONResponse(JSONResponse):
         return orjson.dumps(
             content,
             option=(
-                orjson.OPT_NON_STR_KEYS |
-                orjson.OPT_SERIALIZE_NUMPY |
-                orjson.OPT_PASSTHROUGH_DATETIME
-            )
+                orjson.OPT_NON_STR_KEYS
+                | orjson.OPT_SERIALIZE_NUMPY
+                | orjson.OPT_PASSTHROUGH_DATETIME
+            ),
         )
 
 
@@ -135,6 +138,7 @@ class MsgSpecJSONResponse(Response):
             if ORJSON_AVAILABLE:
                 return orjson.dumps(content)
             import json
+
             return json.dumps(content, ensure_ascii=False).encode("utf-8")
 
         return msgspec.json.encode(content)

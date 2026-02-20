@@ -79,7 +79,9 @@ async def create_tables(engine: AsyncEngine | None = None) -> None:
     logger.info("Database tables created")
 
 
-async def drop_all_tables(engine: AsyncEngine | None = None, confirm: bool = False) -> None:
+async def drop_all_tables(
+    engine: AsyncEngine | None = None, confirm: bool = False
+) -> None:
     """
     Drop all tables. USE WITH CAUTION!
 

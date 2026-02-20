@@ -22,7 +22,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 import aiohttp
 
@@ -172,7 +172,7 @@ class DiscoveryBackendInterface(ABC):
         """Discover all instances of a service."""
 
     @abstractmethod
-    def watch_service(self, service_name: str, callback: callable) -> None:
+    def watch_service(self, service_name: str, callback: Callable[..., Any]) -> None:
         """Watch for service changes."""
 
     @abstractmethod
@@ -299,7 +299,7 @@ class ConsulBackend(DiscoveryBackendInterface):
             logger.error("Consul service discovery failed: %s", e)
             return []
 
-    def watch_service(self, service_name: str, callback: callable) -> None:
+    def watch_service(self, service_name: str, callback: Callable[..., Any]) -> None:
         """Watch for service changes in Consul."""
         # This would implement Consul's blocking queries for watching
         # Simplified implementation
@@ -309,7 +309,9 @@ class ConsulBackend(DiscoveryBackendInterface):
         self._ensure_session()
 
         try:
-            async with self.session.get(f"{self.consul_url}/v1/status/leader") as response:
+            async with self.session.get(
+                f"{self.consul_url}/v1/status/leader"
+            ) as response:
                 return response.status == 200
         except Exception as e:
             # Re-raise critical system exceptions
@@ -401,7 +403,7 @@ class KubernetesBackend(DiscoveryBackendInterface):
             logger.error("Kubernetes service discovery failed: %s", e)
             return []
 
-    def watch_service(self, service_name: str, callback: callable) -> None:
+    def watch_service(self, service_name: str, callback: Callable[..., Any]) -> None:
         """Watch for service changes in Kubernetes."""
         # This would implement Kubernetes watch API
 
@@ -497,8 +499,12 @@ class ServiceDiscoveryManager:
             return
 
         self._running = True
-        self._discovery_task = track_task(self._discovery_worker(), name="discovery_worker")
-        self._health_monitor_task = track_task(self._health_monitor_worker(), name="health_monitor_worker")
+        self._discovery_task = track_task(
+            self._discovery_worker(), name="discovery_worker"
+        )
+        self._health_monitor_task = track_task(
+            self._health_monitor_worker(), name="health_monitor_worker"
+        )
         self._metrics_task = track_task(self._metrics_worker(), name="metrics_worker")
 
         logger.info("Service discovery manager started")
@@ -581,7 +587,9 @@ class ServiceDiscoveryManager:
                 if service_name in self.local_instances:
                     del self.local_instances[service_name]
 
-                logger.info("Deregistered service %s instance %s", service_name, instance_id)
+                logger.info(
+                    "Deregistered service %s instance %s", service_name, instance_id
+                )
                 return True
 
         return False
@@ -618,7 +626,10 @@ class ServiceDiscoveryManager:
         if service_name in self.instances:
             cached_instances = self.instances[service_name]
             # Return cached instances if they're recent (< 30 seconds)
-            if cached_instances and time.time() - cached_instances[0].last_health_check < 30:
+            if (
+                cached_instances
+                and time.time() - cached_instances[0].last_health_check < 30
+            ):
                 return cached_instances
 
         # Discover from backend
@@ -674,7 +685,9 @@ class ServiceDiscoveryManager:
 
         elif strategy == LoadBalancingStrategy.LATENCY_BASED:
             # Select instance with lowest average response time
-            return min(instances, key=lambda inst: inst.response_time_avg or float("inf"))
+            return min(
+                instances, key=lambda inst: inst.response_time_avg or float("inf")
+            )
 
         # Default to round-robin
         return instances[0]
@@ -690,7 +703,18 @@ class ServiceDiscoveryManager:
             return local_ip
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, KeyError, AttributeError, IndexError)):
+            if isinstance(
+                e,
+                (
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    IndexError,
+                ),
+            ):
                 raise
             logger.error("exception_caught", error=str(e), exc_info=True)
             return "127.0.0.1"
@@ -709,7 +733,9 @@ class ServiceDiscoveryManager:
                 break
             except Exception as e:
                 # Re-raise critical system exceptions
-                if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+                if isinstance(
+                    e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+                ):
                     raise
                 logger.error("Discovery worker error: %s", e, exc_info=True)
 
@@ -733,14 +759,18 @@ class ServiceDiscoveryManager:
                 break
             except Exception as e:
                 # Re-raise critical system exceptions
-                if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+                if isinstance(
+                    e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+                ):
                     raise
                 logger.error("Health monitor worker error: %s", e, exc_info=True)
 
     async def _perform_health_check(self, instance: ServiceInstance) -> None:
         """Perform health check on service instance."""
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as session:
                 health_url = f"{instance.url}/health"
 
                 start_time = time.time()
@@ -766,14 +796,27 @@ class ServiceDiscoveryManager:
 
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError, TypeError, KeyError, AttributeError, IndexError)):
+            if isinstance(
+                e,
+                (
+                    SystemExit,
+                    KeyboardInterrupt,
+                    asyncio.CancelledError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    IndexError,
+                ),
+            ):
                 raise
             instance.status = ServiceStatus.UNHEALTHY
             instance.consecutive_failures += 1
             instance.last_health_check = time.time()
 
             if instance.consecutive_failures >= 3:
-                logger.warning("Service instance %s is unhealthy: %s", instance.instance_id, e)
+                logger.warning(
+                    "Service instance %s is unhealthy: %s", instance.instance_id, e
+                )
 
     async def _metrics_worker(self) -> None:
         """Background worker for metrics logging."""
@@ -788,14 +831,18 @@ class ServiceDiscoveryManager:
                     health_checks_performed=self.metrics["health_checks_performed"],
                     load_balancing_decisions=self.metrics["load_balancing_decisions"],
                     active_services=len(self.services),
-                    total_instances=sum(len(insts) for insts in self.instances.values()),
+                    total_instances=sum(
+                        len(insts) for insts in self.instances.values()
+                    ),
                 )
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 # Re-raise critical system exceptions
-                if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+                if isinstance(
+                    e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
+                ):
                     raise
                 logger.error("Metrics worker error: %s", e, exc_info=True)
 
@@ -807,7 +854,10 @@ class ServiceDiscoveryManager:
                 "local_services": len(self.local_instances),
                 "total_instances": sum(len(insts) for insts in self.instances.values()),
                 "healthy_instances": sum(
-                    1 for insts in self.instances.values() for inst in insts if inst.is_healthy
+                    1
+                    for insts in self.instances.values()
+                    for inst in insts
+                    if inst.is_healthy
                 ),
             },
             "backends": {
@@ -876,6 +926,8 @@ class _LazyServiceDiscoveryManager:
 
 
 service_discovery_manager = _LazyServiceDiscoveryManager()
+
+
 async def get_service_discovery_manager() -> ServiceDiscoveryManager:
     """Get the global service discovery manager instance."""
     if not service_discovery_manager._running:

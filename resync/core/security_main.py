@@ -25,8 +25,7 @@ DANGEROUS_CHARS_PATTERN = re.compile(r"[<>]")
 # Supports: João, São Paulo, Café, Fábrica, Müller, etc.
 # Still blocks: < > (XSS prevention)
 SAFE_STRING_PATTERN = re.compile(
-    r"^[\w\s.,!?'\"()\-:;@&/+=\#%\[\]{}|~`*\\]*$",
-    re.UNICODE
+    r"^[\w\s.,!?'\"()\-:;@&/+=\#%\[\]{}|~`*\\]*$", re.UNICODE
 )
 
 # Pattern to KEEP only safe characters (Unicode-aware)
@@ -50,8 +49,13 @@ TWS_WORKSTATION_PATTERN = re.compile(r"^[A-Za-z0-9_\-]{1,16}$")
 class ValidationResult:
     """Validation result with error details."""
 
-    def __init__(self, is_valid: bool, value: str = "", error: str | None = None,
-                 invalid_chars: list[str] | None = None):
+    def __init__(
+        self,
+        is_valid: bool,
+        value: str = "",
+        error: str | None = None,
+        invalid_chars: list[str] | None = None,
+    ):
         self.is_valid = is_valid
         self.value = value
         self.error = error
@@ -130,7 +134,8 @@ class InputSanitizer:
 
         if len(text) > max_length:
             return ValidationResult(
-                False, text,
+                False,
+                text,
                 f"Text exceeds maximum length of {max_length} characters",
             )
 
@@ -138,9 +143,10 @@ class InputSanitizer:
         dangerous = DANGEROUS_CHARS_PATTERN.findall(text)
         if dangerous:
             return ValidationResult(
-                False, text,
+                False,
+                text,
                 "Text contains potentially dangerous characters",
-                invalid_chars=list(set(dangerous))
+                invalid_chars=list(set(dangerous)),
             )
 
         # Check if all characters are safe (Unicode-aware)
@@ -148,15 +154,18 @@ class InputSanitizer:
             # Identify invalid characters
             invalid = [c for c in text if not SAFE_CHARS_ONLY.match(c)]
             return ValidationResult(
-                False, text,
+                False,
+                text,
                 "Text contains invalid characters",
-                invalid_chars=list(set(invalid))
+                invalid_chars=list(set(invalid)),
             )
 
         return ValidationResult(True, text)
 
     @staticmethod
-    def sanitize_string(text: str, max_length: int = 1000, strip_dangerous: bool = True) -> str:
+    def sanitize_string(
+        text: str, max_length: int = 1000, strip_dangerous: bool = True
+    ) -> str:
         """
         Remove potentially dangerous characters from an input string.
 
@@ -341,9 +350,13 @@ class InputSanitizer:
             if isinstance(item, str):
                 sanitized.append(InputSanitizer.sanitize_string(item))
             elif isinstance(item, dict):
-                sanitized.append(InputSanitizer.sanitize_dict(item, max_depth, current_depth + 1))
+                sanitized.append(
+                    InputSanitizer.sanitize_dict(item, max_depth, current_depth + 1)
+                )
             elif isinstance(item, list):
-                sanitized.append(InputSanitizer.sanitize_list(item, max_depth, current_depth + 1))
+                sanitized.append(
+                    InputSanitizer.sanitize_list(item, max_depth, current_depth + 1)
+                )
             elif isinstance(item, (int, float, bool)):
                 sanitized.append(item)
             else:
@@ -439,18 +452,25 @@ def validate_email(email: str) -> bool:
 
 
 # Annotated type for IDs, ensuring they follow a safe format.
-SafeAgentID = Annotated[str, Path(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")]
+SafeAgentID = Annotated[
+    str, Path(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+]
 
 # Annotated type for emails
 SafeEmail = Annotated[
-    str, Path(max_length=254, pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    str,
+    Path(max_length=254, pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"),
 ]
 
 # Annotated type for TWS job names (v5.4.0)
-SafeTWSJobName = Annotated[str, Path(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9_\-]+$")]
+SafeTWSJobName = Annotated[
+    str, Path(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9_\-]+$")
+]
 
 # Annotated type for TWS workstations (v5.4.0)
-SafeTWSWorkstation = Annotated[str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9_\-]+$")]
+SafeTWSWorkstation = Annotated[
+    str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9_\-]+$")
+]
 
 
 __all__ = [

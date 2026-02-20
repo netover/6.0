@@ -451,7 +451,7 @@ class ServiceUnavailableError(BaseAppException):
         # Performance: Use copy() to avoid mutating the original details dict
         # and use dict.get() pattern for cleaner optional value handling
         _details = details.copy() if details else {}
-        
+
         # Only add retry_after if it's a positive value (edge case handling)
         if retry_after is not None and retry_after > 0:
             _details["retry_after"] = retry_after
@@ -532,7 +532,7 @@ class CircuitBreakerError(BaseAppException):
     ):
         # Use dict.copy() for better performance than creating new dict
         _details = details.copy() if details else {}
-        
+
         if service_name:
             _details["service_name"] = service_name
 

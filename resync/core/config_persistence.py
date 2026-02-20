@@ -53,7 +53,9 @@ class ConfigPersistenceManager:
             max_backups: Maximum number of backup files to keep
         """
         self.config_file = Path(config_file)
-        self.backup_dir = Path(backup_dir) if backup_dir else self.config_file.parent / "backups"
+        self.backup_dir = (
+            Path(backup_dir) if backup_dir else self.config_file.parent / "backups"
+        )
         self.max_backups = max_backups
 
         self._validate_config_file()
@@ -66,10 +68,14 @@ class ConfigPersistenceManager:
             ConfigPersistenceError: If file doesn't exist or isn't writable
         """
         if not self.config_file.exists():
-            raise ConfigPersistenceError(f"Configuration file not found: {self.config_file}")
+            raise ConfigPersistenceError(
+                f"Configuration file not found: {self.config_file}"
+            )
 
         if not os.access(self.config_file, os.W_OK):
-            raise ConfigPersistenceError(f"Configuration file not writable: {self.config_file}")
+            raise ConfigPersistenceError(
+                f"Configuration file not writable: {self.config_file}"
+            )
 
     def _ensure_backup_dir(self) -> None:
         """Ensure backup directory exists."""
@@ -98,7 +104,9 @@ class ConfigPersistenceManager:
         with open(self.config_file, encoding="utf-8") as f:
             return toml.load(f)
 
-    async def save_config(self, section: str, data: dict[str, Any], create_backup: bool = True) -> None:
+    async def save_config(
+        self, section: str, data: dict[str, Any], create_backup: bool = True
+    ) -> None:
         """Save configuration section to file with atomic write.
 
         Args:
@@ -110,12 +118,16 @@ class ConfigPersistenceManager:
             ConfigPersistenceError: If save operation fails
         """
         try:
-            await asyncio.to_thread(self._save_config_sync, section, data, create_backup)
+            await asyncio.to_thread(
+                self._save_config_sync, section, data, create_backup
+            )
         except Exception as e:
             logger.error("Failed to save configuration: %s", e, exc_info=True)
             raise ConfigPersistenceError(f"Failed to save config: {e}") from e
 
-    def _save_config_sync(self, section: str, data: dict[str, Any], create_backup: bool) -> None:
+    def _save_config_sync(
+        self, section: str, data: dict[str, Any], create_backup: bool
+    ) -> None:
         """Synchronous implementation of save_config."""
         backup_file = None
 

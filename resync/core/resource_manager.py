@@ -48,7 +48,9 @@ class ManagedResource:
 
     async def __aenter__(self):
         """Async context manager entry."""
-        logger.debug("Acquiring resource: %s (%s)", self.resource_id, self.resource_type)
+        logger.debug(
+            "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
+        )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -58,7 +60,9 @@ class ManagedResource:
 
     def __enter__(self):
         """Sync context manager entry."""
-        logger.debug("Acquiring resource: %s (%s)", self.resource_id, self.resource_type)
+        logger.debug(
+            "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -192,7 +196,9 @@ async def managed_file(file_path: str, mode: str = "r") -> AsyncIterator[Any]:
         aiofiles = None  # type: ignore
 
     if aiofiles is None:
-        raise RuntimeError("aiofiles is required for async file operations but is not installed.")
+        raise RuntimeError(
+            "aiofiles is required for async file operations but is not installed."
+        )
 
     file_handle = None
     try:
@@ -316,10 +322,16 @@ class ResourcePool:
         async with self._lock:
             for resource_id in list(self.active_resources.keys()):
                 info = self.active_resources[resource_id]
-                logger.warning("Force cleaning up resource: %s (%s)", resource_id, info.resource_type)
+                logger.warning(
+                    "Force cleaning up resource: %s (%s)",
+                    resource_id,
+                    info.resource_type,
+                )
                 del self.active_resources[resource_id]
 
-    async def detect_leaks(self, max_lifetime_seconds: int = 3600) -> list[ResourceInfo]:
+    async def detect_leaks(
+        self, max_lifetime_seconds: int = 3600
+    ) -> list[ResourceInfo]:
         """
         Detect potential resource leaks.
 

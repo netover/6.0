@@ -78,12 +78,18 @@ def get_startup_policy(settings: Settings) -> dict[str, Any]:
     """
 
     strict_env = _parse_bool(os.getenv("STARTUP_STRICT"))
-    strict = strict_env if strict_env is not None else bool(getattr(settings, "is_production", False))
+    strict = (
+        strict_env
+        if strict_env is not None
+        else bool(getattr(settings, "is_production", False))
+    )
 
     # Total startup time budget (seconds)
     # Prefer settings.startup_timeout, fallback to env var, default 30
     timeout_default = float(getattr(settings, "startup_timeout", 30))
-    max_total_seconds = float(os.getenv("STARTUP_MAX_TOTAL_SECONDS", str(timeout_default)))
+    max_total_seconds = float(
+        os.getenv("STARTUP_MAX_TOTAL_SECONDS", str(timeout_default))
+    )
 
     # Generic retry knobs for external services (TWS/LLM). Redis has its own retry
     # parameters in settings + initialize_redis_with_retry().
@@ -100,7 +106,9 @@ def get_startup_policy(settings: Settings) -> dict[str, Any]:
     }
 
 
-async def _tcp_reachable(host: str, port: int, timeout: float) -> tuple[bool, str | None]:
+async def _tcp_reachable(
+    host: str, port: int, timeout: float
+) -> tuple[bool, str | None]:
     """Simple TCP reachability check."""
 
     try:
@@ -125,7 +133,9 @@ async def _tcp_reachable(host: str, port: int, timeout: float) -> tuple[bool, st
         return False, f"unexpected:{type(e).__name__}"
 
 
-async def _http_healthy(url: str, timeout: float) -> tuple[bool, str | None, int | None, str | None]:
+async def _http_healthy(
+    url: str, timeout: float
+) -> tuple[bool, str | None, int | None, str | None]:
     """HTTP health check.
 
     We prefer strict 2xx success. Redirects are treated as unhealthy because
@@ -185,7 +195,9 @@ async def _retry(
     return last
 
 
-async def _check_tws(settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]) -> StartupCheck:
+async def _check_tws(
+    settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]
+) -> StartupCheck:
     start = time.monotonic()
     host = getattr(settings, "tws_host", None)
     port = getattr(settings, "tws_port", None)
@@ -236,7 +248,9 @@ async def _check_tws(settings: Settings, *, critical: bool, deadline: float, pol
     )
 
 
-async def _check_llm(settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]) -> StartupCheck:
+async def _check_llm(
+    settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]
+) -> StartupCheck:
     start = time.monotonic()
     endpoint = getattr(settings, "llm_endpoint", None)
     timeout = float(getattr(settings, "STARTUP_LLM_HEALTH_TIMEOUT", 5.0))
@@ -291,7 +305,9 @@ async def _check_llm(settings: Settings, *, critical: bool, deadline: float, pol
     )
 
 
-async def _check_rag(settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]) -> StartupCheck:
+async def _check_rag(
+    settings: Settings, *, critical: bool, deadline: float, policy: dict[str, Any]
+) -> StartupCheck:
     start = time.monotonic()
     url = getattr(settings, "rag_service_url", None)
     timeout = float(getattr(settings, "RAG_SERVICE_TIMEOUT", 5.0))
@@ -365,7 +381,9 @@ async def _check_redis(
         initializer = get_redis_initializer()
         await initializer.initialize(
             max_retries=int(getattr(settings, "redis_max_startup_retries", 5)),
-            health_check_interval=int(getattr(settings, "redis_health_check_interval", 5)),
+            health_check_interval=int(
+                getattr(settings, "redis_health_check_interval", 5)
+            ),
             redis_url=getattr(settings, "redis_url", None),
         )
         return StartupCheck(
@@ -450,7 +468,11 @@ async def _check_redis(
             reason = "redis_init_error"
         else:
             # If startup budget is exhausted we still want a deterministic failure.
-            reason = "startup_budget_exhausted" if time.monotonic() >= deadline else type(e).__name__
+            reason = (
+                "startup_budget_exhausted"
+                if time.monotonic() >= deadline
+                else type(e).__name__
+            )
         logger.error(
             "startup_redis_unexpected_error",
             error_message=str(e),
@@ -464,8 +486,6 @@ async def _check_redis(
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-
-
 
 
 async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, Any]:
@@ -538,21 +558,27 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                 [
                     StartupCheck(
                         name="tws_reachability",
-                        status="fail" if getattr(settings_obj, "require_tws_at_boot", False) else "skipped",
+                        status="fail"
+                        if getattr(settings_obj, "require_tws_at_boot", False)
+                        else "skipped",
                         critical=getattr(settings_obj, "require_tws_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during TWS check",
                     ),
                     StartupCheck(
                         name="llm_service",
-                        status="fail" if getattr(settings_obj, "require_llm_at_boot", False) else "skipped",
+                        status="fail"
+                        if getattr(settings_obj, "require_llm_at_boot", False)
+                        else "skipped",
                         critical=getattr(settings_obj, "require_llm_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during LLM check",
                     ),
                     StartupCheck(
                         name="rag_service",
-                        status="fail" if getattr(settings_obj, "require_rag_at_boot", False) else "skipped",
+                        status="fail"
+                        if getattr(settings_obj, "require_rag_at_boot", False)
+                        else "skipped",
                         critical=getattr(settings_obj, "require_rag_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during RAG check",
@@ -614,7 +640,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         if _version_file.exists():
             app.state.teams_webhook_version = _version_file.read_text().strip()
-            logger.info("teams_webhook_version_loaded", version=app.state.teams_webhook_version)
+            logger.info(
+                "teams_webhook_version_loaded", version=app.state.teams_webhook_version
+            )
         else:
             app.state.teams_webhook_version = "unknown"
             logger.warning("teams_webhook_version_file_not_found")
@@ -625,7 +653,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         settings = get_settings()
         startup_timeout = getattr(settings, "startup_timeout", 60)
-        
+
         async with asyncio.timeout(startup_timeout):
             # 1. Canonical startup validation/health checks
             startup_result = await run_startup_checks(settings=settings)
@@ -646,7 +674,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
             await init_domain_singletons(app)
             st = enterprise_state_from_app(app)
-            
+
             await get_tws_monitor(st.tws_client)
             setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
 
@@ -661,12 +689,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 _init_cache_warmup(app),
                 _init_graphrag(app),
                 _init_config_system(app),
-                return_exceptions=True
+                return_exceptions=True,
             )
 
             # Re-raise critical programming errors (bugs, not environmental timeouts)
             for res in results:
-                if isinstance(res, (TypeError, KeyError, AttributeError, IndexError, NameError)):
+                if isinstance(
+                    res, (TypeError, KeyError, AttributeError, IndexError, NameError)
+                ):
                     logger.critical(
                         "critical_startup_programming_error",
                         error=str(res),
@@ -679,22 +709,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
             # Record startup time for admin dashboard uptime display
             from resync.core.startup_time import set_startup_time
+
             set_startup_time()
 
         yield  # Application runs here
 
     except asyncio.TimeoutError:
         logger.critical(
-            "application_startup_timeout", 
+            "application_startup_timeout",
             timeout_seconds=startup_timeout,
             hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB connectivity and network firewalls.",
             troubleshooting={
                 "redis": "Verify REDIS_URL and Redis server status.",
                 "database": "Check DATABASE_URL and PostgreSQL availability.",
                 "network": "Ensure no firewalls block outbound TWS/LLM connections.",
-            }
+            },
         )
-        raise ConfigurationError(f"Application startup exceeded {startup_timeout}s timeout")
+        raise ConfigurationError(
+            f"Application startup exceeded {startup_timeout}s timeout"
+        )
     except Exception as exc:
         if not isinstance(exc, ConfigurationError):
             logger.critical("application_startup_failed", error=str(exc))
@@ -705,59 +738,73 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 # --- Helper methods for optional services (moved from ApplicationFactory) ---
 
+
 async def _init_proactive_monitoring(app: FastAPI) -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
-            
-            from resync.core.monitoring_integration import initialize_proactive_monitoring
+
+            from resync.core.monitoring_integration import (
+                initialize_proactive_monitoring,
+            )
+
             await initialize_proactive_monitoring(app)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("proactive_monitoring_init_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "proactive_monitoring_init_failed", error=str(exc)
+        )
+
 
 async def _init_metrics_collector(app: FastAPI) -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
-            
+
             from resync.api import monitoring_dashboard
             from resync.core.task_tracker import create_tracked_task
+
             monitoring_dashboard._collector_task = await create_tracked_task(
                 monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
             )
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("metrics_collector_start_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "metrics_collector_start_failed", error=str(exc)
+        )
+
 
 async def _init_cache_warmup(app: FastAPI) -> None:
     try:
         async with asyncio.timeout(30):
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
-            
+
             from resync.core.cache_utils import warmup_cache_on_startup
+
             await warmup_cache_on_startup()
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         get_logger("resync.startup").warning("cache_warming_failed", error=str(exc))
 
+
 async def _init_graphrag(app: FastAPI) -> None:
     try:
         async with asyncio.timeout(15):
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
-            
+
             from resync.core.graphrag_integration import initialize_graphrag
             from resync.core.redis_init import get_redis_client
             from resync.knowledge.retrieval.graph import get_knowledge_graph
             from resync.services.llm_service import get_llm_service
             from resync.services.tws_service import get_tws_client
+
             settings = get_settings()
             if not getattr(settings, "GRAPHRAG_ENABLED", False):
                 return
@@ -771,58 +818,69 @@ async def _init_graphrag(app: FastAPI) -> None:
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("graphrag_initialization_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "graphrag_initialization_failed", error=str(exc)
+        )
+
 
 async def _init_config_system(app: FastAPI) -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
-            
+
             from resync.core.unified_config import initialize_config_system
+
             await initialize_config_system()
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("unified_config_initialization_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "unified_config_initialization_failed", error=str(exc)
+        )
+
 
 async def _shutdown_services(app: FastAPI) -> None:
     """Shutdown services in correct order with individual timeouts.
-    
+
     Order:
     1. Cancel background tasks first (prevents tasks from using closing resources)
     2. Shutdown domain singletons and TWS monitor in parallel (independent)
-    
+
     Each step has individual timeout to prevent hanging.
     """
     logger = get_logger("resync.lifespan")
     logger.info("application_shutdown_initiated")
-    
+
     # Imports inside to avoid early circular deps
     from resync.core.task_tracker import cancel_all_tasks
     from resync.core.wiring import shutdown_domain_singletons
     from resync.core.tws_monitor import shutdown_tws_monitor
-    
+
     # 1. Cancel background tasks FIRST (priority: stop active work)
     async def _cancel_tasks():
         try:
             await asyncio.wait_for(cancel_all_tasks(timeout=5.0), timeout=7.0)
             logger.info("background_tasks_cancelled")
         except asyncio.TimeoutError:
-            logger.warning("task_cancel_timeout", hint="Some tasks did not cancel within 7s")
+            logger.warning(
+                "task_cancel_timeout", hint="Some tasks did not cancel within 7s"
+            )
         except Exception as e:
             logger.warning("task_cancel_error", error=str(e))
-    
+
     # 2. Shutdown domain singletons (connections, clients)
     async def _shutdown_singletons():
         try:
             await asyncio.wait_for(shutdown_domain_singletons(app), timeout=10.0)
             logger.info("domain_singletons_shutdown")
         except asyncio.TimeoutError:
-            logger.error("singleton_shutdown_timeout", hint="Singleton shutdown exceeded 10s")
+            logger.error(
+                "singleton_shutdown_timeout", hint="Singleton shutdown exceeded 10s"
+            )
         except Exception as e:
             logger.error("domain_shutdown_error", error=str(e))
-    
+
     # 3. Shutdown TWS monitor
     async def _shutdown_tws():
         try:
@@ -832,10 +890,11 @@ async def _shutdown_services(app: FastAPI) -> None:
             logger.warning("tws_monitor_shutdown_timeout")
         except Exception as e:
             logger.warning("tws_monitor_shutdown_error", error=str(e))
-    
+
     # 4. Shutdown Health Service
     async def _shutdown_health():
         from resync.core.health import shutdown_unified_health_service
+
         try:
             await asyncio.wait_for(shutdown_unified_health_service(), timeout=5.0)
             logger.info("health_service_shutdown")
@@ -845,10 +904,10 @@ async def _shutdown_services(app: FastAPI) -> None:
     # Execute: tasks first, then resources in parallel
     await _cancel_tasks()
     await asyncio.gather(
-        _shutdown_singletons(), 
-        _shutdown_tws(), 
+        _shutdown_singletons(),
+        _shutdown_tws(),
         _shutdown_health(),
-        return_exceptions=True
+        return_exceptions=True,
     )
-    
+
     logger.info("application_shutdown_completed")

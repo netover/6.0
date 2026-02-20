@@ -107,7 +107,9 @@ class CacheWithStampedeProtection(Generic[T]):
             if key in self._loading:
                 del self._loading[key]
 
-    async def _get_without_protection(self, key: str, loader: Callable[[], T], expiry: float) -> T:
+    async def _get_without_protection(
+        self, key: str, loader: Callable[[], T], expiry: float
+    ) -> T:
         """Get without stampede protection."""
 
         return await self._load_value(key, loader, expiry)
@@ -157,7 +159,9 @@ class CacheWithStampedeProtection(Generic[T]):
         """Get cache statistics."""
 
         current_time = time.time()
-        valid_entries = sum(1 for entry in self._cache.values() if current_time < entry.expiry)
+        valid_entries = sum(
+            1 for entry in self._cache.values() if current_time < entry.expiry
+        )
 
         return {
             "total_entries": len(self._cache),

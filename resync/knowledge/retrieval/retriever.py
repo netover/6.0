@@ -55,5 +55,7 @@ class RagRetriever(Retriever):
 
                 return dot / (query_norm * doc_norm)
 
-            hits.sort(key=lambda h: cosine_similarity_score(h.get("vector")), reverse=True)
+            hits.sort(
+                key=lambda h: cosine_similarity_score(h.get("vector")), reverse=True
+            )
         return hits

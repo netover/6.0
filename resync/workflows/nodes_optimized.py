@@ -239,13 +239,17 @@ async def fetch_job_history(
             if rows:
                 return rows
         except Exception as e:
-            logger.warning("fetch_job_history_db_failed", job_name=job_name, error=str(e))
+            logger.warning(
+                "fetch_job_history_db_failed", job_name=job_name, error=str(e)
+            )
 
     if _TWS_CLIENT_AVAILABLE and tws_client is not None:
         try:
             return await fetch_job_history_from_tws(tws_client, job_name, limit)
         except Exception as e:
-            logger.warning("fetch_job_history_tws_failed", job_name=job_name, error=str(e))
+            logger.warning(
+                "fetch_job_history_tws_failed", job_name=job_name, error=str(e)
+            )
 
     return []
 
@@ -330,7 +334,12 @@ async def detect_degradation(
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.detect_degradation")
-        return {"detected": False, "type": None, "severity": 0.0, "details": {"reason": "disabled"}}
+        return {
+            "detected": False,
+            "type": None,
+            "severity": 0.0,
+            "details": {"reason": "disabled"},
+        }
     if not job_history:
         return {"detected": False, "type": None, "severity": 0.0, "details": {}}
 
@@ -346,7 +355,9 @@ async def detect_degradation(
 
     mu_recent, mu_prior, growth = calculate_runtime_growth(runtimes, window)
     z_fail = rolling_zscore(failures, window=window)
-    fail_recent, fail_prior, fail_growth, _ = calculate_failure_metrics(failures, window)
+    fail_recent, fail_prior, fail_growth, _ = calculate_failure_metrics(
+        failures, window
+    )
 
     detected = False
     dtype: str | None = None
@@ -388,7 +399,12 @@ async def detect_degradation(
         except Exception as e:
             logger.debug("detect_degradation_llm_failed", error=str(e))
 
-    return {"detected": detected, "type": dtype, "severity": float(severity), "details": details}
+    return {
+        "detected": detected,
+        "type": dtype,
+        "severity": float(severity),
+        "details": details,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -415,10 +431,20 @@ async def correlate_metrics(
 
     if not _predictive_enabled():
         logger.info("predictive_disabled.correlate_metrics")
-        return {"found": False, "root_cause": None, "factors": [], "details": {"reason": "disabled"}}
+        return {
+            "found": False,
+            "root_cause": None,
+            "factors": [],
+            "details": {"reason": "disabled"},
+        }
 
     if not job_history or not workstation_metrics:
-        return {"found": False, "root_cause": None, "factors": [], "details": {"reason": "missing_data"}}
+        return {
+            "found": False,
+            "root_cause": None,
+            "factors": [],
+            "details": {"reason": "missing_data"},
+        }
 
     job_rows = extract_job_rows(job_history)
     ws_rows = extract_workstation_rows(workstation_metrics)
@@ -444,7 +470,9 @@ async def correlate_metrics(
     active_jobs_list = [aj_by_t.get(t, 0.0) for t in common]
     failures = [fail_by_t.get(t, 0.0) for t in common]
 
-    corr_details = calculate_correlations(duration, cpu, mem, active_jobs_list, failures)
+    corr_details = calculate_correlations(
+        duration, cpu, mem, active_jobs_list, failures
+    )
     corr_dur = corr_details.get("corr_duration", {})
 
     best_key, best_val, found = select_best_factor(corr_dur)
@@ -572,8 +600,12 @@ async def predict_timeline(
         }
 
     ybar = sum(ys) / n
-    prob = calculate_failure_probability(degradation_severity, est_days, horizon_days, 0.0, ybar, s)
-    confidence = calculate_confidence_score(degradation_severity, s, ybar, est_date is not None)
+    prob = calculate_failure_probability(
+        degradation_severity, est_days, horizon_days, 0.0, ybar, s
+    )
+    confidence = calculate_confidence_score(
+        degradation_severity, s, ybar, est_date is not None
+    )
 
     details = {
         "model": "linear",
@@ -626,7 +658,9 @@ async def generate_recommendations(
         logger.info("predictive_disabled.generate_recommendations")
         return {"recommendations": [], "actions": [], "details": {"reason": "disabled"}}
 
-    recs, actions = build_recommendations(job_name, degradation_type, degradation_severity, correlation, prediction)
+    recs, actions = build_recommendations(
+        job_name, degradation_type, degradation_severity, correlation, prediction
+    )
 
     if llm is not None:
         try:
@@ -682,7 +716,9 @@ async def notify_operators(
         "workflow_id": workflow_id,
         "job_name": job_name,
         "failure_probability": failure_probability,
-        "estimated_failure_date": estimated_failure_date.isoformat() if estimated_failure_date else None,
+        "estimated_failure_date": estimated_failure_date.isoformat()
+        if estimated_failure_date
+        else None,
         "recommendations": recommendations,
     }
 
@@ -729,8 +765,12 @@ async def notify_operators(
 # ---------------------------------------------------------------------------
 
 
-async def fetch_job_history_state(state: dict[str, Any], db: AsyncSession, days: int = 30) -> dict[str, Any]:
-    history = await fetch_job_history(db=db, job_name=state.get("job_name", ""), days=days)
+async def fetch_job_history_state(
+    state: dict[str, Any], db: AsyncSession, days: int = 30
+) -> dict[str, Any]:
+    history = await fetch_job_history(
+        db=db, job_name=state.get("job_name", ""), days=days
+    )
     return {**state, "job_history": history, "fetch_timestamp": _utcnow().isoformat()}
 
 
@@ -743,7 +783,9 @@ async def fetch_workstation_metrics_state(
     return {**state, "workstation_metrics": metrics}
 
 
-async def detect_degradation_state(state: dict[str, Any], llm: Any | None = None) -> dict[str, Any]:
+async def detect_degradation_state(
+    state: dict[str, Any], llm: Any | None = None
+) -> dict[str, Any]:
     res = await detect_degradation(job_history=state.get("job_history", []), llm=llm)
     return {**state, "degradation": res}
 

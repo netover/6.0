@@ -143,7 +143,9 @@ class DataErasureRequest:
 
     def generate_verification_hash(self, deleted_data: list[dict[str, Any]]) -> str:
         """Generate verification hash of deleted data."""
-        data_str = json.dumps(sorted(deleted_data, key=lambda x: str(x)), sort_keys=True)
+        data_str = json.dumps(
+            sorted(deleted_data, key=lambda x: str(x)), sort_keys=True
+        )
         return hashlib.sha256(data_str.encode()).hexdigest()
 
 
@@ -198,7 +200,9 @@ class DataAnonymizer:
 
     def __init__(self, config: GDPRComplianceConfig):
         self.config = config
-        self._salt = os.environ.get("GDPR_ANONYMIZATION_SALT", "gdpr_compliance_salt_2024")
+        self._salt = os.environ.get(
+            "GDPR_ANONYMIZATION_SALT", "gdpr_compliance_salt_2024"
+        )
 
     def anonymize_personal_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Anonymize personal identifiable information."""
@@ -287,9 +291,7 @@ class GDPRDataEncryptor:
         encryption_secret = os.environ.get(
             "GDPR_ENCRYPTION_SECRET", "gdpr_default_secret_change_me"
         )
-        key_data = (
-            f"gdpr_encryption_key_{encryption_secret}_{self.config.encryption_key_rotation_days}"
-        )
+        key_data = f"gdpr_encryption_key_{encryption_secret}_{self.config.encryption_key_rotation_days}"
         encryption_salt = os.environ.get(
             "GDPR_ENCRYPTION_SALT", "gdpr_compliance_salt_2024"
         ).encode()
@@ -377,7 +379,9 @@ class GDPRComplianceManager:
         self._running = True
         self._cleanup_task = track_task(self._cleanup_worker(), name="cleanup_worker")
         self._audit_task = track_task(self._audit_worker(), name="audit_worker")
-        self._breach_monitor_task = track_task(self._breach_monitor(), name="breach_monitor")
+        self._breach_monitor_task = track_task(
+            self._breach_monitor(), name="breach_monitor"
+        )
 
         logger.info("GDPR compliance manager started")
 
@@ -441,11 +445,17 @@ class GDPRComplianceManager:
             ),
         }
 
-    def set_retention_policy(self, category: DataCategory, retention_days: int, **kwargs) -> None:
+    def set_retention_policy(
+        self, category: DataCategory, retention_days: int, **kwargs
+    ) -> None:
         """Set custom retention policy for a data category."""
-        policy = DataRetentionPolicy(category=category, retention_days=retention_days, **kwargs)
+        policy = DataRetentionPolicy(
+            category=category, retention_days=retention_days, **kwargs
+        )
         self.retention_policies[category] = policy
-        logger.info("Updated retention policy for %s: %s days", category.value, retention_days)
+        logger.info(
+            "Updated retention policy for %s: %s days", category.value, retention_days
+        )
 
     async def record_user_consent(
         self,
@@ -495,11 +505,16 @@ class GDPRComplianceManager:
             return False
 
         for consent in self.consent_records[user_id]:
-            if consent.consent_id == consent_id and consent.status == ConsentStatus.GRANTED:
+            if (
+                consent.consent_id == consent_id
+                and consent.status == ConsentStatus.GRANTED
+            ):
                 consent.withdraw()
 
                 # Audit log
-                self._audit_event("consent_withdrawn", user_id=user_id, consent_id=consent_id)
+                self._audit_event(
+                    "consent_withdrawn", user_id=user_id, consent_id=consent_id
+                )
 
                 # Trigger data erasure if necessary
                 await self._handle_consent_withdrawal(user_id, consent.data_categories)
@@ -535,7 +550,9 @@ class GDPRComplianceManager:
         )
 
         # Start erasure process asynchronously
-        await create_tracked_task(self._process_data_erasure(request), name="process_data_erasure")
+        await create_tracked_task(
+            self._process_data_erasure(request), name="process_data_erasure"
+        )
 
         logger.info("Data erasure requested: %s", request_id)
         return request_id
@@ -571,7 +588,9 @@ class GDPRComplianceManager:
         )
 
         # Start portability process asynchronously
-        await create_tracked_task(self._process_data_portability(request), name="process_data_portability")
+        await create_tracked_task(
+            self._process_data_portability(request), name="process_data_portability"
+        )
 
         logger.info("Data portability requested: %s", request_id)
         return request_id
@@ -592,7 +611,10 @@ class GDPRComplianceManager:
             "retention_days": policy.retention_days,
             "days_remaining": max(
                 0,
-                int((created_at + policy.retention_days * 24 * 3600 - time.time()) / 86400),
+                int(
+                    (created_at + policy.retention_days * 24 * 3600 - time.time())
+                    / 86400
+                ),
             ),
             "anonymization_required": policy.anonymization_required,
             "encryption_required": policy.encryption_required,
@@ -616,7 +638,9 @@ class GDPRComplianceManager:
     ) -> str:
         """Report a data breach incident."""
         # Use BLAKE2b instead of MD5 for generating breach IDs
-        hash_value = hashlib.blake2b(breach_description.encode(), digest_size=4).hexdigest()
+        hash_value = hashlib.blake2b(
+            breach_description.encode(), digest_size=4
+        ).hexdigest()
         breach_id = f"breach_{int(time.time())}_{hash_value}"
 
         breach_incident = {
@@ -645,14 +669,18 @@ class GDPRComplianceManager:
         )
 
         # Trigger breach response
-        await create_tracked_task(self._handle_data_breach(breach_incident), name="handle_data_breach")
+        await create_tracked_task(
+            self._handle_data_breach(breach_incident), name="handle_data_breach"
+        )
 
         logger.warning("Data breach reported: %s", breach_id)
         return breach_id
 
     def get_compliance_status(self) -> dict[str, Any]:
         """Get overall GDPR compliance status."""
-        total_consents = sum(len(consents) for consents in self.consent_records.values())
+        total_consents = sum(
+            len(consents) for consents in self.consent_records.values()
+        )
         valid_consents = sum(
             1
             for consents in self.consent_records.values()
@@ -676,13 +704,17 @@ class GDPRComplianceManager:
             "data_erasure": {
                 "pending_requests": pending_erasure,
                 "completed_requests": sum(
-                    1 for req in self.erasure_requests.values() if req.status == "completed"
+                    1
+                    for req in self.erasure_requests.values()
+                    if req.status == "completed"
                 ),
             },
             "data_portability": {
                 "pending_requests": pending_portability,
                 "completed_requests": sum(
-                    1 for req in self.portability_requests.values() if req.status == "completed"
+                    1
+                    for req in self.portability_requests.values()
+                    if req.status == "completed"
                 ),
             },
             "data_breaches": {
@@ -699,7 +731,9 @@ class GDPRComplianceManager:
             },
             "audit_trail": {
                 "total_events": len(self.audit_trail),
-                "recent_events": (list(self.audit_trail)[-10:] if self.audit_trail else []),
+                "recent_events": (
+                    list(self.audit_trail)[-10:] if self.audit_trail else []
+                ),
             },
         }
 
@@ -812,7 +846,9 @@ class GDPRComplianceManager:
             # This would gather all user data and prepare for download
             # For simulation, we'll just mark as completed
             request.data_size_bytes = 1024  # Simulated
-            request.download_url = f"/api/gdpr/portability/{request.request_id}/download"
+            request.download_url = (
+                f"/api/gdpr/portability/{request.request_id}/download"
+            )
             request.completed_at = time.time()
             request.status = "completed"
 
@@ -902,7 +938,7 @@ class GDPRComplianceManager:
             affected_users_count=breach["affected_users_count"],
         )
 
-        logger.warning("Data breach handling initiated: %s", breach['breach_id'])
+        logger.warning("Data breach handling initiated: %s", breach["breach_id"])
 
     async def _send_breach_notification(self, breach: dict[str, Any]) -> None:
         """Send breach notification (simulated)."""
@@ -915,7 +951,7 @@ class GDPRComplianceManager:
             notification_time=time.time(),
         )
 
-        logger.info("Breach notification sent: %s", breach['breach_id'])
+        logger.info("Breach notification sent: %s", breach["breach_id"])
 
 
 # Global GDPR compliance manager instance (lazy-initialized)

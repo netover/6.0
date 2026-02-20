@@ -120,12 +120,16 @@ class RedisStrategyConfig:
 
         # Parse tiers
         self.read_only_patterns = self._parse_patterns(exceptions.get("read_only", []))
-        self.best_effort_configs = self._parse_best_effort(exceptions.get("best_effort", []))
+        self.best_effort_configs = self._parse_best_effort(
+            exceptions.get("best_effort", [])
+        )
         self.critical_configs = self._parse_critical(runtime.get("critical", []))
 
         # Default policy
         default = runtime.get("default_policy", "fail_fast")
-        self.default_tier = RedisTier.CRITICAL if default == "fail_fast" else RedisTier.BEST_EFFORT
+        self.default_tier = (
+            RedisTier.CRITICAL if default == "fail_fast" else RedisTier.BEST_EFFORT
+        )
 
         # Monitoring config
         monitoring = config_dict.get("monitoring", {})
@@ -155,7 +159,9 @@ class RedisStrategyConfig:
                         "degraded_behavior": item.get("degraded_behavior"),
                         "warning_message": item.get("warning_message"),
                         "cost_impact": item.get("cost_impact"),
-                        "refresh_interval_seconds": item.get("refresh_interval_seconds"),
+                        "refresh_interval_seconds": item.get(
+                            "refresh_interval_seconds"
+                        ),
                     }
                 )
         return configs
@@ -390,7 +396,13 @@ def get_redis_strategy() -> RedisStrategy:
                 # Try multiple config paths
                 config_paths = [
                     "config/redis_strategy.yaml",
-                    os.path.join(os.path.dirname(__file__), "..", "..", "config", "redis_strategy.yaml"),
+                    os.path.join(
+                        os.path.dirname(__file__),
+                        "..",
+                        "..",
+                        "config",
+                        "redis_strategy.yaml",
+                    ),
                     "/app/config/redis_strategy.yaml",
                 ]
 

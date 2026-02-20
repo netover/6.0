@@ -195,8 +195,7 @@ async def on_session_end(
 
     # Convert to list format
     conversation = [
-        {"role": msg.role, "content": msg.content}
-        for msg in session.messages
+        {"role": msg.role, "content": msg.content} for msg in session.messages
     ]
 
     return await extract_session_memories(
@@ -284,8 +283,7 @@ async def save_turn_to_memory(
         # Background extraction (don't block response)
         try:
             conversation = [
-                {"role": msg.role, "content": msg.content}
-                for msg in session.messages
+                {"role": msg.role, "content": msg.content} for msg in session.messages
             ]
             await extract_session_memories(user_id, conversation, session_id)
         except Exception as e:
@@ -318,12 +316,14 @@ async def get_user_memory_summary(user_id: str) -> dict[str, Any]:
 
     samples = []
     for mem in all_memories[:5]:
-        samples.append({
-            "id": mem.id,
-            "type": "declarative" if hasattr(mem, "content") else "procedural",
-            "preview": getattr(mem, "content", None) or getattr(mem, "pattern", ""),
-            "confidence": mem.effective_confidence,
-        })
+        samples.append(
+            {
+                "id": mem.id,
+                "type": "declarative" if hasattr(mem, "content") else "procedural",
+                "preview": getattr(mem, "content", None) or getattr(mem, "pattern", ""),
+                "confidence": mem.effective_confidence,
+            }
+        )
 
     return {
         **stats,

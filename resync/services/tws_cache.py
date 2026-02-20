@@ -39,11 +39,11 @@ logger = structlog.get_logger(__name__)
 class CacheCategory(Enum):
     """Cache categories with different TTLs."""
 
-    JOB_STATUS = "job_status"          # 10 seconds
-    JOB_LOGS = "job_logs"              # 30 seconds
-    STATIC_STRUCTURE = "static"        # 1 hour
-    GRAPH = "graph"                    # 5 minutes
-    DEFAULT = "default"                # 60 seconds
+    JOB_STATUS = "job_status"  # 10 seconds
+    JOB_LOGS = "job_logs"  # 30 seconds
+    STATIC_STRUCTURE = "static"  # 1 hour
+    GRAPH = "graph"  # 5 minutes
+    DEFAULT = "default"  # 60 seconds
 
 
 # Default TTLs per category (can be overridden by settings)
@@ -58,11 +58,11 @@ DEFAULT_TTLS: dict[CacheCategory, int] = {
 # Stale-While-Revalidate windows (seconds after expiry to serve stale + refresh)
 # If data is expired but within stale window, return stale data and refresh in background
 DEFAULT_STALE_WINDOWS: dict[CacheCategory, int] = {
-    CacheCategory.JOB_STATUS: 30,      # Serve stale for 30s after 10s TTL expires
-    CacheCategory.JOB_LOGS: 60,        # Serve stale for 60s after 30s TTL expires
+    CacheCategory.JOB_STATUS: 30,  # Serve stale for 30s after 10s TTL expires
+    CacheCategory.JOB_LOGS: 60,  # Serve stale for 60s after 30s TTL expires
     CacheCategory.STATIC_STRUCTURE: 7200,  # Serve stale for 2h after 1h TTL
-    CacheCategory.GRAPH: 600,          # Serve stale for 10min after 5min TTL
-    CacheCategory.DEFAULT: 120,        # Serve stale for 2min after 1min TTL
+    CacheCategory.GRAPH: 600,  # Serve stale for 10min after 5min TTL
+    CacheCategory.DEFAULT: 120,  # Serve stale for 2min after 1min TTL
 }
 
 
@@ -108,9 +108,9 @@ class CacheStats:
     hits: int = 0
     misses: int = 0
     evictions: int = 0
-    stale_hits: int = 0          # Served stale data (within stale window)
-    refreshes: int = 0           # Background refreshes triggered
-    refresh_failures: int = 0    # Background refresh failures
+    stale_hits: int = 0  # Served stale data (within stale window)
+    refreshes: int = 0  # Background refreshes triggered
+    refresh_failures: int = 0  # Background refresh failures
 
     @property
     def hit_rate(self) -> float:
@@ -162,21 +162,26 @@ class TWSAPICache:
         self._ttls = DEFAULT_TTLS.copy()
         self._stale_windows = DEFAULT_STALE_WINDOWS.copy()
         self._initialized = True
-        
+
         # Metrics
         from resync.core.metrics_compat import Counter
+
         self._metric_stale_hits = Counter(
-            "tws_cache_stale_hits_total", 
+            "tws_cache_stale_hits_total",
             "Total number of stale cache hits (SWR)",
-            ["category"]
+            ["category"],
         )
         self._metric_refresh_failures = Counter(
             "tws_cache_refresh_failures_total",
             "Total number of background refresh failures",
-            ["category"]
+            ["category"],
         )
 
-        logger.info("tws_api_cache_initialized", ttls=self._ttls, stale_windows=self._stale_windows)
+        logger.info(
+            "tws_api_cache_initialized",
+            ttls=self._ttls,
+            stale_windows=self._stale_windows,
+        )
 
     def configure_ttls(
         self,
@@ -256,7 +261,9 @@ class TWSAPICache:
             value["_fetched_at"] = datetime.now(timezone.utc).isoformat()
 
         ttl = self._get_ttl(category)
-        stale_window = self._stale_windows.get(category, self._stale_windows[CacheCategory.DEFAULT])
+        stale_window = self._stale_windows.get(
+            category, self._stale_windows[CacheCategory.DEFAULT]
+        )
 
         self._cache[key] = CacheEntry(
             value=value,
@@ -291,13 +298,13 @@ class TWSAPICache:
         result = self.get(key, category)
         if result is not None:
             value, is_cached, age_seconds, is_stale = result
-            
+
             # If stale, trigger background refresh (fire-and-forget)
             if is_stale:
                 await create_tracked_task(
                     self._background_refresh(key, fetch_func, category)
                 )
-            
+
             return value, is_cached, age_seconds
 
         # Get or create lock for this key.
@@ -340,36 +347,36 @@ class TWSAPICache:
     ):
         """
         Background refresh for SWR - runs asynchronously without blocking the caller.
-        
+
         Uses locking to prevent duplicate refreshes.
         """
         # Create a refresh lock key to prevent duplicate background refreshes
         refresh_lock_key = f"_refresh_{key}"
-        
+
         if refresh_lock_key not in self._locks:
             self._locks[refresh_lock_key] = asyncio.Lock()
             self._lock_refcounts[refresh_lock_key] = 0
-        
+
         self._lock_refcounts[refresh_lock_key] += 1
         lock = self._locks[refresh_lock_key]
-        
+
         try:
             # Try to acquire lock without blocking
             if lock.locked():
                 # Another refresh is already in progress, skip
                 return
-            
+
             async with lock:
                 try:
                     # Fetch fresh data
                     value = await fetch_func()
                     self.set(key, value, category)
                     self._stats.refreshes += 1
-                    
+
                     logger.debug(
                         "tws_cache.background_refresh_success",
                         key=key[:50],  # Truncate for logging
-                        category=category.value
+                        category=category.value,
                     )
                 except Exception as e:
                     self._stats.refresh_failures += 1
@@ -378,11 +385,13 @@ class TWSAPICache:
                         "tws_cache.background_refresh_failed",
                         key=key[:50],
                         category=category.value,
-                        error=str(e)
+                        error=str(e),
                     )
         finally:
             # Cleanup refresh lock
-            self._lock_refcounts[refresh_lock_key] = self._lock_refcounts.get(refresh_lock_key, 1) - 1
+            self._lock_refcounts[refresh_lock_key] = (
+                self._lock_refcounts.get(refresh_lock_key, 1) - 1
+            )
             if self._lock_refcounts[refresh_lock_key] <= 0:
                 self._locks.pop(refresh_lock_key, None)
                 self._lock_refcounts.pop(refresh_lock_key, None)
@@ -438,6 +447,7 @@ def get_tws_cache() -> TWSAPICache:
 # DECORATOR
 # =============================================================================
 
+
 def tws_cache(
     category: CacheCategory = CacheCategory.DEFAULT,
     key_prefix: str | None = None,
@@ -455,6 +465,7 @@ def tws_cache(
     - Inject _fetched_at timestamp for transparency
     - Use request coalescing for concurrent calls
     """
+
     def decorator(func: Callable):
         prefix = key_prefix or func.__name__
 
@@ -470,12 +481,14 @@ def tws_cache(
             return value
 
         return wrapper
+
     return decorator
 
 
 # =============================================================================
 # RESPONSE WRAPPER
 # =============================================================================
+
 
 def enrich_response_with_cache_meta(
     data: Any,
@@ -511,6 +524,10 @@ def enrich_response_with_cache_meta(
             "cached": is_cached,
             "age_seconds": round(age_seconds, 1),
             "fetched_at": fetched_at,
-            "freshness": "live" if age_seconds < 2 else "recent" if age_seconds < 10 else "cached",
+            "freshness": "live"
+            if age_seconds < 2
+            else "recent"
+            if age_seconds < 10
+            else "cached",
         },
     }

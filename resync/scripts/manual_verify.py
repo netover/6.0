@@ -72,15 +72,19 @@ async def test_dashboard_redis_integration() -> None:
     mock_pipeline = MagicMock()
     mock_pipeline.execute = AsyncMock(return_value=[])
     mock_redis.pipeline.return_value = mock_pipeline
-    
+
     mock_lock = MagicMock()
     mock_lock.acquire = AsyncMock(return_value=True)
     mock_lock.release = AsyncMock()
     mock_redis.lock.return_value = mock_lock
 
-    with patch("resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis), patch(
-        "resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"
-    ), patch("resync.core.metrics.runtime_metrics") as mock_metrics:
+    with (
+        patch(
+            "resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis
+        ),
+        patch("resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"),
+        patch("resync.core.metrics.runtime_metrics") as mock_metrics,
+    ):
         mock_metrics.get_snapshot.return_value = {
             "agent": {
                 "initializations": 100,
@@ -119,13 +123,13 @@ async def test_dashboard_redis_integration() -> None:
 
         mock_ws = AsyncMock()
         mock_ws.send_text = AsyncMock()
-        
+
         # Mock ws_manager methods to avoid real background tasks
         ws_manager = get_ws_manager()
         ws_manager.connect = AsyncMock(return_value=True)
         ws_manager.disconnect = AsyncMock()
         ws_manager.broadcast = AsyncMock()
-        
+
         await ws_manager.connect(mock_ws)
         # Simulate what broadcast would do if it worked
         await mock_ws.send_text('{"status": "sync_test"}')
@@ -167,7 +171,10 @@ async def test_workflows_history() -> None:
 
     history = await fetch_job_execution_history(db=db)
     _require(len(history) == 1, "Expected one job history row.")
-    _require(history[0]["timestamp"] == now.isoformat(), "Unexpected timestamp serialization.")
+    _require(
+        history[0]["timestamp"] == now.isoformat(),
+        "Unexpected timestamp serialization.",
+    )
     _require(history[0]["workstation"] == "UNKNOWN", "Expected workstation fallback.")
 
     rows_metrics = [
@@ -190,7 +197,9 @@ async def test_workflows_history() -> None:
 
     history_metrics = await fetch_workstation_metrics_history(db=db)
     _require(
-        math.isclose(history_metrics[0]["total_memory_gb"], 32.0, rel_tol=0.0, abs_tol=1e-9),
+        math.isclose(
+            history_metrics[0]["total_memory_gb"], 32.0, rel_tol=0.0, abs_tol=1e-9
+        ),
         "Unexpected total_memory_gb conversion.",
     )
     print("test_workflows_history passed!")
@@ -202,10 +211,10 @@ async def test_settings_validation() -> bool:
     try:
         print(f"DEBUG: _redact_sensitive exists: {'_redact_sensitive' in globals()}")
         from resync.settings import settings
-        
+
         # Issue 5: Environment Precedence & Dump
         print("Loading and resolving settings...")
-        
+
         print("\nResolved Configuration (Redacted):")
         # Issue 6: Secret Redaction in Dump
         for field, value in settings.model_dump().items():
@@ -214,7 +223,7 @@ async def test_settings_validation() -> bool:
                 print(f"  {field}: {redacted}")
             else:
                 print(f"  {field}: {value}")
-                
+
         print("\nSettings validation PASSED.")
         return True
     except Exception as e:
@@ -225,6 +234,7 @@ async def test_settings_validation() -> bool:
 def _redact_sensitive(val: Any) -> str:
     """Helper for redacted dump in manual verify."""
     from pydantic import SecretStr
+
     if isinstance(val, SecretStr):
         return "**********"
     s = str(val)
@@ -238,14 +248,14 @@ def _redact_sensitive(val: Any) -> str:
 async def main() -> int:
     """Main entry point with fail-fast (Issue 8)."""
     success = True
-    
+
     # 1. Settings Validation (New)
     if not await test_settings_validation():
         success = False
         # Fail fast if settings are broken
         print("\nABORTING: Settings validation failed.")
         return 1
-        
+
     # 2. Redis Integration
     try:
         await test_dashboard_redis_integration()

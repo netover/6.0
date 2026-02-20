@@ -55,6 +55,7 @@ def _get_active_sessions_lock() -> asyncio.Lock:
         _active_sessions_lock_loop = loop
     return _active_sessions_lock
 
+
 _shutdown_event: asyncio.Event | None = None
 
 
@@ -152,7 +153,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         RuntimeError: Se engine está em processo de shutdown.
     """
     if _shutdown_event is not None:
-        raise RuntimeError("Database engine is shutting down. Cannot create new sessions.")
+        raise RuntimeError(
+            "Database engine is shutting down. Cannot create new sessions."
+        )
 
     if _engine is None:
         # Lazy initialization

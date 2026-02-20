@@ -86,7 +86,9 @@ class DatabaseConfig:
         Useful for direct psql connections or third-party tools.
         """
         password = self.password or os.getenv("DATABASE_PASSWORD", "")
-        return f"postgresql://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
+        return (
+            f"postgresql://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
+        )
 
     def get_pool_options(self) -> dict:
         """Get connection pool options."""

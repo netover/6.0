@@ -9,7 +9,7 @@ easy extension with new cache implementations.
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from resync.core.cache.base_cache import BaseCache
 
@@ -67,7 +67,9 @@ class MemoryCache(BaseCache):
             if len(self._store) >= self.config.max_entries:
                 self._evict_oldest()
 
-            self._store[key] = CacheEntry(data=value, ttl=ttl or self.config.ttl_seconds)
+            self._store[key] = CacheEntry(
+                data=value, ttl=ttl or self.config.ttl_seconds
+            )
             return True
 
     async def delete(self, key: str) -> bool:
@@ -105,7 +107,9 @@ class EnhancedCache(MemoryCache):
         super().__init__(config)
         self._computing: dict[str, asyncio.Event] = {}
 
-    async def get_or_compute(self, key: str, compute_fn: callable, ttl: float | None = None) -> Any:
+    async def get_or_compute(
+        self, key: str, compute_fn: Callable[..., Any], ttl: float | None = None
+    ) -> Any:
         """Get value or compute if missing (with stampede protection)."""
         # Check cache first
         value = await self.get(key)
@@ -120,7 +124,11 @@ class EnhancedCache(MemoryCache):
         # Start computing
         self._computing[key] = asyncio.Event()
         try:
-            value = await compute_fn() if asyncio.iscoroutinefunction(compute_fn) else compute_fn()
+            value = (
+                await compute_fn()
+                if asyncio.iscoroutinefunction(compute_fn)
+                else compute_fn()
+            )
             await self.set(key, value, ttl)
             return value
         finally:
@@ -132,7 +140,9 @@ class HybridCache(BaseCache):
     """Hybrid cache combining memory and persistent storage."""
 
     def __init__(
-        self, memory_config: SimpleCacheConfig | None = None, persistent_store: dict | None = None
+        self,
+        memory_config: SimpleCacheConfig | None = None,
+        persistent_store: dict | None = None,
     ):
         self._memory = MemoryCache(memory_config)
         self._persistent = persistent_store or {}

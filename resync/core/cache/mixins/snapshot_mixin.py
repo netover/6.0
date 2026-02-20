@@ -45,7 +45,7 @@ class CacheSnapshotMixin:
 
         snapshot["total_entries"] = sum(len(s) for s in self.shards)
 
-        logger.info("Created snapshot with %s entries", snapshot['total_entries'])
+        logger.info("Created snapshot with %s entries", snapshot["total_entries"])
 
         return snapshot
 

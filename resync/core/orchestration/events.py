@@ -55,6 +55,7 @@ class OrchestrationEvent(BaseModel):
 @dataclass
 class Subscription:
     """Represents a subscription with an ID for tracking."""
+
     subscription_id: str
     callback: Callable
     event_type: EventType | None = None  # None means global subscription
@@ -64,7 +65,7 @@ class EventBus:
     """
     Simple in-memory event bus for orchestration events.
     Allows decoupling of Runner from WebSocket/Persistence/Logging.
-    
+
     Supports subscription tracking to prevent memory leaks.
     """
 
@@ -75,49 +76,49 @@ class EventBus:
     def subscribe(self, event_type: EventType, callback: Callable) -> str:
         """
         Subscribe to a specific event type.
-        
+
         Returns:
             subscription_id that can be used to unsubscribe
         """
         subscription_id = str(uuid.uuid4())
         if event_type not in self._subscribers:
             self._subscribers[event_type] = []
-        
+
         subscription = Subscription(
-            subscription_id=subscription_id,
-            callback=callback,
-            event_type=event_type
+            subscription_id=subscription_id, callback=callback, event_type=event_type
         )
         self._subscribers[event_type].append(subscription)
-        
-        logger.debug("subscribed_to_event id=%s event_type=%s", subscription_id, event_type.value)
-        
+
+        logger.debug(
+            "subscribed_to_event id=%s event_type=%s", subscription_id, event_type.value
+        )
+
         return subscription_id
 
     def subscribe_all(self, callback: Callable) -> str:
         """
         Subscribe to all events.
-        
+
         Returns:
             subscription_id that can be used to unsubscribe
         """
         subscription_id = str(uuid.uuid4())
-        
+
         subscription = Subscription(
             subscription_id=subscription_id,
             callback=callback,
-            event_type=None  # Global subscription
+            event_type=None,  # Global subscription
         )
         self._global_subscribers[subscription_id] = subscription
-        
+
         logger.debug("subscribed_to_all_events id=%s", subscription_id)
-        
+
         return subscription_id
 
     def unsubscribe(self, subscription_id: str) -> bool:
         """
         Unsubscribe using the subscription_id returned from subscribe or subscribe_all.
-        
+
         Returns:
             True if subscription was found and removed, False otherwise
         """
@@ -126,7 +127,7 @@ class EventBus:
             del self._global_subscribers[subscription_id]
             logger.debug("unsubscribed_from_all_events id=%s", subscription_id)
             return True
-        
+
         # Check event-specific subscribers
         for event_type, subscriptions in self._subscribers.items():
             initial_count = len(subscriptions)
@@ -134,9 +135,13 @@ class EventBus:
                 s for s in subscriptions if s.subscription_id != subscription_id
             ]
             if len(self._subscribers[event_type]) < initial_count:
-                logger.debug("unsubscribed_from_event id=%s event_type=%s", subscription_id, event_type.value)
+                logger.debug(
+                    "unsubscribed_from_event id=%s event_type=%s",
+                    subscription_id,
+                    event_type.value,
+                )
                 return True
-        
+
         logger.warning("subscription_not_found id=%s", subscription_id)
         return False
 
@@ -148,14 +153,18 @@ class EventBus:
                 try:
                     await self._invoke_callback(subscription.callback, event)
                 except Exception as e:
-                    logger.error(f"Error in event subscriber {subscription.subscription_id}: {e}")
+                    logger.error(
+                        f"Error in event subscriber {subscription.subscription_id}: {e}"
+                    )
 
         # Notify global subscribers
         for subscription in self._global_subscribers.values():
             try:
                 await self._invoke_callback(subscription.callback, event)
             except Exception as e:
-                logger.error(f"Error in global event subscriber {subscription.subscription_id}: {e}")
+                logger.error(
+                    f"Error in global event subscriber {subscription.subscription_id}: {e}"
+                )
 
     async def _invoke_callback(self, callback: Callable, event: OrchestrationEvent):
         """Helper to invoke sync or async callbacks."""
@@ -163,7 +172,7 @@ class EventBus:
             await callback(event)
         else:
             callback(event)
-    
+
     def get_subscription_count(self) -> int:
         """Get total number of active subscriptions (for debugging/monitoring)."""
         return len(self._global_subscribers) + sum(

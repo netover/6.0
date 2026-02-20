@@ -111,7 +111,9 @@ def validate_auth_requirements() -> None:
         errors.append(f"Failed to load settings: {e}")
 
     if errors:
-        error_msg = "Authentication requirements not met:\n" + "\n".join(f"  - {e}" for e in errors)
+        error_msg = "Authentication requirements not met:\n" + "\n".join(
+            f"  - {e}" for e in errors
+        )
         logger.critical("auth_validation_failed errors=%s", errors)
         raise RuntimeError(error_msg)
 
@@ -162,7 +164,9 @@ def decode_token(token: str, settings: Any = None) -> dict[str, Any]:
         settings = get_settings()
 
     # Get secret key from settings (support both naming conventions)
-    secret_key = getattr(settings, "secret_key", None) or getattr(settings, "jwt_secret_key", None)
+    secret_key = getattr(settings, "secret_key", None) or getattr(
+        settings, "jwt_secret_key", None
+    )
     algorithm = getattr(settings, "jwt_algorithm", "HS256")
 
     # Validate secret key
@@ -189,7 +193,9 @@ def decode_token(token: str, settings: Any = None) -> dict[str, Any]:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        logger.debug("token_decoded sub=%s role=%s", payload.get("sub"), payload.get("role"))
+        logger.debug(
+            "token_decoded sub=%s role=%s", payload.get("sub"), payload.get("role")
+        )
         return payload
 
     except jwt.ExpiredSignatureError as e:
@@ -234,7 +240,9 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
-    token: str | None = Depends(OAuth2PasswordBearer(tokenUrl="token", auto_error=False)),
+    token: str | None = Depends(
+        OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+    ),
 ) -> dict[str, Any] | None:
     """
     FastAPI dependency that optionally returns user if token present.
@@ -364,7 +372,9 @@ def create_access_token(
         raise RuntimeError("PyJWT is required to create tokens")
 
     settings = get_settings()
-    secret_key = getattr(settings, "secret_key", None) or getattr(settings, "jwt_secret_key", None)
+    secret_key = getattr(settings, "secret_key", None) or getattr(
+        settings, "jwt_secret_key", None
+    )
     algorithm = getattr(settings, "jwt_algorithm", "HS256")
 
     if not secret_key or secret_key in ("change-me", "change-me-in-production"):

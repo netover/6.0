@@ -20,6 +20,7 @@ Endpoints:
 These endpoints are mounted under the ``/api/v1/admin`` prefix via the
 main application (see ``main.py``).
 """
+
 import datetime
 import json
 import logging
@@ -29,10 +30,41 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from resync.api.routes.admin.main import verify_admin_credentials
 import aiofiles
+
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
-CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / 'config' / 'admin_config.json'
-DEFAULT_CONFIG: dict[str, Any] = {'teams_config': {'enabled': False, 'webhook_url': '', 'channel_name': '', 'bot_name': 'Resync Bot', 'avatar_url': ''}, 'tws_config': {'primary_instance': 'TWS_NAZ', 'monitored_instances': ['TWS_NAZ', 'TWS_SAZ']}, 'system_settings': {'environment': 'Production', 'debug_mode': False, 'ssl_enabled': True, 'csp_enabled': True, 'cors_enabled': True}, 'notifications': {'job_status_filters': ['ABEND', 'ERROR', 'FAILED'], 'notify_job_status': True, 'notify_alerts': True, 'notify_performance': False}}
+CONFIG_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "config"
+    / "admin_config.json"
+)
+DEFAULT_CONFIG: dict[str, Any] = {
+    "teams_config": {
+        "enabled": False,
+        "webhook_url": "",
+        "channel_name": "",
+        "bot_name": "Resync Bot",
+        "avatar_url": "",
+    },
+    "tws_config": {
+        "primary_instance": "TWS_NAZ",
+        "monitored_instances": ["TWS_NAZ", "TWS_SAZ"],
+    },
+    "system_settings": {
+        "environment": "Production",
+        "debug_mode": False,
+        "ssl_enabled": True,
+        "csp_enabled": True,
+        "cors_enabled": True,
+    },
+    "notifications": {
+        "job_status_filters": ["ABEND", "ERROR", "FAILED"],
+        "notify_job_status": True,
+        "notify_alerts": True,
+        "notify_performance": False,
+    },
+}
+
 
 async def _get_health_report() -> dict[str, Any]:
     """Assemble a basic health report.
@@ -42,11 +74,20 @@ async def _get_health_report() -> dict[str, Any]:
     dict
         A dictionary with boolean flags indicating the status of key services.
     """
-    report = {'database': True, 'cache': True, 'teams': False, 'llm': True, 'timestamp': datetime.datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}
+    report = {
+        "database": True,
+        "cache": True,
+        "teams": False,
+        "llm": True,
+        "timestamp": datetime.datetime.now(timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
+    }
     cfg = await _load_config()
-    teams_cfg = cfg.get('teams_config', DEFAULT_CONFIG['teams_config'])
-    report['teams'] = bool(teams_cfg.get('enabled'))
+    teams_cfg = cfg.get("teams_config", DEFAULT_CONFIG["teams_config"])
+    report["teams"] = bool(teams_cfg.get("enabled"))
     return report
+
 
 async def _load_config() -> dict[str, Any]:
     """Read configuration from disk or return defaults.
@@ -57,19 +98,25 @@ async def _load_config() -> dict[str, Any]:
         The configuration dictionary containing all configurable sections.
     """
     import asyncio
+
     if not CONFIG_PATH.exists():
         return DEFAULT_CONFIG.copy()
     try:
 
         def _read():
-            with CONFIG_PATH.open('r', encoding='utf-8') as f:
+            with CONFIG_PATH.open("r", encoding="utf-8") as f:
                 return json.load(f)
+
         data = await asyncio.to_thread(_read)
-        
+
         # Deep merge by section
         merged = DEFAULT_CONFIG.copy()
         for section in merged:
-            if section in data and isinstance(merged[section], dict) and isinstance(data[section], dict):
+            if (
+                section in data
+                and isinstance(merged[section], dict)
+                and isinstance(data[section], dict)
+            ):
                 merged[section] = {**merged[section], **data[section]}
             elif section in data:
                 merged[section] = data[section]
@@ -77,11 +124,12 @@ async def _load_config() -> dict[str, Any]:
         for section in data:
             if section not in merged:
                 merged[section] = data[section]
-        
+
         return merged
     except Exception as e:
-        logger.error('config_load_failed', exc_info=True, extra={'error': str(e)})
+        logger.error("config_load_failed", exc_info=True, extra={"error": str(e)})
         return DEFAULT_CONFIG.copy()
+
 
 async def _save_config(config: dict[str, Any]) -> None:
     """Persist the entire configuration to disk as JSON.
@@ -92,19 +140,25 @@ async def _save_config(config: dict[str, Any]) -> None:
         The configuration to persist.
     """
     import asyncio
+
     try:
 
         def _write():
             CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with CONFIG_PATH.open('w', encoding='utf-8') as f:
+            with CONFIG_PATH.open("w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
+
         await asyncio.to_thread(_write)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to save configuration. Check server logs for details.') from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save configuration. Check server logs for details.",
+        ) from exc
 
-@router.get('/teams-config', tags=['Admin'])
+
+@router.get("/teams-config", tags=["Admin"])
 async def get_teams_config() -> dict[str, Any]:
     """Retrieve current Teams integration settings.
 
@@ -116,9 +170,10 @@ async def get_teams_config() -> dict[str, Any]:
         ``avatar_url``.
     """
     config = await _load_config()
-    return config.get('teams_config', DEFAULT_CONFIG['teams_config']).copy()
+    return config.get("teams_config", DEFAULT_CONFIG["teams_config"]).copy()
 
-@router.post('/teams-config', status_code=status.HTTP_204_NO_CONTENT, tags=['Admin'])
+
+@router.post("/teams-config", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_teams_config(settings: dict[str, Any]) -> None:
     """Persist Teams integration settings provided by the admin UI.
 
@@ -134,61 +189,75 @@ async def update_teams_config(settings: dict[str, Any]) -> None:
         If saving the configuration fails.
     """
     config = await _load_config()
-    teams_config = config.get('teams_config', DEFAULT_CONFIG['teams_config']).copy()
-    for key in ['enabled', 'webhook_url', 'channel_name', 'bot_name', 'avatar_url']:
+    teams_config = config.get("teams_config", DEFAULT_CONFIG["teams_config"]).copy()
+    for key in ["enabled", "webhook_url", "channel_name", "bot_name", "avatar_url"]:
         if key in settings:
             teams_config[key] = settings[key]
-    config['teams_config'] = teams_config
+    config["teams_config"] = teams_config
     await _save_config(config)
 
-@router.get('/tws-config', tags=['Admin'])
+
+@router.get("/tws-config", tags=["Admin"])
 async def get_tws_config() -> dict[str, Any]:
     """Return current TWS connection configuration."""
     config = await _load_config()
-    return config.get('tws_config', DEFAULT_CONFIG['tws_config']).copy()
+    return config.get("tws_config", DEFAULT_CONFIG["tws_config"]).copy()
 
-@router.post('/tws-config', status_code=status.HTTP_204_NO_CONTENT, tags=['Admin'])
+
+@router.post("/tws-config", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_tws_config(settings: dict[str, Any]) -> None:
     """Update TWS connection configuration.
 
     Accepts ``primary_instance`` (str) and ``monitored_instances`` (list of str).
     """
     config = await _load_config()
-    tws_config = config.get('tws_config', DEFAULT_CONFIG['tws_config']).copy()
-    if 'primary_instance' in settings:
-        tws_config['primary_instance'] = settings['primary_instance']
-    if 'monitored_instances' in settings and isinstance(settings['monitored_instances'], list):
-        tws_config['monitored_instances'] = settings['monitored_instances']
-    config['tws_config'] = tws_config
+    tws_config = config.get("tws_config", DEFAULT_CONFIG["tws_config"]).copy()
+    if "primary_instance" in settings:
+        tws_config["primary_instance"] = settings["primary_instance"]
+    if "monitored_instances" in settings and isinstance(
+        settings["monitored_instances"], list
+    ):
+        tws_config["monitored_instances"] = settings["monitored_instances"]
+    config["tws_config"] = tws_config
     await _save_config(config)
 
-@router.get('/system-settings', tags=['Admin'])
+
+@router.get("/system-settings", tags=["Admin"])
 async def get_system_settings() -> dict[str, Any]:
     """Return current system settings."""
     config = await _load_config()
-    return config.get('system_settings', DEFAULT_CONFIG['system_settings']).copy()
+    return config.get("system_settings", DEFAULT_CONFIG["system_settings"]).copy()
 
-@router.post('/system-settings', status_code=status.HTTP_204_NO_CONTENT, tags=['Admin'])
+
+@router.post("/system-settings", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_system_settings(settings: dict[str, Any]) -> None:
     """Update system settings configuration.
 
     Accepts any subset of keys defined in the ``system_settings`` section.
     """
     config = await _load_config()
-    sys_cfg = config.get('system_settings', DEFAULT_CONFIG['system_settings']).copy()
-    for key in ['environment', 'debug_mode', 'ssl_enabled', 'csp_enabled', 'cors_enabled']:
+    sys_cfg = config.get("system_settings", DEFAULT_CONFIG["system_settings"]).copy()
+    for key in [
+        "environment",
+        "debug_mode",
+        "ssl_enabled",
+        "csp_enabled",
+        "cors_enabled",
+    ]:
         if key in settings:
             sys_cfg[key] = settings[key]
-    config['system_settings'] = sys_cfg
+    config["system_settings"] = sys_cfg
     await _save_config(config)
 
-@router.get('/notifications', tags=['Admin'])
+
+@router.get("/notifications", tags=["Admin"])
 async def get_notifications() -> dict[str, Any]:
     """Return current notification configuration."""
     config = await _load_config()
-    return config.get('notifications', DEFAULT_CONFIG['notifications']).copy()
+    return config.get("notifications", DEFAULT_CONFIG["notifications"]).copy()
 
-@router.post('/notifications', status_code=status.HTTP_204_NO_CONTENT, tags=['Admin'])
+
+@router.post("/notifications", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_notifications(settings: dict[str, Any]) -> None:
     """Update notification configuration.
 
@@ -196,17 +265,20 @@ async def update_notifications(settings: dict[str, Any]) -> None:
     ``notify_job_status``, ``notify_alerts``, and ``notify_performance``.
     """
     config = await _load_config()
-    notifications = config.get('notifications', DEFAULT_CONFIG['notifications']).copy()
-    if 'job_status_filters' in settings and isinstance(settings['job_status_filters'], list):
-        notifications['job_status_filters'] = settings['job_status_filters']
-    for key in ['notify_job_status', 'notify_alerts', 'notify_performance']:
+    notifications = config.get("notifications", DEFAULT_CONFIG["notifications"]).copy()
+    if "job_status_filters" in settings and isinstance(
+        settings["job_status_filters"], list
+    ):
+        notifications["job_status_filters"] = settings["job_status_filters"]
+    for key in ["notify_job_status", "notify_alerts", "notify_performance"]:
         if key in settings:
             notifications[key] = bool(settings[key])
-    config['notifications'] = notifications
+    config["notifications"] = notifications
     await _save_config(config)
 
-@router.get('/logs', tags=['Admin'])
-async def get_logs(file: str='app.log', lines: int=100) -> dict[str, Any]:
+
+@router.get("/logs", tags=["Admin"])
+async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
     """Return the last ``lines`` lines of the specified log file.
 
     Parameters
@@ -221,33 +293,45 @@ async def get_logs(file: str='app.log', lines: int=100) -> dict[str, Any]:
     dict
         A dictionary containing the filename and text content of the log.
     """
-    logs_dir = Path(__file__).resolve().parent.parent.parent.parent / 'logs'
+    logs_dir = Path(__file__).resolve().parent.parent.parent.parent / "logs"
     log_path = logs_dir / file
-    
+
     # SECURITY: Validate path to prevent directory traversal attacks
     # Ensure the resolved path is within the logs directory using is_relative_to()
     try:
         log_path = log_path.resolve()
         logs_dir = logs_dir.resolve()
-        
+
         # Use is_relative_to() for proper path containment check
         if not log_path.is_relative_to(logs_dir):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path: directory traversal not allowed')
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file path: directory traversal not allowed",
+            )
     except RuntimeError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path')
-    
-    if not log_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Log file not found')
-    try:
-        with log_path.open('r', encoding='utf-8', errors='ignore') as f:
-            from collections import deque
-            dq = deque(f, maxlen=lines)
-            content = ''.join(dq)
-        return {'file': file, 'content': content}
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to read log file. Check server logs for details.') from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file path"
+        )
 
-@router.post('/backup', tags=['Admin'])
+    if not log_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found"
+        )
+    try:
+        with log_path.open("r", encoding="utf-8", errors="ignore") as f:
+            from collections import deque
+
+            dq = deque(f, maxlen=lines)
+            content = "".join(dq)
+        return {"file": file, "content": content}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to read log file. Check server logs for details.",
+        ) from exc
+
+
+@router.post("/backup", tags=["Admin"])
 async def create_backup() -> dict[str, str]:
     """Create a backup of audit data.
 
@@ -258,22 +342,37 @@ async def create_backup() -> dict[str, str]:
         Dictionary with backup status and filename.
     """
     from resync.core.database.repositories import AuditEntryRepository
-    timestamp = datetime.datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
-    backup_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / 'backup'
+
+    timestamp = datetime.datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    backup_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "backup"
     backup_dir.mkdir(parents=True, exist_ok=True)
     try:
         repo = AuditEntryRepository()
         entries = await repo.get_all(limit=10000)
-        backup_data = [{'id': e.id, 'action': e.action, 'user_id': e.user_id, 'entity_type': e.entity_type, 'entity_id': e.entity_id, 'timestamp': e.timestamp.isoformat() if e.timestamp else None} for e in entries]
-        backup_file = backup_dir / f'audit_backup_{timestamp}.json'
-        async with aiofiles.open(backup_file, 'w') as f:
+        backup_data = [
+            {
+                "id": e.id,
+                "action": e.action,
+                "user_id": e.user_id,
+                "entity_type": e.entity_type,
+                "entity_id": e.entity_id,
+                "timestamp": e.timestamp.isoformat() if e.timestamp else None,
+            }
+            for e in entries
+        ]
+        backup_file = backup_dir / f"audit_backup_{timestamp}.json"
+        async with aiofiles.open(backup_file, "w") as f:
             await f.write(json.dumps(backup_data, indent=2))
-        return {'created': [backup_file.name], 'count': len(backup_data)}
+        return {"created": [backup_file.name], "count": len(backup_data)}
     except Exception as exc:
-        logger.error('backup_failed', exc_info=True, extra={'error': str(exc)})
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Backup failed. Check server logs for details.') from exc
+        logger.error("backup_failed", exc_info=True, extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Backup failed. Check server logs for details.",
+        ) from exc
 
-@router.post('/restore', tags=['Admin'])
+
+@router.post("/restore", tags=["Admin"])
 async def restore_from_latest() -> dict[str, str]:
     """Restore audit data from the most recent backup.
 
@@ -283,16 +382,29 @@ async def restore_from_latest() -> dict[str, str]:
     Returns:
         Dictionary with restore status.
     """
-    backup_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / 'backup'
+    backup_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "backup"
     if not backup_dir.is_dir():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No backup directory found')
-    backups = sorted(backup_dir.glob('audit_backup_*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No backup directory found"
+        )
+    backups = sorted(
+        backup_dir.glob("audit_backup_*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if not backups:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No backup files found')
-    return {'message': 'PostgreSQL restore should be done via pg_restore', 'latest_backup': backups[0].name, 'recommendation': 'Use: pg_restore -d resync backup.dump'}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No backup files found"
+        )
+    return {
+        "message": "PostgreSQL restore should be done via pg_restore",
+        "latest_backup": backups[0].name,
+        "recommendation": "Use: pg_restore -d resync backup.dump",
+    }
 
-@router.get('/audit', tags=['Admin'])
-async def get_audit_logs(limit: int=50) -> dict[str, Any]:
+
+@router.get("/audit", tags=["Admin"])
+async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
     """Return the latest entries from the audit log.
 
     Parameters
@@ -306,16 +418,29 @@ async def get_audit_logs(limit: int=50) -> dict[str, Any]:
         A dictionary containing a list of audit records.
     """
     from resync.core.database.repositories import AuditEntryRepository
+
     try:
         repo = AuditEntryRepository()
-        entries = await repo.get_all(limit=limit, order_by='timestamp', desc=True)
-        records = [{'id': e.id, 'action': e.action, 'user_id': e.user_id, 'entity_type': e.entity_type, 'entity_id': e.entity_id, 'timestamp': e.timestamp.isoformat() if e.timestamp else None, 'metadata': e.metadata_} for e in entries]
-        return {'records': records, 'count': len(records)}
+        entries = await repo.get_all(limit=limit, order_by="timestamp", desc=True)
+        records = [
+            {
+                "id": e.id,
+                "action": e.action,
+                "user_id": e.user_id,
+                "entity_type": e.entity_type,
+                "entity_id": e.entity_id,
+                "timestamp": e.timestamp.isoformat() if e.timestamp else None,
+                "metadata": e.metadata_,
+            }
+            for e in entries
+        ]
+        return {"records": records, "count": len(records)}
     except Exception as exc:
-        logger.error('audit_query_failed', exc_info=True, extra={'error': str(exc)})
-        return {'records': [], 'error': str(exc)}
+        logger.error("audit_query_failed", exc_info=True, extra={"error": str(exc)})
+        return {"records": [], "error": str(exc)}
 
-@router.get('/health', tags=['Admin'])
+
+@router.get("/health", tags=["Admin"])
 async def get_health() -> dict[str, Any]:
     """Return a simple health report for key services.
 

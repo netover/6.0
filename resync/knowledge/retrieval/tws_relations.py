@@ -228,7 +228,9 @@ class TWSRelation:
         safe_table = sanitize_sql_identifier(table_name)
         safe_from = sanitize_sql_identifier(self.from_node)
         safe_to = sanitize_sql_identifier(self.to_node)
-        safe_tenant = sanitize_sql_identifier(self.tenant_id) if self.tenant_id else "default"
+        safe_tenant = (
+            sanitize_sql_identifier(self.tenant_id) if self.tenant_id else "default"
+        )
         safe_rel_type = sanitize_sql_identifier(self.relation_type.value)
 
         props_json = json.dumps(self.properties)
@@ -578,7 +580,9 @@ def get_relation_types_info() -> dict[str, Any]:
 
     return {
         "total_types": len(TWSRelationType),
-        "categories": {cat: [r.value for r in relations] for cat, relations in categories.items()},
+        "categories": {
+            cat: [r.value for r in relations] for cat, relations in categories.items()
+        },
         "all_types": [r.value for r in TWSRelationType],
     }
 

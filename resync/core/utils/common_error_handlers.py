@@ -101,7 +101,7 @@ def retry_on_exception(
     max_retries: int = 3,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: tuple = (Exception,),
+    exceptions: tuple[type[BaseException], ...] | Callable[[], tuple[type[BaseException], ...]] = (Exception,),
     logger: logging.Logger | None = None,
 ) -> Callable[[F], F]:
     """
@@ -139,7 +139,9 @@ def retry_on_exception(
                         return await func(*args, **cleaned_kwargs)
                     except Exception as e:
                         # Resolve lazy exceptions if callable
-                        allowed_exceptions = exceptions() if callable(exceptions) else exceptions
+                        allowed_exceptions = (
+                            exceptions() if callable(exceptions) else exceptions
+                        )
                         if not isinstance(e, allowed_exceptions):
                             raise
 
@@ -172,7 +174,9 @@ def retry_on_exception(
                     return func(*args, **kwargs)
                 except Exception as e:
                     # Resolve lazy exceptions if callable
-                    allowed_exceptions = exceptions() if callable(exceptions) else exceptions
+                    allowed_exceptions = (
+                        exceptions() if callable(exceptions) else exceptions
+                    )
                     if not isinstance(e, allowed_exceptions):
                         raise
 

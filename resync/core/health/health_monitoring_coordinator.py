@@ -48,7 +48,9 @@ class HealthMonitoringCoordinator:
                 return
 
             self._is_monitoring = True
-            self._monitoring_task = await create_tracked_task(self._monitoring_loop(health_check_func), name="monitoring_loop")
+            self._monitoring_task = await create_tracked_task(
+                self._monitoring_loop(health_check_func), name="monitoring_loop"
+            )
             logger.info("health_monitoring_coordinator_started")
 
     async def stop_monitoring(self) -> None:

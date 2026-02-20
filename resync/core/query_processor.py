@@ -189,7 +189,9 @@ class QueryProcessor:
 
         return list(set(entities))  # Remove duplicatas
 
-    def _rank_context(self, query: str, raw_context: str, entities: list[str]) -> list[dict]:
+    def _rank_context(
+        self, query: str, raw_context: str, entities: list[str]
+    ) -> list[dict]:
         """
         Rankeia contexto por relevância.
 
@@ -248,7 +250,9 @@ class QueryProcessor:
         # Retornar top 5
         return ranked[:5]
 
-    def _generate_intent(self, query: str, query_type: QueryType, entities: list[str]) -> str:
+    def _generate_intent(
+        self, query: str, query_type: QueryType, entities: list[str]
+    ) -> str:
         """
         Gera intent resumido.
 
@@ -341,13 +345,17 @@ Use português brasileiro.""",
         }
 
         system_prompt = system_prompts.get(
-            structured.query_type, "Você é um assistente TWS/HWA. Responda de forma clara."
+            structured.query_type,
+            "Você é um assistente TWS/HWA. Responda de forma clara.",
         )
 
         # Contexto rankeado (top 3)
         if structured.ranked_context:
             context_str = "\n\n".join(
-                [f"[Relevância: {c['score']:.1f}]\n{c['content']}" for c in structured.ranked_context[:3]]
+                [
+                    f"[Relevância: {c['score']:.1f}]\n{c['content']}"
+                    for c in structured.ranked_context[:3]
+                ]
             )
         else:
             context_str = ""

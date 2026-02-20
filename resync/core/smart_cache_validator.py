@@ -89,10 +89,7 @@ class CacheValidationStats:
         self.last_reset = datetime.now(timezone.utc)
 
     def record_validation(
-        self,
-        job_name: str,
-        is_valid: bool,
-        changes: dict[str, set] | None = None
+        self, job_name: str, is_valid: bool, changes: dict[str, set] | None = None
     ):
         """Record validation result."""
         self.validations_triggered += 1
@@ -104,12 +101,14 @@ class CacheValidationStats:
             self.cache_invalidations += 1
 
             if changes:
-                self.dependencies_changed.append({
-                    "job_name": job_name,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "added": list(changes.get("added", set())),
-                    "removed": list(changes.get("removed", set())),
-                })
+                self.dependencies_changed.append(
+                    {
+                        "job_name": job_name,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "added": list(changes.get("added", set())),
+                        "removed": list(changes.get("removed", set())),
+                    }
+                )
 
     def get_stats(self) -> dict[str, Any]:
         """Get validation statistics."""
@@ -126,7 +125,7 @@ class CacheValidationStats:
             "cache_invalidations": self.cache_invalidations,
             "accuracy": round(accuracy, 2),
             "dependencies_changed": self.dependencies_changed[-10:],  # Last 10
-            "last_reset": self.last_reset.isoformat()
+            "last_reset": self.last_reset.isoformat(),
         }
 
     def reset_daily_stats(self):
@@ -148,11 +147,7 @@ class SmartCacheValidator:
     """
 
     def __init__(
-        self,
-        tws_client,
-        cache_client,
-        knowledge_graph,
-        discovery_service=None
+        self, tws_client, cache_client, knowledge_graph, discovery_service=None
     ):
         """
         Initialize smart cache validator.
@@ -203,7 +198,9 @@ class SmartCacheValidator:
             # 3. Decide validation level based on age
             if cache_age_days < CacheValidationConfig.TRUST_CACHE_DAYS:
                 # Cache too fresh - trust it
-                logger.debug("Cache for %s is fresh (%sd) - trusting", job_name, cache_age_days)
+                logger.debug(
+                    "Cache for %s is fresh (%sd) - trusting", job_name, cache_age_days
+                )
                 self.stats.record_validation(job_name, is_valid=True)
                 return
 
@@ -211,7 +208,7 @@ class SmartCacheValidator:
             is_valid, changes = await self._validate_dependencies(
                 job_name,
                 cached,
-                full_check=(cache_age_days >= CacheValidationConfig.FULL_VALIDATE_DAYS)
+                full_check=(cache_age_days >= CacheValidationConfig.FULL_VALIDATE_DAYS),
             )
 
             # 5. Record stats
@@ -225,7 +222,9 @@ class SmartCacheValidator:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("Cache validation failed for %s: %s", job_name, e, exc_info=True)
+            logger.error(
+                "Cache validation failed for %s: %s", job_name, e, exc_info=True
+            )
 
     def _should_validate(self, event_details: dict) -> bool:
         """Check if should validate based on event type."""
@@ -285,10 +284,7 @@ class SmartCacheValidator:
             return 999  # Error - treat as old
 
     async def _validate_dependencies(
-        self,
-        job_name: str,
-        cached: dict,
-        full_check: bool = False
+        self, job_name: str, cached: dict, full_check: bool = False
     ) -> tuple[bool, dict[str, set] | None]:
         """
         Validate if dependencies changed.
@@ -316,15 +312,11 @@ class SmartCacheValidator:
             if full_check:
                 # Full check: compare names
                 cached_dep_names = {
-                    dep.get("name")
-                    for dep in cached_deps
-                    if dep.get("name")
+                    dep.get("name") for dep in cached_deps if dep.get("name")
                 }
 
                 current_dep_names = {
-                    pred.get("name")
-                    for pred in current_preds
-                    if pred.get("name")
+                    pred.get("name") for pred in current_preds if pred.get("name")
                 }
 
                 if cached_dep_names != current_dep_names:
@@ -364,26 +356,17 @@ class SmartCacheValidator:
             return True, None  # Assume valid on error
 
     async def _handle_invalid_cache(
-        self,
-        job_name: str,
-        event_details: dict,
-        changes: dict
+        self, job_name: str, event_details: dict, changes: dict
     ):
         """Handle invalid cache - invalidate and optionally rediscover."""
         try:
             # 1. Invalidate cache
             await self._invalidate_cache(job_name)
 
-            logger.info(
-                f"Cache invalidated for {job_name}",
-                changes=changes
-            )
+            logger.info(f"Cache invalidated for {job_name}", changes=changes)
 
             # 2. Trigger re-discovery if enabled
-            if (
-                CacheValidationConfig.AUTO_REDISCOVER
-                and self.discovery
-            ):
+            if CacheValidationConfig.AUTO_REDISCOVER and self.discovery:
                 logger.info("Triggering re-discovery for %s", job_name)
 
                 await create_tracked_task(
@@ -427,10 +410,7 @@ class SmartCacheValidator:
 
 
 def get_cache_validator(
-    tws_client,
-    cache_client,
-    knowledge_graph,
-    discovery_service=None
+    tws_client, cache_client, knowledge_graph, discovery_service=None
 ):
     """
     Factory function to get SmartCacheValidator instance.
@@ -445,8 +425,5 @@ def get_cache_validator(
         SmartCacheValidator instance
     """
     return SmartCacheValidator(
-        tws_client,
-        cache_client,
-        knowledge_graph,
-        discovery_service
+        tws_client, cache_client, knowledge_graph, discovery_service
     )

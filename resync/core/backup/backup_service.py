@@ -91,7 +91,9 @@ class BackupInfo:
             "size_bytes": self.size_bytes,
             "size_human": self.size_human,
             "created_at": self.created_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "duration_seconds": self.duration_seconds,
             "checksum_sha256": self.checksum_sha256,
             "metadata": self.metadata,
@@ -345,7 +347,9 @@ class BackupService:
                 "--no-privileges",
             ]
 
-            logger.info("database_backup_started", backup_id=backup_id, database=db_config.name)
+            logger.info(
+                "database_backup_started", backup_id=backup_id, database=db_config.name
+            )
 
             if compress:
                 # Pipe to gzip
@@ -475,7 +479,9 @@ class BackupService:
 
                     elif full_path.is_dir() and full_path.exists():
                         for file_path in full_path.rglob("*"):
-                            if file_path.is_file() and "__pycache__" not in str(file_path):
+                            if file_path.is_file() and "__pycache__" not in str(
+                                file_path
+                            ):
                                 arcname = str(file_path.relative_to(project_root))
                                 zf.write(file_path, arcname)
                                 files_added.append(arcname)
@@ -669,7 +675,11 @@ class BackupService:
                 if resolved.exists():
                     return resolved
             except Exception as e:
-                logger.warning("backup_filepath_validation_failed", backup_id=backup_id, error=str(e))
+                logger.warning(
+                    "backup_filepath_validation_failed",
+                    backup_id=backup_id,
+                    error=str(e),
+                )
         return None
 
     def delete_backup(self, backup_id: str) -> bool:
@@ -717,7 +727,9 @@ class BackupService:
                 self.delete_backup(backup_id)
                 deleted += 1
 
-        logger.info("backup_cleanup_completed", deleted=deleted, retention_days=retention_days)
+        logger.info(
+            "backup_cleanup_completed", deleted=deleted, retention_days=retention_days
+        )
         return deleted
 
     # =========================================================================
@@ -902,7 +914,9 @@ class BackupService:
 
                         # Update schedule
                         schedule.last_run = now
-                        schedule.next_run = self._calculate_next_run(schedule.cron_expression)
+                        schedule.next_run = self._calculate_next_run(
+                            schedule.cron_expression
+                        )
                         self._save_metadata()
 
                 # Check every minute
@@ -935,7 +949,6 @@ class BackupService:
             "backup_directory": str(self._backup_dir),
         }
 
-
     def create_rag_index_backup(
         self,
         index,
@@ -952,26 +965,29 @@ class BackupService:
             BackupInfo object or None if failed
         """
         from resync.knowledge.retrieval.hybrid_retriever import INDEX_STORAGE_PATH
-        
+
         backup_id = _generate_backup_id()
         timestamp = datetime.now(timezone.utc)
-        
+
         try:
             source_path = INDEX_STORAGE_PATH
-            
+
             if not os.path.exists(source_path):
                 logger.warning("rag_index_backup_source_not_found", path=source_path)
                 return None
-            
-            filename = f"rag_{collection_name}_{timestamp.strftime('%Y%m%d_%H%M%S')}.bin.gz"
+
+            filename = (
+                f"rag_{collection_name}_{timestamp.strftime('%Y%m%d_%H%M%S')}.bin.gz"
+            )
             dest_path = self._backup_dir / filename
-            
+
             import shutil
+
             shutil.copy2(source_path, dest_path)
-            
+
             file_size = os.path.getsize(dest_path)
             file_hash = _calculate_sha256(str(dest_path))
-            
+
             backup = BackupInfo(
                 id=backup_id,
                 type=BackupType.RAG_INDEX,
@@ -986,10 +1002,10 @@ class BackupService:
                     "source_path": source_path,
                 },
             )
-            
+
             self._backups[backup_id] = backup
             self._save_metadata()
-            
+
             logger.info(
                 "rag_index_backup_created",
                 backup_id=backup_id,
@@ -998,7 +1014,7 @@ class BackupService:
             )
 
             return backup
-            
+
         except Exception as e:
             logger.error("rag_index_backup_failed", backup_id=backup_id, error=str(e))
             return None
@@ -1019,27 +1035,28 @@ class BackupService:
             True if successful
         """
         from resync.knowledge.retrieval.hybrid_retriever import INDEX_STORAGE_PATH
-        
+
         backup = self._backups.get(backup_id)
-        
+
         if not backup or backup.type != BackupType.RAG_INDEX:
             logger.error("rag_restore_backup_not_found", backup_id=backup_id)
             return False
-        
+
         try:
             target = target_path or INDEX_STORAGE_PATH
-            
+
             import shutil
+
             shutil.copy2(backup.filepath, target)
-            
+
             logger.info(
                 "rag_index_restored",
                 backup_id=backup_id,
                 target=target,
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error("rag_restore_failed", backup_id=backup_id, error=str(e))
             return False
@@ -1051,10 +1068,7 @@ class BackupService:
         Returns:
             List of RAG backup info objects
         """
-        return [
-            b for b in self._backups.values()
-            if b.type == BackupType.RAG_INDEX
-        ]
+        return [b for b in self._backups.values() if b.type == BackupType.RAG_INDEX]
 
 
 # =============================================================================

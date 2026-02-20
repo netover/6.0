@@ -80,7 +80,9 @@ class LoadMetrics:
             n = len(sorted_latencies)
             self.avg_latency = statistics.mean(sorted_latencies)
             self.p95_latency = sorted_latencies[int(0.95 * n)]
-            self.p99_latency = sorted_latencies[int(0.99 * n)] if n > 2 else sorted_latencies[-1]
+            self.p99_latency = (
+                sorted_latencies[int(0.99 * n)] if n > 2 else sorted_latencies[-1]
+            )
 
     def update_errors(self, is_error: bool) -> None:
         """Update error rate."""
@@ -175,7 +177,9 @@ class AutoScalingManager:
             return
 
         self._stop_monitoring.clear()
-        self._monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+        self._monitor_thread = threading.Thread(
+            target=self._monitoring_loop, daemon=True
+        )
         self._monitor_thread.start()
         self._monitoring_active = True
         logger.info("auto_scaling_monitoring_started")
@@ -248,7 +252,8 @@ class AutoScalingManager:
         # Check scale down conditions
         elif (
             load_score < self.config.scale_down_threshold
-            and current_time - self.last_scale_down_time > self.config.scale_down_cooldown
+            and current_time - self.last_scale_down_time
+            > self.config.scale_down_cooldown
         ):
             self._scale_down()
             self.last_scale_down_time = current_time
@@ -434,7 +439,9 @@ class AdvancedConnectionPoolManager:
 
         if self.smart_pool and pool_type in ["db", "redis", "http"]:
             # Use smart pooling for critical connections
-            async with self.smart_pool.get_connection(f"{pool_type}_{connection_id}") as conn:
+            async with self.smart_pool.get_connection(
+                f"{pool_type}_{connection_id}"
+            ) as conn:
                 yield conn
         else:
             # Fall back to traditional pooling

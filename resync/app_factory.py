@@ -195,9 +195,7 @@ class ApplicationFactory:
 
             # JWT secret key
             secret = (
-                settings.secret_key.get_secret_value()
-                if settings.secret_key
-                else ""
+                settings.secret_key.get_secret_value() if settings.secret_key else ""
             )
             if (
                 not secret
@@ -600,7 +598,9 @@ class ApplicationFactory:
             ]
 
             # Register unified monitoring routes (with admin auth)
-            from resync.api.routes.core.auth import verify_admin_credentials as _verify_admin
+            from resync.api.routes.core.auth import (
+                verify_admin_credentials as _verify_admin,
+            )
 
             unified_monitoring_routers = [
                 (ai_monitoring_router, "/api/v1/monitoring", ["Monitoring - AI"]),

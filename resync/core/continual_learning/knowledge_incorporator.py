@@ -208,10 +208,10 @@ class KnowledgeIncorporator:
         # Padrões TWS comuns
         patterns = [
             r"JOB[_\s]?\w+",  # Job names
-            r"AWSB\w+\d+",    # Error codes AWSB
-            r"EQQQ\w+\d+",    # Error codes EQQQ
-            r"ABEND\s*\w*",   # ABEND codes
-            r"RC\s*=?\s*\d+", # Return codes
+            r"AWSB\w+\d+",  # Error codes AWSB
+            r"EQQQ\w+\d+",  # Error codes EQQQ
+            r"ABEND\s*\w*",  # ABEND codes
+            r"RC\s*=?\s*\d+",  # Return codes
             r"STATUS\s*\w+",  # Status keywords
         ]
 
@@ -260,10 +260,12 @@ class KnowledgeIncorporator:
                 results["success"] += 1
             except Exception as e:
                 results["failed"] += 1
-                results["errors"].append({
-                    "feedback_id": fb.get("feedback_id"),
-                    "error": str(e),
-                })
+                results["errors"].append(
+                    {
+                        "feedback_id": fb.get("feedback_id"),
+                        "error": str(e),
+                    }
+                )
                 logger.error(
                     "batch_incorporate_error",
                     feedback_id=fb.get("feedback_id"),

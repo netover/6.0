@@ -48,7 +48,9 @@ class CachePerformanceMetrics:
 
         # Memory efficiency: prefer caches that use memory effectively
         memory_score = (
-            20 if self.memory_usage_mb < 50 else max(0, 20 - (self.memory_usage_mb - 50) / 5)
+            20
+            if self.memory_usage_mb < 50
+            else max(0, 20 - (self.memory_usage_mb - 50) / 5)
         )
 
         return hit_score + eviction_score + memory_score
@@ -89,7 +91,9 @@ class ConnectionPoolMetrics:
         wait_time_score = max(0, 30 - (self.average_wait_time_ms / 10))
 
         total_requests = self.pool_hits + self.pool_misses
-        error_rate = self.connection_errors / total_requests if total_requests > 0 else 0
+        error_rate = (
+            self.connection_errors / total_requests if total_requests > 0 else 0
+        )
         error_score = max(0, (1 - error_rate) * 30)
 
         return utilization_score + wait_time_score + error_score
@@ -134,7 +138,9 @@ class CachePerformanceMonitor:
             miss_rate = total_misses / total_requests if total_requests > 0 else 0.0
 
             avg_access_time = (
-                sum(self.access_times) / len(self.access_times) if self.access_times else 0.0
+                sum(self.access_times) / len(self.access_times)
+                if self.access_times
+                else 0.0
             )
 
             metrics = CachePerformanceMetrics(
@@ -210,7 +216,9 @@ class ConnectionPoolOptimizer:
         self._lock = asyncio.Lock()
         self.last_optimization = datetime.now(timezone.utc)
 
-    async def record_connection_acquisition(self, wait_time_ms: float, success: bool) -> None:
+    async def record_connection_acquisition(
+        self, wait_time_ms: float, success: bool
+    ) -> None:
         """Record a connection acquisition attempt."""
         async with self._lock:
             if success:
@@ -220,7 +228,9 @@ class ConnectionPoolOptimizer:
                     {"pool_name": self.pool_name},
                 )
 
-    async def get_current_metrics(self, pool_stats: dict[str, Any]) -> ConnectionPoolMetrics:
+    async def get_current_metrics(
+        self, pool_stats: dict[str, Any]
+    ) -> ConnectionPoolMetrics:
         """Get current connection pool metrics."""
         async with self._lock:
             metrics = ConnectionPoolMetrics(
@@ -240,7 +250,9 @@ class ConnectionPoolOptimizer:
             self.metrics_history.append(metrics)
             return metrics
 
-    def suggest_pool_size(self, current_metrics: ConnectionPoolMetrics) -> tuple[int, int]:
+    def suggest_pool_size(
+        self, current_metrics: ConnectionPoolMetrics
+    ) -> tuple[int, int]:
         """
         Suggest optimal min and max pool sizes based on metrics.
 
@@ -316,7 +328,9 @@ class ConnectionPoolOptimizer:
         # Suggest optimal sizes
         suggested_min, suggested_max = self.suggest_pool_size(current_metrics)
         if suggested_max != current_metrics.total_connections:
-            recommendations.append(f"Suggested pool size: min={suggested_min}, max={suggested_max}")
+            recommendations.append(
+                f"Suggested pool size: min={suggested_min}, max={suggested_max}"
+            )
 
         if not recommendations:
             recommendations.append("Connection pool performance is optimal.")
@@ -356,7 +370,10 @@ class ResourceManager:
 
                 # Calculate resource lifetime
                 if resource_id in self.resource_creation_times:
-                    lifetime = datetime.now(timezone.utc) - self.resource_creation_times[resource_id]
+                    lifetime = (
+                        datetime.now(timezone.utc)
+                        - self.resource_creation_times[resource_id]
+                    )
                     del self.resource_creation_times[resource_id]
 
                     logger.debug(
@@ -488,7 +505,9 @@ class PerformanceOptimizationService:
 
         # Determine overall health
         cache_issues = sum(
-            1 for cache_data in report["caches"].values() if len(cache_data["recommendations"]) > 1
+            1
+            for cache_data in report["caches"].values()
+            if len(cache_data["recommendations"]) > 1
         )
 
         if cache_issues > 0 or len(report["resources"]["potential_leaks"]) > 0:

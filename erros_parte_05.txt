@@ -1,0 +1,1103 @@
+if not token:
+if not tool:
+if not user:
+if not v:
+if output_schema and isinstance(result, dict):
+if pool_health.get("error_rate", 0) > 0.05:
+if pool_health.get("error_rate", 0) > 0.1:
+if pool_health.get("utilization", 0) > 0.9:
+if pool_manager:
+if pool_manager:
+if progress is not None:
+if requires_approval:
+if response.status == 200:
+if roles_claim is None:
+if roles_claim is None:
+if self._initialized:
+if self._initialized:
+if self._metrics.successful_requests > 0
+if self._monitoring_task:
+if self._monitoring_task:
+if self._store is not None:
+if start_date and v and v < start_date:
+if status == ToolRunStatus.IN_PROGRESS and run.started_at is None:
+if sys.platform == "win32":
+if tags:
+if tool.permission not in allowed_permissions:
+if trace.user_role:
+if user.locked_until and user.locked_until > datetime.now(timezone.utc): (duplicate-code)
+if user_role:
+if user_role_str:
+if username != admin_user:
+if username != admin_user:
+if username is None:
+if v is None:
+if value is None:
+image: redis:7-alpine
+import asyncpg
+import psutil
+import tiktoken
+import toml
+improved_accuracy: float
+improvement_pct: float
+input_params=dict(kwargs),
+input_schema,
+input_schema: Pydantic model for input validation
+input_schema: type[BaseModel] | None = None
+input_schema: type[BaseModel] | None = None,
+input_schema: type[BaseModel] | None,
+input_schema=input_schema,
+instance_id: str | None = None,
+instance_name=instance_name, (duplicate-code)
+intent=result.intent,
+interval: 10s
+ip_address=ip_address,
+is_positive=is_positive, (duplicate-code)
+issues_found=len(results["issues_detected"]),
+jitter=True,
+jitter=True, (duplicate-code)
+job_id=job_id,
+job_name: str
+job_name: str = Field(..., min_length=1, max_length=100)
+job_name: str = Field(..., min_length=1, max_length=100, description="Job name")
+job_name=job_name,
+job_pattern: str | None = None
+kwargs = validated.model_dump()
+kwargs,
+kwargs: dict,
+last_check=datetime.now(timezone.utc),
+last_check=datetime.now(timezone.utc),
+last_check=datetime.now(timezone.utc),
+last_check=datetime.now(timezone.utc), (duplicate-code)
+last_failure = cb_status.get("last_failure")
+latency_ms: float
+le=19,
+legacy_role = payload.get("role")
+legacy_role = payload.get("role")
+llm_errors: int = 0
+llm_requests: int = 0
+llm_tokens_used: int = 0
+log_excerpt: list[str] = Field(default_factory=list)
+logger = get_logger(__name__)
+logger = get_logger(__name__)
+logger = get_logger(__name__)
+logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
+logger = structlog.get_logger(__name__)
+logger.debug(
+logger.debug(
+logger.debug("Falha ao obter uptime global do Redis")
+logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
+logger.error(
+logger.error(
+logger.error( (duplicate-code)
+logger.error("Failed to initialize LLM service: %s", exc, exc_info=True)
+logger.error("Failed to list backups: %s", e, exc_info=True)
+logger.error("Failed to restore backup: %s", e, exc_info=True)
+logger.error("exception_caught", error=str(e), exc_info=True)
+logger.error("exception_caught", error=str(e), exc_info=True)
+logger.error("proactive_health_checks_failed", error=str(e))
+logger.error("scheduler_error", error=str(e))
+logger.info(
+logger.info(
+logger.info(
+logger.info(
+logger.info( (duplicate-code)
+logger.info("LLM base URL: %s", base_url)
+logger.info("LLM service initialized with model: %s", self.model)
+logger.info("No LLM API key configured")
+logger.info("Using LLM API key: %s", masked)
+logger.warning(
+logger.warning("Output validation warning: %s", e)
+logger.warning("connection_pool_health_check_failed", error=str(e))
+matches = re.findall(pattern, text, re.IGNORECASE) (duplicate-code)
+max_cpu_percent: float = Field(
+max_delay=float(os.getenv("LLM_RETRY_MAX_DELAY", "8.0")),
+max_delay=self.config.retry_max_delay,
+max_execution_time_seconds: int = Field(
+max_lines: int = Field(100, ge=1, le=10000, description="Maximum log lines")
+max_memory_mb: int = Field(
+max_retries=0,
+max_retries=int(os.getenv("LLM_MAX_RETRIES", "2")),
+max_retries=max_retries,
+max_retries=self.config.max_retries,
+max_tokens: int = Field(
+message="Failed to initialize LLM service",
+message="Missing LLM base_url",
+message="No LLM model configured",
+message="Redis connectivity test successful",
+message="openai package is required but not installed",
+message=f"Redis connectivity failed: {str(e)}",
+message=message,
+message=message,
+message=message,
+message=message,
+message=message, (duplicate-code)
+message=message, (duplicate-code)
+metadata={
+metadata={ (duplicate-code)
+metrics = await advanced_manager.get_performance_metrics()
+metrics = await advanced_manager.get_performance_metrics()
+metrics = await advanced_manager.get_performance_metrics()
+min_length=1, max_length=100, strip_whitespace=True
+min_length=1, max_length=200, strip_whitespace=True
+model = getattr(settings, "agent_model_name", None)
+model = getattr(settings, "llm_model", None)
+model_config = ConfigDict(
+model_config = ConfigDict(
+model_name: str = Field(default="gpt-4o", description="LLM model to use")
+name: str
+name="llm",
+name=func.__name__,
+name=self.component_name,
+name=self.component_name,
+name=self.component_name,
+name=self.component_name,
+name=self.component_name,
+name=self.component_name,
+name=self.component_name,
+name=self.component_name,
+new_collect = """async def collect_metrics_sample() -> None:
+new_value=new_value,
+nice_level: int = Field(
+now = time.time()
+now_wall = time.time()
+old_value=old_value,
+or os.getenv("LLM_MAX_CONCURRENCY", "8")
+output_schema,
+output_schema: Pydantic model for output validation
+output_schema: type[BaseModel] | None = None
+output_schema: type[BaseModel] | None = None,
+output_schema: type[BaseModel] | None,
+output_schema=output_schema,
+pass
+pass
+password = getattr(settings, "db_password", None) or os.getenv("DB_PASSWORD", "")
+password: Plain text password
+password: str,
+password_valid = secrets.compare_digest(
+pattern_id: str
+pattern_type: str
+payload = decode_token(token)
+permission,
+permission: Required permission level
+permission: ToolPermission = ToolPermission.READ_ONLY
+permission: ToolPermission = ToolPermission.READ_ONLY,
+permission: ToolPermission,
+permission=permission,
+permission=tool_def.permission.value,
+permission_required=permission,
+pool_health = await self._check_connection_pool_health()
+pool_health = await self._check_connection_pool_health()
+pool_manager = get_connection_pool_manager()
+pool_manager = get_connection_pool_manager()
+pool_manager = get_connection_pool_manager()
+port = getattr(settings, "db_port", None) or os.getenv("DB_PORT", "5432")
+ports:
+progress: float = 0.0  # 0.0 to 1.0 (100%) (duplicate-code)
+proposed_prompt: str
+provided_password_hash, expected_password_hash
+provided_username_hash, expected_username_hash
+query: str
+query: str = Field(..., min_length=1, max_length=2000)
+query: str,
+query_text=query_text,
+r"semana passada|última semana": lambda: (
+r"últimas? (\d+) horas?": lambda m: (
+r"últimos? (\d+) dias?": lambda m: (
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise (duplicate-code)
+raise ApprovalRequiredError(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException(
+raise HTTPException( (duplicate-code)
+raise HTTPException( (duplicate-code)
+raise HTTPException( (duplicate-code)
+raise IntegrationError(
+raise IntegrationError(
+raise IntegrationError(
+raise IntegrationError(
+raise IntegrationError( (duplicate-code)
+raise PermissionError(reason)
+raise ValueError("End date must be after start date")
+raise ValueError(trace.error) from e
+rate_limit: Max calls per minute
+rate_limit: int | None = None  # calls per minute
+rate_limit: int | None = None,
+rate_limit=rate_limit,
+rating=rating,
+rationale: str
+raw = await redis.get(REDIS_KEY_START_TIME)
+raw_msg = str(error)
+recovery_actions=len(results["recovery_actions"]),
+recovery_timeout=int(os.getenv("LLM_CB_RECOVERY_TIMEOUT", "60")),
+redis = get_redis_client()
+redis = get_redis_client()
+redis:
+regressions_detected: list[str] (duplicate-code)
+relation_type TEXT NOT NULL,
+request: ApprovalRequest,
+requests_per_sec: float = 0.0
+requests_total: int = 0
+requires_approval,
+requires_approval: Whether HITL approval is needed
+requires_approval: bool = False
+requires_approval: bool = False,
+requires_approval: bool,
+requires_approval=requires_approval,
+resource.close()
+response_text=response_text,
+response_time = (time.time() - start_time) * 1000
+response_time_avg: float = 0.0
+response_time_ms=response_time,
+response_time_ms=response_time,
+response_time_ms=response_time,
+response_time_ms=response_time_ms(start_time),
+response_time_p50: float = 0.0
+response_time_p95: float = 0.0
+responses = await asyncio.gather(*tasks, return_exceptions=True)
+restart: unless-stopped
+result = []
+result = await conn.execute("SELECT 1")
+result = await enricher.enrich_query(query, instance_id)
+result = await response.json()
+result = await workflow.ainvoke(initial_state, config=config)
+result = func(*args, **kwargs)
+result = output_schema(**result).model_dump()
+result.append( (duplicate-code)
+results = {
+results = {}
+results: list[dict[str, Any]]
+results["checks_performed"].append("circuit_breakers")
+results["checks_performed"].append("connection_pools")
+results["error"] = str(e)
+results["issues_detected"].append(
+results["issues_detected"].append(
+results["issues_detected"].append(
+results["performance_insights"]["baseline_comparison"] = baseline_comparison
+results["performance_insights"]["circuit_breakers"] = circuit_health
+results["performance_insights"]["connection_pools"] = pool_health
+results[name] = {
+results[name] = {
+results[name] = {"error": str(e)}
+results[name] = {"error": str(e)} (duplicate-code)
+resync\api\__init__.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\__init__.py:36:4: C0415: Import outside toplevel (resync.app_factory.ApplicationFactory) (import-outside-toplevel)
+resync\api\__init__.py:39:11: E1101: Instance of 'ApplicationFactory' has no 'create_app' member (no-member)
+resync\api\agent_evolution_api.py:203:23: W0613: Unused argument 'agent_name' (unused-argument)
+resync\api\agent_evolution_api.py:226:8: C0415: Import outside toplevel (json) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:227:8: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:227:8: W0404: Reimport 'Path' (imported line 21) (reimported)
+resync\api\agent_evolution_api.py:227:8: W0621: Redefining name 'Path' from outer scope (line 21) (redefined-outer-name)
+resync\api\agent_evolution_api.py:238:23: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\agent_evolution_api.py:26:0: C0411: third party import "pydantic.BaseModel" should be placed before first party import "resync.api.routes.core.auth.verify_admin_credentials"  (wrong-import-order)
+resync\api\agent_evolution_api.py:279:0: C0301: Line too long (117/100) (line-too-long)
+resync\api\agent_evolution_api.py:280:0: C0301: Line too long (108/100) (line-too-long)
+resync\api\agent_evolution_api.py:288:8: C0415: Import outside toplevel (json) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:28:0: C0412: Imports from package resync are not grouped (ungrouped-imports)
+resync\api\agent_evolution_api.py:304:23: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\agent_evolution_api.py:34:0: C0411: third party import "pydantic.ConfigDict" should be placed before first party imports "resync.api.routes.core.auth.verify_admin_credentials", "resync.core.agent_evolution.AgentFeedbackCollector"  (wrong-import-order)
+resync\api\agent_evolution_api.py:34:0: C0412: Imports from package pydantic are not grouped (ungrouped-imports)
+resync\api\agent_evolution_api.py:35:0: C0411: third party import "aiofiles" should be placed before first party imports "resync.api.routes.core.auth.verify_admin_credentials", "resync.core.agent_evolution.AgentFeedbackCollector"  (wrong-import-order)
+resync\api\agent_evolution_api.py:517:0: R0914: Too many local variables (19/15) (too-many-locals)
+resync\api\agent_evolution_api.py:536:8: C0415: Import outside toplevel (json) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:537:8: C0415: Import outside toplevel (datetime.datetime, datetime.timedelta) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:537:8: W0404: Reimport 'datetime' (imported line 20) (reimported)
+resync\api\agent_evolution_api.py:537:8: W0621: Redefining name 'datetime' from outer scope (line 20) (redefined-outer-name)
+resync\api\agent_evolution_api.py:538:8: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:538:8: W0404: Reimport 'Path' (imported line 21) (reimported)
+resync\api\agent_evolution_api.py:538:8: W0621: Redefining name 'Path' from outer scope (line 21) (redefined-outer-name)
+resync\api\agent_evolution_api.py:566:23: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\agent_evolution_api.py:607:4: C0415: Import outside toplevel (json) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:608:4: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\agent_evolution_api.py:608:4: W0404: Reimport 'Path' (imported line 21) (reimported)
+resync\api\agent_evolution_api.py:608:4: W0621: Redefining name 'Path' from outer scope (line 21) (redefined-outer-name)
+resync\api\agent_evolution_api.py:628:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\agents.py:19:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\agents.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\agents.py:48:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\auth\repository.py:100:0: C0103: Constant name "_instance" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\auth\repository.py:105:4: W0603: Using the global statement (global-statement)
+resync\api\auth\service.py:139:12: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\auth\service.py:145:12: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\auth\service.py:151:12: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\auth\service.py:187:8: C0415: Import outside toplevel (resync.core.jwt_utils.jwt) (import-outside-toplevel)
+resync\api\auth\service.py:220:12: C0415: Import outside toplevel (resync.core.jwt_utils.JWTError, resync.core.jwt_utils.jwt) (import-outside-toplevel)
+resync\api\auth\service.py:371:0: C0103: Constant name "_auth_service" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\auth\service.py:377:4: W0603: Using the global statement (global-statement)
+resync\api\auth\service.py:387:4: W0603: Using the global statement (global-statement)
+resync\api\auth\service.py:66:12: C0415: Import outside toplevel (passlib.context.CryptContext) (import-outside-toplevel)
+resync\api\auth_legacy.py:37:4: C0415: Import outside toplevel (os) (import-outside-toplevel)
+resync\api\auth_legacy.py:39:4: C0415: Import outside toplevel (resync.settings.settings) (import-outside-toplevel)
+resync\api\auth_legacy.py:39:4: W0404: Reimport 'settings' (imported line 23) (reimported)
+resync\api\auth_legacy.py:39:4: W0621: Redefining name 'settings' from outer scope (line 23) (redefined-outer-name)
+resync\api\auth_legacy.py:59:4: C0415: Import outside toplevel (logging) (import-outside-toplevel)
+resync\api\auth_legacy.py:72:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\chat.py:148:4: C0415: Import outside toplevel (resync.core.context_store.ContextStore) (import-outside-toplevel)
+resync\api\chat.py:185:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\chat.py:22:0: C0411: third party import "structlog" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\chat.py:23:0: C0411: standard import "weakref" should be placed before third party import "structlog" and first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\chat.py:24:0: C0411: standard import "typing.Any" should be placed before third party import "structlog" and first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\chat.py:251:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\chat.py:261:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\chat.py:26:0: C0411: third party import "fastapi.APIRouter" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\chat.py:28:0: C0412: Imports from package resync are not grouped (ungrouped-imports)
+resync\api\chat.py:293:8: W0719: Raising too general exception: Exception (broad-exception-raised)
+resync\api\chat.py:351:8: C0415: Import outside toplevel (resync.api.auth.service.get_auth_service) (import-outside-toplevel)
+resync\api\chat.py:357:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\chat.py:369:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\chat.py:374:7: W0125: Using a conditional statement with a constant value (using-constant-test)
+resync\api\chat.py:382:8: W0612: Unused variable 'agent' (unused-variable)
+resync\api\chat.py:385:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\chat.py:394:11: E0701: Bad except clauses order (Exception is an ancestor class of AgentExecutionError) (bad-except-order)
+resync\api\chat.py:394:11: E0701: Bad except clauses order (Exception is an ancestor class of LLMError) (bad-except-order)
+resync\api\chat.py:394:11: E0701: Bad except clauses order (Exception is an ancestor class of ToolExecutionError) (bad-except-order)
+resync\api\chat.py:409:11: W0705: Catching previously caught exception type Exception (duplicate-except)
+resync\api\chat.py:426:11: W0125: Using a conditional statement with a constant value (using-constant-test)
+resync\api\chat.py:53:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+resync\api\chat.py:88:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\chat.py:90:11: E0701: Bad except clauses order (Exception is an ancestor class of RuntimeError) (bad-except-order)
+resync\api\chat.py:93:11: E0701: Bad except clauses order (Exception is an ancestor class of ConnectionError) (bad-except-order)
+resync\api\chat.py:95:11: W0705: Catching previously caught exception type Exception (duplicate-except)
+resync\api\core\security.py:104:4: C0415: Import outside toplevel (fastapi.Depends, fastapi.HTTPException, fastapi.status) (import-outside-toplevel)
+resync\api\core\security.py:104:4: W0404: Reimport 'Depends' (imported line 5) (reimported)
+resync\api\core\security.py:104:4: W0621: Redefining name 'Depends' from outer scope (line 5) (redefined-outer-name)
+resync\api\core\security.py:120:4: C0415: Import outside toplevel (fastapi.HTTPException, fastapi.status) (import-outside-toplevel)
+resync\api\core\security.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\core\security.py:23:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\core\security.py:4:0: C0411: standard import "logging" should be placed before third party import "bcrypt" (wrong-import-order)
+resync\api\core\security.py:88:4: C0415: Import outside toplevel (fastapi.Depends, fastapi.HTTPException, fastapi.status) (import-outside-toplevel)
+resync\api\core\security.py:88:4: W0404: Reimport 'Depends' (imported line 5) (reimported)
+resync\api\core\security.py:88:4: W0621: Redefining name 'Depends' from outer scope (line 5) (redefined-outer-name)
+resync\api\dependencies.py:125:4: C0415: Import outside toplevel (resync.core.context.get_correlation_id) (import-outside-toplevel)
+resync\api\dependencies.py:132:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\dependencies.py:163:8: C0415: Import outside toplevel (resync.api.core.security.verify_token) (import-outside-toplevel)
+resync\api\dependencies.py:39:4: C0415: Import outside toplevel (resync.core.types.app_state.enterprise_state_from_request) (import-outside-toplevel)
+resync\api\dependencies.py:88:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\dependencies_v2.py:100:0: C0103: Constant name "_feedback_store" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:122:4: W0603: Using the global statement (global-statement)
+resync\api\dependencies_v2.py:140:4: W0603: Using the global statement (global-statement)
+resync\api\dependencies_v2.py:155:4: W0603: Using the global statement (global-statement)
+resync\api\dependencies_v2.py:170:4: W0603: Using the global statement (global-statement)
+resync\api\dependencies_v2.py:189:4: W0603: Using the global statement (global-statement)
+resync\api\dependencies_v2.py:195:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\dependencies_v2.py:47:8: C0415: Import outside toplevel (resync.api.routes.core.auth.verify_admin_credentials) (import-outside-toplevel)
+resync\api\dependencies_v2.py:62:0: C0103: Constant name "_tws_store_lock" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:63:0: C0103: Constant name "_context_store_lock" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:64:0: C0103: Constant name "_metrics_store_lock" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:65:0: C0103: Constant name "_feedback_store_lock" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:70:4: W0603: Using the global statement (global-statement)
+resync\api\dependencies_v2.py:97:0: C0103: Constant name "_tws_store" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:98:0: C0103: Constant name "_context_store" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\dependencies_v2.py:99:0: C0103: Constant name "_metrics_store" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\document_kg_admin.py:24:0: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\document_kg_admin.py:31:0: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\document_kg_admin.py:40:0: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\enhanced_endpoints.py:163:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\enhanced_endpoints.py:254:8: C0415: Import outside toplevel (asyncio) (import-outside-toplevel)
+resync\api\enhanced_endpoints.py:40:4: C0415: Import outside toplevel (resync.core.factories.tws_factory.get_tws_client_singleton) (import-outside-toplevel)
+resync\api\graphrag_admin.py:122:4: C0415: Import outside toplevel (resync.core.graphrag_integration.get_graphrag_integration) (import-outside-toplevel)
+resync\api\graphrag_admin.py:141:16: W0212: Access to a protected member _discover_and_store of a client class (protected-access)
+resync\api\graphrag_admin.py:175:4: C0415: Import outside toplevel (resync.core.graphrag_integration.get_graphrag_integration) (import-outside-toplevel)
+resync\api\graphrag_admin.py:205:4: C0415: Import outside toplevel (resync.core.event_driven_discovery.DiscoveryConfig) (import-outside-toplevel)
+resync\api\graphrag_admin.py:206:4: C0415: Import outside toplevel (resync.core.smart_cache_validator.CacheValidationConfig) (import-outside-toplevel)
+resync\api\graphrag_admin.py:245:0: R0912: Too many branches (16/12) (too-many-branches)
+resync\api\graphrag_admin.py:245:0: R0915: Too many statements (58/50) (too-many-statements)
+resync\api\graphrag_admin.py:260:4: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\graphrag_admin.py:262:4: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\graphrag_admin.py:263:4: C0415: Import outside toplevel (resync.core.event_driven_discovery.DiscoveryConfig) (import-outside-toplevel)
+resync\api\graphrag_admin.py:264:4: C0415: Import outside toplevel (resync.core.smart_cache_validator.CacheValidationConfig) (import-outside-toplevel)
+resync\api\graphrag_admin.py:44:4: C0415: Import outside toplevel (resync.core.graphrag_integration.get_graphrag_integration) (import-outside-toplevel)
+resync\api\graphrag_admin.py:81:4: C0415: Import outside toplevel (resync.core.graphrag_integration.get_graphrag_integration) (import-outside-toplevel)
+resync\api\middleware\__init__.py:23:7: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\__init__.py:24:4: C0103: Constant name "RedisHealthMiddleware" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\middleware\__init__.py:25:4: C0103: Constant name "RedisValidationMiddleware" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\middleware\compression.py:41:8: C0415: Import outside toplevel (resync.settings.settings) (import-outside-toplevel)
+resync\api\middleware\correlation_id.py:106:0: C0301: Line too long (105/100) (line-too-long)
+resync\api\middleware\correlation_id.py:107:24: C0415: Import outside toplevel (jwt) (import-outside-toplevel)
+resync\api\middleware\correlation_id.py:110:0: C0301: Line too long (105/100) (line-too-long)
+resync\api\middleware\correlation_id.py:116:27: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\correlation_id.py:119:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\correlation_id.py:144:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\correlation_id.py:148:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\correlation_id.py:152:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\correlation_id.py:56:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\correlation_id.py:63:4: R0914: Too many local variables (20/15) (too-many-locals)
+resync\api\middleware\correlation_id.py:63:4: R0915: Too many statements (55/50) (too-many-statements)
+resync\api\middleware\cors_config.py:141:0: C0301: Line too long (117/100) (line-too-long)
+resync\api\middleware\cors_config.py:155:4: R0911: Too many return statements (10/6) (too-many-return-statements)
+resync\api\middleware\cors_config.py:169:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\cors_config.py:195:0: C0301: Line too long (137/100) (line-too-long)
+resync\api\middleware\cors_config.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\middleware\cors_config.py:43:0: C0301: Line too long (114/100) (line-too-long)
+resync\api\middleware\cors_config.py:95:0: C0301: Line too long (104/100) (line-too-long)
+resync\api\middleware\cors_config.py:99:0: C0301: Line too long (122/100) (line-too-long)
+resync\api\middleware\cors_middleware.py:39:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\middleware\cors_middleware.py:46:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\cors_middleware.py:49:4: R0913: Too many arguments (10/5) (too-many-arguments)
+resync\api\middleware\cors_middleware.py:49:4: R0917: Too many positional arguments (10/5) (too-many-positional-arguments)
+resync\api\middleware\cors_monitoring.py:195:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\cors_monitoring.py:234:0: C0301: Line too long (114/100) (line-too-long)
+resync\api\middleware\cors_monitoring.py:251:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\cors_monitoring.py:73:4: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\middleware\cors_monitoring.py:73:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\middleware\csp_middleware.py:15:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\csp_middleware.py:181:16: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\middleware\csp_middleware.py:191:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\csp_middleware.py:196:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\csp_middleware.py:214:4: C0415: Import outside toplevel (resync.settings.settings) (import-outside-toplevel)
+resync\api\middleware\csp_middleware.py:96:8: C0415: Import outside toplevel (resync.settings.settings) (import-outside-toplevel)
+resync\api\middleware\csrf_protection.py:12:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\csrf_protection.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\middleware\database_security_middleware.py:159:20: W0212: Access to a protected member _body_cache of a client class (protected-access)
+resync\api\middleware\database_security_middleware.py:168:20: W0212: Access to a protected member _body_cache of a client class (protected-access)
+resync\api\middleware\database_security_middleware.py:171:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\database_security_middleware.py:213:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\database_security_middleware.py:239:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\database_security_middleware.py:35:0: C0301: Line too long (102/100) (line-too-long)
+resync\api\middleware\database_security_middleware.py:36:0: C0301: Line too long (106/100) (line-too-long)
+resync\api\middleware\database_security_middleware.py:61:8: C0415: Import outside toplevel (re) (import-outside-toplevel)
+resync\api\middleware\error_handler.py:107:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\middleware\error_handler.py:141:4: C0415: Import outside toplevel (fastapi.HTTPException) (import-outside-toplevel)
+resync\api\middleware\error_handler.py:152:4: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\middleware\error_handler.py:182:4: C0415: Import outside toplevel (fastapi.HTTPException) (import-outside-toplevel)
+resync\api\middleware\error_handler.py:183:4: C0415: Import outside toplevel (resync.core.exceptions.ResyncException) (import-outside-toplevel)
+resync\api\middleware\error_handler.py:183:4: W0404: Reimport 'ResyncException' (imported line 11) (reimported)
+resync\api\middleware\error_handler.py:183:4: W0621: Redefining name 'ResyncException' from outer scope (line 11) (redefined-outer-name)
+resync\api\middleware\error_handler.py:223:12: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\middleware\error_handler.py:24:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\error_handler.py:41:16: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\middleware\error_handler.py:42:0: C0301: Line too long (110/100) (line-too-long)
+resync\api\middleware\error_handler.py:54:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\error_handler.py:69:12: C0415: Import outside toplevel (resync.core.metrics.runtime_metrics) (import-outside-toplevel)
+resync\api\middleware\idempotency.py:143:16: W0212: Access to a protected member _receive of a client class (protected-access)
+resync\api\middleware\idempotency.py:312:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\idempotency.py:33:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\idempotency.py:386:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\idempotency.py:42:4: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\middleware\idempotency.py:42:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\middleware\idempotency.py:430:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\middleware\idempotency.py:465:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+resync\api\middleware\idempotency.py:501:24: W0613: Unused argument 'scope' (unused-argument)
+resync\api\middleware\idempotency.py:501:31: W0613: Unused argument 'receive' (unused-argument)
+resync\api\middleware\idempotency.py:501:40: W0613: Unused argument 'send' (unused-argument)
+resync\api\middleware\idempotency.py:528:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\middleware\idempotency.py:543:4: C0415: Import outside toplevel (re) (import-outside-toplevel)
+resync\api\middleware\idempotency.py:79:4: R0912: Too many branches (13/12) (too-many-branches)
+resync\api\middleware\redis_validation.py:197:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\redis_validation.py:29:0: C0103: Constant name "_redis_strategy" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\middleware\redis_validation.py:34:4: W0603: Using the global statement (global-statement)
+resync\api\middleware\redis_validation.py:36:8: C0415: Import outside toplevel (resync.core.redis_strategy.get_redis_strategy) (import-outside-toplevel)
+resync\api\middleware\redis_validation.py:69:4: R0914: Too many local variables (19/15) (too-many-locals)
+resync\api\middleware\redis_validation.py:83:8: C0415: Import outside toplevel (resync.core.redis_strategy.RedisTier) (import-outside-toplevel)
+resync\api\middleware\security_headers.py:24:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\middleware\security_headers.py:36:4: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\middleware\security_headers.py:36:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\models\__init__.py:58:0: C0411: first party import "resync.core.database.models.AdminUser" should be placed before local imports "agents.AgentConfig", "auth.LoginRequest", "base.BaseModelWithTime", "health.SystemMetric", "rag.RAGFileCreate", "responses.HealthCheckResponse" (wrong-import-order)
+resync\api\models\health.py:3:0: E0611: No name 'SystemHealthStatus' in module 'resync.core.health' (no-name-in-module)
+resync\api\models\links.py:153:4: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\models\links.py:153:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\models\links.py:90:4: R0913: Too many arguments (7/5) (too-many-arguments)
+resync\api\models\links.py:90:4: R0917: Too many positional arguments (7/5) (too-many-positional-arguments)
+resync\api\models\links.py:96:8: W0622: Redefining built-in 'type' (redefined-builtin)
+resync\api\models\requests.py:101:8: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\models\responses.py:190:0: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\models\responses.py:190:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\models\responses.py:195:4: W0613: Unused argument 'base_path' (unused-argument)
+resync\api\models\responses.py:196:4: W0613: Unused argument 'query_params' (unused-argument)
+resync\api\models\responses.py:206:0: C0301: Line too long (101/100) (line-too-long)
+resync\api\monitoring_dashboard.py:119:0: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\monitoring_dashboard.py:119:0: R0914: Too many local variables (19/15) (too-many-locals)
+resync\api\monitoring_dashboard.py:119:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\monitoring_dashboard.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\monitoring_dashboard.py:202:0: R0902: Too many instance attributes (33/7) (too-many-instance-attributes)
+resync\api\monitoring_dashboard.py:283:12: R1731: Consider using 'req_delta = max(req_delta, 0)' instead of unnecessary if block (consider-using-max-builtin)
+resync\api\monitoring_dashboard.py:295:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:314:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:343:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:387:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:409:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:452:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:490:30: W0621: Redefining name 'status' from outer scope (line 20) (redefined-outer-name)
+resync\api\monitoring_dashboard.py:54:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\monitoring_dashboard.py:55:15: E1101: Module 'orjson' has no 'dumps' member (no-member)
+resync\api\monitoring_dashboard.py:57:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\monitoring_dashboard.py:58:15: E1101: Module 'orjson' has no 'loads' member (no-member)
+resync\api\monitoring_dashboard.py:593:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:602:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:622:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:62:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\monitoring_dashboard.py:645:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:65:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\monitoring_dashboard.py:688:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:695:0: C0103: Constant name "_metrics_store" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\monitoring_dashboard.py:696:0: C0103: Constant name "_ws_manager" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\monitoring_dashboard.py:700:0: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\monitoring_dashboard.py:701:4: W0603: Using the global statement (global-statement)
+resync\api\monitoring_dashboard.py:709:0: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\monitoring_dashboard.py:710:4: W0603: Using the global statement (global-statement)
+resync\api\monitoring_dashboard.py:751:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:758:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:763:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:772:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:784:12: W0706: The except handler raises immediately (try-except-raise)
+resync\api\monitoring_dashboard.py:786:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:833:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\monitoring_dashboard.py:99:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\responses.py:140:12: C0415: Import outside toplevel (json) (import-outside-toplevel)
+resync\api\responses.py:42:0: R0901: Too many ancestors (8/7) (too-many-ancestors)
+resync\api\responses.py:76:12: C0415: Import outside toplevel (json) (import-outside-toplevel)
+resync\api\responses.py:86:15: E1101: Module 'orjson' has no 'dumps' member (no-member)
+resync\api\responses.py:89:16: E1101: Module 'orjson' has no 'OPT_NON_STR_KEYS' member (no-member)
+resync\api\responses.py:90:18: E1101: Module 'orjson' has no 'OPT_SERIALIZE_NUMPY' member (no-member)
+resync\api\responses.py:91:18: E1101: Module 'orjson' has no 'OPT_PASSTHROUGH_DATETIME' member (no-member)
+resync\api\routes\__init__.py:27:4: C0415: Import outside toplevel (admin.main.admin_router) (import-outside-toplevel)
+resync\api\routes\__init__.py:28:4: C0415: Import outside toplevel (admin.prompts.prompt_router) (import-outside-toplevel)
+resync\api\routes\__init__.py:29:4: C0415: Import outside toplevel (admin.rag_stats.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:30:4: C0415: Import outside toplevel (agents.agents.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:31:4: C0415: Import outside toplevel (a2a.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:32:4: C0415: Import outside toplevel (audit.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:33:4: C0415: Import outside toplevel (cache.cache_router) (import-outside-toplevel)
+resync\api\routes\__init__.py:34:4: C0415: Import outside toplevel (core.auth.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:35:4: C0415: Import outside toplevel (core.chat.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:36:4: C0415: Import outside toplevel (core.health.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:37:4: C0415: Import outside toplevel (core.status.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:38:4: C0415: Import outside toplevel (cors_monitoring.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:39:4: C0415: Import outside toplevel (monitoring.dashboard.router) (import-outside-toplevel)
+resync\api\routes\__init__.py:40:4: C0415: Import outside toplevel (performance.performance_router) (import-outside-toplevel)
+resync\api\routes\a2a.py:12:0: C0411: standard import "asyncio" should be placed before third party imports "fastapi.APIRouter", "fastapi.responses.StreamingResponse" (wrong-import-order)
+resync\api\routes\a2a.py:131:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\a2a.py:13:0: C0411: standard import "json" should be placed before third party imports "fastapi.APIRouter", "fastapi.responses.StreamingResponse" (wrong-import-order)
+resync\api\routes\a2a.py:14:0: C0411: standard import "re" should be placed before third party imports "fastapi.APIRouter", "fastapi.responses.StreamingResponse" (wrong-import-order)
+resync\api\routes\a2a.py:20:0: C0411: third party import "structlog" should be placed before first party imports "resync.core.fastapi_di.get_agent_manager", "resync.models.a2a.AgentCard", "resync.settings.settings"  (wrong-import-order)
+resync\api\routes\admin\backup.py:154:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\admin\backup.py:206:4: W0613: Unused argument 'background_tasks' (unused-argument)
+resync\api\routes\admin\backup.py:523:4: C0415: Import outside toplevel (resync.knowledge.retrieval.hybrid_retriever.BM25Index, resync.knowledge.retrieval.hybrid_retriever.INDEX_STORAGE_PATH) (import-outside-toplevel)
+resync\api\routes\admin\backup.py:91:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\admin\config.py:100:4: C0415: Import outside toplevel (asyncio) (import-outside-toplevel)
+resync\api\routes\admin\config.py:114:8: C0206: Consider iterating with .items() (consider-using-dict-items)
+resync\api\routes\admin\config.py:129:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\config.py:142:4: C0415: Import outside toplevel (asyncio) (import-outside-toplevel)
+resync\api\routes\admin\config.py:312:8: W0707: Consider explicitly re-raising using 'except RuntimeError as exc' and 'raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid file path') from exc' (raise-missing-from)
+resync\api\routes\admin\config.py:322:12: C0415: Import outside toplevel (collections.deque) (import-outside-toplevel)
+resync\api\routes\admin\config.py:32:0: C0411: third party import "aiofiles" should be placed before first party import "resync.api.routes.admin.main.verify_admin_credentials"  (wrong-import-order)
+resync\api\routes\admin\config.py:344:4: C0415: Import outside toplevel (resync.core.database.repositories.AuditEntryRepository) (import-outside-toplevel)
+resync\api\routes\admin\config.py:420:4: C0415: Import outside toplevel (resync.core.database.repositories.AuditEntryRepository) (import-outside-toplevel)
+resync\api\routes\admin\config.py:438:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\connectors.py:158:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\routes\admin\connectors.py:253:44: W0613: Unused argument 'test' (unused-argument)
+resync\api\routes\admin\connectors.py:255:4: C0415: Import outside toplevel (datetime.datetime, datetime.timezone) (import-outside-toplevel)
+resync\api\routes\admin\connectors.py:290:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\environment.py:25:0: C0411: third party import "aiofiles" should be placed before first party import "resync.api.routes.admin.main.verify_admin_credentials"  (wrong-import-order)
+resync\api\routes\admin\environment.py:431:13: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+resync\api\routes\admin\environment.py:457:9: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+resync\api\routes\admin\environment.py:471:22: W0622: Redefining built-in 'vars' (redefined-builtin)
+resync\api\routes\admin\environment.py:626:4: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\routes\admin\feedback_curation.py:123:4: C0415: Import outside toplevel (sqlalchemy.select) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:125:4: C0415: Import outside toplevel (resync.core.database.Feedback, resync.core.database.get_session) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:136:4: C0415: Import outside toplevel (sqlalchemy.update) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:138:4: C0415: Import outside toplevel (resync.core.database.Feedback, resync.core.database.get_session) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:165:0: R0912: Too many branches (14/12) (too-many-branches)
+resync\api\routes\admin\feedback_curation.py:165:0: R0914: Too many local variables (21/15) (too-many-locals)
+resync\api\routes\admin\feedback_curation.py:182:8: C0415: Import outside toplevel (sqlalchemy.func, sqlalchemy.select) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:184:8: C0415: Import outside toplevel (resync.core.database.Feedback, resync.core.database.get_session) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:227:12: R1731: Consider using 'page = max(page, 1)' instead of unnecessary if block (consider-using-max-builtin)
+resync\api\routes\admin\feedback_curation.py:325:0: R0914: Too many local variables (16/15) (too-many-locals)
+resync\api\routes\admin\feedback_curation.py:328:8: C0415: Import outside toplevel (sqlalchemy.and_, sqlalchemy.func, sqlalchemy.select) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:330:8: C0415: Import outside toplevel (resync.core.database.Feedback, resync.core.database.get_session) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:437:12: C0415: Import outside toplevel (resync.core.continual_learning.get_knowledge_incorporator) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:569:8: C0415: Import outside toplevel (resync.core.continual_learning.get_knowledge_incorporator) (import-outside-toplevel)
+resync\api\routes\admin\feedback_curation.py:662:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:1002:12: C0415: Import outside toplevel (resync.knowledge.ingestion.embeddings.get_vector_service) (import-outside-toplevel)
+resync\api\routes\admin\main.py:1017:16: C0415: Import outside toplevel (httpx) (import-outside-toplevel)
+resync\api\routes\admin\main.py:103:8: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\routes\admin\main.py:1045:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:1054:8: C0415: Import outside toplevel (resync.core.fastapi_di.get_teams_integration) (import-outside-toplevel)
+resync\api\routes\admin\main.py:1054:8: W0404: Reimport 'get_teams_integration' (imported line 20) (reimported)
+resync\api\routes\admin\main.py:1054:8: W0621: Redefining name 'get_teams_integration' from outer scope (line 20) (redefined-outer-name)
+resync\api\routes\admin\main.py:105:8: C0415: Import outside toplevel (fastapi.templating.Jinja2Templates) (import-outside-toplevel)
+resync\api\routes\admin\main.py:1066:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:1075:8: C0415: Import outside toplevel (resync.core.fastapi_di.get_tws_client) (import-outside-toplevel)
+resync\api\routes\admin\main.py:1075:8: W0404: Reimport 'get_tws_client' (imported line 20) (reimported)
+resync\api\routes\admin\main.py:1075:8: W0621: Redefining name 'get_tws_client' from outer scope (line 20) (redefined-outer-name)
+resync\api\routes\admin\main.py:1091:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:1123:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:1142:8: C0415: Import outside toplevel (resync.core.audit_db.AuditDB) (import-outside-toplevel)
+resync\api\routes\admin\main.py:1170:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:133:8: C0415: Import outside toplevel (pathlib.Path) (import-outside-toplevel)
+resync\api\routes\admin\main.py:134:8: C0415: Import outside toplevel (fastapi.templating.Jinja2Templates) (import-outside-toplevel)
+resync\api\routes\admin\main.py:155:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:1:0: C0302: Too many lines in module (1184/1000) (too-many-lines)
+resync\api\routes\admin\main.py:220:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:242:8: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\routes\admin\main.py:24:0: C0411: third party import "aiofiles" should be placed before first party imports "resync.api.routes.core.auth.verify_admin_credentials", "resync.core.fastapi_di.get_teams_integration", "resync.core.interfaces.ITWSClient", "resync.core.teams_integration.TeamsIntegration", "resync.settings.settings"  (wrong-import-order)
+resync\api\routes\admin\main.py:305:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:334:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:343:8: C0415: Import outside toplevel (resync.core.teams_integration.TeamsNotification) (import-outside-toplevel)
+resync\api\routes\admin\main.py:388:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:406:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:496:8: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\routes\admin\main.py:516:8: C0415: Import outside toplevel (resync.core.fastapi_di.get_teams_integration) (import-outside-toplevel)
+resync\api\routes\admin\main.py:516:8: W0404: Reimport 'get_teams_integration' (imported line 20) (reimported)
+resync\api\routes\admin\main.py:516:8: W0621: Redefining name 'get_teams_integration' from outer scope (line 20) (redefined-outer-name)
+resync\api\routes\admin\main.py:549:8: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\routes\admin\main.py:569:8: C0415: Import outside toplevel (resync.core.fastapi_di.get_teams_integration) (import-outside-toplevel)
+resync\api\routes\admin\main.py:569:8: W0404: Reimport 'get_teams_integration' (imported line 20) (reimported)
+resync\api\routes\admin\main.py:569:8: W0621: Redefining name 'get_teams_integration' from outer scope (line 20) (redefined-outer-name)
+resync\api\routes\admin\main.py:591:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:658:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:675:16: C0415: Import outside toplevel (resync.core.fastapi_di.get_redis_client) (import-outside-toplevel)
+resync\api\routes\admin\main.py:682:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:712:24: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:719:8: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\routes\admin\main.py:725:22: W0212: Access to a protected member _create_backup of a client class (protected-access)
+resync\api\routes\admin\main.py:753:23: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:760:8: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\routes\admin\main.py:797:25: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\admin\main.py:807:8: C0415: Import outside toplevel (resync.core.config_persistence.ConfigPersistenceManager) (import-outside-toplevel)
+resync\api\routes\admin\main.py:888:0: R0912: Too many branches (26/12) (too-many-branches)
+resync\api\routes\admin\main.py:888:0: R0914: Too many local variables (32/15) (too-many-locals)
+resync\api\routes\admin\main.py:888:0: R0915: Too many statements (110/50) (too-many-statements)
+resync\api\routes\admin\main.py:902:4: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\admin\main.py:910:8: C0415: Import outside toplevel (resync.core.context_store.ContextStore) (import-outside-toplevel)
+resync\api\routes\admin\main.py:920:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:930:8: C0415: Import outside toplevel (resync.core.redis_init.get_redis_client) (import-outside-toplevel)
+resync\api\routes\admin\main.py:948:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\main.py:960:12: C0415: Import outside toplevel (httpx) (import-outside-toplevel)
+resync\api\routes\admin\main.py:990:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\rag_reranker.py:41:0: C0103: Constant name "_gating_policy" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\admin\rag_reranker.py:42:0: C0103: Constant name "_reranker" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\admin\rag_reranker.py:47:4: W0603: Using the global statement (global-statement)
+resync\api\routes\admin\rag_reranker.py:55:4: W0603: Using the global statement (global-statement)
+resync\api\routes\admin\rag_stats.py:71:0: R0914: Too many local variables (20/15) (too-many-locals)
+resync\api\routes\admin\rag_stats.py:75:4: C0415: Import outside toplevel (resync.core.metrics.get_runtime_metrics) (import-outside-toplevel)
+resync\api\routes\admin\rag_stats.py:75:4: E0611: No name 'get_runtime_metrics' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\admin\routing.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\routes\admin\routing.py:2:0: C0411: standard import "typing.Any" should be placed before third party import "fastapi.APIRouter" (wrong-import-order)
+resync\api\routes\admin\semantic_cache.py:186:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\semantic_cache.py:387:0: R0914: Too many local variables (23/15) (too-many-locals)
+resync\api\routes\admin\semantic_cache.py:390:8: C0415: Import outside toplevel (resync.core.cache.redis_config.get_redis_client, resync.core.cache.redis_config.get_redis_config) (import-outside-toplevel)
+resync\api\routes\admin\semantic_cache.py:397:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\semantic_cache.py:423:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\semantic_cache.py:446:27: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\semantic_cache.py:493:8: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\admin\semantic_cache.py:494:8: C0415: Import outside toplevel (resync.core.cache.redis_config.get_redis_client) (import-outside-toplevel)
+resync\api\routes\admin\semantic_cache.py:505:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1072:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1107:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1118:23: W0612: Unused variable 'field_config' (unused-variable)
+resync\api\routes\admin\settings_manager.py:1132:23: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1210:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1236:4: C0415: Import outside toplevel (resync.settings.clear_settings_cache) (import-outside-toplevel)
+resync\api\routes\admin\settings_manager.py:1283:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1305:0: R0914: Too many local variables (16/15) (too-many-locals)
+resync\api\routes\admin\settings_manager.py:1317:4: C0415: Import outside toplevel (resync.settings.clear_settings_cache) (import-outside-toplevel)
+resync\api\routes\admin\settings_manager.py:1366:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\settings_manager.py:1:0: C0302: Too many lines in module (1504/1000) (too-many-lines)
+resync\api\routes\admin\settings_manager.py:766:0: C0301: Line too long (101/100) (line-too-long)
+resync\api\routes\admin\skills.py:12:0: C0411: standard import "typing.List" should be placed before third party imports "fastapi.APIRouter", "pydantic.BaseModel" (wrong-import-order)
+resync\api\routes\admin\skills.py:167:4: W0613: Unused argument 'logger_instance' (unused-argument)
+resync\api\routes\admin\skills.py:63:4: W0613: Unused argument 'logger_instance' (unused-argument)
+resync\api\routes\admin\skills.py:95:4: W0613: Unused argument 'logger_instance' (unused-argument)
+resync\api\routes\admin\teams.py:153:23: W0212: Access to a protected member _mask_webhook_url of a client class (protected-access)
+resync\api\routes\admin\teams.py:200:23: W0212: Access to a protected member _mask_webhook_url of a client class (protected-access)
+resync\api\routes\admin\teams.py:288:4: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\admin\teams.py:307:0: C0301: Line too long (138/100) (line-too-long)
+resync\api\routes\admin\teams.py:326:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\teams.py:376:4: W0212: Access to a protected member _stats of a client class (protected-access)
+resync\api\routes\admin\teams_notifications_admin.py:110:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:127:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:38:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:46:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:512:4: R1705: Unnecessary "else" after "return", remove the "else" and de-indent the code inside it (no-else-return)
+resync\api\routes\admin\teams_notifications_admin.py:55:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:69:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:75:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:86:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_notifications_admin.py:96:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_webhook_admin.py:202:4: C0415: Import outside toplevel (sqlalchemy.func) (import-outside-toplevel)
+resync\api\routes\admin\teams_webhook_admin.py:27:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_webhook_admin.py:35:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_webhook_admin.py:42:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_webhook_admin.py:55:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\teams_webhook_admin.py:68:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\threshold_tuning.py:100:8: C0415: Import outside toplevel (resync.core.continual_learning.threshold_tuning.get_threshold_tuning_manager) (import-outside-toplevel)
+resync\api\routes\admin\threshold_tuning.py:165:8: C0415: Import outside toplevel (resync.core.continual_learning.threshold_tuning.AutoTuningMode) (import-outside-toplevel)
+resync\api\routes\admin\tws_instances.py:74:4: C0415: Import outside toplevel (resync.core.tws_multi.get_tws_manager) (import-outside-toplevel)
+resync\api\routes\admin\tws_instances.py:80:4: C0415: Import outside toplevel (resync.core.tws_multi.instance.TWSEnvironment, resync.core.tws_multi.instance.TWSInstanceConfig) (import-outside-toplevel)
+resync\api\routes\admin\users.py:100:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\routes\admin\users.py:101:4: C0415: Import outside toplevel (datetime.datetime, datetime.timezone) (import-outside-toplevel)
+resync\api\routes\admin\users.py:120:4: C0415: Import outside toplevel (resync.api.core.security.get_password_hash) (import-outside-toplevel)
+resync\api\routes\admin\users.py:205:4: C0415: Import outside toplevel (resync.api.core.security.get_password_hash, resync.api.core.security.verify_password) (import-outside-toplevel)
+resync\api\routes\admin\users.py:274:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:148:0: R0914: Too many local variables (22/15) (too-many-locals)
+resync\api\routes\admin\v2.py:148:0: R0915: Too many statements (54/50) (too-many-statements)
+resync\api\routes\admin\v2.py:159:4: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:165:8: C0415: Import outside toplevel (resync.core.health.monitors.redis_monitor.RedisMonitor) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:165:8: E0611: No name 'RedisMonitor' in module 'resync.core.health.monitors.redis_monitor' (no-name-in-module)
+resync\api\routes\admin\v2.py:187:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:198:8: C0415: Import outside toplevel (resync.core.health.health_checkers.database_health_checker.DatabaseHealthChecker) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:221:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:232:8: C0415: Import outside toplevel (resync.services.tws_unified.get_tws_client) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:253:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:264:8: C0415: Import outside toplevel (resync.services.llm_fallback.get_llm_service) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:289:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:300:8: C0415: Import outside toplevel (resync.core.startup_time.get_startup_time) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:308:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:32:0: C0115: Missing class docstring (missing-class-docstring)
+resync\api\routes\admin\v2.py:331:8: C0415: Import outside toplevel (resync.core.circuit_breaker_registry.get_circuit_breaker_health) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:338:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:341:8: C0415: Import outside toplevel (resync.core.redis_strategy.get_redis_strategy_status) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:345:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:355:8: C0415: Import outside toplevel (resync.core.circuit_breaker_registry.CircuitBreakers, resync.core.circuit_breaker_registry.get_registry) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:386:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:410:8: C0415: Import outside toplevel (resync.core.circuit_breaker_registry.CircuitBreakers, resync.core.circuit_breaker_registry.get_registry) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:414:15: R1714: Consider merging these comparisons with 'in' by using 'name in (cb.value, cb.name)'. Use a set instead if elements are hashable. (consider-using-in)
+resync\api\routes\admin\v2.py:429:12: W0212: Access to a protected member _failure_count of a client class (protected-access)
+resync\api\routes\admin\v2.py:430:12: W0212: Access to a protected member _state of a client class (protected-access)
+resync\api\routes\admin\v2.py:452:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:484:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:494:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:510:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:554:4: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:578:4: W0613: Unused argument 'strategy' (unused-argument)
+resync\api\routes\admin\v2.py:579:4: W0613: Unused argument 'chunk_size' (unused-argument)
+resync\api\routes\admin\v2.py:580:4: W0613: Unused argument 'documents' (unused-argument)
+resync\api\routes\admin\v2.py:595:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:625:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:657:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:705:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:713:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:735:8: C0415: Import outside toplevel (aiofiles) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:750:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\admin\v2.py:764:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\admin\v2.py:799:8: C0415: Import outside toplevel (resync.services.config_manager.get_config_manager) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:1006:8: C0415: Import outside toplevel (resync.core.specialists.parallel_executor.execute_tools_parallel) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:1055:8: C0415: Import outside toplevel (resync.core.specialists.sub_agent.dispatch_sub_agent) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:1103:8: C0415: Import outside toplevel (resync.core.specialists.sub_agent.dispatch_parallel_sub_agents) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:1150:8: C0415: Import outside toplevel (resync.core.specialists.tools.RiskLevel, resync.core.specialists.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:184:0: R0914: Too many local variables (19/15) (too-many-locals)
+resync\api\routes\agents\agents.py:1:0: C0302: Too many lines in module (1188/1000) (too-many-lines)
+resync\api\routes\agents\agents.py:201:4: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:201:4: W0404: Reimport 'time' (imported line 15) (reimported)
+resync\api\routes\agents\agents.py:201:4: W0621: Redefining name 'time' from outer scope (line 15) (redefined-outer-name)
+resync\api\routes\agents\agents.py:207:8: C0415: Import outside toplevel (resync.core.agent_router.RoutingMode) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:231:8: C0415: Import outside toplevel (resync.core.agent_router.create_router) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:232:8: C0415: Import outside toplevel (resync.core.agent_manager.get_agent_manager) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:233:8: C0415: Import outside toplevel (resync.core.skill_manager.SkillManager) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:360:8: C0415: Import outside toplevel (resync.tools.UserRole, resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:399:0: R0914: Too many local variables (16/15) (too-many-locals)
+resync\api\routes\agents\agents.py:409:4: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:409:4: W0404: Reimport 'time' (imported line 15) (reimported)
+resync\api\routes\agents\agents.py:409:4: W0621: Redefining name 'time' from outer scope (line 15) (redefined-outer-name)
+resync\api\routes\agents\agents.py:414:8: C0415: Import outside toplevel (resync.core.specialists.tools.ApprovalRequiredError, resync.core.specialists.tools.UserRole, resync.core.specialists.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:491:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:494:18: E1101: Instance of 'ToolCatalog' has no 'get_pending_approvals' member (no-member)
+resync\api\routes\agents\agents.py:560:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:565:20: E1101: Instance of 'ToolCatalog' has no 'approve_execution' member (no-member)
+resync\api\routes\agents\agents.py:587:23: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\agents\agents.py:613:16: E1101: Instance of 'ToolCatalog' has no 'reject_execution' member (no-member)
+resync\api\routes\agents\agents.py:63:4: W0603: Using the global statement (global-statement)
+resync\api\routes\agents\agents.py:665:4: C0415: Import outside toplevel (time) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:665:4: W0404: Reimport 'time' (imported line 15) (reimported)
+resync\api\routes\agents\agents.py:665:4: W0621: Redefining name 'time' from outer scope (line 15) (redefined-outer-name)
+resync\api\routes\agents\agents.py:671:8: C0415: Import outside toplevel (resync.core.langgraph.diagnostic_graph.DiagnosticConfig, resync.core.langgraph.diagnostic_graph.diagnose_problem) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:681:23: E1123: Unexpected keyword argument 'tws_instance_id' in function call (unexpected-keyword-arg)
+resync\api\routes\agents\agents.py:721:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\agents\agents.py:72:12: C0415: Import outside toplevel (yaml) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:73:12: C0415: Import outside toplevel (aiofiles) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:782:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:821:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:851:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:854:18: E1101: Instance of 'ToolCatalog' has no 'cancel_run' member (no-member)
+resync\api\routes\agents\agents.py:899:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:902:19: E1101: Instance of 'ToolCatalog' has no 'get_undoable_operations' member (no-member)
+resync\api\routes\agents\agents.py:90:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\agents\agents.py:947:8: C0415: Import outside toplevel (resync.tools.get_tool_catalog) (import-outside-toplevel)
+resync\api\routes\agents\agents.py:950:24: E1101: Instance of 'ToolCatalog' has no 'undo_operation' member (no-member)
+resync\api\routes\audit.py:167:4: W0613: Unused argument 'user' (unused-argument)
+resync\api\routes\audit.py:230:4: W0613: Unused argument 'user' (unused-argument)
+resync\api\routes\audit.py:335:4: W0613: Unused argument 'user' (unused-argument)
+resync\api\routes\audit.py:379:0: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\routes\audit.py:379:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\routes\audit.py:385:4: W0613: Unused argument 'user' (unused-argument)
+resync\api\routes\audit.py:438:4: W0613: Unused argument 'user' (unused-argument)
+resync\api\routes\audit.py:517:8: C0415: Import outside toplevel (resync.core.idempotency.exceptions.IdempotencyConflictError) (import-outside-toplevel)
+resync\api\routes\audit.py:568:8: C0415: Import outside toplevel (uuid) (import-outside-toplevel)
+resync\api\routes\audit.py:82:0: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\routes\audit.py:82:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\routes\cache.py:114:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\routes\cache.py:143:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\cache.py:176:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\cache.py:18:4: W0622: Redefining built-in 'ConnectionError' (redefined-builtin)
+resync\api\routes\cache.py:18:4: W0622: Redefining built-in 'TimeoutError' (redefined-builtin)
+resync\api\routes\cache.py:199:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\cache.py:220:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\cache.py:261:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\cache.py:287:0: C0103: Constant name "redis_manager" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\cache.py:363:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\cache.py:389:8: W0603: Using the global statement (global-statement)
+resync\api\routes\cache.py:450:4: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\cache.py:459:4: W0603: Using the global statement (global-statement)
+resync\api\routes\cache.py:473:4: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+resync\api\routes\cache.py:80:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\routes\core\auth.py:119:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+resync\api\routes\core\auth.py:201:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\auth.py:247:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\auth.py:338:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\auth.py:344:0: C0103: Constant name "_authenticator" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\core\auth.py:345:0: C0103: Constant name "_authenticator_init_lock" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\core\auth.py:354:4: W0603: Using the global statement (global-statement)
+resync\api\routes\core\auth.py:420:8: W0707: Consider explicitly re-raising using 'except Exception as exc' and 'raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Could not validate credentials', headers={'WWW-Authenticate': 'Bearer'}) from exc' (raise-missing-from)
+resync\api\routes\core\auth.py:50:4: W0603: Using the global statement (global-statement)
+resync\api\routes\core\auth.py:52:8: C0415: Import outside toplevel (os) (import-outside-toplevel)
+resync\api\routes\core\chat.py:115:20: C0415: Import outside toplevel (resync.knowledge.retrieval.hybrid_retriever.HybridRetriever) (import-outside-toplevel)
+resync\api\routes\core\chat.py:124:23: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\chat.py:133:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\chat.py:174:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\chat.py:183:0: R0913: Too many arguments (8/5) (too-many-arguments)
+resync\api\routes\core\chat.py:183:0: R0914: Too many local variables (19/15) (too-many-locals)
+resync\api\routes\core\chat.py:183:0: R0917: Too many positional arguments (8/5) (too-many-positional-arguments)
+resync\api\routes\core\chat.py:207:4: C0415: Import outside toplevel (resync.settings.settings) (import-outside-toplevel)
+resync\api\routes\core\chat.py:250:16: W0707: Consider explicitly re-raising using 'except Exception as exc' and 'raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Invalid X-Routing-Mode: {x_routing_mode}') from exc' (raise-missing-from)
+resync\api\routes\core\chat.py:30:0: C0411: standard import "secrets" should be placed before third party import "fastapi.APIRouter" (wrong-import-order)
+resync\api\routes\core\chat.py:320:23: E0601: Using variable 'unified_agent' before assignment (used-before-assignment)
+resync\api\routes\core\chat.py:392:8: C0415: Import outside toplevel (resync.core.agent_router.IntentClassifier) (import-outside-toplevel)
+resync\api\routes\core\chat.py:39:4: C0103: Constant name "_use_hybrid_router" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\core\chat.py:431:28: E1101: Instance of 'ConversationMemory' has no 'get_session' member (no-member)
+resync\api\routes\core\chat.py:438:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\chat.py:43:4: C0103: Constant name "_use_hybrid_router" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\core\chat.py:459:4: W0613: Unused argument 'query_params' (unused-argument)
+resync\api\routes\core\chat.py:462:4: W0613: Unused argument 'current_user' (unused-argument)
+resync\api\routes\core\chat.py:470:18: E1101: Instance of 'ConversationMemory' has no 'clear_session' member (no-member)
+resync\api\routes\core\chat.py:476:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\chat.py:496:4: C0415: Import outside toplevel (resync.core.agent_router.Intent) (import-outside-toplevel)
+resync\api\routes\core\chat.py:57:0: C0103: Constant name "logger" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\core\chat.py:60:0: C0103: Constant name "_hybrid_router" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\core\chat.py:91:12: C0415: Import outside toplevel (asyncio) (import-outside-toplevel)
+resync\api\routes\core\chat.py:93:12: W0201: Attribute '_lock' defined outside __init__ (attribute-defined-outside-init)
+resync\api\routes\core\health.py:10:0: E0611: No name 'ComponentType' in module 'resync.core.health' (no-name-in-module)
+resync\api\routes\core\health.py:10:0: E0611: No name 'HealthStatus' in module 'resync.core.health' (no-name-in-module)
+resync\api\routes\core\health.py:10:0: E0611: No name 'get_status_color' in module 'resync.core.health' (no-name-in-module)
+resync\api\routes\core\health.py:10:0: E0611: No name 'get_status_description' in module 'resync.core.health' (no-name-in-module)
+resync\api\routes\core\health.py:150:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\health.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\routes\core\health.py:24:4: C0415: Import outside toplevel (resync.core.metrics.runtime_metrics) (import-outside-toplevel)
+resync\api\routes\core\health.py:564:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\status.py:141:24: W0613: Unused argument 'logger_instance' (unused-argument)
+resync\api\routes\core\status.py:213:8: W0106: Expression "{'platform': platform.system(), 'python_version': platform.python_version(), 'hostname': platform.node()}" is assigned to nothing (expression-not-assigned)
+resync\api\routes\core\status.py:232:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\status.py:244:39: W0613: Unused argument 'logger_instance' (unused-argument)
+resync\api\routes\core\status.py:25:8: C0415: Import outside toplevel (psutil) (import-outside-toplevel)
+resync\api\routes\core\status.py:43:8: C0415: Import outside toplevel (sqlalchemy.text) (import-outside-toplevel)
+resync\api\routes\core\status.py:45:8: C0415: Import outside toplevel (resync.core.database.get_engine) (import-outside-toplevel)
+resync\api\routes\core\status.py:51:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\core\status.py:61:8: C0415: Import outside toplevel (resync.core.redis_init.get_redis_client) (import-outside-toplevel)
+resync\api\routes\core\status.py:68:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\cors_monitoring.py:128:4: W0613: Unused argument 'limit' (unused-argument)
+resync\api\routes\cors_monitoring.py:129:4: W0613: Unused argument 'hours' (unused-argument)
+resync\api\routes\cors_monitoring.py:42:25: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\cors_monitoring.py:55:26: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\enterprise\enterprise.py:214:0: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\routes\enterprise\enterprise.py:214:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\routes\enterprise\gateway.py:106:0: R0902: Too many instance attributes (13/7) (too-many-instance-attributes)
+resync\api\routes\enterprise\gateway.py:153:0: R0902: Too many instance attributes (19/7) (too-many-instance-attributes)
+resync\api\routes\enterprise\gateway.py:21:0: C0411: standard import "contextlib" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:22:0: C0411: standard import "hashlib" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:23:0: C0411: standard import "re" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:24:0: C0411: standard import "time" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:25:0: C0411: standard import "collections.defaultdict" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:26:0: C0411: standard import "collections.abc.Callable" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:27:0: C0411: standard import "dataclasses.dataclass" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:28:0: C0411: standard import "datetime.datetime" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:29:0: C0411: standard import "enum.Enum" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:309:4: R0911: Too many return statements (9/6) (too-many-return-statements)
+resync\api\routes\enterprise\gateway.py:309:4: R0914: Too many local variables (16/15) (too-many-locals)
+resync\api\routes\enterprise\gateway.py:30:0: C0411: standard import "typing.Any" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:31:0: C0411: standard import "urllib.parse.urljoin" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:33:0: C0411: third party import "aiohttp" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:34:0: C0411: third party import "jwt" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:35:0: C0411: third party import "aiohttp.web" should be placed before first party import "resync.core.task_tracker.create_tracked_task"  (wrong-import-order)
+resync\api\routes\enterprise\gateway.py:37:0: C0412: Imports from package resync are not grouped (ungrouped-imports)
+resync\api\routes\enterprise\gateway.py:412:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\enterprise\gateway.py:482:4: R0911: Too many return statements (7/6) (too-many-return-statements)
+resync\api\routes\enterprise\gateway.py:494:16: C0415: Import outside toplevel (resync.settings.settings) (import-outside-toplevel)
+resync\api\routes\enterprise\gateway.py:538:8: W0613: Unused argument 'request' (unused-argument)
+resync\api\routes\enterprise\gateway.py:571:12: C0415: Import outside toplevel (random) (import-outside-toplevel)
+resync\api\routes\enterprise\gateway.py:796:12: W0706: The except handler raises immediately (try-except-raise)
+resync\api\routes\enterprise\gateway.py:798:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\enterprise\gateway.py:815:12: W0706: The except handler raises immediately (try-except-raise)
+resync\api\routes\enterprise\gateway.py:817:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\enterprise\gateway.py:81:0: R0902: Too many instance attributes (9/7) (too-many-instance-attributes)
+resync\api\routes\enterprise\gateway.py:837:12: W0706: The except handler raises immediately (try-except-raise)
+resync\api\routes\enterprise\gateway.py:839:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\enterprise\gateway.py:890:11: W0212: Access to a protected member _running of a client class (protected-access)
+resync\api\routes\knowledge\ingest_api.py:114:0: R0913: Too many arguments (6/5) (too-many-arguments)
+resync\api\routes\knowledge\ingest_api.py:114:0: R0914: Too many local variables (17/15) (too-many-locals)
+resync\api\routes\knowledge\ingest_api.py:114:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+resync\api\routes\knowledge\ingest_api.py:148:8: C0415: Import outside toplevel (anyio) (import-outside-toplevel)
+resync\api\routes\knowledge\ingest_api.py:158:0: C0301: Line too long (119/100) (line-too-long)
+resync\api\routes\knowledge\ingest_api.py:283:8: C0415: Import outside toplevel (docling) (import-outside-toplevel)
+resync\api\routes\knowledge\ingest_api.py:283:8: W0611: Unused import docling (unused-import)
+resync\api\routes\knowledge\ingest_api.py:96:4: C0415: Import outside toplevel (resync.knowledge.ingestion.pipeline.DocumentIngestionPipeline) (import-outside-toplevel)
+resync\api\routes\knowledge\ingest_api.py:97:4: C0415: Import outside toplevel (resync.knowledge.ingestion.embedding_service.get_embedder) (import-outside-toplevel)
+resync\api\routes\knowledge\ingest_api.py:98:4: C0415: Import outside toplevel (resync.knowledge.store.get_vector_store) (import-outside-toplevel)
+resync\api\routes\monitoring\admin_monitoring.py:112:0: C0103: Constant name "_error_count" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\monitoring\admin_monitoring.py:113:0: C0103: Constant name "_total_requests" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\monitoring\admin_monitoring.py:142:4: W0602: Using global for '_error_count' but no assignment is done (global-variable-not-assigned)
+resync\api\routes\monitoring\admin_monitoring.py:142:4: W0602: Using global for '_request_times' but no assignment is done (global-variable-not-assigned)
+resync\api\routes\monitoring\admin_monitoring.py:142:4: W0602: Using global for '_total_requests' but no assignment is done (global-variable-not-assigned)
+resync\api\routes\monitoring\admin_monitoring.py:336:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\admin_monitoring.py:341:11: W0705: Catching previously caught exception type Exception (duplicate-except)
+resync\api\routes\monitoring\admin_monitoring.py:341:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\admin_monitoring.py:382:4: W0603: Using the global statement (global-statement)
+resync\api\routes\monitoring\admin_monitoring.py:54:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\ai_monitoring.py:325:17: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+resync\api\routes\monitoring\ai_monitoring.py:341:9: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+resync\api\routes\monitoring\ai_monitoring.py:361:8: C0415: Import outside toplevel (resync.core.monitoring.get_monitoring_service) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:633:4: C0415: Import outside toplevel (datetime.timedelta) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:635:4: C0415: Import outside toplevel (resync.core.monitoring.AlertSeverity, resync.core.monitoring.DriftType) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:717:8: C0415: Import outside toplevel (resync.core.monitoring.MonitoringConfig, resync.core.monitoring.get_monitoring_service, resync.core.monitoring.init_monitoring_service) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:736:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\ai_monitoring.py:746:8: C0415: Import outside toplevel (resync.core.specialists.create_specialist_team) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:747:8: C0415: Import outside toplevel (resync.core.specialists.models.SpecialistConfig, resync.core.specialists.models.SpecialistType, resync.core.specialists.models.TeamConfig) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:780:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\ai_monitoring.py:790:8: C0415: Import outside toplevel (resync.core.monitoring.get_monitoring_service, resync.core.monitoring.init_monitoring_service) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:799:12: C0415: Import outside toplevel (resync.core.monitoring.MonitoringConfig) (import-outside-toplevel)
+resync\api\routes\monitoring\ai_monitoring.py:808:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\dashboard.py:129:0: R0902: Too many instance attributes (12/7) (too-many-instance-attributes)
+resync\api\routes\monitoring\dashboard.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+resync\api\routes\monitoring\dashboard.py:440:0: C0103: Constant name "_metrics_store" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\monitoring\dashboard.py:441:0: C0103: Constant name "_collector_task" doesn't conform to UPPER_CASE naming style (invalid-name)
+resync\api\routes\monitoring\dashboard.py:446:4: W0603: Using the global statement (global-statement)
+resync\api\routes\monitoring\dashboard.py:452:0: R0914: Too many local variables (21/15) (too-many-locals)
+resync\api\routes\monitoring\dashboard.py:454:4: C0415: Import outside toplevel (resync.core.metrics.get_runtime_metrics) (import-outside-toplevel)
+resync\api\routes\monitoring\dashboard.py:454:4: E0611: No name 'get_runtime_metrics' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\dashboard.py:477:42: W0212: Access to a protected member _prev_requests of a client class (protected-access)
+resync\api\routes\monitoring\dashboard.py:479:8: W0212: Access to a protected member _prev_requests of a client class (protected-access)
+resync\api\routes\monitoring\dashboard.py:54:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\dashboard.py:563:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\dashboard.py:579:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\dashboard.py:587:4: W0603: Using the global statement (global-statement)
+resync\api\routes\monitoring\dashboard.py:601:4: W0602: Using global for '_collector_task' but no assignment is done (global-variable-not-assigned)
+resync\api\routes\monitoring\dashboard.py:647:15: W0212: Access to a protected member _lock of a client class (protected-access)
+resync\api\routes\monitoring\dashboard.py:66:0: R0902: Too many instance attributes (41/7) (too-many-instance-attributes)
+resync\api\routes\monitoring\dashboard.py:709:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\dashboard.py:712:11: W0705: Catching previously caught exception type Exception (duplicate-except)
+resync\api\routes\monitoring\dashboard.py:712:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\metrics.py:103:0: R0914: Too many local variables (21/15) (too-many-locals)
+resync\api\routes\monitoring\metrics.py:112:8: C0415: Import outside toplevel (resync.core.metrics.MetricNames, resync.core.metrics.get_metrics_store) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:112:8: E0611: No name 'MetricNames' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:112:8: E0611: No name 'get_metrics_store' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:235:15: W0125: Using a conditional statement with a constant value (using-constant-test)
+resync\api\routes\monitoring\metrics.py:237:15: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\metrics.py:267:8: C0415: Import outside toplevel (resync.core.metrics.AggregationPeriod, resync.core.metrics.get_metrics_store) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:267:8: E0611: No name 'AggregationPeriod' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:267:8: E0611: No name 'get_metrics_store' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:309:8: C0415: Import outside toplevel (resync.core.metrics.get_metrics_store) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:309:8: E0611: No name 'get_metrics_store' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:337:8: C0415: Import outside toplevel (resync.core.metrics.MetricNames, resync.core.metrics.get_metrics_store) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:337:8: E0611: No name 'MetricNames' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:337:8: E0611: No name 'get_metrics_store' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:394:8: C0415: Import outside toplevel (resync.core.metrics.get_metrics_store) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:394:8: E0611: No name 'get_metrics_store' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:417:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\metrics.py:439:8: C0415: Import outside toplevel (resync.core.metrics.get_cl_metrics) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:439:8: E0611: No name 'get_cl_metrics' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:456:0: R0914: Too many local variables (17/15) (too-many-locals)
+resync\api\routes\monitoring\metrics.py:461:8: C0415: Import outside toplevel (resync.core.metrics.AggregationPeriod, resync.core.metrics.MetricNames, resync.core.metrics.get_metrics_store) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics.py:461:8: E0611: No name 'AggregationPeriod' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:461:8: E0611: No name 'MetricNames' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics.py:461:8: E0611: No name 'get_metrics_store' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics_dashboard.py:175:0: R0902: Too many instance attributes (11/7) (too-many-instance-attributes)
+resync\api\routes\monitoring\metrics_dashboard.py:191:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:194:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:197:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:203:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:211:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:217:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:221:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:226:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:233:4: C0116: Missing function or method docstring (missing-function-docstring)
+resync\api\routes\monitoring\metrics_dashboard.py:260:0: R0914: Too many local variables (27/15) (too-many-locals)
+resync\api\routes\monitoring\metrics_dashboard.py:270:4: C0415: Import outside toplevel (resync.core.metrics.RuntimeMetricsCollector) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics_dashboard.py:270:4: E0611: No name 'RuntimeMetricsCollector' in module 'resync.core.metrics' (no-name-in-module)
+resync\api\routes\monitoring\metrics_dashboard.py:287:19: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\metrics_dashboard.py:28:0: C0411: standard import "asyncio" should be placed before third party import "fastapi.APIRouter" (wrong-import-order)
+resync\api\routes\monitoring\metrics_dashboard.py:311:4: C0415: Import outside toplevel (resync.knowledge.config.CFG) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics_dashboard.py:323:26: W0212: Access to a protected member _validations of a client class (protected-access)
+resync\api\routes\monitoring\metrics_dashboard.py:324:31: W0212: Access to a protected member _validations of a client class (protected-access)
+resync\api\routes\monitoring\metrics_dashboard.py:324:52: W0212: Access to a protected member _validation_failures of a client class (protected-access)
+resync\api\routes\monitoring\metrics_dashboard.py:325:27: W0212: Access to a protected member _validation_failures of a client class (protected-access)
+resync\api\routes\monitoring\metrics_dashboard.py:327:25: W0212: Access to a protected member _validation_type_counts of a client class (protected-access)
+resync\api\routes\monitoring\metrics_dashboard.py:338:8: C0415: Import outside toplevel (resync.core.cache.cache_warmer.get_cache_warmer) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics_dashboard.py:352:11: W0718: Catching too general exception Exception (broad-exception-caught)
+resync\api\routes\monitoring\metrics_dashboard.py:353:8: C0415: Import outside toplevel (logging) (import-outside-toplevel)
+resync\api\routes\monitoring\metrics_dashboard.py:353:8: W0404: Reimport 'logging' (imported line 38) (reimported)
+resync\api\routes\monitoring\metrics_dashboard.py:353:8: W0621: Redefining name 'logging' from outer scope (line 38) (redefined-outer-name)
+resync\api\routes\monitoring\metrics_dashboard.py:355:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)

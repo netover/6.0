@@ -176,12 +176,16 @@ class DatabaseInputValidator:
         }
 
         if identifier.upper() in dangerous_keywords:
-            raise DatabaseSecurityError(f"SQL keyword not allowed as identifier: {identifier}")
+            raise DatabaseSecurityError(
+                f"SQL keyword not allowed as identifier: {identifier}"
+            )
 
         return identifier
 
     @classmethod
-    def validate_string_input(cls, input_value: str, max_length: int | None = None) -> str:
+    def validate_string_input(
+        cls, input_value: str, max_length: int | None = None
+    ) -> str:
         """
         Validates string input for database operations.
 
@@ -199,11 +203,15 @@ class DatabaseInputValidator:
             raise DatabaseSecurityError("String input cannot be None")
 
         if not isinstance(input_value, str):
-            raise DatabaseSecurityError(f"Input must be string, got {type(input_value)}")
+            raise DatabaseSecurityError(
+                f"Input must be string, got {type(input_value)}"
+            )
 
         max_len = max_length or cls.MAX_STRING_INPUT_LENGTH
         if len(input_value) > max_len:
-            raise DatabaseSecurityError(f"String input too long: {len(input_value)} > {max_len}")
+            raise DatabaseSecurityError(
+                f"String input too long: {len(input_value)} > {max_len}"
+            )
 
         # Check for null bytes
         if "\x00" in input_value:
@@ -228,7 +236,9 @@ class DatabaseInputValidator:
 
         for pattern in dangerous_patterns:
             if re.search(pattern, input_value, re.IGNORECASE):
-                raise DatabaseSecurityError(f"Dangerous pattern detected in input: {pattern}")
+                raise DatabaseSecurityError(
+                    f"Dangerous pattern detected in input: {pattern}"
+                )
 
         return input_value
 
@@ -257,13 +267,19 @@ class DatabaseInputValidator:
             raise DatabaseSecurityError("Numeric input cannot be None")
 
         if not isinstance(input_value, (int, float)):
-            raise DatabaseSecurityError(f"Input must be numeric, got {type(input_value)}")
+            raise DatabaseSecurityError(
+                f"Input must be numeric, got {type(input_value)}"
+            )
 
         if min_val is not None and input_value < min_val:
-            raise DatabaseSecurityError(f"Value below minimum: {input_value} < {min_val}")
+            raise DatabaseSecurityError(
+                f"Value below minimum: {input_value} < {min_val}"
+            )
 
         if max_val is not None and input_value > max_val:
-            raise DatabaseSecurityError(f"Value above maximum: {input_value} > {max_val}")
+            raise DatabaseSecurityError(
+                f"Value above maximum: {input_value} > {max_val}"
+            )
 
         return input_value
 
@@ -312,14 +328,18 @@ class DatabaseInputValidator:
             raise DatabaseSecurityError("Query string cannot be empty")
 
         if len(query) > cls.MAX_QUERY_LENGTH:
-            raise DatabaseSecurityError(f"Query too long: {len(query)} > {cls.MAX_QUERY_LENGTH}")
+            raise DatabaseSecurityError(
+                f"Query too long: {len(query)} > {cls.MAX_QUERY_LENGTH}"
+            )
 
         # Remove or escape dangerous characters
         sanitized = query.replace("'", "''")  # Escape single quotes
         sanitized = sanitized.replace('"', '""')  # Escape double quotes
         sanitized = sanitized.replace(";", "")  # Remove statement separators
         sanitized = sanitized.replace("--", "")  # Remove comments
-        sanitized = re.sub(r"/\*.*?\*/", "", sanitized, flags=re.DOTALL)  # Remove block comments
+        sanitized = re.sub(
+            r"/\*.*?\*/", "", sanitized, flags=re.DOTALL
+        )  # Remove block comments
 
         return sanitized.strip()
 
@@ -371,7 +391,9 @@ class DatabaseAuditor:
         """
         log_entry = {
             "violation_type": violation_type,
-            "input_value": input_value[:100] + "..." if len(input_value) > 100 else input_value,
+            "input_value": input_value[:100] + "..."
+            if len(input_value) > 100
+            else input_value,
             "user_id": user_id,
             "timestamp": time.time(),
         }
@@ -417,7 +439,9 @@ class SecureQueryBuilder:
         if columns:
             validated_columns = []
             for col in columns:
-                validated_columns.append(DatabaseInputValidator.validate_column_name(col))
+                validated_columns.append(
+                    DatabaseInputValidator.validate_column_name(col)
+                )
             columns_str = ", ".join(validated_columns)
         else:
             columns_str = "*"
@@ -434,9 +458,7 @@ class SecureQueryBuilder:
             # ORM layer — callers should ALWAYS pass params separately.
             import re as _re
 
-            _SAFE_WHERE = _re.compile(
-                r'^[\w.:=<>!%\s,\(\)]+$', _re.ASCII
-            )
+            _SAFE_WHERE = _re.compile(r"^[\w.:=<>!%\s,\(\)]+$", _re.ASCII)
             if not _SAFE_WHERE.match(where_clause):
                 raise DatabaseSecurityError(
                     "WHERE clause contains disallowed characters. "
@@ -444,10 +466,26 @@ class SecureQueryBuilder:
                 )
 
             dangerous_patterns = [
-                '--', ';', '/*', '*/', 'DROP', 'DELETE', 'INSERT',
-                'UPDATE', 'EXEC', 'UNION', 'INTO', 'ALTER', 'CREATE',
-                'TRUNCATE', 'GRANT', 'REVOKE', 'SLEEP', 'BENCHMARK',
-                'LOAD_FILE', 'OUTFILE',
+                "--",
+                ";",
+                "/*",
+                "*/",
+                "DROP",
+                "DELETE",
+                "INSERT",
+                "UPDATE",
+                "EXEC",
+                "UNION",
+                "INTO",
+                "ALTER",
+                "CREATE",
+                "TRUNCATE",
+                "GRANT",
+                "REVOKE",
+                "SLEEP",
+                "BENCHMARK",
+                "LOAD_FILE",
+                "OUTFILE",
             ]
             where_upper = where_clause.upper()
             for pattern in dangerous_patterns:
@@ -478,7 +516,7 @@ class SecureQueryBuilder:
 
 # Convenience functions for common operations
 def validate_database_inputs(
-    table_name: str, limit: int | str = None, columns: list[str] | None = None
+    table_name: str, limit: int | str | None = None, columns: list[str] | None = None
 ) -> dict[str, Any]:
     """
     Validates common database inputs and returns validated parameters.
@@ -494,19 +532,25 @@ def validate_database_inputs(
     Raises:
         DatabaseSecurityError: If any input is invalid
     """
-    validated = {"table": DatabaseInputValidator.validate_table_name(table_name)}
+    validated: dict[str, Any] = {"table": DatabaseInputValidator.validate_table_name(table_name)}
 
     if limit is not None:
         validated["limit"] = DatabaseInputValidator.validate_limit(limit)
 
     if columns:
-        validated["columns"] = [DatabaseInputValidator.validate_column_name(col) for col in columns]
+        validated["columns"] = [
+            DatabaseInputValidator.validate_column_name(col) for col in columns
+        ]
 
     return validated
 
 
 def log_database_access(
-    operation: str, table: str, success: bool, user_id: str | None = None, error: str | None = None
+    operation: str,
+    table: str,
+    success: bool,
+    user_id: str | None = None,
+    error: str | None = None,
 ) -> None:
     """
     Logs database access for security monitoring.
@@ -518,7 +562,7 @@ def log_database_access(
         user_id: User performing operation
         error: Error message if operation failed
     """
-    details = {"success": success}
+    details: dict[str, bool | str] = {"success": success}
     if error:
         details["error"] = error
 
