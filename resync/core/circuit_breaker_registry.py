@@ -33,6 +33,7 @@ Version: 5.4.2
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -485,7 +486,7 @@ def circuit_protected(
                         function=func.__name__,
                         circuit=cb_type.value,
                     )
-                    if asyncio.iscoroutinefunction(fallback):
+                    if inspect.iscoroutinefunction(fallback):
                         return await fallback(*args, **kwargs)
                     return fallback(*args, **kwargs)
                 raise

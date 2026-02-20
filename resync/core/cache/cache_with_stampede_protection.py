@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -118,7 +119,7 @@ class CacheWithStampedeProtection(Generic[T]):
         """Load value and cache it."""
 
         try:
-            if asyncio.iscoroutinefunction(loader):
+            if inspect.iscoroutinefunction(loader):
                 value = await loader()
             else:
                 # Run sync function in thread pool

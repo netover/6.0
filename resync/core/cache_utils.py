@@ -13,6 +13,7 @@ Não há necessidade de L1 (memory) cache - seria over-engineering.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -139,7 +140,7 @@ class EnhancedCacheManager:
                 return
 
             # Buscar dados
-            if asyncio.iscoroutinefunction(fetcher):
+            if inspect.iscoroutinefunction(fetcher):
                 data = await fetcher()
             else:
                 data = fetcher()
