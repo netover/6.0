@@ -1025,7 +1025,7 @@ class RAGTool:
                         )
                         results = future.result(timeout=30)
                 except RuntimeError:
-                    # No running loop - safe to use asyncio.run directly
+                    # No running loop - run through sync/async bridge helper
                     results = self._run_async_retrieval(retriever, query, top_k)
 
             except concurrent.futures.TimeoutError:
@@ -1269,7 +1269,7 @@ class SearchHistoryTool:
                     )
                     entries = future.result(timeout=30)
             except RuntimeError:
-                # No running loop - safe to use asyncio.run directly
+                # No running loop - run through sync/async bridge helper
                 entries = self._run_async_search(
                     db, query, incident_type, status, limit
                 )
