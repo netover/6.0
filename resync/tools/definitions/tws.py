@@ -13,6 +13,8 @@ from resync.services.tws_service import OptimizedTWSClient
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
 
+PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
+
 
 class TWSToolReadOnly(BaseModel):
     """
@@ -69,6 +71,8 @@ class TWSStatusTool(TWSToolReadOnly):
                 "Erro ao processar os dados de status do TWS."
             ) from e
         except Exception as e:
+            if isinstance(e, PROGRAMMING_ERRORS):
+                raise
             logger.error("Unexpected error in TWSStatusTool: %s", e, exc_info=True)
             # Catch-all for other unexpected errors
             raise ToolExecutionError(
@@ -136,6 +140,8 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
                 "Erro ao processar os dados de falhas do TWS."
             ) from e
         except Exception as e:
+            if isinstance(e, PROGRAMMING_ERRORS):
+                raise
             logger.error(
                 "Unexpected error in TWSTroubleshootingTool: %s", e, exc_info=True
             )

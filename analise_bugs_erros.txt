@@ -168,3 +168,21 @@
    - Problema: wrapper assíncrono aceitava overrides por chamada (`max_retries`, `initial_backoff`), mas wrapper síncrono ignorava.
    - Impacto: comportamento divergente entre funções sync/async usando o mesmo decorator.
    - Correção aplicada: suporte aos mesmos overrides no wrapper síncrono + uso de `current_max_retries` na mensagem final.
+
+## Batch 502–537 (análise em lote de 36 arquivos Python)
+
+### Correções aplicadas no código (não apenas registro)
+
+1. **`resync/tools/llm_tools.py`**
+   - Problema: tools READ_ONLY capturavam `Exception` e retornavam payload de erro para qualquer falha, incluindo erros de programação (TypeError/KeyError/etc.).
+   - Impacto: bugs de implementação podiam ficar mascarados como “erro operacional” da tool.
+   - Correção aplicada: introduzido `PROGRAMMING_ERRORS` e re-raise explícito desses erros antes do fallback de erro em `get_job_status`, `get_failed_jobs`, `get_job_logs`, `get_system_health` e `get_job_dependencies`.
+
+2. **`resync/tools/definitions/tws.py`**
+   - Problema: bloco catch-all final em `TWSStatusTool` e `TWSTroubleshootingTool` também mascarava erros de programação.
+   - Correção aplicada: introduzido `PROGRAMMING_ERRORS` + re-raise explícito antes da conversão para `ToolExecutionError`.
+   - Ganho: mantém tratamento amigável para falhas operacionais, mas preserva fail-fast para bugs reais.
+
+### Validação do lote
+- Compilação sintática do batch 502–537: **36/36** arquivos compilam.
+- Resultado: sem regressão de sintaxe no fechamento da sequência 001–537.

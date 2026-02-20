@@ -22,6 +22,7 @@ Tracking sheet:
 | 202-301 | batch_core_db_health_langgraph (100 arquivos) | Média | [x] | 100/100 compilam; correções aplicadas em engine/schema/repository/tracing para reduzir except genérico com exceções específicas |
 | 302-401 | batch_core_langgraph_ops (100 arquivos) | Média | [x] | 100/100 compilam; corrigido bug real em verify_admin_token e redução de except genérico em logging_utils |
 | 402-501 | batch_core_knowledge_services (100 arquivos) | Média | [x] | 100/100 compilam; corrigidos bugs de log/interpolação + estado global do reranker + paridade de overrides sync/async em retry handlers |
+| 502-537 | batch_tests_tools_workflows_final (36 arquivos) | Média | [x] | 36/36 compilam; exceções genéricas endurecidas em tools TWS para não mascarar erros de programação |
 
 ## STEP 1 — Leitura Estrutural
 - [ ] Ler cabeçalho e docstring do módulo
