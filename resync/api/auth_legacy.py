@@ -15,10 +15,10 @@ import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
-import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from resync.core.jwt_utils import JWTError, decode_token, create_token
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 
@@ -272,7 +272,7 @@ def verify_admin_credentials(
                 )
 
         # Decode & validate JWT
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_token(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
 
         if username is None:
@@ -294,7 +294,7 @@ def verify_admin_credentials(
             )
 
         return username
-    except jwt.PyJWTError:
+    except (JWTError, RuntimeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -317,7 +317,7 @@ def create_access_token(
         )
 
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return create_token(to_encode, SECRET_KEY, algorithm=ALGORITHM, expires_in=None)
 
 
 async def authenticate_admin(username: str, password: str) -> bool:

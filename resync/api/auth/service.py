@@ -137,18 +137,23 @@ class AuthService:
         user_data = await self.repository.get_by_username(username)
         if not user_data:
             logger.warning(
-                f"Authentication failed: user not found (user_id={username})"
+                "Authentication failed: user not found",
+                extra={"username_prefix": username[:3] + "***"},
             )
             return None
 
         if not self._verify_password(password, user_data["hashed_password"]):
             logger.warning(
-                f"Authentication failed: invalid password (user_id={username})"
+                "Authentication failed: invalid password",
+                extra={"username_prefix": username[:3] + "***"},
             )
             return None
 
         if not user_data["is_active"]:
-            logger.warning(f"Authentication failed: inactive user (user_id={username})")
+            logger.warning(
+                "Authentication failed: inactive user",
+                extra={"username_prefix": username[:3] + "***"},
+            )
             return None
 
         # Update last login
@@ -229,8 +234,8 @@ class AuthService:
                 exp=datetime.fromtimestamp(payload["exp"]),
             )
 
-        except JWTError as e:
-            logger.warning("Token verification failed: %s", e)
+        except JWTError:
+            logger.warning("Token verification failed")
             return None
 
     async def get_user(self, user_id: str) -> User | None:
