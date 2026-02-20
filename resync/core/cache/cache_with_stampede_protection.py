@@ -123,7 +123,7 @@ class CacheWithStampedeProtection(Generic[T]):
                 value = await loader()
             else:
                 # Run sync function in thread pool
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 value = await loop.run_in_executor(None, loader)
 
             # Cache the value

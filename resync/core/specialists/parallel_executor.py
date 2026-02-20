@@ -347,7 +347,7 @@ class ParallelToolExecutor:
         if inspect.iscoroutinefunction(func):
             return await func(**params)
         # Run sync function in thread pool
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: func(**params))
 
 
