@@ -10,13 +10,15 @@
 - [ ] Gerar mapa de imports circulares (deps_graph.svg)
 - [x] Criar tracking sheet de arquivos
 
-Total de arquivos .py: 53
+Total de arquivos .py: 537
 
 Tracking sheet:
 
 | # | Arquivo | Severidade | Status | Observações |
 |---|---|---|---|---|
-| 001 |  |  | [ ] |  |
+| 001 | analyze_pr_comments.py | Média | [x] | Exceções genéricas removidas; validações estruturais e fallback de campos |
+| 002-101 | batch_api_core_inicial (100 arquivos) | Baixa/Média | [x] | Compilação sintática ok (100/100); triagem detectou 50 usos de except Exception para correção em ondas |
+| 102-201 | batch_api_core_segundo (100 arquivos) | Baixa/Média | [x] | Compilação sintática ok (100/100); correções aplicadas em segurança/middleware/health para preservar HTTPException e reduzir except genérico |
 
 ## STEP 1 — Leitura Estrutural
 - [ ] Ler cabeçalho e docstring do módulo
