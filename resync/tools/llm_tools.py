@@ -18,6 +18,8 @@ from resync.tools.registry import ToolPermission, UserRole, get_tool_catalog, to
 
 logger = logging.getLogger(__name__)
 
+PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
+
 
 # =============================================================================
 # SCHEMAS PYDANTIC PARA TOOLS
@@ -91,6 +93,8 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict:
             "workspace": workspace,
         }
     except Exception as e:
+        if isinstance(e, PROGRAMMING_ERRORS):
+            raise
         logger.error("Error getting job status: %s", e, exc_info=True)
         return {
             "job_name": job_name,
@@ -143,6 +147,8 @@ async def get_failed_jobs(hours: int = 24) -> dict:
             ],
         }
     except Exception as e:
+        if isinstance(e, PROGRAMMING_ERRORS):
+            raise
         logger.error("Error getting failed jobs: %s", e, exc_info=True)
         return {"count": 0, "hours": hours, "jobs": [], "error": str(e)}
 
@@ -174,6 +180,8 @@ async def get_job_logs(job_name: str, lines: int = 100) -> dict:
 
         return {"job_name": job_name, "lines": lines, "content": logs}
     except Exception as e:
+        if isinstance(e, PROGRAMMING_ERRORS):
+            raise
         logger.error("Error getting job logs: %s", e, exc_info=True)
         return {"job_name": job_name, "lines": 0, "content": "", "error": str(e)}
 
@@ -224,6 +232,8 @@ async def get_system_health() -> dict:
             },
         }
     except Exception as e:
+        if isinstance(e, PROGRAMMING_ERRORS):
+            raise
         logger.error("Error getting system health: %s", e, exc_info=True)
         return {"status": "ERROR", "error": str(e)}
 
@@ -256,6 +266,8 @@ async def get_job_dependencies(job_name: str) -> dict:
             "successors": deps.get("successors", []),
         }
     except Exception as e:
+        if isinstance(e, PROGRAMMING_ERRORS):
+            raise
         logger.error("Error getting job dependencies: %s", e, exc_info=True)
         return {
             "job_name": job_name,

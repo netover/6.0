@@ -11,6 +11,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import AsyncAdaptedQueuePool
@@ -227,7 +228,7 @@ async def close_engine(timeout: float = 30.0):
     try:
         await _engine.dispose()
         logger.info("Database engine closed successfully")
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error("Error closing database engine: %s", e)
     finally:
         _engine = None

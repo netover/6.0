@@ -41,7 +41,7 @@ try:
         SamplingResult,
     )
     from opentelemetry.trace import SpanKind, Status, StatusCode  # type: ignore
-except Exception:
+except ImportError:
     trace = None  # type: ignore
     TracerProvider = object  # type: ignore
     BatchSpanProcessor = object  # type: ignore

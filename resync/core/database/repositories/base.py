@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import and_, delete, func, select, text, update
+from sqlalchemy.exc import ResourceClosedError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -345,7 +346,8 @@ class BaseRepository(Generic[ModelT]):
                     keys = result.keys()
                     return [dict(zip(keys, row, strict=False)) for row in rows]
                 return []
-            except Exception:
+            except ResourceClosedError:
+                # Non-SELECT queries do not produce row results.
                 await session.commit()
                 return []
 

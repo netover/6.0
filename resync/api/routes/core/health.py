@@ -17,6 +17,8 @@ from resync.core.health import (
 
 logger = logging.getLogger(__name__)
 
+PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
+
 
 # Lazy import of runtime_metrics to avoid circular dependencies
 def _get_runtime_metrics():
@@ -138,16 +140,18 @@ async def get_health_summary(
             alerts=[str(alert) for alert in (health_result.alerts or [])],
             performance_metrics=health_result.performance_metrics,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         original_exception = e
         logger.error("Health check failed: %s", original_exception)
         # Increment counter for health check failures if we can
         try:
             _get_runtime_metrics().health_check_with_auto_enable.increment()
-        except (AttributeError, ImportError, Exception) as metrics_e:
+        except (AttributeError, ImportError) as metrics_e:
             # Log metrics failure but don't fail the health check
             logger.warning(
                 "Failed to increment health check metrics: %s", metrics_e, exc_info=True
@@ -223,9 +227,11 @@ async def get_core_health() -> CoreHealthResponse:
             core_components=core_components_response,
             summary=core_summary,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Core health check failed: %s", e)
         raise HTTPException(
@@ -298,9 +304,11 @@ async def get_detailed_health(
             performance_metrics=health_result.performance_metrics,
             history=history_data,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Detailed health check failed: %s", e)
         raise HTTPException(
@@ -359,9 +367,11 @@ async def readiness_probe() -> dict[str, Any]:
 
         return response_data
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Readiness probe failed: %s", e)
         # Always return 503 on probe failure
@@ -421,9 +431,11 @@ async def liveness_probe() -> dict[str, Any]:
             "message": "System is responding",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Liveness probe failed: %s", e)
         # Always return 503 on probe failure
@@ -480,12 +492,12 @@ async def recover_component(component_name: str) -> dict[str, Any]:
 
         return response_data
 
-    except HTTPException as e:
+    except HTTPException:
         # Re-raise HTTPException to preserve the original status code and detail
-        raise e
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Component recovery failed: %s", e, exc_info=True)
         raise HTTPException(
@@ -561,9 +573,11 @@ async def get_redis_health() -> dict[str, Any]:
             ),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error checking Redis health: %s", e, exc_info=True)
         return {

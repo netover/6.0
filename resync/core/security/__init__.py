@@ -71,18 +71,25 @@ async def verify_metrics_api_key(api_key: str) -> bool:
 
 def verify_admin_token(token: str) -> dict[str, Any] | None:
     """Verify an admin token and return payload if valid."""
-    try:
-        from resync.core.jwt_utils import decode_token
+    from resync.settings import get_settings
 
-        valid, payload = decode_token(token)
-        if valid and isinstance(payload, dict):
-            if payload.get("role") == "admin":
-                return payload
+    try:
+        from resync.core.jwt_utils import JWTError, decode_token
+
+        settings = get_settings()
+        secret_key = getattr(settings, "secret_key", None) or getattr(
+            settings, "jwt_secret_key", None
+        )
+        algorithm = getattr(settings, "jwt_algorithm", "HS256")
+
+        if not secret_key:
+            return None
+
+        payload = decode_token(token, secret_key, algorithms=[algorithm])
+        if isinstance(payload, dict) and payload.get("role") == "admin":
+            return payload
         return None
-    except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+    except (JWTError, RuntimeError, ValueError):
         return None
 
 

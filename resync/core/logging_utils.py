@@ -2,6 +2,7 @@
 
 import logging
 import re
+from re import error as ReError
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -184,7 +185,7 @@ class SecretRedactor(logging.Filter):
                     return "***REDACTED***"
 
                 redacted = re.sub(pattern, replace_match, redacted, flags=re.IGNORECASE)
-            except Exception as exc:
+            except (ReError, TypeError) as exc:
                 logger.debug(
                     "suppressed_exception: %s", exc, exc_info=True
                 )  # was: pass

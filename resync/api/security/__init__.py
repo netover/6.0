@@ -212,6 +212,8 @@ def decode_token(token: str, settings: Any = None) -> dict[str, Any]:
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("token_decode_error error=%s", str(e), exc_info=True)
         raise HTTPException(
