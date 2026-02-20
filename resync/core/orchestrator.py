@@ -229,7 +229,7 @@ class ServiceOrchestrator:
         """
         result = OrchestrationResult()
 
-        # Build task map (insertion-order stable in Python 3.7+)
+        # Build task map (insertion-order stable in Python 3.14+)
         tasks: dict[str, Coroutine[Any, Any, Any]] = {
             "status": self._call_with_retry(
                 "tws_job_status",
