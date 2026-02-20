@@ -775,6 +775,7 @@ def traced(operation_name: str, **attributes):
                     except Exception as exc:
                         if span is not None:
                             span.record_exception(exc)
+                            span.set_status(Status(StatusCode.ERROR, str(exc)))
                         raise
 
             return async_wrapper
@@ -788,6 +789,7 @@ def traced(operation_name: str, **attributes):
                 except Exception as exc:
                     if span is not None:
                         span.record_exception(exc)
+                        span.set_status(Status(StatusCode.ERROR, str(exc)))
                     raise
 
         return sync_wrapper

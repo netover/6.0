@@ -37,6 +37,7 @@ from typing import Any, TypeVar
 
 import structlog
 from pydantic import BaseModel, Field, ValidationError
+from resync.core.utils.async_bridge import run_sync
 
 logger = structlog.get_logger(__name__)
 
@@ -967,7 +968,7 @@ class RAGTool:
         async def _retrieve() -> list:
             return await retriever.retrieve(query, top_k=top_k)
 
-        return asyncio.run(_retrieve())
+        return run_sync(_retrieve())
 
     @tool(
         permission=ToolPermission.READ_ONLY,
@@ -1238,7 +1239,7 @@ class SearchHistoryTool:
                 query=query, incident_type=incident_type, status=status, limit=limit
             )
 
-        return asyncio.run(_search())
+        return run_sync(_search())
 
     def _search_incidents(
         self,
