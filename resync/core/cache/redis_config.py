@@ -266,8 +266,8 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
 
             try:
                 await client.execute_command("JSON.DEBUG", "MEMORY", "__test__")
-            except Exception as e:
-                if "unknown command" not in str(e).lower():
+            except Exception as exc:
+                if "unknown command" not in str(exc).lower():
                     result["json"] = True
 
         logger.info(
@@ -275,7 +275,7 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
             f"search={result['search']}, json={result['json']}"
         )
 
-    except Exception as e:
+    except Exception:
         logger.warning("Failed to check Redis Stack availability", exc_info=True)
 
     return result  # type: ignore[return-value]

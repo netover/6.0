@@ -1,1 +1,2 @@
-D:\Python\GITHUB\resync\6.0-new1\verify_refinement.py
+# Arquivo legado para revisão pontual. Não representa o escopo completo do projeto.
+# Use lint/testes globais para análise sistemática de toda a base.

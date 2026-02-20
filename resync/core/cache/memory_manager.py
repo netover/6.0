@@ -145,7 +145,7 @@ class CacheMemoryManager:
         """Check if item count is within safe bounds."""
         max_safe_size = self.max_entries
         if current_size > max_safe_size:
-            correlation_id = runtime_metrics.create_correlation_id({
+            runtime_metrics.create_correlation_id({
                 "component": "cache_memory_manager",
                 "operation": "bounds_check",
                 "current_size": current_size,
@@ -195,7 +195,7 @@ class CacheMemoryManager:
                 estimated_memory_mb = float(current_size) * 0.5
             memory_threshold = float(self.max_memory_mb) * 0.8
             if estimated_memory_mb > memory_threshold:
-                correlation_id = runtime_metrics.create_correlation_id({
+                runtime_metrics.create_correlation_id({
                     "component": "cache_memory_manager",
                     "operation": "memory_bounds_approaching",
                     "estimated_mb": estimated_memory_mb,
@@ -210,7 +210,7 @@ class CacheMemoryManager:
                     estimated_memory_mb, self.max_memory_mb,
                 )
                 if estimated_memory_mb > self.max_memory_mb:
-                    correlation_id = runtime_metrics.create_correlation_id({
+                    runtime_metrics.create_correlation_id({
                         "component": "cache_memory_manager",
                         "operation": "memory_bounds_exceeded",
                         "estimated_mb": estimated_memory_mb,
@@ -225,7 +225,7 @@ class CacheMemoryManager:
                     )
                     return False
         except Exception as e:
-            correlation_id = runtime_metrics.create_correlation_id({
+            runtime_metrics.create_correlation_id({
                 "component": "cache_memory_manager",
                 "operation": "memory_bounds_check_error",
                 "error": str(e),
