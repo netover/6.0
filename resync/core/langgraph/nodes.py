@@ -15,6 +15,7 @@ Node Types:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -403,7 +404,7 @@ class ToolNode(BaseNode):
 
     async def _execute_tool(self, tool_input: dict[str, Any]) -> Any:
         """Execute the tool function."""
-        if asyncio.iscoroutinefunction(self.tool_func):
+        if inspect.iscoroutinefunction(self.tool_func):
             return await self.tool_func(**tool_input)
         return self.tool_func(**tool_input)
 

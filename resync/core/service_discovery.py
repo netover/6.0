@@ -13,6 +13,7 @@ This module provides intelligent service discovery capabilities including:
 """
 
 import asyncio
+import inspect
 from resync.core.task_tracker import track_task
 import contextlib
 import random
@@ -865,8 +866,8 @@ class ServiceDiscoveryManager:
                 "active_backends": sum(
                     1
                     for backend in self.backends.values()
-                    if asyncio.iscoroutinefunction(backend.health_check) or True
-                ),  # Simplified
+                    if backend.health_check is not None
+                ),
             },
             "performance": {
                 "services_registered": self.metrics["services_registered"],
