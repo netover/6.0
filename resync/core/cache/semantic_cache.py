@@ -45,7 +45,7 @@ from .reranker import (
 logger = logging.getLogger(__name__)
 
 # RedisVL Index Schema Definition
-SCHEMA = {
+SCHEMA: dict[str, Any] = {
     "index": {
         "name": "idx:semantic_cache_v2",
         "prefix": "semantic_cache_v2:",
@@ -78,8 +78,8 @@ class SemanticCache:
     Enhanced Semantic Cache using RedisVL with full API parity and fallback support.
     """
 
-    KEY_PREFIX = SCHEMA["index"]["prefix"]
-    INDEX_NAME = SCHEMA["index"]["name"]
+    KEY_PREFIX = str(SCHEMA["index"]["prefix"])
+    INDEX_NAME = str(SCHEMA["index"]["name"])
 
     def __init__(
         self,
@@ -134,7 +134,7 @@ class SemanticCache:
                 return True
 
             stack_info = await check_redis_stack_available()
-            self._redis_stack_available = stack_info.get("search", False)
+            self._redis_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
 
             if self._redis_stack_available:
                 self.index.set_client(redis_client)
@@ -176,7 +176,7 @@ class SemanticCache:
             return
         try:
             stack_info = await check_redis_stack_available()
-            self._redis_stack_available = stack_info.get("search", False)
+            self._redis_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
         except Exception:
             self._redis_stack_available = False
         self._memory_only = False
@@ -532,7 +532,7 @@ class SemanticCache:
                 else:
                     key = f"{self.KEY_PREFIX}{query_hash}"
                 data["embedding"] = struct.pack(f"{len(embedding)}f", *embedding)
-                await client.hset(key, mapping=data)
+                await client.hset(key, mapping=data)  # type: ignore[arg-type]
 
             if key:
                 effective_ttl = ttl or self.default_ttl

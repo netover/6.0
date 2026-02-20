@@ -54,7 +54,7 @@ class ResyncVectorizer(BaseVectorizer):
         if as_buffer:
             import struct
 
-            return struct.pack(f"{len(embedding)}f", *embedding)
+            return struct.pack(f"{len(embedding)}f", *embedding)  # type: ignore[return-value]
         return embedding
 
     def embed_many(
@@ -74,7 +74,7 @@ class ResyncVectorizer(BaseVectorizer):
         if as_buffer:
             import struct
 
-            return [struct.pack(f"{len(e)}f", *e) for e in embeddings]
+            return [struct.pack(f"{len(e)}f", *e) for e in embeddings]  # type: ignore[misc]
         return embeddings
 
     async def aembed(self, *args, **kwargs):

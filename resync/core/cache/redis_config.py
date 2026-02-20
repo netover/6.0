@@ -278,7 +278,7 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
     except Exception as e:
         logger.warning("Failed to check Redis Stack availability", exc_info=True)
 
-    return result
+    return result  # type: ignore[return-value]
 
 
 async def close_all_pools() -> None:

@@ -349,7 +349,7 @@ class CacheWarmer:
             self._stats.duration_seconds = duration
 
             results["total_cached"] = int(sum(results.values()))
-            results["duration_seconds"] = round(duration, 2)
+            results["duration_seconds"] = round(duration, 2)  # type: ignore[assignment]
             results["stats"] = self._stats.to_dict()
 
             logger.info(

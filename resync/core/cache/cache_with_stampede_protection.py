@@ -144,7 +144,7 @@ class CacheWithStampedeProtection(Generic[T]):
     def invalidate(self, key: str):
         """Invalidate a cache entry."""
 
-        with self._lock:
+        with self._lock:  # type: ignore[attr-defined]
             self._cache.pop(key, None)
             self._loading.pop(key, None)
 

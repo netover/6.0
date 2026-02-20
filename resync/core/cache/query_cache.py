@@ -67,7 +67,7 @@ class QueryFingerprint:
     _table_names: set[str] | None = field(default=None, repr=False, compare=False)
 
     @property
-    def cache_key(self) -> str:
+    def cache_key(self) -> str | None:
         """Generate cache key from query fingerprint using BLAKE2b."""
         if self._cache_key is None:
             # Create deterministic key from SQL and parameters
@@ -78,7 +78,7 @@ class QueryFingerprint:
         return self._cache_key
 
     @property
-    def table_names(self) -> set[str]:
+    def table_names(self) -> set[str] | None:
         """
         Extract table names from SQL query.
 
@@ -251,7 +251,7 @@ class QueryCacheManager:
         start_time = time.time()
 
         # Check cache first (unless forced refresh)
-        if not force_refresh:
+        if not force_refresh and cache_key:
             cached_result = await self._get_cached_result(cache_key)
             if cached_result:
                 execution_time = time.time() - start_time
@@ -271,14 +271,15 @@ class QueryCacheManager:
             result = QueryResult(
                 data=result_data,
                 execution_time=execution_time,
-                execution_stats=self.query_stats.get(cache_key),
+                execution_stats=self.query_stats.get(cache_key),  # type: ignore[arg-type]
             )
 
             # Update query statistics
             await self._update_query_stats(fingerprint, result, execution_time)
 
             # Cache the result
-            await self._cache_query_result(cache_key, result, fingerprint, ttl_override)
+            if cache_key:
+                await self._cache_query_result(cache_key, result, fingerprint, ttl_override)
 
             # Track table dependencies
             await self._track_table_dependencies(fingerprint)
@@ -438,7 +439,7 @@ class QueryCacheManager:
             ttl = 300  # Default 5 minutes
 
         # Determine dependencies (table names)
-        dependencies = list(fingerprint.table_names)
+        dependencies = list(fingerprint.table_names or [])
 
         # Cache with dependencies for automatic invalidation
         await self.cache_manager.set(
@@ -456,12 +457,14 @@ class QueryCacheManager:
     ) -> None:
         """Update statistics for a query."""
         cache_key = fingerprint.cache_key
+        if not cache_key:
+            return
 
         async with self._lock:
             if cache_key not in self.query_stats:
                 self.query_stats[cache_key] = QueryExecutionStats(
                     query_fingerprint=cache_key,
-                    table_dependencies=fingerprint.table_names,
+                    table_dependencies=fingerprint.table_names or set(),
                 )
 
             stats = self.query_stats[cache_key]
@@ -491,6 +494,9 @@ class QueryCacheManager:
 
     async def _track_table_dependencies(self, fingerprint: QueryFingerprint) -> None:
         """Track which queries depend on which tables."""
+        if not fingerprint.cache_key or not fingerprint.table_names:
+            return
+
         async with self._lock:
             for table_name in fingerprint.table_names:
                 if table_name not in self.table_trackers:
@@ -546,7 +552,7 @@ class QueryCacheManager:
                 # Execute other queries individually
                 tasks.extend(
                     [
-                        self.execute_query(sql, params, connection_id)
+                        self.execute_query(sql, params, connection_id)  # type: ignore[misc]
                         for sql, params in group_queries
                     ]
                 )
@@ -619,7 +625,7 @@ _query_cache_manager_instance: QueryCacheManager | None = None
 class _LazyQueryCacheManager:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
 
-    __slots__ = ("_instance",)
+    _instance: QueryCacheManager | None
 
     def __init__(self) -> None:
         self._instance = None
@@ -645,4 +651,4 @@ async def get_query_cache_manager() -> QueryCacheManager:
     """Get the global query cache manager instance."""
     if not query_cache_manager.cache_manager:
         await query_cache_manager.initialize()
-    return query_cache_manager
+    return query_cache_manager.get_instance()

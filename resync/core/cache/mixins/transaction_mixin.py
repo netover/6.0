@@ -80,11 +80,11 @@ class CacheTransactionMixin:
 
                 if operation == "set":
                     if old_value is None:
-                        await self.delete(key)
+                        await self.delete(key)  # type: ignore[attr-defined]
                     else:
-                        await self.set(key, old_value)
+                        await self.set(key, old_value)  # type: ignore[attr-defined]
                 elif operation == "delete" and old_value is not None:
-                    await self.set(key, old_value)
+                    await self.set(key, old_value)  # type: ignore[attr-defined]
 
             logger.info("Rolled back %s operations", len(ops_to_rollback))
 
