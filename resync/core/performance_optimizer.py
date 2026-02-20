@@ -392,7 +392,7 @@ class ResourceManager:
                         if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
                         else:
-                            resource.close()
+                            await asyncio.to_thread(resource.close)
 
                     logger.info("Cleaned up resource: %s", resource_id)
                 except Exception as e:

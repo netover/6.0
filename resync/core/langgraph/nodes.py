@@ -406,7 +406,11 @@ class ToolNode(BaseNode):
         """Execute the tool function."""
         if inspect.iscoroutinefunction(self.tool_func):
             return await self.tool_func(**tool_input)
-        return self.tool_func(**tool_input)
+
+        result = self.tool_func(**tool_input)
+        if inspect.isawaitable(result):
+            return await result
+        return result
 
 
 # =============================================================================
