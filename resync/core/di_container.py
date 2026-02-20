@@ -227,9 +227,16 @@ class DIContainer:
 
     async def _create_instance(self, factory: Callable) -> Any:
         """Create instance, handling both sync and async factories."""
-        if inspect.iscoroutinefunction(factory):
-            return await factory()
-        return factory()
+        try:
+            if inspect.iscoroutinefunction(factory):
+                return await factory()
+            result = factory()
+            if inspect.isawaitable(result):
+                return await result
+            return result
+        except Exception as exc:
+            logger.error("service_factory_error", factory=repr(factory), error=str(exc))
+            raise
 
     def create_scope(self) -> ServiceScope:
         """

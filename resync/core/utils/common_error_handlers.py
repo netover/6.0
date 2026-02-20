@@ -134,6 +134,11 @@ def retry_on_exception(
                 current_max_retries = kwargs.pop("max_retries", max_retries)
                 current_delay = kwargs.pop("initial_backoff", delay)
 
+                if current_max_retries < 0:
+                    raise ValueError("max_retries must be non-negative")
+                if current_delay <= 0:
+                    raise ValueError("initial_backoff must be positive")
+
                 cleaned_kwargs = kwargs
 
                 for attempt in range(current_max_retries + 1):
@@ -171,6 +176,11 @@ def retry_on_exception(
             logger_instance = logger or logging.getLogger(func.__module__)
             current_max_retries = kwargs.pop("max_retries", max_retries)
             current_delay = kwargs.pop("initial_backoff", delay)
+
+            if current_max_retries < 0:
+                raise ValueError("max_retries must be non-negative")
+            if current_delay <= 0:
+                raise ValueError("initial_backoff must be positive")
 
             for attempt in range(current_max_retries + 1):
                 try:

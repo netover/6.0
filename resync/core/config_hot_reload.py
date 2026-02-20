@@ -271,7 +271,7 @@ class ConfigManager:
                 if inspect.iscoroutinefunction(callback):
                     await callback(change)
                 else:
-                    callback(change)
+                    await asyncio.to_thread(callback, change)
             except Exception as e:
                 logger.error("Error notifying subscriber: %s", e)
 

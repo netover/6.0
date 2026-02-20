@@ -488,7 +488,10 @@ def circuit_protected(
                     )
                     if inspect.iscoroutinefunction(fallback):
                         return await fallback(*args, **kwargs)
-                    return fallback(*args, **kwargs)
+                    fallback_result = fallback(*args, **kwargs)
+                    if inspect.isawaitable(fallback_result):
+                        return await fallback_result
+                    return fallback_result
                 raise
 
         # Expose circuit breaker for inspection

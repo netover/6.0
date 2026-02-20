@@ -253,7 +253,7 @@ class UnifiedConfigManager:
                 if inspect.iscoroutinefunction(callback):
                     await callback(event)
                 else:
-                    callback(event)
+                    await asyncio.to_thread(callback, event)
             except Exception as e:
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 

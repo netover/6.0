@@ -346,7 +346,7 @@ class EventBus:
                 if inspect.iscoroutinefunction(subscriber.callback):
                     await subscriber.callback(event_data)
                 else:
-                    subscriber.callback(event_data)
+                    await asyncio.to_thread(subscriber.callback, event_data)
 
                 subscriber.events_received += 1
                 self._events_delivered += 1
