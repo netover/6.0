@@ -397,7 +397,7 @@ class ResourceManager:
                     logger.info("Cleaned up resource: %s", resource_id)
                 except Exception as e:
                     logger.error("Error cleaning up resource %s: %s", resource_id, e)
-                finally:
+                else:
                     await self.unregister_resource(resource_id)
 
     async def detect_leaks(self, max_lifetime_seconds: int = 3600) -> list[str]:

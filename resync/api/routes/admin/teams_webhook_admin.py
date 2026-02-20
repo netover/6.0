@@ -3,6 +3,7 @@
 
 from datetime import datetime, timezone
 from importlib.util import find_spec
+import re
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +18,7 @@ from resync.core.teams_permissions import TeamsPermissionsManager
 
 logger = structlog.get_logger(__name__)
 
+EMAIL_FALLBACK_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # pydantic.EmailStr requires the optional `email-validator` package.
 # Keep router import resilient when this extra dependency is absent.
@@ -51,11 +53,7 @@ class UserCreate(BaseModel):
             return value
 
         normalized = value.strip()
-        if normalized.count("@") != 1:
-            raise ValueError("Invalid email format")
-
-        local_part, domain = normalized.split("@")
-        if not local_part or not domain or "." not in domain:
+        if not EMAIL_FALLBACK_REGEX.match(normalized):
             raise ValueError("Invalid email format")
 
         return normalized
@@ -266,7 +264,7 @@ async def get_stats(db: Session = Depends(get_db)):
         db.query(func.count(TeamsWebhookAudit.id))
         .filter(
             TeamsWebhookAudit.command_type == "execute",
-            TeamsWebhookAudit.was_authorized.is_(False),
+            TeamsWebhookAudit.was_authorized.is_not(True),
         )
         .scalar()
     )

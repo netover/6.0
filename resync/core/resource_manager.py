@@ -121,7 +121,7 @@ class DatabaseConnectionResource(ManagedResource):
             if inspect.iscoroutinefunction(self.connection.close):
                 await self.connection.close()
             else:
-                self.connection.close()
+                await asyncio.to_thread(self.connection.close)
 
 
 class FileResource(ManagedResource):
@@ -137,7 +137,7 @@ class FileResource(ManagedResource):
             if inspect.iscoroutinefunction(self.file_handle.close):
                 await self.file_handle.close()
             else:
-                self.file_handle.close()
+                await asyncio.to_thread(self.file_handle.close)
 
     def _cleanup_sync(self) -> None:
         """Close the file handle synchronously."""
@@ -158,7 +158,7 @@ class NetworkSocketResource(ManagedResource):
             if inspect.iscoroutinefunction(self.socket.close):
                 await self.socket.close()
             else:
-                self.socket.close()
+                await asyncio.to_thread(self.socket.close)
 
 
 @asynccontextmanager
@@ -308,7 +308,7 @@ class ResourcePool:
                         if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
                         else:
-                            resource.close()
+                            await asyncio.to_thread(resource.close)
                 except Exception as e:
                     logger.error("Error closing resource %s: %s", resource_id, e)
 
@@ -420,12 +420,12 @@ class BatchResourceManager:
                     if inspect.iscoroutinefunction(cleanup_fn):
                         await cleanup_fn(resource)
                     else:
-                        cleanup_fn(resource)
+                        await asyncio.to_thread(cleanup_fn, resource)
                 elif hasattr(resource, "close"):
                     if inspect.iscoroutinefunction(resource.close):
                         await resource.close()
                     else:
-                        resource.close()
+                        await asyncio.to_thread(resource.close)
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
             except Exception as e:

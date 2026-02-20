@@ -172,7 +172,7 @@ class EventBus:
         if inspect.iscoroutinefunction(callback):
             await callback(event)
         else:
-            callback(event)
+            await asyncio.to_thread(callback, event)
 
     def get_subscription_count(self) -> int:
         """Get total number of active subscriptions (for debugging/monitoring)."""

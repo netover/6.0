@@ -415,6 +415,9 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             except ImportError:
                 logger.warning("llm_service_not_available")
                 return None
+            except Exception as exc:
+                logger.warning("llm_service_initialization_failed", error=str(exc))
+                return None
         return self._llm
 
     def _extract_entities(self, query: str) -> dict[str, list[str]]:
@@ -535,6 +538,9 @@ class HybridRAG:
                 self._llm = await service if inspect.isawaitable(service) else service
             except ImportError:
                 logger.warning("LLM service not available")
+            except Exception as exc:
+                logger.warning("llm_service_initialization_failed", error=str(exc))
+                return None
         return self._llm
 
     # =========================================================================
