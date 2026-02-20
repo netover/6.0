@@ -61,9 +61,22 @@ class PostgresGraphStore:
             )
         self._schema_ensured = False
 
+
+    @staticmethod
+    def _pool_is_closed(pool: asyncpg.Pool | None) -> bool:
+        """Safely check pool closed state without relying on private attrs only."""
+        if pool is None:
+            return True
+
+        is_closing = getattr(pool, "is_closing", None)
+        if callable(is_closing):
+            return bool(is_closing())
+
+        return bool(getattr(pool, "_closed", True))
+
     async def _get_pool(self) -> asyncpg.Pool:
         """Get or create a shared connection pool."""
-        if PostgresGraphStore._pool is None or PostgresGraphStore._pool._closed:
+        if self._pool_is_closed(PostgresGraphStore._pool):
             PostgresGraphStore._pool = await asyncpg.create_pool(
                 self._database_url, min_size=2, max_size=10, command_timeout=30
             )
@@ -81,9 +94,7 @@ class PostgresGraphStore:
 
     async def close(self) -> None:
         """Close the shared pool. Call on app shutdown."""
-        if PostgresGraphStore._pool is not None and (
-            not PostgresGraphStore._pool._closed
-        ):
+        if not self._pool_is_closed(PostgresGraphStore._pool):
             await PostgresGraphStore._pool.close()
             PostgresGraphStore._pool = None
 

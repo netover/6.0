@@ -251,16 +251,15 @@ def fetch_job_history_from_db(
     import asyncio
 
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Loop is already running - need to use a different approach
-            # Return empty list with warning - caller should use async version
-            logger.warning(
-                "fetch_job_history_from_db called from async context, "
-                "consider using async version",
-                job_name=job_name,
-            )
-            return []
+        asyncio.get_running_loop()
+        # Loop is already running - need to use a different approach
+        # Return empty list with warning - caller should use async version
+        logger.warning(
+            "fetch_job_history_from_db called from async context, "
+            "consider using async version",
+            job_name=job_name,
+        )
+        return []
     except RuntimeError:
         # No event loop exists, create one
         pass

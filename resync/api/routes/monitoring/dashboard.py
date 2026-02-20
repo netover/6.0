@@ -588,7 +588,7 @@ def start_metrics_collector():
 
     if _collector_task is None or _collector_task.done():
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             _collector_task = loop.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
         except RuntimeError:
