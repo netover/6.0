@@ -89,7 +89,9 @@ class MetricSummary(BaseModel):
 async def metrics_dashboard(request: Request):
     """Serve the metrics dashboard HTML page."""
     return templates.TemplateResponse(
-        "metrics_dashboard.html", {"request": request, "title": "Continual Learning Metrics"}
+        request,
+        "metrics_dashboard.html",
+        {"title": "Continual Learning Metrics"},
     )
 
 
@@ -173,14 +175,20 @@ async def get_dashboard_data(
                 name="Review Queue",
                 value=queue_size,
                 unit="items",
-                status="critical" if queue_size > 100 else "warning" if queue_size > 50 else "ok",
+                status="critical"
+                if queue_size > 100
+                else "warning"
+                if queue_size > 50
+                else "ok",
             )
         )
 
         # Feedback rate gauge
         total_feedback = store.get_counter(MetricNames.FEEDBACK_TOTAL)
         positive_feedback = store.get_counter(MetricNames.FEEDBACK_POSITIVE)
-        positive_rate = (positive_feedback / total_feedback * 100) if total_feedback > 0 else 0
+        positive_rate = (
+            (positive_feedback / total_feedback * 100) if total_feedback > 0 else 0
+        )
         gauges.append(
             GaugeData(
                 name="Positive Feedback",
@@ -197,7 +205,9 @@ async def get_dashboard_data(
         # Enrichment rate gauge
         total_queries = store.get_counter(MetricNames.QUERY_TOTAL)
         enriched_queries = store.get_counter(MetricNames.QUERY_WITH_ENRICHMENT)
-        enrichment_rate = (enriched_queries / total_queries * 100) if total_queries > 0 else 0
+        enrichment_rate = (
+            (enriched_queries / total_queries * 100) if total_queries > 0 else 0
+        )
         gauges.append(
             GaugeData(
                 name="Enrichment Rate",
@@ -220,13 +230,9 @@ async def get_dashboard_data(
             + summary.get("storage", {}).get("aggregated_records", 0),
         }
 
-        # Add DB size
-        try:
-            # Using PostgreSQL - no local db file
-            if False:  # SQLite removed
-                system["db_size_mb"] = 0  # PostgreSQL - use pg_database_size()
-        except Exception:
-            system["db_size_mb"] = 0
+        # DB size placeholder for PostgreSQL deployments.
+        # Future improvement: expose pg_database_size() via repository/metrics service.
+        system["db_size_mb"] = 0
 
         return DashboardResponse(
             summary=summary,
@@ -241,7 +247,10 @@ async def get_dashboard_data(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("dashboard_data_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/series/{metric_name}")
@@ -284,7 +293,10 @@ async def get_metric_series(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("metric_series_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/summary")
@@ -309,7 +321,10 @@ async def get_metrics_summary():
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("metrics_summary_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/gauges")
@@ -363,7 +378,10 @@ async def get_current_gauges():
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("gauges_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/health")
@@ -425,7 +443,10 @@ async def get_cl_dashboard_data(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("cl_dashboard_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/feedback-analysis")
@@ -434,7 +455,11 @@ async def get_feedback_analysis(
 ):
     """Get detailed feedback analysis."""
     try:
-        from resync.core.metrics import AggregationPeriod, MetricNames, get_metrics_store
+        from resync.core.metrics import (
+            AggregationPeriod,
+            MetricNames,
+            get_metrics_store,
+        )
 
         store = get_metrics_store()
         await store.initialize()
@@ -489,4 +514,7 @@ async def get_feedback_analysis(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("feedback_analysis_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e

@@ -51,16 +51,24 @@ Tasks get:
 2. 5 second timeout for cleanup
 3. Forced termination if timeout exceeded
 """
+
 import asyncio
 import functools
 import logging
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
+
 logger = logging.getLogger(__name__)
 _background_tasks: set[asyncio.Task] = set()
-T = TypeVar('T')
+T = TypeVar("T")
 
-async def create_tracked_task(coro: Coroutine[Any, Any, T], name: str | None=None, *, cancel_on_shutdown: bool=True) -> asyncio.Task[T]:
+
+async def create_tracked_task(
+    coro: Coroutine[Any, Any, T],
+    name: str | None = None,
+    *,
+    cancel_on_shutdown: bool = True,
+) -> asyncio.Task[T]:
     """
     Create a background task that is automatically tracked and cleaned up.
 
@@ -92,11 +100,21 @@ async def create_tracked_task(coro: Coroutine[Any, Any, T], name: str | None=Non
 
         def remove_task(t: asyncio.Task) -> None:
             _background_tasks.discard(t)
+
         task.add_done_callback(remove_task)
-    logger.debug('Created tracked task', extra={'task_name': name or task.get_name(), 'total_tasks': len(_background_tasks)})
+    logger.debug(
+        "Created tracked task",
+        extra={
+            "task_name": name or task.get_name(),
+            "total_tasks": len(_background_tasks),
+        },
+    )
     return task
 
-def background_task(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., asyncio.Task[T]]:
+
+def background_task(
+    func: Callable[..., Coroutine[Any, Any, T]],
+) -> Callable[..., asyncio.Task[T]]:
     """
     Decorator to automatically track background tasks.
 
@@ -117,9 +135,11 @@ def background_task(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[...
     async def wrapper(*args: Any, **kwargs: Any) -> asyncio.Task[T]:
         coro = func(*args, **kwargs)
         return await create_tracked_task(coro, name=func.__name__)
+
     return wrapper
 
-async def cancel_all_tasks(timeout: float=5.0) -> dict[str, int]:
+
+async def cancel_all_tasks(timeout: float = 5.0) -> dict[str, int]:
     """
     Cancel all tracked background tasks gracefully.
 
@@ -141,8 +161,8 @@ async def cancel_all_tasks(timeout: float=5.0) -> dict[str, int]:
     tasks_to_cancel = list(_background_tasks)
     total = len(tasks_to_cancel)
     if not tasks_to_cancel:
-        return {'total': 0, 'cancelled': 0, 'timeout': 0, 'error': 0}
-    logger.info('Cancelling %s background tasks...', total)
+        return {"total": 0, "cancelled": 0, "timeout": 0, "error": 0}
+    logger.info("Cancelling %s background tasks...", total)
     for task in tasks_to_cancel:
         task.cancel()
     done, pending = await asyncio.wait(tasks_to_cancel, timeout=timeout)
@@ -156,18 +176,33 @@ async def cancel_all_tasks(timeout: float=5.0) -> dict[str, int]:
             else:
                 exc = task.exception()
                 if exc and (not isinstance(exc, asyncio.CancelledError)):
-                    logger.error('background_task_error', extra={'task': task.get_name(), 'error': str(exc)})
+                    logger.error(
+                        "background_task_error",
+                        extra={"task": task.get_name(), "error": str(exc)},
+                    )
                     error_count += 1
                 else:
                     success_count += 1
         except asyncio.CancelledError:
             cancelled_count += 1
     if pending:
-        logger.warning('background_tasks_timeout', extra={'pending_count': len(pending), 'tasks': [t.get_name() for t in pending]})
-    stats = {'total': total, 'cancelled': cancelled_count + len(pending), 'completed': success_count, 'errors': error_count}
-    logger.info('Background tasks shutdown complete', extra=stats)
+        logger.warning(
+            "background_tasks_timeout",
+            extra={
+                "pending_count": len(pending),
+                "tasks": [t.get_name() for t in pending],
+            },
+        )
+    stats = {
+        "total": total,
+        "cancelled": cancelled_count + len(pending),
+        "completed": success_count,
+        "errors": error_count,
+    }
+    logger.info("Background tasks shutdown complete", extra=stats)
     _background_tasks.clear()
     return stats
+
 
 def get_task_count() -> int:
     """
@@ -178,7 +213,10 @@ def get_task_count() -> int:
     """
     return len(_background_tasks)
 
-def track_task(coro: Coroutine[Any, Any, T], name: str | None=None) -> asyncio.Task[T]:
+
+def track_task(
+    coro: Coroutine[Any, Any, T], name: str | None = None
+) -> asyncio.Task[T]:
     """Create a tracked task from a **sync** context (``def``, not ``async def``).
 
     Unlike :func:`create_tracked_task` this function is synchronous and can be
@@ -198,9 +236,17 @@ def track_task(coro: Coroutine[Any, Any, T], name: str | None=None) -> asyncio.T
 
     def _remove(t: asyncio.Task) -> None:
         _background_tasks.discard(t)
+
     task.add_done_callback(_remove)
-    logger.debug('Created tracked task (sync)', extra={'task_name': name or task.get_name(), 'total_tasks': len(_background_tasks)})
+    logger.debug(
+        "Created tracked task (sync)",
+        extra={
+            "task_name": name or task.get_name(),
+            "total_tasks": len(_background_tasks),
+        },
+    )
     return task
+
 
 def get_task_names() -> list[str]:
     """
@@ -211,7 +257,8 @@ def get_task_names() -> list[str]:
     """
     return [task.get_name() for task in _background_tasks]
 
-async def wait_for_tasks(timeout: float | None=None) -> bool:
+
+async def wait_for_tasks(timeout: float | None = None) -> bool:
     """
     Wait for all background tasks to complete.
 
@@ -233,49 +280,54 @@ async def wait_for_tasks(timeout: float | None=None) -> bool:
     if not tasks:
         return True
     try:
-        await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
+        await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True), timeout=timeout
+        )
         return True
     except asyncio.TimeoutError:
         return False
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
 
     async def example_manual():
-
         async def worker(n: int):
             for i in range(n):
-                print(f'Worker iteration {i}')
+                print(f"Worker iteration {i}")
                 await asyncio.sleep(1)
-        task = await create_tracked_task(worker(5), name='worker-1')
+
+        task = await create_tracked_task(worker(5), name="worker-1")
         await task
 
     async def example_decorator():
-
         @background_task
         async def monitor():
             count = 0
             while True:
                 count += 1
-                print(f'Monitor check {count}')
+                print(f"Monitor check {count}")
                 await asyncio.sleep(2)
                 if count >= 5:
                     break
+
         task = await monitor()
         await task
 
     async def example_shutdown():
-
         @background_task
         async def long_task():
             try:
                 while True:
-                    print('Working...')
+                    print("Working...")
                     await asyncio.sleep(1)
             except asyncio.CancelledError:
-                print('Task cancelled, cleaning up...')
+                print("Task cancelled, cleaning up...")
                 raise
+
         await long_task()
         await long_task()
         await asyncio.sleep(3)
         stats = await cancel_all_tasks(timeout=2.0)
         print(f"Cancelled {stats['cancelled']} tasks")
+
     asyncio.run(example_shutdown())

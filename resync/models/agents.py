@@ -24,7 +24,13 @@ class AgentConfig(BaseModel):
     role: str = Field(..., description="The role of the agent.")
     goal: str = Field(..., description="The primary goal of the agent.")
     backstory: str = Field(..., description="The backstory or context for the agent.")
-    tools: list[str] = Field(default_factory=list, description="List of tools the agent can use.")
+    tools: list[str] = Field(
+        default_factory=list, description="List of tools the agent can use."
+    )
     model_name: str = Field(..., description="The name of the LLM model to use.")
-    memory: bool = Field(default=True, description="Whether the agent should use memory.")
-    max_rpm: int | None = Field(None, description="Maximum requests per minute for the agent.")
+    memory: bool = Field(
+        default=True, description="Whether the agent should use memory."
+    )
+    max_rpm: int | None = Field(
+        None, description="Maximum requests per minute for the agent."
+    )

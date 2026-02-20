@@ -23,7 +23,21 @@ from resync.core.idempotency.manager import IdempotencyManager
 from resync.core.interfaces import IAuditQueue, IKnowledgeGraph
 from resync.core.logger import log_audit_event
 
-__all__ = ['audit_queue_dependency', 'knowledge_graph_dependency', 'router', 'AuditAction', 'AuditRecordResponse', 'generate_audit_log', 'ReviewAction', 'get_flagged_memories', 'review_memory', 'get_audit_metrics', 'get_audit_logs', 'create_audit_log', 'AuditLogger']
+__all__ = [
+    "audit_queue_dependency",
+    "knowledge_graph_dependency",
+    "router",
+    "AuditAction",
+    "AuditRecordResponse",
+    "generate_audit_log",
+    "ReviewAction",
+    "get_flagged_memories",
+    "review_memory",
+    "get_audit_metrics",
+    "get_audit_logs",
+    "create_audit_log",
+    "AuditLogger",
+]
 
 
 # Module-level dependencies to avoid B008 errors
@@ -53,10 +67,16 @@ class AuditRecordResponse(BaseModel):
     timestamp: str = Field(..., description="ISO format timestamp of the audit event")
     user_id: str = Field(..., description="ID of the user performing the action")
     action: AuditAction = Field(..., description="Type of action being audited")
-    details: dict[str, Any] = Field(..., description="Additional details about the action")
-    correlation_id: str | None = Field(None, description="Correlation ID for tracking requests")
+    details: dict[str, Any] = Field(
+        ..., description="Additional details about the action"
+    )
+    correlation_id: str | None = Field(
+        None, description="Correlation ID for tracking requests"
+    )
     ip_address: str | None = Field(None, description="IP address of the requester")
-    user_agent: str | None = Field(None, description="User agent string of the requester")
+    user_agent: str | None = Field(
+        None, description="User agent string of the requester"
+    )
 
 
 def generate_audit_log(
@@ -198,7 +218,8 @@ def get_flagged_memories(
             correlation_id=correlation_id,
         )
         raise HTTPException(
-            status_code=500, detail="Error retrieving flagged memories. Check server logs for details."
+            status_code=500,
+            detail="Error retrieving flagged memories. Check server logs for details.",
         ) from e
 
 
@@ -241,7 +262,9 @@ async def review_memory(
                 )
                 raise HTTPException(status_code=404, detail="Audit record not found.")
 
-            await knowledge_graph.add_observations(review.memory_id, ["MANUALLY_APPROVED_BY_ADMIN"])
+            await knowledge_graph.add_observations(
+                review.memory_id, ["MANUALLY_APPROVED_BY_ADMIN"]
+            )
 
             # Log the successful audit event
             log_audit_event(
@@ -259,7 +282,10 @@ async def review_memory(
                 details={"memory_id": review.memory_id, "error": str(e)},
                 correlation_id=correlation_id,
             )
-            raise HTTPException(status_code=500, detail="Error approving memory. Check server logs for details.") from e
+            raise HTTPException(
+                status_code=500,
+                detail="Error approving memory. Check server logs for details.",
+            ) from e
 
     elif review.action == "reject":
         try:
@@ -294,7 +320,10 @@ async def review_memory(
                 details={"memory_id": review.memory_id, "error": str(e)},
                 correlation_id=correlation_id,
             )
-            raise HTTPException(status_code=500, detail="Error rejecting memory. Check server logs for details.") from e
+            raise HTTPException(
+                status_code=500,
+                detail="Error rejecting memory. Check server logs for details.",
+            ) from e
 
     raise HTTPException(status_code=400, detail="Invalid action") from None
 
@@ -339,7 +368,10 @@ def get_audit_metrics(
             details={"error": str(e)},
             correlation_id=correlation_id,
         )
-        raise HTTPException(status_code=500, detail="Error retrieving audit metrics. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving audit metrics. Check server logs for details.",
+        ) from e
 
 
 # Additional audit endpoints for enhanced functionality
@@ -393,7 +425,10 @@ def get_audit_logs(
             details={"error": str(e)},
             correlation_id=correlation_id,
         )
-        raise HTTPException(status_code=500, detail="Error retrieving audit logs. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving audit logs. Check server logs for details.",
+        ) from e
 
 
 @router.post("/log", response_model=AuditRecordResponse)
@@ -464,7 +499,11 @@ async def create_audit_log(
                 details={"error": str(e), "idempotency_key": idempotency_key},
                 correlation_id=correlation_id,
             )
-            raise HTTPException(status_code=500, detail="Error creating audit log. Check server logs for details.") from e
+            raise HTTPException(
+                status_code=500,
+                detail="Error creating audit log. Check server logs for details.",
+            ) from e
+
     # Execute with idempotency
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency key is required")
@@ -510,7 +549,6 @@ async def create_audit_log(
         await manager.clear_processing(idempotency_key)
 
 
-
 class AuditLogger:
     """Basic audit logger implementation."""
 
@@ -523,7 +561,9 @@ class AuditLogger:
         self.records.append(record)
         return record
 
-    def generate_audit_log(self, user_id: str, action: AuditAction, details: dict = None):
+    def generate_audit_log(
+        self, user_id: str, action: AuditAction, details: dict = None
+    ):
         """Generate an audit log entry."""
         import uuid
 

@@ -17,9 +17,11 @@ def __getattr__(name: str):
         return _LOADED[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
+
 # =============================================================================
 # v5.8.0: Application factory compatibility layer
 # =============================================================================
+
 
 def create_app():
     """
@@ -32,6 +34,6 @@ def create_app():
         app = create_app()
     """
     from resync.app_factory import ApplicationFactory
+
     factory = ApplicationFactory()
     return factory.create_app()
-

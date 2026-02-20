@@ -70,19 +70,14 @@ class SecurityHeadersMiddleware:
         headers = [
             # Prevent clickjacking
             (b"x-frame-options", b"DENY"),
-
             # Prevent MIME sniffing
             (b"x-content-type-options", b"nosniff"),
-
             # XSS protection (legacy, still useful)
             (b"x-xss-protection", b"1; mode=block"),
-
             # Referrer policy for privacy
             (b"referrer-policy", b"strict-origin-when-cross-origin"),
-
             # Permissions policy (feature restrictions)
             (b"permissions-policy", b"geolocation=(), microphone=(), camera=()"),
-
             # Content-Security-Policy (CSP)
             #
             # CSP is handled by ``CSPMiddleware`` (nonce-based; report-only in

@@ -105,7 +105,8 @@ class EntityResolver:
         logger.info(
             "entity_resolver_initialized",
             similarity_threshold=similarity_threshold,
-            embedding_enabled=enable_embedding_fallback and embedding_service is not None,
+            embedding_enabled=enable_embedding_fallback
+            and embedding_service is not None,
         )
 
     # =========================================================================
@@ -320,7 +321,10 @@ class EntityResolver:
                     continue
 
                 similarity = self._cosine_similarity(query_embedding, cached_embedding)
-                if similarity > best_similarity and similarity >= self.similarity_threshold:
+                if (
+                    similarity > best_similarity
+                    and similarity >= self.similarity_threshold
+                ):
                     best_similarity = similarity
                     best_match = {
                         "id": cached_entity["id"],
@@ -434,7 +438,9 @@ class EntityResolver:
         if embedding:
             self._embedding_cache[canonical_id] = embedding
 
-        logger.debug("entity_registered", canonical_id=canonical_id, entity_id=entity_id)
+        logger.debug(
+            "entity_registered", canonical_id=canonical_id, entity_id=entity_id
+        )
 
     def clear_cache(self):
         """Clear all caches."""
@@ -572,7 +578,7 @@ class JobResolver(EntityResolver):
         prefixes = ["job ", "JOB ", "Job "]
         for prefix in prefixes:
             if job_name.startswith(prefix):
-                job_name = job_name[len(prefix):]
+                job_name = job_name[len(prefix) :]
 
         # Uppercase and strip
         return job_name.upper().strip()

@@ -17,7 +17,7 @@ import os
 import warnings
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 import structlog
@@ -493,7 +493,7 @@ class SkillManager:
 
         return result
 
-    def list_skills(self) -> List[Dict[str, any]]:
+    def list_skills(self) -> List[Dict[str, Any]]:
         """Lista todas as skills disponíveis (para API/admin)."""
         return [
             {

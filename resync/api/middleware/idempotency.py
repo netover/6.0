@@ -130,12 +130,16 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # We must restore the body after reading it because BaseHTTPMiddleware
             # consumes the stream, which would make it unavailable to the endpoint.
             request_data = await self._extract_request_data(request)
-            
+
             # Restore the body if it was read
-            if "body" in request_data and isinstance(request_data.get("body"), (dict, str, bytes)):
+            if "body" in request_data and isinstance(
+                request_data.get("body"), (dict, str, bytes)
+            ):
                 body = await request.body()
+
                 async def receive():
                     return {"type": "http.request", "body": body}
+
                 request._receive = receive
 
             cached_response = await self.idempotency_manager.get_cached_response(
@@ -165,7 +169,9 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     idempotency_key=idempotency_key,
                     correlation_id=correlation_id,
                 )
-                raise HTTPException(status_code=409, detail="Operation already in progress")
+                raise HTTPException(
+                    status_code=409, detail="Operation already in progress"
+                )
 
             try:
                 # Executar operação
@@ -173,7 +179,9 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
                 # Cache da resposta se for bem-sucedida
                 if self._should_cache_response(response):
-                    await self._cache_response(idempotency_key, response, request, request_data)
+                    await self._cache_response(
+                        idempotency_key, response, request, request_data
+                    )
 
                 return response
 
@@ -266,14 +274,14 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 # Check Content-Length to avoid reading huge streams into memory
                 content_length = request.headers.get("content-length")
                 if not content_length or int(content_length) > 1024 * 1024:  # 1MB limit
-                   # Skip body for large requests or unknown size (streaming)
-                   # This prevents consuming streams or OOM on large uploads
-                   return {
+                    # Skip body for large requests or unknown size (streaming)
+                    # This prevents consuming streams or OOM on large uploads
+                    return {
                         "method": request.method,
                         "path": str(request.url.path),
                         "query_params": dict(request.query_params),
                         "body_skipped": "large_or_stream",
-                   }
+                    }
 
                 body = await request.body()
                 if body:
@@ -305,7 +313,9 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.warning("Failed to extract request data for idempotency", error=str(e))
+            logger.warning(
+                "Failed to extract request data for idempotency", error=str(e)
+            )
             # Em caso de erro, retornar dados mínimos
             return {"method": request.method, "path": str(request.url.path)}
 
@@ -406,7 +416,11 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                         return json.loads(response.body.decode("utf-8"))
                     # Fallback for other types
                     return json.loads(str(response.body))
-                except (json.JSONDecodeError, UnicodeDecodeError, AttributeError) as exc:
+                except (
+                    json.JSONDecodeError,
+                    UnicodeDecodeError,
+                    AttributeError,
+                ) as exc:
                     # Body not JSON-decodable (or not available). This is expected in some cases.
                     logger.debug("suppressed_exception", error=str(exc), exc_info=True)
 
@@ -529,5 +543,7 @@ def validate_idempotency_key(key: str) -> bool:
     import re
 
     # UUID v4 pattern
-    uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    uuid_pattern = (
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    )
     return bool(re.match(uuid_pattern, key, re.IGNORECASE))

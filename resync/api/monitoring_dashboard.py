@@ -50,14 +50,18 @@ REDIS_LOCK_COLLECTOR = "resync:monitoring:collector:lock"
 
 try:
     import orjson
+
     def json_dumps(data: Any) -> str:
         return orjson.dumps(data).decode()
+
     def json_loads(data: str | bytes) -> Any:
         return orjson.loads(data)
 except ImportError:
     import json
+
     def json_dumps(data: Any) -> str:
         return json.dumps(data)
+
     def json_loads(data: str | bytes) -> Any:
         return json.loads(data)
 
@@ -154,7 +158,9 @@ def _build_metric_sample(
         cache_evictions=_safe_int(cache.get("evictions")),
         router_cache_hits=router_hits,
         router_cache_misses=router_misses,
-        router_cache_hit_ratio=((router_hits / router_total) * 100) if router_total > 0 else 0.0,
+        router_cache_hit_ratio=((router_hits / router_total) * 100)
+        if router_total > 0
+        else 0.0,
         agents_active=_safe_int(agent.get("active_count")),
         agents_created=_safe_int(agent.get("initializations")),
         agents_failed=_safe_int(agent.get("creation_failures")),
@@ -191,9 +197,11 @@ def _jitter_seconds(base: float) -> float:
 
 # ── Data Models ──────────────────────────────────────────────────────────────
 
+
 @dataclass(slots=True)
 class MetricSample:
     """Uma amostra de métricas em um ponto no tempo."""
+
     timestamp: float
     datetime_str: str
 
@@ -246,13 +254,16 @@ class MetricSample:
 
 # ── Dashboard Metrics Store ──────────────────────────────────────────────────
 
+
 class DashboardMetricsStore:
     """Store de métricas persistido no Redis para consistência global."""
 
     def __init__(self):
         self._cached_start_time: float | None = None
 
-    async def compute_rate_and_add_sample(self, requests_total: int, now_wall: float, sample_builder: Any) -> None:
+    async def compute_rate_and_add_sample(
+        self, requests_total: int, now_wall: float, sample_builder: Any
+    ) -> None:
         """Calcula RPS com estado persistido no Redis (consistente entre workers)."""
         try:
             redis = _get_redis()
@@ -263,7 +274,11 @@ class DashboardMetricsStore:
             prev_requests = _safe_int(prev_req_raw)
             prev_walltime = _safe_float(prev_time_raw)
 
-            time_delta = now_wall - prev_walltime if prev_walltime > 0 else SAMPLE_INTERVAL_SECONDS
+            time_delta = (
+                now_wall - prev_walltime
+                if prev_walltime > 0
+                else SAMPLE_INTERVAL_SECONDS
+            )
             req_delta = requests_total - prev_requests if prev_requests > 0 else 0
             if req_delta < 0:
                 req_delta = 0
@@ -293,7 +308,9 @@ class DashboardMetricsStore:
         tws_status = False
         try:
             snapshot = runtime_metrics.get_snapshot()
-            tws_status = snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
+            tws_status = (
+                snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
+            )
         except Exception as e:
             logger.debug("Failed to get TWS status: %s", e)
 
@@ -303,7 +320,7 @@ class DashboardMetricsStore:
             collection_error=error_msg,
             system_uptime=global_uptime,
             system_availability=0.0,
-            tws_connected=tws_status
+            tws_connected=tws_status,
         )
         await self.add_sample(sample)
 
@@ -330,19 +347,23 @@ class DashboardMetricsStore:
         """Computa alertas localmente."""
         new_alerts = []
         if sample.error_rate > 5.0:
-            new_alerts.append({
-                "type": "error_rate",
-                "severity": "critical" if sample.error_rate >= 10 else "warning",
-                "message": f"Error rate: {sample.error_rate:.1f}%",
-                "timestamp": sample.datetime_str
-            })
+            new_alerts.append(
+                {
+                    "type": "error_rate",
+                    "severity": "critical" if sample.error_rate >= 10 else "warning",
+                    "message": f"Error rate: {sample.error_rate:.1f}%",
+                    "timestamp": sample.datetime_str,
+                }
+            )
         if sample.collection_error is None and not sample.tws_connected:
-            new_alerts.append({
-                "type": "tws",
-                "severity": "critical",
-                "message": "TWS desconectado",
-                "timestamp": sample.datetime_str
-            })
+            new_alerts.append(
+                {
+                    "type": "tws",
+                    "severity": "critical",
+                    "message": "TWS desconectado",
+                    "timestamp": sample.datetime_str,
+                }
+            )
 
         return new_alerts
 
@@ -357,12 +378,16 @@ class DashboardMetricsStore:
             await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
             raw = await redis.get(REDIS_KEY_START_TIME)
             if raw is None:
-                logger.warning("Não foi possível determinar o tempo de início global do Redis.")
+                logger.warning(
+                    "Não foi possível determinar o tempo de início global do Redis."
+                )
                 return 0.0
             self._cached_start_time = float(raw)
             return now - self._cached_start_time
         except Exception as e:
-            logger.exception("Erro ao obter uptime global do Redis (%s)", type(e).__name__)
+            logger.exception(
+                "Erro ao obter uptime global do Redis (%s)", type(e).__name__
+            )
             return 0.0
 
     async def get_current_metrics(self) -> dict[str, Any]:
@@ -402,16 +427,27 @@ class DashboardMetricsStore:
             return {
                 "timestamps": [s.get("datetime_str", "") for s in samples],
                 "api": {
-                    "requests_per_sec": [round(s.get("requests_per_sec", 0), 1) for s in samples],
-                    "error_rate": [round(s.get("error_rate", 0), 2) for s in samples]
+                    "requests_per_sec": [
+                        round(s.get("requests_per_sec", 0), 1) for s in samples
+                    ],
+                    "error_rate": [round(s.get("error_rate", 0), 2) for s in samples],
                 },
-                "cache": {"hit_ratio": [round(s.get("cache_hit_ratio", 0), 1) for s in samples]},
+                "cache": {
+                    "hit_ratio": [
+                        round(s.get("cache_hit_ratio", 0), 1) for s in samples
+                    ]
+                },
                 "router_cache": {
-                    "hit_ratio": [round(s.get("router_cache_hit_ratio", 0), 1) for s in samples],
-                    "operations": [s.get("router_cache_hits", 0) + s.get("router_cache_misses", 0) for s in samples]
+                    "hit_ratio": [
+                        round(s.get("router_cache_hit_ratio", 0), 1) for s in samples
+                    ],
+                    "operations": [
+                        s.get("router_cache_hits", 0) + s.get("router_cache_misses", 0)
+                        for s in samples
+                    ],
                 },
                 "agents": {"active": [s.get("agents_active", 0) for s in samples]},
-                "sample_count": len(samples)
+                "sample_count": len(samples),
             }
         except Exception as e:
             logger.error("Erro ao obter histórico (%s)", type(e).__name__)
@@ -437,16 +473,18 @@ class DashboardMetricsStore:
             "api": {
                 "requests_per_sec": round(current.get("requests_per_sec", 0), 1),
                 "requests_total": current.get("requests_total", 0),
-                "error_rate": round(current.get("error_rate", 0), 2)
+                "error_rate": round(current.get("error_rate", 0), 2),
             },
-            "system": {"availability": round(current.get("system_availability", 100), 2)},
+            "system": {
+                "availability": round(current.get("system_availability", 100), 2)
+            },
             "router_cache": {
                 "hits": current.get("router_cache_hits", 0),
                 "misses": current.get("router_cache_misses", 0),
-                "hit_ratio": round(current.get("router_cache_hit_ratio", 0), 1)
+                "hit_ratio": round(current.get("router_cache_hit_ratio", 0), 1),
             },
             "alerts": alerts,
-            "collection_error": err_msg
+            "collection_error": err_msg,
         }
 
     def _empty_response(self, status: str) -> dict:
@@ -461,11 +499,12 @@ class DashboardMetricsStore:
             "cache": {"hit_ratio": []},
             "router_cache": {"hit_ratio": [], "operations": []},
             "agents": {"active": []},
-            "sample_count": 0
+            "sample_count": 0,
         }
 
 
 # ── WebSocket Manager ───────────────────────────────────────────────────────
+
 
 class WebSocketManager:
     """Gerencia conexões WebSocket locais e sincroniza via Redis Pub/Sub."""
@@ -478,12 +517,14 @@ class WebSocketManager:
 
     async def start_sync(self) -> bool:
         """Inicia o listener de Pub/Sub.
-        
+
         Returns:
             True if started successfully, False if already stopped or already running.
         """
         if self._stop_event.is_set():
-            logger.debug("start_sync called but stop_event is set - call restart() to reset")
+            logger.debug(
+                "start_sync called but stop_event is set - call restart() to reset"
+            )
             return False
         if self._sync_task is None or self._sync_task.done():
             self._stop_event.clear()
@@ -493,7 +534,7 @@ class WebSocketManager:
 
     async def restart(self) -> bool:
         """Reinicia o listener de Pub/Sub após stop().
-        
+
         Returns:
             True if restarted successfully.
         """
@@ -513,7 +554,9 @@ class WebSocketManager:
         """Conecta um WebSocket."""
         async with self._lock:
             if len(self._clients) >= MAX_WS_CONNECTIONS:
-                logger.warning("Limite de conexões WebSocket atingido: %d", MAX_WS_CONNECTIONS)
+                logger.warning(
+                    "Limite de conexões WebSocket atingido: %d", MAX_WS_CONNECTIONS
+                )
                 return False
             self._clients.add(websocket)
             return True
@@ -596,9 +639,13 @@ class WebSocketManager:
 
         async def _safe_send(ws: WebSocket):
             try:
-                await asyncio.wait_for(ws.send_text(message_str), timeout=WS_SEND_TIMEOUT)
+                await asyncio.wait_for(
+                    ws.send_text(message_str), timeout=WS_SEND_TIMEOUT
+                )
             except Exception:
-                logger.debug("Falha ao enviar mensagem WebSocket; desconectando cliente")
+                logger.debug(
+                    "Falha ao enviar mensagem WebSocket; desconectando cliente"
+                )
                 await self.disconnect(ws)
 
         if clients:
@@ -608,9 +655,10 @@ class WebSocketManager:
 
 # ── WebSocket Authentication ─────────────────────────────────────────────────
 
+
 def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """Valida autenticação admin para WebSocket.
-    
+
     Aceita token apenas do header Authorization (não aceita query params por segurança).
     """
     try:
@@ -618,7 +666,7 @@ def _verify_ws_admin(websocket: WebSocket) -> str | None:
         auth_header = websocket.headers.get("authorization", "")
         if not auth_header.startswith("Bearer "):
             return None
-        
+
         token = auth_header[7:]
         payload = decode_token(token)
         username = payload.get("sub")
@@ -669,6 +717,7 @@ def get_ws_manager() -> WebSocketManager:
 
 # ── Collector Logic ──────────────────────────────────────────────────────────
 
+
 async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
     redis = _get_redis()
@@ -688,7 +737,9 @@ async def collect_metrics_sample() -> None:
         uptime = await store.get_global_uptime()
 
         def build_sample(rps: float) -> MetricSample:
-            return _build_metric_sample(snapshot, now_wall, dt_str, req_total, rps, uptime)
+            return _build_metric_sample(
+                snapshot, now_wall, dt_str, req_total, rps, uptime
+            )
 
         await store.compute_rate_and_add_sample(req_total, now_wall, build_sample)
 
@@ -719,7 +770,9 @@ async def metrics_collector_loop() -> None:
         redis = _get_redis()
         await redis.ping()
     except Exception as e:
-        logger.exception("Redis não disponível, encerrando collector (%s)", type(e).__name__)
+        logger.exception(
+            "Redis não disponível, encerrando collector (%s)", type(e).__name__
+        )
         return
 
     ws_manager = get_ws_manager()
@@ -731,7 +784,9 @@ async def metrics_collector_loop() -> None:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception("Erro no collector loop ao executar collect_metrics_sample")
+                logger.exception(
+                    "Erro no collector loop ao executar collect_metrics_sample"
+                )
             await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
     finally:
         await ws_manager.stop()

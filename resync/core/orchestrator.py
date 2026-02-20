@@ -237,9 +237,7 @@ class ServiceOrchestrator:
             ),
             "context": self._call_with_retry(
                 "kg_context",
-                lambda jn=job_name: self.kg.get_relevant_context(
-                    f"job failure {jn}"
-                ),
+                lambda jn=job_name: self.kg.get_relevant_context(f"job failure {jn}"),
             ),
             "history": self._call_with_retry(
                 "historical_failures",
@@ -250,9 +248,7 @@ class ServiceOrchestrator:
         if include_logs:
             tasks["logs"] = self._call_with_retry(
                 "tws_job_logs",
-                lambda jn=job_name: self.tws.get_job_logs(
-                    jn, lines=_DEFAULT_LOG_LINES
-                ),
+                lambda jn=job_name: self.tws.get_job_logs(jn, lines=_DEFAULT_LOG_LINES),
             )
 
         if include_dependencies:
@@ -388,9 +384,7 @@ class ServiceOrchestrator:
                 if attr:
                     setattr(result, attr, task_result)
 
-    async def _fetch_historical_failures(
-        self, job_name: str
-    ) -> list[dict[str, Any]]:
+    async def _fetch_historical_failures(self, job_name: str) -> list[dict[str, Any]]:
         """Query KG for historical failures related to *job_name*.
 
         Returns a structured list (possibly empty) rather than raw text.

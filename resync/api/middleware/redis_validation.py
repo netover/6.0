@@ -99,7 +99,9 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
         # TIER 1: READ_ONLY - Always allow
         if tier == RedisTier.READ_ONLY:
             response = await call_next(request)
-            response.headers["X-Redis-Status"] = "available" if redis_available else "unavailable"
+            response.headers["X-Redis-Status"] = (
+                "available" if redis_available else "unavailable"
+            )
             return response
 
         # TIER 3: CRITICAL - Fail fast if Redis down
@@ -118,7 +120,9 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
                 if critical_config
                 else "Redis required"
             )
-            retry_after = critical_config.get("retry_after", 60) if critical_config else 60
+            retry_after = (
+                critical_config.get("retry_after", 60) if critical_config else 60
+            )
 
             return JSONResponse(
                 status_code=503,
@@ -146,7 +150,9 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
                 method=method,
                 path=path,
                 tier="best_effort",
-                degraded_behavior=degraded_config.get("behavior") if degraded_config else None,
+                degraded_behavior=degraded_config.get("behavior")
+                if degraded_config
+                else None,
             )
 
             # Store degradation info in request state
@@ -166,7 +172,9 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
             raise
 
         # Add standard headers
-        response.headers["X-Redis-Status"] = "available" if redis_available else "unavailable"
+        response.headers["X-Redis-Status"] = (
+            "available" if redis_available else "unavailable"
+        )
 
         # Add degradation headers if applicable
         if getattr(request.state, "degraded_mode", False):
@@ -198,6 +206,8 @@ class RedisHealthMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         redis_available = getattr(request.app.state, "redis_available", True)
-        response.headers["X-Redis-Status"] = "available" if redis_available else "unavailable"
+        response.headers["X-Redis-Status"] = (
+            "available" if redis_available else "unavailable"
+        )
 
         return response

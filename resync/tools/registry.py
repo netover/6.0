@@ -283,7 +283,11 @@ class ToolCatalog:
 
             if status == ToolRunStatus.IN_PROGRESS and run.started_at is None:
                 run.started_at = datetime.now(timezone.utc)
-            if status in {ToolRunStatus.DONE, ToolRunStatus.ERROR, ToolRunStatus.CANCELLED}:
+            if status in {
+                ToolRunStatus.DONE,
+                ToolRunStatus.ERROR,
+                ToolRunStatus.CANCELLED,
+            }:
                 run.completed_at = datetime.now(timezone.utc)
 
             return run
@@ -297,7 +301,8 @@ class ToolCatalog:
         return [
             r
             for r in self._active_runs.values()
-            if r.status not in {ToolRunStatus.DONE, ToolRunStatus.ERROR, ToolRunStatus.CANCELLED}
+            if r.status
+            not in {ToolRunStatus.DONE, ToolRunStatus.ERROR, ToolRunStatus.CANCELLED}
         ]
 
     # =========================================================================

@@ -44,7 +44,11 @@ def _iter_target_files(project_root: str) -> Iterable[str]:
         for name in files:
             if not name.endswith(".py"):
                 continue
-            if name.startswith("dependencies") or name.endswith("_dependencies.py") or name == "dependencies.py":
+            if (
+                name.startswith("dependencies")
+                or name.endswith("_dependencies.py")
+                or name == "dependencies.py"
+            ):
                 yield os.path.join(root, name)
 
 
@@ -67,19 +71,43 @@ def find_violations(project_root: str) -> List[Violation]:
 
             # Enforce explicit return annotation and no Any
             if node.returns is None:
-                violations.append(Violation(path, node.lineno, f"{node.name}: missing return annotation"))
+                violations.append(
+                    Violation(
+                        path, node.lineno, f"{node.name}: missing return annotation"
+                    )
+                )
             elif _is_any_annotation(node.returns):
-                violations.append(Violation(path, node.lineno, f"{node.name}: return type must not be Any"))
+                violations.append(
+                    Violation(
+                        path, node.lineno, f"{node.name}: return type must not be Any"
+                    )
+                )
 
             # Enforce param annotations (except self/cls)
-            args = list(node.args.posonlyargs) + list(node.args.args) + list(node.args.kwonlyargs)
+            args = (
+                list(node.args.posonlyargs)
+                + list(node.args.args)
+                + list(node.args.kwonlyargs)
+            )
             for arg in args:
                 if arg.arg in ("self", "cls"):
                     continue
                 if arg.annotation is None:
-                    violations.append(Violation(path, arg.lineno, f"{node.name}: param '{arg.arg}' missing annotation"))
+                    violations.append(
+                        Violation(
+                            path,
+                            arg.lineno,
+                            f"{node.name}: param '{arg.arg}' missing annotation",
+                        )
+                    )
                 elif _is_any_annotation(arg.annotation):
-                    violations.append(Violation(path, arg.lineno, f"{node.name}: param '{arg.arg}' must not be Any"))
+                    violations.append(
+                        Violation(
+                            path,
+                            arg.lineno,
+                            f"{node.name}: param '{arg.arg}' must not be Any",
+                        )
+                    )
 
     return violations
 

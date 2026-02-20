@@ -123,19 +123,19 @@ def _hash_to_vector(text: str, dim: int = FALLBACK_EMBEDDING_DIM) -> list[float]
 
     # Extend hash to fill dimension (256 bits = 32 bytes = 32 floats max)
     # For 384 dim, we need to hash multiple times
-    vectors = []
+    vector: list[float] = []
     current_text = text
-    while len(vectors) < dim:
+    while len(vector) < dim:
         hash_bytes = hashlib.sha256(current_text.encode("utf-8")).digest()
         # Convert each byte to float in [-1, 1] range
         for b in hash_bytes:
-            if len(vectors) >= dim:
+            if len(vector) >= dim:
                 break
-            vectors.append((b / 127.5) - 1.0)  # Map 0-255 to -1 to 1
+            vector.append((b / 127.5) - 1.0)  # Map 0-255 to -1 to 1
         current_text = hash_bytes.hex()  # Use hash as next input
 
     # Normalize to unit vector (important for cosine similarity)
-    arr = np.array(vectors[:dim])
+    arr = np.array(vector[:dim])
     norm = np.linalg.norm(arr)
     if norm > 0:
         arr = arr / norm
@@ -234,7 +234,7 @@ def generate_embeddings_batch(
     return [generate_embedding(text, normalize, use_fallback=True) for text in texts]
 
 
-def get_embedding_dimension() -> int:
+def get_embedding_dimension() -> int | None:
     """
     Get the dimension of embeddings produced by current model.
 

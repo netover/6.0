@@ -484,7 +484,9 @@ class AuditToKGPipeline:
                     # For now, return False (no known issues)
                     pass
                 except Exception as exc:
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                    logger.debug(
+                        "suppressed_exception", error=str(exc), exc_info=True
+                    )  # was: pass
 
         return False, None
 

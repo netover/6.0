@@ -768,7 +768,9 @@ def get_config_definitions() -> list[ConfigCategory]:
                 ),
                 ConfigField(
                     name="LLM_ROUTING_SIMPLE_MODEL",
-                    value=getattr(settings, "LLM_ROUTING_SIMPLE_MODEL", "gpt-3.5-turbo"),
+                    value=getattr(
+                        settings, "LLM_ROUTING_SIMPLE_MODEL", "gpt-3.5-turbo"
+                    ),
                     type="string",
                     description="Model for simple queries (status checks, basic info)",
                     default="gpt-3.5-turbo",
@@ -803,7 +805,9 @@ def get_config_definitions() -> list[ConfigCategory]:
                 ),
                 ConfigField(
                     name="LLM_ROUTING_FALLBACK_MODEL",
-                    value=getattr(settings, "LLM_ROUTING_FALLBACK_MODEL", "gpt-3.5-turbo"),
+                    value=getattr(
+                        settings, "LLM_ROUTING_FALLBACK_MODEL", "gpt-3.5-turbo"
+                    ),
                     type="string",
                     description="Fallback model when primary is unavailable",
                     default="gpt-3.5-turbo",
@@ -928,7 +932,6 @@ def get_config_definitions() -> list[ConfigCategory]:
             ],
         ),
         # =====================================================================
-
     ]
 
     # =============================================================================
@@ -969,7 +972,8 @@ async def get_config_category(category_name: str):
             return category
 
     raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail=f"Category '{category_name}' not found"
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Category '{category_name}' not found",
     )
 
 
@@ -1023,7 +1027,9 @@ async def update_config(request: ConfigUpdateRequest):
             try:
                 setattr(settings, field_name, validated_value)
             except Exception as exc:
-                logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                logger.debug(
+                    "suppressed_exception", error=str(exc), exc_info=True
+                )  # was: pass
 
             updated_fields.append(field_name)
 
@@ -1079,7 +1085,9 @@ async def get_system_resources():
         # Get worker count (approximate)
         parent = psutil.Process(os.getppid())
         try:
-            workers = len([c for c in parent.children() if "python" in c.name().lower()])
+            workers = len(
+                [c for c in parent.children() if "python" in c.name().lower()]
+            )
         except Exception:
             workers = 1
 
@@ -1092,7 +1100,10 @@ async def get_system_resources():
             open_connections=len(process.connections()),
             active_workers=workers,
             uptime_seconds=round(
-                (datetime.now(timezone.utc) - datetime.fromtimestamp(process.create_time())).total_seconds()
+                (
+                    datetime.now(timezone.utc)
+                    - datetime.fromtimestamp(process.create_time())
+                ).total_seconds()
             ),
         )
 
@@ -1146,7 +1157,9 @@ async def trigger_garbage_collection():
 
     freed = before - after
 
-    logger.info("gc_triggered", objects_collected=collected, memory_freed_mb=round(freed, 1))
+    logger.info(
+        "gc_triggered", objects_collected=collected, memory_freed_mb=round(freed, 1)
+    )
 
     return {
         "success": True,

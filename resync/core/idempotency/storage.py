@@ -22,7 +22,9 @@ class IdempotencyStorage:
         instead of letting a NoneType AttributeError leak out.
         """
         if self.redis is None:
-            raise IdempotencyStorageError("Redis client not available (idempotency disabled)")
+            raise IdempotencyStorageError(
+                "Redis client not available (idempotency disabled)"
+            )
         return self.redis
 
     async def get(self, key: str) -> IdempotencyRecord | None:
@@ -41,7 +43,9 @@ class IdempotencyStorage:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            raise IdempotencyStorageError(f"Failed to get idempotency record: {str(e)}") from e
+            raise IdempotencyStorageError(
+                f"Failed to get idempotency record: {str(e)}"
+            ) from e
 
     async def set(self, key: str, record: IdempotencyRecord, ttl_seconds: int) -> bool:
         """Armazena registro de idempotency"""
@@ -57,9 +61,13 @@ class IdempotencyStorage:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            raise IdempotencyStorageError(f"Failed to set idempotency record: {str(e)}") from e
+            raise IdempotencyStorageError(
+                f"Failed to set idempotency record: {str(e)}"
+            ) from e
 
-    async def set_nx(self, key: str, record: IdempotencyRecord, ttl_seconds: int) -> bool:
+    async def set_nx(
+        self, key: str, record: IdempotencyRecord, ttl_seconds: int
+    ) -> bool:
         """Armazena registro SOMENTE se a chave NÃO existir (atômico).
 
         Usa ``SET key value NX EX ttl`` do Redis — operação atômica que evita
@@ -79,7 +87,9 @@ class IdempotencyStorage:
         except Exception as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            raise IdempotencyStorageError(f"Failed to set_nx idempotency record: {str(e)}") from e
+            raise IdempotencyStorageError(
+                f"Failed to set_nx idempotency record: {str(e)}"
+            ) from e
 
     async def exists(self, key: str) -> bool:
         """Verifica se chave existe"""

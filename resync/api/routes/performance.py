@@ -14,7 +14,19 @@ from resync.core.performance_optimizer import get_performance_service
 from resync.core.pools.pool_manager import get_connection_pool_manager
 from resync.core.resource_manager import get_global_resource_pool
 
-__all__ = ['logger', 'performance_router', 'router', 'get_performance_report', 'get_cache_metrics', 'get_cache_recommendations', 'get_pool_metrics', 'get_pool_recommendations', 'get_resource_stats', 'detect_resource_leaks', 'get_performance_health']
+__all__ = [
+    "logger",
+    "performance_router",
+    "router",
+    "get_performance_report",
+    "get_cache_metrics",
+    "get_cache_recommendations",
+    "get_pool_metrics",
+    "get_pool_recommendations",
+    "get_resource_stats",
+    "detect_resource_leaks",
+    "get_performance_health",
+]
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +91,9 @@ async def get_cache_metrics() -> dict[str, Any]:
                 "average_access_time_ms": "{metrics.average_access_time_ms:.2f}",
             }
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content={"caches": cache_metrics})
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content={"caches": cache_metrics}
+        )
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -104,7 +118,9 @@ async def get_cache_recommendations() -> dict[str, Any]:
 
         recommendations = {}
         for cache_name, monitor in performance_service.cache_monitors.items():
-            recommendations[cache_name] = await monitor.get_optimization_recommendations()
+            recommendations[
+                cache_name
+            ] = await monitor.get_optimization_recommendations()
 
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"recommendations": recommendations}
@@ -182,7 +198,9 @@ async def get_resource_stats() -> dict[str, Any]:
         resource_pool = get_global_resource_pool()
         stats = resource_pool.get_stats()
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content={"resource_stats": stats})
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content={"resource_stats": stats}
+        )
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -266,7 +284,10 @@ async def get_performance_health() -> dict[str, Any]:
         pool_issues = 0
         pool_stats = pool_manager.get_pool_stats()
         for _pool_name, stats in pool_stats.items():
-            if stats.get("connection_errors", 0) > 10 or stats.get("pool_exhaustions", 0) > 0:
+            if (
+                stats.get("connection_errors", 0) > 10
+                or stats.get("pool_exhaustions", 0) > 0
+            ):
                 pool_health = "degraded"
                 pool_issues += 1
 
@@ -278,7 +299,11 @@ async def get_performance_health() -> dict[str, Any]:
 
         # Determine overall health
         overall_health = "healthy"
-        if cache_health == "degraded" or pool_health == "degraded" or resource_health == "degraded":
+        if (
+            cache_health == "degraded"
+            or pool_health == "degraded"
+            or resource_health == "degraded"
+        ):
             overall_health = "degraded"
 
         return JSONResponse(

@@ -27,7 +27,9 @@ logger = structlog.get_logger(__name__)
 class QueryIntent:
     """Intent extraído de uma query."""
 
-    intent_type: str  # summary, failures, patterns, job_history, workstation, comparison
+    intent_type: (
+        str  # summary, failures, patterns, job_history, workstation, comparison
+    )
     time_range: tuple[datetime, datetime]
     entities: list[str]  # job names, workstation names
     filters: dict[str, Any]
@@ -55,17 +57,24 @@ class TWSQueryProcessor:
     # Padrões de tempo
     TIME_PATTERNS = {
         r"ontem": lambda: (
-            datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=1),
+            datetime.now(timezone.utc).replace(hour=0, minute=0, second=0)
+            - timedelta(days=1),
             datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
         ),
-        r"hoje": lambda: (datetime.now(timezone.utc).replace(hour=0, minute=0, second=0), datetime.now(timezone.utc)),
+        r"hoje": lambda: (
+            datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
+            datetime.now(timezone.utc),
+        ),
         r"esta semana|essa semana|semana atual": lambda: (
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
             datetime.now(timezone.utc),
         ),
         r"semana passada|última semana": lambda: (
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
         ),
         r"este mês|esse mês|mês atual": lambda: (
             datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0),
@@ -154,7 +163,10 @@ class TWSQueryProcessor:
         logger.info(
             "query_processed",
             intent_type=intent.intent_type,
-            time_range=(intent.time_range[0].isoformat(), intent.time_range[1].isoformat()),
+            time_range=(
+                intent.time_range[0].isoformat(),
+                intent.time_range[1].isoformat(),
+            ),
             entities=intent.entities,
         )
 
@@ -213,7 +225,10 @@ class TWSQueryProcessor:
                     return time_func()
 
         # Default: últimas 24 horas
-        return (datetime.now(timezone.utc) - timedelta(hours=24), datetime.now(timezone.utc))
+        return (
+            datetime.now(timezone.utc) - timedelta(hours=24),
+            datetime.now(timezone.utc),
+        )
 
     def _extract_entities(self, query: str) -> list[str]:
         """Extrai entidades (nomes de jobs, workstations)."""
@@ -259,7 +274,9 @@ class TWSQueryProcessor:
 
             if event_counts:
                 summary += "\n**Por tipo:**\n"
-                for etype, count in sorted(event_counts.items(), key=lambda x: -x[1])[:5]:
+                for etype, count in sorted(event_counts.items(), key=lambda x: -x[1])[
+                    :5
+                ]:
                     summary += f"- {etype}: {count}\n"
 
             if failures:
@@ -308,7 +325,10 @@ class TWSQueryProcessor:
                 events = [
                     e
                     for e in events
-                    if any(ent.lower() in e.get("source", "").lower() for ent in intent.entities)
+                    if any(
+                        ent.lower() in e.get("source", "").lower()
+                        for ent in intent.entities
+                    )
                 ]
 
             # Agrupa por job
@@ -329,11 +349,16 @@ class TWSQueryProcessor:
                 summary += f"- Jobs afetados: {len(jobs_failed)}\n\n"
 
                 summary += "**Jobs que falharam:**\n"
-                for job, failures in sorted(jobs_failed.items(), key=lambda x: -len(x[1]))[:10]:
+                for job, failures in sorted(
+                    jobs_failed.items(), key=lambda x: -len(x[1])
+                )[:10]:
                     summary += f"- **{job}**: {len(failures)}x\n"
                     if failures:
                         last_error = (
-                            failures[0].get("details", {}).get("job", {}).get("error_message")
+                            failures[0]
+                            .get("details", {})
+                            .get("job", {})
+                            .get("error_message")
                         )
                         if last_error:
                             summary += f"  └ Último erro: {last_error[:100]}\n"
@@ -344,10 +369,15 @@ class TWSQueryProcessor:
                 for job in list(jobs_failed.keys())[:3]:
                     solution = await self.status_store.find_solution(
                         "job_abend",
-                        events[0].get("details", {}).get("job", {}).get("error_message", ""),
+                        events[0]
+                        .get("details", {})
+                        .get("job", {})
+                        .get("error_message", ""),
                     )
                     if solution:
-                        suggestions.append(f"Para {job}: {solution.get('solution', 'N/A')}")
+                        suggestions.append(
+                            f"Para {job}: {solution.get('solution', 'N/A')}"
+                        )
 
             return QueryResult(
                 success=True,
@@ -391,7 +421,9 @@ class TWSQueryProcessor:
 
             if not patterns:
                 summary = "Nenhum padrão significativo detectado no momento."
-                summary += "\n\nIsso pode significar que o sistema está operando normalmente "
+                summary += (
+                    "\n\nIsso pode significar que o sistema está operando normalmente "
+                )
                 summary += "ou que não há dados suficientes para detectar padrões."
             else:
                 summary = f"**{len(patterns)} padrões detectados:**\n\n"
@@ -457,7 +489,9 @@ class TWSQueryProcessor:
 
                 # Duração média
                 durations = [
-                    h.get("duration_seconds") for h in history if h.get("duration_seconds")
+                    h.get("duration_seconds")
+                    for h in history
+                    if h.get("duration_seconds")
                 ]
                 avg_duration = sum(durations) / len(durations) if durations else 0
 
@@ -471,9 +505,7 @@ class TWSQueryProcessor:
                     summary += "\n**Últimas falhas:**\n"
                     failures = [h for h in history if h.get("status") == "ABEND"][:3]
                     for f in failures:
-                        summary += (
-                            f"- {f.get('timestamp', 'N/A')}: {f.get('error_message', 'N/A')[:50]}\n"
-                        )
+                        summary += f"- {f.get('timestamp', 'N/A')}: {f.get('error_message', 'N/A')[:50]}\n"
 
             return QueryResult(
                 success=True,
@@ -519,7 +551,10 @@ class TWSQueryProcessor:
                 events = [
                     e
                     for e in events
-                    if any(ent.lower() in e.get("source", "").lower() for ent in intent.entities)
+                    if any(
+                        ent.lower() in e.get("source", "").lower()
+                        for ent in intent.entities
+                    )
                 ]
 
             period = self._format_period(start, end)
@@ -590,7 +625,9 @@ class TWSQueryProcessor:
                 end_time=prev_end,
                 limit=500,
             )
-            prev_failures = [e for e in prev_events if e.get("severity") in ["error", "critical"]]
+            prev_failures = [
+                e for e in prev_events if e.get("severity") in ["error", "critical"]
+            ]
 
             # Calcula diferenças
             event_diff = len(current_events) - len(prev_events)
@@ -615,7 +652,9 @@ class TWSQueryProcessor:
             summary += f"**Período atual:** {self._format_period(start, end)}\n"
             summary += f"- Eventos: {len(current_events)}\n"
             summary += f"- Falhas: {len(current_failures)}\n\n"
-            summary += f"**Período anterior:** {self._format_period(prev_start, prev_end)}\n"
+            summary += (
+                f"**Período anterior:** {self._format_period(prev_start, prev_end)}\n"
+            )
             summary += f"- Eventos: {len(prev_events)}\n"
             summary += f"- Falhas: {len(prev_failures)}\n\n"
             summary += "**Tendência:**\n"
@@ -631,7 +670,10 @@ class TWSQueryProcessor:
                     "Identificar novos problemas",
                 ],
                 metadata={
-                    "current_period": {"start": start.isoformat(), "end": end.isoformat()},
+                    "current_period": {
+                        "start": start.isoformat(),
+                        "end": end.isoformat(),
+                    },
                     "previous_period": {
                         "start": prev_start.isoformat(),
                         "end": prev_end.isoformat(),
@@ -666,7 +708,9 @@ class TWSQueryProcessor:
                 summary += f"Encontrei {len(events)} eventos relacionados:\n\n"
 
                 for e in events[:5]:
-                    summary += f"- [{e.get('timestamp', 'N/A')}] {e.get('message', 'N/A')}\n"
+                    summary += (
+                        f"- [{e.get('timestamp', 'N/A')}] {e.get('message', 'N/A')}\n"
+                    )
             else:
                 # Fallback para resumo geral
                 return await self._handle_summary_query(intent)

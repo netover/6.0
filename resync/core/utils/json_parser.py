@@ -40,4 +40,6 @@ def parse_llm_json_response(
     Returns:
         The parsed and validated JSON data as a dictionary.
     """
-    return JSONParseCommandExecutor.execute_command(text, required_keys, max_size, strict)
+    return JSONParseCommandExecutor.execute_command(
+        text, required_keys, max_size, strict
+    )

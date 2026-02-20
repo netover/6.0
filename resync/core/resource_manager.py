@@ -7,6 +7,7 @@ Java's try-with-resources and Python's context managers.
 """
 
 import asyncio
+import inspect
 import logging
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
@@ -48,7 +49,9 @@ class ManagedResource:
 
     async def __aenter__(self):
         """Async context manager entry."""
-        logger.debug("Acquiring resource: %s (%s)", self.resource_id, self.resource_type)
+        logger.debug(
+            "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
+        )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -58,7 +61,9 @@ class ManagedResource:
 
     def __enter__(self):
         """Sync context manager entry."""
-        logger.debug("Acquiring resource: %s (%s)", self.resource_id, self.resource_type)
+        logger.debug(
+            "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -113,10 +118,10 @@ class DatabaseConnectionResource(ManagedResource):
     async def _cleanup(self) -> None:
         """Close the database connection."""
         if hasattr(self.connection, "close"):
-            if asyncio.iscoroutinefunction(self.connection.close):
+            if inspect.iscoroutinefunction(self.connection.close):
                 await self.connection.close()
             else:
-                self.connection.close()
+                await asyncio.to_thread(self.connection.close)
 
 
 class FileResource(ManagedResource):
@@ -129,10 +134,10 @@ class FileResource(ManagedResource):
     async def _cleanup(self) -> None:
         """Close the file handle."""
         if hasattr(self.file_handle, "close"):
-            if asyncio.iscoroutinefunction(self.file_handle.close):
+            if inspect.iscoroutinefunction(self.file_handle.close):
                 await self.file_handle.close()
             else:
-                self.file_handle.close()
+                await asyncio.to_thread(self.file_handle.close)
 
     def _cleanup_sync(self) -> None:
         """Close the file handle synchronously."""
@@ -150,10 +155,10 @@ class NetworkSocketResource(ManagedResource):
     async def _cleanup(self) -> None:
         """Close the network socket."""
         if hasattr(self.socket, "close"):
-            if asyncio.iscoroutinefunction(self.socket.close):
+            if inspect.iscoroutinefunction(self.socket.close):
                 await self.socket.close()
             else:
-                self.socket.close()
+                await asyncio.to_thread(self.socket.close)
 
 
 @asynccontextmanager
@@ -192,7 +197,9 @@ async def managed_file(file_path: str, mode: str = "r") -> AsyncIterator[Any]:
         aiofiles = None  # type: ignore
 
     if aiofiles is None:
-        raise RuntimeError("aiofiles is required for async file operations but is not installed.")
+        raise RuntimeError(
+            "aiofiles is required for async file operations but is not installed."
+        )
 
     file_handle = None
     try:
@@ -266,7 +273,7 @@ class ResourcePool:
             resource_id = f"{resource_type}_{self._resource_counter}"
 
             # Create the resource
-            if asyncio.iscoroutinefunction(factory):
+            if inspect.iscoroutinefunction(factory):
                 resource = await factory()
             else:
                 resource = factory()
@@ -298,10 +305,10 @@ class ResourcePool:
                 # Cleanup the resource
                 try:
                     if hasattr(resource, "close"):
-                        if asyncio.iscoroutinefunction(resource.close):
+                        if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
                         else:
-                            resource.close()
+                            await asyncio.to_thread(resource.close)
                 except Exception as e:
                     logger.error("Error closing resource %s: %s", resource_id, e)
 
@@ -316,10 +323,16 @@ class ResourcePool:
         async with self._lock:
             for resource_id in list(self.active_resources.keys()):
                 info = self.active_resources[resource_id]
-                logger.warning("Force cleaning up resource: %s (%s)", resource_id, info.resource_type)
+                logger.warning(
+                    "Force cleaning up resource: %s (%s)",
+                    resource_id,
+                    info.resource_type,
+                )
                 del self.active_resources[resource_id]
 
-    async def detect_leaks(self, max_lifetime_seconds: int = 3600) -> list[ResourceInfo]:
+    async def detect_leaks(
+        self, max_lifetime_seconds: int = 3600
+    ) -> list[ResourceInfo]:
         """
         Detect potential resource leaks.
 
@@ -404,15 +417,15 @@ class BatchResourceManager:
         for resource_id, resource, cleanup_fn in reversed(self.resources):
             try:
                 if cleanup_fn:
-                    if asyncio.iscoroutinefunction(cleanup_fn):
+                    if inspect.iscoroutinefunction(cleanup_fn):
                         await cleanup_fn(resource)
                     else:
-                        cleanup_fn(resource)
+                        await asyncio.to_thread(cleanup_fn, resource)
                 elif hasattr(resource, "close"):
-                    if asyncio.iscoroutinefunction(resource.close):
+                    if inspect.iscoroutinefunction(resource.close):
                         await resource.close()
                     else:
-                        resource.close()
+                        await asyncio.to_thread(resource.close)
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
             except Exception as e:

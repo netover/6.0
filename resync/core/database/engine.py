@@ -11,6 +11,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import AsyncAdaptedQueuePool
@@ -54,6 +55,7 @@ def _get_active_sessions_lock() -> asyncio.Lock:
         _active_sessions_lock = asyncio.Lock()
         _active_sessions_lock_loop = loop
     return _active_sessions_lock
+
 
 _shutdown_event: asyncio.Event | None = None
 
@@ -152,7 +154,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         RuntimeError: Se engine está em processo de shutdown.
     """
     if _shutdown_event is not None:
-        raise RuntimeError("Database engine is shutting down. Cannot create new sessions.")
+        raise RuntimeError(
+            "Database engine is shutting down. Cannot create new sessions."
+        )
 
     if _engine is None:
         # Lazy initialization
@@ -201,7 +205,8 @@ async def close_engine(timeout: float = 30.0):
     logger.info("Database shutdown initiated, waiting for active sessions...")
 
     # Aguardar sessões ativas com timeout
-    start_time = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
     while True:
         async with _get_active_sessions_lock():
             active = _active_sessions
@@ -210,7 +215,7 @@ async def close_engine(timeout: float = 30.0):
             logger.info("All database sessions completed")
             break
 
-        elapsed = asyncio.get_event_loop().time() - start_time
+        elapsed = loop.time() - start_time
         if elapsed >= timeout:
             logger.warning(
                 f"Shutdown timeout reached with {active} active sessions. Forcing close."
@@ -224,7 +229,7 @@ async def close_engine(timeout: float = 30.0):
     try:
         await _engine.dispose()
         logger.info("Database engine closed successfully")
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error("Error closing database engine: %s", e)
     finally:
         _engine = None

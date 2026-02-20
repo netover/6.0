@@ -189,7 +189,10 @@ async def initialize_observability():
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("observability_setup_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 # =============================================================================
@@ -277,7 +280,8 @@ async def run_drift_check():
 
     if not monitor:
         raise HTTPException(
-            status_code=503, detail="Evidently monitor not initialized. Enable it in configuration."
+            status_code=503,
+            detail="Evidently monitor not initialized. Enable it in configuration.",
         )
 
     result = await monitor.check_drift()

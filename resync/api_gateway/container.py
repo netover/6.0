@@ -138,7 +138,9 @@ container = Container()
 
 
 def setup_dependencies(
-    tws_client: ITWSClient, agent_manager: IAgentManager, knowledge_graph: IKnowledgeGraph
+    tws_client: ITWSClient,
+    agent_manager: IAgentManager,
+    knowledge_graph: IKnowledgeGraph,
 ) -> None:
     """Setup the dependency injection container with all necessary services."""
     # Register core components
@@ -147,7 +149,9 @@ def setup_dependencies(
     container.register_singleton(IKnowledgeGraph, knowledge_graph)
 
     # Register services using the factory
-    container.register_singleton(ITWSService, ServiceFactory.create_tws_service(tws_client))
+    container.register_singleton(
+        ITWSService, ServiceFactory.create_tws_service(tws_client)
+    )
     container.register_singleton(
         IAgentService,
         ServiceFactory.create_agent_service(agent_manager),

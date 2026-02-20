@@ -34,19 +34,30 @@ class TWSHistoryRAG:
     # Padrões temporais em português e inglês
     TIME_PATTERNS = {
         # Português
-        r"ontem": lambda: (datetime.now(timezone.utc) - timedelta(days=1), datetime.now(timezone.utc) - timedelta(days=1)),
+        r"ontem": lambda: (
+            datetime.now(timezone.utc) - timedelta(days=1),
+            datetime.now(timezone.utc) - timedelta(days=1),
+        ),
         r"hoje": lambda: (datetime.now(timezone.utc), datetime.now(timezone.utc)),
         r"essa semana|esta semana|semana atual": lambda: (
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
             datetime.now(timezone.utc),
         ),
         r"semana passada|última semana": lambda: (
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
         ),
-        r"esse mês|este mês|mês atual": lambda: (datetime.now(timezone.utc).replace(day=1), datetime.now(timezone.utc)),
+        r"esse mês|este mês|mês atual": lambda: (
+            datetime.now(timezone.utc).replace(day=1),
+            datetime.now(timezone.utc),
+        ),
         r"mês passado|último mês": lambda: (
-            (datetime.now(timezone.utc).replace(day=1) - timedelta(days=1)).replace(day=1),
+            (datetime.now(timezone.utc).replace(day=1) - timedelta(days=1)).replace(
+                day=1
+            ),
             datetime.now(timezone.utc).replace(day=1) - timedelta(days=1),
         ),
         r"últimos? (\d+) dias?": lambda m: (
@@ -64,12 +75,15 @@ class TWSHistoryRAG:
         ),
         r"today": lambda: (datetime.now(timezone.utc), datetime.now(timezone.utc)),
         r"this week": lambda: (
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
             datetime.now(timezone.utc),
         ),
         r"last week": lambda: (
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
-            datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
         ),
         r"last (\d+) days?": lambda m: (
             datetime.now(timezone.utc) - timedelta(days=int(m.group(1))),
@@ -179,11 +193,15 @@ class TWSHistoryRAG:
 
                         # Ajusta para início e fim do dia
                         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-                        end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
+                        end = end.replace(
+                            hour=23, minute=59, second=59, microsecond=999999
+                        )
 
                         return start, end
                 except Exception as e:
-                    logger.warning("time_extraction_error", pattern=pattern, error=str(e))
+                    logger.warning(
+                        "time_extraction_error", pattern=pattern, error=str(e)
+                    )
 
         # Default: últimas 24 horas
         end = datetime.now(timezone.utc)
@@ -269,7 +287,9 @@ class TWSHistoryRAG:
 
             # Resumo diário
             if intent == "summary":
-                context["summary"] = await self.status_store.get_daily_summary(start_date)
+                context["summary"] = await self.status_store.get_daily_summary(
+                    start_date
+                )
 
             # Histórico de jobs específicos
             for job_name in entities.get("jobs", []):
@@ -344,8 +364,12 @@ RESPOSTA:"""
         if context.get("summary"):
             summary = context["summary"]
             parts.append(f"RESUMO DO DIA {summary.get('date', 'N/A')}:")
-            parts.append(f"- Jobs completados: {summary.get('status_counts', {}).get('SUCC', 0)}")
-            parts.append(f"- Jobs com falha: {summary.get('status_counts', {}).get('ABEND', 0)}")
+            parts.append(
+                f"- Jobs completados: {summary.get('status_counts', {}).get('SUCC', 0)}"
+            )
+            parts.append(
+                f"- Jobs com falha: {summary.get('status_counts', {}).get('ABEND', 0)}"
+            )
             parts.append(f"- Total de eventos: {summary.get('total_events', 0)}")
             parts.append(f"- Eventos críticos: {summary.get('critical_events', 0)}")
             parts.append("")
@@ -416,7 +440,9 @@ RESPOSTA:"""
         for job_name, history in job_history.items():
             success_count = sum(1 for h in history if h.get("status") == "SUCC")
             fail_count = sum(1 for h in history if h.get("status") == "ABEND")
-            parts.append(f"📋 **Job {job_name}:** {success_count} sucessos, {fail_count} falhas")
+            parts.append(
+                f"📋 **Job {job_name}:** {success_count} sucessos, {fail_count} falhas"
+            )
 
         # Padrões
         patterns = context.get("patterns", [])
@@ -519,14 +545,14 @@ async def search_historical_incidents(
 ) -> list[dict[str, Any]]:
     """
     Search for historical incidents similar to the query.
-    
+
     Used by the incident_response.py enrichment node.
-    
+
     Args:
         query: Search query (error type, component, keywords)
         days_back: How many days back to search
         limit: Maximum number of results
-        
+
     Returns:
         List of incident dicts with:
         - timestamp: When incident occurred
@@ -536,35 +562,39 @@ async def search_historical_incidents(
         - mttr: Mean time to resolution in minutes
     """
     from datetime import timezone
-    
+
     results = []
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
-    
+
     # Try using the RAG instance
     rag = get_tws_history_rag()
     if rag:
         try:
             # Use RAG to find similar issues
             context = await rag.retrieve_context(query)
-            
+
             if context.get("results"):
                 for item in context["results"][:limit]:
-                    results.append({
-                        "timestamp": item.get("timestamp"),
-                        "error_type": _extract_error_type_from_content(item.get("content", "")),
-                        "component": item.get("component", "Unknown"),
-                        "resolution": item.get("resolution"),
-                        "mttr": item.get("mttr"),
-                    })
+                    results.append(
+                        {
+                            "timestamp": item.get("timestamp"),
+                            "error_type": _extract_error_type_from_content(
+                                item.get("content", "")
+                            ),
+                            "component": item.get("component", "Unknown"),
+                            "resolution": item.get("resolution"),
+                            "mttr": item.get("mttr"),
+                        }
+                    )
         except Exception as e:
             logger.debug("rag_search_failed", error=str(e))
-    
+
     # Fallback: Search in database
     if not results:
         try:
             from resync.core.database.engine import get_db_session
             from sqlalchemy import text
-            
+
             async with get_db_session() as session:
                 sql = text("""
                     SELECT 
@@ -581,23 +611,26 @@ async def search_historical_incidents(
                     ORDER BY created_at DESC
                     LIMIT :limit
                 """)
-                
+
                 result = await session.execute(
-                    sql,
-                    {"cutoff": cutoff_date, "query": f"%{query}%", "limit": limit}
+                    sql, {"cutoff": cutoff_date, "query": f"%{query}%", "limit": limit}
                 )
-                
+
                 for row in result:
-                    results.append({
-                        "timestamp": row.timestamp.isoformat() if row.timestamp else None,
-                        "error_type": row.error_type,
-                        "component": row.component,
-                        "resolution": row.resolution,
-                        "mttr": int(row.mttr) if row.mttr else None,
-                    })
+                    results.append(
+                        {
+                            "timestamp": row.timestamp.isoformat()
+                            if row.timestamp
+                            else None,
+                            "error_type": row.error_type,
+                            "component": row.component,
+                            "resolution": row.resolution,
+                            "mttr": int(row.mttr) if row.mttr else None,
+                        }
+                    )
         except Exception as e:
             logger.debug("db_incident_search_failed", error=str(e))
-    
+
     logger.info("historical_incident_search", query=query[:50], count=len(results))
     return results
 
@@ -616,14 +649,14 @@ async def log_incident_resolution(
 ) -> None:
     """
     Log an incident resolution for future reference.
-    
+
     Creates a feedback loop where resolved incidents
     become searchable for future similar issues.
     """
     try:
         from resync.core.audit_db import log_audit_event
         from datetime import timezone
-        
+
         await log_audit_event(
             action="incident_resolved",
             entity_type=component,
@@ -636,9 +669,11 @@ async def log_incident_resolution(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
-        
-        logger.info("incident_resolution_logged", error_type=error_type, component=component)
-        
+
+        logger.info(
+            "incident_resolution_logged", error_type=error_type, component=component
+        )
+
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):

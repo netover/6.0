@@ -42,7 +42,6 @@ async def get_tws_client() -> OptimizedTWSClient:
     return get_tws_client_singleton()
 
 
-
 async def get_orchestrator(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
@@ -131,7 +130,9 @@ async def investigate_job(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error investigating job %s: %s", job_name, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @enhanced_router.get(
@@ -165,7 +166,8 @@ async def system_health(
             raise
         logger.error("Error checking system health: %s", e, exc_info=True)
         return JSONResponse(
-            status_code=503, content={"status": "ERROR", "error": "Service temporarily unavailable"}
+            status_code=503,
+            content={"status": "ERROR", "error": "Service temporarily unavailable"},
         )
 
 
@@ -195,7 +197,9 @@ async def get_failed_jobs_endpoint(
         elif callable(query_jobstreams):
             jobs = await query_jobstreams(status="ABEND", hours=hours)
         else:
-            raise HTTPException(status_code=500, detail="TWS client missing query methods")
+            raise HTTPException(
+                status_code=500, detail="TWS client missing query methods"
+            )
 
         return {
             "count": len(jobs),
@@ -210,7 +214,9 @@ async def get_failed_jobs_endpoint(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error getting failed jobs: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @enhanced_router.get(
@@ -248,7 +254,11 @@ async def get_job_summary(
         import asyncio
 
         status, context = await asyncio.gather(
-            (tws_client.get_job_status(job_name) if hasattr(tws_client, "get_job_status") else tws_client.get_job_status_cached(job_name)),
+            (
+                tws_client.get_job_status(job_name)
+                if hasattr(tws_client, "get_job_status")
+                else tws_client.get_job_status_cached(job_name)
+            ),
             knowledge_graph.get_relevant_context(f"informações sobre job {job_name}"),
             return_exceptions=True,
         )
@@ -291,7 +301,9 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Error generating job summary: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 # =============================================================================

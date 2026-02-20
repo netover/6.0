@@ -13,11 +13,13 @@ This module provides comprehensive distributed tracing capabilities including:
 - Sampling rate optimization
 - Trace correlation with logs and metrics
 """
+
 from __future__ import annotations
 # pylint: disable=no-member
 # mypy: ignore-errors
 
 import asyncio
+import inspect
 import contextlib
 import functools
 import time
@@ -40,7 +42,7 @@ try:
         SamplingResult,
     )
     from opentelemetry.trace import SpanKind, Status, StatusCode  # type: ignore
-except Exception:
+except ImportError:
     trace = None  # type: ignore
     TracerProvider = object  # type: ignore
     BatchSpanProcessor = object  # type: ignore
@@ -68,6 +70,7 @@ except Exception:
     class StatusCode:  # type: ignore
         OK = 0
         ERROR = 1
+
 
 try:
     from opentelemetry.trace.propagation.tracecontext import TraceContextPropagator
@@ -135,7 +138,6 @@ class _NoOpSpan:
         return None
 
 
-
 logger = get_logger(__name__)
 
 
@@ -192,7 +194,9 @@ class IntelligentSampler(Sampler):
 
         # Always sample errors and critical operations
         if attributes:
-            error_code = attributes.get("http.status_code", attributes.get("status_code"))
+            error_code = attributes.get(
+                "http.status_code", attributes.get("status_code")
+            )
             if error_code and str(error_code).startswith(("4", "5")):
                 return SamplingResult(Decision.RECORD_AND_SAMPLE)
 
@@ -250,7 +254,9 @@ class TraceConfiguration:
     # Jaeger configuration
     jaeger_endpoint: str = "http://localhost:14268/api/traces"
     jaeger_service_name: str = "hwa-new"
-    jaeger_tags: dict[str, str] = field(default_factory=lambda: {"service.version": "1.0.0"})
+    jaeger_tags: dict[str, str] = field(
+        default_factory=lambda: {"service.version": "1.0.0"}
+    )
 
     # Sampling configuration
     sampling_rate: float = 0.1
@@ -324,7 +330,9 @@ class DistributedTracingManager:
 
         # Configure sampling
         if self.config.adaptive_sampling:
-            sampler = IntelligentSampler(self.config.sampling_rate, self.config.max_sampling_rate)
+            sampler = IntelligentSampler(
+                self.config.sampling_rate, self.config.max_sampling_rate
+            )
         else:
             from opentelemetry.sdk.trace.sampling import TraceIdRatioBasedSampler
 
@@ -351,12 +359,16 @@ class DistributedTracingManager:
 
         # Add console processor for development
         try:
-            logger_level = getattr(logger, "level", 20)  # Default to INFO if no level attribute
+            logger_level = getattr(
+                logger, "level", 20
+            )  # Default to INFO if no level attribute
             if logger_level <= 10 and CONSOLE_AVAILABLE:  # DEBUG level
                 console_processor = ConsoleSpanProcessor()
                 self.tracer_provider.add_span_processor(console_processor)
         except AttributeError:
-            if CONSOLE_AVAILABLE:  # Default to adding console processor if we can't check level
+            if (
+                CONSOLE_AVAILABLE
+            ):  # Default to adding console processor if we can't check level
                 console_processor = ConsoleSpanProcessor()
                 self.tracer_provider.add_span_processor(console_processor)
 
@@ -453,12 +465,14 @@ class DistributedTracingManager:
         start_time = time.perf_counter()
         # If tracing is disabled or not initialized, yield a no-op span so callers
         # can still safely set attributes/record exceptions.
-        if not getattr(self, 'tracer', None):
+        if not getattr(self, "tracer", None):
             span = _NoOpSpan()
             yield span
             return
 
-        with self.tracer.start_as_current_span(operation_name, attributes=attributes) as span:
+        with self.tracer.start_as_current_span(
+            operation_name, attributes=attributes
+        ) as span:
             # Store trace context
             if span.get_span_context().is_valid:
                 trace_id = format(span.get_span_context().trace_id, "032x")
@@ -544,7 +558,7 @@ class DistributedTracingManager:
                         duration = time.time() - start_time
                         span.set_attribute("performance.duration_seconds", duration)
 
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 return async_wrapper
             return sync_wrapper
 
@@ -585,9 +599,7 @@ class DistributedTracingManager:
 
         Note: The caller is responsible for ending the returned span.
         """
-        child_span = self.tracer.start_span(
-            name, attributes=attributes
-        )
+        child_span = self.tracer.start_span(name, attributes=attributes)
         self.trace_metrics["spans_created"] += 1
         return child_span
 
@@ -623,7 +635,9 @@ class DistributedTracingManager:
         if span:
             span.set_attribute(key, value)
 
-    def add_span_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+    def add_span_event(
+        self, name: str, attributes: dict[str, Any] | None = None
+    ) -> None:
         """Add event to current span."""
         span = trace.get_current_span()
         if span:
@@ -720,7 +734,9 @@ def add_span_attribute(key: str, value: Any) -> None:
     _get_tracing_manager().add_span_attribute(key, value)
 
 
-async def setup_tracing(config: TraceConfiguration | None = None) -> DistributedTracingManager:
+async def setup_tracing(
+    config: TraceConfiguration | None = None,
+) -> DistributedTracingManager:
     """
     Initialize and setup distributed tracing.
 
@@ -748,7 +764,7 @@ def traced(operation_name: str, **attributes):
     """
 
     def decorator(func):
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):

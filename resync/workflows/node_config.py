@@ -12,6 +12,7 @@ import os
 
 class LogLevel(Enum):
     """Verbosity levels for node execution."""
+
     MINIMAL = 1
     NORMAL = 2
     VERBOSE = 3
@@ -20,6 +21,7 @@ class LogLevel(Enum):
 
 class NodeMode(Enum):
     """Legacy mode compatibility - deprecated."""
+
     VERBOSE = "verbose"
     OPTIMIZED = "optimized"
 
@@ -32,6 +34,7 @@ class NodeConfig:
     Replaces the old WORKFLOW_MODE environment variable pattern
     with a more flexible configuration system.
     """
+
     log_level: LogLevel = LogLevel.NORMAL
     enable_profiling: bool = False
     enable_intermediate_logs: bool = False
@@ -63,7 +66,11 @@ class NodeConfig:
             except KeyError:
                 pass
 
-        enable_profiling = os.getenv("NODE_ENABLE_PROFILING", "").lower() in ("1", "true", "yes")
+        enable_profiling = os.getenv("NODE_ENABLE_PROFILING", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
         return cls(
             log_level=log_level,

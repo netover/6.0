@@ -99,18 +99,32 @@ class ErrorFactory:
 
         # Handle different exception types
         if isinstance(exception, EnhancedResyncException):
-            return EnhancedResyncExceptionFactory.create_response(builder, exception, is_production)
+            return EnhancedResyncExceptionFactory.create_response(
+                builder, exception, is_production
+            )
         if isinstance(exception, (TWSConnectionError, EnhancedTWSConnectionError)):
-            return TWSConnectionExceptionFactory.create_response(builder, exception, is_production)
+            return TWSConnectionExceptionFactory.create_response(
+                builder, exception, is_production
+            )
         if isinstance(exception, (LLMError, EnhancedLLMError)):
-            return LLMExceptionFactory.create_response(builder, exception, is_production)
+            return LLMExceptionFactory.create_response(
+                builder, exception, is_production
+            )
         if isinstance(exception, (DatabaseError, EnhancedDatabaseError)):
-            return DatabaseExceptionFactory.create_response(builder, exception, is_production)
+            return DatabaseExceptionFactory.create_response(
+                builder, exception, is_production
+            )
         if isinstance(exception, (NotFoundError, EnhancedNotFoundError)):
-            return NotFoundExceptionHandler.create_response(builder, exception, is_production)
+            return NotFoundExceptionHandler.create_response(
+                builder, exception, is_production
+            )
         if isinstance(exception, BaseResyncException):
-            return BaseResyncExceptionFactory.create_response(builder, exception, is_production)
-        return UnknownExceptionFactory.create_response(builder, exception, is_production)
+            return BaseResyncExceptionFactory.create_response(
+                builder, exception, is_production
+            )
+        return UnknownExceptionFactory.create_response(
+            builder, exception, is_production
+        )
 
 
 class EnhancedResyncExceptionFactory:
@@ -154,11 +168,18 @@ class EnhancedResyncExceptionFactory:
             )
         if exception.error_category == "BUSINESS_LOGIC":
             return _handle_business_logic_exception(
-                builder, exception, message, user_friendly_message, details, is_production
+                builder,
+                exception,
+                message,
+                user_friendly_message,
+                details,
+                is_production,
             )
         if exception.error_category == "EXTERNAL_SERVICE":
             service_name = (
-                details.get("service", "External Service") if details else "External Service"
+                details.get("service", "External Service")
+                if details
+                else "External Service"
             )
             return builder.build_external_service_error(
                 service_name,
@@ -230,7 +251,9 @@ class NotFoundExceptionHandler:
         is_production: bool,
     ) -> BaseErrorResponse:
         """Create response for not found exceptions."""
-        return builder.build_business_logic_error("resource_not_found", resource="Resource")
+        return builder.build_business_logic_error(
+            "resource_not_found", resource="Resource"
+        )
 
 
 class BaseResyncExceptionFactory:
@@ -275,7 +298,9 @@ def _handle_business_logic_exception(
     from resync.core.exceptions import NotFoundError as EnhancedNotFoundError
 
     if isinstance(exception, EnhancedNotFoundError):
-        return builder.build_business_logic_error("resource_not_found", resource="Resource")
+        return builder.build_business_logic_error(
+            "resource_not_found", resource="Resource"
+        )
     return builder.build_business_logic_error(
         "invalid_operation",
         user_friendly_message=sanitize_error_message(user_friendly_message),

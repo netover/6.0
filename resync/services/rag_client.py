@@ -23,7 +23,11 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel
 
-from resync.core.exceptions import ConfigurationError, IntegrationError, ServiceUnavailableError
+from resync.core.exceptions import (
+    ConfigurationError,
+    IntegrationError,
+    ServiceUnavailableError,
+)
 from resync.core.resilience import CircuitBreakerManager, retry_with_backoff_async
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
@@ -105,7 +109,10 @@ class RAGServiceClient:
         # timeout for hot-path calls to keep them bounded.
         self.http_client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout=self._request_timeout_s, connect=10.0),
-            limits=httpx.Limits(max_connections=max(10, self._max_concurrency), max_keepalive_connections=10),
+            limits=httpx.Limits(
+                max_connections=max(10, self._max_concurrency),
+                max_keepalive_connections=10,
+            ),
             follow_redirects=True,
         )
 
@@ -238,7 +245,12 @@ class RAGServiceClient:
             "/api/v1/upload",
             operation="upload",
             files={"file": (file.filename, file.file, file.content_type)},
-            timeout_s=float(os.getenv("RAG_UPLOAD_TIMEOUT", str(getattr(settings, "rag_service_timeout", 300.0) or 300.0))),
+            timeout_s=float(
+                os.getenv(
+                    "RAG_UPLOAD_TIMEOUT",
+                    str(getattr(settings, "rag_service_timeout", 300.0) or 300.0),
+                )
+            ),
         )
         data = resp.json()
         return str(data.get("job_id") or "")
@@ -259,7 +271,12 @@ class RAGServiceClient:
             # Preserve legacy behavior for 404 -> not_found pseudo-status.
             status_code = (exc.details or {}).get("status_code")
             if status_code == 404:
-                return RAGJobStatus(job_id=job_id, status="not_found", progress=0, message="Job ID not found")
+                return RAGJobStatus(
+                    job_id=job_id,
+                    status="not_found",
+                    progress=0,
+                    message="Job ID not found",
+                )
             raise
 
     async def search(self, query: str, limit: int = 5) -> dict[str, Any]:

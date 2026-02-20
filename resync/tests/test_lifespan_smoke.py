@@ -25,12 +25,14 @@ REQUIRED_STATE_KEYS = [
 
 def test_lifespan_initializes_app_state_singletons() -> None:
     app = create_app()
-    assert not getattr(getattr(app.state, "enterprise_state", None), "startup_complete", False)
+    assert not getattr(
+        getattr(app.state, "enterprise_state", None), "startup_complete", False
+    )
 
     with TestClient(app) as client:
         st = enterprise_state_from_app(client.app)
         assert st.startup_complete is True
         for key in REQUIRED_STATE_KEYS:
-                        assert getattr(st, key) is not None, f"missing enterprise_state.{key}"
+            assert getattr(st, key) is not None, f"missing enterprise_state.{key}"
 
     assert enterprise_state_from_app(app).domain_shutdown_complete is True

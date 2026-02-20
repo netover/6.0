@@ -27,7 +27,8 @@ T = TypeVar("T", bound=BaseModel)
     delay=1.0,
     backoff=2.0,
     # Lazy load exceptions to prevent import-time side effects
-    exceptions=lambda: get_litellm_exceptions() + (
+    exceptions=lambda: tuple(get_litellm_exceptions())
+    + (
         ConnectionError,
         TimeoutError,
         ValueError,
@@ -42,8 +43,8 @@ async def call_llm(
     temperature: float = 0.1,
     max_retries: int = 3,
     _initial_backoff: float = 1.0,
-    api_base: str = None,
-    api_key: str = None,
+    api_base: str | None = None,
+    api_key: str | None = None,
     timeout: float = 30.0,
 ) -> str:
     """
@@ -89,24 +90,24 @@ async def call_llm_structured(
 ) -> T | None:
     """
     Call LLM with structured output using Pydantic model.
-    
+
     Uses JSON mode and parses response into Pydantic model.
-    
+
     Args:
         prompt: The prompt to send
         output_model: Pydantic model class for output
         model: LLM model to use (defaults to settings.llm_model)
         temperature: Temperature for generation
         max_retries: Number of parse retries
-        
+
     Returns:
         Parsed Pydantic model instance or None on failure
-        
+
     Example:
         class Intent(BaseModel):
             intent: str
             confidence: float
-            
+
         result = await call_llm_structured(
             "Classify: check job status",
             Intent
@@ -114,18 +115,18 @@ async def call_llm_structured(
         print(result.intent)  # "status"
     """
     model = model or settings.llm_model or "gpt-4o"
-    
+
     # Build schema prompt
     schema = output_model.model_json_schema()
     schema_str = json.dumps(schema, indent=2)
-    
+
     full_prompt = f"""{prompt}
 
 Respond ONLY with valid JSON matching this schema:
 {schema_str}
 
 JSON:"""
-    
+
     for attempt in range(max_retries):
         try:
             response = await call_llm(
@@ -134,24 +135,18 @@ JSON:"""
                 temperature=temperature,
                 max_tokens=500,
             )
-            
+
             # Extract JSON from response
             json_match = re.search(r"\{[\s\S]*\}", response)
             if json_match:
                 data = json.loads(json_match.group())
                 return output_model.model_validate(data)
-            
+
         except json.JSONDecodeError as e:
             logger.warning(
-                "structured_output_parse_error",
-                attempt=attempt + 1,
-                error=str(e)
+                "structured_output_parse_error", attempt=attempt + 1, error=str(e)
             )
         except Exception as e:
-            logger.warning(
-                "structured_output_error",
-                attempt=attempt + 1,
-                error=str(e)
-            )
-    
+            logger.warning("structured_output_error", attempt=attempt + 1, error=str(e))
+
     return None

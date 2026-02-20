@@ -68,7 +68,9 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
         self.strict_transport_security_max_age = strict_transport_security_max_age
         self.content_security_policy = content_security_policy or self._default_csp()
         self.referrer_policy = referrer_policy
-        self.permissions_policy = permissions_policy or self._default_permissions_policy()
+        self.permissions_policy = (
+            permissions_policy or self._default_permissions_policy()
+        )
         self.feature_policy = feature_policy or self._default_feature_policy()
 
     async def dispatch(self, request: Request, call_next) -> Response:

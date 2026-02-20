@@ -437,7 +437,9 @@ def register_exception_handlers(app):
     def http_exception_handler(request: Request, exc: StarletteHTTPException):
         correlation_id = generate_correlation_id()
         builder = (
-            ErrorResponseBuilder().with_correlation_id(correlation_id).with_request_context(request)
+            ErrorResponseBuilder()
+            .with_correlation_id(correlation_id)
+            .with_request_context(request)
         )
 
         # Map HTTP status codes to appropriate error types
@@ -457,7 +459,9 @@ def register_exception_handlers(app):
             error_response = builder.build_system_error("internal_server_error")
 
         error_response.error_code = f"HTTP_{exc.status_code}"
-        error_response.message = exc.detail if exc.detail else f"HTTP Error {exc.status_code}"
+        error_response.message = (
+            exc.detail if exc.detail else f"HTTP Error {exc.status_code}"
+        )
 
         log_error_response(error_response)
 
@@ -465,9 +469,13 @@ def register_exception_handlers(app):
 
     # Register handler for enhanced Resync custom exceptions first
     @app.exception_handler(EnhancedResyncException)
-    def enhanced_resync_exception_handler(request: Request, exc: EnhancedResyncException):
+    def enhanced_resync_exception_handler(
+        request: Request, exc: EnhancedResyncException
+    ):
         correlation_id = generate_correlation_id()
-        error_response = create_error_response_from_exception(exc, request, correlation_id)
+        error_response = create_error_response_from_exception(
+            exc, request, correlation_id
+        )
 
         log_error_response(error_response, exc)
 
@@ -477,7 +485,9 @@ def register_exception_handlers(app):
     @app.exception_handler(BaseResyncException)
     def base_resync_exception_handler(request: Request, exc: BaseResyncException):
         correlation_id = generate_correlation_id()
-        error_response = create_error_response_from_exception(exc, request, correlation_id)
+        error_response = create_error_response_from_exception(
+            exc, request, correlation_id
+        )
 
         log_error_response(error_response, exc)
 

@@ -87,7 +87,9 @@ class EnterpriseConfig:
     auto_recovery_cooldown_seconds: int = 60
 
     # Incident settings
-    incident_notification_channels: list[str] = field(default_factory=lambda: ["log", "metrics"])
+    incident_notification_channels: list[str] = field(
+        default_factory=lambda: ["log", "metrics"]
+    )
     incident_auto_escalate: bool = True
     incident_escalation_timeout_minutes: int = 15
 
@@ -381,7 +383,9 @@ class EnterpriseManager:
         """Start background monitoring tasks."""
         # Anomaly detection background task
         if self._anomaly_detector:
-            task = track_task(self._anomaly_monitoring_loop(), name="anomaly_monitoring_loop")
+            task = track_task(
+                self._anomaly_monitoring_loop(), name="anomaly_monitoring_loop"
+            )
             self._tasks.append(task)
 
         # Auto-recovery monitoring

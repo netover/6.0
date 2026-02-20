@@ -228,7 +228,9 @@ class TWSRelation:
         safe_table = sanitize_sql_identifier(table_name)
         safe_from = sanitize_sql_identifier(self.from_node)
         safe_to = sanitize_sql_identifier(self.to_node)
-        safe_tenant = sanitize_sql_identifier(self.tenant_id) if self.tenant_id else "default"
+        safe_tenant = (
+            sanitize_sql_identifier(self.tenant_id) if self.tenant_id else "default"
+        )
         safe_rel_type = sanitize_sql_identifier(self.relation_type.value)
 
         props_json = json.dumps(self.properties)
@@ -253,7 +255,7 @@ class TWSQueryPatterns:
     """Padrões de query para o Knowledge Graph TWS."""
 
     @staticmethod
-    def get_all_dependencies(job_name: str, tenant_id: str = None) -> str:
+    def get_all_dependencies(job_name: str, tenant_id: str | None = None) -> str:
         """Query para obter todas as dependências de um job."""
         safe_job = sanitize_sql_identifier(job_name)
         tenant_filter = ""
@@ -283,7 +285,7 @@ class TWSQueryPatterns:
         """
 
     @staticmethod
-    def get_impact_analysis(job_name: str, tenant_id: str = None) -> str:
+    def get_impact_analysis(job_name: str, tenant_id: str | None = None) -> str:
         """Query para análise de impacto (jobs downstream)."""
         safe_job = sanitize_sql_identifier(job_name)
         tenant_filter = ""
@@ -312,7 +314,7 @@ class TWSQueryPatterns:
         """
 
     @staticmethod
-    def get_resource_conflicts(resource_name: str, tenant_id: str = None) -> str:
+    def get_resource_conflicts(resource_name: str, tenant_id: str | None = None) -> str:
         """Query para encontrar conflitos de recursos."""
         safe_resource = sanitize_sql_identifier(resource_name)
         tenant_filter = ""
@@ -331,7 +333,7 @@ class TWSQueryPatterns:
         """
 
     @staticmethod
-    def get_critical_path(schedule_name: str, tenant_id: str = None) -> str:
+    def get_critical_path(schedule_name: str, tenant_id: str | None = None) -> str:
         """Query para encontrar o caminho crítico de um schedule."""
         safe_schedule = sanitize_sql_identifier(schedule_name)
         tenant_filter = ""
@@ -361,7 +363,7 @@ class TWSQueryPatterns:
         """
 
     @staticmethod
-    def get_jobs_by_workstation(workstation: str, tenant_id: str = None) -> str:
+    def get_jobs_by_workstation(workstation: str, tenant_id: str | None = None) -> str:
         """Query para obter jobs de uma workstation."""
         tenant_filter = f"AND tenant_id = '{tenant_id}'" if tenant_id else ""
         return f"""
@@ -578,7 +580,9 @@ def get_relation_types_info() -> dict[str, Any]:
 
     return {
         "total_types": len(TWSRelationType),
-        "categories": {cat: [r.value for r in relations] for cat, relations in categories.items()},
+        "categories": {
+            cat: [r.value for r in relations] for cat, relations in categories.items()
+        },
         "all_types": [r.value for r in TWSRelationType],
     }
 

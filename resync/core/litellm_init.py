@@ -115,7 +115,9 @@ class LiteLLMManager:
             return None
         except (ValueError, TypeError, KeyError, AttributeError) as err:
             # Configuration or programming errors should always fail fast
-            logger.error("Failed to initialize LiteLLM due to configuration error: %s", err)
+            logger.error(
+                "Failed to initialize LiteLLM due to configuration error: %s", err
+            )
             self._metrics.increment_init_fail_reason(type(err).__name__)
             raise
 
@@ -157,7 +159,9 @@ class LiteLLMManager:
         try:
             return float(completion_cost(completion_response=completion_response))
         except (ValueError, TypeError, KeyError) as err:
-            logger.warning("Could not calculate completion cost: %s", err, exc_info=False)
+            logger.warning(
+                "Could not calculate completion cost: %s", err, exc_info=False
+            )
             self._metrics.increment_cost_calc_fail()
             return 0.0
 
@@ -172,12 +176,12 @@ class _LazyLiteLLMManager:
     __slots__ = ("_instance",)
 
     def __init__(self) -> None:
-        self._instance = None
+        self._instance: LiteLLMManager | None = None
 
     def get_instance(self) -> LiteLLMManager:
         if self._instance is None:
             self._instance = LiteLLMManager()
-        return self._instance
+        return self._instance  # type: ignore[return-value]
 
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
@@ -189,6 +193,7 @@ _LITELLM_MANAGER = _LazyLiteLLMManager()
 def get__LITELLM_MANAGER() -> LiteLLMManager:
     """Return the singleton instance (preferred over using the proxy directly)."""
     return _LITELLM_MANAGER.get_instance()
+
 
 @runtime_checkable
 class RouterLike(Protocol):
@@ -224,7 +229,9 @@ def _apply_env_from_settings(*, overwrite: bool = False) -> dict[str, bool]:
 
     endpoint = getattr(settings, "LLM_ENDPOINT", None)
     # Source of truth: OPENAI_BASE_URL; only fill OPENAI_API_BASE if not exists
-    changed["OPENAI_BASE_URL"] = _set_env("OPENAI_BASE_URL", endpoint, overwrite=overwrite)
+    changed["OPENAI_BASE_URL"] = _set_env(
+        "OPENAI_BASE_URL", endpoint, overwrite=overwrite
+    )
     changed["OPENAI_API_BASE"] = _set_env(
         "OPENAI_API_BASE",
         endpoint if ("OPENAI_API_BASE" not in os.environ or overwrite) else None,
@@ -232,15 +239,19 @@ def _apply_env_from_settings(*, overwrite: bool = False) -> dict[str, bool]:
     )
 
     llm_key = getattr(settings, "llm_api_key", None)
-    if hasattr(llm_key, "get_secret_value"):
+    if llm_key is not None and hasattr(llm_key, "get_secret_value"):
         llm_key = llm_key.get_secret_value()
     changed["OPENAI_API_KEY"] = _set_env("OPENAI_API_KEY", llm_key, overwrite=overwrite)
 
     or_key = getattr(settings, "OPENROUTER_API_KEY", None)
-    changed["OPENROUTER_API_KEY"] = _set_env("OPENROUTER_API_KEY", or_key, overwrite=overwrite)
+    changed["OPENROUTER_API_KEY"] = _set_env(
+        "OPENROUTER_API_KEY", or_key, overwrite=overwrite
+    )
 
     or_base = getattr(settings, "OPENROUTER_API_BASE", None)
-    changed["OPENROUTER_API_BASE"] = _set_env("OPENROUTER_API_BASE", or_base, overwrite=overwrite)
+    changed["OPENROUTER_API_BASE"] = _set_env(
+        "OPENROUTER_API_BASE", or_base, overwrite=overwrite
+    )
 
     # Log which variables were set (never the values)
     set_vars = [k for k, v in changed.items() if v]

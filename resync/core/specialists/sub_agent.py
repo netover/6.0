@@ -57,7 +57,9 @@ class SubAgentConfig:
     # Tool restrictions
     only_read_only_tools: bool = True
     prevent_recursive_spawn: bool = True  # Sub-agent can't create sub-agents
-    blocked_tool_names: list[str] = field(default_factory=lambda: ["dispatch_agent", "sub_agent"])
+    blocked_tool_names: list[str] = field(
+        default_factory=lambda: ["dispatch_agent", "sub_agent"]
+    )
 
     # Execution limits
     max_tool_calls: int = 10
@@ -281,7 +283,9 @@ class SubAgent:
             ws_names = self._extract_workstation_names(self.prompt)
             if ws_names:
                 requests = [
-                    ToolRequest(tool_name="get_workstation_status", parameters={"ws_name": ws})
+                    ToolRequest(
+                        tool_name="get_workstation_status", parameters={"ws_name": ws}
+                    )
                     for ws in ws_names[:5]
                 ]
                 responses = await self._executor.execute(
@@ -291,9 +295,10 @@ class SubAgent:
                 results.extend([r for r in responses if r.success])
 
         if (
-            ("search" in prompt_lower or "find" in prompt_lower or "documentation" in prompt_lower)
-            and self._catalog.get("search_knowledge_base")
-        ):
+            "search" in prompt_lower
+            or "find" in prompt_lower
+            or "documentation" in prompt_lower
+        ) and self._catalog.get("search_knowledge_base"):
             # Use RAG search
             request = ToolRequest(
                 tool_name="search_knowledge_base",
@@ -354,7 +359,9 @@ class SubAgent:
     def _get_duration_ms(self) -> int:
         """Get execution duration in milliseconds."""
         if self._started_at:
-            return int((datetime.now(timezone.utc) - self._started_at).total_seconds() * 1000)
+            return int(
+                (datetime.now(timezone.utc) - self._started_at).total_seconds() * 1000
+            )
         return 0
 
     def cancel(self) -> None:
@@ -396,7 +403,9 @@ class SubAgent:
             max_concurrent=max_concurrent,
         )
 
-        results = await asyncio.gather(*[execute_with_semaphore(agent) for agent in agents])
+        results = await asyncio.gather(
+            *[execute_with_semaphore(agent) for agent in agents]
+        )
 
         success_count = sum(1 for r in results if r.status == SubAgentStatus.COMPLETED)
         logger.info(

@@ -93,11 +93,15 @@ class ConnectionManager:
             try:
                 await websocket.send_text(message)
             except (WebSocketDisconnect, ConnectionError) as e:
-                logger.warning("Connection error sending to client %s: %s", client_id, e)
+                logger.warning(
+                    "Connection error sending to client %s: %s", client_id, e
+                )
                 self.active_connections.pop(client_id, None)
             except RuntimeError as e:
                 if "websocket state" in str(e).lower():
-                    logger.warning("WebSocket in wrong state for client %s: %s", client_id, e)
+                    logger.warning(
+                        "WebSocket in wrong state for client %s: %s", client_id, e
+                    )
                 else:
                     logger.error("Runtime error sending to client %s: %s", client_id, e)
             except Exception as e:
@@ -183,12 +187,16 @@ class ConnectionManager:
             except RuntimeError as e:  # pragma: no cover
                 # WebSocket in wrong state
                 if "websocket state" in str(e).lower():
-                    logger.warning("WebSocket in wrong state during JSON broadcast: %s", e)
+                    logger.warning(
+                        "WebSocket in wrong state during JSON broadcast: %s", e
+                    )
                 else:
                     logger.error("Runtime error during JSON broadcast: %s", e)
             except ValueError as e:
                 # JSON serialization error
-                logger.error("JSON serialization error during broadcast: %s", e, exc_info=True)
+                logger.error(
+                    "JSON serialization error during broadcast: %s", e, exc_info=True
+                )
             except Exception as _e:
                 logger.error("Unexpected error during JSON broadcast.", exc_info=True)
 
@@ -211,7 +219,9 @@ class ConnectionManager:
                 "total_messages_received": stats.total_messages_received,
                 "connection_errors": stats.connection_errors,
                 "cleanup_cycles": stats.cleanup_cycles,
-                "last_cleanup": (stats.last_cleanup.isoformat() if stats.last_cleanup else None),
+                "last_cleanup": (
+                    stats.last_cleanup.isoformat() if stats.last_cleanup else None
+                ),
             }
         # Fallback to basic stats if pool manager not available
         return {

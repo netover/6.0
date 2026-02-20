@@ -6,13 +6,21 @@ import asyncio
 import json
 
 from fastapi import WebSocket, WebSocketDisconnect, status
-from langfuse.decorators import langfuse_context
 
 from resync.core.context import set_trace_id, set_user_id
 from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
+
+try:
+    from langfuse.decorators import langfuse_context
+
+    LANGFUSE_AVAILABLE = True
+except Exception as exc:
+    LANGFUSE_AVAILABLE = False
+    langfuse_context = None
+    logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
 
 
 async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
@@ -189,7 +197,8 @@ async def websocket_handler(
 
     # Set trace context
     trace_id = normalize_trace_id(
-        websocket.headers.get("x-correlation-id") or websocket.headers.get("x-request-id")
+        websocket.headers.get("x-correlation-id")
+        or websocket.headers.get("x-request-id")
     )
     set_trace_id(trace_id)
     set_user_id(user_id)
@@ -235,7 +244,7 @@ async def websocket_handler(
                     try:
                         from resync.services.llm_service import get_llm_service
 
-                        llm_service = get_llm_service()
+                        llm_service = await get_llm_service()
 
                         # Agent configuration
                         agent_config = {
@@ -300,7 +309,7 @@ async def websocket_handler(
                         try:
                             from resync.services.llm_service import get_llm_service
 
-                            llm_service = get_llm_service()
+                            llm_service = await get_llm_service()
 
                             # Agent configuration
                             agent_config = {

@@ -108,7 +108,9 @@ class RouteConfiguration:
 
     path_pattern: str
     service_name: str
-    methods: set[HTTPMethod] = field(default_factory=lambda: {HTTPMethod.GET, HTTPMethod.POST})
+    methods: set[HTTPMethod] = field(
+        default_factory=lambda: {HTTPMethod.GET, HTTPMethod.POST}
+    )
     strip_prefix: bool = True
     add_prefix: str = ""
     timeout_seconds: float = 30.0
@@ -176,7 +178,9 @@ class APIGateway:
 
         # Runtime state
         self.service_index: dict[str, int] = defaultdict(int)  # For round-robin
-        self.active_connections: dict[str, int] = defaultdict(int)  # For least connections
+        self.active_connections: dict[str, int] = defaultdict(
+            int
+        )  # For least connections
         self.request_counts: dict[str, deque] = defaultdict(lambda: deque(maxlen=10000))
 
         # Caching
@@ -250,9 +254,15 @@ class APIGateway:
             return
 
         self._running = True
-        self._cleanup_task = await create_tracked_task(self._cleanup_worker(), name="cleanup_worker")
-        self._health_check_task = await create_tracked_task(self._health_check_worker(), name="health_check_worker")
-        self._metrics_task = await create_tracked_task(self._metrics_worker(), name="metrics_worker")
+        self._cleanup_task = await create_tracked_task(
+            self._cleanup_worker(), name="cleanup_worker"
+        )
+        self._health_check_task = await create_tracked_task(
+            self._health_check_worker(), name="health_check_worker"
+        )
+        self._metrics_task = await create_tracked_task(
+            self._metrics_worker(), name="metrics_worker"
+        )
 
         logger.info("API Gateway started")
 
@@ -328,7 +338,9 @@ class APIGateway:
                 return self._create_error_response(429, "Rate limit exceeded")
 
             # 3. Authentication
-            if request.get("route_config", RouteConfiguration("", "")).authentication_required:
+            if request.get(
+                "route_config", RouteConfiguration("", "")
+            ).authentication_required:
                 auth_result = await self._authenticate_request(request)
                 if not auth_result["authenticated"]:
                     return self._create_error_response(401, "Authentication required")
@@ -355,7 +367,9 @@ class APIGateway:
             if service_endpoint.circuit_breaker_enabled:
                 circuit_breaker = self._get_circuit_breaker(route_config.service_name)
                 if not await circuit_breaker.can_execute():
-                    return self._create_error_response(503, "Service temporarily unavailable")
+                    return self._create_error_response(
+                        503, "Service temporarily unavailable"
+                    )
 
             # 8. Cache check
             if route_config.caching_enabled and request.method == "GET":
@@ -374,7 +388,11 @@ class APIGateway:
             processed_response = await self._process_response(response, route_config)
 
             # 11. Caching
-            if route_config.caching_enabled and request.method == "GET" and response.status == 200:
+            if (
+                route_config.caching_enabled
+                and request.method == "GET"
+                and response.status == 200
+            ):
                 cache_key = self._generate_cache_key(request)
                 self._cache_response(cache_key, processed_response)
 
@@ -382,7 +400,10 @@ class APIGateway:
             self.metrics["requests_success"] += 1
             processing_time = time.time() - start_time
             self.metrics["response_time_avg"] = (
-                (self.metrics["response_time_avg"] * (self.metrics["requests_success"] - 1))
+                (
+                    self.metrics["response_time_avg"]
+                    * (self.metrics["requests_success"] - 1)
+                )
                 + processing_time
             ) / self.metrics["requests_success"]
 
@@ -474,7 +495,10 @@ class APIGateway:
 
                 secret = getattr(_settings, "secret_key", None)
                 if secret is None:
-                    return {"authenticated": False, "reason": "JWT secret not configured"}
+                    return {
+                        "authenticated": False,
+                        "reason": "JWT secret not configured",
+                    }
                 if hasattr(secret, "get_secret_value"):
                     secret_value = secret.get_secret_value()
                 else:
@@ -515,7 +539,9 @@ class APIGateway:
         strategy: LoadBalancingStrategy = LoadBalancingStrategy.ROUND_ROBIN,
     ) -> ServiceEndpoint | None:
         """Select service endpoint using load balancing strategy."""
-        available_endpoints = [ep for ep in self.services.get(service_name, []) if ep.is_healthy]
+        available_endpoints = [
+            ep for ep in self.services.get(service_name, []) if ep.is_healthy
+        ]
 
         if not available_endpoints:
             return None
@@ -721,7 +747,11 @@ class APIGateway:
             return real_ip
 
         # Fall back to peer name
-        return request.transport.get_extra_info("peername")[0] if request.transport else "unknown"
+        return (
+            request.transport.get_extra_info("peername")[0]
+            if request.transport
+            else "unknown"
+        )
 
     def _create_error_response(self, status: int, message: str) -> web.Response:
         """Create standardized error response."""
@@ -744,7 +774,9 @@ class APIGateway:
 
                 # Clean expired cache entries
                 current_time = time.time()
-                expired_keys = [key for key, ttl in self.cache_ttl.items() if current_time > ttl]
+                expired_keys = [
+                    key for key, ttl in self.cache_ttl.items() if current_time > ttl
+                ]
 
                 for key in expired_keys:
                     self.cache.pop(key, None)
@@ -757,7 +789,9 @@ class APIGateway:
                         requests.popleft()
 
                 if expired_keys:
-                    logger.debug("Cleaned up %s expired cache entries", len(expired_keys))
+                    logger.debug(
+                        "Cleaned up %s expired cache entries", len(expired_keys)
+                    )
 
             except asyncio.CancelledError:
                 raise
@@ -830,7 +864,9 @@ class APIGateway:
             },
             "routes": {
                 "total_routes": len(self.routes),
-                "authenticated_routes": sum(1 for r in self.routes if r.authentication_required),
+                "authenticated_routes": sum(
+                    1 for r in self.routes if r.authentication_required
+                ),
             },
             "cache": {
                 "cached_entries": len(self.cache),

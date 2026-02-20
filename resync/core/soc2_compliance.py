@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from resync.core.compliance.types import SOC2ComplianceManager as BaseSOC2ComplianceManager
+from resync.core.compliance.types import (
+    SOC2ComplianceManager as BaseSOC2ComplianceManager,
+)
 from resync.core.compliance.types import SOC2TrustServiceCriteria
 from resync.core.task_tracker import track_task
 from resync.core.structured_logger import get_logger
@@ -94,7 +96,9 @@ class SOC2Control:
             self.failure_count += 1
             if self.failure_count >= 3:
                 self.status = ControlStatus.NOT_IMPLEMENTED
-                logger.warning("Control %s marked as failed after 3 failures", self.control_id)
+                logger.warning(
+                    "Control %s marked as failed after 3 failures", self.control_id
+                )
 
 
 @dataclass
@@ -276,9 +280,15 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             return
 
         self._running = True
-        self._testing_task = track_task(self._control_testing_worker(), name="control_testing_worker")
-        self._monitoring_task = track_task(self._monitoring_worker(), name="monitoring_worker")
-        self._reporting_task = track_task(self._reporting_worker(), name="reporting_worker")
+        self._testing_task = track_task(
+            self._control_testing_worker(), name="control_testing_worker"
+        )
+        self._monitoring_task = track_task(
+            self._monitoring_worker(), name="monitoring_worker"
+        )
+        self._reporting_task = track_task(
+            self._reporting_worker(), name="reporting_worker"
+        )
 
         logger.info("SOC 2 compliance manager started")
 
@@ -679,9 +689,11 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
         report["control_status"] = ControlStatusSummaryStrategy().execute(self)
         report["evidence_summary"] = EvidenceSummaryStrategy().execute(self)
         report["availability_summary"] = AvailabilitySummaryStrategy().execute(self)
-        report["processing_integrity_summary"] = ProcessingIntegritySummaryStrategy().execute(self)
-        report["confidentiality_incidents"] = ConfidentialityIncidentsSummaryStrategy().execute(
-            self
+        report["processing_integrity_summary"] = (
+            ProcessingIntegritySummaryStrategy().execute(self)
+        )
+        report["confidentiality_incidents"] = (
+            ConfidentialityIncidentsSummaryStrategy().execute(self)
         )
         report["recommendations"] = RecommendationsStrategy().execute(self, report)
 
@@ -754,7 +766,9 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             return {"success": False, "details": "No availability metrics available"}
 
         recent_metrics = list(self.availability_metrics)[-10:]  # Last 10 metrics
-        avg_availability = sum(m.availability_score for m in recent_metrics) / len(recent_metrics)
+        avg_availability = sum(m.availability_score for m in recent_metrics) / len(
+            recent_metrics
+        )
 
         success = avg_availability >= self.config.target_availability_percentage
 
@@ -883,7 +897,9 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
 
         # Check control implementation
         not_implemented = [
-            cid for cid, c in self.controls.items() if c.status == ControlStatus.NOT_IMPLEMENTED
+            cid
+            for cid, c in self.controls.items()
+            if c.status == ControlStatus.NOT_IMPLEMENTED
         ]
         if not_implemented:
             recommendations.append(
@@ -945,6 +961,8 @@ class _LazySOC2ComplianceManager:
 
 
 soc2_compliance_manager = _LazySOC2ComplianceManager()
+
+
 async def get_soc2_compliance_manager() -> SOC2ComplianceManager:
     """Get the global SOC 2 compliance manager instance."""
     if not soc2_compliance_manager._running:

@@ -50,19 +50,25 @@ class TWSConnectionFailureRunbook(IncidentRunbook):
         steps = []
 
         # Step 1: Verify TWS system status
-        steps.append("Verify TWS system is operational by checking TWS management console")
+        steps.append(
+            "Verify TWS system is operational by checking TWS management console"
+        )
 
         # Step 2: Check network connectivity
         steps.append("Test network connectivity from Resync server to TWS host")
 
         # Step 3: Validate credentials
-        steps.append("Verify TWS credentials (username, password) are correct and not expired")
+        steps.append(
+            "Verify TWS credentials (username, password) are correct and not expired"
+        )
 
         # Step 4: Check Resync logs
         steps.append("Examine Resync application logs for specific error messages")
 
         # Step 5: Check configuration
-        steps.append("Validate TWS configuration in Resync settings (host, port, credentials)")
+        steps.append(
+            "Validate TWS configuration in Resync settings (host, port, credentials)"
+        )
 
         # Step 6: Restart connection
         steps.append("Attempt to restart TWS connection module in Resync application")
@@ -115,13 +121,17 @@ class HighErrorRateRunbook(IncidentRunbook):
         steps.append("Analyze logs to identify specific error types and patterns")
 
         # Step 2: Check system resources
-        steps.append("Monitor system resources (CPU, memory, disk, network) for any bottlenecks")
+        steps.append(
+            "Monitor system resources (CPU, memory, disk, network) for any bottlenecks"
+        )
 
         # Step 3: Check dependent services
         steps.append("Verify dependent services (TWS, database, cache) are operational")
 
         # Step 4: Identify impacted endpoints
-        steps.append("Identify specific API endpoints or features experiencing high error rates")
+        steps.append(
+            "Identify specific API endpoints or features experiencing high error rates"
+        )
 
         # Step 5: Check recent changes
         steps.append(
@@ -129,7 +139,9 @@ class HighErrorRateRunbook(IncidentRunbook):
         )
 
         # Step 6: Implement temporary fixes
-        steps.append("If necessary, implement temporary fixes like rate limiting or feature flags")
+        steps.append(
+            "If necessary, implement temporary fixes like rate limiting or feature flags"
+        )
 
         # Step 7: Scale resources if needed
         if context.get("resource_utilization", {}).get("cpu", 0) > 80:
@@ -188,7 +200,9 @@ class PerformanceDegradationRunbook(IncidentRunbook):
         steps.append("Examine cache hit/miss ratios and cache response times")
 
         # Step 5: Examine external dependencies
-        steps.append("Check performance of external dependencies (TWS, AI services, etc.)")
+        steps.append(
+            "Check performance of external dependencies (TWS, AI services, etc.)"
+        )
 
         # Step 6: Analyze traffic patterns
         steps.append("Check if increased traffic is causing performance issues")
@@ -197,7 +211,9 @@ class PerformanceDegradationRunbook(IncidentRunbook):
         if context.get("traffic_spike"):
             steps.append("Scale application resources to handle increased load")
         else:
-            steps.append("Optimize slow queries or implement caching for slow operations")
+            steps.append(
+                "Optimize slow queries or implement caching for slow operations"
+            )
 
         return {
             "title": self.title,
@@ -256,10 +272,14 @@ class SecurityIncidentRunbook(IncidentRunbook):
         steps.append("Review and tighten access controls as necessary")
 
         # Step 7: Implement additional monitoring
-        steps.append("Implement additional monitoring for suspicious activity during incident")
+        steps.append(
+            "Implement additional monitoring for suspicious activity during incident"
+        )
 
         # Step 8: Notify appropriate teams
-        steps.append("Notify security team and other stakeholders as per incident response plan")
+        steps.append(
+            "Notify security team and other stakeholders as per incident response plan"
+        )
 
         return {
             "title": self.title,
@@ -311,7 +331,9 @@ class DataConsistencyRunbook(IncidentRunbook):
         )
 
         # Step 4: Verify data sources
-        steps.append("Verify the integrity of data sources (TWS, external systems, etc.)")
+        steps.append(
+            "Verify the integrity of data sources (TWS, external systems, etc.)"
+        )
 
         # Step 5: Implement data fix
         steps.append("Implement data fix using approved procedures and backup systems")
@@ -320,7 +342,9 @@ class DataConsistencyRunbook(IncidentRunbook):
         steps.append("Validate that data consistency has been restored")
 
         # Step 7: Check downstream impacts
-        steps.append("Check for any downstream systems affected by the inconsistent data")
+        steps.append(
+            "Check for any downstream systems affected by the inconsistent data"
+        )
 
         return {
             "title": self.title,
@@ -348,7 +372,9 @@ class RunbookRegistry:
         """Register default runbooks"""
         self.register_runbook("tws_connection_failure", TWSConnectionFailureRunbook())
         self.register_runbook("high_error_rate", HighErrorRateRunbook())
-        self.register_runbook("performance_degradation", PerformanceDegradationRunbook())
+        self.register_runbook(
+            "performance_degradation", PerformanceDegradationRunbook()
+        )
         self.register_runbook("security_incident", SecurityIncidentRunbook())
         self.register_runbook("data_consistency", DataConsistencyRunbook())
 

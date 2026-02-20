@@ -29,7 +29,9 @@ def dedup_concepts(concepts: Iterable[Concept]) -> list[Concept]:
         if key not in seen:
             # canonicalize
             c.name = canonicalize_name(c.name)
-            c.aliases = [canonicalize_name(a) for a in c.aliases if canonicalize_name(a)]
+            c.aliases = [
+                canonicalize_name(a) for a in c.aliases if canonicalize_name(a)
+            ]
             seen[key] = c
         else:
             # merge aliases/properties

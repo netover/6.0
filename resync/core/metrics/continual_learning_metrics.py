@@ -220,7 +220,9 @@ class ContinualLearningMetrics:
         """Record when an item is added to review queue."""
         tags = {}
         if reasons:
-            tags["primary_reason"] = reasons[0] if isinstance(reasons[0], str) else reasons[0].value
+            tags["primary_reason"] = (
+                reasons[0] if isinstance(reasons[0], str) else reasons[0].value
+            )
 
         await self.store.increment(MetricNames.REVIEW_ADDED, tags=tags)
 
@@ -416,7 +418,8 @@ class ContinualLearningMetrics:
                 "response_time": format_series(response_time_series, "avg_value"),
             },
             "current": {
-                "review_queue_size": self.store.get_gauge(MetricNames.REVIEW_QUEUE_SIZE) or 0,
+                "review_queue_size": self.store.get_gauge(MetricNames.REVIEW_QUEUE_SIZE)
+                or 0,
                 "feedback_total": self.store.get_counter(MetricNames.FEEDBACK_TOTAL),
                 "feedback_positive_rate": self._calc_positive_rate(),
             },

@@ -111,7 +111,9 @@ class FileUploadValidation(BaseModel):
         # Check file size (10MB limit)
         max_size = 10 * 1024 * 1024
         if self.size > max_size:
-            raise ValueError(f"File too large. Maximum size: {max_size / (1024 * 1024)}MB")
+            raise ValueError(
+                f"File too large. Maximum size: {max_size / (1024 * 1024)}MB"
+            )
 
 
 # =============================================================================
@@ -139,9 +141,13 @@ class Goal(BaseModel):
         default_factory=list, description="Constraints or requirements for execution"
     )
     priority: str = Field(
-        default="normal", pattern="^(low|normal|high|critical)$", description="Priority level"
+        default="normal",
+        pattern="^(low|normal|high|critical)$",
+        description="Priority level",
     )
-    timeout_seconds: int = Field(default=120, ge=10, le=600, description="Maximum execution time")
+    timeout_seconds: int = Field(
+        default=120, ge=10, le=600, description="Maximum execution time"
+    )
     require_approval: bool = Field(
         default=False, description="Whether to require HITL approval before execution"
     )
@@ -155,8 +161,12 @@ class ToolCallRequest(BaseModel):
     tool_name: str = Field(
         ..., min_length=1, max_length=100, description="Name of the tool to execute"
     )
-    parameters: dict[str, Any] = Field(default_factory=dict, description="Parameters for the tool")
-    user_role: str = Field(default="operator", description="User role for permission checking")
+    parameters: dict[str, Any] = Field(
+        default_factory=dict, description="Parameters for the tool"
+    )
+    user_role: str = Field(
+        default="operator", description="User role for permission checking"
+    )
 
 
 class AgentExecuteRequest(BaseModel):
@@ -173,14 +183,22 @@ class AgentExecuteRequest(BaseModel):
     goal: Goal | None = Field(None, description="Structured goal for agentic execution")
 
     # Context
-    tws_instance_id: str | None = Field(None, description="TWS instance for multi-server queries")
-    session_id: str | None = Field(None, description="Session ID for conversation memory")
+    tws_instance_id: str | None = Field(
+        None, description="TWS instance for multi-server queries"
+    )
+    session_id: str | None = Field(
+        None, description="Session ID for conversation memory"
+    )
 
     # Execution options
     routing_mode: str | None = Field(
-        None, pattern="^(rag_only|agentic|diagnostic)$", description="Force a specific routing mode"
+        None,
+        pattern="^(rag_only|agentic|diagnostic)$",
+        description="Force a specific routing mode",
     )
-    include_trace: bool = Field(default=True, description="Include execution trace in response")
+    include_trace: bool = Field(
+        default=True, description="Include execution trace in response"
+    )
 
     def get_input(self) -> str:
         """Get the input message or goal description."""
@@ -196,10 +214,16 @@ class ApprovalRequest(BaseModel):
     Request for HITL approval of a pending action.
     """
 
-    trace_id: str = Field(..., description="ID of the execution trace requiring approval")
-    action: str = Field(..., pattern="^(approve|reject)$", description="Approval action")
+    trace_id: str = Field(
+        ..., description="ID of the execution trace requiring approval"
+    )
+    action: str = Field(
+        ..., pattern="^(approve|reject)$", description="Approval action"
+    )
     approver_id: str | None = Field(None, description="ID of the approver")
-    reason: str | None = Field(None, max_length=500, description="Reason for approval/rejection")
+    reason: str | None = Field(
+        None, max_length=500, description="Reason for approval/rejection"
+    )
 
 
 class ApprovalListQuery(BaseModel):
@@ -213,7 +237,9 @@ class ApprovalListQuery(BaseModel):
         description="Filter by approval status",
     )
     tool_name: str | None = Field(None, description="Filter by tool name")
-    limit: int = Field(default=50, ge=1, le=200, description="Maximum results to return")
+    limit: int = Field(
+        default=50, ge=1, le=200, description="Maximum results to return"
+    )
     offset: int = Field(default=0, ge=0, description="Offset for pagination")
 
 
@@ -228,18 +254,27 @@ class DiagnosticRequest(BaseModel):
     """
 
     problem_description: str = Field(
-        ..., min_length=10, max_length=5000, description="Description of the problem to diagnose"
+        ...,
+        min_length=10,
+        max_length=5000,
+        description="Description of the problem to diagnose",
     )
     tws_instance_id: str | None = Field(None, description="TWS instance ID")
-    affected_jobs: list[str] = Field(default_factory=list, description="List of affected job names")
-    error_codes: list[str] = Field(default_factory=list, description="Error codes (ABEND, RC)")
+    affected_jobs: list[str] = Field(
+        default_factory=list, description="List of affected job names"
+    )
+    error_codes: list[str] = Field(
+        default_factory=list, description="Error codes (ABEND, RC)"
+    )
     time_range_hours: int = Field(
         default=24, ge=1, le=168, description="Time range to search for related issues"
     )
     include_history: bool = Field(
         default=True, description="Include historical incidents in analysis"
     )
-    max_iterations: int = Field(default=5, ge=1, le=10, description="Maximum diagnostic iterations")
+    max_iterations: int = Field(
+        default=5, ge=1, le=10, description="Maximum diagnostic iterations"
+    )
 
 
 # =============================================================================
@@ -252,8 +287,12 @@ class FeedbackRequest(BaseModel):
     Request to provide feedback on a response.
     """
 
-    trace_id: str = Field(..., description="ID of the execution trace to provide feedback for")
-    rating: int = Field(..., ge=1, le=5, description="Rating from 1 (poor) to 5 (excellent)")
+    trace_id: str = Field(
+        ..., description="ID of the execution trace to provide feedback for"
+    )
+    rating: int = Field(
+        ..., ge=1, le=5, description="Rating from 1 (poor) to 5 (excellent)"
+    )
     feedback_type: str = Field(
         default="general",
         pattern="^(general|accuracy|helpfulness|speed)$",
@@ -270,18 +309,27 @@ class IncidentResolutionRequest(BaseModel):
     Request to record an incident resolution.
     """
 
-    incident_id: str | None = Field(None, description="Existing incident ID (if updating)")
+    incident_id: str | None = Field(
+        None, description="Existing incident ID (if updating)"
+    )
     problem_description: str = Field(
         ..., min_length=10, max_length=5000, description="Description of the problem"
     )
-    symptoms: list[str] = Field(default_factory=list, description="List of symptoms observed")
-    root_cause: str = Field(..., min_length=5, max_length=2000, description="Identified root cause")
-    resolution: str = Field(..., min_length=5, max_length=5000, description="Resolution applied")
+    symptoms: list[str] = Field(
+        default_factory=list, description="List of symptoms observed"
+    )
+    root_cause: str = Field(
+        ..., min_length=5, max_length=2000, description="Identified root cause"
+    )
+    resolution: str = Field(
+        ..., min_length=5, max_length=5000, description="Resolution applied"
+    )
     affected_jobs: list[str] = Field(
         default_factory=list, description="Jobs affected by this incident"
     )
     evidence: list[str] = Field(
-        default_factory=list, description="Evidence collected (log lines, screenshots, etc.)"
+        default_factory=list,
+        description="Evidence collected (log lines, screenshots, etc.)",
     )
     resolution_status: str = Field(
         default="resolved",
@@ -305,11 +353,15 @@ class MetricsQuery(BaseModel):
         pattern="^(all|performance|errors|capacity|tools)$",
         description="Type of metrics to retrieve",
     )
-    time_range_hours: int = Field(default=24, ge=1, le=168, description="Time range for metrics")
+    time_range_hours: int = Field(
+        default=24, ge=1, le=168, description="Time range for metrics"
+    )
     group_by: str | None = Field(
         None, pattern="^(hour|day|tool|intent)$", description="Group results by"
     )
-    include_anomalies: bool = Field(default=True, description="Include anomaly detection results")
+    include_anomalies: bool = Field(
+        default=True, description="Include anomaly detection results"
+    )
 
 
 class TraceQuery(BaseModel):
@@ -322,7 +374,11 @@ class TraceQuery(BaseModel):
     user_id: str | None = Field(None, description="Filter by user ID")
     tool_name: str | None = Field(None, description="Filter by tool name")
     success: bool | None = Field(None, description="Filter by success status")
-    start_time: datetime | None = Field(None, description="Filter traces after this time")
-    end_time: datetime | None = Field(None, description="Filter traces before this time")
+    start_time: datetime | None = Field(
+        None, description="Filter traces after this time"
+    )
+    end_time: datetime | None = Field(
+        None, description="Filter traces before this time"
+    )
     limit: int = Field(default=100, ge=1, le=1000, description="Maximum results")
     offset: int = Field(default=0, ge=0, description="Offset for pagination")

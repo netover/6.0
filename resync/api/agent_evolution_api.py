@@ -44,13 +44,14 @@ AGENT_IMPROVEMENTS_DIR = Path("data/agent_improvements")
 SUGGESTION_NOT_FOUND_DETAIL = "Suggestion not found"
 
 
-
 # =============================================================================
 # Request/Response Models
 # =============================================================================
 
+
 class SubmitFeedbackRequest(BaseModel):
     """Request to submit feedback on agent output."""
+
     agent_name: str  # e.g., "job_analyst"
     task: str  # e.g., "analyze_job:PAYROLL_NIGHTLY"
     output: dict  # Agent's output
@@ -58,23 +59,23 @@ class SubmitFeedbackRequest(BaseModel):
     comment: str | None = None
     job_name: str | None = None
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "agent_name": "job_analyst",
                 "task": "analyze_job:PAYROLL_NIGHTLY",
-                "output": {
-                    "dependencies": ["BACKUP_DB"],
-                    "risk": "medium"
-                },
+                "output": {"dependencies": ["BACKUP_DB"], "risk": "medium"},
                 "feedback_type": "thumbs_down",
                 "comment": "Missed dependency with TIMEKEEPING_CLOSE",
-                "job_name": "PAYROLL_NIGHTLY"
+                "job_name": "PAYROLL_NIGHTLY",
             }
-        })
+        }
+    )
 
 
 class FeedbackResponse(BaseModel):
     """Response after submitting feedback."""
+
     status: str
     feedback_id: str
     message: str
@@ -82,6 +83,7 @@ class FeedbackResponse(BaseModel):
 
 class PatternResponse(BaseModel):
     """Pattern detection response."""
+
     id: str
     pattern_type: str
     description: str
@@ -93,6 +95,7 @@ class PatternResponse(BaseModel):
 
 class ImprovementResponse(BaseModel):
     """Improvement suggestion response."""
+
     id: str
     agent_name: str
     pattern_id: str
@@ -106,6 +109,7 @@ class ImprovementResponse(BaseModel):
 
 class TestResultResponse(BaseModel):
     """Sandbox test result response."""
+
     suggestion_id: str
     test_cases_count: int
     current_accuracy: float
@@ -117,6 +121,7 @@ class TestResultResponse(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """Agent performance metrics."""
+
     agent_name: str
     period_days: int
     total_tasks: int
@@ -129,6 +134,7 @@ class PerformanceMetrics(BaseModel):
 # =============================================================================
 # Endpoints
 # =============================================================================
+
 
 @router.post(
     "/feedback",
@@ -175,7 +181,7 @@ async def submit_feedback(request: SubmitFeedbackRequest):
         return FeedbackResponse(
             status="success",
             feedback_id=feedback.id,
-            message="Feedback collected. Pattern analysis triggered automatically."
+            message="Feedback collected. Pattern analysis triggered automatically.",
         )
 
     except HTTPException:
@@ -184,7 +190,9 @@ async def submit_feedback(request: SubmitFeedbackRequest):
         # FIX: Let global exception handler deal with errors properly
         # Don't re-raise programming errors - let them propagate to global handler
         logger.error("Failed to collect feedback: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @router.get(
@@ -228,7 +236,9 @@ async def get_patterns(agent_name: str):
                         data = json.loads(await f.read())
                         patterns.append(PatternResponse(**data))
                 except Exception as exc:
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                    logger.debug(
+                        "suppressed_exception", error=str(exc), exc_info=True
+                    )  # was: pass
 
         # Filter by agent (if pattern is linked to agent)
         # For now, return all patterns
@@ -240,7 +250,9 @@ async def get_patterns(agent_name: str):
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get patterns: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @router.get(
@@ -274,6 +286,7 @@ async def list_improvements(status: str | None = None):
     """
     try:
         import json
+
         improvements_dir = AGENT_IMPROVEMENTS_DIR
         improvements = []
 
@@ -289,13 +302,12 @@ async def list_improvements(status: str | None = None):
 
                         improvements.append(ImprovementResponse(**data))
                 except Exception as exc:
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                    logger.debug(
+                        "suppressed_exception", error=str(exc), exc_info=True
+                    )  # was: pass
 
         # Sort by created_at (newest first)
-        improvements.sort(
-            key=lambda x: x.created_at,
-            reverse=True
-        )
+        improvements.sort(key=lambda x: x.created_at, reverse=True)
 
         return improvements
 
@@ -304,7 +316,9 @@ async def list_improvements(status: str | None = None):
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to list improvements: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @router.post(
@@ -366,7 +380,9 @@ async def test_improvement(suggestion_id: str):
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to test improvement: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @router.post(
@@ -413,8 +429,7 @@ async def approve_improvement(
         # Check if tested
         if suggestion.status != "tested":
             raise HTTPException(
-                status_code=400,
-                detail="Must test in sandbox before approving"
+                status_code=400, detail="Must test in sandbox before approving"
             )
 
         # Deploy integration: update agent prompt, enable monitoring, setup auto-rollback
@@ -430,14 +445,14 @@ async def approve_improvement(
         logger.info(
             "improvement_approved",
             suggestion_id=suggestion_id,
-            agent=suggestion.agent_name
+            agent=suggestion.agent_name,
         )
 
         return {
             "status": "deployed",
             "message": "Improvement deployed with monitoring",
             "monitoring": "active_24h",
-            "rollback": "automatic_if_degraded"
+            "rollback": "automatic_if_degraded",
         }
 
     except HTTPException:
@@ -445,7 +460,9 @@ async def approve_improvement(
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to approve improvement: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @router.post(
@@ -480,17 +497,16 @@ async def reject_improvement(suggestion_id: str):
 
         logger.info("improvement_rejected", suggestion_id=suggestion_id)
 
-        return {
-            "status": "rejected",
-            "message": "Improvement rejected"
-        }
+        return {"status": "rejected", "message": "Improvement rejected"}
 
     except HTTPException:
         raise
     except Exception as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to reject improvement: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 @router.get(
@@ -498,10 +514,7 @@ async def reject_improvement(suggestion_id: str):
     response_model=PerformanceMetrics,
     responses={500: {"description": "Internal Server Error"}},
 )
-async def get_performance_metrics(
-    agent_name: str,
-    period_days: int = 30
-):
+async def get_performance_metrics(agent_name: str, period_days: int = 30):
     """
     Get agent performance metrics.
 
@@ -551,7 +564,9 @@ async def get_performance_metrics(
                         else:
                             negative += 1
                 except Exception as exc:
-                    logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                    logger.debug(
+                        "suppressed_exception", error=str(exc), exc_info=True
+                    )  # was: pass
 
         accuracy = positive / total if total > 0 else 0.0
 
@@ -577,12 +592,15 @@ async def get_performance_metrics(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get performance metrics: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL) from None
+        raise HTTPException(
+            status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
+        ) from None
 
 
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     """Load suggestion from disk."""
@@ -590,7 +608,12 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     from pathlib import Path
 
     safe_id = Path(suggestion_id).name
-    if not safe_id or '..' in suggestion_id or '/' in suggestion_id or '\\' in suggestion_id:
+    if (
+        not safe_id
+        or ".." in suggestion_id
+        or "/" in suggestion_id
+        or "\\" in suggestion_id
+    ):
         return None
 
     file_path = AGENT_IMPROVEMENTS_DIR / f"{safe_id}.json"
@@ -612,5 +635,5 @@ async def _save_suggestion(suggestion: ImprovementSuggestion):
         AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
     file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion.id}.json"
-    async with aiofiles.open(file_path, 'w') as f:
+    async with aiofiles.open(file_path, "w") as f:
         await f.write(suggestion.model_dump_json(indent=2))

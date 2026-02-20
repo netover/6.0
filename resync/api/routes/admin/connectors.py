@@ -128,7 +128,9 @@ _connectors = {
 }
 
 
-@router.get("/connectors", response_model=list[ConnectorResponse], tags=["Admin Connectors"])
+@router.get(
+    "/connectors", response_model=list[ConnectorResponse], tags=["Admin Connectors"]
+)
 async def list_connectors(
     type_filter: ConnectorType | None = None,
     enabled_only: bool = False,
@@ -189,7 +191,9 @@ async def create_connector(connector: ConnectorCreate):
 
 
 @router.get(
-    "/connectors/{connector_id}", response_model=ConnectorResponse, tags=["Admin Connectors"]
+    "/connectors/{connector_id}",
+    response_model=ConnectorResponse,
+    tags=["Admin Connectors"],
 )
 async def get_connector(connector_id: str):
     """Get connector by ID."""
@@ -203,7 +207,9 @@ async def get_connector(connector_id: str):
 
 
 @router.put(
-    "/connectors/{connector_id}", response_model=ConnectorResponse, tags=["Admin Connectors"]
+    "/connectors/{connector_id}",
+    response_model=ConnectorResponse,
+    tags=["Admin Connectors"],
 )
 async def update_connector(connector_id: str, update: ConnectorUpdate):
     """Update a connector."""
@@ -221,12 +227,14 @@ async def update_connector(connector_id: str, update: ConnectorUpdate):
         else:
             connector[field] = value
 
-    logger.info("Connector updated: %s", connector['name'])
+    logger.info("Connector updated: %s", connector["name"])
     return ConnectorResponse(**connector)
 
 
 @router.delete(
-    "/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Connectors"]
+    "/connectors/{connector_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Admin Connectors"],
 )
 async def delete_connector(connector_id: str):
     """Delete a connector."""
@@ -304,7 +312,7 @@ async def enable_connector(connector_id: str):
         )
 
     _connectors[connector_id]["enabled"] = True
-    logger.info("Connector enabled: %s", _connectors[connector_id]['name'])
+    logger.info("Connector enabled: %s", _connectors[connector_id]["name"])
 
 
 @router.post(
@@ -321,7 +329,7 @@ async def disable_connector(connector_id: str):
         )
 
     _connectors[connector_id]["enabled"] = False
-    logger.info("Connector disabled: %s", _connectors[connector_id]['name'])
+    logger.info("Connector disabled: %s", _connectors[connector_id]["name"])
 
 
 @router.get("/connectors/types/available", tags=["Admin Connectors"])
@@ -329,14 +337,30 @@ async def get_connector_types():
     """Get available connector types."""
     return {
         "types": [
-            {"type": "tws", "name": "TWS/HWA", "description": "IBM Workload Automation"},
-            {"type": "database", "name": "Database", "description": "SQL Database connection"},
+            {
+                "type": "tws",
+                "name": "TWS/HWA",
+                "description": "IBM Workload Automation",
+            },
+            {
+                "type": "database",
+                "name": "Database",
+                "description": "SQL Database connection",
+            },
             {"type": "redis", "name": "Redis", "description": "Redis cache/queue"},
             {"type": "rabbitmq", "name": "RabbitMQ", "description": "Message queue"},
-            {"type": "api", "name": "External API", "description": "REST API connection"},
+            {
+                "type": "api",
+                "name": "External API",
+                "description": "REST API connection",
+            },
             {"type": "smtp", "name": "SMTP", "description": "Email server"},
             {"type": "slack", "name": "Slack", "description": "Slack notifications"},
-            {"type": "teams", "name": "Microsoft Teams", "description": "Teams notifications"},
+            {
+                "type": "teams",
+                "name": "Microsoft Teams",
+                "description": "Teams notifications",
+            },
             {"type": "webhook", "name": "Webhook", "description": "Generic webhook"},
         ]
     }

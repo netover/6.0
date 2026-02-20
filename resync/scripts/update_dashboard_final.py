@@ -1,10 +1,10 @@
 import re
 
-with open('resync/api/monitoring_dashboard.py', 'r') as f:
+with open("resync/api/monitoring_dashboard.py", "r") as f:
     content = f.read()
 
 # 1. Update add_error_sample
-add_error_pattern = r'async def add_error_sample\(self, error: Exception\) -> None:.*?await self\.add_sample\(sample\)'
+add_error_pattern = r"async def add_error_sample\(self, error: Exception\) -> None:.*?await self\.add_sample\(sample\)"
 new_add_error = """async def add_error_sample(self, error: Exception) -> None:
         \"\"\"Persiste amostra indicando falha na coleta.\"\"\"
         now_wall = time.time()
@@ -30,7 +30,7 @@ new_add_error = """async def add_error_sample(self, error: Exception) -> None:
 content = re.sub(add_error_pattern, new_add_error, content, flags=re.DOTALL)
 
 # 2. Update collect_metrics_sample
-collect_pattern = r'async def collect_metrics_sample\(\) -> None:.*?await redis\.publish\(REDIS_CH_BROADCAST, json_dumps\(current\)\)'
+collect_pattern = r"async def collect_metrics_sample\(\) -> None:.*?await redis\.publish\(REDIS_CH_BROADCAST, json_dumps\(current\)\)"
 new_collect = """async def collect_metrics_sample() -> None:
     \"\"\"Apenas um worker coleta por vez (Liderança via Redis Lock).\"\"\"
     redis = get_redis_client()
@@ -79,7 +79,7 @@ new_collect = """async def collect_metrics_sample() -> None:
 content = re.sub(collect_pattern, new_collect, content, flags=re.DOTALL)
 
 # 3. Update get_global_uptime for better exception handling and unused variable
-uptime_pattern = r'async def get_global_uptime\(self\) -> float:.*?return 0\.0'
+uptime_pattern = r"async def get_global_uptime\(self\) -> float:.*?return 0\.0"
 new_uptime = """async def get_global_uptime(self) -> float:
         redis = get_redis_client()
         try:
@@ -92,5 +92,5 @@ new_uptime = """async def get_global_uptime(self) -> float:
             return 0.0"""
 content = re.sub(uptime_pattern, new_uptime, content, flags=re.DOTALL)
 
-with open('resync/api/monitoring_dashboard.py', 'w') as f:
+with open("resync/api/monitoring_dashboard.py", "w") as f:
     f.write(content)

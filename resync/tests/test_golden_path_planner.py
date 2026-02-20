@@ -213,10 +213,24 @@ async def test_plan_executor_dependency_check_abort():
         "template": "test",
         "total_steps": 2,
         "steps": [
-            {"id": "step_a", "action": "noop", "description": "", "requires": [],
-             "on_failure": "skip", "completed": False, "error": None},
-            {"id": "step_b", "action": "noop", "description": "", "requires": ["step_a"],
-             "on_failure": "abort", "completed": False, "error": None},
+            {
+                "id": "step_a",
+                "action": "noop",
+                "description": "",
+                "requires": [],
+                "on_failure": "skip",
+                "completed": False,
+                "error": None,
+            },
+            {
+                "id": "step_b",
+                "action": "noop",
+                "description": "",
+                "requires": ["step_a"],
+                "on_failure": "abort",
+                "completed": False,
+                "error": None,
+            },
         ],
     }
 
@@ -244,12 +258,33 @@ async def test_plan_executor_dependency_check_skip():
         "template": "test",
         "total_steps": 3,
         "steps": [
-            {"id": "step_a", "action": "noop", "description": "", "requires": [],
-             "on_failure": "skip", "completed": False, "error": None},
-            {"id": "step_b", "action": "noop", "description": "", "requires": ["step_a"],
-             "on_failure": "skip", "completed": False, "error": None},
-            {"id": "step_c", "action": "noop", "description": "", "requires": [],
-             "on_failure": "skip", "completed": False, "error": None},
+            {
+                "id": "step_a",
+                "action": "noop",
+                "description": "",
+                "requires": [],
+                "on_failure": "skip",
+                "completed": False,
+                "error": None,
+            },
+            {
+                "id": "step_b",
+                "action": "noop",
+                "description": "",
+                "requires": ["step_a"],
+                "on_failure": "skip",
+                "completed": False,
+                "error": None,
+            },
+            {
+                "id": "step_c",
+                "action": "noop",
+                "description": "",
+                "requires": [],
+                "on_failure": "skip",
+                "completed": False,
+                "error": None,
+            },
         ],
     }
 
@@ -281,10 +316,24 @@ async def test_plan_executor_dependency_not_reached_when_action_executes():
         "template": "test",
         "total_steps": 2,
         "steps": [
-            {"id": "collect", "action": "orchestrator_collect", "description": "",
-             "requires": [], "on_failure": "skip", "completed": False, "error": None},
-            {"id": "analyze", "action": "orchestrator_collect", "description": "",
-             "requires": ["collect"], "on_failure": "abort", "completed": False, "error": None},
+            {
+                "id": "collect",
+                "action": "orchestrator_collect",
+                "description": "",
+                "requires": [],
+                "on_failure": "skip",
+                "completed": False,
+                "error": None,
+            },
+            {
+                "id": "analyze",
+                "action": "orchestrator_collect",
+                "description": "",
+                "requires": ["collect"],
+                "on_failure": "abort",
+                "completed": False,
+                "error": None,
+            },
         ],
     }
 
@@ -386,10 +435,16 @@ async def test_plan_executor_verification_retry(monkeypatch):
     ]
     mock_tws.execute_action.return_value = {"ok": True}
 
-    monkeypatch.setattr("resync.core.factories.get_tws_client_singleton", lambda *a, **k: mock_tws)
+    monkeypatch.setattr(
+        "resync.core.factories.get_tws_client_singleton", lambda *a, **k: mock_tws
+    )
     monkeypatch.setattr(asyncio, "sleep", AsyncMock())
 
-    from resync.core.langgraph.agent_graph import Intent, plan_executor_node, planner_node
+    from resync.core.langgraph.agent_graph import (
+        Intent,
+        plan_executor_node,
+        planner_node,
+    )
 
     state = {
         "message": "rerun job TEST",
@@ -406,10 +461,24 @@ async def test_plan_executor_verification_retry(monkeypatch):
 
     state = planner_node(state)
     state["execution_plan"]["steps"] = [
-        {"id": "execute", "action": "execute_action", "description": "", "requires": [],
-         "on_failure": "abort", "completed": True, "error": None},
-        {"id": "verify", "action": "verify_action", "description": "", "requires": ["execute"],
-         "on_failure": "skip", "completed": False, "error": None},
+        {
+            "id": "execute",
+            "action": "execute_action",
+            "description": "",
+            "requires": [],
+            "on_failure": "abort",
+            "completed": True,
+            "error": None,
+        },
+        {
+            "id": "verify",
+            "action": "verify_action",
+            "description": "",
+            "requires": ["execute"],
+            "on_failure": "skip",
+            "completed": False,
+            "error": None,
+        },
     ]
     state["execution_plan"]["total_steps"] = 2
     state["plan_step_index"] = 1
@@ -431,7 +500,9 @@ async def test_verification_exhausted_after_max_attempts(monkeypatch):
     mock_tws = AsyncMock()
     mock_tws.get_job_status.return_value = {"status": "UNKNOWN"}
 
-    monkeypatch.setattr("resync.core.factories.get_tws_client_singleton", lambda *a, **k: mock_tws)
+    monkeypatch.setattr(
+        "resync.core.factories.get_tws_client_singleton", lambda *a, **k: mock_tws
+    )
     monkeypatch.setattr(asyncio, "sleep", AsyncMock())
 
     from resync.core.langgraph.agent_graph import _execute_verification_once
@@ -457,7 +528,9 @@ async def test_verification_respects_custom_max_attempts(monkeypatch):
     mock_tws = AsyncMock()
     mock_tws.get_job_status.return_value = {"status": "UNKNOWN"}
 
-    monkeypatch.setattr("resync.core.factories.get_tws_client_singleton", lambda *a, **k: mock_tws)
+    monkeypatch.setattr(
+        "resync.core.factories.get_tws_client_singleton", lambda *a, **k: mock_tws
+    )
     monkeypatch.setattr(asyncio, "sleep", AsyncMock())
 
     from resync.core.langgraph.agent_graph import _execute_verification_once
@@ -638,7 +711,6 @@ async def test_dkg_context_node_survives_import_failure(monkeypatch):
 def test_router_resets_doc_kg_context():
     """doc_kg_context should be reset between turns."""
 
-
     # The transient defaults in router_node reset doc_kg_context to ""
     # We can verify by checking the default value in the reset dict
     transient_defaults = {
@@ -656,9 +728,17 @@ def test_routing_v6_1_all_non_clarification_go_to_dkg():
     """After DKG integration, all non-clarification intents go through DKG context first."""
     from resync.core.langgraph.agent_graph import Intent, _get_next_node_v6_1
 
-    for intent in [Intent.STATUS, Intent.TROUBLESHOOT, Intent.ACTION, Intent.QUERY, Intent.GENERAL]:
+    for intent in [
+        Intent.STATUS,
+        Intent.TROUBLESHOOT,
+        Intent.ACTION,
+        Intent.QUERY,
+        Intent.GENERAL,
+    ]:
         state = {"needs_clarification": False, "intent": intent}
-        assert _get_next_node_v6_1(state) == "document_kg_context", f"Failed for {intent}"
+        assert _get_next_node_v6_1(state) == "document_kg_context", (
+            f"Failed for {intent}"
+        )
 
 
 def test_routing_v6_1_clarification_still_direct():
@@ -746,7 +826,10 @@ def test_make_node_id_stable():
 
     assert make_node_id("Job", "BATCH_001") == "Job:batch_001"
     assert make_node_id("Error", "ORA-00942") == "Error:ora_00942"
-    assert make_node_id("Concept", "Falha de Autenticação") == "Concept:falha_de_autentica_o"
+    assert (
+        make_node_id("Concept", "Falha de Autenticação")
+        == "Concept:falha_de_autentica_o"
+    )
     # Same input produces same output
     assert make_node_id("Job", "BATCH_001") == make_node_id("Job", "BATCH_001")
 
@@ -757,8 +840,18 @@ def test_dedup_concepts_merges_aliases():
     from resync.knowledge.kg_extraction.schemas import Concept
 
     concepts = [
-        Concept(name="ORA-00942", node_type="Error", aliases=["table not found"], properties={"doc_id": "a"}),
-        Concept(name="ORA-00942", node_type="Error", aliases=["missing table"], properties={"doc_id": "b"}),
+        Concept(
+            name="ORA-00942",
+            node_type="Error",
+            aliases=["table not found"],
+            properties={"doc_id": "a"},
+        ),
+        Concept(
+            name="ORA-00942",
+            node_type="Error",
+            aliases=["missing table"],
+            properties={"doc_id": "b"},
+        ),
     ]
 
     result = dedup_concepts(concepts)
@@ -774,8 +867,20 @@ def test_dedup_edges_keeps_max_weight():
     from resync.knowledge.kg_extraction.schemas import Edge, Evidence
 
     edges = [
-        Edge(source="A", target="B", relation_type="CAUSES", weight=0.3, evidence=Evidence(extractor="cooc")),
-        Edge(source="A", target="B", relation_type="CAUSES", weight=0.9, evidence=Evidence(extractor="llm")),
+        Edge(
+            source="A",
+            target="B",
+            relation_type="CAUSES",
+            weight=0.3,
+            evidence=Evidence(extractor="cooc"),
+        ),
+        Edge(
+            source="A",
+            target="B",
+            relation_type="CAUSES",
+            weight=0.9,
+            evidence=Evidence(extractor="llm"),
+        ),
     ]
 
     result = dedup_edges(edges)
@@ -802,7 +907,12 @@ def test_extraction_result_serializable():
     """ExtractionResult should be JSON-serializable."""
     import json
 
-    from resync.knowledge.kg_extraction.schemas import Concept, Edge, Evidence, ExtractionResult
+    from resync.knowledge.kg_extraction.schemas import (
+        Concept,
+        Edge,
+        Evidence,
+        ExtractionResult,
+    )
 
     result = ExtractionResult(
         concepts=[Concept(name="Test", node_type="Concept")],

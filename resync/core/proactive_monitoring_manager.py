@@ -73,7 +73,10 @@ class ProactiveMonitoringManager:
         logger.info("initializing_proactive_monitoring")
 
         # Carrega configuração
-        from resync.core.monitoring_config import get_monitoring_config, update_monitoring_config
+        from resync.core.monitoring_config import (
+            get_monitoring_config,
+            update_monitoring_config,
+        )
 
         if config:
             self._config = update_monitoring_config(config)
@@ -112,8 +115,12 @@ class ProactiveMonitoringManager:
         )
 
         # Configura thresholds
-        self._poller.job_stuck_threshold_minutes = self._config.job_stuck_threshold_minutes
-        self._poller.job_late_threshold_minutes = self._config.job_late_threshold_minutes
+        self._poller.job_stuck_threshold_minutes = (
+            self._config.job_stuck_threshold_minutes
+        )
+        self._poller.job_late_threshold_minutes = (
+            self._config.job_late_threshold_minutes
+        )
 
         # Adiciona handler para persistir eventos
         self._poller.add_event_handler(self._on_event)
@@ -139,10 +146,14 @@ class ProactiveMonitoringManager:
 
         # Inicia detecção de padrões periódica
         if self._config.pattern_detection_enabled:
-            self._pattern_detection_task = await create_tracked_task(self._pattern_detection_loop(), name="pattern_detection_loop")
+            self._pattern_detection_task = await create_tracked_task(
+                self._pattern_detection_loop(), name="pattern_detection_loop"
+            )
 
         # Inicia limpeza periódica
-        self._cleanup_task = await create_tracked_task(self._cleanup_loop(), name="cleanup_loop")
+        self._cleanup_task = await create_tracked_task(
+            self._cleanup_loop(), name="cleanup_loop"
+        )
 
         self._running = True
         logger.info("proactive_monitoring_started")
@@ -226,20 +237,20 @@ class ProactiveMonitoringManager:
                     instance_name=workstation,
                     return_code=return_code,
                     error_message=error_message,
-                    timestamp=event.timestamp.isoformat() if hasattr(event, "timestamp") else None
+                    timestamp=event.timestamp.isoformat()
+                    if hasattr(event, "timestamp")
+                    else None,
                 )
 
                 if success:
                     logger.info(
-                        "teams_abend_notification_sent",
-                        job=job_name,
-                        status=job_status
+                        "teams_abend_notification_sent", job=job_name, status=job_status
                     )
                 else:
                     logger.warning(
                         "teams_abend_notification_skipped",
                         job=job_name,
-                        reason="notification_filter_or_no_channel"
+                        reason="notification_filter_or_no_channel",
                     )
 
             finally:
@@ -252,7 +263,7 @@ class ProactiveMonitoringManager:
             logger.error(
                 "teams_abend_notification_error",
                 error=str(e),
-                job=getattr(event, "source", "unknown")
+                job=getattr(event, "source", "unknown"),
             )
 
     async def _suggest_solution(self, event: Any) -> None:
@@ -272,12 +283,17 @@ class ProactiveMonitoringManager:
 
             if (
                 solution
-                and solution.get("success_rate", 0) >= self._config.solution_min_success_rate
+                and solution.get("success_rate", 0)
+                >= self._config.solution_min_success_rate
             ):
                 # Publica sugestão de solução
                 import time
 
-                from resync.core.tws_background_poller import AlertSeverity, EventType, TWSEvent
+                from resync.core.tws_background_poller import (
+                    AlertSeverity,
+                    EventType,
+                    TWSEvent,
+                )
 
                 suggestion_event = TWSEvent(
                     event_id=f"suggestion_{int(time.time())}",
@@ -346,11 +362,15 @@ class ProactiveMonitoringManager:
         event = TWSEvent(
             event_id=f"pattern_{int(time.time())}",
             event_type=EventType.PATTERN_DETECTED,
-            severity=AlertSeverity.WARNING if pattern.confidence > 0.7 else AlertSeverity.INFO,
+            severity=AlertSeverity.WARNING
+            if pattern.confidence > 0.7
+            else AlertSeverity.INFO,
             timestamp=datetime.now(timezone.utc),
             source="PatternDetector",
             message=pattern.description,
-            details=pattern.to_dict() if hasattr(pattern, "to_dict") else {"pattern": str(pattern)},
+            details=pattern.to_dict()
+            if hasattr(pattern, "to_dict")
+            else {"pattern": str(pattern)},
         )
 
         await self._event_bus.publish(event)
@@ -414,7 +434,9 @@ class ProactiveMonitoringManager:
             self._poller.set_polling_interval(updates["polling_interval_seconds"])
 
         if self._poller and "job_stuck_threshold_minutes" in updates:
-            self._poller.job_stuck_threshold_minutes = updates["job_stuck_threshold_minutes"]
+            self._poller.job_stuck_threshold_minutes = updates[
+                "job_stuck_threshold_minutes"
+            ]
 
         logger.info("monitoring_config_updated", updates=updates)
 

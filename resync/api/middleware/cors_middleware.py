@@ -86,7 +86,9 @@ class LoggingCORSMiddleware:
                 return re.match(self._allow_origin_regex, origin) is not None
             except re.error:
                 # If regex is invalid, fail closed and log once per request
-                logger.warning("cors_invalid_origin_regex", pattern=self._allow_origin_regex)
+                logger.warning(
+                    "cors_invalid_origin_regex", pattern=self._allow_origin_regex
+                )
                 return False
         return False
 

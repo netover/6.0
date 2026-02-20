@@ -14,12 +14,15 @@ Design principles
   expects results synchronously. If a loop is running, we raise with guidance.
 * **Minimal deps**: avoids adding third-party dependencies.
 """
+
 from __future__ import annotations
 import asyncio
 from collections.abc import Coroutine
 from typing import Any, Optional
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
     """Run an async coroutine from synchronous code.
@@ -35,9 +38,17 @@ def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    raise RuntimeError('run_sync() was called from within a running event loop. Convert the caller to async and `await` the coroutine instead.')
+    raise RuntimeError(
+        "run_sync() was called from within a running event loop. Convert the caller to async and `await` the coroutine instead."
+    )
 
-def fire_and_forget(coro: Coroutine[Any, Any, Any], *, logger: Optional[Any]=None, name: str | None=None) -> None:
+
+def fire_and_forget(
+    coro: Coroutine[Any, Any, Any],
+    *,
+    logger: Optional[Any] = None,
+    name: str | None = None,
+) -> None:
     """Schedule a coroutine without awaiting it.
 
     This helper is intended for background refreshes and telemetry. It attaches
@@ -55,7 +66,13 @@ def fire_and_forget(coro: Coroutine[Any, Any, Any], *, logger: Optional[Any]=Non
                 raise
             if logger is not None:
                 try:
-                    logger.warning('background_task_failed', extra={'task': name or str(t), 'error': str(exc)})
+                    logger.warning(
+                        "background_task_failed",
+                        extra={"task": name or str(t), "error": str(exc)},
+                    )
                 except Exception as exc:
-                    logger.debug('suppressed_exception', exc_info=True, extra={'error': str(exc)})
+                    logger.debug(
+                        "suppressed_exception", exc_info=True, extra={"error": str(exc)}
+                    )
+
     task.add_done_callback(_done)

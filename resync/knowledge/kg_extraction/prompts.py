@@ -12,7 +12,12 @@ from __future__ import annotations
 from typing import Iterable
 
 
-def build_concepts_prompt(text: str, *, allowed_node_types: Iterable[str] | None = None, max_concepts: int = 10) -> str:
+def build_concepts_prompt(
+    text: str,
+    *,
+    allowed_node_types: Iterable[str] | None = None,
+    max_concepts: int = 10,
+) -> str:
     allowed = ", ".join(allowed_node_types) if allowed_node_types else "Concept"
     return f"""You are extracting a small set of key concepts from a technical document chunk.
 
@@ -34,7 +39,13 @@ TEXT:
 """
 
 
-def build_edges_prompt(text: str, concepts: list[str], *, allowed_relations: Iterable[str] | None = None, max_edges: int = 20) -> str:
+def build_edges_prompt(
+    text: str,
+    concepts: list[str],
+    *,
+    allowed_relations: Iterable[str] | None = None,
+    max_edges: int = 20,
+) -> str:
     rels = ", ".join(allowed_relations) if allowed_relations else "RELATED_TO"
     concepts_list = ", ".join(concepts[:50])
     return f"""You are extracting directed relationships between concepts mentioned in a technical text chunk.

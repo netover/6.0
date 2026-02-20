@@ -13,26 +13,35 @@ Components:
 - reranker_interface.py: IReranker interface with gating (v5.9.9)
 """
 
+
 # Lazy imports to avoid circular dependencies
 def get_hybrid_retriever():
     """Get HybridRetriever instance."""
     from .hybrid import HybridRetriever
+
     return HybridRetriever()
+
 
 def get_graph_retriever():
     """Get GraphRetriever instance."""
     from .graph import KnowledgeGraph
+
     return KnowledgeGraph()
+
 
 def get_reranker():
     """Get IReranker instance (v5.9.9)."""
     from .reranker_interface import create_reranker
+
     return create_reranker()
+
 
 def get_gated_reranker():
     """Get reranker with gating policy (v5.9.9)."""
     from .reranker_interface import create_gated_reranker
+
     return create_gated_reranker()
+
 
 __all__ = [
     "get_hybrid_retriever",

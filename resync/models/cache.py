@@ -72,7 +72,9 @@ class CacheEntry:
 
         raw_timestamp = data.get("timestamp")
         try:
-            timestamp = datetime.fromisoformat(raw_timestamp) if raw_timestamp else _EPOCH_UTC
+            timestamp = (
+                datetime.fromisoformat(raw_timestamp) if raw_timestamp else _EPOCH_UTC
+            )
         except (TypeError, ValueError):
             timestamp = _EPOCH_UTC
 

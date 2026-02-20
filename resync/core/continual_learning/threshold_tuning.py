@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class AutoTuningMode(str, Enum):
     """Auto-tuning mode for thresholds."""
+
     DISABLED = "disabled"
     CONSERVATIVE = "conservative"
     MODERATE = "moderate"
@@ -28,6 +29,7 @@ class AutoTuningMode(str, Enum):
 @dataclass
 class ThresholdBounds:
     """Bounds for a threshold value."""
+
     min_value: float = 0.0
     max_value: float = 1.0
     step: float = 0.01
@@ -40,6 +42,7 @@ class ThresholdBounds:
 @dataclass
 class ThresholdConfig:
     """Configuration for a threshold."""
+
     name: str
     default_value: float = 0.5
     bounds: ThresholdBounds = field(default_factory=ThresholdBounds)
@@ -51,6 +54,7 @@ class ThresholdConfig:
 @dataclass
 class ThresholdMetrics:
     """Metrics for threshold performance."""
+
     name: str
     current_value: float
     hit_count: int = 0
@@ -67,6 +71,7 @@ class ThresholdMetrics:
 @dataclass
 class ThresholdRecommendation:
     """Recommendation for threshold adjustment."""
+
     threshold_name: str
     current_value: float
     recommended_value: float
@@ -78,6 +83,7 @@ class ThresholdRecommendation:
 @dataclass
 class AuditLogEntry:
     """Audit log entry for threshold changes."""
+
     id: str = ""
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     action: str = ""
@@ -92,6 +98,7 @@ class AuditLogEntry:
 @dataclass
 class AuditResult:
     """Result of an audit operation."""
+
     success: bool
     message: str = ""
     entries: list[AuditLogEntry] = field(default_factory=list)
@@ -131,8 +138,7 @@ class ThresholdTuningManager:
         """Register a threshold configuration."""
         self._configs[config.name] = config
         self._metrics[config.name] = ThresholdMetrics(
-            name=config.name,
-            current_value=config.default_value
+            name=config.name, current_value=config.default_value
         )
 
     def get_recommendation(self, name: str) -> ThresholdRecommendation | None:
@@ -163,7 +169,7 @@ class ThresholdTuningManager:
             recommended_value=recommended,
             confidence=0.7,
             reason="Based on hit rate of {metrics.hit_rate:.2%}",
-            based_on_samples=metrics.hit_count + metrics.miss_count
+            based_on_samples=metrics.hit_count + metrics.miss_count,
         )
 
     async def apply_recommendations(self) -> list[ThresholdRecommendation]:
@@ -178,12 +184,19 @@ class ThresholdTuningManager:
 
 
 __all__ = [
-    "ThresholdTuner", "get_threshold_tuner",
-    "AuditLogEntry", "AutoTuningMode",
-    "ThresholdBounds", "ThresholdConfig", "ThresholdMetrics",
-    "ThresholdRecommendation", "ThresholdTuningManager",
-    "AuditResult", "AuditToKGPipeline",
-    "get_threshold_tuning_manager", "get_audit_to_kg_pipeline",
+    "ThresholdTuner",
+    "get_threshold_tuner",
+    "AuditLogEntry",
+    "AutoTuningMode",
+    "ThresholdBounds",
+    "ThresholdConfig",
+    "ThresholdMetrics",
+    "ThresholdRecommendation",
+    "ThresholdTuningManager",
+    "AuditResult",
+    "AuditToKGPipeline",
+    "get_threshold_tuning_manager",
+    "get_audit_to_kg_pipeline",
 ]
 
 
@@ -213,7 +226,9 @@ class ThresholdTuner:
         self, name: str, value: float, min_value: float = 0.0, max_value: float = 1.0
     ) -> LearningThreshold:
         """Set or update threshold."""
-        return await self._store.thresholds.set_threshold(name, value, min_value, max_value)
+        return await self._store.thresholds.set_threshold(
+            name, value, min_value, max_value
+        )
 
     async def adjust_threshold(self, name: str, adjustment: float) -> float | None:
         """Adjust threshold by a delta."""
@@ -229,8 +244,12 @@ class ThresholdTuner:
 
     async def auto_tune(self, feedback_window: int = 100) -> dict[str, Any]:
         """Auto-tune thresholds based on feedback."""
-        positive = await self._store.feedback.get_positive_examples(limit=feedback_window)
-        negative = await self._store.feedback.get_negative_examples(limit=feedback_window)
+        positive = await self._store.feedback.get_positive_examples(
+            limit=feedback_window
+        )
+        negative = await self._store.feedback.get_negative_examples(
+            limit=feedback_window
+        )
 
         total = len(positive) + len(negative)
         if total == 0:
@@ -246,7 +265,11 @@ class ThresholdTuner:
             # Very positive, can lower threshold
             await self.adjust_threshold("confidence", -0.02)
 
-        return {"adjusted": True, "positive_rate": positive_rate, "total_feedback": total}
+        return {
+            "adjusted": True,
+            "positive_rate": positive_rate,
+            "total_feedback": total,
+        }
 
 
 _instance: ThresholdTuner | None = None

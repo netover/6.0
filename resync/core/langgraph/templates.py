@@ -6,7 +6,7 @@ Supports hot-reloading and versioning.
 
 Usage:
     from resync.core.langgraph.templates import get_template, render_template
-    
+
     template = get_template("status_success")
     response = render_template("status_success", job_name="BATCH001", status="SUCC")
 """
@@ -47,7 +47,9 @@ def _load_templates() -> dict[str, Any]:
                 logger.debug("templates_loaded", count=len(templates))
                 return templates
         else:
-            logger.warning("templates_file_not_found", path=str(SYNTHESIS_TEMPLATES_FILE))
+            logger.warning(
+                "templates_file_not_found", path=str(SYNTHESIS_TEMPLATES_FILE)
+            )
             return {}
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
@@ -67,10 +69,10 @@ def reload_templates() -> None:
 def get_template(name: str) -> dict[str, Any] | None:
     """
     Get a template by name.
-    
+
     Args:
         name: Template name (e.g., "status_success")
-        
+
     Returns:
         Template dict with 'template', 'version', 'description' or None
     """
@@ -81,10 +83,10 @@ def get_template(name: str) -> dict[str, Any] | None:
 def get_template_string(name: str) -> str | None:
     """
     Get just the template string by name.
-    
+
     Args:
         name: Template name
-        
+
     Returns:
         Template string or None
     """
@@ -104,15 +106,15 @@ def get_template_string(name: str) -> str | None:
 def render_template(name: str, context: dict[str, Any] | None = None, **kwargs) -> str:
     """
     Render a template with given values.
-    
+
     Args:
         name: Template name
         context: Optional dict with values to substitute
         **kwargs: Additional values to substitute in template
-        
+
     Returns:
         Rendered template string
-        
+
     Example:
         # Using kwargs
         response = render_template(
@@ -120,19 +122,19 @@ def render_template(name: str, context: dict[str, Any] | None = None, **kwargs) 
             job_name="BATCH001",
             status="✅ Sucesso",
         )
-        
+
         # Using context dict
         response = render_template("status_success", {"job_name": "BATCH001"})
     """
     # Merge context and kwargs
     values = {**(context or {}), **kwargs}
-    
+
     template_str = get_template_string(name)
-    
+
     if not template_str:
         logger.warning("template_not_found", name=name)
         return _fallback_render(name, values)
-    
+
     try:
         # Handle missing keys gracefully
         return template_str.format(**{k: v or "N/A" for k, v in values.items()})
@@ -148,11 +150,11 @@ def render_template(name: str, context: dict[str, Any] | None = None, **kwargs) 
 def _safe_format(template: str, values: dict) -> str:
     """Format template, replacing missing keys with placeholders."""
     import re
-    
+
     def replace_placeholder(match):
         key = match.group(1)
         return str(values.get(key, f"[{key}]"))
-    
+
     return re.sub(r"\{(\w+)\}", replace_placeholder, template)
 
 
@@ -173,10 +175,10 @@ def _fallback_render(name: str, values: dict) -> str:
 def get_status_translation(status: str) -> str:
     """
     Get human-friendly translation for status codes.
-    
+
     Args:
         status: Status code (e.g., "SUCC", "ABEND")
-        
+
     Returns:
         Translated status with emoji
     """
@@ -191,50 +193,48 @@ def get_status_translation(status: str) -> str:
 
 
 def get_clarification_question(
-    entity_type: str,
-    language: str = "pt",
-    **format_args
+    entity_type: str, language: str = "pt", **format_args
 ) -> str:
     """
     Get clarification question for missing entity.
-    
+
     Args:
         entity_type: Type of entity (job_name, workstation, etc.)
         language: Language code (pt/en)
         **format_args: Format arguments for the question
-        
+
     Returns:
         Formatted question string
     """
     templates = _load_templates()
     questions = templates.get("clarification_questions", {})
-    
+
     entity_questions = questions.get(entity_type, {})
     question_template = entity_questions.get(language, entity_questions.get("en", ""))
-    
+
     if question_template and format_args:
         try:
             return question_template.format(**format_args)
         except KeyError:
             return question_template
-    
+
     return question_template or f"Please provide the {entity_type}."
 
 
 def get_action_verb(intent: str, language: str = "pt") -> str:
     """
     Get action verb for intent in specified language.
-    
+
     Args:
         intent: Intent name (status, troubleshoot, action)
         language: Language code (pt/en)
-        
+
     Returns:
         Action verb string
     """
     templates = _load_templates()
     verbs = templates.get("action_verbs", {})
-    
+
     intent_verbs = verbs.get(intent, {})
     return intent_verbs.get(language, intent_verbs.get("en", intent))
 

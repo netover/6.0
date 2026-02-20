@@ -36,7 +36,9 @@ class UserRepository:
         """Close the repository."""
         self._initialized = False
 
-    async def create_user(self, user_id: str, preferences: dict | None = None) -> UserProfile:
+    async def create_user(
+        self, user_id: str, preferences: dict | None = None
+    ) -> UserProfile:
         """Create a new user."""
         return await self._repo.create(user_id=user_id, preferences=preferences or {})
 
@@ -84,11 +86,15 @@ class UserRepository:
     # Sync methods for backward compatibility
     def create_user_sync(self, user_id: str) -> None:
         """Sync version - deprecated."""
-        raise NotImplementedError("Sync method create_user_sync is deprecated, use async create_user")
+        raise NotImplementedError(
+            "Sync method create_user_sync is deprecated, use async create_user"
+        )
 
     def get_user_sync(self, user_id: str) -> dict | None:
         """Sync version - deprecated."""
-        raise NotImplementedError("Sync method get_user_sync is deprecated, use async get_user")
+        raise NotImplementedError(
+            "Sync method get_user_sync is deprecated, use async get_user"
+        )
 
 
 _instance: UserRepository | None = None

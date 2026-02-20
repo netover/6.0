@@ -201,7 +201,9 @@ class ComplianceReportGenerator:
         and Privacy criteria.
         """
 
-    def _generate_soc2_findings(self, soc2_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _generate_soc2_findings(
+        self, soc2_data: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Generate findings section for SOC 2 report."""
         findings = []
 
@@ -258,22 +260,30 @@ class ComplianceReportGenerator:
 
         availability = soc2_data.get("availability_summary", {})
         if not availability.get("meets_target", True):
-            recommendations.append("Improve system availability to meet SOC 2 requirements")
+            recommendations.append(
+                "Improve system availability to meet SOC 2 requirements"
+            )
 
         integrity = soc2_data.get("processing_integrity_summary", {})
         if not integrity.get("meets_target", True):
-            recommendations.append("Enhance processing integrity monitoring and validation")
+            recommendations.append(
+                "Enhance processing integrity monitoring and validation"
+            )
 
         return recommendations
 
-    def _generate_soc2_metrics_summary(self, soc2_data: dict[str, Any]) -> dict[str, Any]:
+    def _generate_soc2_metrics_summary(
+        self, soc2_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate metrics summary for SOC 2 report."""
         return {
             "overall_compliance_score": soc2_data.get("overall_compliance_score", 0.0),
             "criteria_scores": soc2_data.get("criteria_scores", {}),
             "control_status": soc2_data.get("control_status", {}),
             "availability_metrics": soc2_data.get("availability_summary", {}),
-            "processing_integrity_metrics": soc2_data.get("processing_integrity_summary", {}),
+            "processing_integrity_metrics": soc2_data.get(
+                "processing_integrity_summary", {}
+            ),
             "evidence_summary": soc2_data.get("evidence_summary", {}),
             "confidentiality_incidents": soc2_data.get("confidentiality_incidents", {}),
         }
@@ -313,7 +323,9 @@ class ComplianceReportGenerator:
         data protection principles, consent management, and data subject rights.
         """
 
-    def _generate_gdpr_findings(self, gdpr_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _generate_gdpr_findings(
+        self, gdpr_data: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Generate findings section for GDPR report."""
         findings = []
 
@@ -351,7 +363,9 @@ class ComplianceReportGenerator:
             recommendations.append("Enhance data breach prevention measures")
 
         if gdpr_data.get("data_subject_requests", 0) > 20:
-            recommendations.append("Implement automated data subject request processing")
+            recommendations.append(
+                "Implement automated data subject request processing"
+            )
 
         recommendations.extend(
             [
@@ -363,11 +377,15 @@ class ComplianceReportGenerator:
 
         return recommendations
 
-    def _generate_gdpr_metrics_summary(self, gdpr_data: dict[str, Any]) -> dict[str, Any]:
+    def _generate_gdpr_metrics_summary(
+        self, gdpr_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate metrics summary for GDPR report."""
         return {
             "overall_compliance_score": gdpr_data.get("overall_compliance_score", 0.0),
-            "data_processing_activities": gdpr_data.get("data_processing_activities", 0),
+            "data_processing_activities": gdpr_data.get(
+                "data_processing_activities", 0
+            ),
             "consent_records": gdpr_data.get("consent_records", 0),
             "data_subject_requests": gdpr_data.get("data_subject_requests", 0),
             "breach_incidents": gdpr_data.get("breach_incidents", 0),

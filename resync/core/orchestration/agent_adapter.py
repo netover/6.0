@@ -157,9 +157,10 @@ class AgentAdapter:
         # Most configured tools in AgentManager seem to be sync or async.
         # We need to inspect.
         import asyncio
+        import inspect
 
         try:
-            if asyncio.iscoroutinefunction(tool_func):
+            if inspect.iscoroutinefunction(tool_func):
                 result = await tool_func(**tool_args)
             else:
                 result = await asyncio.to_thread(tool_func, **tool_args)

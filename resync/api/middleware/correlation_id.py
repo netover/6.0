@@ -48,9 +48,10 @@ try:
     from langfuse.decorators import langfuse_context
 
     LANGFUSE_AVAILABLE = True
-except ImportError:
+except Exception as exc:
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
+    logger.warning("langfuse_context_unavailable reason=%s", type(exc).__name__)
 
 
 class CorrelationIdMiddleware:

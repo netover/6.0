@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+import types
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 JWT_LIBRARY: str = "none"
 JWTError: type[Exception]
+jwt: types.ModuleType | None = None
 
 try:
     # Prefer PyJWT (more actively maintained, simpler API)
@@ -34,7 +36,8 @@ try:
     JWTError = _pyjwt.PyJWTError
     JWT_LIBRARY = "pyjwt"
     logger.info(
-        "jwt_library_loaded library=pyjwt version=%s", getattr(_pyjwt, "__version__", "unknown")
+        "jwt_library_loaded library=pyjwt version=%s",
+        getattr(_pyjwt, "__version__", "unknown"),
     )
 
 except ImportError:
@@ -102,7 +105,9 @@ def decode_token(
         RuntimeError: If no JWT library is available
     """
     if not is_jwt_available():
-        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+        raise RuntimeError(
+            "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
+        )
 
     if algorithms is None:
         algorithms = ["HS256"]
@@ -134,7 +139,9 @@ def create_token(
         RuntimeError: If no JWT library is available
     """
     if not is_jwt_available():
-        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+        raise RuntimeError(
+            "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
+        )
 
     to_encode = payload.copy()
 

@@ -124,7 +124,9 @@ class HealthMonitoringSubject:
             },
         )
 
-        await self._notify_observers("on_component_check_completed", event, component_name)
+        await self._notify_observers(
+            "on_component_check_completed", event, component_name
+        )
 
     async def notify_system_summary(
         self,
@@ -242,7 +244,9 @@ class AlertingHealthObserver(HealthMonitorObserver):
         last_alert = self._last_alerts.get(component_name)
         if last_alert:
             time_since_last_alert = datetime.now(timezone.utc) - last_alert
-            if time_since_last_alert.total_seconds() < (self._alert_cooldown_minutes * 60):
+            if time_since_last_alert.total_seconds() < (
+                self._alert_cooldown_minutes * 60
+            ):
                 return  # Still in cooldown period
 
         # Send alert for unhealthy or degraded components
@@ -339,7 +343,9 @@ class MetricsHealthObserver(HealthMonitorObserver):
 
         # Maintain history size limit
         if len(self._system_summaries) > self._max_metrics_history:
-            self._system_summaries = self._system_summaries[-self._max_metrics_history :]
+            self._system_summaries = self._system_summaries[
+                -self._max_metrics_history :
+            ]
 
     def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of collected metrics."""
@@ -347,7 +353,9 @@ class MetricsHealthObserver(HealthMonitorObserver):
             "status_changes_count": len(self._status_changes),
             "check_durations_count": len(self._check_durations),
             "system_summaries_count": len(self._system_summaries),
-            "latest_status_changes": (self._status_changes[-10:] if self._status_changes else []),
+            "latest_status_changes": (
+                self._status_changes[-10:] if self._status_changes else []
+            ),
             "latest_system_summary": (
                 self._system_summaries[-1] if self._system_summaries else None
             ),

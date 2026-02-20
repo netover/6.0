@@ -39,7 +39,7 @@ class LLMConfig:
         model = config.get_model_for_task("analysis")
     """
 
-    _instance: Optional['LLMConfig'] = None
+    _instance: Optional["LLMConfig"] = None
     _config: dict[str, Any] = {}
 
     def __init__(self):
@@ -50,13 +50,15 @@ class LLMConfig:
         """Load LLM configuration from TOML file using standard tomllib."""
         try:
             # Resolved dynamically relative to the project structure
-            config_file = Path(__file__).resolve().parent.parent.parent / "config" / "llm.toml"
+            config_file = (
+                Path(__file__).resolve().parent.parent.parent / "config" / "llm.toml"
+            )
 
             if not config_file.exists():
                 logger.warning(
                     "llm_config_not_found",
                     path=str(config_file),
-                    fallback="using_defaults"
+                    fallback="using_defaults",
                 )
                 self._config = self._get_defaults()
                 return
@@ -68,7 +70,7 @@ class LLMConfig:
             logger.info(
                 "llm_config_loaded",
                 provider=self._config.get("llm", {}).get("provider"),
-                default_model=self._config.get("llm", {}).get("default_model")
+                default_model=self._config.get("llm", {}).get("default_model"),
             )
 
         except Exception as e:
@@ -88,8 +90,8 @@ class LLMConfig:
                 "litellm": {
                     "enabled": True,
                     "base_url": "http://localhost:11434",
-                    "timeout": 60
-                }
+                    "timeout": 60,
+                },
             }
         }
 
@@ -123,11 +125,7 @@ class LLMConfig:
         # Return default model
         default_model = llm_config.get("default_model", "ollama/llama3.2")
 
-        logger.debug(
-            "llm_model_selected",
-            model=default_model,
-            task_type=task_type
-        )
+        logger.debug("llm_model_selected", model=default_model, task_type=task_type)
 
         return default_model
 
@@ -199,18 +197,15 @@ class LLMConfig:
 
     def get_cache_config(self) -> dict[str, Any]:
         """Get cache configuration."""
-        return self._config.get("llm", {}).get("cache", {
-            "enabled": True,
-            "ttl_seconds": 3600
-        })
+        return self._config.get("llm", {}).get(
+            "cache", {"enabled": True, "ttl_seconds": 3600}
+        )
 
     def get_retry_config(self) -> dict[str, Any]:
         """Get retry configuration."""
-        return self._config.get("llm", {}).get("retry", {
-            "max_attempts": 3,
-            "base_backoff": 1.0,
-            "max_backoff": 10.0
-        })
+        return self._config.get("llm", {}).get(
+            "retry", {"max_attempts": 3, "base_backoff": 1.0, "max_backoff": 10.0}
+        )
 
     def reload(self):
         """Reload configuration from file (hot reload support)."""

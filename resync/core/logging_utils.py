@@ -2,6 +2,7 @@
 
 import logging
 import re
+from re import error as ReError
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -75,9 +76,9 @@ class SecretRedactor(logging.Filter):
         """
         # Redact from the message
         if isinstance(record.msg, str):
-             record.msg = self._redact_sensitive_data(record.msg)
+            record.msg = self._redact_sensitive_data(record.msg)
         elif isinstance(record.msg, dict):
-             record.msg = self._redact_dict(record.msg)
+            record.msg = self._redact_dict(record.msg)
 
         # If the record has an args attribute, redact from there too
         if record.args:
@@ -103,7 +104,7 @@ class SecretRedactor(logging.Filter):
             The redacted arguments
         """
         if isinstance(args, (list, tuple)):
-            redacted_args = []
+            redacted_args: list[str | dict[str, Any] | Any] = []
             for arg in args:
                 if isinstance(arg, str):
                     redacted_args.append(self._redact_sensitive_data(arg))
@@ -129,7 +130,7 @@ class SecretRedactor(logging.Filter):
         if not isinstance(data, dict):
             return data
 
-        redacted = {}
+        redacted: dict[str, Any] = {}
         for key, value in data.items():
             key_lower = str(key).lower()
             # Check if key matches sensitive patterns
@@ -168,6 +169,7 @@ class SecretRedactor(logging.Filter):
         redacted = data
         for pattern in self.sensitive_value_patterns:
             try:
+
                 def replace_match(match):
                     full_match = match.group(0)
                     if match.groups():
@@ -175,11 +177,17 @@ class SecretRedactor(logging.Filter):
                         for i in range(1, len(match.groups()) + 1):
                             start, end = match.span(i)
                             # recreate string with redacted part
-                            return full_match[:match.start(i) - match.start(0)] + "***REDACTED***" + full_match[match.end(i) - match.start(0):]
+                            return (
+                                full_match[: match.start(i) - match.start(0)]
+                                + "***REDACTED***"
+                                + full_match[match.end(i) - match.start(0) :]
+                            )
                     return "***REDACTED***"
 
                 redacted = re.sub(pattern, replace_match, redacted, flags=re.IGNORECASE)
-            except Exception as exc:
-                logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
-                
+            except (ReError, TypeError) as exc:
+                logger.debug(
+                    "suppressed_exception: %s", exc, exc_info=True
+                )  # was: pass
+
         return redacted

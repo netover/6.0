@@ -26,8 +26,12 @@ def __getattr__(name):
 
         if name not in _LOADED_MODULES:
             try:
-                module = __import__(module_name, fromlist=[attr_name] if attr_name else [])
-                _LOADED_MODULES[name] = module if attr_name is None else getattr(module, attr_name)
+                module = __import__(
+                    module_name, fromlist=[attr_name] if attr_name else []
+                )
+                _LOADED_MODULES[name] = (
+                    module if attr_name is None else getattr(module, attr_name)
+                )
             except ImportError:
                 raise ImportError(f"Failed to lazy import {name}") from None
 

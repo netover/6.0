@@ -353,8 +353,12 @@ class EncryptedAuditTrail:
 
         self._running = True
         self._flush_task = track_task(self._flush_worker(), name="flush_worker")
-        self._archival_task = track_task(self._archival_worker(), name="archival_worker")
-        self._verification_task = track_task(self._verification_worker(), name="verification_worker")
+        self._archival_task = track_task(
+            self._archival_worker(), name="archival_worker"
+        )
+        self._verification_task = track_task(
+            self._verification_worker(), name="verification_worker"
+        )
 
         logger.info("Encrypted audit trail system started")
 
@@ -437,7 +441,9 @@ class EncryptedAuditTrail:
     def _calculate_signature(self, entry: AuditEntry) -> str:
         """Calculate HMAC signature for the entry."""
         content = f"{entry.entry_id}:{entry.hash_value}:{entry.chain_hash}"
-        signature = hmac.new(self.key_manager.hmac_key, content.encode(), hashlib.sha256)
+        signature = hmac.new(
+            self.key_manager.hmac_key, content.encode(), hashlib.sha256
+        )
         return signature.hexdigest()
 
     def search_events(
@@ -454,7 +460,9 @@ class EncryptedAuditTrail:
 
         # Search in current pending entries
         for entry in self.pending_entries:
-            if self._matches_filters(entry, start_time, end_time, event_type, user_id, resource_id):
+            if self._matches_filters(
+                entry, start_time, end_time, event_type, user_id, resource_id
+            ):
                 results.append(entry)
                 if len(results) >= limit:
                     break
@@ -642,7 +650,9 @@ class EncryptedAuditTrail:
             "performance": {
                 "total_entries_logged": self.total_entries,
                 "pending_entries": len(self.pending_entries),
-                "current_chain_hash": (self.chain_hash[:16] + "..." if self.chain_hash else ""),
+                "current_chain_hash": (
+                    self.chain_hash[:16] + "..." if self.chain_hash else ""
+                ),
                 "active_encryption_key": self.key_manager.active_key_id,
             },
             "security": {
@@ -733,7 +743,9 @@ class EncryptedAuditTrail:
             "entries_count": len(block.entries),
             "block_hash": block.block_hash,
             "previous_block_hash": block.previous_block_hash,
-            "encryption_key_id": (block.entries[0].encryption_key_id if block.entries else ""),
+            "encryption_key_id": (
+                block.entries[0].encryption_key_id if block.entries else ""
+            ),
             "compressed": self.config.compression_enabled,
         }
 
@@ -746,7 +758,9 @@ class EncryptedAuditTrail:
         # Save to file under the instance-wide file system lock
         async with self._fs_lock:
             async with aiofiles.open(block_file, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(block_data, separators=(",", ":"), ensure_ascii=False))
+                await f.write(
+                    json.dumps(block_data, separators=(",", ":"), ensure_ascii=False)
+                )
 
     async def _save_chain_state(self) -> None:
         """Save current chain state to disk."""
@@ -812,7 +826,9 @@ class EncryptedAuditTrail:
             # This would create a compressed archive of old blocks
             # Implementation would use tarfile or similar
 
-            logger.info("Archived %s old log blocks to %s", len(old_blocks), archive_path)
+            logger.info(
+                "Archived %s old log blocks to %s", len(old_blocks), archive_path
+            )
 
     async def _verification_worker(self) -> None:
         """Background worker for integrity verification."""
@@ -823,7 +839,9 @@ class EncryptedAuditTrail:
                 if self.config.chain_verification_enabled:
                     integrity = await self.verify_integrity(full_chain_check=False)
                     if integrity["integrity_status"] != "valid":
-                        logger.warning("Periodic integrity check failed", results=integrity)
+                        logger.warning(
+                            "Periodic integrity check failed", results=integrity
+                        )
 
             except asyncio.CancelledError:
                 break

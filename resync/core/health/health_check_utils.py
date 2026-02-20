@@ -12,7 +12,11 @@ from typing import Any, TypeVar
 
 import structlog
 
-from resync.core.health.health_models import ComponentHealth, ComponentType, HealthStatus
+from resync.core.health.health_models import (
+    ComponentHealth,
+    ComponentType,
+    HealthStatus,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -165,7 +169,10 @@ class HealthCheckUtils:
                 alerts.append(f"{name} is unhealthy")
             elif component.status == HealthStatus.DEGRADED:
                 # Include specific threshold breach information in alerts
-                if name == "database" and "connection_usage_percent" in component.metadata:
+                if (
+                    name == "database"
+                    and "connection_usage_percent" in component.metadata
+                ):
                     threshold = thresholds.get(
                         "database_connection_threshold_percent",
                         default_thresholds["database_connection_threshold_percent"],
@@ -180,14 +187,18 @@ class HealthCheckUtils:
                         default_thresholds["memory_usage_threshold_percent"],
                     )
                     usage = component.metadata["memory_usage_percent"]
-                    alerts.append(f"Memory usage at {usage:.1f}% (threshold: {threshold}%)")
+                    alerts.append(
+                        f"Memory usage at {usage:.1f}% (threshold: {threshold}%)"
+                    )
                 elif name == "cpu" and "cpu_usage_percent" in component.metadata:
                     threshold = thresholds.get(
                         "cpu_usage_threshold_percent",
                         default_thresholds["cpu_usage_threshold_percent"],
                     )
                     usage = component.metadata["cpu_usage_percent"]
-                    alerts.append(f"CPU usage at {usage:.1f}% (threshold: {threshold}%)")
+                    alerts.append(
+                        f"CPU usage at {usage:.1f}% (threshold: {threshold}%)"
+                    )
                 else:
                     alerts.append(f"{name} is degraded")
 
@@ -253,13 +264,17 @@ class HealthCheckUtils:
                 failed_checks += 1
 
         component_count = len(components)
-        avg_response_time = total_response_time / component_count if component_count > 0 else 0
+        avg_response_time = (
+            total_response_time / component_count if component_count > 0 else 0
+        )
 
         return {
             "total_components": component_count,
             "failed_checks": failed_checks,
             "success_rate": (
-                (component_count - failed_checks) / component_count if component_count > 0 else 0
+                (component_count - failed_checks) / component_count
+                if component_count > 0
+                else 0
             ),
             "avg_response_time_ms": avg_response_time,
             "min_response_time_ms": min(response_times) if response_times else 0,
@@ -281,7 +296,9 @@ class HealthCheckUtils:
             "component_type": component.component_type.value,
             "status": component.status.value,
             "response_time_ms": component.response_time_ms,
-            "last_check": (component.last_check.isoformat() if component.last_check else None),
+            "last_check": (
+                component.last_check.isoformat() if component.last_check else None
+            ),
             "error_count": component.error_count,
         }
 

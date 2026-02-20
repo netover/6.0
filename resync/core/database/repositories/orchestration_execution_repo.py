@@ -3,6 +3,7 @@ Orchestration Execution Repository
 
 Provides data access methods for orchestration executions.
 """
+
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -19,14 +20,14 @@ from resync.core.database.models.orchestration import (
 class OrchestrationExecutionRepository:
     """
     Repository for orchestration execution data access.
-    
+
     Provides CRUD operations and queries for orchestration executions.
     """
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository with database session."""
         self._session = session
-    
+
     async def create(
         self,
         trace_id: str,
@@ -41,7 +42,7 @@ class OrchestrationExecutionRepository:
     ) -> OrchestrationExecution:
         """
         Create a new execution record.
-        
+
         Args:
             trace_id: Unique trace ID for correlation
             config_id: Configuration ID
@@ -52,7 +53,7 @@ class OrchestrationExecutionRepository:
             tenant_id: Tenant ID
             created_by: Creator user ID
             callback_url: Callback URL for completion notification
-            
+
         Returns:
             Created execution
         """
@@ -72,23 +73,25 @@ class OrchestrationExecutionRepository:
         await self._session.commit()
         await self._session.refresh(execution)
         return execution
-    
+
     async def get_by_id(self, execution_id: UUID) -> Optional[OrchestrationExecution]:
         """Get execution by ID."""
         result = await self._session.execute(
-            select(OrchestrationExecution)
-            .where(OrchestrationExecution.id == execution_id)
+            select(OrchestrationExecution).where(
+                OrchestrationExecution.id == execution_id
+            )
         )
         return result.scalar_one_or_none()
-    
+
     async def get_by_trace_id(self, trace_id: str) -> Optional[OrchestrationExecution]:
         """Get execution by trace ID."""
         result = await self._session.execute(
-            select(OrchestrationExecution)
-            .where(OrchestrationExecution.trace_id == trace_id)
+            select(OrchestrationExecution).where(
+                OrchestrationExecution.trace_id == trace_id
+            )
         )
         return result.scalar_one_or_none()
-    
+
     async def update_status(
         self,
         execution_id: UUID,
@@ -100,7 +103,7 @@ class OrchestrationExecutionRepository:
     ) -> Optional[OrchestrationExecution]:
         """
         Update execution status and metrics.
-        
+
         Args:
             execution_id: Execution ID
             status: New status
@@ -108,27 +111,27 @@ class OrchestrationExecutionRepository:
             completed_at: Completion timestamp
             total_latency_ms: Total latency in milliseconds
             estimated_cost: Estimated cost
-            
+
         Returns:
             Updated execution
         """
         values = {"status": status}
-        
+
         if output is not None:
             values["output_data"] = output
-        
+
         if completed_at:
             values["completed_at"] = completed_at
-        
+
         if total_latency_ms is not None:
             values["total_latency_ms"] = total_latency_ms
-        
+
         if estimated_cost is not None:
             values["estimated_cost"] = estimated_cost
-        
+
         if status == "running" and not output:
             values["started_at"] = datetime.now(timezone.utc)
-        
+
         await self._session.execute(
             update(OrchestrationExecution)
             .where(OrchestrationExecution.id == execution_id)
@@ -136,7 +139,7 @@ class OrchestrationExecutionRepository:
         )
         await self._session.commit()
         return await self.get_by_id(execution_id)
-    
+
     async def list_by_config(
         self,
         config_id: UUID,
@@ -146,13 +149,13 @@ class OrchestrationExecutionRepository:
     ) -> List[OrchestrationExecution]:
         """
         List executions for a configuration.
-        
+
         Args:
             config_id: Configuration ID
             status: Optional status filter
             limit: Maximum results
             offset: Pagination offset
-            
+
         Returns:
             List of executions
         """
@@ -163,13 +166,13 @@ class OrchestrationExecutionRepository:
             .limit(limit)
             .offset(offset)
         )
-        
+
         if status:
             query = query.where(OrchestrationExecution.status == status)
-        
+
         result = await self._session.execute(query)
         return list(result.scalars().all())
-    
+
     async def list_by_user(
         self,
         user_id: str,
@@ -185,13 +188,13 @@ class OrchestrationExecutionRepository:
             .limit(limit)
             .offset(offset)
         )
-        
+
         if status:
             query = query.where(OrchestrationExecution.status == status)
-        
+
         result = await self._session.execute(query)
         return list(result.scalars().all())
-    
+
     async def get_step_runs(
         self,
         execution_id: UUID,
@@ -207,10 +210,10 @@ class OrchestrationExecutionRepository:
 
 class OrchestrationStepRunRepository:
     """Repository for step run data access."""
-    
+
     def __init__(self, session: AsyncSession):
         self._session = session
-    
+
     async def create(
         self,
         execution_id: UUID,
@@ -232,7 +235,7 @@ class OrchestrationStepRunRepository:
         await self._session.commit()
         await self._session.refresh(step_run)
         return step_run
-    
+
     async def update_status(
         self,
         step_run_id: UUID,
@@ -248,46 +251,45 @@ class OrchestrationStepRunRepository:
     ) -> Optional[OrchestrationStepRun]:
         """Update step run status and metrics."""
         values = {"status": status}
-        
+
         if output is not None:
             values["output"] = output
-        
+
         if output_truncated is not None:
             values["output_truncated"] = output_truncated
-        
+
         if error_message is not None:
             values["error_message"] = error_message
-        
+
         if error_trace is not None:
             values["error_trace"] = error_trace
-        
+
         if latency_ms is not None:
             values["latency_ms"] = latency_ms
-        
+
         if retry_count is not None:
             values["retry_count"] = retry_count
-        
+
         if token_count is not None:
             values["token_count"] = token_count
-        
+
         if estimated_cost is not None:
             values["estimated_cost"] = estimated_cost
-        
+
         if status == "running" and latency_ms is None:
             values["started_at"] = datetime.now(timezone.utc)
-        
+
         if status in ("completed", "failed", "skipped"):
             values["completed_at"] = datetime.now(timezone.utc)
-        
+
         await self._session.execute(
             update(OrchestrationStepRun)
             .where(OrchestrationStepRun.id == step_run_id)
             .values(**values)
         )
         await self._session.commit()
-        
+
         result = await self._session.execute(
-            select(OrchestrationStepRun)
-            .where(OrchestrationStepRun.id == step_run_id)
+            select(OrchestrationStepRun).where(OrchestrationStepRun.id == step_run_id)
         )
         return result.scalar_one_or_none()

@@ -113,7 +113,9 @@ class SmokeTestSuite:
             "warnings": self.warnings,
             "total_duration_ms": self.total_duration_ms,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "results": [
                 {
                     "name": r.name,
@@ -149,7 +151,9 @@ class SmokeTestRunner:
         # Ensure critical env vars are set for tests
         os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
         os.environ.setdefault("RESYNC_REDIS_LAZY_INIT", "1")
-        os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://resync:resync@localhost:5432/resync")
+        os.environ.setdefault(
+            "DATABASE_URL", "postgresql+asyncpg://resync:resync@localhost:5432/resync"
+        )
 
     async def _run_async_test(
         self,
@@ -208,7 +212,9 @@ class SmokeTestRunner:
         if not name or not name.strip():
             raise ValueError("Test name cannot be empty")
         if not callable(test_func):
-            raise ValueError(f"test_func must be callable, got {type(test_func).__name__}")
+            raise ValueError(
+                f"test_func must be callable, got {type(test_func).__name__}"
+            )
 
         name = name.strip()
         # Check skip condition
@@ -226,7 +232,7 @@ class SmokeTestRunner:
         last_error: BaseException | None = None
         for attempt in range(1, retries + 2):
             start = time.perf_counter()
-            
+
             try:
                 # Run test with timeout support (for async functions)
                 if inspect.iscoroutinefunction(test_func):
@@ -277,9 +283,9 @@ class SmokeTestRunner:
                     name=name,
                     status=TestStatus.FAILED,
                     duration_ms=duration_ms,
-                message=f"Exception: {type(e).__name__}",
-                error=str(e),
-            )
+                    message=f"Exception: {type(e).__name__}",
+                    error=str(e),
+                )
 
         self._log_result(result)
         self.suite.add_result(result)
@@ -512,7 +518,9 @@ class SmokeTestRunner:
         """Test that litellm config has no hardcoded API keys."""
         from pathlib import Path
 
-        config_path = Path(__file__).parent.parent.parent / "core" / "litellm_config.yaml"
+        config_path = (
+            Path(__file__).parent.parent.parent / "core" / "litellm_config.yaml"
+        )
 
         if not config_path.exists():
             logger.warning("litellm_config.yaml not found, skipping")
@@ -539,7 +547,9 @@ class SmokeTestRunner:
                         and "os.environ" not in line
                         and "getenv" not in line
                     ):
-                        raise AssertionError(f"Potential hardcoded API key found: {pattern}...")
+                        raise AssertionError(
+                            f"Potential hardcoded API key found: {pattern}..."
+                        )
 
     # =========================================================================
     # DEPENDENCY TESTS
@@ -596,7 +606,11 @@ class SmokeTestRunner:
 
     async def _test_circuit_breaker(self) -> None:
         """Test circuit breaker functionality."""
-        from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
+        from resync.core.resilience import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+            CircuitBreakerState,
+        )
 
         config = CircuitBreakerConfig(failure_threshold=2, recovery_timeout=1)
         cb = CircuitBreaker(config)

@@ -17,6 +17,8 @@ from resync.core.health import (
 
 logger = logging.getLogger(__name__)
 
+PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
+
 
 # Lazy import of runtime_metrics to avoid circular dependencies
 def _get_runtime_metrics():
@@ -138,18 +140,22 @@ async def get_health_summary(
             alerts=[str(alert) for alert in (health_result.alerts or [])],
             performance_metrics=health_result.performance_metrics,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         original_exception = e
         logger.error("Health check failed: %s", original_exception)
         # Increment counter for health check failures if we can
         try:
             _get_runtime_metrics().health_check_with_auto_enable.increment()
-        except (AttributeError, ImportError, Exception) as metrics_e:
+        except (AttributeError, ImportError) as metrics_e:
             # Log metrics failure but don't fail the health check
-            logger.warning("Failed to increment health check metrics: %s", metrics_e, exc_info=True)
+            logger.warning(
+                "Failed to increment health check metrics: %s", metrics_e, exc_info=True
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Health check system error: {str(original_exception)}",
@@ -207,7 +213,9 @@ async def get_core_health() -> CoreHealthResponse:
                 1 for c in core_components.values() if c.status == HealthStatus.HEALTHY
             ),
             "unhealthy_core_components": sum(
-                1 for c in core_components.values() if c.status == HealthStatus.UNHEALTHY
+                1
+                for c in core_components.values()
+                if c.status == HealthStatus.UNHEALTHY
             ),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -219,9 +227,11 @@ async def get_core_health() -> CoreHealthResponse:
             core_components=core_components_response,
             summary=core_summary,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Core health check failed: %s", e)
         raise HTTPException(
@@ -232,8 +242,12 @@ async def get_core_health() -> CoreHealthResponse:
 
 @router.get("/detailed", response_model=DetailedHealthResponse)
 async def get_detailed_health(
-    include_history: bool = Query(False, description="Include health history in response"),
-    history_hours: int = Query(24, description="Hours of history to include", ge=1, le=168),
+    include_history: bool = Query(
+        False, description="Include health history in response"
+    ),
+    history_hours: int = Query(
+        24, description="Hours of history to include", ge=1, le=168
+    ),
 ) -> DetailedHealthResponse:
     """
     Get detailed health check with all components and optional history.
@@ -290,9 +304,11 @@ async def get_detailed_health(
             performance_metrics=health_result.performance_metrics,
             history=history_data,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Detailed health check failed: %s", e)
         raise HTTPException(
@@ -325,7 +341,8 @@ async def readiness_probe() -> dict[str, Any]:
 
         # System is ready if all core components are healthy
         ready = all(
-            component.status == HealthStatus.HEALTHY for component in core_components.values()
+            component.status == HealthStatus.HEALTHY
+            for component in core_components.values()
         )
 
         response_data = {
@@ -350,9 +367,11 @@ async def readiness_probe() -> dict[str, Any]:
 
         return response_data
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Readiness probe failed: %s", e)
         # Always return 503 on probe failure
@@ -390,7 +409,8 @@ async def liveness_probe() -> dict[str, Any]:
         # System is considered alive if it has performed health checks recently
         # or if it's the first check (last_check is None)
         alive = (
-            last_check is None or (current_time - last_check).total_seconds() < 300  # 5 minutes
+            last_check is None
+            or (current_time - last_check).total_seconds() < 300  # 5 minutes
         )
 
         if not alive:
@@ -411,9 +431,11 @@ async def liveness_probe() -> dict[str, Any]:
             "message": "System is responding",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Liveness probe failed: %s", e)
         # Always return 503 on probe failure
@@ -451,25 +473,31 @@ async def recover_component(component_name: str) -> dict[str, Any]:
             "component": component_name,
             "recovery_attempted": True,
             "recovery_successful": recovery_success,
-            "current_status": (component_health.status.value if component_health else "unknown"),
+            "current_status": (
+                component_health.status.value if component_health else "unknown"
+            ),
             "status_color": (
                 get_status_color(component_health.status) if component_health else "⚪"
             ),
-            "message": (component_health.message if component_health else "Component not found"),
+            "message": (
+                component_health.message if component_health else "Component not found"
+            ),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if not recovery_success:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response_data)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=response_data
+            )
 
         return response_data
 
-    except HTTPException as e:
+    except HTTPException:
         # Re-raise HTTPException to preserve the original status code and detail
-        raise e
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Component recovery failed: %s", e, exc_info=True)
         raise HTTPException(
@@ -515,7 +543,9 @@ async def get_redis_health() -> dict[str, Any]:
             "status_color": get_status_color(redis_component.status),
             "message": redis_component.message,
             "last_check": (
-                redis_component.last_check.isoformat() if redis_component.last_check else None
+                redis_component.last_check.isoformat()
+                if redis_component.last_check
+                else None
             ),
             "response_time_ms": redis_component.response_time_ms,
             "details": redis_component.metadata or {},
@@ -543,9 +573,11 @@ async def get_redis_health() -> dict[str, Any]:
             ),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error checking Redis health: %s", e, exc_info=True)
         return {
@@ -614,5 +646,3 @@ async def list_components() -> dict[str, list[dict[str, str]]]:
     ]
 
     return {"components": components}
-
-

@@ -20,7 +20,7 @@ from .csrf_protection import CSRFMiddleware
 # Import lazily and degrade gracefully when unavailable.
 try:  # pragma: no cover
     from .redis_validation import RedisHealthMiddleware, RedisValidationMiddleware
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     RedisHealthMiddleware = None  # type: ignore[assignment]
     RedisValidationMiddleware = None  # type: ignore[assignment]
 

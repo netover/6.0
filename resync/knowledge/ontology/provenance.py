@@ -596,11 +596,13 @@ class ProvenanceTracker:
 
         verified = sum(1 for r in self._records.values() if r.is_verified)
         rejected = sum(
-            1 for r in self._records.values()
+            1
+            for r in self._records.values()
             if r.verification.status == VerificationStatus.REJECTED
         )
         auto_verified = sum(
-            1 for r in self._records.values()
+            1
+            for r in self._records.values()
             if r.verification.status == VerificationStatus.AUTO_VERIFIED
         )
 

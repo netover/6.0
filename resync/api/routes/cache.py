@@ -4,6 +4,7 @@ This module provides REST API endpoints for cache management operations,
 including cache statistics, cache clearing, and cache health monitoring.
 It supports both memory and Redis-based caching with detailed metrics.
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,7 +28,24 @@ from resync.core.fastapi_di import get_tws_client
 from resync.core.interfaces import ITWSClient
 from resync.settings import settings
 
-__all__ = ['logger', 'cache_router', 'router', 'security', 'security_dependency', 'tws_client_dependency', 'CacheInvalidationResponse', 'CacheStats', 'ConnectionPoolValidator', 'get_redis_connection', 'RedisCacheManager', 'validate_connection_pool', 'verify_admin_credentials', 'invalidate_tws_cache', 'get_cache_stats', 'get_database_connection']
+__all__ = [
+    "logger",
+    "cache_router",
+    "router",
+    "security",
+    "security_dependency",
+    "tws_client_dependency",
+    "CacheInvalidationResponse",
+    "CacheStats",
+    "ConnectionPoolValidator",
+    "get_redis_connection",
+    "RedisCacheManager",
+    "validate_connection_pool",
+    "verify_admin_credentials",
+    "invalidate_tws_cache",
+    "get_cache_stats",
+    "get_database_connection",
+]
 
 
 logger = logging.getLogger(__name__)
@@ -324,7 +342,9 @@ async def verify_admin_credentials(
     correct_password = secrets.compare_digest(creds.password, admin_pass)
 
     if not (correct_username and correct_password):
-        logger.warning("Failed admin authentication attempt for user: %s", creds.username)
+        logger.warning(
+            "Failed admin authentication attempt for user: %s", creds.username
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciais de administrador inválidas ou ausentes.",
@@ -359,7 +379,11 @@ async def invalidate_tws_cache(
         await verify_admin_credentials(creds)
 
         # Log the cache invalidation request for security auditing
-        logger.info("Cache invalidation requested by user '%s' with scope '%s'", creds.username, scope)
+        logger.info(
+            "Cache invalidation requested by user '%s' with scope '%s'",
+            creds.username,
+            scope,
+        )
 
         # Initialize Redis manager if not already done
         global redis_manager

@@ -18,18 +18,26 @@ class TeamsWebhookHandler:
     def extract_query_from_message(self, text: str, webhook_name: str) -> str:
         """Remove menção do webhook e limpa texto."""
         # Remove HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r"<[^>]+>", "", text)
         # Remove menção
-        text = re.sub(f'@{webhook_name}', '', text, flags=re.IGNORECASE)
+        text = re.sub(f"@{webhook_name}", "", text, flags=re.IGNORECASE)
         # Remove espaços extras
-        text = ' '.join(text.split())
+        text = " ".join(text.split())
         return text.strip()
 
     def detect_command_type(self, query: str) -> str:
         """Detecta se é query (consulta) ou execute (ação)."""
         execute_keywords = [
-            'rerun', 'restart', 'hold', 'release', 'cancel',
-            'stop', 'kill', 'force', 'submit', 'execute'
+            "rerun",
+            "restart",
+            "hold",
+            "release",
+            "cancel",
+            "stop",
+            "kill",
+            "force",
+            "submit",
+            "execute",
         ]
 
         query_lower = query.lower()
@@ -46,7 +54,7 @@ class TeamsWebhookHandler:
         user_name: str,
         channel_id: str,
         channel_name: str,
-        webhook_name: str
+        webhook_name: str,
     ) -> str:
         """Processa mensagem e retorna resposta."""
 
@@ -61,17 +69,12 @@ class TeamsWebhookHandler:
 
         # Verifica permissão
         permission = await self.permissions_manager.check_user_permission(
-            email=user_email,
-            command_type=command_type
+            email=user_email, command_type=command_type
         )
 
         # Se não tem permissão e é comando de execução
         if not permission["has_permission"] and command_type == "execute":
-            logger.warning(
-                "unauthorized_execute_attempt",
-                user=user_email,
-                query=query
-            )
+            logger.warning("unauthorized_execute_attempt", user=user_email, query=query)
             return self._format_unauthorized_response(user_name, query)
 
         # Processa query via Agent Manager
@@ -82,13 +85,11 @@ class TeamsWebhookHandler:
                 "user_email": user_email,
                 "channel": channel_name,
                 "command_type": command_type,
-                "has_execute_permission": permission["has_permission"]
+                "has_execute_permission": permission["has_permission"],
             }
 
             response = await self.agent_manager.process_query(
-                query=query,
-                context=context,
-                stream=False
+                query=query, context=context, stream=False
             )
 
             # Log interação
@@ -100,7 +101,7 @@ class TeamsWebhookHandler:
                 message_text=query,
                 command_type=command_type,
                 was_authorized=permission["has_permission"],
-                response_sent=True
+                response_sent=True,
             )
 
             answer = self._extract_answer(response)

@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-02-20",
+  "batches": {
+    "api": {
+      "paths": [
+        "resync/api"
+      ],
+      "error_count": 3256
+    },
+    "core_security_startup_cache": {
+      "paths": [
+        "resync/core/security",
+        "resync/core/startup.py",
+        "resync/core/cache"
+      ],
+      "error_count": 2842
+    },
+    "services_knowledge": {
+      "paths": [
+        "resync/services",
+        "resync/knowledge"
+      ],
+      "error_count": 781
+    }
+  },
+  "strict_ready_batches": []
+}

@@ -23,6 +23,7 @@ Usage:
 """
 
 import asyncio
+import inspect
 from resync.core.task_tracker import track_task
 import json
 import logging
@@ -267,10 +268,10 @@ class ConfigManager:
         """Notify all subscribers of configuration change."""
         for callback in self._subscribers:
             try:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback(change)
                 else:
-                    callback(change)
+                    await asyncio.to_thread(callback, change)
             except Exception as e:
                 logger.error("Error notifying subscriber: %s", e)
 

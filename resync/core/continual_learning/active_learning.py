@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 # Enums and Data Classes for Active Learning
 # ============================================================================
 
+
 class ReviewStatus(str, Enum):
     """Status of a review item."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -29,6 +31,7 @@ class ReviewStatus(str, Enum):
 
 class ReviewReason(str, Enum):
     """Reasons for requiring review."""
+
     LOW_CONFIDENCE = "low_confidence"
     LOW_SIMILARITY = "low_similarity"
     NEW_ENTITY = "new_entity"
@@ -40,6 +43,7 @@ class ReviewReason(str, Enum):
 @dataclass
 class ReviewItem:
     """Item requiring human review."""
+
     id: str
     query: str
     response: str
@@ -52,6 +56,7 @@ class ReviewItem:
 @dataclass
 class ActiveLearningDecision:
     """Decision from active learning check."""
+
     should_review: bool
     reasons: list[ReviewReason]
     confidence_scores: dict[str, float]
@@ -124,6 +129,7 @@ class ActiveLearningManager:
     ) -> str:
         """Add item to review queue."""
         import uuid
+
         review_id = str(uuid.uuid4())
         logger.info("Added to review queue: %s", review_id)
         return review_id
@@ -203,7 +209,9 @@ class ActiveLearner:
             metadata=metadata,
         )
 
-    async def get_top_candidates(self, limit: int = 10) -> list[ActiveLearningCandidate]:
+    async def get_top_candidates(
+        self, limit: int = 10
+    ) -> list[ActiveLearningCandidate]:
         """Get top uncertain candidates for review."""
         return await self._store.active_learning.get_top_candidates(limit)
 
@@ -215,13 +223,17 @@ class ActiveLearner:
             candidate_id, selected_label, reviewer_id
         )
 
-    async def get_reviewed_candidates(self, limit: int = 100) -> list[ActiveLearningCandidate]:
+    async def get_reviewed_candidates(
+        self, limit: int = 100
+    ) -> list[ActiveLearningCandidate]:
         """Get reviewed candidates for training."""
         return await self._store.active_learning.find(
             {"status": "reviewed"}, limit=limit, order_by="reviewed_at", desc=True
         )
 
-    def should_request_label(self, uncertainty_score: float, threshold: float = 0.7) -> bool:
+    def should_request_label(
+        self, uncertainty_score: float, threshold: float = 0.7
+    ) -> bool:
         """Check if we should request a label based on uncertainty."""
         return uncertainty_score >= threshold
 

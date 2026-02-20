@@ -32,7 +32,9 @@ router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
 
 # Configuration
 ENV_FILE_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "config" / ".env"
+    Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+    / "config"
+    / ".env"
 )
 ENV_EXAMPLE_PATH = (
     Path(__file__).resolve().parent.parent.parent.parent.parent.parent
@@ -494,7 +496,9 @@ async def get_environment_config():
 
         result[name] = {
             "name": name,
-            "value": _mask_sensitive_value(value) if schema.is_sensitive and value else value,
+            "value": _mask_sensitive_value(value)
+            if schema.is_sensitive and value
+            else value,
             "category": schema.category.value,
             "description": schema.description,
             "is_sensitive": schema.is_sensitive,
@@ -510,7 +514,9 @@ async def get_environment_config():
         "variables": result,
         "env_file_path": str(ENV_FILE_PATH),
         "env_file_exists": ENV_FILE_PATH.exists(),
-        "last_modified": datetime.fromtimestamp(ENV_FILE_PATH.stat().st_mtime).isoformat()
+        "last_modified": datetime.fromtimestamp(
+            ENV_FILE_PATH.stat().st_mtime
+        ).isoformat()
         if ENV_FILE_PATH.exists()
         else None,
         "categories": [c.value for c in VariableCategory],
@@ -528,7 +534,9 @@ async def get_environment_by_category(category: VariableCategory):
             value = os.getenv(name) or file_vars.get(name) or schema.default_value
             result[name] = {
                 "name": name,
-                "value": _mask_sensitive_value(value) if schema.is_sensitive and value else value,
+                "value": _mask_sensitive_value(value)
+                if schema.is_sensitive and value
+                else value,
                 "description": schema.description,
                 "is_sensitive": schema.is_sensitive,
                 "is_required": schema.is_required,
@@ -553,11 +561,15 @@ async def get_environment_variable(variable_name: str):
 
     schema = ENVIRONMENT_SCHEMA[variable_name]
     file_vars = _load_env_file()
-    value = os.getenv(variable_name) or file_vars.get(variable_name) or schema.default_value
+    value = (
+        os.getenv(variable_name) or file_vars.get(variable_name) or schema.default_value
+    )
 
     return {
         "name": variable_name,
-        "value": _mask_sensitive_value(value) if schema.is_sensitive and value else value,
+        "value": _mask_sensitive_value(value)
+        if schema.is_sensitive and value
+        else value,
         "category": schema.category.value,
         "description": schema.description,
         "is_sensitive": schema.is_sensitive,
@@ -590,7 +602,9 @@ async def update_environment_variable(
     schema = ENVIRONMENT_SCHEMA[variable_name]
 
     # Validate pattern if specified
-    if schema.validation_pattern and not re.match(schema.validation_pattern, update.value):
+    if schema.validation_pattern and not re.match(
+        schema.validation_pattern, update.value
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid value format for {variable_name}",
@@ -749,7 +763,9 @@ async def get_raw_env_file():
         "content": content,
         "path": str(ENV_FILE_PATH),
         "size_bytes": ENV_FILE_PATH.stat().st_size,
-        "last_modified": datetime.fromtimestamp(ENV_FILE_PATH.stat().st_mtime).isoformat(),
+        "last_modified": datetime.fromtimestamp(
+            ENV_FILE_PATH.stat().st_mtime
+        ).isoformat(),
     }
 
 
@@ -844,7 +860,11 @@ async def validate_environment():
             )
 
         # Check pattern
-        if value and schema.validation_pattern and not re.match(schema.validation_pattern, value):
+        if (
+            value
+            and schema.validation_pattern
+            and not re.match(schema.validation_pattern, value)
+        ):
             issues.append(
                 {
                     "variable": name,

@@ -24,7 +24,7 @@ def get_required_vars() -> list[tuple[str, str]]:
     """
     Return list of (variable_name, description) tuples.
     These are CRITICAL variables that must be present for the app to start.
-    
+
     Note: Settings.py uses APP_ prefix, but we check both with and without prefix
     for flexibility in different environments.
     """
@@ -34,7 +34,10 @@ def get_required_vars() -> list[tuple[str, str]]:
         ("REDIS_URL", "Redis connection string (redis://host:port/db)"),
         ("APP_REDIS_URL", "Redis connection string (alternative - with APP_ prefix)"),
         ("DATABASE_URL", "PostgreSQL connection string"),
-        ("APP_DATABASE_URL", "PostgreSQL connection string (alternative - with APP_ prefix)"),
+        (
+            "APP_DATABASE_URL",
+            "PostgreSQL connection string (alternative - with APP_ prefix)",
+        ),
     ]
 
 
@@ -58,7 +61,7 @@ def validate_env_file_exists() -> bool:
         Path(__file__).parent.parent / ".env",
         Path.cwd() / ".env",
     ]
-    
+
     for location in possible_locations:
         if location.exists():
             return True
@@ -69,54 +72,60 @@ def check_required_vars() -> tuple[bool, list[str]]:
     """
     Check all required environment variables.
     Returns (success, list_of_errors).
-    
+
     For each variable, we check both with and without APP_ prefix.
     """
     errors = []
-    
+
     # Group variables by their base name (with or without APP_ prefix)
     var_groups = {
         "SECRET_KEY": ["SECRET_KEY", "APP_SECRET_KEY"],
         "REDIS_URL": ["REDIS_URL", "APP_REDIS_URL"],
         "DATABASE_URL": ["DATABASE_URL", "APP_DATABASE_URL"],
     }
-    
+
     descriptions = {
         "SECRET_KEY": "JWT signing key (use SecretStr in production)",
         "REDIS_URL": "Redis connection string (redis://host:port/db)",
         "DATABASE_URL": "PostgreSQL connection string",
     }
-    
+
     for base_name, alt_names in var_groups.items():
         # Check if ANY of the variants is set
         value = None
         found_var = None
-        
+
         for var_name in alt_names:
             val = os.getenv(var_name)
             if val is not None and val.strip():
                 value = val
                 found_var = var_name
                 break
-        
+
         description = descriptions[base_name]
-        
+
         if value is None:
             # Check for placeholder values in any variant
             for var_name in alt_names:
                 val = os.getenv(var_name)
                 if val and val.upper() in ["", "CHANGE_ME", "YOUR_KEY_HERE", "TODO"]:
-                    errors.append(f"[ERROR] {var_name}: Contains placeholder value '{val}' - must be set for production")
+                    errors.append(
+                        f"[ERROR] {var_name}: Contains placeholder value '{val}' - must be set for production"
+                    )
                     break
             else:
-                errors.append(f"[ERROR] {base_name}: Required variable is missing - {description}")
+                errors.append(
+                    f"[ERROR] {base_name}: Required variable is missing - {description}"
+                )
         elif not value.strip():
             errors.append(f"[ERROR] {found_var}: Variable is empty - {description}")
         else:
             # Check for placeholder values
             if value.upper() in ["CHANGE_ME", "YOUR_KEY_HERE", "TODO"]:
-                errors.append(f"[ERROR] {found_var}: Contains placeholder value '{value}' - must be set for production")
-            
+                errors.append(
+                    f"[ERROR] {found_var}: Contains placeholder value '{value}' - must be set for production"
+                )
+
     return len(errors) == 0, errors
 
 
@@ -126,13 +135,15 @@ def check_optional_vars() -> list[str]:
     Returns list of warnings.
     """
     warnings = []
-    
+
     for var_name, description in get_optional_warn_vars():
         value = os.getenv(var_name)
-        
+
         if value is None or (isinstance(value, str) and not value.strip()):
-            warnings.append(f"[WARN] {var_name}: Optional variable missing - {description}")
-            
+            warnings.append(
+                f"[WARN] {var_name}: Optional variable missing - {description}"
+            )
+
     return warnings
 
 
@@ -140,28 +151,28 @@ def main() -> int:
     """Main entry point. Returns 0 on success, 1 on failure."""
     print("Resync Environment Validation")
     print("=" * 50)
-    
+
     # Check .env file
     has_env_file = validate_env_file_exists()
     if has_env_file:
         print("[OK] .env file found")
     else:
         print("[WARN] No .env file found (using environment variables directly)")
-    
+
     print("\nChecking required variables...")
     required_ok, required_errors = check_required_vars()
-    
+
     for error in required_errors:
         print(error)
-    
+
     print("\nChecking optional variables...")
     optional_warnings = check_optional_vars()
-    
+
     for warning in optional_warnings:
         print(warning)
-    
+
     print("\n" + "=" * 50)
-    
+
     if required_ok:
         print("[OK] All required variables validated successfully!")
         print("\nReady to start Resync application")

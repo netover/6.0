@@ -50,9 +50,15 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "get_status_color": ("health_models", "get_status_color"),
     "get_status_description": ("health_models", "get_status_description"),
     # === SERVICE (v5.4.9 - moved from core/) ===
-    "get_health_check_service": ("unified_health_service", "get_unified_health_service"),
+    "get_health_check_service": (
+        "unified_health_service",
+        "get_unified_health_service",
+    ),
     "get_health_status": ("unified_health_service", "get_health_status"),
-    "shutdown_health_check_service": ("unified_health_service", "shutdown_unified_health_service"),
+    "shutdown_health_check_service": (
+        "unified_health_service",
+        "shutdown_unified_health_service",
+    ),
     # === RECOMMENDED (v5.3.9+) ===
     # Unified service (consolidates orchestrator + enhanced)
     "UnifiedHealthService": ("unified_health_service", "UnifiedHealthService"),
@@ -207,4 +213,5 @@ if TYPE_CHECKING:
         get_unified_health_service,
         shutdown_unified_health_service,
     )
+
     HealthCheckService = UnifiedHealthService  # legacy alias

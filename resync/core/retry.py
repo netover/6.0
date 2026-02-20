@@ -146,7 +146,9 @@ def database_retry(
         exception_tuple = (exceptions,)
     else:
         exception_tuple = (
-            exceptions if isinstance(exceptions, tuple) else (ConnectionError, TimeoutError)
+            exceptions
+            if isinstance(exceptions, tuple)
+            else (ConnectionError, TimeoutError)
         )
 
     return retry(

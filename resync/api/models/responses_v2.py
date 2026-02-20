@@ -209,17 +209,25 @@ class ExecutionTrace(BaseModel):
     handler: str = Field(..., description="Handler that processed request")
 
     # Execution details
-    steps: list[ExecutionStep] = Field(default_factory=list, description="Execution steps")
+    steps: list[ExecutionStep] = Field(
+        default_factory=list, description="Execution steps"
+    )
     tools_used: list[str] = Field(default_factory=list, description="Tools used")
-    tool_results: list[ToolResult] = Field(default_factory=list, description="Tool results")
+    tool_results: list[ToolResult] = Field(
+        default_factory=list, description="Tool results"
+    )
 
     # Status
     success: bool = Field(True, description="Overall success")
     error: str | None = Field(None, description="Error if failed")
 
     # HITL
-    required_approval: bool = Field(False, description="Whether HITL approval was needed")
-    approval_status: str | None = Field(None, description="Approval status if applicable")
+    required_approval: bool = Field(
+        False, description="Whether HITL approval was needed"
+    )
+    approval_status: str | None = Field(
+        None, description="Approval status if applicable"
+    )
     approved_by: str | None = Field(None, description="Approver ID if approved")
 
 
@@ -251,7 +259,9 @@ class AgentExecuteResponse(BaseModel):
     # HITL (if approval required)
     requires_approval: bool = Field(False, description="Whether approval is needed")
     approval_id: str | None = Field(None, description="Approval request ID")
-    pending_action: dict[str, Any] | None = Field(None, description="Pending action details")
+    pending_action: dict[str, Any] | None = Field(
+        None, description="Pending action details"
+    )
 
 
 # =============================================================================
@@ -267,7 +277,9 @@ class PendingApproval(BaseModel):
     trace_id: str = Field(..., description="Trace ID")
     tool_name: str = Field(..., description="Tool requiring approval")
     action_summary: str = Field(..., description="Summary of action")
-    input_params: dict[str, Any] = Field(default_factory=dict, description="Input parameters")
+    input_params: dict[str, Any] = Field(
+        default_factory=dict, description="Input parameters"
+    )
     user_id: str | None = Field(None, description="User who requested")
     requested_at: datetime = Field(..., description="When approval was requested")
     expires_at: datetime | None = Field(None, description="When approval expires")
@@ -287,7 +299,9 @@ class ApprovalResponse(BaseModel):
     reason: str | None = Field(None, description="Reason for action")
 
     # If approved and executed
-    execution_result: ToolResult | None = Field(None, description="Execution result if approved")
+    execution_result: ToolResult | None = Field(
+        None, description="Execution result if approved"
+    )
 
 
 class ApprovalListResponse(BaseModel):
@@ -295,12 +309,16 @@ class ApprovalListResponse(BaseModel):
     Response listing pending approvals.
     """
 
-    pending: list[PendingApproval] = Field(default_factory=list, description="Pending approvals")
+    pending: list[PendingApproval] = Field(
+        default_factory=list, description="Pending approvals"
+    )
     total: int = Field(0, description="Total pending")
 
     # Statistics
     by_tool: dict[str, int] = Field(default_factory=dict, description="Count by tool")
-    by_risk_level: dict[str, int] = Field(default_factory=dict, description="Count by risk")
+    by_risk_level: dict[str, int] = Field(
+        default_factory=dict, description="Count by risk"
+    )
 
 
 # =============================================================================
@@ -325,7 +343,9 @@ class DiagnosticResult(BaseModel):
 
     # Solution
     proposed_solution: str | None = Field(None, description="Proposed solution")
-    solution_steps: list[str] = Field(default_factory=list, description="Steps to resolve")
+    solution_steps: list[str] = Field(
+        default_factory=list, description="Steps to resolve"
+    )
     risk_level: str = Field("medium", description="Risk level of solution")
 
     # Evidence
@@ -340,7 +360,9 @@ class DiagnosticResult(BaseModel):
     )
 
     # Recommendations
-    recommendations: list[str] = Field(default_factory=list, description="Recommendations")
+    recommendations: list[str] = Field(
+        default_factory=list, description="Recommendations"
+    )
 
     # Execution
     requires_action: bool = Field(False, description="Whether action is needed")
@@ -418,7 +440,9 @@ class MetricsSummary(BaseModel):
     # Tools
     tool_calls: int = Field(0, description="Total tool calls")
     tool_success_rate: float = Field(0.0, description="Tool success rate")
-    tools_by_usage: dict[str, int] = Field(default_factory=dict, description="Usage by tool")
+    tools_by_usage: dict[str, int] = Field(
+        default_factory=dict, description="Usage by tool"
+    )
 
     # Routing
     requests_by_mode: dict[str, int] = Field(
@@ -434,7 +458,9 @@ class MetricsSummary(BaseModel):
 
     # Errors
     error_count: int = Field(0, description="Error count")
-    errors_by_type: dict[str, int] = Field(default_factory=dict, description="Errors by type")
+    errors_by_type: dict[str, int] = Field(
+        default_factory=dict, description="Errors by type"
+    )
 
 
 class AnomalyInfo(BaseModel):
@@ -457,7 +483,9 @@ class MetricsResponse(BaseModel):
     """
 
     summary: MetricsSummary = Field(..., description="Metrics summary")
-    anomalies: list[AnomalyInfo] = Field(default_factory=list, description="Detected anomalies")
+    anomalies: list[AnomalyInfo] = Field(
+        default_factory=list, description="Detected anomalies"
+    )
     health_status: str = Field("healthy", description="Overall health status")
 
     # Raw metrics (optional)
@@ -469,7 +497,9 @@ class TraceListResponse(BaseModel):
     Response listing execution traces.
     """
 
-    traces: list[ExecutionTrace] = Field(default_factory=list, description="Execution traces")
+    traces: list[ExecutionTrace] = Field(
+        default_factory=list, description="Execution traces"
+    )
     total: int = Field(0, description="Total matching traces")
 
     # Pagination

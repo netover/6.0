@@ -10,7 +10,7 @@ creating their own instances.
 Usage:
     # TWS Client
     from resync.core.factories import get_tws_client, get_tws_client_singleton
-    
+
     # Redis Client
     from resync.core.factories import get_redis_client, get_async_redis_singleton
 

@@ -1,4 +1,4 @@
-with open('resync/api/monitoring_dashboard.py', 'r') as f:
+with open("resync/api/monitoring_dashboard.py", "r") as f:
     content = f.read()
 
 # 3.5 Move late imports
@@ -8,11 +8,14 @@ content = content.replace("    from resync.core.metrics import runtime_metrics",
 # 3.2 Update _empty_history
 content = content.replace(
     'return {"timestamps": [], "api": {"requests_per_sec": [], "error_rate": []}, "sample_count": 0}',
-    'return {"timestamps": [], "api": {"requests_per_sec": [], "error_rate": []}, "cache": {"hit_ratio": []}, "agents": {"active": []}, "sample_count": 0}'
+    'return {"timestamps": [], "api": {"requests_per_sec": [], "error_rate": []}, "cache": {"hit_ratio": []}, "agents": {"active": []}, "sample_count": 0}',
 )
 
 # 3.3 Improve get_current_metrics
-content = content.replace('if not raw: return self._empty_response("initializing")', 'if raw is None: return self._empty_response("initializing")')
+content = content.replace(
+    'if not raw: return self._empty_response("initializing")',
+    'if raw is None: return self._empty_response("initializing")',
+)
 
 # 3.3 Improve add_error_sample
 old_add_error = """    async def add_error_sample(self, error: Exception) -> None:
@@ -106,7 +109,7 @@ content = content.replace(old_connect, new_connect)
 # 3.5 Improve _safe_send logging
 content = content.replace(
     'logger.exception("Falha ao enviar mensagem WebSocket; desconectando cliente")',
-    'logger.debug("Falha ao enviar mensagem WebSocket; desconectando cliente")'
+    'logger.debug("Falha ao enviar mensagem WebSocket; desconectando cliente")',
 )
 
 # 3.1 Fix lock management in collect_metrics_sample
@@ -150,5 +153,5 @@ old_collect_func = r"async def collect_metrics_sample\(\) -> None:.*?await redis
 # Wait, there's another publish in the try block.
 
 # I'll re-read the file to be sure about the structure of collect_metrics_sample
-with open('resync/api/monitoring_dashboard.py', 'w') as f:
+with open("resync/api/monitoring_dashboard.py", "w") as f:
     f.write(content)

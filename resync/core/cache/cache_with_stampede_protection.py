@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -107,7 +108,9 @@ class CacheWithStampedeProtection(Generic[T]):
             if key in self._loading:
                 del self._loading[key]
 
-    async def _get_without_protection(self, key: str, loader: Callable[[], T], expiry: float) -> T:
+    async def _get_without_protection(
+        self, key: str, loader: Callable[[], T], expiry: float
+    ) -> T:
         """Get without stampede protection."""
 
         return await self._load_value(key, loader, expiry)
@@ -116,11 +119,11 @@ class CacheWithStampedeProtection(Generic[T]):
         """Load value and cache it."""
 
         try:
-            if asyncio.iscoroutinefunction(loader):
+            if inspect.iscoroutinefunction(loader):
                 value = await loader()
             else:
                 # Run sync function in thread pool
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 value = await loop.run_in_executor(None, loader)
 
             # Cache the value
@@ -142,7 +145,7 @@ class CacheWithStampedeProtection(Generic[T]):
     def invalidate(self, key: str):
         """Invalidate a cache entry."""
 
-        with self._lock:
+        with self._lock:  # type: ignore[attr-defined]
             self._cache.pop(key, None)
             self._loading.pop(key, None)
 
@@ -157,7 +160,9 @@ class CacheWithStampedeProtection(Generic[T]):
         """Get cache statistics."""
 
         current_time = time.time()
-        valid_entries = sum(1 for entry in self._cache.values() if current_time < entry.expiry)
+        valid_entries = sum(
+            1 for entry in self._cache.values() if current_time < entry.expiry
+        )
 
         return {
             "total_entries": len(self._cache),

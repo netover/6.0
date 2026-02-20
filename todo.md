@@ -10,13 +10,19 @@
 - [ ] Gerar mapa de imports circulares (deps_graph.svg)
 - [x] Criar tracking sheet de arquivos
 
-Total de arquivos .py: 53
+Total de arquivos .py: 537
 
 Tracking sheet:
 
 | # | Arquivo | Severidade | Status | Observações |
 |---|---|---|---|---|
-| 001 |  |  | [ ] |  |
+| 001 | analyze_pr_comments.py | Média | [x] | Exceções genéricas removidas; validações estruturais e fallback de campos |
+| 002-101 | batch_api_core_inicial (100 arquivos) | Baixa/Média | [x] | Compilação sintática ok (100/100); triagem detectou 50 usos de except Exception para correção em ondas |
+| 102-201 | batch_api_core_segundo (100 arquivos) | Baixa/Média | [x] | Compilação sintática ok (100/100); correções aplicadas em segurança/middleware/health para preservar HTTPException e reduzir except genérico |
+| 202-301 | batch_core_db_health_langgraph (100 arquivos) | Média | [x] | 100/100 compilam; correções aplicadas em engine/schema/repository/tracing para reduzir except genérico com exceções específicas |
+| 302-401 | batch_core_langgraph_ops (100 arquivos) | Média | [x] | 100/100 compilam; corrigido bug real em verify_admin_token e redução de except genérico em logging_utils |
+| 402-501 | batch_core_knowledge_services (100 arquivos) | Média | [x] | 100/100 compilam; corrigidos bugs de log/interpolação + estado global do reranker + paridade de overrides sync/async em retry handlers |
+| 502-537 | batch_tests_tools_workflows_final (36 arquivos) | Média | [x] | 36/36 compilam; exceções genéricas endurecidas em tools TWS para não mascarar erros de programação |
 
 ## STEP 1 — Leitura Estrutural
 - [ ] Ler cabeçalho e docstring do módulo

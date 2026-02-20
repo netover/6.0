@@ -97,7 +97,9 @@ class UnifiedHealthService:
 
         self._is_monitoring = True
         interval = interval_seconds or self.config.check_interval_seconds
-        self._monitoring_task = track_task(self._monitoring_loop(interval), name="monitoring_loop")
+        self._monitoring_task = track_task(
+            self._monitoring_loop(interval), name="monitoring_loop"
+        )
         logger.info("unified_health_monitoring_started", interval=interval)
 
     async def stop_monitoring(self) -> None:
@@ -145,7 +147,9 @@ class UnifiedHealthService:
         start_time = time.time()
         correlation_id = f"health_{int(start_time * 1000)}"
 
-        logger.debug("starting_comprehensive_health_check", correlation_id=correlation_id)
+        logger.debug(
+            "starting_comprehensive_health_check", correlation_id=correlation_id
+        )
 
         try:
             # Get all health checkers
@@ -153,7 +157,10 @@ class UnifiedHealthService:
 
             # Execute all checks in parallel with timeout
             check_tasks = {
-                name: await create_tracked_task(self._execute_check_with_timeout(checker, name), name="execute_check_with_timeout")
+                name: await create_tracked_task(
+                    self._execute_check_with_timeout(checker, name),
+                    name="execute_check_with_timeout",
+                )
                 for name, checker in checkers.items()
             }
 
@@ -269,7 +276,9 @@ class UnifiedHealthService:
     # Status Calculation
     # =========================================================================
 
-    def _calculate_overall_status(self, components: dict[str, ComponentHealth]) -> HealthStatus:
+    def _calculate_overall_status(
+        self, components: dict[str, ComponentHealth]
+    ) -> HealthStatus:
         """
         Calculate overall health status from component results.
 
@@ -301,7 +310,9 @@ class UnifiedHealthService:
             return HealthStatus.DEGRADED
         return HealthStatus.HEALTHY
 
-    def _generate_summary(self, components: dict[str, ComponentHealth]) -> dict[str, int]:
+    def _generate_summary(
+        self, components: dict[str, ComponentHealth]
+    ) -> dict[str, int]:
         """Generate summary counts by status."""
         summary = {"healthy": 0, "degraded": 0, "unhealthy": 0, "unknown": 0}
         for health in components.values():
@@ -342,7 +353,9 @@ class UnifiedHealthService:
             result: Health check result to record
         """
         # Extract individual status changes
-        component_changes = {name: health.status for name, health in result.components.items()}
+        component_changes = {
+            name: health.status for name, health in result.components.items()
+        }
 
         history_entry = HealthStatusHistory(
             timestamp=result.timestamp,
@@ -420,14 +433,18 @@ class UnifiedHealthService:
         Returns:
             Dictionary of metrics
         """
-        avg_duration = self._total_check_time / self._check_count if self._check_count > 0 else 0
+        avg_duration = (
+            self._total_check_time / self._check_count if self._check_count > 0 else 0
+        )
 
         return {
             "check_count": self._check_count,
             "total_check_time_ms": self._total_check_time,
             "average_check_time_ms": avg_duration,
             "is_monitoring": self._is_monitoring,
-            "last_check": self.last_health_check.isoformat() if self.last_health_check else None,
+            "last_check": self.last_health_check.isoformat()
+            if self.last_health_check
+            else None,
             "history_size": len(self.health_history),
             "components_tracked": len(self._component_results),
         }
@@ -485,7 +502,7 @@ async def shutdown_unified_health_service() -> None:
 async def get_health_status() -> HealthCheckResult:
     """
     Convenience function to get a comprehensive health check result.
-    
+
     Returns:
         HealthCheckResult snapshot
     """

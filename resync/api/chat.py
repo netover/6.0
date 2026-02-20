@@ -23,7 +23,7 @@ import structlog
 import weakref
 from typing import Any, Protocol
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 from resync.core.exceptions import (
     AgentExecutionError,
@@ -33,7 +33,6 @@ from resync.core.exceptions import (
     LLMError,
     ToolExecutionError,
 )
-from resync.core.fastapi_di import get_agent_manager
 from resync.core.ia_auditor import analyze_and_flag_memories
 from resync.core.interfaces import IAgentManager
 from resync.core.context import set_trace_id, reset_trace_id
@@ -290,6 +289,10 @@ async def _setup_websocket_session(
         logger.warning("Agent '%s' not found.", agent_id)
         await send_error_message(
             websocket, f"Agente '{agent_id}' não encontrado.", agent_id_str, session_id
+        )
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason=f"Agent '{agent_id}' not found",
         )
         raise WebSocketDisconnect(code=1008, reason=f"Agent '{agent_id}' not found")
 

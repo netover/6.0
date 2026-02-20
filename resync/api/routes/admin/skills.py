@@ -7,7 +7,7 @@ plus admin-only reload capability.
 v6.0 - Part of Skills Orchestration refactoring.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
 

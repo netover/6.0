@@ -10,6 +10,7 @@ v5.3.2 - Fixed ServiceScope leak between concurrent requests
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from contextvars import ContextVar
 from enum import Enum
@@ -26,7 +27,9 @@ TImplementation = TypeVar("TImplementation")
 
 # --- Context Variable for Request-Scoped Services ---
 # This ensures each async task/request has its own isolated scope
-_current_scope: ContextVar[ServiceScope | None] = ContextVar("di_current_scope", default=None)
+_current_scope: ContextVar[ServiceScope | None] = ContextVar(
+    "di_current_scope", default=None
+)
 
 
 class ServiceLifetime(Enum):
@@ -127,7 +130,9 @@ class DIContainer:
         self._factories[interface] = (factory, lifetime)
         if lifetime == ServiceLifetime.SINGLETON:
             self._locks[interface] = asyncio.Lock()
-        logger.debug("service_registered", interface=interface.__name__, lifetime=lifetime.value)
+        logger.debug(
+            "service_registered", interface=interface.__name__, lifetime=lifetime.value
+        )
 
     def register_instance(self, interface: type[T], instance: T) -> None:
         """
@@ -222,9 +227,16 @@ class DIContainer:
 
     async def _create_instance(self, factory: Callable) -> Any:
         """Create instance, handling both sync and async factories."""
-        if asyncio.iscoroutinefunction(factory):
-            return await factory()
-        return factory()
+        try:
+            if inspect.iscoroutinefunction(factory):
+                return await factory()
+            result = factory()
+            if inspect.isawaitable(result):
+                return await result
+            return result
+        except Exception as exc:
+            logger.error("service_factory_error", factory=repr(factory), error=str(exc))
+            raise
 
     def create_scope(self) -> ServiceScope:
         """

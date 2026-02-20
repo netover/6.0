@@ -16,6 +16,7 @@ Versão: 5.2
 """
 
 import asyncio
+import inspect
 from resync.core.task_tracker import track_task
 import contextlib
 import time
@@ -396,7 +397,8 @@ class TWSBackgroundPoller:
             # Calcula thresholds dinâmicos baseados no volume
             # Usa o MAIOR entre: threshold absoluto mínimo OU porcentagem do total
             failure_threshold_degraded = max(
-                self.failure_threshold_min, int(total_jobs * self.failure_threshold_percentage)
+                self.failure_threshold_min,
+                int(total_jobs * self.failure_threshold_percentage),
             )
             failure_threshold_critical = max(
                 self.failure_threshold_critical_min,
@@ -471,11 +473,15 @@ class TWSBackgroundPoller:
             end_time = None
             if item.get("startTime"):
                 with contextlib.suppress(ValueError, TypeError):
-                    start_time = datetime.fromisoformat(item["startTime"].replace("Z", "+00:00"))
+                    start_time = datetime.fromisoformat(
+                        item["startTime"].replace("Z", "+00:00")
+                    )
 
             if item.get("endTime"):
                 with contextlib.suppress(ValueError, TypeError):
-                    end_time = datetime.fromisoformat(item["endTime"].replace("Z", "+00:00"))
+                    end_time = datetime.fromisoformat(
+                        item["endTime"].replace("Z", "+00:00")
+                    )
 
             # Calcula duração
             duration = None
@@ -555,7 +561,10 @@ class TWSBackgroundPoller:
                                 AlertSeverity.INFO,
                                 job.job_name,
                                 f"Job {job.job_name} completado com sucesso",
-                                {"job": job.to_dict(), "duration": job.duration_seconds},
+                                {
+                                    "job": job.to_dict(),
+                                    "duration": job.duration_seconds,
+                                },
                                 previous_state=prev_job.status,
                                 current_state=job.status,
                             )
@@ -595,7 +604,9 @@ class TWSBackgroundPoller:
 
         return events
 
-    def _detect_workstation_changes(self, workstations: list[WorkstationStatus]) -> list[TWSEvent]:
+    def _detect_workstation_changes(
+        self, workstations: list[WorkstationStatus]
+    ) -> list[TWSEvent]:
         """Detecta mudanças em workstations."""
         events = []
         current_ws = {ws.name: ws for ws in workstations}
@@ -672,7 +683,9 @@ class TWSBackgroundPoller:
                             "jobs_failed": snapshot.jobs_failed,
                             "jobs_running": snapshot.jobs_running,
                             "workstations_offline": sum(
-                                1 for ws in snapshot.workstations if ws.status != "LINKED"
+                                1
+                                for ws in snapshot.workstations
+                                if ws.status != "LINKED"
                             ),
                         },
                         previous_state=prev_health,
@@ -745,10 +758,10 @@ class TWSBackgroundPoller:
         """Notifica todos os handlers de evento."""
         for handler in self._event_handlers:
             try:
-                if asyncio.iscoroutinefunction(handler):
+                if inspect.iscoroutinefunction(handler):
                     await handler(event)
                 else:
-                    handler(event)
+                    await asyncio.to_thread(handler, event)
             except Exception as e:
                 logger.error(
                     "event_handler_error",
@@ -760,10 +773,10 @@ class TWSBackgroundPoller:
         """Notifica todos os handlers de snapshot."""
         for handler in self._snapshot_handlers:
             try:
-                if asyncio.iscoroutinefunction(handler):
+                if inspect.iscoroutinefunction(handler):
                     await handler(snapshot)
                 else:
-                    handler(snapshot)
+                    await asyncio.to_thread(handler, snapshot)
             except Exception as e:
                 logger.error("snapshot_handler_error", error=str(e))
 

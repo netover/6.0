@@ -310,7 +310,9 @@ class EnhancedSecurityValidator:
             has_upper = any(c.isupper() for c in truncated_password)
             has_lower = any(c.islower() for c in truncated_password)
             has_digit = any(c.isdigit() for c in truncated_password)
-            has_special = any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in truncated_password)
+            has_special = any(
+                c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in truncated_password
+            )
 
             if not (has_upper and has_lower and has_digit and has_special):
                 return InputValidationResult(
@@ -711,7 +713,9 @@ class EnhancedSecurityValidator:
         return RateLimitInfo(
             limit=limit,
             remaining=remaining,
-            reset_time=datetime.fromtimestamp(current_time + window_seconds, tz=timezone.utc),
+            reset_time=datetime.fromtimestamp(
+                current_time + window_seconds, tz=timezone.utc
+            ),
             window_seconds=window_seconds,
         )
 
@@ -731,7 +735,9 @@ class EnhancedSecurityValidator:
                 else str(event.event_type)
             ),
             "severity": (
-                event.severity.value if hasattr(event.severity, "value") else str(event.severity)
+                event.severity.value
+                if hasattr(event.severity, "value")
+                else str(event.severity)
             ),
             "source_ip": event.source_ip,
             "user_id": event.user_id,
@@ -802,7 +808,9 @@ class EnhancedSecurityValidator:
         # CRITICAL: Passwords longer than 72 chars will be truncated - inform user
         truncated_password = password[:72]  # Use 72 to stay within bcrypt limit
         if len(password) > 72:
-            logger.warning("Password truncated from %s to 72 characters for hashing", len(password))
+            logger.warning(
+                "Password truncated from %s to 72 characters for hashing", len(password)
+            )
 
         if HAS_PASSLIB:
             try:
@@ -817,7 +825,9 @@ class EnhancedSecurityValidator:
         else:
             # CRITICAL SECURITY: Never fall back to plain text in any environment
             logger.error("Passlib not available - secure password hashing is required")
-            raise RuntimeError("Secure password hashing library required but not available")
+            raise RuntimeError(
+                "Secure password hashing library required but not available"
+            )
 
     async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """

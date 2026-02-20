@@ -185,4 +185,6 @@ __all__ = [
 # Version information
 __version__ = "1.0.0"
 __author__ = "Resync Team"
-__description__ = "Enhanced input validation using pydantic models with strict validation rules"
+__description__ = (
+    "Enhanced input validation using pydantic models with strict validation rules"
+)

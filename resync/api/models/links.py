@@ -33,7 +33,9 @@ class Link(BaseModel):
         json_schema_extra={"example": "/api/v1/resources/123"},
     )
 
-    rel: str = Field(..., description="Relação do link", json_schema_extra={"example": "self"})
+    rel: str = Field(
+        ..., description="Relação do link", json_schema_extra={"example": "self"}
+    )
 
     method: str = Field(
         default="GET", description="Método HTTP", json_schema_extra={"example": "GET"}
@@ -45,7 +47,9 @@ class Link(BaseModel):
         json_schema_extra={"example": "Get resource details"},
     )
 
-    type: str | None = Field(None, description="Tipo de mídia", examples=["application/json"])
+    type: str | None = Field(
+        None, description="Tipo de mídia", examples=["application/json"]
+    )
 
 
 class HATEOASResponse(BaseModel):

@@ -34,7 +34,12 @@ class RedisPool:
     @property
     def client(self):
         disable = os.getenv("RESYNC_DISABLE_REDIS", "0")
-        if disable is not None and disable.strip().lower() in {"1", "true", "yes", "on"}:
+        if disable is not None and disable.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
             raise RuntimeError("Redis disabled by RESYNC_DISABLE_REDIS")
         if not is_redis_available():
             raise RuntimeError("redis-py not installed")
@@ -43,7 +48,9 @@ class RedisPool:
                 # usa URL explícita
                 import redis.asyncio as redis  # type: ignore
 
-                self._client = redis.from_url(self._url, encoding="utf-8", decode_responses=True)
+                self._client = redis.from_url(
+                    self._url, encoding="utf-8", decode_responses=True
+                )
                 logger.info("Initialized Redis client from explicit URL (lazy).")
             else:
                 # usa factory centralizada

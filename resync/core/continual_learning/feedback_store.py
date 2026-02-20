@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class FeedbackRating(str, Enum):
     """Feedback rating types."""
+
     POSITIVE = "positive"
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
@@ -70,7 +71,9 @@ class FeedbackStore:
 
     async def get_feedback(self, limit: int = 100) -> list[Feedback]:
         """Get recent feedback."""
-        return await self._store.feedback.get_all(limit=limit, order_by="created_at", desc=True)
+        return await self._store.feedback.get_all(
+            limit=limit, order_by="created_at", desc=True
+        )
 
     async def get_positive_examples(self, limit: int = 100) -> list[Feedback]:
         """Get positive feedback examples."""
@@ -83,9 +86,13 @@ class FeedbackStore:
     async def get_feedback_stats(self) -> dict[str, Any]:
         """Get feedback statistics."""
         all_feedback = await self.get_feedback(limit=1000)
-        positive = sum(1 for f in all_feedback if f.is_positive or (f.rating and f.rating >= 4))
+        positive = sum(
+            1 for f in all_feedback if f.is_positive or (f.rating and f.rating >= 4)
+        )
         negative = sum(
-            1 for f in all_feedback if f.is_positive is False or (f.rating and f.rating <= 2)
+            1
+            for f in all_feedback
+            if f.is_positive is False or (f.rating and f.rating <= 2)
         )
         return {
             "total": len(all_feedback),

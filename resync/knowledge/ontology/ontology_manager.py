@@ -218,9 +218,7 @@ class ValidationResult:
         self, property_name: str, error_type: str, message: str, value: Any = None
     ):
         """Add a validation warning."""
-        self.warnings.append(
-            ValidationError(property_name, error_type, message, value)
-        )
+        self.warnings.append(ValidationError(property_name, error_type, message, value))
 
 
 # =============================================================================
@@ -445,7 +443,9 @@ JSON:"""
 
         et = self.ontology.get_entity_type(entity_type)
         if not et:
-            result.add_warning("_entity_type", "unknown", f"Unknown entity type: {entity_type}")
+            result.add_warning(
+                "_entity_type", "unknown", f"Unknown entity type: {entity_type}"
+            )
             return result
 
         # Check required properties
@@ -462,7 +462,9 @@ JSON:"""
             prop_def = next((p for p in et.properties if p.name == prop_name), None)
             if not prop_def:
                 result.add_warning(
-                    prop_name, "unknown_property", f"Property not in ontology: {prop_name}"
+                    prop_name,
+                    "unknown_property",
+                    f"Property not in ontology: {prop_name}",
                 )
                 continue
 
@@ -626,7 +628,9 @@ JSON:"""
                 value = match.group(1) if match.groups() else match.group(0)
                 if value and value not in seen:
                     seen.add(value)
-                    entities.append({"_extracted_value": value, "_pattern": pattern.pattern})
+                    entities.append(
+                        {"_extracted_value": value, "_pattern": pattern.pattern}
+                    )
 
         return entities
 

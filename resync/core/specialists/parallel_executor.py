@@ -15,6 +15,7 @@ Version: 5.4.2
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -195,7 +196,9 @@ class ParallelToolExecutor:
 
         return read_only_responses + stateful_responses
 
-    async def _execute_concurrent(self, requests: list[ToolRequest]) -> list[ToolResponse]:
+    async def _execute_concurrent(
+        self, requests: list[ToolRequest]
+    ) -> list[ToolResponse]:
         """Execute all requests concurrently."""
         if not requests:
             return []
@@ -241,7 +244,9 @@ class ParallelToolExecutor:
                 )
         return responses
 
-    async def _execute_single_with_semaphore(self, request: ToolRequest) -> ToolResponse:
+    async def _execute_single_with_semaphore(
+        self, request: ToolRequest
+    ) -> ToolResponse:
         """Execute a single tool with semaphore for concurrency control."""
         async with self._semaphore:
             return await self._execute_single(request)
@@ -339,10 +344,10 @@ class ParallelToolExecutor:
         """Call a tool function (handles sync and async)."""
         func = tool.function
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return await func(**params)
         # Run sync function in thread pool
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: func(**params))
 
 

@@ -180,7 +180,7 @@ class DiagnoseNode:
         self.config = config
 
     async def __call__(self, state: DiagnosticState) -> DiagnosticState:
-        logger.info("DiagnoseNode: iteration %s", state.get('iteration', 0))
+        logger.info("DiagnoseNode: iteration %s", state.get("iteration", 0))
 
         problem = state.get("problem_description", "")
 
@@ -195,7 +195,11 @@ class DiagnoseNode:
         state["possible_causes"] = possible_causes
         state["phase"] = DiagnosticPhase.RESEARCH
 
-        logger.info("Diagnosis: %s symptoms, %s possible causes", len(symptoms), len(possible_causes))
+        logger.info(
+            "Diagnosis: %s symptoms, %s possible causes",
+            len(symptoms),
+            len(possible_causes),
+        )
 
         return state
 
@@ -284,7 +288,13 @@ Causes:"""
             if json_match:
                 return json.loads(json_match.group())
 
-            return [{"cause": problem, "likelihood": "medium", "verification": "Check job status"}]
+            return [
+                {
+                    "cause": problem,
+                    "likelihood": "medium",
+                    "verification": "Check job status",
+                }
+            ]
 
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
@@ -346,7 +356,11 @@ class ResearchNode:
         parts = [problem]
         parts.extend(symptoms[:3])
         parts.extend(
-            [c.get("cause", "") for c in causes[:2] if c.get("likelihood") in ["high", "medium"]]
+            [
+                c.get("cause", "")
+                for c in causes[:2]
+                if c.get("likelihood") in ["high", "medium"]
+            ]
         )
 
         return " ".join(parts)[:500]  # Limit query length
@@ -587,7 +601,9 @@ class ProposeNode:
 
             # Skill Knowledge (GAP C: Skill Injection)
             if state.get("skill_context"):
-                context_parts.append(f"Skill Knowledge:\n{state['skill_context'][:2000]}")
+                context_parts.append(
+                    f"Skill Knowledge:\n{state['skill_context'][:2000]}"
+                )
 
             # Root cause
             if state.get("root_cause"):
@@ -602,7 +618,9 @@ class ProposeNode:
             # Similar resolutions
             if state.get("similar_resolutions"):
                 resolutions = state["similar_resolutions"][:2]
-                res_text = "\n".join([f"- {r.get('resolution', '')[:200]}" for r in resolutions])
+                res_text = "\n".join(
+                    [f"- {r.get('resolution', '')[:200]}" for r in resolutions]
+                )
                 context_parts.append(f"Similar Resolutions:\n{res_text}")
 
             context = "\n\n".join(context_parts)

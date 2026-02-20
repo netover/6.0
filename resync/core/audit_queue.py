@@ -56,7 +56,9 @@ class AuditQueue:
         """Mark item as completed."""
         return await self._repo.mark_completed(item_id)
 
-    async def mark_failed(self, item_id: int, error_message: str) -> AuditQueueItem | None:
+    async def mark_failed(
+        self, item_id: int, error_message: str
+    ) -> AuditQueueItem | None:
         """Mark item as failed."""
         return await self._repo.mark_failed(item_id, error_message)
 

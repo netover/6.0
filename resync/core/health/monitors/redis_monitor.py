@@ -12,7 +12,11 @@ from datetime import datetime, timezone
 
 import structlog
 
-from resync.core.health.health_models import ComponentHealth, ComponentType, HealthStatus
+from resync.core.health.health_models import (
+    ComponentHealth,
+    ComponentType,
+    HealthStatus,
+)
 from resync.settings import settings
 
 logger = structlog.get_logger(__name__)

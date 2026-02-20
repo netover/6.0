@@ -423,7 +423,9 @@ class TestFailureSliceEval:
 
         suggestions = generate_rule_suggestions(results)
         assert len(suggestions) > 0
-        assert any(s.failure_slice == FailureSlice.MISSING_EXCEPTION for s in suggestions)
+        assert any(
+            s.failure_slice == FailureSlice.MISSING_EXCEPTION for s in suggestions
+        )
 
     def test_eval_pipeline_creation(self):
         """Test eval pipeline creation."""

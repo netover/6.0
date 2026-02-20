@@ -65,7 +65,9 @@ class DatabasePool:
                 "checked_in": pool.checkedin() if hasattr(pool, "checkedin") else 0,
                 "checked_out": pool.checkedout() if hasattr(pool, "checkedout") else 0,
                 "overflow": pool.overflow() if hasattr(pool, "overflow") else 0,
-                "invalid": pool.invalidatedcount() if hasattr(pool, "invalidatedcount") else 0,
+                "invalid": pool.invalidatedcount()
+                if hasattr(pool, "invalidatedcount")
+                else 0,
             }
         return {"status": "not_initialized"}
 

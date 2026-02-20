@@ -50,6 +50,7 @@ logger = structlog.get_logger(__name__)
 @dataclass
 class GraphCacheEntry:
     """Cache entry for a graph."""
+
     graph: nx.DiGraph
     created_at: float
     scope: str
@@ -161,46 +162,46 @@ class TwsGraphService:
     ):
         """
         Build job dependency graph using parallel BFS level-fetching.
-        
-        This implementation resolves the N+1 query pattern by fetching all 
+
+        This implementation resolves the N+1 query pattern by fetching all
         successors/predecessors for a given level in parallel using asyncio.gather.
         """
         current_level = {root_job_id}
-        
+
         for depth in range(max_depth):
             if not current_level:
                 break
-                
+
             # Filter out jobs we've already visited to avoid redundant API calls
             to_fetch = [jid for jid in current_level if jid not in visited]
             if not to_fetch:
                 break
-                
+
             visited.update(to_fetch)
-            
+
             # Prepare parallel tasks for the current level
             tasks = []
             for jid in to_fetch:
                 if jid not in graph:
                     graph.add_node(jid)
-                
+
                 # Fetch predecessors and successors in parallel for each job
                 tasks.append(self.tws_client.get_current_plan_job_predecessors(jid))
                 tasks.append(self.tws_client.get_current_plan_job_successors(jid))
-            
+
             if not tasks:
                 break
-                
+
             # Execute all level queries in parallel
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             next_level = set()
-            
+
             # Process results (results are alternating preds, succs, preds, succs...)
             for i, jid in enumerate(to_fetch):
                 preds_result = results[i * 2]
                 succs_result = results[i * 2 + 1]
-                
+
                 # Predecessors
                 if isinstance(preds_result, list):
                     for pred in preds_result:
@@ -209,8 +210,10 @@ class TwsGraphService:
                             graph.add_edge(pred_id, jid, relation="DEPENDS_ON")
                             next_level.add(pred_id)
                 elif isinstance(preds_result, Exception):
-                    logger.warning("api_preds_failed", job_id=jid, error=str(preds_result))
-                
+                    logger.warning(
+                        "api_preds_failed", job_id=jid, error=str(preds_result)
+                    )
+
                 # Successors
                 if isinstance(succs_result, list):
                     for succ in succs_result:
@@ -219,8 +222,10 @@ class TwsGraphService:
                             graph.add_edge(jid, succ_id, relation="DEPENDS_ON")
                             next_level.add(succ_id)
                 elif isinstance(succs_result, Exception):
-                    logger.warning("api_succs_failed", job_id=jid, error=str(succs_result))
-            
+                    logger.warning(
+                        "api_succs_failed", job_id=jid, error=str(succs_result)
+                    )
+
             current_level = next_level
 
     async def get_jobstream_graph(
@@ -414,13 +419,19 @@ class TwsGraphService:
             result = []
             for job_id, score in sorted_jobs[:top_n]:
                 impact = self.get_impact_analysis(graph, job_id)
-                result.append({
-                    "job_id": job_id,
-                    "centrality_score": round(score, 4),
-                    "impact_count": impact["impact_count"],
-                    "severity": impact["severity"],
-                    "risk_level": "high" if score > 0.1 else "medium" if score > 0.01 else "low",
-                })
+                result.append(
+                    {
+                        "job_id": job_id,
+                        "centrality_score": round(score, 4),
+                        "impact_count": impact["impact_count"],
+                        "severity": impact["severity"],
+                        "risk_level": "high"
+                        if score > 0.1
+                        else "medium"
+                        if score > 0.01
+                        else "low",
+                    }
+                )
 
             return result
 
@@ -474,7 +485,9 @@ class TwsGraphService:
     def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         now = time.time()
-        valid = sum(1 for e in self._cache.values() if now - e.created_at < self.cache_ttl)
+        valid = sum(
+            1 for e in self._cache.values() if now - e.created_at < self.cache_ttl
+        )
         expired = len(self._cache) - valid
 
         return {
@@ -587,13 +600,15 @@ class TwsGraphService:
         # Convert to list format
         conflicts = []
         if result["conflict_risk"] != "none":
-            conflicts.append({
-                "type": "dependency_overlap",
-                "jobs": [job1, job2],
-                "risk": result["conflict_risk"],
-                "common_dependencies": result["common_predecessors"],
-                "explanation": result["explanation"],
-            })
+            conflicts.append(
+                {
+                    "type": "dependency_overlap",
+                    "jobs": [job1, job2],
+                    "risk": result["conflict_risk"],
+                    "common_dependencies": result["common_predecessors"],
+                    "explanation": result["explanation"],
+                }
+            )
 
         return conflicts
 

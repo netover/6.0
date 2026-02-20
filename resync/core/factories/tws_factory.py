@@ -10,14 +10,14 @@ their own TWS client instances.
 Usage:
     # For FastAPI dependency injection
     from resync.core.factories.tws_factory import get_tws_client
-    
+
     @router.get("/endpoint")
     async def endpoint(tws_client = Depends(get_tws_client)):
         ...
-    
+
     # For direct singleton access
     from resync.core.factories.tws_factory import get_tws_client_singleton
-    
+
     client = get_tws_client_singleton()
 """
 
@@ -42,25 +42,27 @@ _tws_client_lock = threading.Lock()
 def _get_settings() -> "AppSettings":
     """
     Get cached AppSettings instance.
-    
+
     Returns:
         AppSettings: Application settings singleton
     """
     from resync.settings import settings
+
     return settings  # type: ignore[return-value]
 
 
 def _create_tws_client(settings: "AppSettings") -> Any:
     """
     Create a new resilient TWS client instance.
-    
+
     Args:
         settings: Application settings
-        
+
     Returns:
         UnifiedTWSClient: Resilient TWS client
     """
     from resync.services.tws_unified import UnifiedTWSClient
+
     return UnifiedTWSClient()
 
 
@@ -69,24 +71,24 @@ def get_tws_client_singleton(
 ) -> "OptimizedTWSClient":
     """
     Get or create the TWS client singleton.
-    
+
     Thread-safe singleton access to the TWS client.
-    
+
     Args:
         settings: Optional settings override (uses default if not provided)
-        
+
     Returns:
         OptimizedTWSClient: The singleton TWS client instance
     """
     global _tws_client_instance
-    
+
     if _tws_client_instance is None:
         with _tws_client_lock:
             # Double-check locking pattern
             if _tws_client_instance is None:
                 effective_settings = settings or _get_settings()
                 _tws_client_instance = _create_tws_client(effective_settings)
-    
+
     return _tws_client_instance
 
 
@@ -95,15 +97,15 @@ def get_tws_client(
 ) -> "OptimizedTWSClient":
     """
     FastAPI dependency that returns the TWS client singleton.
-    
+
     This is the primary way to access the TWS client in FastAPI routes.
-    
+
     Args:
         settings: Injected settings (provided by FastAPI DI)
-        
+
     Returns:
         OptimizedTWSClient: The singleton TWS client instance
-        
+
     Example:
         @router.get("/jobs")
         async def list_jobs(tws_client = Depends(get_tws_client)):
@@ -115,13 +117,13 @@ def get_tws_client(
 def get_tws_client_factory():
     """
     Get the TWS client factory function.
-    
+
     Returns a callable that creates TWS clients - useful for
     lazy initialization or testing.
-    
+
     Returns:
         Callable that returns OptimizedTWSClient
-        
+
     Example:
         factory = get_tws_client_factory()
         client = factory()
@@ -132,12 +134,12 @@ def get_tws_client_factory():
 def reset_tws_client() -> None:
     """
     Reset the TWS client singleton.
-    
+
     Useful for testing or when settings change.
     Should be called with caution in production.
     """
     global _tws_client_instance
-    
+
     with _tws_client_lock:
         _tws_client_instance = None
         _get_settings.cache_clear()
