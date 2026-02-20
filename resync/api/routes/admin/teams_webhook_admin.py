@@ -6,7 +6,7 @@ from importlib.util import find_spec
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -22,8 +22,11 @@ logger = structlog.get_logger(__name__)
 # Keep router import resilient when this extra dependency is absent.
 if find_spec("email_validator") is not None:
     from pydantic import EmailStr
+
+    EMAIL_VALIDATOR_AVAILABLE = True
 else:
     EmailStr = str
+    EMAIL_VALIDATOR_AVAILABLE = False
 
 router = APIRouter(
     prefix="/admin/teams-webhook",
@@ -39,6 +42,23 @@ class UserCreate(BaseModel):
     role: str = Field(default="viewer", pattern="^(viewer|operator|admin)$")
     can_execute_commands: bool = False
     aad_object_id: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_when_optional_dependency_missing(cls, value: str) -> str:
+        """Apply basic validation when email-validator optional dependency is absent."""
+        if EMAIL_VALIDATOR_AVAILABLE:
+            return value
+
+        normalized = value.strip()
+        if normalized.count("@") != 1:
+            raise ValueError("Invalid email format")
+
+        local_part, domain = normalized.split("@")
+        if not local_part or not domain or "." not in domain:
+            raise ValueError("Invalid email format")
+
+        return normalized
 
 
 class UserUpdate(BaseModel):
