@@ -133,7 +133,9 @@ class SemanticCache:
             self._memory_only = True
             self._redis_stack_available = False
             self._initialized = True
-            logger.warning("RedisVL unavailable; semantic cache running in memory-only mode")
+            logger.warning(
+                "RedisVL unavailable; semantic cache running in memory-only mode"
+            )
             return True
 
         try:

@@ -841,9 +841,7 @@ class SafeEncodingFormatter(logging.Formatter):
             if hasattr(sys.stdout, "encoding") and sys.stdout.encoding:
                 encoding = sys.stdout.encoding
         except Exception as _e:
-            logger.debug(
-                "suppressed_exception", exc_info=True
-            )  # was: pass
+            logger.debug("suppressed_exception", exc_info=True)  # was: pass
 
         if not can_encode(message, encoding=encoding):
             # Apply fallback: replace common emoji patterns

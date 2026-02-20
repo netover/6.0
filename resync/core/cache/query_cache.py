@@ -279,7 +279,9 @@ class QueryCacheManager:
 
             # Cache the result
             if cache_key:
-                await self._cache_query_result(cache_key, result, fingerprint, ttl_override)
+                await self._cache_query_result(
+                    cache_key, result, fingerprint, ttl_override
+                )
 
             # Track table dependencies
             await self._track_table_dependencies(fingerprint)

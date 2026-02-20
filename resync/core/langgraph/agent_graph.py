@@ -60,6 +60,7 @@ from resync.settings import settings
 
 logger = get_logger(__name__)
 
+
 def _metric_inc(metric: Any, value: float = 1.0) -> None:
     """Increment metric counters compatible with both wrapper and Prometheus APIs."""
     if hasattr(metric, "increment"):
@@ -67,6 +68,7 @@ def _metric_inc(metric: Any, value: float = 1.0) -> None:
         return
     if hasattr(metric, "inc"):
         metric.inc(value)
+
 
 # Import SemanticCache for router intent caching
 try:
