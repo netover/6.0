@@ -562,7 +562,7 @@ class ServiceDiscoveryManager:
         if backend:
             success = await backend.register_service(service_def, instance)
             if success:
-                self.metrics["services_registered"] += 1
+                self.metrics["services_registered"] = self.metrics.get("services_registered", 0) + 1
                 logger.info(
                     f"Registered service {service_def.service_name} with {service_def.discovery_backend.value}"
                 )
@@ -615,7 +615,7 @@ class ServiceDiscoveryManager:
 
         selected_instance = self._select_instance(healthy_instances, strategy)
         if selected_instance:
-            self.metrics["load_balancing_decisions"] += 1
+            self.metrics["load_balancing_decisions"] = self.metrics.get("load_balancing_decisions", 0) + 1
             self.connection_counts[selected_instance.instance_id] += 1
 
         return selected_instance
@@ -643,7 +643,7 @@ class ServiceDiscoveryManager:
         if backend:
             instances = await backend.discover_services(service_name)
             self.instances[service_name] = instances
-            self.metrics["instances_discovered"] += len(instances)
+            self.metrics["instances_discovered"] = self.metrics.get("instances_discovered", 0) + len(instances)
             return instances
 
         return []
@@ -753,7 +753,7 @@ class ServiceDiscoveryManager:
                             > instance.health_check_interval
                         ):
                             await self._perform_health_check(instance)
-                            self.metrics["health_checks_performed"] += 1
+                            self.metrics["health_checks_performed"] = self.metrics.get("health_checks_performed", 0) + 1
 
             except asyncio.CancelledError:
                 break
@@ -826,10 +826,10 @@ class ServiceDiscoveryManager:
 
                 logger.info(
                     "service_discovery_metrics",
-                    services_registered=self.metrics["services_registered"],
-                    instances_discovered=self.metrics["instances_discovered"],
-                    health_checks_performed=self.metrics["health_checks_performed"],
-                    load_balancing_decisions=self.metrics["load_balancing_decisions"],
+                    services_registered=self.metrics.get("services_registered", 0),
+                    instances_discovered=self.metrics.get("instances_discovered", 0),
+                    health_checks_performed=self.metrics.get("health_checks_performed", 0),
+                    load_balancing_decisions=self.metrics.get("load_balancing_decisions", 0),
                     active_services=len(self.services),
                     total_instances=sum(
                         len(insts) for insts in self.instances.values()
@@ -869,11 +869,11 @@ class ServiceDiscoveryManager:
                 ),
             },
             "performance": {
-                "services_registered": self.metrics["services_registered"],
-                "instances_discovered": self.metrics["instances_discovered"],
-                "health_checks_performed": self.metrics["health_checks_performed"],
-                "load_balancing_decisions": self.metrics["load_balancing_decisions"],
-                "service_failures": self.metrics["service_failures"],
+                "services_registered": self.metrics.get("services_registered", 0),
+                "instances_discovered": self.metrics.get("instances_discovered", 0),
+                "health_checks_performed": self.metrics.get("health_checks_performed", 0),
+                "load_balancing_decisions": self.metrics.get("load_balancing_decisions", 0),
+                "service_failures": self.metrics.get("service_failures", 0),
             },
             "load_balancing": {
                 "active_connections": dict(self.connection_counts),

@@ -176,6 +176,15 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def _build_agent_config(agent_id: str) -> dict[str, str]:
+    """Build canonical agent configuration payload for LLM responses."""
+    return {
+        "name": f"Agente {agent_id}",
+        "type": "general",
+        "description": "Assistente de IA do sistema Resync TWS",
+    }
+
+
 async def websocket_handler(
     websocket: WebSocket, agent_id: str, token: str | None = None
 ):
@@ -247,11 +256,7 @@ async def websocket_handler(
                         llm_service = await get_llm_service()
 
                         # Agent configuration
-                        agent_config = {
-                            "name": f"Agente {agent_id}",
-                            "type": "general",
-                            "description": "Assistente de IA do sistema Resync TWS",
-                        }
+                        agent_config = _build_agent_config(agent_id)
 
                         # Generate response using real LLM
                         ai_response = await llm_service.generate_agent_response(
@@ -312,11 +317,7 @@ async def websocket_handler(
                             llm_service = await get_llm_service()
 
                             # Agent configuration
-                            agent_config = {
-                                "name": f"Agente {agent_id}",
-                                "type": "general",
-                                "description": "Assistente de IA do sistema Resync TWS",
-                            }
+                            agent_config = _build_agent_config(agent_id)
 
                             # Generate response using real LLM
                             ai_response = await llm_service.generate_agent_response(

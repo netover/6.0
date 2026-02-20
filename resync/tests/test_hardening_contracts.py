@@ -28,7 +28,12 @@ class _FakeManager:
 
     @contextmanager
     def trace_context(self, operation_name: str, **attributes):
-        yield self._span
+        try:
+            yield self._span
+        except Exception as exc:
+            self._span.record_exception(exc)
+            self._span.set_status(str(exc))
+            raise
 
 
 @pytest.mark.asyncio
@@ -39,7 +44,7 @@ async def test_fetch_job_history_from_db_has_async_contract() -> None:
 @pytest.mark.asyncio
 async def test_traced_sync_wrapper_records_exception_and_status(monkeypatch) -> None:
     span = _FakeSpan()
-    monkeypatch.setattr(dt, "distributed_tracing_manager", _FakeManager(span))
+    monkeypatch.setattr(dt, "_get_tracing_manager", lambda: _FakeManager(span))
 
     @dt.traced("sync-operation")
     def _boom() -> None:

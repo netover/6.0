@@ -407,7 +407,7 @@ class ToolNode(BaseNode):
         if inspect.iscoroutinefunction(self.tool_func):
             return await self.tool_func(**tool_input)
 
-        result = self.tool_func(**tool_input)
+        result = await asyncio.to_thread(self.tool_func, **tool_input)
         if inspect.isawaitable(result):
             return await result
         return result

@@ -117,11 +117,16 @@ class DatabaseConnectionResource(ManagedResource):
 
     async def _cleanup(self) -> None:
         """Close the database connection."""
-        if hasattr(self.connection, "close"):
-            if inspect.iscoroutinefunction(self.connection.close):
-                await self.connection.close()
-            else:
-                await asyncio.to_thread(self.connection.close)
+        try:
+            if hasattr(self.connection, "close"):
+                if inspect.iscoroutinefunction(self.connection.close):
+                    await self.connection.close()
+                else:
+                    close_result = await asyncio.to_thread(self.connection.close)
+                    if inspect.isawaitable(close_result):
+                        await close_result
+        except Exception as e:
+            logger.error("Error closing database connection: %s", e)
 
 
 class FileResource(ManagedResource):
@@ -133,16 +138,24 @@ class FileResource(ManagedResource):
 
     async def _cleanup(self) -> None:
         """Close the file handle."""
-        if hasattr(self.file_handle, "close"):
-            if inspect.iscoroutinefunction(self.file_handle.close):
-                await self.file_handle.close()
-            else:
-                await asyncio.to_thread(self.file_handle.close)
+        try:
+            if hasattr(self.file_handle, "close"):
+                if inspect.iscoroutinefunction(self.file_handle.close):
+                    await self.file_handle.close()
+                else:
+                    close_result = await asyncio.to_thread(self.file_handle.close)
+                    if inspect.isawaitable(close_result):
+                        await close_result
+        except Exception as e:
+            logger.error("Error closing file handle: %s", e)
 
     def _cleanup_sync(self) -> None:
         """Close the file handle synchronously."""
-        if hasattr(self.file_handle, "close"):
-            self.file_handle.close()
+        try:
+            if hasattr(self.file_handle, "close"):
+                self.file_handle.close()
+        except Exception as e:
+            logger.error("Error closing file handle synchronously: %s", e)
 
 
 class NetworkSocketResource(ManagedResource):
@@ -277,6 +290,8 @@ class ResourcePool:
                 resource = await factory()
             else:
                 resource = factory()
+                if inspect.isawaitable(resource):
+                    resource = await resource
 
             # Track the resource
             info = ResourceInfo(
@@ -308,7 +323,9 @@ class ResourcePool:
                         if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
                         else:
-                            await asyncio.to_thread(resource.close)
+                            close_result = await asyncio.to_thread(resource.close)
+                            if inspect.isawaitable(close_result):
+                                await close_result
                 except Exception as e:
                     logger.error("Error closing resource %s: %s", resource_id, e)
 
@@ -420,12 +437,16 @@ class BatchResourceManager:
                     if inspect.iscoroutinefunction(cleanup_fn):
                         await cleanup_fn(resource)
                     else:
-                        await asyncio.to_thread(cleanup_fn, resource)
+                        cleanup_result = await asyncio.to_thread(cleanup_fn, resource)
+                        if inspect.isawaitable(cleanup_result):
+                            await cleanup_result
                 elif hasattr(resource, "close"):
                     if inspect.iscoroutinefunction(resource.close):
                         await resource.close()
                     else:
-                        await asyncio.to_thread(resource.close)
+                        close_result = await asyncio.to_thread(resource.close)
+                        if inspect.isawaitable(close_result):
+                            await close_result
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
             except Exception as e:

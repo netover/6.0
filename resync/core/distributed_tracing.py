@@ -769,28 +769,16 @@ def traced(operation_name: str, **attributes):
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 manager = await get_distributed_tracing_manager()
-                with manager.trace_context(operation_name, **attributes) as span:
-                    try:
-                        return await func(*args, **kwargs)
-                    except Exception as exc:
-                        if span is not None:
-                            span.record_exception(exc)
-                            span.set_status(Status(StatusCode.ERROR, str(exc)))
-                        raise
+                with manager.trace_context(operation_name, **attributes):
+                    return await func(*args, **kwargs)
 
             return async_wrapper
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
-            manager = distributed_tracing_manager
-            with manager.trace_context(operation_name, **attributes) as span:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as exc:
-                    if span is not None:
-                        span.record_exception(exc)
-                        span.set_status(Status(StatusCode.ERROR, str(exc)))
-                    raise
+            manager = _get_tracing_manager()
+            with manager.trace_context(operation_name, **attributes):
+                return func(*args, **kwargs)
 
         return sync_wrapper
 
@@ -799,4 +787,4 @@ def traced(operation_name: str, **attributes):
 
 def record_exception(exception: Exception) -> None:
     """Record exception in current span."""
-    distributed_tracing_manager.record_exception(exception)
+    _get_tracing_manager().record_exception(exception)

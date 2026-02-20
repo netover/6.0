@@ -824,7 +824,7 @@ async def _init_graphrag(app: FastAPI) -> None:
                 llm_service=await get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
                 tws_client=get_tws_client(),
-                redis_client=get_redis_client(),
+                redis_client=get_redis_client() if get_redis_client else None,
                 enabled=True,
             )
     except Exception as exc:
