@@ -422,7 +422,7 @@ class EmbeddingRouter:
         try:
             from resync.services.llm_service import get_llm_service
 
-            llm = get_llm_service()
+            llm = await get_llm_service()
 
             # Create prompt with top candidates from embedding
             top_candidates = sorted(

@@ -16,6 +16,7 @@ Versão: 5.2
 """
 
 import asyncio
+import inspect
 from resync.core.task_tracker import track_task
 import contextlib
 import json
@@ -342,7 +343,7 @@ class EventBus:
                 continue
 
             try:
-                if asyncio.iscoroutinefunction(subscriber.callback):
+                if inspect.iscoroutinefunction(subscriber.callback):
                     await subscriber.callback(event_data)
                 else:
                     subscriber.callback(event_data)

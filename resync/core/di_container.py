@@ -10,6 +10,7 @@ v5.3.2 - Fixed ServiceScope leak between concurrent requests
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from contextvars import ContextVar
 from enum import Enum
@@ -226,7 +227,7 @@ class DIContainer:
 
     async def _create_instance(self, factory: Callable) -> Any:
         """Create instance, handling both sync and async factories."""
-        if asyncio.iscoroutinefunction(factory):
+        if inspect.iscoroutinefunction(factory):
             return await factory()
         return factory()
 

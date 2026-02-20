@@ -475,7 +475,7 @@ class FeedbackRepository(TimestampedRepository[Feedback]):
         async with self._get_session() as session:
             result = await session.execute(
                 select(Feedback)
-                .where(or_(not Feedback.is_positive, Feedback.rating <= 2))
+                .where(or_(Feedback.is_positive.is_(False), Feedback.rating <= 2))
                 .order_by(Feedback.created_at.desc())
                 .limit(limit)
             )
