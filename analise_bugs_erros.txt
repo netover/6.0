@@ -88,3 +88,31 @@
 ## Batch 102–201 (análise em lote de 100 arquivos Python)
 - Verificação de compilação sintática: 100/100 arquivos compilam.
 - Próxima onda: reduzir `except Exception` em módulos de segurança, rotas system e cache core.
+
+## Batch 202–301 (análise em lote de 100 arquivos Python)
+
+### Correções aplicadas no código (não apenas registro)
+
+1. **`resync/core/database/repositories/base.py`**
+   - Problema: `execute_raw()` usava `except Exception` para caminho normal de queries sem result set.
+   - Correção: substituído por `except ResourceClosedError` (exceção específica do SQLAlchemy para operações sem linhas de retorno).
+   - Ganho: evita mascarar erros reais de programação/SQL ao mesmo tempo em que mantém o comportamento para DML.
+
+2. **`resync/core/database/schema.py`**
+   - Problema: criação de schemas e health check de conexão capturavam exceções genéricas.
+   - Correção: captura restrita para `SQLAlchemyError` nos dois pontos.
+   - Ganho: falhas não relacionadas ao driver/ORM voltam a emergir corretamente.
+
+3. **`resync/core/distributed_tracing.py`**
+   - Problema: import opcional de OpenTelemetry capturava `Exception` em bloco global.
+   - Correção: troca para `except ImportError`.
+   - Ganho: preserva degradação opcional quando pacote não existe, sem suprimir erros internos inesperados.
+
+4. **`resync/core/database/engine.py`**
+   - Problema: `close_engine()` capturava `Exception` ao fechar engine.
+   - Correção: captura restrita para `SQLAlchemyError`.
+   - Ganho: problemas de lógica fora do ciclo de SQLAlchemy não ficam mascarados.
+
+### Validação do lote
+- Compilação sintática do batch 202–301: **100/100** arquivos compilam.
+- Pendência planejada: reduzir progressivamente os `except Exception` restantes do lote (191 ocorrências) em ondas por criticidade.
