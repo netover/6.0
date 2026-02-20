@@ -18,6 +18,7 @@ Architecture:
 v5.9.3: Graph now built on-demand from TWS API via TwsGraphService.
 """
 
+import inspect
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -372,7 +373,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             return cached
 
         # Get LLM service
-        llm = self._get_llm()
+        llm = await self._get_llm()
         if llm is None:
             return None
 
@@ -403,13 +404,14 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             logger.warning("llm_classification_failed", error=str(e))
             return None
 
-    def _get_llm(self):
+    async def _get_llm(self):
         """Get LLM service (lazy load)."""
         if self._llm is None:
             try:
                 from resync.services.llm_service import get_llm_service
 
-                self._llm = get_llm_service()
+                service = get_llm_service()
+                self._llm = await service if inspect.isawaitable(service) else service
             except ImportError:
                 logger.warning("llm_service_not_available")
                 return None
@@ -523,13 +525,14 @@ class HybridRAG:
                 logger.warning("RAG retriever not available")
         return self._rag
 
-    def _get_llm(self):
+    async def _get_llm(self):
         """Get LLM service (lazy load)."""
         if self._llm is None:
             try:
                 from resync.services.llm_service import get_llm_service
 
-                self._llm = get_llm_service()
+                service = get_llm_service()
+                self._llm = await service if inspect.isawaitable(service) else service
             except ImportError:
                 logger.warning("LLM service not available")
         return self._llm
@@ -781,7 +784,7 @@ class HybridRAG:
         Returns:
             List of query variations (including original)
         """
-        llm = self._get_llm()
+        llm = await self._get_llm()
         if llm is None:
             # Fallback: return original query only
             return [query]
@@ -953,7 +956,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
         Research shows reformulating questions as "what does X say" improves
         accuracy from 33% → 73% (120% improvement).
         """
-        llm = self._get_llm()
+        llm = await self._get_llm()
 
         if llm is None:
             return self._format_results_as_text(results)
@@ -987,9 +990,6 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
             # Generate with opinion-based prompts
             # Expected improvement: +30-50% accuracy, -60% hallucination rate
             return await llm.generate(f"{formatted['system']}\n\n{formatted['user']}")
-        except Exception as e:
-            logger.error("response_generation_failed", error=str(e))
-            return self._format_results_as_text(results)
         except Exception as e:
             logger.error("response_generation_failed", error=str(e))
             return self._format_results_as_text(results)
