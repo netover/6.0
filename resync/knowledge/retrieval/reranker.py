@@ -68,7 +68,7 @@ def get_cross_encoder() -> Any:
 
     Lazy loads the model on first use to avoid startup overhead.
     """
-    global _cross_encoder_model
+    global _cross_encoder_model, _cross_encoder_available
 
     if _cross_encoder_model is not None:
         return _cross_encoder_model

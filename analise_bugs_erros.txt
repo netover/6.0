@@ -156,3 +156,15 @@
 ### Validação do lote
 - Compilação sintática do batch 402–501: **100/100** arquivos compilam.
 - Próxima onda: continuar redução de `except Exception` nos módulos `knowledge/ingestion` e `services/*` com priorização por impacto de runtime.
+
+### Follow-up de correções no Batch 402–501
+
+3. **`resync/knowledge/retrieval/reranker.py` (bug de estado global)**
+   - Problema: `get_cross_encoder()` atribuía `_cross_encoder_available = False` em erro de carga, mas sem declarar `global _cross_encoder_available`.
+   - Impacto: o estado global de disponibilidade não era atualizado corretamente, podendo forçar tentativas repetidas de carga falha.
+   - Correção aplicada: declaração `global _cross_encoder_model, _cross_encoder_available`.
+
+4. **`resync/core/utils/common_error_handlers.py` (inconsistência funcional sync vs async)**
+   - Problema: wrapper assíncrono aceitava overrides por chamada (`max_retries`, `initial_backoff`), mas wrapper síncrono ignorava.
+   - Impacto: comportamento divergente entre funções sync/async usando o mesmo decorator.
+   - Correção aplicada: suporte aos mesmos overrides no wrapper síncrono + uso de `current_max_retries` na mensagem final.

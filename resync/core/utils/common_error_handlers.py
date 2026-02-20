@@ -167,9 +167,10 @@ def retry_on_exception(
             import time
 
             logger_instance = logger or logging.getLogger(func.__module__)
-            current_delay = delay
+            current_max_retries = kwargs.pop("max_retries", max_retries)
+            current_delay = kwargs.pop("initial_backoff", delay)
 
-            for attempt in range(max_retries + 1):
+            for attempt in range(current_max_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
@@ -180,7 +181,7 @@ def retry_on_exception(
                     if not isinstance(e, allowed_exceptions):
                         raise
 
-                    if attempt < max_retries:
+                    if attempt < current_max_retries:
                         logger_instance.info(
                             f"Attempt {attempt + 1} failed: {e}. "
                             f"Retrying in {current_delay:.2f} seconds..."
@@ -189,7 +190,7 @@ def retry_on_exception(
                         current_delay *= backoff
                     else:
                         logger_instance.error(
-                            f"Failed after {max_retries} retries: {e}",
+                            f"Failed after {current_max_retries} retries: {e}",
                             exc_info=True,
                         )
                         raise
