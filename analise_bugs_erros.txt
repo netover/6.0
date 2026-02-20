@@ -116,3 +116,24 @@
 ### Validação do lote
 - Compilação sintática do batch 202–301: **100/100** arquivos compilam.
 - Pendência planejada: reduzir progressivamente os `except Exception` restantes do lote (191 ocorrências) em ondas por criticidade.
+
+## Batch 302–401 (análise em lote de 100 arquivos Python)
+
+### Correções aplicadas no código (não apenas registro)
+
+1. **`resync/core/security/__init__.py`**
+   - Bug funcional encontrado: `verify_admin_token()` chamava `decode_token(token)` como se retornasse `(valid, payload)`, mas `decode_token` do módulo unificado exige `secret_key` e retorna payload (dict).
+   - Impacto: validação de token admin sempre caía no tratamento de exceção (falso negativo contínuo).
+   - Correção aplicada:
+     - integração com `get_settings()` para obter `secret_key/jwt_secret_key` e `jwt_algorithm`;
+     - chamada correta `decode_token(token, secret_key, algorithms=[algorithm])`;
+     - tratamento explícito de erros de token (`JWTError`, `RuntimeError`, `ValueError`) retornando `None` sem mascarar erros de programação.
+
+2. **`resync/core/logging_utils.py`**
+   - Problema: redator de dados sensíveis usava `except Exception` durante regex substitution.
+   - Correção aplicada: captura restrita para `(ReError, TypeError)`.
+   - Ganho: reduz supressão acidental de erros não esperados e mantém robustez para padrões regex inválidos.
+
+### Validação do lote
+- Compilação sintática do batch 302–401: **100/100** arquivos compilam.
+- Próxima onda: continuar redução de `except Exception` por criticidade em langgraph/observability/pools.

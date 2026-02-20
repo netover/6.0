@@ -20,6 +20,7 @@ Tracking sheet:
 | 002-101 | batch_api_core_inicial (100 arquivos) | Baixa/Média | [x] | Compilação sintática ok (100/100); triagem detectou 50 usos de except Exception para correção em ondas |
 | 102-201 | batch_api_core_segundo (100 arquivos) | Baixa/Média | [x] | Compilação sintática ok (100/100); correções aplicadas em segurança/middleware/health para preservar HTTPException e reduzir except genérico |
 | 202-301 | batch_core_db_health_langgraph (100 arquivos) | Média | [x] | 100/100 compilam; correções aplicadas em engine/schema/repository/tracing para reduzir except genérico com exceções específicas |
+| 302-401 | batch_core_langgraph_ops (100 arquivos) | Média | [x] | 100/100 compilam; corrigido bug real em verify_admin_token e redução de except genérico em logging_utils |
 
 ## STEP 1 — Leitura Estrutural
 - [ ] Ler cabeçalho e docstring do módulo
