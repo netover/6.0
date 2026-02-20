@@ -14,6 +14,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
@@ -24,16 +25,19 @@ def _require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+MOCKED_IMPORT_MODULES = (
+    "fastapi",
+    "fastapi.responses",
+    "resync.core.redis_init",
+    "resync.api.security",
+    "resync.core.metrics",
+    "structlog",
+)
+
+
 def _install_import_mocks() -> None:
     """Install module mocks required to import runtime modules in isolation."""
-    for module_name in (
-        "fastapi",
-        "fastapi.responses",
-        "resync.core.redis_init",
-        "resync.api.security",
-        "resync.core.metrics",
-        "structlog",
-    ):
+    for module_name in MOCKED_IMPORT_MODULES:
         sys.modules[module_name] = MagicMock()
 
     import fastapi  # type: ignore
@@ -47,17 +51,9 @@ def _install_import_mocks() -> None:
 
 
 @contextlib.contextmanager
-def _patched_import_mocks() -> Any:
+def _patched_import_mocks() -> Iterator[None]:
     """Temporarily install import mocks and restore previous modules afterwards."""
-    modules_to_mock = (
-        "fastapi",
-        "fastapi.responses",
-        "resync.core.redis_init",
-        "resync.api.security",
-        "resync.core.metrics",
-        "structlog",
-    )
-    previous_modules = {name: sys.modules.get(name) for name in modules_to_mock}
+    previous_modules = {name: sys.modules.get(name) for name in MOCKED_IMPORT_MODULES}
     try:
         _install_import_mocks()
         yield
@@ -76,6 +72,8 @@ async def test_dashboard_redis_integration() -> None:
             DashboardMetricsStore,
             MetricSample,
             REDIS_CH_BROADCAST,
+            REDIS_KEY_LATEST,
+            REDIS_KEY_START_TIME,
             collect_metrics_sample,
             get_ws_manager,
         )
@@ -84,9 +82,15 @@ async def test_dashboard_redis_integration() -> None:
 
     mock_redis = MagicMock()
     mock_redis.set = AsyncMock(return_value=True)
-    mock_redis.get = AsyncMock(
-        return_value='{"status": "ok", "api": {"requests_per_sec": 0}}'
-    )
+
+    async def _mock_get(key: str) -> str | None:
+        if key == REDIS_KEY_START_TIME:
+            return str(time.time() - 60.0)
+        if key == REDIS_KEY_LATEST:
+            return '{"status": "ok", "api": {"requests_per_sec": 0}}'
+        return None
+
+    mock_redis.get = AsyncMock(side_effect=_mock_get)
     mock_redis.lrange = AsyncMock(return_value=[])
     mock_redis.publish = AsyncMock(return_value=1)
     mock_redis.ping = AsyncMock(return_value=True)
