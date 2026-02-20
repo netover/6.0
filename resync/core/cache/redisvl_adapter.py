@@ -10,8 +10,8 @@ from typing import Any, Callable, List, Optional
 
 try:
     from redisvl.utils.vectorize import BaseVectorizer
-except ImportError:
-    # Support environment where redisvl is not yet installed
+except Exception:
+    # Support environments where redisvl is unavailable/incompatible (e.g. pydantic v1 on py3.14)
     BaseVectorizer = object
 
 from resync.core.cache.embedding_model import (

@@ -170,7 +170,7 @@ class ControlComplianceStrategy(ReportStrategy):
                 "Control compliance calculated: %s/%s (%.2f%%)",
                 compliant_controls,
                 total_controls,
-                compliance_rate * 100
+                compliance_rate * 100,
             )
 
             return {
@@ -232,9 +232,9 @@ class CriteriaScoresStrategy(ReportStrategy):
                 logger.debug(
                     "Criteria %s: %s/%s (%.2f%%)",
                     criterion.value,
-                    scores['compliant'],
-                    scores['total'],
-                    score * 100
+                    scores["compliant"],
+                    scores["total"],
+                    score * 100,
                 )
 
             return criteria_scores
@@ -303,7 +303,7 @@ class OverallComplianceStrategy(ReportStrategy):
                         "Criterion %s: score=%.3f, weight=%.2f",
                         criterion.value,
                         score,
-                        weight
+                        weight,
                     )
 
             if total_weight == 0.0:
@@ -395,7 +395,7 @@ class EvidenceSummaryStrategy(ReportStrategy):
             logger.info(
                 "Evidence summary: %d valid evidence items across %d types",
                 total_valid,
-                len(evidence_counts)
+                len(evidence_counts),
             )
 
             return result
@@ -457,7 +457,7 @@ class AvailabilitySummaryStrategy(ReportStrategy):
                 "%s downtime, meets target: %s",
                 avg_availability * 100,
                 total_downtime,
-                meets_target
+                meets_target,
             )
 
             return result
@@ -526,7 +526,7 @@ class ProcessingIntegritySummaryStrategy(ReportStrategy):
                 avg_integrity,
                 failed_checks,
                 len(manager.processing_checks),
-                meets_target
+                meets_target,
             )
 
             return result
@@ -583,7 +583,7 @@ class ConfidentialityIncidentsSummaryStrategy(ReportStrategy):
             logger.info(
                 "Confidentiality incidents: %d total, %d unresolved",
                 len(manager.confidentiality_incidents),
-                unresolved_incidents
+                unresolved_incidents,
             )
 
             return result
@@ -750,7 +750,7 @@ class ReportGenerator:
 
             logger.info(
                 "Compliance report generated successfully with overall score: %.3f",
-                report['overall_compliance_score']
+                report["overall_compliance_score"],
             )
 
             return report

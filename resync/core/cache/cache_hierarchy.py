@@ -180,7 +180,11 @@ class CacheHierarchy:
                 encoded = base64.b64encode(value_str.encode()).decode()
                 return {"__encrypted__": True, "data": encoded}
             except Exception as e:
-                logger.warning("encryption_failed: error=%s, value_type=%s", str(e), type(value).__name__)
+                logger.warning(
+                    "encryption_failed: error=%s, value_type=%s",
+                    str(e),
+                    type(value).__name__,
+                )
         return value
 
     def _decrypt_value(self, value: Any) -> Any:

@@ -100,12 +100,16 @@ def _load_secure_json(path: str):
             # Read and verify magic bytes
             magic = f.read(8)
             if magic != BM25_INDEX_MAGIC:
-                raise ValueError(f"Invalid magic bytes: {magic.decode('utf-8', errors='replace')}")
+                raise ValueError(
+                    f"Invalid magic bytes: {magic.decode('utf-8', errors='replace')}"
+                )
 
             # Read version
             version = f.read(2)
             if version != BM25_INDEX_VERSION:
-                raise ValueError(f"Unsupported version: {version.decode('utf-8', errors='replace')}")
+                raise ValueError(
+                    f"Unsupported version: {version.decode('utf-8', errors='replace')}"
+                )
 
             # Read and decompress JSON data
             json_data = f.read()
@@ -857,7 +861,7 @@ class HybridRetriever:
         min_len = min(len(results_list), len(weights))
         results_list = results_list[:min_len]
         weights = weights[:min_len]
-        
+
         for results, weight in zip(results_list, weights):
             for rank, doc in enumerate(results, start=1):
                 doc_id = (
@@ -1000,7 +1004,9 @@ class HybridRetriever:
                     # Get remaining candidates from original pool that weren't reranked
                     remaining = [
                         doc
-                        for doc in original_results[self._gating_policy.config.max_candidates :]
+                        for doc in original_results[
+                            self._gating_policy.config.max_candidates :
+                        ]
                         if doc.get("id") not in seen_ids
                     ]
                     results.extend(remaining[: top_k - len(results)])
@@ -1018,5 +1024,3 @@ class HybridRetriever:
 
 
 __all__ = ["BM25Index", "HybridRetriever", "HybridRetrieverConfig"]
-
-

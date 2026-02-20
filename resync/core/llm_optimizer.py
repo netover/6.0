@@ -321,7 +321,7 @@ class TWS_LLMOptimizer:
 
             return full_response
 
-        except Exception as e:
+        except Exception:
             logger.error("Error in LLM streaming", exc_info=True)
             # Fallback to original method (which now also uses LiteLLM)
             result = await call_llm(prompt, model=model, max_tokens=1000)
