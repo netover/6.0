@@ -145,15 +145,18 @@ class CacheMemoryManager:
         """Check if item count is within safe bounds."""
         max_safe_size = self.max_entries
         if current_size > max_safe_size:
-            correlation_id = runtime_metrics.create_correlation_id({
-                "component": "cache_memory_manager",
-                "operation": "bounds_check",
-                "current_size": current_size,
-                "max_safe_size": max_safe_size,
-            })
+            runtime_metrics.create_correlation_id(
+                {
+                    "component": "cache_memory_manager",
+                    "operation": "bounds_check",
+                    "current_size": current_size,
+                    "max_safe_size": max_safe_size,
+                }
+            )
             logger.warning(
                 "Cache size %s exceeds safe bounds %s",
-                current_size, max_safe_size,
+                current_size,
+                max_safe_size,
             )
             return False
         return True
@@ -195,41 +198,53 @@ class CacheMemoryManager:
                 estimated_memory_mb = float(current_size) * 0.5
             memory_threshold = float(self.max_memory_mb) * 0.8
             if estimated_memory_mb > memory_threshold:
-                correlation_id = runtime_metrics.create_correlation_id({
-                    "component": "cache_memory_manager",
-                    "operation": "memory_bounds_approaching",
-                    "estimated_mb": estimated_memory_mb,
-                    "current_size": current_size,
-                    "sample_count": sample_count,
-                    "avg_memory_per_item": avg_memory_per_item if sample_count > 0 else 0.0,
-                    "max_memory_mb": self.max_memory_mb,
-                    "threshold_reached": "80%",
-                })
-                logger.warning(
-                    "Cache memory usage %.1fMB approaching limit of %sMB",
-                    estimated_memory_mb, self.max_memory_mb,
-                )
-                if estimated_memory_mb > self.max_memory_mb:
-                    correlation_id = runtime_metrics.create_correlation_id({
+                runtime_metrics.create_correlation_id(
+                    {
                         "component": "cache_memory_manager",
-                        "operation": "memory_bounds_exceeded",
+                        "operation": "memory_bounds_approaching",
                         "estimated_mb": estimated_memory_mb,
                         "current_size": current_size,
                         "sample_count": sample_count,
-                        "avg_memory_per_item": avg_memory_per_item if sample_count > 0 else 0,
+                        "avg_memory_per_item": avg_memory_per_item
+                        if sample_count > 0
+                        else 0.0,
                         "max_memory_mb": self.max_memory_mb,
-                    })
+                        "threshold_reached": "80%",
+                    }
+                )
+                logger.warning(
+                    "Cache memory usage %.1fMB approaching limit of %sMB",
+                    estimated_memory_mb,
+                    self.max_memory_mb,
+                )
+                if estimated_memory_mb > self.max_memory_mb:
+                    runtime_metrics.create_correlation_id(
+                        {
+                            "component": "cache_memory_manager",
+                            "operation": "memory_bounds_exceeded",
+                            "estimated_mb": estimated_memory_mb,
+                            "current_size": current_size,
+                            "sample_count": sample_count,
+                            "avg_memory_per_item": avg_memory_per_item
+                            if sample_count > 0
+                            else 0,
+                            "max_memory_mb": self.max_memory_mb,
+                        }
+                    )
                     logger.warning(
                         "Estimated cache memory usage %.1fMB exceeds %sMB limit",
-                        estimated_memory_mb, self.max_memory_mb,
+                        estimated_memory_mb,
+                        self.max_memory_mb,
                     )
                     return False
         except Exception as e:
-            correlation_id = runtime_metrics.create_correlation_id({
-                "component": "cache_memory_manager",
-                "operation": "memory_bounds_check_error",
-                "error": str(e),
-            })
+            runtime_metrics.create_correlation_id(
+                {
+                    "component": "cache_memory_manager",
+                    "operation": "memory_bounds_check_error",
+                    "error": str(e),
+                }
+            )
             logger.warning(
                 "Failed to estimate memory usage: %s, proceeding with basic size check",
                 str(e),
@@ -336,7 +351,9 @@ class CacheMemoryManager:
             return bytes_freed
         except Exception as e:
             logger.error("Error during eviction: %s", str(e), exc_info=True)
-            log_with_correlation(logging.ERROR, f"Error during eviction: {e}", correlation_id)
+            log_with_correlation(
+                logging.ERROR, f"Error during eviction: {e}", correlation_id
+            )
             return 0
         finally:
             runtime_metrics.close_correlation_id(correlation_id)

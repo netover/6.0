@@ -370,8 +370,8 @@ def configure_structured_logging(
     # Escolher renderer baseado no modo
     if development_mode or not json_logs:
         renderer = structlog.dev.ConsoleRenderer(colors=True)
-    # else:
-    #     # renderer: structlog.processors.JSONRenderer | structlog.dev.ConsoleRenderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.processors.JSONRenderer()
 
     # 1. Configurar structlog
     structlog.configure(
@@ -841,9 +841,7 @@ class SafeEncodingFormatter(logging.Formatter):
             if hasattr(sys.stdout, "encoding") and sys.stdout.encoding:
                 encoding = sys.stdout.encoding
         except Exception as _e:
-            logger.debug(
-                "suppressed_exception", exc_info=True
-            )  # was: pass
+            logger.debug("suppressed_exception", exc_info=True)  # was: pass
 
         if not can_encode(message, encoding=encoding):
             # Apply fallback: replace common emoji patterns

@@ -256,7 +256,7 @@ def _validate_environment() -> None:
     """Validate environment lazily."""
     try:
         env_detector = EnvironmentDetector()
-        bm = get_boot_manager()
+        get_boot_manager()
         log = _get_logger()
         if not env_detector.validate_environment():
             log.warning(

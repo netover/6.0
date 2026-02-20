@@ -137,11 +137,15 @@ class CacheDependencyGraph:
     """Graph for managing cache dependencies and cascade invalidation."""
 
     def __init__(self):
-        self.dependencies: dict[str, set[str]] = defaultdict(set)  # key -> dependents  # type: ignore[annotation-unchecked]
+        self.dependencies: dict[str, set[str]] = defaultdict(
+            set
+        )  # key -> dependents  # type: ignore[annotation-unchecked]
         self.reverse_dependencies: dict[str, set[str]] = defaultdict(  # type: ignore[annotation-unchecked]
             set
         )  # key -> dependencies
-        self.tags: dict[str, set[str]] = defaultdict(set)  # tag -> keys  # type: ignore[annotation-unchecked]
+        self.tags: dict[str, set[str]] = defaultdict(
+            set
+        )  # tag -> keys  # type: ignore[annotation-unchecked]
 
     def add_dependency(self, key: str, depends_on: str) -> None:
         """Add a dependency relationship."""

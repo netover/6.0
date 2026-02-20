@@ -62,7 +62,9 @@ class FileIngestor(IFileIngestor):
             logger.info("file_saved", extra={"path": str(destination)})
             return destination
         except Exception as e:
-            logger.error("failed_to_save_file", extra={"error": str(e), "path": str(destination)})
+            logger.error(
+                "failed_to_save_file", extra={"error": str(e), "path": str(destination)}
+            )
             raise
 
     async def ingest_file(self, file_path: Path) -> bool:
@@ -76,7 +78,8 @@ class FileIngestor(IFileIngestor):
             result = await self.converter.convert(file_path)
             if result.status != "success":
                 logger.error(
-                    "conversion_failed", extra={"error": result.error, "path": str(file_path)}
+                    "conversion_failed",
+                    extra={"error": result.error, "path": str(file_path)},
                 )
                 return False
 
@@ -95,11 +98,14 @@ class FileIngestor(IFileIngestor):
             )
 
             logger.info(
-                "file_ingested_successfully", extra={"path": str(file_path), "chunks": chunks_count}
+                "file_ingested_successfully",
+                extra={"path": str(file_path), "chunks": chunks_count},
             )
             return True
         except Exception as e:
-            logger.error("ingestion_failed", extra={"error": str(e), "path": str(file_path)})
+            logger.error(
+                "ingestion_failed", extra={"error": str(e), "path": str(file_path)}
+            )
             return False
 
     async def shutdown(self) -> None:

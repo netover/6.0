@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+import types
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,6 @@ logger = logging.getLogger(__name__)
 # JWT LIBRARY SELECTION
 # Priority: PyJWT > python-jose
 # =============================================================================
-
-import types
 
 JWT_LIBRARY: str = "none"
 JWTError: type[Exception]

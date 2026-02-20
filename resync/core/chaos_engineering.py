@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class FuzzStats(TypedDict):
     """Typing for fuzzing results to satisfy Mypy without type ignores."""
+
     passed: int
     failed: int
     errors: list[str]
@@ -38,6 +39,7 @@ class FuzzStats(TypedDict):
 @dataclass
 class ChaosTestResult:
     """Result of a chaos engineering test."""
+
     test_name: str
     component: str
     duration: float
@@ -52,6 +54,7 @@ class ChaosTestResult:
 @dataclass
 class FuzzingScenario:
     """Definition of a fuzzing scenario."""
+
     name: str
     description: str
     fuzz_function: Callable[[], Awaitable[dict[str, Any]]]
@@ -70,7 +73,9 @@ class ChaosEngineer:
         self.active_tests: dict[str, asyncio.Task[Any]] = {}
         self._lock = threading.RLock()
 
-    async def run_full_chaos_suite(self, duration_minutes: float = 5.0) -> dict[str, Any]:
+    async def run_full_chaos_suite(
+        self, duration_minutes: float = 5.0
+    ) -> dict[str, Any]:
         """Run the complete chaos engineering test suite."""
         correlation_id = runtime_metrics.create_correlation_id(
             {
@@ -113,7 +118,9 @@ class ChaosEngineer:
                         "correlation_id": correlation_id,
                     },
                 )
-                results = [TimeoutError(f"Chaos suite timed out after {timeout_seconds}s")]
+                results = [
+                    TimeoutError(f"Chaos suite timed out after {timeout_seconds}s")
+                ]
 
             # Process results
             successful_tests = 0
@@ -230,6 +237,7 @@ class ChaosEngineer:
         errors = 0
 
         try:
+
             async def init_worker(worker_id: int) -> None:
                 nonlocal operations, errors
                 try:
@@ -269,7 +277,9 @@ class ChaosEngineer:
         finally:
             runtime_metrics.close_correlation_id(correlation_id)
 
-    async def _simulate_agent_operation(self, manager: AgentManager, op_id: int) -> None:
+    async def _simulate_agent_operation(
+        self, manager: AgentManager, op_id: int
+    ) -> None:
         try:
             await manager.get_agent(f"non_existent_agent_{op_id}")
         except ValueError:
@@ -310,7 +320,9 @@ class ChaosEngineer:
                 operations += len(result)
                 successful_inserts = sum(1 for r in result if r is not None)
                 if successful_inserts < len(test_memories) - 10:
-                    anomalies.append(f"Unexpected batch insert failures: {len(result) - successful_inserts}")
+                    anomalies.append(
+                        f"Unexpected batch insert failures: {len(result) - successful_inserts}"
+                    )
             except Exception as e:
                 errors += 1
                 anomalies.append(f"Batch insert failed: {str(e)}")
@@ -329,7 +341,9 @@ class ChaosEngineer:
                 loop = asyncio.get_running_loop()
                 sweep_result = await loop.run_in_executor(
                     None,
-                    lambda: __import__("resync.core.audit_db").auto_sweep_pending_audits(1, 10),
+                    lambda: __import__(
+                        "resync.core.audit_db"
+                    ).auto_sweep_pending_audits(1, 10),
                 )
                 operations += sweep_result.get("total_processed", 0)
             except Exception as e:
@@ -375,7 +389,9 @@ class ChaosEngineer:
                         await asyncio.sleep(0.1)
                         metrics = cache.get_detailed_metrics()
                         if metrics["size"] > 50:
-                            anomalies.append(f"Cache growing too large at {i}: {metrics['size']}")
+                            anomalies.append(
+                                f"Cache growing too large at {i}: {metrics['size']}"
+                            )
                 except Exception as e:
                     errors += 1
                     anomalies.append(f"Large object storage failed at {i}: {str(e)}")
@@ -383,7 +399,9 @@ class ChaosEngineer:
             await asyncio.sleep(2)
             final_metrics = cache.get_detailed_metrics()
             if final_metrics["size"] > 10:
-                anomalies.append(f"Cleanup ineffective: {final_metrics['size']} items remaining")
+                anomalies.append(
+                    f"Cleanup ineffective: {final_metrics['size']} items remaining"
+                )
 
             return ChaosTestResult(
                 test_name=test_name,
@@ -430,7 +448,9 @@ class ChaosEngineer:
                     except Exception as e:
                         errors += 1
                         if "network failure" not in str(e):
-                            anomalies.append(f"Unexpected error during network chaos {i}: {str(e)}")
+                            anomalies.append(
+                                f"Unexpected error during network chaos {i}: {str(e)}"
+                            )
                     # Await to yield control and ensure safety
                     await asyncio.sleep(0)
 
@@ -464,7 +484,9 @@ class ChaosEngineer:
                 try:
                     if component == "async_cache":
                         cache = AsyncTTLCache()
-                        with patch.object(cache, "set", side_effect=Exception("Simulated failure")):
+                        with patch.object(
+                            cache, "set", side_effect=Exception("Simulated failure")
+                        ):
                             try:
                                 await cache.set("test_key", "test_value")
                                 anomalies.append("Cache set should have failed")
@@ -474,7 +496,10 @@ class ChaosEngineer:
                         operations += 1
 
                     elif component == "agent_manager":
-                        with patch("resync.core.agent_manager.Agent", side_effect=ImportError("Simulated import failure")):
+                        with patch(
+                            "resync.core.agent_manager.Agent",
+                            side_effect=ImportError("Simulated import failure"),
+                        ):
                             try:
                                 manager = AgentManager()
                                 manager.get_detailed_metrics()
@@ -482,23 +507,34 @@ class ChaosEngineer:
                             except Exception as e:
                                 errors += 1
                                 if "import failure" not in str(e):
-                                    anomalies.append(f"Agent manager unexpected error: {str(e)}")
+                                    anomalies.append(
+                                        f"Agent manager unexpected error: {str(e)}"
+                                    )
 
                     elif component == "audit_db":
-                        with patch("resync.core.audit_db.get_db_connection", side_effect=Exception("Simulated DB failure")):
+                        with patch(
+                            "resync.core.audit_db.get_db_connection",
+                            side_effect=Exception("Simulated DB failure"),
+                        ):
                             try:
                                 audit_manager = get_audit_log_manager()
                                 metrics = audit_manager.get_audit_metrics()
                                 if "error" not in metrics:
-                                    anomalies.append("Audit DB should have reported error")
+                                    anomalies.append(
+                                        "Audit DB should have reported error"
+                                    )
                             except Exception as e:
                                 errors += 1
                                 if "DB failure" not in str(e):
-                                    anomalies.append(f"Audit DB unexpected error: {str(e)}")
+                                    anomalies.append(
+                                        f"Audit DB unexpected error: {str(e)}"
+                                    )
 
                 except Exception as e:
                     errors += 1
-                    anomalies.append(f"Component {component} isolation test failed: {str(e)}")
+                    anomalies.append(
+                        f"Component {component} isolation test failed: {str(e)}"
+                    )
 
             return ChaosTestResult(
                 test_name=test_name,
@@ -557,7 +593,7 @@ class FuzzingEngine:
                     description="Fuzz audit record structures",
                     fuzz_function=self._fuzz_audit_records,
                     expected_failures=["TypeError", "ValueError"],
-                )
+                ),
             ]
         )
 
@@ -697,7 +733,7 @@ class FuzzingEngine:
             None,
             {"nested": {"dict": "value"}},
             ["list", "of", "items"],
-            {}, # Placeholder for self-ref
+            {},  # Placeholder for self-ref
             "x" * 100000,
             list(range(10000)),
             object(),
@@ -755,7 +791,9 @@ class FuzzingEngine:
                         results["passed"] += 1
                     else:
                         results["failed"] += 1
-                        results["errors"].append(f"TTL {repr(ttl)}: immediate expiration")
+                        results["errors"].append(
+                            f"TTL {repr(ttl)}: immediate expiration"
+                        )
 
                 except Exception as e:
                     results["failed"] += 1
@@ -769,28 +807,49 @@ class FuzzingEngine:
         """Fuzz agent configurations."""
         test_cases = [
             {
-                "id": "test_agent_1", "name": "Test Agent", "role": "Tester", 
-                "goal": "Test things", "backstory": "A testing agent", 
-                "tools": ["test_tool"], "model_name": "test_model"
+                "id": "test_agent_1",
+                "name": "Test Agent",
+                "role": "Tester",
+                "goal": "Test things",
+                "backstory": "A testing agent",
+                "tools": ["test_tool"],
+                "model_name": "test_model",
             },
             {
-                "id": "", "name": "Test", "role": "Tester", "goal": "Test",
-                "backstory": "Test", "tools": [], "model_name": "test"
+                "id": "",
+                "name": "Test",
+                "role": "Tester",
+                "goal": "Test",
+                "backstory": "Test",
+                "tools": [],
+                "model_name": "test",
             },
             {
-                "id": "test_agent_2", "name": None, "role": "Tester", 
-                "goal": "Test", "backstory": "Test", "tools": ["test_tool"], 
-                "model_name": "test"
+                "id": "test_agent_2",
+                "name": None,
+                "role": "Tester",
+                "goal": "Test",
+                "backstory": "Test",
+                "tools": ["test_tool"],
+                "model_name": "test",
             },
             {
-                "id": "test_agent_3", "name": "Test", "role": "Tester", 
-                "goal": "Test", "backstory": "Test", "tools": None, 
-                "model_name": "test"
+                "id": "test_agent_3",
+                "name": "Test",
+                "role": "Tester",
+                "goal": "Test",
+                "backstory": "Test",
+                "tools": None,
+                "model_name": "test",
             },
             {
-                "id": "test_agent_4", "name": "x" * 1000, "role": "Tester", 
-                "goal": "Test", "backstory": "Test", "tools": ["test_tool"], 
-                "model_name": "test"
+                "id": "test_agent_4",
+                "name": "x" * 1000,
+                "role": "Tester",
+                "goal": "Test",
+                "backstory": "Test",
+                "tools": ["test_tool"],
+                "model_name": "test",
             },
         ]
 
@@ -810,15 +869,21 @@ class FuzzingEngine:
         """Fuzz audit record structures."""
         test_cases = [
             {
-                "id": "audit_1", "user_query": "Test query", "agent_response": "Test response",
-                "ia_audit_reason": "test", "ia_audit_confidence": 0.8
+                "id": "audit_1",
+                "user_query": "Test query",
+                "agent_response": "Test response",
+                "ia_audit_reason": "test",
+                "ia_audit_confidence": 0.8,
             },
             {"id": None, "user_query": "Test", "agent_response": "Test"},
             {"id": "audit_2", "user_query": None, "agent_response": "Test"},
             {"id": "audit_3", "user_query": "Test", "agent_response": "x" * 100000},
             {
-                "id": "audit_4", "user_query": "Test", "agent_response": "Test",
-                "ia_audit_reason": None, "ia_audit_confidence": "0.8"
+                "id": "audit_4",
+                "user_query": "Test",
+                "agent_response": "Test",
+                "ia_audit_reason": None,
+                "ia_audit_confidence": "0.8",
             },
         ]
 
@@ -841,12 +906,14 @@ class FuzzingEngine:
 
         return dict(results)
 
+
 # =============================================================================
 # Lazy Initialization
 # =============================================================================
 
 _chaos_engineer: ChaosEngineer | None = None
 _fuzzing_engine: FuzzingEngine | None = None
+
 
 def get_chaos_engineer() -> ChaosEngineer:
     global _chaos_engineer
@@ -858,6 +925,7 @@ def get_chaos_engineer() -> ChaosEngineer:
         _chaos_engineer = ChaosEngineer()
     return _chaos_engineer
 
+
 def get_fuzzing_engine() -> FuzzingEngine:
     global _fuzzing_engine
     if _fuzzing_engine is None:
@@ -868,8 +936,10 @@ def get_fuzzing_engine() -> FuzzingEngine:
         _fuzzing_engine = FuzzingEngine()
     return _fuzzing_engine
 
+
 async def run_chaos_engineering_suite(duration_minutes: float = 5.0) -> dict[str, Any]:
     return await get_chaos_engineer().run_full_chaos_suite(duration_minutes)
+
 
 async def run_fuzzing_campaign(max_duration: float = 60.0) -> dict[str, Any]:
     return await get_fuzzing_engine().run_fuzzing_campaign(max_duration)

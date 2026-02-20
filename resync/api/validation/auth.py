@@ -3,8 +3,19 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import ConfigDict, EmailStr, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from pydantic import StringConstraints as PydanticStringConstraints
+
+try:
+    import email_validator as _email_validator  # noqa: F401
+except Exception:  # pragma: no cover - optional dependency
+    EMAIL_VALIDATOR_AVAILABLE = False
+    EmailType = str
+else:
+    from pydantic import EmailStr
+
+    EMAIL_VALIDATOR_AVAILABLE = True
+    EmailType = EmailStr
 
 from .common import BaseValidatedModel
 
@@ -251,7 +262,7 @@ class UserRegistrationRequest(BaseValidatedModel):
         ..., min_length=3, max_length=50, description="Desired username"
     )
 
-    email: EmailStr = Field(..., description="Email address")
+    email: EmailType = Field(..., description="Email address")
 
     password: Annotated[
         str,
@@ -310,7 +321,12 @@ class UserRegistrationRequest(BaseValidatedModel):
     @field_validator("email")
     @classmethod
     def validate_email_domain(cls, v):
-        """Validate email domain."""
+        """Validate email format/domain with optional strict dependency."""
+        if not EMAIL_VALIDATOR_AVAILABLE and (
+            "@" not in v or v.startswith("@") or v.endswith("@")
+        ):
+            raise ValueError("Invalid email format")
+
         # Check for common temporary email domains
         temp_domains = {
             "tempmail.org",
