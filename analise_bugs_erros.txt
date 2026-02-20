@@ -137,3 +137,22 @@
 ### Validação do lote
 - Compilação sintática do batch 302–401: **100/100** arquivos compilam.
 - Próxima onda: continuar redução de `except Exception` por criticidade em langgraph/observability/pools.
+
+## Batch 402–501 (análise em lote de 100 arquivos Python)
+
+### Correções aplicadas no código (não apenas registro)
+
+1. **`resync/knowledge/retrieval/reranker.py`**
+   - Bug de observabilidade: tempo de carregamento do cross-encoder era calculado e descartado; log usava placeholder literal (`{load_time:.0f}`) sem interpolação.
+   - Correção aplicada: criação explícita de `load_time` e logging parametrizado (`%.0fms`).
+   - Bug de métricas/log: log de rerank usava string literal com chaves (`{original_count}`, etc.) e não reportava valores reais.
+   - Correção aplicada: troca para logger parametrizado com variáveis reais (`original_count`, `len(filtered_docs)`, `rerank_time`).
+
+2. **`resync/core/utils/common_error_handlers.py`**
+   - Bug de mensagem de retry: textos de backoff eram parcialmente f-string e parcialmente literal, resultando em log com `{current_delay:.2f}` não interpolado.
+   - Correção aplicada: ambos os trechos convertidos para f-string completa.
+   - Ajuste de consistência: no wrapper assíncrono, mensagem final de falha passa a usar `current_max_retries` (valor efetivo) em vez do default global `max_retries`.
+
+### Validação do lote
+- Compilação sintática do batch 402–501: **100/100** arquivos compilam.
+- Próxima onda: continuar redução de `except Exception` nos módulos `knowledge/ingestion` e `services/*` com priorização por impacto de runtime.

@@ -88,8 +88,8 @@ def get_cross_encoder() -> Any:
             max_length=512,  # Limit input length for speed
         )
 
-        (time.perf_counter() - start) * 1000
-        logger.info("RAG cross-encoder loaded in {load_time:.0f}ms")
+        load_time = (time.perf_counter() - start) * 1000
+        logger.info("RAG cross-encoder loaded in %.0fms", load_time)
 
         return _cross_encoder_model
 
@@ -199,7 +199,10 @@ def rerank_documents(
         rerank_time = (time.perf_counter() - start) * 1000
 
         logger.debug(
-            "Reranked {original_count} docs → {len(filtered_docs)} docs in {rerank_time:.1f}ms"
+            "Reranked %s docs → %s docs in %.1fms",
+            original_count,
+            len(filtered_docs),
+            rerank_time,
         )
 
         return RerankResult(

@@ -148,13 +148,13 @@ def retry_on_exception(
                         if attempt < current_max_retries:
                             logger_instance.info(
                                 f"Attempt {attempt + 1} failed: {e}. "
-                                "Retrying in {current_delay:.2f} seconds..."
+                                f"Retrying in {current_delay:.2f} seconds..."
                             )
                             await asyncio.sleep(current_delay)
                             current_delay *= backoff
                         else:
                             logger_instance.error(
-                                f"Failed after {max_retries} retries: {e}",
+                                f"Failed after {current_max_retries} retries: {e}",
                                 exc_info=True,
                             )
                             raise
@@ -183,7 +183,7 @@ def retry_on_exception(
                     if attempt < max_retries:
                         logger_instance.info(
                             f"Attempt {attempt + 1} failed: {e}. "
-                            "Retrying in {current_delay:.2f} seconds..."
+                            f"Retrying in {current_delay:.2f} seconds..."
                         )
                         time.sleep(current_delay)  # Use sync sleep for sync functions
                         current_delay *= backoff
