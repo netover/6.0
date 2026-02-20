@@ -865,8 +865,8 @@ class ServiceDiscoveryManager:
                 "active_backends": sum(
                     1
                     for backend in self.backends.values()
-                    if asyncio.iscoroutinefunction(backend.health_check) or True
-                ),  # Simplified
+                    if backend.health_check is not None
+                ),
             },
             "performance": {
                 "services_registered": self.metrics["services_registered"],

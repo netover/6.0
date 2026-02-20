@@ -428,7 +428,7 @@ async def get_stats(db: Session = Depends(get_db)):
         db.query(func.count(TeamsNotificationLog.id))
         .filter(
             func.date(TeamsNotificationLog.timestamp) == today,
-            not TeamsNotificationLog.notification_sent,
+            TeamsNotificationLog.notification_sent.is_not(True),
         )
         .scalar()
     )

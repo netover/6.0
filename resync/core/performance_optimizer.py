@@ -9,6 +9,7 @@ This module provides advanced performance optimization features including:
 """
 
 import asyncio
+import inspect
 import logging
 from collections import deque
 from dataclasses import dataclass, field
@@ -388,15 +389,15 @@ class ResourceManager:
                 try:
                     # Try to close the resource if it has a close method
                     if hasattr(resource, "close"):
-                        if asyncio.iscoroutinefunction(resource.close):
+                        if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
                         else:
-                            resource.close()
+                            await asyncio.to_thread(resource.close)
 
                     logger.info("Cleaned up resource: %s", resource_id)
                 except Exception as e:
                     logger.error("Error cleaning up resource %s: %s", resource_id, e)
-                finally:
+                else:
                     await self.unregister_resource(resource_id)
 
     async def detect_leaks(self, max_lifetime_seconds: int = 3600) -> list[str]:

@@ -2,10 +2,12 @@
 """Teams Webhook Administration API."""
 
 from datetime import datetime, timezone
+from importlib.util import find_spec
+import re
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,18 @@ from resync.core.database.session import get_db
 from resync.core.teams_permissions import TeamsPermissionsManager
 
 logger = structlog.get_logger(__name__)
+
+EMAIL_FALLBACK_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# pydantic.EmailStr requires the optional `email-validator` package.
+# Keep router import resilient when this extra dependency is absent.
+if find_spec("email_validator") is not None:
+    from pydantic import EmailStr
+
+    EMAIL_VALIDATOR_AVAILABLE = True
+else:
+    EmailStr = str
+    EMAIL_VALIDATOR_AVAILABLE = False
 
 router = APIRouter(
     prefix="/admin/teams-webhook",
@@ -30,6 +44,19 @@ class UserCreate(BaseModel):
     role: str = Field(default="viewer", pattern="^(viewer|operator|admin)$")
     can_execute_commands: bool = False
     aad_object_id: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_when_optional_dependency_missing(cls, value: str) -> str:
+        """Apply basic validation when email-validator optional dependency is absent."""
+        if EMAIL_VALIDATOR_AVAILABLE:
+            return value
+
+        normalized = value.strip()
+        if not EMAIL_FALLBACK_REGEX.match(normalized):
+            raise ValueError("Invalid email format")
+
+        return normalized
 
 
 class UserUpdate(BaseModel):
@@ -237,7 +264,7 @@ async def get_stats(db: Session = Depends(get_db)):
         db.query(func.count(TeamsWebhookAudit.id))
         .filter(
             TeamsWebhookAudit.command_type == "execute",
-            not TeamsWebhookAudit.was_authorized,
+            TeamsWebhookAudit.was_authorized.is_not(True),
         )
         .scalar()
     )

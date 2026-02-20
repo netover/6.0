@@ -13,6 +13,7 @@ Version: 5.9.9
 """
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -249,10 +250,10 @@ class UnifiedConfigManager:
 
         for callback in callbacks:
             try:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback(event)
                 else:
-                    callback(event)
+                    await asyncio.to_thread(callback, event)
             except Exception as e:
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 

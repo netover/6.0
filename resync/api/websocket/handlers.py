@@ -244,7 +244,7 @@ async def websocket_handler(
                     try:
                         from resync.services.llm_service import get_llm_service
 
-                        llm_service = get_llm_service()
+                        llm_service = await get_llm_service()
 
                         # Agent configuration
                         agent_config = {
@@ -309,7 +309,7 @@ async def websocket_handler(
                         try:
                             from resync.services.llm_service import get_llm_service
 
-                            llm_service = get_llm_service()
+                            llm_service = await get_llm_service()
 
                             # Agent configuration
                             agent_config = {
