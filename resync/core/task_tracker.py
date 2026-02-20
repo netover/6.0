@@ -58,6 +58,8 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
 
+from resync.core.utils.async_bridge import run_sync
+
 logger = logging.getLogger(__name__)
 _background_tasks: set[asyncio.Task] = set()
 T = TypeVar("T")
@@ -330,4 +332,4 @@ if __name__ == "__main__":
         stats = await cancel_all_tasks(timeout=2.0)
         print(f"Cancelled {stats['cancelled']} tasks")
 
-    asyncio.run(example_shutdown())
+    run_sync(example_shutdown())
