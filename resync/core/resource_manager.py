@@ -437,16 +437,24 @@ class BatchResourceManager:
                     if inspect.iscoroutinefunction(cleanup_fn):
                         await cleanup_fn(resource)
                     else:
+<<<<<<< HEAD
                         cleanup_result = await asyncio.to_thread(cleanup_fn, resource)
                         if inspect.isawaitable(cleanup_result):
                             await cleanup_result
+=======
+                        await asyncio.to_thread(cleanup_fn, resource)
+>>>>>>> origin/codex/run-mypy-and-pylint-for-code-review
                 elif hasattr(resource, "close"):
                     if inspect.iscoroutinefunction(resource.close):
                         await resource.close()
                     else:
+<<<<<<< HEAD
                         close_result = await asyncio.to_thread(resource.close)
                         if inspect.isawaitable(close_result):
                             await close_result
+=======
+                        await asyncio.to_thread(resource.close)
+>>>>>>> origin/codex/run-mypy-and-pylint-for-code-review
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
             except Exception as e:

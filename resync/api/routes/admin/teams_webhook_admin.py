@@ -35,7 +35,6 @@ if not EMAIL_VALIDATOR_AVAILABLE:
         "teams_webhook_email_validator_fallback_active",
         detail="Using regex fallback validator; install email-validator for stricter validation",
     )
-
 router = APIRouter(
     prefix="/admin/teams-webhook",
     tags=["Teams Webhook Admin"],
