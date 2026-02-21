@@ -10,10 +10,11 @@ This module provides automated testing for SQL injection vulnerabilities:
 Tests cover common attack vectors and edge cases.
 """
 
-import asyncio
 import importlib.util
 
 import pytest
+
+from resync.core.utils.async_bridge import run_sync
 
 if importlib.util.find_spec("sqlalchemy") is None:
     pytest.skip("sqlalchemy not installed in this environment", allow_module_level=True)
@@ -288,10 +289,10 @@ class TestSQLInjectionMiddleware:
 
             if should_detect:
                 with pytest.raises(Exception):  # HTTPException
-                    asyncio.run(middleware._analyze_request_for_sql_injection(request))
+                    run_sync(middleware._analyze_request_for_sql_injection(request))
             else:
                 # Should not raise exception
-                asyncio.run(middleware._analyze_request_for_sql_injection(request))
+                run_sync(middleware._analyze_request_for_sql_injection(request))
 
     def test_safe_requests_pass_through(self, mock_request):
         """Test that safe requests pass through middleware."""
@@ -309,7 +310,7 @@ class TestSQLInjectionMiddleware:
 
             # Should not raise exception
             try:
-                asyncio.run(middleware._analyze_request_for_sql_injection(request))
+                run_sync(middleware._analyze_request_for_sql_injection(request))
             except Exception as e:
                 pytest.fail(f"Safe input was blocked: {safe_input} - {e}")
 
@@ -323,7 +324,7 @@ class TestSQLInjectionMiddleware:
         )
 
         middleware = DatabaseSecurityMiddleware(None, enabled=True)
-        data = asyncio.run(middleware._extract_request_data(request))
+        data = run_sync(middleware._extract_request_data(request))
 
         assert "query.id" in data
         assert "path.user_id" in data

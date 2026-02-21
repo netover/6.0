@@ -5,10 +5,10 @@ Creates all schemas and tables required by Resync.
 Run this migration to set up a fresh PostgreSQL database.
 """
 
-import asyncio
 import logging
 
 from sqlalchemy import text
+from resync.core.utils.async_bridge import run_sync
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -145,7 +145,7 @@ def run_migrations() -> None:
     """
     Run migrations synchronously (for CLI usage).
     """
-    asyncio.run(initialize_database())
+    run_sync(initialize_database())
 
 
 if __name__ == "__main__":

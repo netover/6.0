@@ -471,7 +471,12 @@ class FeedbackRepository(TimestampedRepository[Feedback]):
             return list(result.scalars().all())
 
     async def get_negative_examples(self, limit: int = 100) -> list[Feedback]:
-        """Get negative feedback examples."""
+        """Get negative feedback examples.
+
+        Business rule: ``is_positive`` is tri-state in this domain (True/False/NULL),
+        and NULL is treated as "not positive" for curation/training recall. Therefore,
+        this query intentionally uses ``is_not(True)`` instead of ``is_(False)``.
+        """
         async with self._get_session() as session:
             result = await session.execute(
                 select(Feedback)

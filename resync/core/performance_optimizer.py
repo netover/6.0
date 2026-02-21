@@ -391,14 +391,15 @@ class ResourceManager:
                     if hasattr(resource, "close"):
                         if inspect.iscoroutinefunction(resource.close):
                             await resource.close()
-                        else:
-                            await asyncio.to_thread(resource.close)
-
-                    logger.info("Cleaned up resource: %s", resource_id)
+                            close_result = await asyncio.to_thread(resource.close)
+                            if inspect.isawaitable(close_result):
+                                await close_result
                 except Exception as e:
                     logger.error("Error cleaning up resource %s: %s", resource_id, e)
-                else:
-                    await self.unregister_resource(resource_id)
+                finally:
+                    if resource_id in self.active_resources:
+                        del self.active_resources[resource_id]
+                    self.resource_creation_times.pop(resource_id, None)
 
     async def detect_leaks(self, max_lifetime_seconds: int = 3600) -> list[str]:
         """

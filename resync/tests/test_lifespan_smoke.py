@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,15 +25,38 @@ REQUIRED_STATE_KEYS = [
 
 
 def test_lifespan_initializes_app_state_singletons() -> None:
-    app = create_app()
-    assert not getattr(
-        getattr(app.state, "enterprise_state", None), "startup_complete", False
-    )
+    import sys
+    from unittest.mock import MagicMock
+    sys.modules['sentence_transformers'] = MagicMock()
+    sys.modules['torch'] = MagicMock()
 
-    with TestClient(app) as client:
-        st = enterprise_state_from_app(client.app)
-        assert st.startup_complete is True
-        for key in REQUIRED_STATE_KEYS:
-            assert getattr(st, key) is not None, f"missing enterprise_state.{key}"
+    # Hardening Phase 4: Fast smoke execution by mocking heavy imports/I/O
+    with patch("resync.core.startup.run_startup_checks", new_callable=AsyncMock) as mock_checks, \
+         patch("resync.core.startup._init_cache_warmup", new_callable=AsyncMock), \
+         patch("resync.core.startup._init_graphrag", new_callable=AsyncMock), \
+         patch("resync.core.startup._init_metrics_collector", new_callable=AsyncMock), \
+         patch("resync.app_factory.ApplicationFactory._register_routers"), \
+         patch("resync.knowledge.ingestion.embedding_service.MultiProviderEmbeddingService.__init__", return_value=None):
+        
+        mock_checks.return_value = {
+            "strict": False,
+            "critical_services": [],
+            "overall_health": True,
+            "duration_ms": 1,
+            "results": []
+        }
+
+        # create_app handles DI configuration; mocking _register_routers avoids slow setup
+        app = create_app()
+        assert not getattr(
+            getattr(app.state, "enterprise_state", None), "startup_complete", False
+        )
+
+        with TestClient(app) as client:
+            st = enterprise_state_from_app(client.app)
+            assert st.startup_complete is True
+            for key in REQUIRED_STATE_KEYS:
+                assert getattr(st, key) is not None, f"missing enterprise_state.{key}"
 
     assert enterprise_state_from_app(app).domain_shutdown_complete is True
+

@@ -406,55 +406,61 @@ async def update_config(config_data: ConfigUpdate, db: Session = Depends(get_db)
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(db: Session = Depends(get_db)):
     """Obtém estatísticas de uso."""
-    total_channels = db.query(func.count(TeamsChannel.id)).scalar()
-    active_channels = (
-        db.query(func.count(TeamsChannel.id)).filter(TeamsChannel.is_active).scalar()
-    )
-
-    total_mappings = db.query(func.count(TeamsJobMapping.id)).scalar()
-    total_rules = db.query(func.count(TeamsPatternRule.id)).scalar()
-
-    today = datetime.now(timezone.utc).date()
-    notifications_sent_today = (
-        db.query(func.count(TeamsNotificationLog.id))
-        .filter(
-            func.date(TeamsNotificationLog.timestamp) == today,
-            TeamsNotificationLog.notification_sent,
+    try:
+        total_channels = db.query(func.count(TeamsChannel.id)).scalar()
+        active_channels = (
+            db.query(func.count(TeamsChannel.id)).filter(TeamsChannel.is_active).scalar()
         )
-        .scalar()
-    )
 
-    notifications_failed_today = (
-        db.query(func.count(TeamsNotificationLog.id))
-        .filter(
-            func.date(TeamsNotificationLog.timestamp) == today,
-            TeamsNotificationLog.notification_sent.is_not(True),
+        total_mappings = db.query(func.count(TeamsJobMapping.id)).scalar()
+        total_rules = db.query(func.count(TeamsPatternRule.id)).scalar()
+
+        today = datetime.now(timezone.utc).date()
+        notifications_sent_today = (
+            db.query(func.count(TeamsNotificationLog.id))
+            .filter(
+                func.date(TeamsNotificationLog.timestamp) == today,
+                TeamsNotificationLog.notification_sent,
+            )
+            .scalar()
         )
-        .scalar()
-    )
 
-    # Top jobs notificados
-    top_jobs = (
-        db.query(
-            TeamsNotificationLog.job_name,
-            func.count(TeamsNotificationLog.id).label("count"),
+        notifications_failed_today = (
+            db.query(func.count(TeamsNotificationLog.id))
+            .filter(
+                func.date(TeamsNotificationLog.timestamp) == today,
+                TeamsNotificationLog.notification_sent.is_not(True),
+            )
+            .scalar()
         )
-        .filter(func.date(TeamsNotificationLog.timestamp) == today)
-        .group_by(TeamsNotificationLog.job_name)
-        .order_by(desc("count"))
-        .limit(10)
-        .all()
-    )
 
-    return StatsResponse(
-        total_channels=total_channels,
-        active_channels=active_channels,
-        total_mappings=total_mappings,
-        total_rules=total_rules,
-        notifications_sent_today=notifications_sent_today,
-        notifications_failed_today=notifications_failed_today,
-        top_notified_jobs=[{"job": job, "count": count} for job, count in top_jobs],
-    )
+        top_jobs = (
+            db.query(
+                TeamsNotificationLog.job_name,
+                func.count(TeamsNotificationLog.id).label("count"),
+            )
+            .filter(func.date(TeamsNotificationLog.timestamp) == today)
+            .group_by(TeamsNotificationLog.job_name)
+            .order_by(desc("count"))
+            .limit(10)
+            .all()
+        )
+
+        return StatsResponse(
+            total_channels=total_channels,
+            active_channels=active_channels,
+            total_mappings=total_mappings,
+            total_rules=total_rules,
+            notifications_sent_today=notifications_sent_today,
+            notifications_failed_today=notifications_failed_today,
+            top_notified_jobs=[{"job": job, "count": count} for job, count in top_jobs],
+        )
+    except Exception as e:
+        logger.error("teams_notifications_stats_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch notifications stats",
+        ) from e
 
 
 @router.get("/logs")

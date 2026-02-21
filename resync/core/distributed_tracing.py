@@ -776,8 +776,9 @@ def traced(operation_name: str, **attributes):
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
-            # For sync functions, we'll use a simplified approach
-            return func(*args, **kwargs)
+            manager = _get_tracing_manager()
+            with manager.trace_context(operation_name, **attributes):
+                return func(*args, **kwargs)
 
         return sync_wrapper
 
@@ -786,4 +787,4 @@ def traced(operation_name: str, **attributes):
 
 def record_exception(exception: Exception) -> None:
     """Record exception in current span."""
-    distributed_tracing_manager.record_exception(exception)
+    _get_tracing_manager().record_exception(exception)

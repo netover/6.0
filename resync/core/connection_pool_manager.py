@@ -243,8 +243,8 @@ class AutoScalingManager:
             load_score > self.config.scale_up_threshold
             and current_time - self.last_scale_up_time > self.config.scale_up_cooldown
         ):
-            # NOTE: _scale_up is synchronous; calling asyncio.run() here can
-            # raise "asyncio.run() cannot be called from a running event loop"
+            # NOTE: _scale_up is synchronous; calling nested event-loop bridges here can
+            # raise "cannot be called from a running event loop"
             # if this code is ever executed in an async thread/context.
             self._scale_up()
             self.last_scale_up_time = current_time

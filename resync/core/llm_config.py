@@ -8,15 +8,11 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-import sys
 from pathlib import Path
 from typing import Any, Optional
 
-# [FIX] Use tomllib (Python 3.11+) instead of external 'toml' dependency
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import toml as tomllib
+# Python 3.14+ baseline: stdlib tomllib is always available.
+import tomllib
 
 # [FIX] Use standardized project logger
 from resync.core.structured_logger import get_logger
@@ -63,7 +59,7 @@ class LLMConfig:
                 self._config = self._get_defaults()
                 return
 
-            # [FIX] tomllib (available in 3.11+) requires binary mode ('rb')
+            # [FIX] tomllib (available in 3.14+) requires binary mode ('rb')
             with open(config_file, "rb") as f:
                 self._config = tomllib.load(f)
 

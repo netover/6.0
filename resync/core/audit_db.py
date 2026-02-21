@@ -9,6 +9,7 @@ import asyncio
 import logging
 from datetime import datetime
 from resync.core.task_tracker import track_task
+from resync.core.utils.async_bridge import run_sync
 from resync.core.database.models import AuditEntry
 from resync.core.database.repositories import AuditEntryRepository
 
@@ -65,7 +66,7 @@ class AuditDB:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            records = asyncio.run(self.get_recent_actions(limit=limit, offset=offset))
+            records = run_sync(self.get_recent_actions(limit=limit, offset=offset))
             return [self.to_record_dict(entry) for entry in records]
         else:
             raise RuntimeError(
@@ -134,7 +135,7 @@ class AuditDB:
             async def _count():
                 return await self._repo.count()
 
-            return asyncio.run(_count())
+            return run_sync(_count())
         else:
             raise RuntimeError(
                 "get_record_count() cannot be used inside an active event loop; use await get_record_count_async() instead"
@@ -242,7 +243,7 @@ def add_audit_records_batch(records: list) -> int:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(_batch_insert_async(records))
+        return run_sync(_batch_insert_async(records))
     track_task(_batch_insert_async(records), name="batch_insert_async")
     return len(records)
 

@@ -5,12 +5,13 @@ This script is intentionally lightweight and is meant for local ad-hoc checks.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import json
 import math
 import os
 import sys
+
+from resync.core.utils.async_bridge import run_sync
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -309,5 +310,5 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    exit_code = asyncio.run(main())
+    exit_code = run_sync(main())
     sys.exit(exit_code)

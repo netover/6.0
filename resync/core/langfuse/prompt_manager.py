@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 import aiofiles
 
@@ -110,7 +110,11 @@ class PromptConfig(BaseModel):
         default=1.0, ge=0, le=1, description="Weight for A/B selection"
     )
 
-    model_config = ConfigDict(json_encoders={datetime: lambda v: v.isoformat()})
+    model_config = ConfigDict()
+
+    @field_serializer("created_at", "updated_at")
+    def serialize_datetimes(self, value: datetime) -> str:
+        return value.isoformat()
 
 
 class PromptTemplate:
