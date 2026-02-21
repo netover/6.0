@@ -207,21 +207,24 @@ class DistributedTracingManager:
         logger.info("Distributed tracing initialized")
 
     async def start(self) -> None:
-        if self._running: return
+        if self._running:
+            return
         self._running = True
         self._initialize_tracing()
         await self._setup_auto_instrumentation()
         logger.info("Distributed tracing system started")
 
     async def stop(self) -> None:
-        if not self._running: return
+        if not self._running:
+            return
         self._running = False
         if self.tracer_provider:
             self.tracer_provider.shutdown()
         logger.info("Distributed tracing system stopped")
 
     async def _setup_auto_instrumentation(self) -> None:
-        if self._instrumented: return
+        if self._instrumented:
+            return
         try:
             self._instrumented = True
             logger.info("Auto-instrumentation completed")

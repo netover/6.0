@@ -22,27 +22,27 @@ The public entrypoint here is :func:`run_startup_checks`.
 import asyncio
 import os
 import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
 import httpx
 
-from resync.core.exceptions import ConfigurationError
 from resync.core.exceptions import (
+    ConfigurationError,
     RedisAuthError,
     RedisConnectionError,
     RedisInitializationError,
     RedisTimeoutError,
 )
-from resync.core.structured_logger import get_logger
 from resync.core.redis_init import RedisInitError, get_redis_initializer
+from resync.core.structured_logger import get_logger
 from resync.settings import Settings, get_settings
-
 
 Status = Literal["ok", "fail", "skipped"]
 
@@ -130,7 +130,7 @@ async def _tcp_reachable(
         # Silence unused variable warning.
         _ = reader
         return True, None
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False, "timeout"
     except OSError as e:
         return False, f"os_error:{type(e).__name__}"
@@ -554,36 +554,48 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     # Parallel checks (bounded by remaining time budget)
     remaining = max(0.0, deadline - time.monotonic())
     if remaining > 0:
-        tasks = {}
+        tasks: dict[str, asyncio.Task[StartupCheck]] = {}
         try:
             async with asyncio.timeout(remaining):
-                async with asyncio.TaskGroup() as tg:
-                    tasks["tws"] = tg.create_task(
-                        _check_tws(
-                            settings_obj,
-                            critical=getattr(settings_obj, "require_tws_at_boot", False),
-                            deadline=deadline,
-                            policy=policy,
+                try:
+                    async with asyncio.TaskGroup() as tg:
+                        tasks["tws"] = tg.create_task(
+                            _check_tws(
+                                settings_obj,
+                                critical=getattr(settings_obj, "require_tws_at_boot", False),
+                                deadline=deadline,
+                                policy=policy,
+                            ),
+                            name="tws_check"
                         )
-                    )
-                    tasks["llm"] = tg.create_task(
-                        _check_llm(
-                            settings_obj,
-                            critical=getattr(settings_obj, "require_llm_at_boot", False),
-                            deadline=deadline,
-                            policy=policy,
+                        tasks["llm"] = tg.create_task(
+                            _check_llm(
+                                settings_obj,
+                                critical=getattr(settings_obj, "require_llm_at_boot", False),
+                                deadline=deadline,
+                                policy=policy,
+                            ),
+                            name="llm_check"
                         )
-                    )
-                    tasks["rag"] = tg.create_task(
-                        _check_rag(
-                            settings_obj,
-                            critical=getattr(settings_obj, "require_rag_at_boot", False),
-                            deadline=deadline,
-                            policy=policy,
+                        tasks["rag"] = tg.create_task(
+                            _check_rag(
+                                settings_obj,
+                                critical=getattr(settings_obj, "require_rag_at_boot", False),
+                                deadline=deadline,
+                                policy=policy,
+                            ),
+                            name="rag_check"
                         )
-                    )
-        except (asyncio.TimeoutError, ExceptionGroup, Exception):
-            # Results will be extracted from tasks below
+                except* asyncio.CancelledError:
+                    raise
+                except* Exception:
+                    # Results will be extracted from tasks below
+                    pass
+        except TimeoutError:
+            # Handle timeout for the entire check group
+            pass
+        except Exception:
+            # Fallback for unexpected global failures
             pass
 
         now = time.monotonic()
@@ -691,10 +703,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             enforce_startup_policy(startup_result)
 
             # 2. Core initialization (failures here are fatal)
-            from resync.core.wiring import init_domain_singletons
-            from resync.core.types.app_state import enterprise_state_from_app
-            from resync.core.tws_monitor import get_tws_monitor
             from resync.api_gateway.container import setup_dependencies
+            from resync.core.tws_monitor import get_tws_monitor
+            from resync.core.types.app_state import enterprise_state_from_app
+            from resync.core.wiring import init_domain_singletons
 
             await init_domain_singletons(app)
             st = enterprise_state_from_app(app)
@@ -705,7 +717,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
             async with asyncio.TaskGroup() as bg_tasks:
                 app.state.bg_tasks = bg_tasks
-                
+
                 # Move TWS monitor initialization here to use the bg_tasks group
                 await get_tws_monitor(st.tws_client, tg=bg_tasks)
                 setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
@@ -719,20 +731,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 try:
                     async with asyncio.timeout(optional_timeout):
                         # Scoped TG for initialization; some of these might spawn background tasks in bg_tasks
-                        async with asyncio.TaskGroup() as init_tg:
-                            init_tg.create_task(_init_proactive_monitoring(app, bg_tasks))
-                            init_tg.create_task(_init_metrics_collector(app))
-                            init_tg.create_task(_init_cache_warmup(app))
-                            init_tg.create_task(_init_graphrag(app))
-                            init_tg.create_task(_init_config_system(app))
-                            init_tg.create_task(_init_enterprise_systems(app, bg_tasks))
-                            init_tg.create_task(_init_health_monitoring(app, bg_tasks))
-                            init_tg.create_task(_init_backup_scheduler(app, bg_tasks))
-                            init_tg.create_task(_init_security_dashboard(app, bg_tasks))
-                            init_tg.create_task(_init_event_bus(app, bg_tasks))
-                            init_tg.create_task(_init_service_discovery(app, bg_tasks))
-                except (asyncio.TimeoutError, ExceptionGroup):
-                    pass
+                        try:
+                            async with asyncio.TaskGroup() as init_tg:
+                                init_tg.create_task(_init_proactive_monitoring(app, bg_tasks))
+                                init_tg.create_task(_init_metrics_collector(app))
+                                init_tg.create_task(_init_cache_warmup(app))
+                                init_tg.create_task(_init_graphrag(app))
+                                init_tg.create_task(_init_config_system(app))
+                                init_tg.create_task(_init_enterprise_systems(app, bg_tasks))
+                                init_tg.create_task(_init_health_monitoring(app, bg_tasks))
+                                init_tg.create_task(_init_backup_scheduler(app, bg_tasks))
+                                init_tg.create_task(_init_security_dashboard(app, bg_tasks))
+                                init_tg.create_task(_init_event_bus(app, bg_tasks))
+                                init_tg.create_task(_init_service_discovery(app, bg_tasks))
+                        except* asyncio.CancelledError:
+                            raise
+                        except* Exception:
+                            # Log and continue; these are optional
+                            get_logger("resync.startup").warning("optional_services_init_partial_failure")
+                except TimeoutError:
+                    get_logger("resync.startup").warning("optional_services_init_timeout")
                 except Exception as e:
                     optional_results.append(e)
 
@@ -746,10 +764,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 st.startup_complete = True
 
                 yield  # Application runs here, bg_tasks are active
-        
+
         # When lifespan exits, bg_tasks (TaskGroup) will automatically cancel and wait for tasks.
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.critical(
             "application_startup_timeout",
             timeout_seconds=startup_timeout,
@@ -800,7 +818,7 @@ async def _init_metrics_collector(app: FastAPI) -> None:
             await app.state.singletons_ready_event.wait()
 
             from resync.api import monitoring_dashboard
-            
+
             # Use global TaskGroup if available
             bg_tasks = getattr(app.state, "bg_tasks", None)
             if bg_tasks:
@@ -847,12 +865,10 @@ async def _init_graphrag(app: FastAPI) -> None:
                 return
 
             from resync.core.graphrag_integration import initialize_graphrag
-            from resync.core.redis_init import get_redis_client
+            from resync.core.redis_init import get_redis_client, is_redis_available
             from resync.knowledge.retrieval.graph import get_knowledge_graph
             from resync.services.llm_service import get_llm_service
             from resync.services.tws_service import get_tws_client
-
-            from resync.core.redis_init import is_redis_available
             initialize_graphrag(
                 llm_service=await get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
@@ -977,15 +993,15 @@ async def _shutdown_services(app: FastAPI) -> None:
 
     # Imports inside to avoid early circular deps
     from resync.core.task_tracker import cancel_all_tasks
-    from resync.core.wiring import shutdown_domain_singletons
     from resync.core.tws_monitor import shutdown_tws_monitor
+    from resync.core.wiring import shutdown_domain_singletons
 
     # 1. Cancel background tasks FIRST (priority: stop active work)
     async def _cancel_tasks():
         try:
             await asyncio.wait_for(cancel_all_tasks(timeout=5.0), timeout=7.0)
             logger.info("background_tasks_cancelled")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "task_cancel_timeout", hint="Some tasks did not cancel within 7s"
             )
@@ -997,7 +1013,7 @@ async def _shutdown_services(app: FastAPI) -> None:
         try:
             await asyncio.wait_for(shutdown_domain_singletons(app), timeout=10.0)
             logger.info("domain_singletons_shutdown")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "singleton_shutdown_timeout", hint="Singleton shutdown exceeded 10s"
             )
@@ -1009,7 +1025,7 @@ async def _shutdown_services(app: FastAPI) -> None:
         try:
             await asyncio.wait_for(shutdown_tws_monitor(), timeout=5.0)
             logger.info("tws_monitor_shutdown")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("tws_monitor_shutdown_timeout")
         except Exception as e:
             logger.warning("tws_monitor_shutdown_error", error=str(e))

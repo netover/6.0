@@ -206,14 +206,20 @@ class ParallelToolExecutor:
         tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
-                for req in requests:
+                for idx, req in enumerate(requests):
                     tasks.append(
-                        tg.create_task(self._execute_single_with_semaphore(req))
+                        tg.create_task(
+                            self._execute_single_with_semaphore(req),
+                            name=f"tool_{req.tool_name}_{idx}"
+                        )
                     )
+        except* asyncio.CancelledError:
+            # Respect cooperative cancellation
+            raise
         except* Exception as eg:
             # TaskGroup has finished, but one or more tasks failed with an exception.
             # We'll gather the results (including failures) in the next step.
-            logger.error("one_or_more_tools_failed_with_exception", exceptions=eg.exceptions)
+            logger.error("parallel_execution_partial_failure", count=len(eg.exceptions))
 
         # Build results set by checking task outputs/exceptions
         result = []
@@ -318,7 +324,7 @@ class ParallelToolExecutor:
                 can_undo=can_undo,
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.catalog.update_run_status(
                 run.run_id,
                 ToolRunStatus.ERROR,

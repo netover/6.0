@@ -1,69 +1,86 @@
+"""
+Core Domain Mypy Analyzer
+Analisa relatórios do MyPy especificamente para o core do Resync.
+"""
+
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict
 
-def parse_core_report(report_path: Path) -> Dict[str, int]:
-    """Parse mypy report and count errors by core domain."""
-    domain_counts = defaultdict(int)
+def _parse_mypy_line(line: str, prefix: str = "resync/core/") -> str | None:
+    """
+    Extrai o domínio a partir de uma linha de erro do mypy.
+    Retorna None se a linha for inválida ou não pertencer ao core.
+    """
+    if "error:" not in line:
+        return None
+        
+    parts = line.split(":")
     
-    if not report_path.exists():
-        return domain_counts
+    # HARDENING (P2): Validação rigorosa da estrutura do MyPy
+    # Formato esperado: filepath:line:col: severity: message
+    if len(parts) < 4:
+        return None
+        
+    filepath = parts[0].replace('\\', '/')
+    if not filepath.startswith(prefix):
+        return None
+        
+    path_parts = filepath.split('/')
+    if len(path_parts) >= 3:
+        return f"{path_parts[0]}/{path_parts[1]}/{path_parts[2]}"
+        
+    return f"{prefix.rstrip('/')} (root files)"
 
+def _count_errors_by_domain(report_file: Path, prefix: str = "resync/core/") -> Dict[str, int]:
+    """Lê o relatório de forma segura e conta erros agrupados por domínio."""
+    domain_counts: Dict[str, int] = defaultdict(int)
+    
     try:
-        with open(report_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if "error:" not in line:
-                    continue
-                
-                parts = line.split(":")
-                if len(parts) < 4:
-                    continue
-
-                filepath = parts[0].replace('\\', '/')
-                if not filepath.startswith("resync/core/"):
-                    continue
-
-                path_parts = filepath.split('/')
-                if len(path_parts) >= 3:
-                    # Group by: resync/core/domain
-                    domain = f"{path_parts[0]}/{path_parts[1]}/{path_parts[2]}"
-                    domain_counts[domain] += 1
-                else:
-                    domain_counts["resync/core (root files)"] += 1
-    except Exception as e:
-        print(f"Error reading report: {e}")
+        content = report_file.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            domain = _parse_mypy_line(line, prefix)
+            if domain:
+                domain_counts[domain] += 1
+    except OSError as e: # Captura falhas de permissão ou de leitura (I/O)
+        print(f"ERROR: Falha ao ler o relatório {report_file.name}: {e}", file=sys.stderr)
         
     return domain_counts
 
-def format_core_plan(domain_counts: Dict[str, int]) -> str:
-    """Format domain counts into a markdown plan."""
+def _format_plan(domain_counts: Dict[str, int]) -> str:
+    """Gera o texto em Markdown estruturado por quantidade de erros."""
     sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)
     
-    lines = [
+    plan_lines = [
         "# Mypy Core Remediation Task",
         "",
         "## Sub-tasks for `resync/core/`",
-        ""
+        "",
     ]
     
     if not sorted_domains:
-        lines.append("No errors found! Core is 100% compliant.")
+        plan_lines.append("Nenhum erro encontrado! O core está 100% complacente.")
     else:
-        for i, (domain, count) in enumerate(sorted_domains, 1):
-            lines.append(f"- [ ] `mypy` for `{domain}/` ({count} errors)")
+        for domain, count in sorted_domains:
+            plan_lines.append(f"- [ ] `mypy` para `{domain}/` ({count} erros)")
             
-    return "\n".join(lines)
+    return "\n".join(plan_lines)
 
-def generate_core_plan():
-    """Main entry for generating core remediation plan."""
+def generate_core_plan() -> None:
+    """Função principal de orquestração."""
     report_file = Path("mypy_core_report.txt")
-    counts = parse_core_report(report_file)
     
-    if not counts and not report_file.exists():
-        print("Report not found.")
+    if not report_file.exists():
+        print(f"Relatório '{report_file.name}' não encontrado.")
         return
-
-    plan = format_core_plan(counts)
+        
+    domain_counts = _count_errors_by_domain(report_file)
+    if not domain_counts:
+        print("Nenhum erro processado ou o ficheiro estava vazio/ilegível.")
+        return
+        
+    plan = _format_plan(domain_counts)
     print(plan)
 
 if __name__ == "__main__":

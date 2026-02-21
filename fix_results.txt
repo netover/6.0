@@ -1,0 +1,1304 @@
+warning: Support for Python 3.14 is in preview and may undergo breaking changes. Enable `preview` to remove this warning.
+UP046 Generic class `CacheEntry` uses `Generic` subclass instead of type parameters
+  --> resync\core\cache\async_cache.py:47:18
+   |
+46 | @dataclass(slots=True)
+47 | class CacheEntry(Generic[T]):
+   |                  ^^^^^^^^^^
+48 |     """
+49 |     Memory-efficient cache entry using __slots__.
+   |
+help: Use type parameters
+
+PLR0913 Too many arguments in function definition (7 > 5)
+   --> resync\core\cache\async_cache.py:130:9
+    |
+128 |     )
+129 |
+130 |     def __init__(
+    |         ^^^^^^^^
+131 |         self,
+132 |         ttl_seconds: int = 60,
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `1000` with a constant variable
+   --> resync\core\cache\async_cache.py:227:27
+    |
+225 |         if not str_key:
+226 |             raise ValueError("Cache key cannot be empty")
+227 |         if len(str_key) > 1000:
+    |                           ^^^^
+228 |             raise ValueError(f"Cache key too long: {len(str_key)} chars (max 1000)")
+229 |         if any(c in str_key for c in "\x00\r\n"):
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\cache\async_cache.py:266:20
+    |
+264 |             except asyncio.CancelledError:
+265 |                 break
+266 |             except Exception as e:
+    |                    ^^^^^^^^^
+267 |                 logger.error("Error in cleanup loop: %s", e)
+268 |                 self._stats.errors += 1
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\cache\async_cache.py:303:17
+    |
+301 |         except* asyncio.CancelledError:
+302 |             raise
+303 |         except* Exception:
+    |                 ^^^^^^^^^
+304 |             # Stats for errors already recorded in _cleanup_loop if needed
+305 |             self._stats.errors += 1
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:115:29
+    |
+113 |                     except* asyncio.CancelledError:
+114 |                         raise
+115 |                     except* Exception:
+    |                             ^^^^^^^^^
+116 |                         logger.warning("chaos_tasks_partial_failure", job_name="chaos_suite")
+117 |             except TimeoutError:
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:126:28
+    |
+124 |                     try:
+125 |                         results.append(t.result())
+126 |                     except Exception as e:
+    |                            ^^^^^^^^^
+127 |                         results.append(e)
+128 |                 else:
+    |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+   --> resync\core\chaos_engineering.py:197:30
+    |
+195 |                 for i in range(100):
+196 |                     try:
+197 |                         op = random.choice(["set", "get", "delete"])
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+198 |                         key = f"fuzz_key_{worker_id}_{i}_{random.randint(0, 10)}"
+199 |                         value = f"fuzz_value_{worker_id}_{i}"
+    |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+   --> resync\core\chaos_engineering.py:198:59
+    |
+196 |                     try:
+197 |                         op = random.choice(["set", "get", "delete"])
+198 |                         key = f"fuzz_key_{worker_id}_{i}_{random.randint(0, 10)}"
+    |                                                           ^^^^^^^^^^^^^^^^^^^^^
+199 |                         value = f"fuzz_value_{worker_id}_{i}"
+    |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+   --> resync\core\chaos_engineering.py:202:57
+    |
+201 |                         if op == "set":
+202 |                             await cache.set(key, value, random.randint(1, 30))
+    |                                                         ^^^^^^^^^^^^^^^^^^^^^
+203 |                         elif op == "get":
+204 |                             await cache.get(key)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:209:28
+    |
+208 |                         operations += 1
+209 |                     except Exception as e:
+    |                            ^^^^^^^^^
+210 |                         errors += 1
+211 |                         anomalies.append(f"Worker {worker_id} op {i}: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:268:24
+    |
+266 |                             anomalies.append(f"Agent operation failed: {result!s}")
+267 |
+268 |                 except Exception as e:
+    |                        ^^^^^^^^^
+269 |                     errors += 1
+270 |                     anomalies.append(f"Manager init {worker_id}: {e!s}")
+    |
+
+SIM105 Use `contextlib.suppress(ValueError)` instead of `try`-`except`-`pass`
+   --> resync\core\chaos_engineering.py:293:9
+    |
+291 |           self, manager: AgentManager, op_id: int
+292 |       ) -> None:
+293 | /         try:
+294 | |             await manager.get_agent(f"non_existent_agent_{op_id}")
+295 | |         except ValueError:
+296 | |             pass
+    | |________________^
+297 |
+298 |           try:
+    |
+help: Replace with `contextlib.suppress(ValueError)`
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:302:16
+    |
+300 |             if "total_agents" not in metrics:
+301 |                 raise ValueError("Metrics missing total_agents")
+302 |         except Exception as e:
+    |                ^^^^^^^^^
+303 |             raise RuntimeError(f"Metrics operation failed: {e}") from None
+    |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+   --> resync\core\chaos_engineering.py:322:44
+    |
+320 |                     "agent_response": f"Chaos response {i}",
+321 |                     "ia_audit_reason": "chaos_test",
+322 |                     "ia_audit_confidence": random.random(),
+    |                                            ^^^^^^^^^^^^^^^
+323 |                 }
+324 |                 for i in range(50)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:336:20
+    |
+334 |                         f"Unexpected batch insert failures: {len(result) - successful_inserts}"
+335 |                     )
+336 |             except Exception as e:
+    |                    ^^^^^^^^^
+337 |                 errors += 1
+338 |                 anomalies.append(f"Batch insert failed: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:346:20
+    |
+344 |                     anomalies.append("Audit metrics missing total_records")
+345 |                 operations += 1
+346 |             except Exception as e:
+    |                    ^^^^^^^^^
+347 |                 errors += 1
+348 |                 anomalies.append(f"Metrics retrieval failed: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:359:20
+    |
+357 |                 )
+358 |                 operations += sweep_result.get("total_processed", 0)
+359 |             except Exception as e:
+    |                    ^^^^^^^^^
+360 |                 errors += 1
+361 |                 anomalies.append(f"Auto sweep failed: {e!s}")
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `50` with a constant variable
+   --> resync\core\chaos_engineering.py:401:46
+    |
+399 |                         await asyncio.sleep(0.1)
+400 |                         metrics = cache.get_detailed_metrics()
+401 |                         if metrics["size"] > 50:
+    |                                              ^^
+402 |                             anomalies.append(
+403 |                                 f"Cache growing too large at {i}: {metrics['size']}"
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:405:24
+    |
+403 |                                 f"Cache growing too large at {i}: {metrics['size']}"
+404 |                             )
+405 |                 except Exception as e:
+    |                        ^^^^^^^^^
+406 |                     errors += 1
+407 |                     anomalies.append(f"Large object storage failed at {i}: {e!s}")
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `10` with a constant variable
+   --> resync\core\chaos_engineering.py:411:40
+    |
+409 |             await asyncio.sleep(2)
+410 |             final_metrics = cache.get_detailed_metrics()
+411 |             if final_metrics["size"] > 10:
+    |                                        ^^
+412 |                 anomalies.append(
+413 |                     f"Cleanup ineffective: {final_metrics['size']} items remaining"
+    |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+   --> resync\core\chaos_engineering.py:445:20
+    |
+444 |             def failing_import(name: str, *args: Any, **kwargs: Any) -> Any:
+445 |                 if random.random() < 0.1 and "agent" in name:
+    |                    ^^^^^^^^^^^^^^^
+446 |                     raise ImportError(f"Simulated network failure for {name}")
+447 |                 return original_import(name, *args, **kwargs)
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `0.1` with a constant variable
+   --> resync\core\chaos_engineering.py:445:38
+    |
+444 |             def failing_import(name: str, *args: Any, **kwargs: Any) -> Any:
+445 |                 if random.random() < 0.1 and "agent" in name:
+    |                                      ^^^
+446 |                     raise ImportError(f"Simulated network failure for {name}")
+447 |                 return original_import(name, *args, **kwargs)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:458:28
+    |
+456 |                         if not isinstance(metrics, dict):
+457 |                             anomalies.append(f"Metrics not dict at iteration {i}")
+458 |                     except Exception as e:
+    |                            ^^^^^^^^^
+459 |                         errors += 1
+460 |                         if "network failure" not in str(e):
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> resync\core\chaos_engineering.py:503:29
+    |
+501 |                                   await cache.set("test_key", "test_value")
+502 |                                   anomalies.append("Cache set should have failed")
+503 | /                             except Exception:
+504 | |                                 pass
+    | |____________________________________^
+505 |                           await cache.stop()
+506 |                           operations += 1
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:503:36
+    |
+501 |                                 await cache.set("test_key", "test_value")
+502 |                                 anomalies.append("Cache set should have failed")
+503 |                             except Exception:
+    |                                    ^^^^^^^^^
+504 |                                 pass
+505 |                         await cache.stop()
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:517:36
+    |
+515 | ÔÇª                         manager.get_detailed_metrics()
+516 | ÔÇª                         operations += 1
+517 | ÔÇª                     except Exception as e:
+    |                              ^^^^^^^^^
+518 | ÔÇª                         errors += 1
+519 | ÔÇª                         if "import failure" not in str(e):
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:536:36
+    |
+534 | ÔÇª                                 "Audit DB should have reported error"
+535 | ÔÇª                             )
+536 | ÔÇª                     except Exception as e:
+    |                              ^^^^^^^^^
+537 | ÔÇª                         errors += 1
+538 | ÔÇª                         if "DB failure" not in str(e):
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:543:24
+    |
+541 |                                     )
+542 |
+543 |                 except Exception as e:
+    |                        ^^^^^^^^^
+544 |                     errors += 1
+545 |                     anomalies.append(
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:654:24
+    |
+652 |                         }
+653 |                     )
+654 |                 except Exception as e:
+    |                        ^^^^^^^^^
+655 |                     duration = time.time() - scenario_start
+656 |                     results.append(
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:727:24
+    |
+725 |                         results["errors"].append(f"Key {key!r}: value mismatch")
+726 |
+727 |                 except Exception as e:
+    |                        ^^^^^^^^^
+728 |                     results["failed"] += 1
+729 |                     results["errors"].append(f"Key {key!r}: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:771:28
+    |
+769 |                             results["failed"] += 1
+770 |                             results["errors"].append(f"Value {i}: mismatch")
+771 |                     except Exception:
+    |                            ^^^^^^^^^
+772 |                         if retrieved is not None:
+773 |                             results["passed"] += 1
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:778:24
+    |
+776 |                             results["errors"].append(f"Value {i}: retrieval failed")
+777 |
+778 |                 except Exception as e:
+    |                        ^^^^^^^^^
+779 |                     results["failed"] += 1
+780 |                     results["errors"].append(f"Value {i}: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:808:24
+    |
+806 |                         )
+807 |
+808 |                 except Exception as e:
+    |                        ^^^^^^^^^
+809 |                     results["failed"] += 1
+810 |                     results["errors"].append(f"TTL {ttl!r}: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:872:20
+    |
+870 |                 AgentConfig(**config_data)  # type: ignore[arg-type]
+871 |                 results["passed"] += 1
+872 |             except Exception as e:
+    |                    ^^^^^^^^^
+873 |                 results["failed"] += 1
+874 |                 results["errors"].append(f"Config {i}: {e!s}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\chaos_engineering.py:910:20
+    |
+908 |                     results["failed"] += 1
+909 |                     results["errors"].append(f"Record {i}: unexpected failure")
+910 |             except Exception as e:
+    |                    ^^^^^^^^^
+911 |                 if i == 0:
+912 |                     results["failed"] += 1
+    |
+
+PLW0603 Using the global statement to update `_chaos_engineer` is discouraged
+   --> resync\core\chaos_engineering.py:929:12
+    |
+928 | def get_chaos_engineer() -> ChaosEngineer:
+929 |     global _chaos_engineer
+    |            ^^^^^^^^^^^^^^^
+930 |     if _chaos_engineer is None:
+931 |         logger.warning(
+    |
+
+PLW0603 Using the global statement to update `_fuzzing_engine` is discouraged
+   --> resync\core\chaos_engineering.py:940:12
+    |
+939 | def get_fuzzing_engine() -> FuzzingEngine:
+940 |     global _fuzzing_engine
+    |            ^^^^^^^^^^^^^^^
+941 |     if _fuzzing_engine is None:
+942 |         logger.warning(
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> resync\core\connection_manager.py:69:16
+   |
+67 |         try:
+68 |             await websocket.close()
+69 |         except Exception as e:
+   |                ^^^^^^^^^
+70 |             logger.warning("Error closing websocket for client %s: %s", client_id, e)
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\connection_manager.py:107:20
+    |
+105 |                 else:
+106 |                     logger.error("Runtime error sending to client %s: %s", client_id, e)
+107 |             except Exception as e:
+    |                    ^^^^^^^^^
+108 |                 logger.error("Unexpected error sending to client %s: %s", client_id, e)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\connection_manager.py:147:17
+    |
+145 |         except* asyncio.CancelledError:
+146 |             raise
+147 |         except* Exception as eg:
+    |                 ^^^^^^^^^
+148 |             for exc in eg.exceptions:
+149 |                 logger.warning("broadcast_connection_error", error=str(exc))
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\connection_manager.py:187:17
+    |
+185 |         except* asyncio.CancelledError:
+186 |             raise
+187 |         except* Exception as eg:
+    |                 ^^^^^^^^^
+188 |             for exc in eg.exceptions:
+189 |                 logger.warning("json_broadcast_connection_error", error=str(exc))
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\health\unified_health_service.py:140:20
+    |
+138 |             except asyncio.CancelledError:
+139 |                 break
+140 |             except Exception as e:
+    |                    ^^^^^^^^^
+141 |                 logger.error("health_monitoring_error", error=str(e))
+142 |                 await asyncio.sleep(interval)
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> resync\core\health\unified_health_service.py:182:21
+    |
+180 |                       except* asyncio.CancelledError:
+181 |                           raise
+182 | /                     except* Exception:
+183 | |                         # Results extracted below from tasks
+184 | |                         pass
+    | |____________________________^
+185 |
+186 |                       # Extra├º├úo segura de resultados
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\health\unified_health_service.py:182:29
+    |
+180 |                     except* asyncio.CancelledError:
+181 |                         raise
+182 |                     except* Exception:
+    |                             ^^^^^^^^^
+183 |                         # Results extracted below from tasks
+184 |                         pass
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\health\unified_health_service.py:191:36
+    |
+189 |                             try:
+190 |                                 components[name] = task.result()
+191 |                             except Exception as e:
+    |                                    ^^^^^^^^^
+192 |                                 components[name] = self._create_error_health(name, str(e))
+193 |                         else:
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\health\unified_health_service.py:197:20
+    |
+195 |             except TimeoutError:
+196 |                 logger.warning("comprehensive_health_check_timeout", timeout=self.config.timeout_seconds)
+197 |             except Exception as e:
+    |                    ^^^^^^^^^
+198 |                 logger.error("comprehensive_health_check_group_error", error=str(e))
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\health\unified_health_service.py:237:16
+    |
+235 |             return result
+236 |
+237 |         except Exception as e:
+    |                ^^^^^^^^^
+238 |             logger.error("comprehensive_health_check_failed", error=str(e))
+239 |             return HealthCheckResult(
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\health\unified_health_service.py:284:13
+    |
+282 |         """
+283 |         if self._checkers is None:
+284 |             from .health_checkers.health_checker_factory import HealthCheckerFactory
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+285 |
+286 |             factory = HealthCheckerFactory()
+    |
+
+PLW0603 Using the global statement to update `_service_lock` is discouraged
+   --> resync\core\health\unified_health_service.py:480:12
+    |
+478 | def _get_service_lock() -> asyncio.Lock:
+479 |     """Lazy-initialize service lock bound to current running loop (gunicorn --preload safe)."""
+480 |     global _service_lock, _service_lock_loop
+    |            ^^^^^^^^^^^^^
+481 |     try:
+482 |         loop = asyncio.get_running_loop()
+    |
+
+PLW0603 Using the global statement to update `_service_lock_loop` is discouraged
+   --> resync\core\health\unified_health_service.py:480:27
+    |
+478 | def _get_service_lock() -> asyncio.Lock:
+479 |     """Lazy-initialize service lock bound to current running loop (gunicorn --preload safe)."""
+480 |     global _service_lock, _service_lock_loop
+    |                           ^^^^^^^^^^^^^^^^^^
+481 |     try:
+482 |         loop = asyncio.get_running_loop()
+    |
+
+PLW0603 Using the global statement to update `_unified_health_service` is discouraged
+   --> resync\core\health\unified_health_service.py:499:12
+    |
+497 |         UnifiedHealthService instance
+498 |     """
+499 |     global _unified_health_service
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+500 |
+501 |     if _unified_health_service is None:
+    |
+
+PLW0603 Using the global statement to update `_unified_health_service` is discouraged
+   --> resync\core\health\unified_health_service.py:511:12
+    |
+509 | async def shutdown_unified_health_service() -> None:
+510 |     """Shutdown the singleton UnifiedHealthService instance."""
+511 |     global _unified_health_service
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+512 |
+513 |     if _unified_health_service is not None:
+    |
+
+RUF002 Docstring contains ambiguous `ÔÇô` (EN DASH). Did you mean `-` (HYPHEN-MINUS)?
+  --> resync\core\orchestrator.py:94:59
+   |
+92 |     @property
+93 |     def success_rate(self) -> float:
+94 |         """Fraction of attempted tasks that succeeded (0.0ÔÇô1.0).
+   |                                                           ^
+95 |
+96 |         Computed dynamically from ``attempted_tasks`` and ``errors``, so it
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\orchestrator.py:275:25
+    |
+273 |                     # Garantir que cancelamento cooperative seja propagado
+274 |                     raise
+275 |                 except* Exception as eg:
+    |                         ^^^^^^^^^
+276 |                     # Log detalhado, mas n├úo interrompe o flow (partial failure)
+277 |                     logger.warning(
+    |
+
+F821 Undefined name `task_objects`
+   --> resync\core\orchestrator.py:294:38
+    |
+293 |         # Fan-in: map results back to task names
+294 |         self._assign_results(result, task_objects)
+    |                                      ^^^^^^^^^^^^
+295 |
+296 |         logger.info(
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> resync\core\orchestrator.py:342:17
+    |
+340 |                   except* asyncio.CancelledError:
+341 |                       raise
+342 | /                 except* Exception:
+343 | |                     # Exceptions will be caught when checking task.result()
+344 | |                     pass
+    | |________________________^
+345 |           except TimeoutError:
+346 |               logger.error("health_check_timeout", timeout=self.timeout)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\orchestrator.py:342:25
+    |
+340 |                 except* asyncio.CancelledError:
+341 |                     raise
+342 |                 except* Exception:
+    |                         ^^^^^^^^^
+343 |                     # Exceptions will be caught when checking task.result()
+344 |                     pass
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\orchestrator.py:367:45
+    |
+365 |                     "data": task_result,
+366 |                 }
+367 |             except (asyncio.CancelledError, Exception) as e:
+    |                                             ^^^^^^^^^
+368 |                 health["status"] = "DEGRADED"
+369 |                 health["details"][task_name] = {
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\orchestrator.py:405:45
+    |
+403 |                 if attr:
+404 |                     setattr(result, attr, task_result)
+405 |             except (asyncio.CancelledError, Exception) as e:
+    |                                             ^^^^^^^^^
+406 |                 result.errors[task_name] = (
+407 |                     f"{type(e).__name__}: {e}"
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\specialists\parallel_executor.py:219:17
+    |
+217 |             # Respect cooperative cancellation
+218 |             raise
+219 |         except* Exception as eg:
+    |                 ^^^^^^^^^
+220 |             # TaskGroup has finished, but one or more tasks failed with an exception.
+221 |             # We'll gather the results (including failures) in the next step.
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\specialists\parallel_executor.py:233:45
+    |
+231 |                 resp = task.result()
+232 |                 result.append(resp)
+233 |             except (asyncio.CancelledError, Exception) as e:
+    |                                             ^^^^^^^^^
+234 |                 result.append(
+235 |                     ToolResponse(
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\specialists\parallel_executor.py:253:20
+    |
+251 |                 resp = await self._execute_single(req)
+252 |                 responses.append(resp)
+253 |             except Exception as e:
+    |                    ^^^^^^^^^
+254 |                 responses.append(
+255 |                     ToolResponse(
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\specialists\parallel_executor.py:344:16
+    |
+342 |             )
+343 |
+344 |         except Exception as e:
+    |                ^^^^^^^^^
+345 |             self.catalog.update_run_status(
+346 |                 run.run_id,
+    |
+
+PLW0603 Using the global statement to update `_executor` is discouraged
+   --> resync\core\specialists\parallel_executor.py:382:12
+    |
+380 | def get_parallel_executor() -> ParallelToolExecutor:
+381 |     """Get the global parallel executor instance."""
+382 |     global _executor
+    |            ^^^^^^^^^
+383 |     if _executor is None:
+384 |         _executor = ParallelToolExecutor()
+    |
+
+SIM105 Use `contextlib.suppress(OSError, AttributeError)` instead of `try`-`except`-`pass`
+   --> resync\core\startup.py:125:9
+    |
+123 |           # Explicitly close immediately.
+124 |           writer.close()
+125 | /         try:
+126 | |             # apenas erros de I/O/loop s├úo ignorados
+127 | |             await writer.wait_closed()
+128 | |         except (OSError, AttributeError):
+129 | |             pass
+    | |________________^
+130 |           # Silence unused variable warning.
+131 |           _ = reader
+    |
+help: Replace with `contextlib.suppress(OSError, AttributeError)`
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:137:12
+    |
+135 |     except OSError as e:
+136 |         return False, f"os_error:{type(e).__name__}"
+137 |     except Exception as e:  # pragma: no cover
+    |            ^^^^^^^^^
+138 |         return False, f"unexpected:{type(e).__name__}"
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `200` with a constant variable
+   --> resync\core\startup.py:153:16
+    |
+151 |         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+152 |             resp = await client.get(url)
+153 |             if 200 <= resp.status_code < 300:
+    |                ^^^
+154 |                 return True, None, resp.status_code, None
+155 |             if 300 <= resp.status_code < 400:
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `300` with a constant variable
+   --> resync\core\startup.py:153:42
+    |
+151 |         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+152 |             resp = await client.get(url)
+153 |             if 200 <= resp.status_code < 300:
+    |                                          ^^^
+154 |                 return True, None, resp.status_code, None
+155 |             if 300 <= resp.status_code < 400:
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `300` with a constant variable
+   --> resync\core\startup.py:155:16
+    |
+153 |             if 200 <= resp.status_code < 300:
+154 |                 return True, None, resp.status_code, None
+155 |             if 300 <= resp.status_code < 400:
+    |                ^^^
+156 |                 loc = resp.headers.get("location")
+157 |                 # sanitiza querystring para n├úo vazar tokens
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `400` with a constant variable
+   --> resync\core\startup.py:155:42
+    |
+153 |             if 200 <= resp.status_code < 300:
+154 |                 return True, None, resp.status_code, None
+155 |             if 300 <= resp.status_code < 400:
+    |                                          ^^^
+156 |                 loc = resp.headers.get("location")
+157 |                 # sanitiza querystring para n├úo vazar tokens
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:167:12
+    |
+165 |     except httpx.RequestError as e:
+166 |         return False, f"request_error:{type(e).__name__}", None, None
+167 |     except Exception as e:  # pragma: no cover
+    |            ^^^^^^^^^
+168 |         return False, f"unexpected:{type(e).__name__}", None, None
+    |
+
+PLR0913 Too many arguments in function definition (6 > 5)
+   --> resync\core\startup.py:171:11
+    |
+171 | async def _retry(
+    |           ^^^^^^
+172 |     name: str,
+173 |     fn: Callable[[int], Awaitable[StartupCheck]],
+    |
+
+PLR0911 Too many return statements (8 > 6)
+   --> resync\core\startup.py:376:11
+    |
+376 | async def _check_redis(
+    |           ^^^^^^^^^^^^
+377 |     settings: Settings, *, deadline: float, logger: Any, disabled: bool
+378 | ) -> StartupCheck:
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:483:12
+    |
+481 |             duration_ms=int((time.monotonic() - start) * 1000),
+482 |         )
+483 |     except Exception as e:
+    |            ^^^^^^^^^
+484 |         # Prefer a stable reason code for known initializer failures.
+485 |         if isinstance(e, RedisInitError):
+    |
+
+PLR0912 Too many branches (14 > 12)
+   --> resync\core\startup.py:509:11
+    |
+509 | async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, Any]:
+    |           ^^^^^^^^^^^^^^^^^^
+510 |     """Run the canonical startup sequence.
+    |
+
+PLR0915 Too many statements (54 > 50)
+   --> resync\core\startup.py:509:11
+    |
+509 | async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, Any]:
+    |           ^^^^^^^^^^^^^^^^^^
+510 |     """Run the canonical startup sequence.
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> resync\core\startup.py:591:17
+    |
+589 |                   except* asyncio.CancelledError:
+590 |                       raise
+591 | /                 except* Exception:
+592 | |                     # Results will be extracted from tasks below
+593 | |                     pass
+    | |________________________^
+594 |           except TimeoutError:
+595 |               # Handle timeout for the entire check group
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:591:25
+    |
+589 |                 except* asyncio.CancelledError:
+590 |                     raise
+591 |                 except* Exception:
+    |                         ^^^^^^^^^
+592 |                     # Results will be extracted from tasks below
+593 |                     pass
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> resync\core\startup.py:597:9
+    |
+595 |               # Handle timeout for the entire check group
+596 |               pass
+597 | /         except Exception:
+598 | |             # Fallback for unexpected global failures
+599 | |             pass
+    | |________________^
+600 |
+601 |           now = time.monotonic()
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:597:16
+    |
+595 |             # Handle timeout for the entire check group
+596 |             pass
+597 |         except Exception:
+    |                ^^^^^^^^^
+598 |             # Fallback for unexpected global failures
+599 |             pass
+    |
+
+PLR0912 Too many branches (14 > 12)
+   --> resync\core\startup.py:661:11
+    |
+660 | @asynccontextmanager
+661 | async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    |           ^^^^^^^^
+662 |     """Manage application lifecycle with proper startup and shutdown.
+    |
+
+PLR0915 Too many statements (80 > 50)
+   --> resync\core\startup.py:661:11
+    |
+660 | @asynccontextmanager
+661 | async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    |           ^^^^^^^^
+662 |     """Manage application lifecycle with proper startup and shutdown.
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:685:12
+    |
+683 |             app.state.teams_webhook_version = "unknown"
+684 |             logger.warning("teams_webhook_version_file_not_found")
+685 |     except Exception as e:
+    |            ^^^^^^^^^
+686 |         app.state.teams_webhook_version = "error"
+687 |         logger.error("teams_webhook_version_load_error", error=str(e))
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:706:13
+    |
+705 |             # 2. Core initialization (failures here are fatal)
+706 |             from resync.api_gateway.container import setup_dependencies
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+707 |             from resync.core.tws_monitor import get_tws_monitor
+708 |             from resync.core.types.app_state import enterprise_state_from_app
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:707:13
+    |
+705 |             # 2. Core initialization (failures here are fatal)
+706 |             from resync.api_gateway.container import setup_dependencies
+707 |             from resync.core.tws_monitor import get_tws_monitor
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+708 |             from resync.core.types.app_state import enterprise_state_from_app
+709 |             from resync.core.wiring import init_domain_singletons
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:708:13
+    |
+706 |             from resync.api_gateway.container import setup_dependencies
+707 |             from resync.core.tws_monitor import get_tws_monitor
+708 |             from resync.core.types.app_state import enterprise_state_from_app
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+709 |             from resync.core.wiring import init_domain_singletons
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:709:13
+    |
+707 |             from resync.core.tws_monitor import get_tws_monitor
+708 |             from resync.core.types.app_state import enterprise_state_from_app
+709 |             from resync.core.wiring import init_domain_singletons
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+710 |
+711 |             await init_domain_singletons(app)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:715:13
+    |
+714 |             # Record startup time for admin dashboard uptime display
+715 |             from resync.core.startup_time import set_startup_time
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+716 |             set_startup_time()
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:749:33
+    |
+747 |                         except* asyncio.CancelledError:
+748 |                             raise
+749 |                         except* Exception:
+    |                                 ^^^^^^^^^
+750 |                             # Log and continue; these are optional
+751 |                             get_logger("resync.startup").warning("optional_services_init_partial_failure")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> resync\core\startup.py:754:24
+    |
+752 |                 except TimeoutError:
+753 |                     get_logger("resync.startup").warning("optional_services_init_timeout")
+754 |                 except Exception as e:
+    |                        ^^^^^^^^^
+755 |                     optional_results.append(e)
+    |
+
+F821 Undefined name `optional_results`
+   --> resync\core\startup.py:755:21
+    |
+753 |                     get_logger("resync.startup").warning("optional_services_init_timeout")
+754 |                 except Exception as e:
+755 |                     optional_results.append(e)
+    |                     ^^^^^^^^^^^^^^^^
+756 |
+757 |                 # Re-raise critical programming errors
+    |
+
+F821 Undefined name `optional_results`
+   --> resync\core\startup.py:758:28
+    |
+757 |                 # Re-raise critical programming errors
+758 |                 for res in optional_results:
+    |                            ^^^^^^^^^^^^^^^^
+759 |                     if isinstance(res, (TypeError, KeyError, AttributeError, IndexError, NameError)):
+760 |                         logger.critical("critical_startup_programming_error", error=str(res), type=type(res).__name__)
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> resync\core\startup.py:781:9
+    |
+779 |               },
+780 |           )
+781 | /         raise ConfigurationError(
+782 | |             f"Application startup exceeded {startup_timeout}s timeout"
+783 | |         )
+    | |_________^
+784 |       except Exception as exc:
+785 |           if not isinstance(exc, ConfigurationError):
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:801:13
+    |
+799 |               await app.state.singletons_ready_event.wait()
+800 |
+801 | /             from resync.core.monitoring_integration import (
+802 | |                 initialize_proactive_monitoring,
+803 | |             )
+    | |_____________^
+804 |
+805 |               await initialize_proactive_monitoring(app, tg=bg_tasks)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:820:13
+    |
+818 |             await app.state.singletons_ready_event.wait()
+819 |
+820 |             from resync.api import monitoring_dashboard
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+821 |
+822 |             # Use global TaskGroup if available
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:829:17
+    |
+827 |                 )
+828 |             else:
+829 |                 from resync.core.task_tracker import create_tracked_task
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+830 |                 monitoring_dashboard._collector_task = await create_tracked_task(
+831 |                     monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:847:13
+    |
+845 |             await app.state.singletons_ready_event.wait()
+846 |
+847 |             from resync.core.cache_utils import warmup_cache_on_startup
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+848 |
+849 |             await warmup_cache_on_startup()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:867:13
+    |
+865 |                 return
+866 |
+867 |             from resync.core.graphrag_integration import initialize_graphrag
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+868 |             from resync.core.redis_init import get_redis_client, is_redis_available
+869 |             from resync.knowledge.retrieval.graph import get_knowledge_graph
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:868:13
+    |
+867 |             from resync.core.graphrag_integration import initialize_graphrag
+868 |             from resync.core.redis_init import get_redis_client, is_redis_available
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+869 |             from resync.knowledge.retrieval.graph import get_knowledge_graph
+870 |             from resync.services.llm_service import get_llm_service
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:869:13
+    |
+867 |             from resync.core.graphrag_integration import initialize_graphrag
+868 |             from resync.core.redis_init import get_redis_client, is_redis_available
+869 |             from resync.knowledge.retrieval.graph import get_knowledge_graph
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+870 |             from resync.services.llm_service import get_llm_service
+871 |             from resync.services.tws_service import get_tws_client
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:870:13
+    |
+868 |             from resync.core.redis_init import get_redis_client, is_redis_available
+869 |             from resync.knowledge.retrieval.graph import get_knowledge_graph
+870 |             from resync.services.llm_service import get_llm_service
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+871 |             from resync.services.tws_service import get_tws_client
+872 |             initialize_graphrag(
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:871:13
+    |
+869 |             from resync.knowledge.retrieval.graph import get_knowledge_graph
+870 |             from resync.services.llm_service import get_llm_service
+871 |             from resync.services.tws_service import get_tws_client
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+872 |             initialize_graphrag(
+873 |                 llm_service=await get_llm_service(),
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:893:13
+    |
+891 |             await app.state.singletons_ready_event.wait()
+892 |
+893 |             from resync.core.unified_config import initialize_config_system
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+894 |
+895 |             await initialize_config_system()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:908:13
+    |
+906 |         async with asyncio.timeout(15):
+907 |             await app.state.singletons_ready_event.wait()
+908 |             from resync.core.enterprise.manager import get_enterprise_manager
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+909 |             manager = get_enterprise_manager()
+910 |             await manager.initialize(tg=bg_tasks)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:921:13
+    |
+919 |         async with asyncio.timeout(10):
+920 |             await app.state.singletons_ready_event.wait()
+921 |             from resync.core.health import get_unified_health_service
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+922 |             service = get_unified_health_service()
+923 |             service.start_monitoring(tg=bg_tasks)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:934:13
+    |
+932 |         async with asyncio.timeout(10):
+933 |             await app.state.singletons_ready_event.wait()
+934 |             from resync.core.backup.backup_service import get_backup_service
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+935 |             service = get_backup_service()
+936 |             service.start_scheduler(tg=bg_tasks)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:947:13
+    |
+945 |         async with asyncio.timeout(10):
+946 |             await app.state.singletons_ready_event.wait()
+947 |             from resync.core.security_dashboard import get_security_dashboard
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+948 |             dashboard = get_security_dashboard(tg=bg_tasks)
+949 |             # dashboard is automatically started via get_security_dashboard and its lazy init
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:960:13
+    |
+958 |         async with asyncio.timeout(10):
+959 |             await app.state.singletons_ready_event.wait()
+960 |             from resync.core.event_bus import get_event_bus
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+961 |             bus = get_event_bus()
+962 |             bus.start(tg=bg_tasks)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:973:13
+    |
+971 |         async with asyncio.timeout(15):
+972 |             await app.state.singletons_ready_event.wait()
+973 |             from resync.core.service_discovery import get_service_discovery_manager
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+974 |             manager = get_service_discovery_manager(tg=bg_tasks)
+975 |             # manager is automatically started via get_service_discovery_manager and its lazy init
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:995:5
+    |
+994 |     # Imports inside to avoid early circular deps
+995 |     from resync.core.task_tracker import cancel_all_tasks
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+996 |     from resync.core.tws_monitor import shutdown_tws_monitor
+997 |     from resync.core.wiring import shutdown_domain_singletons
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:996:5
+    |
+994 |     # Imports inside to avoid early circular deps
+995 |     from resync.core.task_tracker import cancel_all_tasks
+996 |     from resync.core.tws_monitor import shutdown_tws_monitor
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+997 |     from resync.core.wiring import shutdown_domain_singletons
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> resync\core\startup.py:997:5
+    |
+995 |     from resync.core.task_tracker import cancel_all_tasks
+996 |     from resync.core.tws_monitor import shutdown_tws_monitor
+997 |     from resync.core.wiring import shutdown_domain_singletons
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+998 |
+999 |     # 1. Cancel background tasks FIRST (priority: stop active work)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+    --> resync\core\startup.py:1008:16
+     |
+1006 |                 "task_cancel_timeout", hint="Some tasks did not cancel within 7s"
+1007 |             )
+1008 |         except Exception as e:
+     |                ^^^^^^^^^
+1009 |             logger.warning("task_cancel_error", error=str(e))
+     |
+
+BLE001 Do not catch blind exception: `Exception`
+    --> resync\core\startup.py:1020:16
+     |
+1018 |                 "singleton_shutdown_timeout", hint="Singleton shutdown exceeded 10s"
+1019 |             )
+1020 |         except Exception as e:
+     |                ^^^^^^^^^
+1021 |             logger.error("domain_shutdown_error", error=str(e))
+     |
+
+BLE001 Do not catch blind exception: `Exception`
+    --> resync\core\startup.py:1030:16
+     |
+1028 |         except TimeoutError:
+1029 |             logger.warning("tws_monitor_shutdown_timeout")
+1030 |         except Exception as e:
+     |                ^^^^^^^^^
+1031 |             logger.warning("tws_monitor_shutdown_error", error=str(e))
+     |
+
+PLC0415 `import` should be at the top-level of a file
+    --> resync\core\startup.py:1035:9
+     |
+1033 |     # 4. Shutdown Health Service
+1034 |     async def _shutdown_health():
+1035 |         from resync.core.health import shutdown_unified_health_service
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1036 |
+1037 |         try:
+     |
+
+BLE001 Do not catch blind exception: `Exception`
+    --> resync\core\startup.py:1040:16
+     |
+1038 |             await asyncio.wait_for(shutdown_unified_health_service(), timeout=5.0)
+1039 |             logger.info("health_service_shutdown")
+1040 |         except Exception as e:
+     |                ^^^^^^^^^
+1041 |             logger.warning("health_service_shutdown_error", error=str(e))
+     |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+    --> resync\core\startup.py:1050:5
+     |
+1048 |               tg.create_task(_shutdown_tws())
+1049 |               tg.create_task(_shutdown_health())
+1050 | /     except* Exception:
+1051 | |         pass
+     | |____________^
+1052 |
+1053 |       logger.info("application_shutdown_completed")
+     |
+
+BLE001 Do not catch blind exception: `Exception`
+    --> resync\core\startup.py:1050:13
+     |
+1048 |             tg.create_task(_shutdown_tws())
+1049 |             tg.create_task(_shutdown_health())
+1050 |     except* Exception:
+     |             ^^^^^^^^^
+1051 |         pass
+     |
+
+Found 200 errors (80 fixed, 120 remaining).
+No fixes available (2 hidden fixes can be enabled with the `--unsafe-fixes` option).

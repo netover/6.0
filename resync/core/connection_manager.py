@@ -67,6 +67,8 @@ class ConnectionManager:
         try:
             await websocket.close()
         except Exception as e:
+            if isinstance(e, asyncio.CancelledError):
+                raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
 
         if self._pool_manager:
@@ -105,6 +107,8 @@ class ConnectionManager:
                 else:
                     logger.error("Runtime error sending to client %s: %s", client_id, e)
             except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    raise
                 logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
@@ -137,8 +141,13 @@ class ConnectionManager:
         tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
-                for connection in connections:
-                    tasks.append(tg.create_task(connection.send_text(message)))
+                for idx, connection in enumerate(connections):
+                    tasks.append(tg.create_task(
+                        connection.send_text(message),
+                        name=f"broadcast_text_{idx}"
+                    ))
+        except* asyncio.CancelledError:
+            raise
         except* Exception as eg:
             for exc in eg.exceptions:
                 logger.warning("broadcast_connection_error", error=str(exc))
@@ -172,8 +181,13 @@ class ConnectionManager:
         tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
-                for connection in connections:
-                    tasks.append(tg.create_task(connection.send_json(data)))
+                for idx, connection in enumerate(connections):
+                    tasks.append(tg.create_task(
+                        connection.send_json(data),
+                        name=f"broadcast_json_{idx}"
+                    ))
+        except* asyncio.CancelledError:
+            raise
         except* Exception as eg:
             for exc in eg.exceptions:
                 logger.warning("json_broadcast_connection_error", error=str(exc))

@@ -16,10 +16,9 @@ Consolidated into a single, well-organized module (~600 lines).
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
 import contextlib
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -32,6 +31,7 @@ from resync.core.health.health_models import (
     HealthStatus,
     HealthStatusHistory,
 )
+from resync.core.task_tracker import create_tracked_task, track_task
 
 if TYPE_CHECKING:
     from .health_checkers.base_health_checker import BaseHealthChecker
@@ -98,7 +98,7 @@ class UnifiedHealthService:
 
         self._is_monitoring = True
         interval = interval_seconds or self.config.check_interval_seconds
-        
+
         if tg:
             self._monitoring_task = tg.create_task(
                 self._monitoring_loop(interval), name="monitoring_loop"
@@ -107,7 +107,7 @@ class UnifiedHealthService:
             self._monitoring_task = track_task(
                 self._monitoring_loop(interval), name="monitoring_loop"
             )
-            
+
         logger.info("unified_health_monitoring_started", interval=interval, method="task_group" if tg else "track_task")
 
     async def stop_monitoring(self) -> None:
@@ -138,6 +138,8 @@ class UnifiedHealthService:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    break
                 logger.error("health_monitoring_error", error=str(e))
                 await asyncio.sleep(interval)
 
@@ -165,32 +167,46 @@ class UnifiedHealthService:
 
             # Execute all checks in parallel with timeout using TaskGroup
             components: dict[str, ComponentHealth] = {}
-            
+
             try:
                 async with asyncio.timeout(self.config.timeout_seconds):
-                    async with asyncio.TaskGroup() as tg:
-                        tasks = {
-                            name: tg.create_task(
-                                self._execute_check_with_timeout(checker, name),
-                                name=f"health_check_{name}"
-                            )
-                            for name, checker in checkers.items()
-                        }
-                    
-                    # Once TaskGroup exits, all tasks are done
+                    try:
+                        async with asyncio.TaskGroup() as tg:
+                            tasks = {
+                                name: tg.create_task(
+                                    self._execute_check_with_timeout(checker, name),
+                                    name=f"health_check_{name}"
+                                )
+                                for name, checker in checkers.items()
+                            }
+                    except* asyncio.CancelledError:
+                        raise
+                    except* Exception:
+                        # Results extracted below from tasks
+                        pass
+
+                    # Extração segura de resultados
                     for name, task in tasks.items():
-                        try:
-                            components[name] = task.result()
-                        except Exception as e:
-                            components[name] = self._create_error_health(name, str(e))
-            except (asyncio.TimeoutError, ExceptionGroup) as e:
-                # Handle group failures or overall timeout
-                logger.warning("comprehensive_health_check_partial_failure_or_timeout", error=str(e))
-                
-                # Fill in missing results
-                for name in checkers:
-                    if name not in components:
-                        components[name] = self._create_error_health(name, "Check timeout or failure")
+                        if task.done() and not task.cancelled():
+                            try:
+                                components[name] = task.result()
+                            except Exception as e:
+                                if isinstance(e, asyncio.CancelledError):
+                                    raise
+                                components[name] = self._create_error_health(name, str(e))
+                        else:
+                            components[name] = self._create_error_health(name, "Check interrupted or timed out")
+            except TimeoutError:
+                logger.warning("comprehensive_health_check_timeout", timeout=self.config.timeout_seconds)
+            except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    raise
+                logger.error("comprehensive_health_check_group_error", error=str(e))
+
+            # Fill in missing results (failsafe)
+            for name in checkers:
+                if name not in components:
+                    components[name] = self._create_error_health(name, "Internal health check orchestration failure")
 
             # Calculate overall status
             overall_status = self._calculate_overall_status(components)
@@ -199,7 +215,7 @@ class UnifiedHealthService:
             result = HealthCheckResult(
                 overall_status=overall_status,
                 components=components,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=(time.time() - start_time) * 1000,
                 alerts=self._generate_alerts(components),
                 summary=self._generate_summary(components),
@@ -225,13 +241,15 @@ class UnifiedHealthService:
             return result
 
         except Exception as e:
+            if isinstance(e, asyncio.CancelledError):
+                raise
             logger.error("comprehensive_health_check_failed", error=str(e))
             return HealthCheckResult(
                 overall_status=HealthStatus.UNHEALTHY,
                 components={},
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=(time.time() - start_time) * 1000,
-                alerts=[f"Health check failed: {str(e)}"],
+                alerts=[f"Health check failed: {e!s}"],
                 summary={"error": 1},
             )
 
@@ -253,7 +271,7 @@ class UnifiedHealthService:
                 checker.check_health(),
                 timeout=self.config.timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("health_check_timeout", component=name)
             return self._create_error_health(name, "Check timeout")
         except Exception as e:

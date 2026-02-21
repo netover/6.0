@@ -253,25 +253,23 @@ async def get_job_summary(
         # Buscar informações em paralelo
         import asyncio
 
-        tasks = {}
+        status_task = None
+        context_task = None
+
         try:
             async with asyncio.TaskGroup() as tg:
-                tasks["status"] = tg.create_task(
+                status_task = tg.create_task(
                     tws_client.get_job_status(job_name)
                     if hasattr(tws_client, "get_job_status")
                     else tws_client.get_job_status_cached(job_name)
                 )
-                tasks["context"] = tg.create_task(
+                context_task = tg.create_task(
                     knowledge_graph.get_relevant_context(
                         f"informações sobre job {job_name}"
                     )
                 )
-        except* asyncio.CancelledError as exc_group:
-            logger.warning(
-                "Task cancellation during job summary for %s: %d tasks cancelled",
-                job_name,
-                len(exc_group.exceptions),
-            )
+        except* asyncio.CancelledError:
+            logger.warning("Task cancellation during job summary for %s", job_name)
             raise
         except* TimeoutError as exc_group:
             logger.error(
@@ -285,18 +283,28 @@ async def get_job_summary(
                 "Unexpected errors in job summary for %s: %s",
                 job_name,
                 [type(e).__name__ for e in exc_group.exceptions],
-                exc_info=True,
+                exc_info=exc_group,
             )
 
-        try:
-            status = tasks["status"].result()
-        except (asyncio.CancelledError, Exception):
+        # Extração segura sem "dummy tasks"
+        status = None
+        if status_task and status_task.done() and not status_task.cancelled():
+            try:
+                status = status_task.result()
+            except Exception as e:
+                logger.error("Error extracting job status: %s", e)
+
+        if status is None:
             raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
 
-        try:
-            context = tasks["context"].result()
-        except (asyncio.CancelledError, Exception) as e:
-            context = e
+        # Contexto é opcional (fail-safe)
+        context = None
+        if context_task and context_task.done() and not context_task.cancelled():
+            try:
+                context = context_task.result()
+            except Exception as e:
+                logger.warning("Error extracting relevant context: %s", e)
+                context = f"Erro ao recuperar contexto: {e}"
 
         # Gerar sumário com LLM
         prompt = f"""Analise o seguinte job TWS e forneça um sumário conciso:
