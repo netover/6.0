@@ -266,8 +266,27 @@ async def get_job_summary(
                         f"informações sobre job {job_name}"
                     )
                 )
-        except* Exception:
-            pass
+        except* asyncio.CancelledError as exc_group:
+            logger.warning(
+                "Task cancellation during job summary for %s: %d tasks cancelled",
+                job_name,
+                len(exc_group.exceptions),
+            )
+            raise
+        except* TimeoutError as exc_group:
+            logger.error(
+                "Timeout fetching data for job %s: %d operations timed out",
+                job_name,
+                len(exc_group.exceptions),
+                exc_info=True,
+            )
+        except* Exception as exc_group:
+            logger.error(
+                "Unexpected errors in job summary for %s: %s",
+                job_name,
+                [type(e).__name__ for e in exc_group.exceptions],
+                exc_info=True,
+            )
 
         try:
             status = tasks["status"].result()
@@ -313,7 +332,12 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("Error generating job summary: %s", job_name, e, exc_info=True)
+        logger.error(
+            "Error generating job summary for job '%s': %s",
+            job_name,
+            str(e),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None

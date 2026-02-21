@@ -20,15 +20,14 @@ Combina as melhores decisões de três análises independentes:
   - Histórico apenas em eventos enfileirados com sucesso (consistência)
 
 Autor: Resync Team
-Versão: 5.3
+Versão: 6.1.2
 """
 
 import asyncio
+import collections.abc
 import contextlib
-import inspect
 import json
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -122,7 +121,7 @@ class Subscriber:
     """Representa um assinante interno com callback."""
 
     subscriber_id: str
-    callback: Callable
+    callback: collections.abc.Callable
     subscription_types: set[SubscriptionType]
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     events_received: int = 0
@@ -272,7 +271,7 @@ class EventBus:
     def subscribe(
         self,
         subscriber_id: str,
-        callback: Callable,
+        callback: collections.abc.Callable,
         subscription_types: set[SubscriptionType] | None = None,
     ) -> None:
         """
@@ -382,10 +381,8 @@ class EventBus:
         }
 
         try:
-            await asyncio.wait_for(
-                client_ref.websocket.send_text(json.dumps(message, default=str)),
-                timeout=self.config.websocket_send_timeout,
-            )
+            async with asyncio.timeout(self.config.websocket_send_timeout):
+                await client_ref.websocket.send_text(json.dumps(message, default=str))
         except asyncio.TimeoutError:
             logger.warning(
                 "recent_events_timeout",
@@ -470,10 +467,8 @@ class EventBus:
 
         while self._is_running:
             try:
-                event_data = await asyncio.wait_for(
-                    self._event_queue.get(),
-                    timeout=1.0,
-                )
+                async with asyncio.timeout(1.0):
+                    event_data = await self._event_queue.get()
 
                 # Pré-serialização única — economiza CPU com N clientes conectados
                 json_message = json.dumps(
@@ -490,7 +485,7 @@ class EventBus:
 
                 self._event_queue.task_done()
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
@@ -520,10 +515,9 @@ class EventBus:
                 continue
 
             try:
-                if inspect.iscoroutinefunction(subscriber.callback):
-                    await subscriber.callback(event_data)
-                else:
-                    await asyncio.to_thread(subscriber.callback, event_data)
+                result = subscriber.callback(event_data)
+                if isinstance(result, collections.abc.Awaitable):
+                    await result
 
                 subscriber.events_received += 1
                 self._events_delivered += 1
@@ -563,10 +557,8 @@ class EventBus:
                 return None
 
             try:
-                await asyncio.wait_for(
-                    client.websocket.send_text(json_message),
-                    timeout=self.config.websocket_send_timeout,
-                )
+                async with asyncio.timeout(self.config.websocket_send_timeout):
+                    await client.websocket.send_text(json_message)
                 client.messages_sent += 1
                 self._events_delivered += 1
                 return None
@@ -707,15 +699,13 @@ class EventBus:
 
         async def _send(client: WebSocketClient) -> bool:
             try:
-                await asyncio.wait_for(
-                    client.websocket.send_text(msg_json),
-                    timeout=self.config.websocket_send_timeout,
-                )
+                async with asyncio.timeout(self.config.websocket_send_timeout):
+                    await client.websocket.send_text(msg_json)
                 return True
             except Exception as e:
                 logger.debug(
                     "broadcast_message_failed",
-                    client_id=client.client_id,  # corrigido: era getattr(client, "id")
+                    client_id=client.client_id,
                     error=str(e),
                 )
                 return False

@@ -1,47 +1,70 @@
 from collections import defaultdict
 from pathlib import Path
+from typing import Dict
 
-def generate_core_plan():
-    report_file = Path("mypy_core_report.txt")
-    if not report_file.exists():
-        print("Report not found.")
-        return
-
+def parse_core_report(report_path: Path) -> Dict[str, int]:
+    """Parse mypy report and count errors by core domain."""
     domain_counts = defaultdict(int)
     
-    with open(report_file, "r", encoding="utf-8") as f:
-        for line in f:
-            if "error:" in line:
-                # Format: resync/core/something/file.py:line:col: error: ...
+    if not report_path.exists():
+        return domain_counts
+
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if "error:" not in line:
+                    continue
+                
                 parts = line.split(":")
-                if len(parts) > 0:
-                    filepath = parts[0].replace('\\', '/')
-                    if filepath.startswith("resync/core/"):
-                        # Group by top 3 directories, e.g., resync/core/health, resync/core/cache
-                        path_parts = filepath.split('/')
-                        if len(path_parts) >= 3:
-                            domain = f"{path_parts[0]}/{path_parts[1]}/{path_parts[2]}"
-                            domain_counts[domain] += 1
-                        else:
-                            domain_counts["resync/core (root files)"] += 1
-    
-    # Sort domains by error count (descending)
+                if len(parts) < 4:
+                    continue
+
+                filepath = parts[0].replace('\\', '/')
+                if not filepath.startswith("resync/core/"):
+                    continue
+
+                path_parts = filepath.split('/')
+                if len(path_parts) >= 3:
+                    # Group by: resync/core/domain
+                    domain = f"{path_parts[0]}/{path_parts[1]}/{path_parts[2]}"
+                    domain_counts[domain] += 1
+                else:
+                    domain_counts["resync/core (root files)"] += 1
+    except Exception as e:
+        print(f"Error reading report: {e}")
+        
+    return domain_counts
+
+def format_core_plan(domain_counts: Dict[str, int]) -> str:
+    """Format domain counts into a markdown plan."""
     sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)
     
-    plan_content = [
+    lines = [
         "# Mypy Core Remediation Task",
         "",
         "## Sub-tasks for `resync/core/`",
         ""
     ]
     
-    for i, (domain, count) in enumerate(sorted_domains, 1):
-        plan_content.append(f"- [ ] `mypy` for `{domain}/` ({count} errors)")
-    
     if not sorted_domains:
-        plan_content.append("No errors found! Core is 100% compliant.")
-        
-    print("\n".join(plan_content))
+        lines.append("No errors found! Core is 100% compliant.")
+    else:
+        for i, (domain, count) in enumerate(sorted_domains, 1):
+            lines.append(f"- [ ] `mypy` for `{domain}/` ({count} errors)")
+            
+    return "\n".join(lines)
+
+def generate_core_plan():
+    """Main entry for generating core remediation plan."""
+    report_file = Path("mypy_core_report.txt")
+    counts = parse_core_report(report_file)
+    
+    if not counts and not report_file.exists():
+        print("Report not found.")
+        return
+
+    plan = format_core_plan(counts)
+    print(plan)
 
 if __name__ == "__main__":
     generate_core_plan()

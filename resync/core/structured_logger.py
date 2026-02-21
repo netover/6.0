@@ -11,7 +11,7 @@ Características:
 - Integração com sistemas de agregação (ELK, Loki, etc.)
 """
 
-from __future__ import annotations
+
 
 import logging
 import sys

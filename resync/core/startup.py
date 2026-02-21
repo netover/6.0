@@ -17,7 +17,7 @@ Design goals
 The public entrypoint here is :func:`run_startup_checks`.
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import os

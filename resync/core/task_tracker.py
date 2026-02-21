@@ -15,7 +15,7 @@ Integration notes:
 - For cross-thread scheduling, use create_tracked_task_threadsafe().
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import functools

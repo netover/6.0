@@ -9,16 +9,15 @@ Java's try-with-resources and Python's context managers.
 import asyncio
 import inspect
 import logging
-import os
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, TypeVar
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+
 
 
 @dataclass
@@ -36,7 +35,7 @@ class ResourceInfo:
         return (datetime.now(timezone.utc) - self.created_at).total_seconds()
 
 
-class ManagedResource:
+class ManagedResource[T]:
     """
     Base class for managed resources with automatic cleanup.
 
@@ -112,7 +111,7 @@ class ManagedResource:
         pass
 
 
-class DatabaseConnectionResource(ManagedResource):
+class DatabaseConnectionResource(ManagedResource[Any]):
     """Managed database connection resource."""
 
     def __init__(self, connection: Any, resource_id: str = "db_connection"):
@@ -134,7 +133,7 @@ class DatabaseConnectionResource(ManagedResource):
             raise
 
 
-class FileResource(ManagedResource):
+class FileResource(ManagedResource[Any]):
     """Managed file resource."""
 
     def __init__(self, file_handle: Any, resource_id: str = "file"):
@@ -165,7 +164,7 @@ class FileResource(ManagedResource):
             raise
 
 
-class NetworkSocketResource(ManagedResource):
+class NetworkSocketResource(ManagedResource[Any]):
     """Managed network socket resource."""
 
     def __init__(self, socket: Any, resource_id: str = "socket"):
@@ -237,7 +236,7 @@ def managed_file_sync(file_path: str, mode: str = "r") -> Iterator[Any]:
             file_handle.close()
 
 
-class ResourcePool:
+class ResourcePool[T]:
     """
     Generic resource pool with automatic cleanup and leak detection.
     """
@@ -251,9 +250,9 @@ class ResourcePool:
     async def acquire(
         self,
         resource_type: str,
-        factory: Callable[[], Any],
+        factory: Callable[[], T],
         metadata: dict[str, Any] | None = None,
-    ) -> tuple[str, Any]:
+    ) -> tuple[str, T]:
         """
         Acquire a resource from the pool.
         """
@@ -360,13 +359,12 @@ class ResourcePool:
         }
 
 
-@asynccontextmanager
-async def resource_scope(
+async def resource_scope[T](
     pool: ResourcePool,
     resource_type: str,
-    factory: Callable[[], Any],
+    factory: Callable[[], T],
     metadata: dict[str, Any] | None = None,
-) -> AsyncIterator[Any]:
+) -> AsyncIterator[T]:
     """
     Context manager for scoped resource management.
     """

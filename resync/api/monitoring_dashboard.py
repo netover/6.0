@@ -272,8 +272,13 @@ class DashboardMetricsStore:
                 async with asyncio.TaskGroup() as tg:
                     tasks["prev_req"] = tg.create_task(redis.get(REDIS_KEY_PREV_REQUESTS))
                     tasks["prev_time"] = tg.create_task(redis.get(REDIS_KEY_PREV_WALLTIME))
-            except* Exception:
-                pass
+            except* asyncio.CancelledError:
+                raise
+            except* Exception as exc_group:
+                logger.error(
+                    "Unexpected errors fetching previous request state: %s",
+                    [type(e).__name__ for e in exc_group.exceptions]
+                )
             
             prev_requests = _safe_int(tasks["prev_req"].result())
             prev_walltime = _safe_float(tasks["prev_time"].result())

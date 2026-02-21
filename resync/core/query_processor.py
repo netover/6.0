@@ -11,7 +11,7 @@ Features:
 - Templates de prompt otimizados por tipo de query
 """
 
-from __future__ import annotations
+
 
 import logging
 import re

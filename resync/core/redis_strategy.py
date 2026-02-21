@@ -17,7 +17,7 @@ Author: Resync Team
 Version: 5.4.2
 """
 
-from __future__ import annotations
+
 
 import os
 import re

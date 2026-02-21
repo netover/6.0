@@ -14,7 +14,7 @@ Note:
     consider ``aiocircuitbreaker`` or a custom state machine per dependency.
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import random

@@ -1,23 +1,9 @@
-"""
-Orchestration API Routes
-
-Endpoints for managing and executing orchestration workflows.
-"""
-
 import asyncio
 import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    BackgroundTasks,
-    WebSocket,
-    WebSocketDisconnect,
-    status,
-)
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.api.dependencies_v2 import get_database
@@ -34,9 +20,6 @@ from resync.core.orchestration.events import event_bus, EventType, Orchestration
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orchestration", tags=["Orchestration"])
-
-
-from fastapi import Request
 
 # Dependency for Runner
 def get_runner(request: Request):
