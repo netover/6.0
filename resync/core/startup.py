@@ -777,7 +777,10 @@ async def _init_metrics_collector(app: FastAPI) -> None:
             from resync.api import monitoring_dashboard
             from resync.core.task_tracker import create_tracked_task
 
-            monitoring_dashboard._collector_task = await create_tracked_task(
+            # create_tracked_task is sync – it schedules a coroutine as an
+            # asyncio Task and returns the Task object immediately.
+            # Do NOT await it; awaiting would block until the task completes.
+            monitoring_dashboard._collector_task = create_tracked_task(
                 monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
             )
     except Exception as exc:
@@ -811,7 +814,7 @@ async def _init_graphrag(app: FastAPI) -> None:
 
             settings = get_settings()
             graphrag_enabled = getattr(settings, "GRAPHRAG_ENABLED", False)
-            if not isinstance(graphrag_enabled, bool) or not graphrag_enabled:
+            if not graphrag_enabled:
                 return
 
             from resync.core.graphrag_integration import initialize_graphrag
@@ -824,7 +827,7 @@ async def _init_graphrag(app: FastAPI) -> None:
                 llm_service=await get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
                 tws_client=get_tws_client(),
-                redis_client=get_redis_client() if get_redis_client else None,
+                redis_client=get_redis_client(),  # returns None when Redis is disabled
                 enabled=True,
             )
     except Exception as exc:
