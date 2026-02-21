@@ -1,5 +1,5 @@
 """
-Service Orchestrator — parallel fan-out/fan-in for multiple backend services.
+Service Orchestrator (v6.1.2) — parallel fan-out/fan-in for multiple backend services.
 
 Coordinates calls to TWS, Knowledge Graph and other services with:
 - Automatic parallelisation of independent calls via ``asyncio.gather``

@@ -809,7 +809,7 @@ async def _init_metrics_collector(app: FastAPI) -> None:
                 )
             else:
                 from resync.core.task_tracker import create_tracked_task
-                monitoring_dashboard._collector_task = create_tracked_task(
+                monitoring_dashboard._collector_task = await create_tracked_task(
                     monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
                 )
     except Exception as exc:
@@ -852,11 +852,12 @@ async def _init_graphrag(app: FastAPI) -> None:
             from resync.services.llm_service import get_llm_service
             from resync.services.tws_service import get_tws_client
 
+            from resync.core.redis_init import is_redis_available
             initialize_graphrag(
                 llm_service=await get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
                 tws_client=get_tws_client(),
-                redis_client=get_redis_client(),  # returns None when Redis is disabled
+                redis_client=get_redis_client() if is_redis_available() else None,
                 enabled=True,
             )
     except Exception as exc:

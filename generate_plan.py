@@ -15,7 +15,7 @@ def generate_plan():
             if "error:" in line:
                 # Format: resync/something/file.py:line:col: error: ...
                 parts = line.split(":")
-                if len(parts) > 0:
+                if len(parts) >= 4:
                     filepath = parts[0].replace('\\', '/')
                     if filepath.startswith("resync/"):
                         # Group by top 2 directories, e.g., resync/core, resync/api/routes
@@ -25,6 +25,8 @@ def generate_plan():
                             domain = f"{path_parts[0]}/{path_parts[1]}"
                             domain_counts[domain] += 1
                             file_counts[filepath] += 1
+                else:
+                    print(f"DEBUG: Malformed mypy line: {line.strip()}")
     
     # Sort domains by error count (descending)
     sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)

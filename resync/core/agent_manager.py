@@ -301,12 +301,22 @@ class AgentManager:
     # -----------------------------------------------------------------
 
     def _get_tws_lock(self) -> asyncio.Lock:
-        if self._tws_init_lock is None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._tws_init_lock is None or (loop and self._tws_init_lock._loop != loop):
             self._tws_init_lock = asyncio.Lock()
         return self._tws_init_lock
 
     def _get_agent_lock(self) -> asyncio.Lock:
-        if self._agent_creation_lock is None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._agent_creation_lock is None or (loop and self._agent_creation_lock._loop != loop):
             self._agent_creation_lock = asyncio.Lock()
         return self._agent_creation_lock
 
