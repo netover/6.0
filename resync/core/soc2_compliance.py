@@ -274,23 +274,39 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
 
         self.report_generator = ReportGenerator()
 
-    def start(self) -> None:
-        """Start the SOC 2 compliance manager."""
+    def start(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """
+        Start the SOC 2 compliance manager.
+
+        Args:
+            tg: Optional TaskGroup to run the background tasks in
+        """
         if self._running:
             return
 
         self._running = True
-        self._testing_task = track_task(
-            self._control_testing_worker(), name="control_testing_worker"
-        )
-        self._monitoring_task = track_task(
-            self._monitoring_worker(), name="monitoring_worker"
-        )
-        self._reporting_task = track_task(
-            self._reporting_worker(), name="reporting_worker"
-        )
+        if tg:
+            self._testing_task = tg.create_task(
+                self._control_testing_worker(), name="control_testing_worker"
+            )
+            self._monitoring_task = tg.create_task(
+                self._monitoring_worker(), name="monitoring_worker"
+            )
+            self._reporting_task = tg.create_task(
+                self._reporting_worker(), name="reporting_worker"
+            )
+        else:
+            self._testing_task = track_task(
+                self._control_testing_worker(), name="control_testing_worker"
+            )
+            self._monitoring_task = track_task(
+                self._monitoring_worker(), name="monitoring_worker"
+            )
+            self._reporting_task = track_task(
+                self._reporting_worker(), name="reporting_worker"
+            )
 
-        logger.info("SOC 2 compliance manager started")
+        logger.info("SOC 2 compliance manager started", method="task_group" if tg else "track_task")
 
     async def stop(self) -> None:
         """Stop the SOC 2 compliance manager."""
@@ -963,8 +979,14 @@ class _LazySOC2ComplianceManager:
 soc2_compliance_manager = _LazySOC2ComplianceManager()
 
 
-async def get_soc2_compliance_manager() -> SOC2ComplianceManager:
-    """Get the global SOC 2 compliance manager instance."""
-    if not soc2_compliance_manager._running:
-        soc2_compliance_manager.start()
-    return soc2_compliance_manager.get_instance()
+async def get_soc2_compliance_manager(tg: asyncio.TaskGroup | None = None) -> SOC2ComplianceManager:
+    """
+    Get the global SOC 2 compliance manager instance.
+
+    Args:
+        tg: Optional TaskGroup to start the manager in
+    """
+    instance = soc2_compliance_manager.get_instance()
+    if not instance._running:
+        instance.start(tg=tg)
+    return instance

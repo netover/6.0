@@ -253,18 +253,31 @@ async def get_job_summary(
         # Buscar informações em paralelo
         import asyncio
 
-        status, context = await asyncio.gather(
-            (
-                tws_client.get_job_status(job_name)
-                if hasattr(tws_client, "get_job_status")
-                else tws_client.get_job_status_cached(job_name)
-            ),
-            knowledge_graph.get_relevant_context(f"informações sobre job {job_name}"),
-            return_exceptions=True,
-        )
+        tasks = {}
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tasks["status"] = tg.create_task(
+                    tws_client.get_job_status(job_name)
+                    if hasattr(tws_client, "get_job_status")
+                    else tws_client.get_job_status_cached(job_name)
+                )
+                tasks["context"] = tg.create_task(
+                    knowledge_graph.get_relevant_context(
+                        f"informações sobre job {job_name}"
+                    )
+                )
+        except* Exception:
+            pass
 
-        if isinstance(status, Exception):
+        try:
+            status = tasks["status"].result()
+        except (asyncio.CancelledError, Exception):
             raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
+
+        try:
+            context = tasks["context"].result()
+        except (asyncio.CancelledError, Exception) as e:
+            context = e
 
         # Gerar sumário com LLM
         prompt = f"""Analise o seguinte job TWS e forneça um sumário conciso:
@@ -300,7 +313,7 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("Error generating job summary: %s", e, exc_info=True)
+        logger.error("Error generating job summary: %s", job_name, e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None

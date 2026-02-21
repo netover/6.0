@@ -93,23 +93,41 @@ class ChaosEngineer:
         )
 
         try:
-            # Run all tests concurrently
-            test_tasks = [
-                self._cache_race_condition_fuzzing(),
-                self._agent_concurrent_initialization_chaos(),
-                self._audit_db_failure_injection(),
-                self._memory_pressure_simulation(),
-                self._network_partition_simulation(),
-                self._component_isolation_testing(),
-            ]
-
-            # Run tests with timeout
+            # Run all tests concurrently with TaskGroup and timeout
             timeout_seconds = max(1, int(duration_minutes * 60))
+            results = []
             try:
-                results = await asyncio.wait_for(
-                    asyncio.gather(*test_tasks, return_exceptions=True),
-                    timeout=timeout_seconds,
+                async with asyncio.timeout(timeout_seconds):
+                    async with asyncio.TaskGroup() as tg:
+                        tasks = [
+                            tg.create_task(self._cache_race_condition_fuzzing(), name="cache_race"),
+                            tg.create_task(self._agent_concurrent_initialization_chaos(), name="agent_chaos"),
+                            tg.create_task(self._audit_db_failure_injection(), name="audit_chaos"),
+                            tg.create_task(self._memory_pressure_simulation(), name="memory_chaos"),
+                            tg.create_task(self._network_partition_simulation(), name="network_chaos"),
+                            tg.create_task(self._component_isolation_testing(), name="isolation_chaos"),
+                        ]
+                    
+                    # TaskGroup ensures all are done; collect results
+                    results = [t.result() for t in tasks]
+            except (asyncio.TimeoutError, ExceptionGroup) as e:
+                logger.error(
+                    "chaos_suite_partial_failure_or_timeout",
+                    extra={
+                        "timeout_seconds": timeout_seconds,
+                        "correlation_id": correlation_id,
+                        "error": str(e)
+                    },
                 )
+                # Recover results for the ones that finished
+                if isinstance(e, ExceptionGroup):
+                    for t in tasks:
+                        try:
+                            results.append(t.result())
+                        except (asyncio.CancelledError, Exception):
+                            results.append(e)
+                else:
+                    results = [e]
             except asyncio.TimeoutError:
                 logger.error(
                     "chaos_suite_timeout",
@@ -204,8 +222,10 @@ class ChaosEngineer:
                         errors += 1
                         anomalies.append(f"Worker {worker_id} op {i}: {str(e)}")
 
-            workers = [asyncio.create_task(worker(i)) for i in range(10)]
-            await asyncio.gather(*workers, return_exceptions=True)
+            async with asyncio.TaskGroup() as tg:
+                for i in range(10):
+                    tg.create_task(worker(i))
+            # TaskGroup waits for all workers
 
             metrics = cache.get_detailed_metrics()
             if metrics["size"] < 0 or metrics["hit_rate"] > 1.0:
@@ -261,8 +281,10 @@ class ChaosEngineer:
                     errors += 1
                     anomalies.append(f"Manager init {worker_id}: {str(e)}")
 
-            workers = [asyncio.create_task(init_worker(i)) for i in range(5)]
-            await asyncio.gather(*workers, return_exceptions=True)
+            async with asyncio.TaskGroup() as tg:
+                for i in range(5):
+                    tg.create_task(init_worker(i))
+            # TaskGroup waits for all workers
 
             return ChaosTestResult(
                 test_name=test_name,

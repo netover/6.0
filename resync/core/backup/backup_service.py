@@ -853,13 +853,21 @@ class BackupService:
             tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
             return tomorrow.replace(hour=2, minute=0, second=0, microsecond=0)
 
-    def start_scheduler(self) -> None:
-        """Start the backup scheduler."""
+    def start_scheduler(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """Start the backup scheduler.
+        
+        Args:
+            tg: Optional TaskGroup to run the scheduler in
+        """
         if self._scheduler_task:
             return
 
-        self._scheduler_task = track_task(self._run_scheduler(), name="run_scheduler")
-        logger.info("backup_scheduler_started")
+        if tg:
+            self._scheduler_task = tg.create_task(self._run_scheduler(), name="run_scheduler")
+        else:
+            self._scheduler_task = track_task(self._run_scheduler(), name="run_scheduler")
+            
+        logger.info("backup_scheduler_started", method="task_group" if tg else "track_task")
 
     async def stop_scheduler(self) -> None:
         """Stop the backup scheduler."""

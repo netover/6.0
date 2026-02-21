@@ -10,11 +10,13 @@ This middleware provides comprehensive protection against SQL injection attacks:
 
 import asyncio
 import logging
+import re
 from collections.abc import Callable
 from typing import Any
 from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from resync.core.database_security import DatabaseAuditor, log_database_access
+from resync.core.utils.async_bridge import fire_and_forget
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +60,8 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         self.enabled = enabled
         self.blocked_requests = 0
         self.total_requests = 0
-        import re as _re
-
-        self._compiled_patterns = [_re.compile(p) for p in self.SQL_INJECTION_PATTERNS]
+        # HARDENING: Compilação otimizada extraída do construtor para evitar overhead
+        self._compiled_patterns = [re.compile(p) for p in self.SQL_INJECTION_PATTERNS]
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
@@ -109,11 +110,21 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         request_data = await self._extract_request_data(request)
         for key, value in request_data.items():
             if self._contains_sql_injection(value):
-                DatabaseAuditor.log_security_violation(
-                    "sql_injection_detected",
-                    f"{key}={value}",
-                    getattr(request.state, "user_id", None),
+                # HARDENING [P1]: Offloading assíncrono de operações de auditoria (I/O Bound)
+                user_id = getattr(request.state, "user_id", None)
+
+                async def _log_violation():
+                    await asyncio.to_thread(
+                        DatabaseAuditor.log_security_violation,
+                        "sql_injection_detected",
+                        f"{key}={value}",
+                        user_id,
+                    )
+
+                fire_and_forget(
+                    _log_violation(), logger=logger, name="sql_injection_audit"
                 )
+
                 async with _counter_lock:
                     self.blocked_requests += 1
                 logger.warning(
@@ -191,7 +202,7 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         return False
 
     def _log_request_outcome(
-        self, request: Request, success: bool, error: str = None
+        self, request: Request, success: bool, error: str | None = None
     ) -> None:
         """
         Logs the outcome of request processing.
@@ -203,13 +214,19 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         """
         try:
             operation = f"{request.method} {request.url.path}"
-            log_database_access(
-                operation=operation,
-                table="unknown",
-                success=success,
-                user_id=getattr(request.state, "user_id", None),
-                error=error,
-            )
+            user_id = getattr(request.state, "user_id", None)
+
+            async def _async_log_access():
+                await asyncio.to_thread(
+                    log_database_access,
+                    operation=operation,
+                    table="unknown",
+                    success=success,
+                    user_id=user_id,
+                    error=error,
+                )
+
+            fire_and_forget(_async_log_access(), logger=logger, name="db_access_audit")
         except Exception as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

@@ -290,9 +290,15 @@ class AsyncTTLCache:
                 return len(expired)
 
         # Process all shards concurrently
-        results = await asyncio.gather(
-            *[process_shard(i) for i in range(self.num_shards)]
-        )
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for i in range(self.num_shards):
+                    tasks.append(tg.create_task(process_shard(i)))
+        except* Exception:
+            pass
+
+        results = [t.result() for t in tasks if not t.cancelled() and t.exception() is None]
         total_removed = sum(results)
 
         if total_removed > 0:

@@ -267,12 +267,16 @@ class DashboardMetricsStore:
         """Calcula RPS com estado persistido no Redis (consistente entre workers)."""
         try:
             redis = _get_redis()
-            prev_req_raw, prev_time_raw = await asyncio.gather(
-                redis.get(REDIS_KEY_PREV_REQUESTS),
-                redis.get(REDIS_KEY_PREV_WALLTIME),
-            )
-            prev_requests = _safe_int(prev_req_raw)
-            prev_walltime = _safe_float(prev_time_raw)
+            tasks = {}
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    tasks["prev_req"] = tg.create_task(redis.get(REDIS_KEY_PREV_REQUESTS))
+                    tasks["prev_time"] = tg.create_task(redis.get(REDIS_KEY_PREV_WALLTIME))
+            except* Exception:
+                pass
+            
+            prev_requests = _safe_int(tasks["prev_req"].result())
+            prev_walltime = _safe_float(tasks["prev_time"].result())
 
             time_delta = (
                 now_wall - prev_walltime
@@ -649,8 +653,13 @@ class WebSocketManager:
                 await self.disconnect(ws)
 
         if clients:
-            tasks = [asyncio.create_task(_safe_send(c)) for c in clients]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    for c in clients:
+                        tg.create_task(_safe_send(c))
+            except* Exception:
+                # _safe_send already handles internal errors/disconnects
+                pass
 
 
 # ── WebSocket Authentication ─────────────────────────────────────────────────

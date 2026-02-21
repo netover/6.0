@@ -734,8 +734,13 @@ class AIMonitoringService:
             evidently_available=EVIDENTLY_AVAILABLE,
         )
 
-    def start(self) -> None:
-        """Start the monitoring service."""
+    def start(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """
+        Start the monitoring service.
+
+        Args:
+            tg: Optional TaskGroup to run the scheduler loop in
+        """
         if not self.config.enabled:
             logger.info("monitoring_disabled")
             return
@@ -746,10 +751,19 @@ class AIMonitoringService:
         self._running = True
 
         if self.config.schedule != MonitoringSchedule.MANUAL:
-            self._scheduler_task = track_task(
-                self._scheduler_loop(), name="scheduler_loop"
+            if tg:
+                self._scheduler_task = tg.create_task(
+                    self._scheduler_loop(), name="scheduler_loop"
+                )
+            else:
+                self._scheduler_task = track_task(
+                    self._scheduler_loop(), name="scheduler_loop"
+                )
+            logger.info(
+                "monitoring_scheduler_started",
+                schedule=self.config.schedule,
+                method="task_group" if tg else "track_task",
             )
-            logger.info("monitoring_scheduler_started", schedule=self.config.schedule)
 
     async def stop(self) -> None:
         """Stop the monitoring service."""
@@ -1020,12 +1034,14 @@ def get_monitoring_service() -> AIMonitoringService | None:
 
 async def init_monitoring_service(
     config: MonitoringConfig | None = None,
+    tg: asyncio.TaskGroup | None = None,
 ) -> AIMonitoringService:
     """
     Initialize and start the monitoring service.
 
     Args:
         config: Monitoring configuration
+        tg: Optional TaskGroup to start the service in
 
     Returns:
         Initialized AIMonitoringService
@@ -1033,7 +1049,7 @@ async def init_monitoring_service(
     global _monitoring_service_instance
 
     _monitoring_service_instance = AIMonitoringService(config=config)
-    _monitoring_service_instance.start()
+    _monitoring_service_instance.start(tg=tg)
 
     return _monitoring_service_instance
 

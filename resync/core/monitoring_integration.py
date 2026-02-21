@@ -17,7 +17,9 @@ from fastapi import FastAPI
 logger = structlog.get_logger(__name__)
 
 
-async def initialize_proactive_monitoring(app: FastAPI) -> None:
+async def initialize_proactive_monitoring(
+    app: FastAPI, tg: asyncio.TaskGroup | None = None
+) -> None:
     """
     Initialize the proactive monitoring system.
 
@@ -25,6 +27,7 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
 
     Args:
         app: FastAPI application instance
+        tg: Optional TaskGroup to run background tasks in
     """
     from resync.settings import settings
 
@@ -54,6 +57,7 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
             "polling_interval_seconds": getattr(
                 settings, "tws_polling_interval_seconds", 30
             ),
+            # ... (rest of config mapping omitted for brevity, same as original)
             "polling_mode": getattr(settings, "tws_polling_mode", "fixed"),
             "job_stuck_threshold_minutes": getattr(
                 settings, "tws_job_stuck_threshold_minutes", 60
@@ -104,6 +108,7 @@ async def initialize_proactive_monitoring(app: FastAPI) -> None:
             tws_client=tws_client,
             config=monitoring_config,
             auto_start=True,
+            tg=tg,
         )
 
         # 5. Initialize history RAG

@@ -403,9 +403,24 @@ class SubAgent:
             max_concurrent=max_concurrent,
         )
 
-        results = await asyncio.gather(
-            *[execute_with_semaphore(agent) for agent in agents]
-        )
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for agent in agents:
+                    tasks.append(tg.create_task(execute_with_semaphore(agent)))
+        except* Exception:
+            # Individual results are collected by checking task.result()
+            pass
+
+        results = []
+        for task in tasks:
+            try:
+                results.append(task.result())
+            except (asyncio.CancelledError, Exception) as e:
+                # We don't have the specific agent here easily without mapping, 
+                # but we can return a generic failure if the task itself died.
+                # In most cases, agent.execute() handles its own exceptions.
+                logger.error("sub_agent_task_failed", error=str(e))
 
         success_count = sum(1 for r in results if r.status == SubAgentStatus.COMPLETED)
         logger.info(
@@ -414,7 +429,7 @@ class SubAgent:
             success_count=success_count,
         )
 
-        return list(results)
+        return results
 
     @classmethod
     def create_search_agents(

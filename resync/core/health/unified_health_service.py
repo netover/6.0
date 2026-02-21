@@ -84,11 +84,12 @@ class UnifiedHealthService:
     # Lifecycle Management
     # =========================================================================
 
-    def start_monitoring(self, interval_seconds: int | None = None) -> None:
+    def start_monitoring(self, tg: asyncio.TaskGroup | None = None, interval_seconds: int | None = None) -> None:
         """
         Start continuous health monitoring.
 
         Args:
+            tg: Optional TaskGroup to run the background task in
             interval_seconds: Check interval (uses config default if None)
         """
         if self._is_monitoring:
@@ -97,10 +98,17 @@ class UnifiedHealthService:
 
         self._is_monitoring = True
         interval = interval_seconds or self.config.check_interval_seconds
-        self._monitoring_task = track_task(
-            self._monitoring_loop(interval), name="monitoring_loop"
-        )
-        logger.info("unified_health_monitoring_started", interval=interval)
+        
+        if tg:
+            self._monitoring_task = tg.create_task(
+                self._monitoring_loop(interval), name="monitoring_loop"
+            )
+        else:
+            self._monitoring_task = track_task(
+                self._monitoring_loop(interval), name="monitoring_loop"
+            )
+            
+        logger.info("unified_health_monitoring_started", interval=interval, method="task_group" if tg else "track_task")
 
     async def stop_monitoring(self) -> None:
         """Stop continuous health monitoring gracefully."""
@@ -155,36 +163,34 @@ class UnifiedHealthService:
             # Get all health checkers
             checkers = self._get_health_checkers()
 
-            # Execute all checks in parallel with timeout
-            check_tasks = {
-                name: await create_tracked_task(
-                    self._execute_check_with_timeout(checker, name),
-                    name="execute_check_with_timeout",
-                )
-                for name, checker in checkers.items()
-            }
-
-            # Wait for all checks with global timeout
+            # Execute all checks in parallel with timeout using TaskGroup
             components: dict[str, ComponentHealth] = {}
-            done, pending = await asyncio.wait(
-                check_tasks.values(),
-                timeout=self.config.timeout_seconds,
-                return_when=asyncio.ALL_COMPLETED,
-            )
-
-            # Cancel pending tasks
-            for task in pending:
-                task.cancel()
-
-            # Collect results
-            for name, task in check_tasks.items():
-                if task in done and not task.cancelled():
-                    try:
-                        components[name] = task.result()
-                    except Exception as e:
-                        components[name] = self._create_error_health(name, str(e))
-                else:
-                    components[name] = self._create_error_health(name, "Check timeout")
+            
+            try:
+                async with asyncio.timeout(self.config.timeout_seconds):
+                    async with asyncio.TaskGroup() as tg:
+                        tasks = {
+                            name: tg.create_task(
+                                self._execute_check_with_timeout(checker, name),
+                                name=f"health_check_{name}"
+                            )
+                            for name, checker in checkers.items()
+                        }
+                    
+                    # Once TaskGroup exits, all tasks are done
+                    for name, task in tasks.items():
+                        try:
+                            components[name] = task.result()
+                        except Exception as e:
+                            components[name] = self._create_error_health(name, str(e))
+            except (asyncio.TimeoutError, ExceptionGroup) as e:
+                # Handle group failures or overall timeout
+                logger.warning("comprehensive_health_check_partial_failure_or_timeout", error=str(e))
+                
+                # Fill in missing results
+                for name in checkers:
+                    if name not in components:
+                        components[name] = self._create_error_health(name, "Check timeout or failure")
 
             # Calculate overall status
             overall_status = self._calculate_overall_status(components)

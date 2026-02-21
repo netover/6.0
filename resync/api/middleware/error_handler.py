@@ -2,6 +2,7 @@
 
 import logging
 import time
+import asyncio
 from collections.abc import Callable
 from typing import Any
 from fastapi import Request, Response
@@ -9,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from resync.core.exceptions import ResyncException
+from resync.core.utils.async_bridge import fire_and_forget
 from resync.core.utils.error_utils import (
     ErrorResponseBuilder,
     create_error_response_from_exception,
@@ -45,11 +47,15 @@ class GlobalExceptionHandlerMiddleware(BaseHTTPMiddleware):
             return response
         except RequestValidationError as exc:
             response = await self._handle_validation_error(request, exc, correlation_id)
-            self._log_error_metrics(exc.__class__.__name__, time.time() - start_time)
+            self._dispatch_log_error_metrics(
+                exc.__class__.__name__, time.time() - start_time
+            )
             return response
         except ResyncException as exc:
             response = await self._handle_resync_exception(request, exc, correlation_id)
-            self._log_error_metrics(exc.__class__.__name__, time.time() - start_time)
+            self._dispatch_log_error_metrics(
+                exc.__class__.__name__, time.time() - start_time
+            )
             return response
         except Exception as exc:
             logger.error(
@@ -57,14 +63,26 @@ class GlobalExceptionHandlerMiddleware(BaseHTTPMiddleware):
                 exc_info=True,
                 extra={"error": str(exc), "correlation_id": correlation_id},
             )
-            response = await self._handle_generic_exception(
-                request, exc, correlation_id
+            response = await self._handle_generic_exception(request, exc, correlation_id)
+            self._dispatch_log_error_metrics(
+                exc.__class__.__name__, time.time() - start_time
             )
-            self._log_error_metrics(exc.__class__.__name__, time.time() - start_time)
             return response
 
-    def _log_error_metrics(self, error_type: str, processing_time: float) -> None:
-        """Log error metrics for monitoring and alerting."""
+    def _dispatch_log_error_metrics(
+        self, error_type: str, processing_time: float
+    ) -> None:
+        """Delega a métrica síncrona para uma thread isolada evitando o bloqueio do Event Loop."""
+
+        async def _async_record() -> None:
+            await asyncio.to_thread(
+                self._log_error_metrics_sync, error_type, processing_time
+            )
+
+        fire_and_forget(_async_record(), logger=logger, name=f"metric_{error_type}")
+
+    def _log_error_metrics_sync(self, error_type: str, processing_time: float) -> None:
+        """Execução real do registro síncrono da métrica."""
         try:
             from resync.core.metrics import runtime_metrics
 

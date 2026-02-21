@@ -567,19 +567,31 @@ class SIEMIntegrator:
         # Circuit breaker for failed SIEMs
         self.circuit_breaker = SIEMCircuitBreaker()
 
-    def start(self) -> None:
-        """Start the SIEM integrator."""
+    def start(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """
+        Start the SIEM integrator.
+
+        Args:
+            tg: Optional TaskGroup to run the background tasks in
+        """
         if self._running:
             return
 
         self._running = True
-        self._processor_task = track_task(
-            self._event_processor(), name="event_processor"
-        )
-        self._flusher_task = track_task(self._batch_flusher(), name="batch_flusher")
-        self._monitor_task = track_task(self._health_monitor(), name="health_monitor")
+        if tg:
+            self._processor_task = tg.create_task(
+                self._event_processor(), name="event_processor"
+            )
+            self._flusher_task = tg.create_task(self._batch_flusher(), name="batch_flusher")
+            self._monitor_task = tg.create_task(self._health_monitor(), name="health_monitor")
+        else:
+            self._processor_task = track_task(
+                self._event_processor(), name="event_processor"
+            )
+            self._flusher_task = track_task(self._batch_flusher(), name="batch_flusher")
+            self._monitor_task = track_task(self._health_monitor(), name="health_monitor")
 
-        logger.info("SIEM integrator started")
+        logger.info("SIEM integrator started", method="task_group" if tg else "track_task")
 
     async def stop(self) -> None:
         """Stop the SIEM integrator."""

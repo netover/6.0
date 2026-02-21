@@ -260,11 +260,16 @@ class ServiceOrchestrator:
         result.attempted_tasks = len(tasks)
 
         # Fan-out with global timeout
+        task_objects: dict[str, asyncio.Task] = {}
         try:
-            raw_results = await asyncio.wait_for(
-                asyncio.gather(*tasks.values(), return_exceptions=True),
-                timeout=self.timeout,
-            )
+            try:
+                async with asyncio.timeout(self.timeout):
+                    async with asyncio.TaskGroup() as tg:
+                        for name, coro in tasks.items():
+                            task_objects[name] = tg.create_task(coro)
+            except* Exception as eg:
+                # Individual task exceptions are handled in _assign_results via task.result()
+                logger.debug("orchestration_tasks_failed", exceptions=eg.exceptions)
         except asyncio.TimeoutError:
             logger.error(
                 "orchestration_timeout",
@@ -273,10 +278,12 @@ class ServiceOrchestrator:
                 attempted=result.attempted_tasks,
             )
             result.errors["_global"] = f"Orchestration timed out after {self.timeout}s"
+            # In a TaskGroup, a timeout will cancel all pending tasks.
+            # We still return the partial result.
             return result
 
         # Fan-in: map results back to task names
-        self._assign_results(result, list(tasks.keys()), raw_results)
+        self._assign_results(result, task_objects)
 
         logger.info(
             "orchestration_complete",
@@ -315,11 +322,16 @@ class ServiceOrchestrator:
             ),
         }
 
+        task_objects: dict[str, asyncio.Task] = {}
         try:
-            raw_results = await asyncio.wait_for(
-                asyncio.gather(*tasks.values(), return_exceptions=True),
-                timeout=self.timeout,
-            )
+            try:
+                async with asyncio.timeout(self.timeout):
+                    async with asyncio.TaskGroup() as tg:
+                        for name, coro in tasks.items():
+                            task_objects[name] = tg.create_task(coro)
+            except* Exception:
+                # Exceptions will be caught when checking task.result()
+                pass
         except asyncio.TimeoutError:
             logger.error("health_check_timeout", timeout=self.timeout)
             return {
@@ -329,18 +341,21 @@ class ServiceOrchestrator:
 
         health: dict[str, Any] = {"status": "HEALTHY", "details": {}}
 
-        for task_name, task_result in zip(tasks.keys(), raw_results):
-            if isinstance(task_result, BaseException):
-                health["status"] = "DEGRADED"
-                health["details"][task_name] = {
-                    "status": "ERROR",
-                    "error": str(task_result),
-                }
-            else:
+        for task_name, task in task_objects.items():
+            try:
+                task_result = task.result()
                 health["details"][task_name] = {
                     "status": "OK",
                     "data": task_result,
                 }
+            except (asyncio.CancelledError, Exception) as e:
+                health["status"] = "DEGRADED"
+                health["details"][task_name] = {
+                    "status": "ERROR",
+                    "error": str(e),
+                }
+
+        return health
 
         return health
 
@@ -348,18 +363,12 @@ class ServiceOrchestrator:
     # Internal helpers
     # -----------------------------------------------------------------
 
-    @staticmethod
     def _assign_results(
+        self,
         result: OrchestrationResult,
-        task_names: list[str],
-        raw_results: list[Any],
+        tasks: dict[str, asyncio.Task],
     ) -> None:
-        """Map gather results back to ``OrchestrationResult`` fields.
-
-        Uses ``BaseException`` (not ``Exception``) so that
-        ``asyncio.CancelledError`` is correctly classified as a failure
-        rather than being silently assigned as data.
-        """
+        """Map task results back to ``OrchestrationResult`` fields."""
         _field_map: dict[str, str] = {
             "status": "tws_status",
             "context": "kg_context",
@@ -368,8 +377,13 @@ class ServiceOrchestrator:
             "history": "historical_failures",
         }
 
-        for task_name, task_result in zip(task_names, raw_results):
-            if isinstance(task_result, BaseException):
+        for task_name, task in tasks.items():
+            try:
+                task_result = task.result()
+                attr = _field_map.get(task_name)
+                if attr:
+                    setattr(result, attr, task_result)
+            except (asyncio.CancelledError, Exception) as task_result:
                 result.errors[task_name] = (
                     f"{type(task_result).__name__}: {task_result}"
                 )
@@ -379,10 +393,6 @@ class ServiceOrchestrator:
                     error=type(task_result).__name__,
                     detail=str(task_result),
                 )
-            else:
-                attr = _field_map.get(task_name)
-                if attr:
-                    setattr(result, attr, task_result)
 
     async def _fetch_historical_failures(self, job_name: str) -> list[dict[str, Any]]:
         """Query KG for historical failures related to *job_name*.

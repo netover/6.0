@@ -8,6 +8,7 @@ v5.9.4: Implementação de graceful shutdown com draining de requisições.
 
 import asyncio
 import logging
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -29,6 +30,7 @@ class Base(DeclarativeBase):
 # Global engine and session factory
 _engine = None
 _session_factory = None
+_engine_lock = threading.Lock()  # Lock síncrono para a inicialização lazy
 
 # v5.9.4: Contador de sessões ativas para graceful shutdown
 _active_sessions = 0
@@ -82,37 +84,40 @@ def get_engine():
     """
     global _engine
 
+    # HARDENING [P2]: Proteção Thread-safe contra Double-Checked Locking para inicialização do Engine
     if _engine is None:
-        config = get_database_config()
+        with _engine_lock:
+            if _engine is None:
+                config = get_database_config()
 
-        # Engine options with connection pooling
-        options = {
-            "poolclass": AsyncAdaptedQueuePool,
-            "pool_size": config.pool_size,
-            "max_overflow": config.max_overflow,
-            "pool_timeout": config.pool_timeout,
-            "pool_recycle": config.pool_recycle,
-            "pool_pre_ping": config.pool_pre_ping,
-            # Timeouts críticos para produção
-            "connect_args": {
-                "timeout": 5,  # Connection timeout (segundos)
-                "command_timeout": 60,  # Query timeout (segundos)
-                "server_settings": {
-                    "jit": "off",  # Desabilita JIT para queries simples (menor overhead)
-                },
-            },
-        }
+                # Engine options with connection pooling
+                options = {
+                    "poolclass": AsyncAdaptedQueuePool,
+                    "pool_size": config.pool_size,
+                    "max_overflow": config.max_overflow,
+                    "pool_timeout": config.pool_timeout,
+                    "pool_recycle": config.pool_recycle,
+                    "pool_pre_ping": config.pool_pre_ping,
+                    # Timeouts críticos para produção
+                    "connect_args": {
+                        "timeout": 5,  # Connection timeout (segundos)
+                        "command_timeout": 60,  # Query timeout (segundos)
+                        "server_settings": {
+                            "jit": "off",  # Desabilita JIT para queries simples (menor overhead)
+                        },
+                    },
+                }
 
-        logger.info(
-            "Creating PostgreSQL database engine",
-            extra={
-                "host": config.host,
-                "database": config.name,
-                "pool_size": config.pool_size,
-            },
-        )
+                logger.info(
+                    "Creating PostgreSQL database engine",
+                    extra={
+                        "host": config.host,
+                        "database": config.name,
+                        "pool_size": config.pool_size,
+                    },
+                )
 
-        _engine = create_async_engine(config.url, **options)
+                _engine = create_async_engine(config.url, **options)
 
     return _engine
 

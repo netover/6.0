@@ -30,7 +30,9 @@ class A2ATask:
         self.result: Any = None
         self.error: Optional[str] = None
 
-    def update_state(self, state: TaskState, result: Any = None, error: str = None):
+    def update_state(
+        self, state: TaskState, result: Any = None, error: str | None = None
+    ):
         """Update task state and timestamp."""
         self.state = state
         self.updated_at = datetime.now()

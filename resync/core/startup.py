@@ -554,83 +554,61 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     # Parallel checks (bounded by remaining time budget)
     remaining = max(0.0, deadline - time.monotonic())
     if remaining > 0:
-        tws_coro = _check_tws(
-            settings_obj,
-            critical=getattr(settings_obj, "require_tws_at_boot", False),
-            deadline=deadline,
-            policy=policy,
-        )
-        llm_coro = _check_llm(
-            settings_obj,
-            critical=getattr(settings_obj, "require_llm_at_boot", False),
-            deadline=deadline,
-            policy=policy,
-        )
-        rag_coro = _check_rag(
-            settings_obj,
-            critical=getattr(settings_obj, "require_rag_at_boot", False),
-            deadline=deadline,
-            policy=policy,
-        )
-
-        tws_task = asyncio.create_task(tws_coro)
-        llm_task = asyncio.create_task(llm_coro)
-        rag_task = asyncio.create_task(rag_coro)
-
+        tasks = {}
         try:
-            tws_res, llm_res, rag_res = await asyncio.wait_for(
-                asyncio.gather(tws_task, llm_task, rag_task), timeout=remaining
-            )
-            results.extend([tws_res, llm_res, rag_res])
-        except asyncio.TimeoutError:
-            # Safely cancel pending tasks explicitly to avoid background orphaned routines
-            for task in (tws_task, llm_task, rag_task):
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(
-                tws_task, llm_task, rag_task, return_exceptions=True
-            )
-            now = time.monotonic()
-            elapsed_ms = int((now - started_at) * 1000)
-            logger.warning(
-                "parallel_checks_timeout",
-                remaining_budget=remaining,
-                elapsed_ms=elapsed_ms,
-            )
-            results.extend(
-                [
+            async with asyncio.timeout(remaining):
+                async with asyncio.TaskGroup() as tg:
+                    tasks["tws"] = tg.create_task(
+                        _check_tws(
+                            settings_obj,
+                            critical=getattr(settings_obj, "require_tws_at_boot", False),
+                            deadline=deadline,
+                            policy=policy,
+                        )
+                    )
+                    tasks["llm"] = tg.create_task(
+                        _check_llm(
+                            settings_obj,
+                            critical=getattr(settings_obj, "require_llm_at_boot", False),
+                            deadline=deadline,
+                            policy=policy,
+                        )
+                    )
+                    tasks["rag"] = tg.create_task(
+                        _check_rag(
+                            settings_obj,
+                            critical=getattr(settings_obj, "require_rag_at_boot", False),
+                            deadline=deadline,
+                            policy=policy,
+                        )
+                    )
+        except (asyncio.TimeoutError, ExceptionGroup, Exception):
+            # Results will be extracted from tasks below
+            pass
+
+        now = time.monotonic()
+        elapsed_ms = int((now - started_at) * 1000)
+
+        for name, key in [
+            ("tws_reachability", "tws"),
+            ("llm_service", "llm"),
+            ("rag_service", "rag"),
+        ]:
+            task = tasks.get(key)
+            if task and task.done() and not task.cancelled() and task.exception() is None:
+                results.append(task.result())
+            else:
+                is_critical = getattr(settings_obj, f"require_{key}_at_boot", False)
+                results.append(
                     StartupCheck(
-                        name="tws_reachability",
-                        status="fail"
-                        if getattr(settings_obj, "require_tws_at_boot", False)
-                        else "skipped",
-                        critical=getattr(settings_obj, "require_tws_at_boot", False),
-                        reason_code="startup_budget_exhausted",
-                        detail="Startup budget exhausted during TWS check",
+                        name=name,
+                        status="fail" if is_critical else "skipped",
+                        critical=is_critical,
+                        reason_code="startup_budget_exhausted" if now >= deadline else "task_failed",
+                        detail=f"Budget exhausted or task failed during {key.upper()} check",
                         duration_ms=elapsed_ms,
-                    ),
-                    StartupCheck(
-                        name="llm_service",
-                        status="fail"
-                        if getattr(settings_obj, "require_llm_at_boot", False)
-                        else "skipped",
-                        critical=getattr(settings_obj, "require_llm_at_boot", False),
-                        reason_code="startup_budget_exhausted",
-                        detail="Startup budget exhausted during LLM check",
-                        duration_ms=elapsed_ms,
-                    ),
-                    StartupCheck(
-                        name="rag_service",
-                        status="fail"
-                        if getattr(settings_obj, "require_rag_at_boot", False)
-                        else "skipped",
-                        critical=getattr(settings_obj, "require_rag_at_boot", False),
-                        reason_code="startup_budget_exhausted",
-                        detail="Startup budget exhausted during RAG check",
-                        duration_ms=elapsed_ms,
-                    ),
-                ]
-            )
+                    )
+                )
 
     # Compute overall health: only critical services matter.
     overall_health = True
@@ -721,54 +699,55 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await init_domain_singletons(app)
             st = enterprise_state_from_app(app)
 
-            await get_tws_monitor(st.tws_client)
-            setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
-
-            # Signal that core singletons are ready for optional services
-            app.state.singletons_ready_event.set()
-            logger.info("core_services_initialized")
-
-            # 3. Optional services (failures are non-fatal, except programming errors)
-            optional_results: list[Exception] = []
-            optional_timeout = max(0.5, min(3.0, float(startup_timeout) / 2.0))
-            try:
-                async with asyncio.timeout(optional_timeout):
-                    results = await asyncio.gather(
-                        _init_proactive_monitoring(app),
-                        _init_metrics_collector(app),
-                        _init_cache_warmup(app),
-                        _init_graphrag(app),
-                        _init_config_system(app),
-                        return_exceptions=True,
-                    )
-                    optional_results = [r for r in results if isinstance(r, Exception)]
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "optional_startup_services_timeout",
-                    timeout_seconds=optional_timeout,
-                )
-
-            # Re-raise critical programming errors (bugs, not environmental timeouts)
-            for res in optional_results:
-                if isinstance(
-                    res, (TypeError, KeyError, AttributeError, IndexError, NameError)
-                ):
-                    logger.critical(
-                        "critical_startup_programming_error",
-                        error=str(res),
-                        type=type(res).__name__,
-                    )
-                    raise res
-
-            logger.info("application_startup_completed")
-            st.startup_complete = True
-
             # Record startup time for admin dashboard uptime display
             from resync.core.startup_time import set_startup_time
-
             set_startup_time()
 
-        yield  # Application runs here
+            async with asyncio.TaskGroup() as bg_tasks:
+                app.state.bg_tasks = bg_tasks
+                
+                # Move TWS monitor initialization here to use the bg_tasks group
+                await get_tws_monitor(st.tws_client, tg=bg_tasks)
+                setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
+
+                # Signal that core singletons are ready for optional services
+                app.state.singletons_ready_event.set()
+                logger.info("core_services_initialized")
+
+                # 3. Optional services...
+                optional_timeout = max(0.5, min(3.0, float(startup_timeout) / 2.0))
+                try:
+                    async with asyncio.timeout(optional_timeout):
+                        # Scoped TG for initialization; some of these might spawn background tasks in bg_tasks
+                        async with asyncio.TaskGroup() as init_tg:
+                            init_tg.create_task(_init_proactive_monitoring(app, bg_tasks))
+                            init_tg.create_task(_init_metrics_collector(app))
+                            init_tg.create_task(_init_cache_warmup(app))
+                            init_tg.create_task(_init_graphrag(app))
+                            init_tg.create_task(_init_config_system(app))
+                            init_tg.create_task(_init_enterprise_systems(app, bg_tasks))
+                            init_tg.create_task(_init_health_monitoring(app, bg_tasks))
+                            init_tg.create_task(_init_backup_scheduler(app, bg_tasks))
+                            init_tg.create_task(_init_security_dashboard(app, bg_tasks))
+                            init_tg.create_task(_init_event_bus(app, bg_tasks))
+                            init_tg.create_task(_init_service_discovery(app, bg_tasks))
+                except (asyncio.TimeoutError, ExceptionGroup):
+                    pass
+                except Exception as e:
+                    optional_results.append(e)
+
+                # Re-raise critical programming errors
+                for res in optional_results:
+                    if isinstance(res, (TypeError, KeyError, AttributeError, IndexError, NameError)):
+                        logger.critical("critical_startup_programming_error", error=str(res), type=type(res).__name__)
+                        raise res
+
+                logger.info("application_startup_completed")
+                st.startup_complete = True
+
+                yield  # Application runs here, bg_tasks are active
+        
+        # When lifespan exits, bg_tasks (TaskGroup) will automatically cancel and wait for tasks.
 
     except asyncio.TimeoutError:
         logger.critical(
@@ -795,7 +774,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 # --- Helper methods for optional services (moved from ApplicationFactory) ---
 
 
-async def _init_proactive_monitoring(app: FastAPI) -> None:
+async def _init_proactive_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup | None = None) -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -805,7 +784,7 @@ async def _init_proactive_monitoring(app: FastAPI) -> None:
                 initialize_proactive_monitoring,
             )
 
-            await initialize_proactive_monitoring(app)
+            await initialize_proactive_monitoring(app, tg=bg_tasks)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -821,14 +800,18 @@ async def _init_metrics_collector(app: FastAPI) -> None:
             await app.state.singletons_ready_event.wait()
 
             from resync.api import monitoring_dashboard
-            from resync.core.task_tracker import create_tracked_task
-
-            # create_tracked_task is sync – it schedules a coroutine as an
-            # asyncio Task and returns the Task object immediately.
-            # Do NOT await it; awaiting would block until the task completes.
-            monitoring_dashboard._collector_task = create_tracked_task(
-                monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
-            )
+            
+            # Use global TaskGroup if available
+            bg_tasks = getattr(app.state, "bg_tasks", None)
+            if bg_tasks:
+                monitoring_dashboard._collector_task = bg_tasks.create_task(
+                    monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
+                )
+            else:
+                from resync.core.task_tracker import create_tracked_task
+                monitoring_dashboard._collector_task = create_tracked_task(
+                    monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
+                )
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -901,6 +884,84 @@ async def _init_config_system(app: FastAPI) -> None:
         )
 
 
+async def _init_enterprise_systems(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+    try:
+        async with asyncio.timeout(15):
+            await app.state.singletons_ready_event.wait()
+            from resync.core.enterprise.manager import get_enterprise_manager
+            manager = get_enterprise_manager()
+            await manager.initialize(tg=bg_tasks)
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        get_logger("resync.startup").warning("enterprise_systems_init_failed", error=str(exc))
+
+
+async def _init_health_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+    try:
+        async with asyncio.timeout(10):
+            await app.state.singletons_ready_event.wait()
+            from resync.core.health import get_unified_health_service
+            service = get_unified_health_service()
+            service.start_monitoring(tg=bg_tasks)
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        get_logger("resync.startup").warning("health_monitoring_init_failed", error=str(exc))
+
+
+async def _init_backup_scheduler(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+    try:
+        async with asyncio.timeout(10):
+            await app.state.singletons_ready_event.wait()
+            from resync.core.backup.backup_service import get_backup_service
+            service = get_backup_service()
+            service.start_scheduler(tg=bg_tasks)
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        get_logger("resync.startup").warning("backup_scheduler_init_failed", error=str(exc))
+
+
+async def _init_security_dashboard(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+    try:
+        async with asyncio.timeout(10):
+            await app.state.singletons_ready_event.wait()
+            from resync.core.security_dashboard import get_security_dashboard
+            dashboard = get_security_dashboard(tg=bg_tasks)
+            # dashboard is automatically started via get_security_dashboard and its lazy init
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        get_logger("resync.startup").warning("security_dashboard_init_failed", error=str(exc))
+
+
+async def _init_event_bus(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+    try:
+        async with asyncio.timeout(10):
+            await app.state.singletons_ready_event.wait()
+            from resync.core.event_bus import get_event_bus
+            bus = get_event_bus()
+            bus.start(tg=bg_tasks)
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        get_logger("resync.startup").warning("event_bus_init_failed", error=str(exc))
+
+
+async def _init_service_discovery(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+    try:
+        async with asyncio.timeout(15):
+            await app.state.singletons_ready_event.wait()
+            from resync.core.service_discovery import get_service_discovery_manager
+            manager = get_service_discovery_manager(tg=bg_tasks)
+            # manager is automatically started via get_service_discovery_manager and its lazy init
+    except Exception as exc:
+        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+            raise
+        get_logger("resync.startup").warning("service_discovery_init_failed", error=str(exc))
+
+
 async def _shutdown_services(app: FastAPI) -> None:
     """Shutdown services in correct order with individual timeouts.
 
@@ -964,11 +1025,12 @@ async def _shutdown_services(app: FastAPI) -> None:
 
     # Execute: tasks first, then resources in parallel
     await _cancel_tasks()
-    await asyncio.gather(
-        _shutdown_singletons(),
-        _shutdown_tws(),
-        _shutdown_health(),
-        return_exceptions=True,
-    )
+    try:
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(_shutdown_singletons())
+            tg.create_task(_shutdown_tws())
+            tg.create_task(_shutdown_health())
+    except* Exception:
+        pass
 
     logger.info("application_shutdown_completed")

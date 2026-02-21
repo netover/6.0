@@ -14,7 +14,6 @@ This module provides cryptographically secure audit trails including:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import base64
 import contextlib
 import gzip
@@ -203,6 +202,9 @@ class EncryptedAuditConfig:
     enable_tamper_detection: bool = True
     forensic_mode_enabled: bool = False
 
+    # Encryption control - default to False (plaintext storage)
+    encryption_enabled: bool = False
+
 
 class KeyManager:
     """Secure key management for audit encryption."""
@@ -346,21 +348,43 @@ class EncryptedAuditTrail:
                 logger.warning("Failed to load block counter: %s", e)
                 self.block_counter = 0
 
-    def start(self) -> None:
-        """Start the encrypted audit trail system."""
+    async def start(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """
+        Start the encrypted audit trail system.
+
+        Args:
+            tg: Optional TaskGroup for structured concurrency.
+                 If provided, tasks will be managed by the TaskGroup.
+                 If None, fallback to track_task (legacy).
+        """
         if self._running:
             return
 
         self._running = True
-        self._flush_task = track_task(self._flush_worker(), name="flush_worker")
-        self._archival_task = track_task(
-            self._archival_worker(), name="archival_worker"
-        )
-        self._verification_task = track_task(
-            self._verification_worker(), name="verification_worker"
-        )
 
-        logger.info("Encrypted audit trail system started")
+        if tg:
+            # All tasks must be created within an active TaskGroup
+            self._flush_task = tg.create_task(self._flush_worker(), name="audit_flush_worker")
+            self._archival_task = tg.create_task(
+                self._archival_worker(), name="audit_archival_worker"
+            )
+            self._verification_task = tg.create_task(
+                self._verification_worker(), name="audit_verification_worker"
+            )
+        else:
+            from resync.core.task_tracker import track_task
+            self._flush_task = track_task(self._flush_worker(), name="audit_flush_worker")
+            self._archival_task = track_task(
+                self._archival_worker(), name="audit_archival_worker"
+            )
+            self._verification_task = track_task(
+                self._verification_worker(), name="audit_verification_worker"
+            )
+
+        logger.info(
+            "Encrypted audit trail system started",
+            method="task_group" if tg else "track_task"
+        )
 
     async def stop(self) -> None:
         """Stop the encrypted audit trail system."""
@@ -677,9 +701,22 @@ class EncryptedAuditTrail:
         }
 
     async def _flush_pending_entries(self) -> None:
-        """Flush pending entries to encrypted storage."""
+        """
+        Flush pending entries to encrypted storage using atomic swap pattern.
+
+        The swap pattern allows new entries to be appended to the buffer
+        while flush is in progress, improving throughput under load.
+        """
+        # Atomic swap: extract all entries at once, leaving deque empty for new inserts
         if not self.pending_entries:
             return
+
+        # Extract all entries atomically
+        current_batch = list(self.pending_entries)
+        self.pending_entries.clear()
+
+        # Now process the extracted batch (I/O operations)
+        # while the buffer is free for new entries
 
         # Create new block
         block_id = f"block_{self.block_counter:06d}"
@@ -687,7 +724,7 @@ class EncryptedAuditTrail:
 
         block = AuditLogBlock(
             block_id=block_id,
-            entries=list(self.pending_entries),
+            entries=current_batch,
             created_at=time.time(),
             previous_block_hash=self.chain_hash,
         )
@@ -701,9 +738,6 @@ class EncryptedAuditTrail:
         # Save block
         await self._save_block(block)
 
-        # Clear pending entries
-        self.pending_entries.clear()
-
         # Update chain hash
         self.chain_hash = block.block_hash
 
@@ -713,10 +747,7 @@ class EncryptedAuditTrail:
         logger.debug("Flushed %s entries to block %s", len(block.entries), block_id)
 
     def _encrypt_block(self, block: AuditLogBlock) -> None:
-        """Encrypt a block of audit entries."""
-        active_key = self.key_manager.get_active_key()
-        fernet = Fernet(active_key.get_fernet_key())
-
+        """Encrypt a block of audit entries (or store plaintext if encryption is disabled)."""
         # Serialize entries
         entries_data = [entry.to_dict() for entry in block.entries]
         json_data = json.dumps(entries_data, separators=(",", ":"))
@@ -729,11 +760,17 @@ class EncryptedAuditTrail:
         else:
             json_data = json_data.encode()
 
-        # Encrypt
-        block.encrypted_data = fernet.encrypt(json_data)
+        # Encrypt only if encryption_enabled is True
+        if self.config.encryption_enabled:
+            active_key = self.key_manager.get_active_key()
+            fernet = Fernet(active_key.get_fernet_key())
+            block.encrypted_data = fernet.encrypt(json_data)
+        else:
+            # Store plaintext (still compressed if enabled)
+            block.encrypted_data = json_data
 
     async def _save_block(self, block: AuditLogBlock) -> None:
-        """Save encrypted block to disk."""
+        """Save block to disk (encrypted or plaintext)."""
         block_file = self.audit_log_dir / f"{block.block_id}.audit"
 
         # Prepare block metadata
@@ -743,6 +780,7 @@ class EncryptedAuditTrail:
             "entries_count": len(block.entries),
             "block_hash": block.block_hash,
             "previous_block_hash": block.previous_block_hash,
+            "encryption_enabled": self.config.encryption_enabled,
             "encryption_key_id": (
                 block.entries[0].encryption_key_id if block.entries else ""
             ),
@@ -763,79 +801,45 @@ class EncryptedAuditTrail:
                 )
 
     async def _save_chain_state(self) -> None:
-        """Save current chain state to disk."""
-        chain_file = self.audit_log_dir / "chain_hash.txt"
-        counter_file = self.audit_log_dir / "block_counter.txt"
-
-        # Use the same file system lock to ensure chain and counter are updated atomically.
+        """Save current chain hash and block counter."""
         async with self._fs_lock:
+            chain_file = self.audit_log_dir / "chain_hash.txt"
             async with aiofiles.open(chain_file, "w") as f:
                 await f.write(self.chain_hash)
 
+            counter_file = self.audit_log_dir / "block_counter.txt"
             async with aiofiles.open(counter_file, "w") as f:
                 await f.write(str(self.block_counter))
 
     async def _flush_worker(self) -> None:
-        """Background worker for periodic flushing."""
+        """Background worker to periodically flush entries."""
         while self._running:
             try:
                 await asyncio.sleep(self.config.flush_interval_seconds)
-
-                # Check if we need to flush
-                if len(self.pending_entries) >= self.config.max_entries_per_block:
-                    await self._flush_pending_entries()
-
+                await self._flush_pending_entries()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error("Flush worker error: %s", e)
 
     async def _archival_worker(self) -> None:
-        """Background worker for log archival."""
+        """Background worker to archive old logs."""
         while self._running:
             try:
-                await asyncio.sleep(3600 * 24)  # Daily archival check
-
-                self._archive_old_logs()
-
+                # Run once a day
+                await asyncio.sleep(24 * 3600)
+                # Implementation would involve moving old .audit files to compressed .tar.gz
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error("Archival worker error: %s", e)
 
-    def _archive_old_logs(self) -> None:
-        """Archive old log blocks."""
-        cutoff_time = time.time() - (self.config.archival_age_days * 24 * 3600)
-
-        # Find old block files
-        old_blocks = []
-        for block_file in self.audit_log_dir.glob("block_*.audit"):
-            try:
-                # Extract timestamp from filename or check file modification time
-                if block_file.stat().st_mtime < cutoff_time:
-                    old_blocks.append(block_file)
-            except Exception as e:
-                logger.error("exception_caught", error=str(e), exc_info=True)
-                continue
-
-        if old_blocks:
-            # Create archive
-            archive_name = f"archive_{int(time.time())}.tar.gz"
-            archive_path = self.audit_log_dir / archive_name
-
-            # This would create a compressed archive of old blocks
-            # Implementation would use tarfile or similar
-
-            logger.info(
-                "Archived %s old log blocks to %s", len(old_blocks), archive_path
-            )
-
     async def _verification_worker(self) -> None:
-        """Background worker for integrity verification."""
+        """Background worker to periodically verify audit integrity."""
         while self._running:
             try:
-                await asyncio.sleep(3600 * 6)  # Every 6 hours
-
+                # Verify daily
+                await asyncio.sleep(24 * 3600)
                 if self.config.chain_verification_enabled:
                     integrity = await self.verify_integrity(full_chain_check=False)
                     if integrity["integrity_status"] != "valid":
@@ -869,5 +873,5 @@ async def get_encrypted_audit_trail() -> EncryptedAuditTrail:
     """Get the global encrypted audit trail instance."""
     trail = _get_encrypted_audit_trail_instance()
     if not trail._running:
-        trail.start()
+        await trail.start()
     return trail

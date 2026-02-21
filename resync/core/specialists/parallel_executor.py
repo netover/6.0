@@ -203,25 +203,37 @@ class ParallelToolExecutor:
         if not requests:
             return []
 
-        tasks = [self._execute_single_with_semaphore(req) for req in requests]
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for req in requests:
+                    tasks.append(
+                        tg.create_task(self._execute_single_with_semaphore(req))
+                    )
+        except* Exception as eg:
+            # TaskGroup has finished, but one or more tasks failed with an exception.
+            # We'll gather the results (including failures) in the next step.
+            logger.error("one_or_more_tools_failed_with_exception", exceptions=eg.exceptions)
 
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Handle exceptions
+        # Build results set by checking task outputs/exceptions
         result = []
-        for i, resp in enumerate(responses):
-            if isinstance(resp, Exception):
+        for i, task in enumerate(tasks):
+            try:
+                # If the task finished successfully, .result() returns it.
+                # If it failed with an exception, .result() raises it.
+                # If it was cancelled, .result() raises CancelledError.
+                resp = task.result()
+                result.append(resp)
+            except (asyncio.CancelledError, Exception) as e:
                 result.append(
                     ToolResponse(
                         request_id=requests[i].request_id,
                         tool_name=requests[i].tool_name,
                         success=False,
-                        error=str(resp),
+                        error=str(e),
                         original_index=requests[i].original_index,
                     )
                 )
-            else:
-                result.append(resp)
 
         return result
 
