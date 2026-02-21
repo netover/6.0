@@ -91,18 +91,23 @@ def get_startup_policy(settings: Settings) -> dict[str, Any]:
         os.getenv("STARTUP_MAX_TOTAL_SECONDS", str(timeout_default))
     )
 
-    # Generic retry knobs for external services (TWS/LLM). Redis has its own retry
-    # parameters in settings + initialize_redis_with_retry().
-    retries = int(os.getenv("STARTUP_SERVICE_RETRIES", "3"))
-    base_delay = float(os.getenv("STARTUP_RETRY_BASE_DELAY_SECONDS", "0.2"))
-    max_delay = float(os.getenv("STARTUP_RETRY_MAX_DELAY_SECONDS", "2.0"))
+    # Valores de retry com clamp para evitar absurdos
+    retries = max(1, min(20, int(os.getenv("STARTUP_SERVICE_RETRIES", "3"))))
+    base_delay = max(
+        0.1,
+        min(10.0, float(os.getenv("STARTUP_RETRY_BASE_DELAY_SECONDS", "0.2"))),
+    )
+    max_delay = max(
+        base_delay,
+        min(30.0, float(os.getenv("STARTUP_RETRY_MAX_DELAY_SECONDS", "2.0"))),
+    )
 
     return {
         "strict": strict,
         "max_total_seconds": max(1.0, max_total_seconds),
-        "service_retries": max(1, retries),
-        "retry_base_delay": max(0.0, base_delay),
-        "retry_max_delay": max(0.0, max_delay),
+        "service_retries": retries,
+        "retry_base_delay": base_delay,
+        "retry_max_delay": max_delay,
     }
 
 
@@ -118,9 +123,9 @@ async def _tcp_reachable(
         # Explicitly close immediately.
         writer.close()
         try:
+            # apenas erros de I/O/loop são ignorados
             await writer.wait_closed()
-        except Exception:
-            # Some loop implementations can raise here; ignore.
+        except (OSError, AttributeError):
             pass
         # Silence unused variable warning.
         _ = reader
@@ -148,8 +153,12 @@ async def _http_healthy(
             if 200 <= resp.status_code < 300:
                 return True, None, resp.status_code, None
             if 300 <= resp.status_code < 400:
-                # Don't log raw URL/credentials; return minimal signal.
-                return False, "redirect", resp.status_code, resp.headers.get("location")
+                loc = resp.headers.get("location")
+                # sanitiza querystring para não vazar tokens
+                safe_loc = None
+                if loc:
+                    safe_loc = loc.split("?", 1)[0] if "?" in loc else loc
+                return False, "redirect", resp.status_code, safe_loc
             return False, "http_status", resp.status_code, None
     except httpx.TimeoutException:
         return False, "timeout", None, None
@@ -169,18 +178,22 @@ async def _retry(
     deadline: float,
 ) -> StartupCheck:
     """Retry a check until ok/skip or retries exhausted or deadline reached."""
-
+    logger = get_logger("resync.startup")
     last: StartupCheck | None = None
     for attempt in range(1, retries + 1):
-        if time.monotonic() >= deadline:
+        now = time.monotonic()
+        if now >= deadline:
+            logger.warning(f"{name}_retry_deadline_reached", attempt=attempt)
             break
+        logger.debug(f"{name}_check_attempt", attempt=attempt, max_retries=retries)
         last = await fn(attempt)
         if last.status in ("ok", "skipped"):
             return last
         if attempt < retries:
             delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
-            # Respect global deadline.
             remaining = max(0.0, deadline - time.monotonic())
+            if remaining <= 0:
+                break
             await asyncio.sleep(min(delay, remaining))
 
     if last is None:
@@ -201,7 +214,8 @@ async def _check_tws(
     start = time.monotonic()
     host = getattr(settings, "tws_host", None)
     port = getattr(settings, "tws_port", None)
-    timeout = float(getattr(settings, "STARTUP_TCP_CHECK_TIMEOUT", 3.0))
+    raw_timeout = getattr(settings, "STARTUP_TCP_CHECK_TIMEOUT", "3.0")
+    timeout = float(raw_timeout) if raw_timeout else 3.0
 
     if not host or not port:
         status: Status = "fail" if critical else "skipped"
@@ -228,12 +242,14 @@ async def _check_tws(
                 attempts=attempt,
                 duration_ms=dur_ms,
             )
+        # sanitiza host básico
+        safe_host = str(host).split("@")[-1]
         return StartupCheck(
             name="tws_reachability",
             status="fail",
             critical=critical,
             reason_code=reason or "unreachable",
-            detail=f"TWS not reachable ({host}:{port})",
+            detail=f"TWS not reachable ({safe_host}:{port})",
             attempts=attempt,
             duration_ms=dur_ms,
         )
@@ -358,13 +374,15 @@ async def _check_rag(
 
 
 async def _check_redis(
-    settings: Settings, *, deadline: float, logger: Any
+    settings: Settings, *, deadline: float, logger: Any, disabled: bool
 ) -> StartupCheck:
     start = time.monotonic()
 
-    # Operators can explicitly disable Redis (e.g. CI, lightweight deployments).
-    # Accept common boolean values to match .env / container conventions.
-    if _parse_bool(os.getenv("RESYNC_DISABLE_REDIS")) is True:
+    if disabled:
+        logger.info(
+            "redis_startup_disabled",
+            reason="RESYNC_DISABLE_REDIS=true, skipping redis initialization",
+        )
         return StartupCheck(
             name="redis_connection",
             status="skipped",
@@ -503,6 +521,12 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     deadline = started_at + float(policy["max_total_seconds"])
 
     redis_disabled = _parse_bool(os.getenv("RESYNC_DISABLE_REDIS")) is True
+    if redis_disabled:
+        logger.warning(
+            "redis_marked_noncritical",
+            reason="RESYNC_DISABLE_REDIS=true",
+        )
+
     critical_services: list[str] = [] if redis_disabled else ["redis_connection"]
     if getattr(settings_obj, "require_tws_at_boot", False):
         critical_services.append("tws_reachability")
@@ -522,38 +546,57 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     # TWS/LLM checks can run in parallel.
     results: list[StartupCheck] = []
 
-    redis_result = await _check_redis(settings_obj, deadline=deadline, logger=logger)
+    redis_result = await _check_redis(
+        settings_obj, deadline=deadline, logger=logger, disabled=redis_disabled
+    )
     results.append(redis_result)
 
     # Parallel checks (bounded by remaining time budget)
     remaining = max(0.0, deadline - time.monotonic())
     if remaining > 0:
+        tws_coro = _check_tws(
+            settings_obj,
+            critical=getattr(settings_obj, "require_tws_at_boot", False),
+            deadline=deadline,
+            policy=policy,
+        )
+        llm_coro = _check_llm(
+            settings_obj,
+            critical=getattr(settings_obj, "require_llm_at_boot", False),
+            deadline=deadline,
+            policy=policy,
+        )
+        rag_coro = _check_rag(
+            settings_obj,
+            critical=getattr(settings_obj, "require_rag_at_boot", False),
+            deadline=deadline,
+            policy=policy,
+        )
+
+        tws_task = asyncio.create_task(tws_coro)
+        llm_task = asyncio.create_task(llm_coro)
+        rag_task = asyncio.create_task(rag_coro)
+
         try:
-            tws_task = _check_tws(
-                settings_obj,
-                critical=getattr(settings_obj, "require_tws_at_boot", False),
-                deadline=deadline,
-                policy=policy,
-            )
-            llm_task = _check_llm(
-                settings_obj,
-                critical=getattr(settings_obj, "require_llm_at_boot", False),
-                deadline=deadline,
-                policy=policy,
-            )
-            rag_task = _check_rag(
-                settings_obj,
-                critical=getattr(settings_obj, "require_rag_at_boot", False),
-                deadline=deadline,
-                policy=policy,
-            )
-            # Cap gather by the global remaining budget.
             tws_res, llm_res, rag_res = await asyncio.wait_for(
                 asyncio.gather(tws_task, llm_task, rag_task), timeout=remaining
             )
             results.extend([tws_res, llm_res, rag_res])
         except asyncio.TimeoutError:
-            # Budget exhausted while waiting for parallel checks.
+            # Safely cancel pending tasks explicitly to avoid background orphaned routines
+            for task in (tws_task, llm_task, rag_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                tws_task, llm_task, rag_task, return_exceptions=True
+            )
+            now = time.monotonic()
+            elapsed_ms = int((now - started_at) * 1000)
+            logger.warning(
+                "parallel_checks_timeout",
+                remaining_budget=remaining,
+                elapsed_ms=elapsed_ms,
+            )
             results.extend(
                 [
                     StartupCheck(
@@ -564,6 +607,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         critical=getattr(settings_obj, "require_tws_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during TWS check",
+                        duration_ms=elapsed_ms,
                     ),
                     StartupCheck(
                         name="llm_service",
@@ -573,6 +617,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         critical=getattr(settings_obj, "require_llm_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during LLM check",
+                        duration_ms=elapsed_ms,
                     ),
                     StartupCheck(
                         name="rag_service",
@@ -582,6 +627,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         critical=getattr(settings_obj, "require_rag_at_boot", False),
                         reason_code="startup_budget_exhausted",
                         detail="Startup budget exhausted during RAG check",
+                        duration_ms=elapsed_ms,
                     ),
                 ]
             )
@@ -696,7 +742,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                         return_exceptions=True,
                     )
                     optional_results = [r for r in results if isinstance(r, Exception)]
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 logger.warning(
                     "optional_startup_services_timeout",
                     timeout_seconds=optional_timeout,
