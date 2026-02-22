@@ -6,12 +6,13 @@ distributed locking, health checks, and proper error handling.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import logging
 import os
 import socket
 from contextlib import suppress
 from typing import TYPE_CHECKING, Optional
+
+from resync.core.task_tracker import create_tracked_task
 
 if TYPE_CHECKING:
     from resync.core.idempotency.manager import IdempotencyManager

@@ -254,10 +254,6 @@ class StreamingLLMResponse:
         return "".join(self.response_chunks)
 
 
-# Global instances
-_llm_cost_monitor_instance: LLMCostMonitor | None = None
-
-
 class _LazyLLMCostMonitor:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
 

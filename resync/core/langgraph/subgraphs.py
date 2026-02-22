@@ -24,6 +24,8 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 import time
 from typing import Annotated, Any, TypedDict
 
@@ -35,7 +37,7 @@ logger = get_logger(__name__)
 try:
     from langgraph.graph import END, StateGraph
     from langgraph.types import Send
-    from langgraph.types import interrupt, Command
+    from langgraph.types import interrupt
 
     LANGGRAPH_AVAILABLE = True
     LANGGRAPH_03_FEATURES = True
@@ -46,7 +48,6 @@ except ImportError:
     END = "END"
     Send = None
     interrupt = None
-    Command = None
 
 
 # =============================================================================
@@ -125,9 +126,7 @@ Return a JSON object with:
 JSON:"""
 
     try:
-        response = await call_llm(prompt, temperature=0.2)
-        import json
-        import re
+        response = await call_llm(prompt, model="gpt-4o-mini", temperature=0.2)
 
         json_match = re.search(r"\{[\s\S]*\}", response)
         if json_match:
@@ -161,7 +160,7 @@ async def _research_node(state: DiagnosticSubgraphState) -> dict:
 
 async def _synthesize_diagnosis_node(state: DiagnosticSubgraphState) -> dict:
     """Synthesize final diagnosis."""
-    from resync.services.llm_service import get_llm_completion
+    from resync.core.utils.llm import call_llm
 
     symptoms = state.get("symptoms", [])
     causes = state.get("possible_causes", [])
@@ -181,9 +180,7 @@ Return JSON with:
 JSON:"""
 
     try:
-        response = await get_llm_completion(prompt, temperature=0.3)
-        import json
-        import re
+        response = await call_llm(prompt, model="gpt-4o-mini", temperature=0.3)
 
         json_match = re.search(r"\{[\s\S]*\}", response)
         if json_match:
@@ -269,9 +266,9 @@ async def _fetch_tws_status(state: ParallelFetchState) -> dict:
     start = time.time()
 
     try:
-        from resync.services.tws_service import get_tws_service
+        from resync.services.tws_service import get_tws_client
 
-        tws = await get_tws_service()
+        tws = get_tws_client()
         job_name = state.get("job_name")
 
         if job_name:
@@ -500,21 +497,27 @@ async def _execute_action_node(state: ApprovalState) -> dict:
         return {"execution_result": {"status": "cancelled", "reason": "Not approved"}}
 
     try:
-        from resync.services.tws_service import get_tws_service
+        from resync.services.tws_service import get_tws_client
 
-        tws = await get_tws_service()
+        tws = get_tws_client()
         action = state.get("action_type")
         job = state.get("job_name")
 
         # Execute based on action type
-        if action == "cancel":
-            result = await tws.cancel_job(job)
-        elif action == "restart":
-            result = await tws.rerun_job(job)
-        elif action == "submit":
-            result = await tws.submit_job(job)
-        else:
+        action_map = {
+            "cancel": "cancel_job",
+            "restart": "rerun_job",
+            "submit": "submit_job",
+        }
+        method_name = action_map.get(str(action))
+        if method_name is None:
             result = {"status": "unknown_action"}
+        else:
+            method = getattr(tws, method_name, None)
+            if callable(method):
+                result = await method(job)
+            else:
+                result = {"status": "unsupported_action", "action": str(action)}
 
         return {"execution_result": result}
 
@@ -561,33 +564,33 @@ def create_approval_subgraph():
 # =============================================================================
 
 
-_diagnostic_subgraph = None
-_parallel_subgraph = None
-_approval_subgraph = None
+_DIAGNOSTIC_SUBGRAPH = None
+_PARALLEL_SUBGRAPH = None
+_APPROVAL_SUBGRAPH = None
 
 
 def get_diagnostic_subgraph():
     """Get or create diagnostic subgraph singleton."""
-    global _diagnostic_subgraph
-    if _diagnostic_subgraph is None:
-        _diagnostic_subgraph = create_diagnostic_subgraph()
-    return _diagnostic_subgraph
+    global _DIAGNOSTIC_SUBGRAPH
+    if _DIAGNOSTIC_SUBGRAPH is None:
+        _DIAGNOSTIC_SUBGRAPH = create_diagnostic_subgraph()
+    return _DIAGNOSTIC_SUBGRAPH
 
 
 def get_parallel_subgraph():
     """Get or create parallel fetch subgraph singleton."""
-    global _parallel_subgraph
-    if _parallel_subgraph is None:
-        _parallel_subgraph = create_parallel_subgraph()
-    return _parallel_subgraph
+    global _PARALLEL_SUBGRAPH
+    if _PARALLEL_SUBGRAPH is None:
+        _PARALLEL_SUBGRAPH = create_parallel_subgraph()
+    return _PARALLEL_SUBGRAPH
 
 
 def get_approval_subgraph():
     """Get or create approval subgraph singleton."""
-    global _approval_subgraph
-    if _approval_subgraph is None:
-        _approval_subgraph = create_approval_subgraph()
-    return _approval_subgraph
+    global _APPROVAL_SUBGRAPH
+    if _APPROVAL_SUBGRAPH is None:
+        _APPROVAL_SUBGRAPH = create_approval_subgraph()
+    return _APPROVAL_SUBGRAPH
 
 
 # =============================================================================

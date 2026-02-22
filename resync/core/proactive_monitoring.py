@@ -10,7 +10,7 @@ from typing import Any
 
 import structlog
 
-from resync.core.resilience import CircuitBreaker
+from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
 from resync.core.connection_pool_manager import get_advanced_connection_pool_manager
 
 logger = structlog.get_logger(__name__)
@@ -30,10 +30,10 @@ class ProactiveMonitoringSystem:
     def __init__(self):
         """Initialize the proactive monitoring system."""
         self.circuit_breakers = {
-            "database": CircuitBreaker(),
-            "redis": CircuitBreaker(),
-            "cache_hierarchy": CircuitBreaker(),
-            "tws_monitor": CircuitBreaker(),
+            "database": CircuitBreaker(CircuitBreakerConfig()),
+            "redis": CircuitBreaker(CircuitBreakerConfig()),
+            "cache_hierarchy": CircuitBreaker(CircuitBreakerConfig()),
+            "tws_monitor": CircuitBreaker(CircuitBreakerConfig()),
         }
 
     async def perform_proactive_health_checks(self) -> dict[str, Any]:
@@ -150,7 +150,8 @@ class ProactiveMonitoringSystem:
                 pool_manager = get_connection_pool_manager()
                 if pool_manager:
                     basic_metrics = {}
-                    for pool_name, pool in pool_manager.pools.items():
+                    pools = getattr(pool_manager, "pools", {})
+                    for pool_name, pool in pools.items():
                         stats = pool.get_stats()
                         basic_metrics[pool_name] = {
                             "connections": stats.get("total_connections", 0),
@@ -185,11 +186,7 @@ class ProactiveMonitoringSystem:
             for name, breaker in breakers.items():
                 if breaker:
                     try:
-                        stats = (
-                            breaker.get_stats()
-                            if hasattr(breaker, "get_stats")
-                            else breaker.get_enhanced_stats()
-                        )
+                        stats = breaker.get_stats() if hasattr(breaker, "get_stats") else {}
                         results[name] = {
                             "state": stats.get("state", "unknown"),
                             "failures": stats.get("failures", 0),
