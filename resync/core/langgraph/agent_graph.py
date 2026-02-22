@@ -1441,7 +1441,7 @@ def synthesizer_node(state: AgentState) -> AgentState:
         action_verified = raw_data.get("action_verified")
         post_status = raw_data.get("post_action_status", "desconhecido")
 
-        if action_verified is True:
+        if action_verified:
             icon = "✅"
             result_msg = f"Confirmado! Status atual: {post_status}"
         elif raw_data.get("verification_exhausted"):

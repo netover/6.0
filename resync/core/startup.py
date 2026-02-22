@@ -520,7 +520,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     started_at = time.monotonic()
     deadline = started_at + float(policy["max_total_seconds"])
 
-    redis_disabled = _parse_bool(os.getenv("RESYNC_DISABLE_REDIS")) is True
+    redis_disabled = _parse_bool(os.getenv("RESYNC_DISABLE_REDIS")) or False
     if redis_disabled:
         logger.warning(
             "redis_marked_noncritical",
@@ -728,6 +728,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
                 # 3. Optional services...
                 optional_timeout = max(0.5, min(3.0, float(startup_timeout) / 2.0))
+                optional_results: list[Exception] = []
                 try:
                     async with asyncio.timeout(optional_timeout):
                         # Scoped TG for initialization; some of these might spawn background tasks in bg_tasks
@@ -945,7 +946,7 @@ async def _init_security_dashboard(app: FastAPI, bg_tasks: asyncio.TaskGroup) ->
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
             from resync.core.security_dashboard import get_security_dashboard
-            dashboard = get_security_dashboard(tg=bg_tasks)
+            _dashboard = get_security_dashboard(tg=bg_tasks)
             # dashboard is automatically started via get_security_dashboard and its lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -971,7 +972,7 @@ async def _init_service_discovery(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> 
         async with asyncio.timeout(15):
             await app.state.singletons_ready_event.wait()
             from resync.core.service_discovery import get_service_discovery_manager
-            manager = get_service_discovery_manager(tg=bg_tasks)
+            _manager = get_service_discovery_manager(tg=bg_tasks)
             # manager is automatically started via get_service_discovery_manager and its lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):

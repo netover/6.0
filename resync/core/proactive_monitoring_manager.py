@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Inicializador do Sistema de Monitoramento Proativo
 

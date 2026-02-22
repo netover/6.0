@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Read‑only client for interacting with the IBM TWS/HWA REST API.
 

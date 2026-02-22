@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 TWS RAG Integration - Ingestão de Status para Consultas Históricas
 

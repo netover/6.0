@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -31,7 +31,7 @@ from resync.core.health.health_models import (
     HealthStatus,
     HealthStatusHistory,
 )
-from resync.core.task_tracker import create_tracked_task, track_task
+from resync.core.task_tracker import track_task
 
 if TYPE_CHECKING:
     from .health_checkers.base_health_checker import BaseHealthChecker

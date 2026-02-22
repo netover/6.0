@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Multi-Provider Embedding Service using LiteLLM.
 

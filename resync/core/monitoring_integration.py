@@ -9,6 +9,7 @@ Author: Resync Team
 Version: 5.2
 """
 
+import asyncio
 from typing import Any
 
 import structlog

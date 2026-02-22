@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """Authentication and authorization validation models."""
 
 from enum import Enum

@@ -187,15 +187,17 @@ async def list_pending_feedback(
             # Build base query with filters
             base_query = select(Feedback).where(Feedback.curation_status == "pending")
 
-            if has_negative_rating is True:
-                base_query = base_query.where(Feedback.rating <= 2)
-            elif has_negative_rating is False:
-                base_query = base_query.where(Feedback.rating > 2)
+            if has_negative_rating is not None:
+                if has_negative_rating:
+                    base_query = base_query.where(Feedback.rating <= 2)
+                else:
+                    base_query = base_query.where(Feedback.rating > 2)
 
-            if has_correction is True:
-                base_query = base_query.where(Feedback.feedback_text.isnot(None))
-            elif has_correction is False:
-                base_query = base_query.where(Feedback.feedback_text.is_(None))
+            if has_correction is not None:
+                if has_correction:
+                    base_query = base_query.where(Feedback.feedback_text.isnot(None))
+                else:
+                    base_query = base_query.where(Feedback.feedback_text.is_(None))
 
             # Get total count
             count_query = (
@@ -203,14 +205,16 @@ async def list_pending_feedback(
                 .select_from(Feedback)
                 .where(Feedback.curation_status == "pending")
             )
-            if has_negative_rating is True:
-                count_query = count_query.where(Feedback.rating <= 2)
-            elif has_negative_rating is False:
-                count_query = count_query.where(Feedback.rating > 2)
-            if has_correction is True:
-                count_query = count_query.where(Feedback.feedback_text.isnot(None))
-            elif has_correction is False:
-                count_query = count_query.where(Feedback.feedback_text.is_(None))
+            if has_negative_rating is not None:
+                if has_negative_rating:
+                    count_query = count_query.where(Feedback.rating <= 2)
+                else:
+                    count_query = count_query.where(Feedback.rating > 2)
+            if has_correction is not None:
+                if has_correction:
+                    count_query = count_query.where(Feedback.feedback_text.isnot(None))
+                else:
+                    count_query = count_query.where(Feedback.feedback_text.is_(None))
 
             total_result = await session.execute(count_query)
             total = total_result.scalar() or 0

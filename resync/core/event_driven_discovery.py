@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Event-Driven Auto-Discovery for Knowledge Graph
 

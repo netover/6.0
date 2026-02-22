@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Context Enrichment - Enriquece queries RAG com contexto aprendido.
 

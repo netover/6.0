@@ -16,6 +16,7 @@ Features:
 import logging
 import re
 from enum import Enum
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -215,7 +216,7 @@ class QueryProcessor:
         # Quebrar contexto em snippets
         snippets = [s.strip() for s in raw_context.split("\n\n") if s.strip()]
 
-        ranked = []
+        ranked: list[dict[str, object]] = []
 
         for snippet in snippets:
             score = 0.0
@@ -245,7 +246,10 @@ class QueryProcessor:
             ranked.append({"content": snippet, "score": score})
 
         # Ordenar por score
-        ranked.sort(key=lambda x: x["score"], reverse=True)
+        ranked.sort(
+            key=lambda x: cast(float, x["score"]) if isinstance(x.get("score"), (int, float)) else 0.0,
+            reverse=True,
+        )
 
         # Retornar top 5
         return ranked[:5]

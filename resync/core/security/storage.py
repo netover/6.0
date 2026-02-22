@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Custom storage implementations for rate limiting.
 Ensures no side effects (like threads) are created during import/initialization

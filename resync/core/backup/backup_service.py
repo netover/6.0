@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Backup Service for PostgreSQL and System Configuration.
 

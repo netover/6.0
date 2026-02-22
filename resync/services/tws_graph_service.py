@@ -76,7 +76,7 @@ class TwsGraphService:
         tws_client: Any = None,
         cache_ttl: int = 300,  # 5 minutes default
         max_depth: int = 5,
-    ):
+    ) -> None:
         """
         Initialize TwsGraphService.
 
@@ -96,7 +96,7 @@ class TwsGraphService:
             max_depth=max_depth,
         )
 
-    def set_tws_client(self, tws_client: Any):
+    def set_tws_client(self, tws_client: Any) -> None:
         """Set or update the TWS client."""
         self.tws_client = tws_client
 
@@ -131,8 +131,8 @@ class TwsGraphService:
                 return entry.graph
 
         # Build from API
-        graph = nx.DiGraph()
-        visited = set()
+        graph: nx.DiGraph = nx.DiGraph()
+        visited: set[str] = set()
         await self._build_job_dependencies(
             graph, job_id, visited, depth or self.max_depth
         )
@@ -159,7 +159,7 @@ class TwsGraphService:
         root_job_id: str,
         visited: set[str],
         max_depth: int,
-    ):
+    ) -> None:
         """
         Build job dependency graph using parallel BFS level-fetching.
 
@@ -251,7 +251,7 @@ class TwsGraphService:
             if time.time() - entry.created_at < self.cache_ttl:
                 return entry.graph
 
-        graph = nx.DiGraph()
+        graph: nx.DiGraph = nx.DiGraph()
 
         if not self.tws_client:
             return graph
@@ -456,7 +456,7 @@ class TwsGraphService:
         Returns:
             Dict with predecessors and/or successors
         """
-        result = {"job_id": job_id}
+        result: dict[str, Any] = {"job_id": job_id}
 
         if job_id not in graph:
             result["error"] = "Job not in graph"
@@ -476,7 +476,7 @@ class TwsGraphService:
     # CACHE MANAGEMENT
     # =========================================================================
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the graph cache."""
         count = len(self._cache)
         self._cache.clear()
@@ -591,7 +591,7 @@ class TwsGraphService:
         graph2 = await self.get_dependency_graph(job2)
 
         # Merge graphs
-        merged = nx.compose(graph1, graph2)
+        merged: nx.DiGraph = nx.compose(graph1, graph2)
 
         # Use advanced query service
         adv_service = get_advanced_query_service(merged)
@@ -744,7 +744,7 @@ class TwsGraphService:
         from resync.services.advanced_graph_queries import get_advanced_query_service
 
         # Build combined graph for all jobs
-        merged = nx.DiGraph()
+        merged: nx.DiGraph = nx.DiGraph()
         for job_id in job_list:
             job_graph = await self.get_dependency_graph(job_id)
             merged = nx.compose(merged, job_graph)

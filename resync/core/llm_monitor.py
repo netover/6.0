@@ -254,17 +254,13 @@ class StreamingLLMResponse:
         return "".join(self.response_chunks)
 
 
-# Global instances
-_llm_cost_monitor_instance: LLMCostMonitor | None = None
-
-
 class _LazyLLMCostMonitor:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
 
     __slots__ = ("_instance",)
 
     def __init__(self) -> None:
-        self._instance = None
+        self._instance: LLMCostMonitor | None = None
 
     def get_instance(self) -> LLMCostMonitor:
         if self._instance is None:

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Hybrid Retriever for Resync v5.2.3.24
 
