@@ -1,45 +1,19 @@
-# pylint: skip-file
-# mypy: ignore-errors
-"""
-Unified TWS Client Access Module
-
-v5.4.2: Consolidates all TWS client access into a single module with:
-- Circuit breaker protection
-- Retry with exponential backoff
-- Health monitoring
-- Singleton management
-- Mock support for testing
-
-This module replaces:
-- Direct OptimizedTWSClient instantiation
-- Legacy TWS client patterns
-- Scattered TWS client factories
-
-Usage:
-    from resync.services.tws_unified import get_tws_client, tws_client_context
-
-    # Simple access
-    client = await get_tws_client()
-
-    # Context manager with automatic cleanup
-    async with tws_client_context() as client:
-        status = await client.get_system_status()
-
-Author: Resync Team
-Version: 5.4.2
-"""
+"""Unified TWS Client Access Module."""
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+import httpx
 import structlog
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from resync.core.exceptions import (
     CircuitBreakerError,
@@ -57,15 +31,15 @@ from resync.core.resilience import (
 
 logger = structlog.get_logger(__name__)
 
-
-# =============================================================================
-# ENUMS & TYPES
-# =============================================================================
+_UNRECOVERABLE_EXCEPTIONS = (
+    SystemExit,
+    KeyboardInterrupt,
+    asyncio.CancelledError,
+)
+_PROGRAMMING_ERRORS = (TypeError, AttributeError, NameError)
 
 
 class TWSClientState(str, Enum):
-    """State of the TWS client."""
-
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
@@ -73,53 +47,44 @@ class TWSClientState(str, Enum):
     CIRCUIT_OPEN = "circuit_open"
 
 
-@dataclass
-class TWSClientConfig:
-    """Configuration for TWS client."""
+class TWSClientConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="TWS_", env_file=".env", extra="ignore")
 
-    # Connection settings
     base_url: str = "http://localhost:31182"
     username: str = ""
-    password: str = ""
+    password: SecretStr = SecretStr("")
     engine_name: str = "DWC"
     engine_owner: str = ""
 
-    # Timeout settings (seconds)
     connect_timeout: float = 10.0
     read_timeout: float = 30.0
-
-    # Circuit breaker settings
     circuit_failure_threshold: int = 5
     circuit_recovery_timeout: int = 60
-
-    # Retry settings
     max_retries: int = 3
     retry_base_delay: float = 1.0
     retry_max_delay: float = 10.0
 
-    # Health check
-    health_check_interval: int = 30
-
     @classmethod
     def from_settings(cls) -> TWSClientConfig:
-        """Create config from application settings."""
         from resync.settings import settings
 
+        password = getattr(settings, "tws_password", "")
         return cls(
             base_url=f"http://{settings.tws_host}:{settings.tws_port}",
             username=settings.tws_username,
-            password=settings.tws_password,
+            password=SecretStr(password),
             engine_name=settings.tws_engine_name,
             engine_owner=getattr(settings, "tws_engine_owner", ""),
             connect_timeout=getattr(settings, "tws_connect_timeout", 10.0),
             read_timeout=getattr(settings, "tws_request_timeout", 30.0),
         )
 
+    def get_password(self) -> str:
+        return self.password.get_secret_value()
+
 
 @dataclass
 class TWSClientMetrics:
-    """Metrics for TWS client."""
-
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0
@@ -131,39 +96,65 @@ class TWSClientMetrics:
     last_error: str | None = None
 
 
-# =============================================================================
-# UNIFIED TWS CLIENT WRAPPER
-# =============================================================================
+class OptimizedTWSClientAdapter:
+    """Compatibility adapter over OptimizedTWSClient real API."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    async def close(self) -> None:
+        await self._inner.close()
+
+    async def get_engine_info(self) -> dict[str, Any]:
+        data = await self._inner.get_engine_info()
+        return data if isinstance(data, dict) else {"data": data}
+
+    async def get_system_status(self) -> dict[str, Any]:
+        info = await self.get_engine_info()
+        return {"status": "OK", "engine": info}
+
+    async def get_jobs(self, **params: Any) -> list[dict[str, Any]]:
+        data = await self._inner.query_current_plan_jobs(**params)
+        if isinstance(data, list):
+            return [d for d in data if isinstance(d, dict)]
+        if isinstance(data, dict):
+            for key in ("jobs", "items", "results"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    return [d for d in value if isinstance(d, dict)]
+        return []
+
+    async def get_job(self, job_name: str) -> dict[str, Any]:
+        jobs = await self.get_jobs(q=job_name, limit=1)
+        return jobs[0] if jobs else {"job_name": job_name, "status": "UNKNOWN"}
+
+    async def get_job_status(self, job_name: str) -> dict[str, Any]:
+        job = await self.get_job(job_name)
+        return {"job_name": job_name, "status": job.get("status", "UNKNOWN")}
+
+    async def get_workstations(self) -> list[dict[str, Any]]:
+        data = await self._inner.query_workstations(limit=200)
+        if isinstance(data, list):
+            return [d for d in data if isinstance(d, dict)]
+        if isinstance(data, dict):
+            for key in ("workstations", "items", "results"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    return [d for d in value if isinstance(d, dict)]
+        return []
+
+    async def get_plan(self) -> dict[str, Any]:
+        streams = await self._inner.query_jobstreams(limit=50)
+        return {"streams": streams}
 
 
 class UnifiedTWSClient:
-    """
-    Unified TWS Client with built-in resilience patterns.
-
-    Features:
-    - Circuit breaker protection
-    - Automatic retry with exponential backoff
-    - Timeout management
-    - Health monitoring
-    - Metrics collection
-
-    This class wraps OptimizedTWSClient and adds resilience.
-    """
-
     def __init__(self, config: TWSClientConfig | None = None):
-        """
-        Initialize unified TWS client.
-
-        Args:
-            config: Client configuration. If None, loads from settings.
-        """
         self.config = config or TWSClientConfig.from_settings()
-        self._client: Any | None = None
+        self._client: OptimizedTWSClientAdapter | None = None
         self._state = TWSClientState.DISCONNECTED
         self._metrics = TWSClientMetrics()
         self._lock = asyncio.Lock()
-
-        # Initialize circuit breaker
         self._circuit_breaker = CircuitBreaker(
             CircuitBreakerConfig(
                 failure_threshold=self.config.circuit_failure_threshold,
@@ -171,8 +162,6 @@ class UnifiedTWSClient:
                 name="tws_client",
             )
         )
-
-        # Initialize retry handler
         self._retry_handler = RetryWithBackoff(
             RetryConfig(
                 max_retries=self.config.max_retries,
@@ -183,311 +172,148 @@ class UnifiedTWSClient:
             )
         )
 
-        logger.info(
-            "unified_tws_client_initialized",
-            base_url=self.config.base_url,
-            circuit_threshold=self.config.circuit_failure_threshold,
-        )
-
     @property
     def state(self) -> TWSClientState:
-        """Get current client state."""
-        if self._circuit_breaker.state.value == "open":
-            return TWSClientState.CIRCUIT_OPEN
-        return self._state
-
-    @property
-    def metrics(self) -> TWSClientMetrics:
-        """Get client metrics."""
-        return self._metrics
-
-    @property
-    def is_connected(self) -> bool:
-        """Check if client is connected."""
-        return self._state == TWSClientState.CONNECTED and self._client is not None
+        return TWSClientState.CIRCUIT_OPEN if self._circuit_breaker.state.value == "open" else self._state
 
     async def connect(self) -> None:
-        """
-        Establish connection to TWS.
-
-        Raises:
-            TWSConnectionError: If connection fails
-            TWSAuthenticationError: If authentication fails
-        """
         async with self._lock:
             if self._client is not None:
                 return
-
             self._state = TWSClientState.CONNECTING
-
             try:
                 from resync.services.tws_service import OptimizedTWSClient
 
-                self._client = OptimizedTWSClient(
+                raw = OptimizedTWSClient(
                     base_url=self.config.base_url,
                     username=self.config.username,
-                    password=self.config.password,
+                    password=self.config.get_password(),
                     engine_name=self.config.engine_name,
                     engine_owner=self.config.engine_owner,
                 )
-
-                # Verify connection with a health check
+                self._client = OptimizedTWSClientAdapter(raw)
                 await self._verify_connection()
-
                 self._state = TWSClientState.CONNECTED
-                logger.info("tws_client_connected", base_url=self.config.base_url)
-
             except Exception as e:
-                # Re-raise critical system exceptions and programming errors
-                if isinstance(
-                    e,
-                    (
-                        SystemExit,
-                        KeyboardInterrupt,
-                        asyncio.CancelledError,
-                        TypeError,
-                        AttributeError,
-                        NameError,
-                    ),
-                ):
-                    raise
+                self._client = None
                 self._state = TWSClientState.ERROR
                 self._metrics.last_error = str(e)
-                logger.error("tws_client_connection_failed", error=str(e))
+                if isinstance(e, _UNRECOVERABLE_EXCEPTIONS + _PROGRAMMING_ERRORS):
+                    raise
                 raise TWSConnectionError(f"Failed to connect to TWS: {e}") from e
 
     async def _verify_connection(self) -> None:
-        """Verify connection is working."""
         if self._client is None:
             raise TWSConnectionError("Client not initialized")
-
         try:
-            # Try to get engine info as a health check
-            await TimeoutManager.with_timeout(
-                self._client.get_engine_info(),
-                self.config.connect_timeout,
-            )
+            await TimeoutManager.with_timeout(self._client.get_engine_info(), self.config.connect_timeout)
         except asyncio.TimeoutError as e:
             raise TWSTimeoutError("Connection verification timed out") from e
         except Exception as e:
-            # Re-raise critical system exceptions
-            if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
+            if isinstance(e, _UNRECOVERABLE_EXCEPTIONS):
                 raise
+            if isinstance(e, httpx.HTTPStatusError):
+                response = getattr(e, "response", None)
+                if response is not None and response.status_code == 401:
+                    raise TWSAuthenticationError("TWS authentication failed") from e
             if "401" in str(e) or "auth" in str(e).lower():
                 raise TWSAuthenticationError("TWS authentication failed") from e
             raise
 
     async def disconnect(self) -> None:
-        """Close connection to TWS."""
         async with self._lock:
             if self._client is not None:
                 try:
                     await self._client.close()
-                except Exception as e:
-                    # Re-raise critical system exceptions
-                    if isinstance(
-                        e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
-                    ):
-                        raise
-                    logger.warning("tws_client_close_error", error=str(e))
                 finally:
                     self._client = None
                     self._state = TWSClientState.DISCONNECTED
-                    logger.info("tws_client_disconnected")
 
-    async def _execute_with_resilience(
-        self, operation: str, func, *args, **kwargs
-    ) -> Any:
-        """
-        Execute operation with circuit breaker and retry.
-
-        Args:
-            operation: Name of the operation (for logging)
-            func: Async function to execute
-            *args, **kwargs: Arguments for the function
-
-        Returns:
-            Result of the function
-
-        Raises:
-            CircuitBreakerError: If circuit is open
-            TWSConnectionError: If operation fails after retries
-        """
+    async def _execute_with_resilience(self, operation: str, func: Callable[[], Awaitable[Any]]) -> Any:
         start_time = datetime.now(timezone.utc)
         self._metrics.total_requests += 1
+        retries = 0
 
-        async def _wrapped():
+        async def _wrapped() -> Any:
+            nonlocal retries
             if self._client is None:
                 await self.connect()
-
-            return await TimeoutManager.with_timeout(
-                func(*args, **kwargs),
-                self.config.read_timeout,
-            )
+            try:
+                return await TimeoutManager.with_timeout(func(), self.config.read_timeout)
+            except Exception:
+                retries += 1
+                raise
 
         try:
-            # Execute with circuit breaker and retry
-            result = await self._circuit_breaker.call(
-                self._retry_handler.execute,
-                _wrapped,
-            )
-
-            # Update metrics on success
+            result = await self._circuit_breaker.call(self._retry_handler.execute, _wrapped)
             self._metrics.successful_requests += 1
             self._metrics.last_success = datetime.now(timezone.utc)
-            latency = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
-            self._metrics.total_latency_ms += latency
-
-            logger.debug(
-                "tws_operation_success",
-                operation=operation,
-                latency_ms=latency,
-            )
-
+            self._metrics.total_latency_ms += (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            self._metrics.retries += max(0, retries - 1)
             return result
-
         except CircuitBreakerError:
             self._metrics.circuit_breaker_trips += 1
             self._state = TWSClientState.CIRCUIT_OPEN
-            logger.warning("tws_circuit_breaker_open", operation=operation)
             raise
-
         except Exception as e:
-            # Re-raise critical system exceptions and programming errors
-            if isinstance(
-                e,
-                (
-                    SystemExit,
-                    KeyboardInterrupt,
-                    asyncio.CancelledError,
-                    TypeError,
-                    AttributeError,
-                    NameError,
-                ),
-            ):
+            if isinstance(e, _UNRECOVERABLE_EXCEPTIONS + _PROGRAMMING_ERRORS):
                 raise
-
             self._metrics.failed_requests += 1
             self._metrics.last_failure = datetime.now(timezone.utc)
             self._metrics.last_error = str(e)
-
-            logger.error(
-                "tws_operation_failed",
-                operation=operation,
-                error=str(e),
-            )
             raise
 
-    # =========================================================================
-    # TWS API Methods (Delegated to underlying client)
-    # =========================================================================
-
     async def get_system_status(self) -> dict[str, Any]:
-        """Get TWS system status."""
-        return await self._execute_with_resilience(
-            "get_system_status",
-            self._client.get_system_status,
-        )
+        return await self._execute_with_resilience("get_system_status", lambda: self._require_client().get_system_status())
 
     async def get_engine_info(self) -> dict[str, Any]:
-        """Get TWS engine information."""
-        return await self._execute_with_resilience(
-            "get_engine_info",
-            self._client.get_engine_info,
-        )
+        return await self._execute_with_resilience("get_engine_info", lambda: self._require_client().get_engine_info())
 
-    async def get_jobs(self, **params) -> list[dict[str, Any]]:
-        """Get list of jobs."""
-        return await self._execute_with_resilience(
-            "get_jobs",
-            self._client.get_jobs,
-            **params,
-        )
+    async def get_jobs(self, **params: Any) -> list[dict[str, Any]]:
+        return await self._execute_with_resilience("get_jobs", lambda: self._require_client().get_jobs(**params))
 
     async def get_job(self, job_name: str) -> dict[str, Any]:
-        """Get specific job details."""
-        return await self._execute_with_resilience(
-            "get_job",
-            self._client.get_job,
-            job_name,
-        )
+        return await self._execute_with_resilience("get_job", lambda: self._require_client().get_job(job_name))
 
     async def get_job_status(self, job_name: str) -> dict[str, Any]:
-        """Get job status."""
-        return await self._execute_with_resilience(
-            "get_job_status",
-            self._client.get_job_status,
-            job_name,
-        )
+        return await self._execute_with_resilience("get_job_status", lambda: self._require_client().get_job_status(job_name))
 
     async def get_workstations(self) -> list[dict[str, Any]]:
-        """Get list of workstations."""
-        return await self._execute_with_resilience(
-            "get_workstations",
-            self._client.get_workstations,
-        )
+        return await self._execute_with_resilience("get_workstations", lambda: self._require_client().get_workstations())
 
     async def get_plan(self) -> dict[str, Any]:
-        """Get current plan."""
-        return await self._execute_with_resilience(
-            "get_plan",
-            self._client.get_plan,
-        )
+        return await self._execute_with_resilience("get_plan", lambda: self._require_client().get_plan())
 
     async def health_check(self) -> bool:
-        """
-        Check if TWS is healthy.
-
-        Returns:
-            True if healthy, False otherwise
-        """
         try:
             await self.get_engine_info()
             return True
-        except Exception as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
+        except _PROGRAMMING_ERRORS:
+            raise
+        except Exception:
             return False
 
-    def get_metrics_summary(self) -> dict[str, Any]:
-        """Get summary of client metrics."""
-        avg_latency = (
-            self._metrics.total_latency_ms / self._metrics.successful_requests
-            if self._metrics.successful_requests > 0
-            else 0
-        )
+    def _require_client(self) -> OptimizedTWSClientAdapter:
+        if self._client is None:
+            raise TWSConnectionError("TWS client is not connected")
+        return self._client
 
+    def get_metrics_summary(self) -> dict[str, Any]:
+        success_rate = self._metrics.successful_requests / self._metrics.total_requests if self._metrics.total_requests else 0.0
+        avg_latency = self._metrics.total_latency_ms / self._metrics.successful_requests if self._metrics.successful_requests else 0.0
         return {
             "state": self.state.value,
             "total_requests": self._metrics.total_requests,
             "successful_requests": self._metrics.successful_requests,
             "failed_requests": self._metrics.failed_requests,
-            "success_rate": (
-                self._metrics.successful_requests / self._metrics.total_requests
-                if self._metrics.total_requests > 0
-                else 0
-            ),
+            "success_rate": success_rate,
+            "retries": self._metrics.retries,
             "avg_latency_ms": avg_latency,
             "circuit_breaker_trips": self._metrics.circuit_breaker_trips,
-            "circuit_breaker_state": self._circuit_breaker.state.value,
-            "last_success": (
-                self._metrics.last_success.isoformat()
-                if self._metrics.last_success
-                else None
-            ),
-            "last_failure": (
-                self._metrics.last_failure.isoformat()
-                if self._metrics.last_failure
-                else None
-            ),
+            "last_success": self._metrics.last_success.isoformat() if self._metrics.last_success else None,
+            "last_failure": self._metrics.last_failure.isoformat() if self._metrics.last_failure else None,
             "last_error": self._metrics.last_error,
         }
-
-
-# =============================================================================
-# SINGLETON & ACCESS FUNCTIONS
-# =============================================================================
 
 
 _tws_client_instance: UnifiedTWSClient | None = None
@@ -496,43 +322,27 @@ _tws_client_lock_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _get_tws_client_lock() -> asyncio.Lock:
-    """Get the async lock for TWS client singleton, ensuring loop safety."""
     global _tws_client_lock, _tws_client_lock_loop
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if _tws_client_lock is None or _tws_client_lock_loop != loop:
+    loop = asyncio.get_running_loop()
+    if _tws_client_lock is None or _tws_client_lock_loop is not loop:
         _tws_client_lock = asyncio.Lock()
         _tws_client_lock_loop = loop
     return _tws_client_lock
 
 
 async def get_tws_client() -> UnifiedTWSClient:
-    """
-    Get the singleton TWS client instance.
-
-    Creates and connects the client on first call.
-
-    Returns:
-        UnifiedTWSClient instance
-    """
     global _tws_client_instance
-
     if _tws_client_instance is None:
         async with _get_tws_client_lock():
             if _tws_client_instance is None:
-                _tws_client_instance = UnifiedTWSClient()
-                await _tws_client_instance.connect()
-
+                client = UnifiedTWSClient()
+                await client.connect()
+                _tws_client_instance = client
     return _tws_client_instance
 
 
 async def reset_tws_client() -> None:
-    """Reset the singleton TWS client (for testing or reconnection)."""
     global _tws_client_instance
-
     async with _get_tws_client_lock():
         if _tws_client_instance is not None:
             await _tws_client_instance.disconnect()
@@ -541,91 +351,41 @@ async def reset_tws_client() -> None:
 
 @asynccontextmanager
 async def tws_client_context() -> AsyncIterator[UnifiedTWSClient]:
-    """
-    Context manager for TWS client access.
-
-    Example:
-        async with tws_client_context() as client:
-            status = await client.get_system_status()
-    """
-    client = await get_tws_client()
-    try:
-        yield client
-    finally:
-        # Don't disconnect - we're using singleton
-        pass
-
-
-# =============================================================================
-# MOCK CLIENT FOR TESTING
-# =============================================================================
+    yield await get_tws_client()
 
 
 class MockTWSClient(UnifiedTWSClient):
-    """
-    Mock TWS client for testing.
-
-    Provides canned responses without actually connecting to TWS.
-    """
-
     def __init__(self, responses: dict[str, Any] | None = None):
-        """
-        Initialize mock client.
-
-        Args:
-            responses: Dict mapping operation names to responses
-        """
-        # Don't call parent __init__ to avoid connecting
         self.config = TWSClientConfig()
+        self._client = None
         self._state = TWSClientState.CONNECTED
         self._metrics = TWSClientMetrics()
+        self._lock = asyncio.Lock()
         self._responses = responses or {}
-        self._calls: list[tuple[str, tuple, dict]] = []
+        self._calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+        self._circuit_breaker = CircuitBreaker(CircuitBreakerConfig(name="mock_tws"))
+        self._retry_handler = RetryWithBackoff(RetryConfig(max_retries=1, base_delay=0.1))
 
-        # Initialize mock circuit breaker
-        self._circuit_breaker = CircuitBreaker(
-            CircuitBreakerConfig(
-                failure_threshold=5,
-                recovery_timeout=60,
-                name="mock_tws_client",
-            )
-        )
-        self._retry_handler = RetryWithBackoff(
-            RetryConfig(max_retries=1, base_delay=0.1)
-        )
-
-    @property
-    def state(self) -> TWSClientState:
-        return self._state
-
-    def connect(self) -> None:
-        """Mock connect - always succeeds."""
+    async def connect(self) -> None:
         self._state = TWSClientState.CONNECTED
 
-    def disconnect(self) -> None:
-        """Mock disconnect."""
+    async def disconnect(self) -> None:
         self._state = TWSClientState.DISCONNECTED
 
-    def _mock_response(self, operation: str, *args, **kwargs) -> Any:
-        """Get mock response for operation."""
+    def _mock_response(self, operation: str, *args: Any, **kwargs: Any) -> Any:
         self._calls.append((operation, args, kwargs))
         self._metrics.total_requests += 1
         self._metrics.successful_requests += 1
-
-        if operation in self._responses:
-            return self._responses[operation]
-
-        # Default responses
-        defaults = {
+        defaults: dict[str, Any] = {
             "get_system_status": {"status": "OK", "engine": "DWC"},
             "get_engine_info": {"name": "DWC", "version": "9.5"},
             "get_jobs": [],
             "get_job": {"name": "TEST_JOB", "status": "SUCC"},
             "get_job_status": {"status": "SUCC"},
             "get_workstations": [],
-            "get_plan": {"date": "2025-01-01"},
+            "get_plan": {"streams": []},
         }
-        return defaults.get(operation, {})
+        return self._responses.get(operation, defaults.get(operation, {}))
 
     async def get_system_status(self) -> dict[str, Any]:
         return self._mock_response("get_system_status")
@@ -633,7 +393,7 @@ class MockTWSClient(UnifiedTWSClient):
     async def get_engine_info(self) -> dict[str, Any]:
         return self._mock_response("get_engine_info")
 
-    async def get_jobs(self, **params) -> list[dict[str, Any]]:
+    async def get_jobs(self, **params: Any) -> list[dict[str, Any]]:
         return self._mock_response("get_jobs", **params)
 
     async def get_job(self, job_name: str) -> dict[str, Any]:
@@ -648,27 +408,31 @@ class MockTWSClient(UnifiedTWSClient):
     async def get_plan(self) -> dict[str, Any]:
         return self._mock_response("get_plan")
 
-    def get_calls(self) -> list[tuple[str, tuple, dict]]:
-        """Get list of calls made to the mock."""
+    def get_calls(self) -> list[tuple[str, tuple[Any, ...], dict[str, Any]]]:
         return self._calls
 
 
-def use_mock_tws_client(responses: dict[str, Any] | None = None) -> None:
-    """
-    Configure the module to use a mock client.
-
-    Call this in test setup.
-
-    Args:
-        responses: Dict mapping operation names to responses
-    """
+async def use_mock_tws_client(responses: dict[str, Any] | None = None) -> None:
     global _tws_client_instance
-    _tws_client_instance = MockTWSClient(responses)
+    async with _get_tws_client_lock():
+        _tws_client_instance = MockTWSClient(responses)
 
 
 def get_mock_tws_client() -> MockTWSClient | None:
-    """Get the mock client if one is configured."""
-    global _tws_client_instance
     if isinstance(_tws_client_instance, MockTWSClient):
         return _tws_client_instance
     return None
+
+
+__all__ = [
+    "UnifiedTWSClient",
+    "TWSClientConfig",
+    "TWSClientState",
+    "TWSClientMetrics",
+    "MockTWSClient",
+    "get_tws_client",
+    "reset_tws_client",
+    "tws_client_context",
+    "use_mock_tws_client",
+    "get_mock_tws_client",
+]
