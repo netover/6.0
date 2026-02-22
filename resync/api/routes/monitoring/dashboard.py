@@ -593,6 +593,10 @@ async def _start_metrics_collector_async() -> None:
     async with _collector_lock:
         if _collector_task is None or _collector_task.done():
             _collector_task = asyncio.create_task(metrics_collector_loop())
+    if _collector_task is None or _collector_task.done():
+        try:
+            loop = asyncio.get_running_loop()
+            _collector_task = loop.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
 
 
@@ -615,6 +619,7 @@ def stop_metrics_collector():
     if _collector_task and not _collector_task.done():
         _collector_task.cancel()
         logger.info("Dashboard metrics collector parado")
+    _collector_task = None
 
 
 # =====================================
