@@ -536,7 +536,7 @@ class CrossEncoderReranker:
         return {
             "type": "cross_encoder",
             "enabled": True,
-            "available": self._available is not False,
+            "available": self._available in (True, None),
             "loaded": self._model is not None,
             "model": self.model_name,
             "threshold": self.threshold,
@@ -574,7 +574,7 @@ def create_reranker(
         reranker = create_reranker()
 
         # In retrieval
-        results = await reranker.rerank(query, candidates)
+        results = reranker.rerank(query, candidates)
     """
     from resync.knowledge.config import CFG
 
@@ -620,7 +620,7 @@ def create_gated_reranker(
         should_rerank, reason = gating.should_rerank(scores)
         if should_rerank:
             pool = candidates[:gating.config.max_candidates]
-            results = await reranker.rerank(query, pool)
+            results = reranker.rerank(query, pool)
     """
     if reranker is None:
         reranker = create_reranker()
