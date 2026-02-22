@@ -1,6 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
 import logging
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,12 +9,19 @@ from resync.core.exceptions import (
     ToolProcessingError,
     TWSConnectionError,
 )
-from resync.services.tws_service import OptimizedTWSClient
 
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
 
 PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
+
+
+@runtime_checkable
+class TWSStatusClientProtocol(Protocol):
+    """Subset of the TWS client contract required by tool definitions."""
+
+    async def get_system_status(self) -> Any:
+        ...
 
 
 class TWSToolReadOnly(BaseModel):
@@ -24,7 +30,7 @@ class TWSToolReadOnly(BaseModel):
     This prevents each tool from creating its own client instance.
     """
 
-    tws_client: OptimizedTWSClient | None = Field(
+    tws_client: TWSStatusClientProtocol | None = Field(
         default=None,
         exclude=True,
         description="The TWS client instance, injected at runtime.",
@@ -40,12 +46,16 @@ class TWSStatusTool(TWSToolReadOnly):
         """
         Fetches the current status of TWS workstations and jobs.
         """
-        if not self.tws_client:
+        client = self.__dict__.get("tws_client")
+        if client is None:
             raise ToolExecutionError("TWS client not available for TWSStatusTool.")
 
         try:
             logger.info("TWSStatusTool: Fetching system status.")
-            status = await self.tws_client.get_system_status()
+            typed_client = client if isinstance(client, TWSStatusClientProtocol) else None
+            if typed_client is None:
+                raise ToolExecutionError("Invalid TWS client implementation injected.")
+            status = await typed_client.get_system_status()
 
             workstation_summary = ", ".join(
                 [f"{ws.name} ({ws.status})" for ws in status.workstations]
@@ -89,14 +99,18 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
         """
         Analyzes failed jobs and down workstations to identify root causes.
         """
-        if not self.tws_client:
+        client = self.__dict__.get("tws_client")
+        if client is None:
             raise ToolExecutionError(
                 "TWS client not available for TWSTroubleshootingTool."
             )
 
         try:
             logger.info("TWSTroubleshootingTool: Fetching system status for analysis.")
-            status = await self.tws_client.get_system_status()
+            typed_client = client if isinstance(client, TWSStatusClientProtocol) else None
+            if typed_client is None:
+                raise ToolExecutionError("Invalid TWS client implementation injected.")
+            status = await typed_client.get_system_status()
 
             failed_jobs = [j for j in status.jobs if j.status.upper() == "ABEND"]
             down_workstations = [
