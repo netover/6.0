@@ -264,7 +264,7 @@ class _LazyLLMCostMonitor:
     __slots__ = ("_instance",)
 
     def __init__(self) -> None:
-        self._instance = None
+        self._instance: LLMCostMonitor | None = None
 
     def get_instance(self) -> LLMCostMonitor:
         if self._instance is None:

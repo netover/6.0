@@ -348,7 +348,7 @@ def _fetch_logs(state: ParallelFetchState) -> dict:
     try:
         # Simulated log fetch
         job_name = state.get("job_name")
-        logs = {"recent_logs": [], "job": job_name}
+        logs: dict[str, list[Any] | str | None] = {"recent_logs": [], "job": job_name}
 
         return {
             "parallel_results": [
@@ -380,7 +380,7 @@ def _aggregate_results(state: ParallelFetchState) -> dict:
     results = state.get("parallel_results", [])
 
     aggregated = {}
-    total_latency = 0
+    total_latency: float = 0.0
 
     for result in results:
         if result.get("success"):
@@ -400,7 +400,7 @@ def _aggregate_results(state: ParallelFetchState) -> dict:
     }
 
 
-def _parallel_router(state: ParallelFetchState) -> list:
+def _parallel_router(state: ParallelFetchState) -> list[Any] | str:
     """Route to parallel nodes using Send API (LangGraph 0.3)."""
     if not LANGGRAPH_03_FEATURES or Send is None:
         # Fallback for older versions

@@ -45,6 +45,19 @@ except ImportError:  # redis opcional
 logger = logging.getLogger(__name__)
 
 
+def _resolve_redis_url(url_value: object) -> str:
+    """Normalize redis url value from str/SecretStr-like objects."""
+    getter = getattr(url_value, "get_secret_value", None)
+    if callable(getter):
+        secret = getter()
+        return str(secret)
+    if isinstance(url_value, str):
+        return url_value
+    if url_value is None:
+        return "redis://localhost:6379/0"
+    return str(url_value)
+
+
 def _env_flag(name: str, default: str = "0") -> bool:
     """Return True when an env var is set to a truthy value.
 
@@ -112,10 +125,7 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
 
         # Legacy path (scripts/dev only)
         _url = getattr(settings, "redis_url", None)
-        if hasattr(_url, "get_secret_value"):
-            url = _url.get_secret_value()
-        else:
-            url = _url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        url = _resolve_redis_url(_url) if _url is not None else os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
         _REDIS_CLIENT = redis.from_url(url, encoding="utf-8", decode_responses=True)
         logger.warning(
@@ -326,10 +336,7 @@ class RedisInitializer:
                 }[name]
         # v5.9.7: Use consolidated settings field names
         _url = redis_url or getattr(settings, "redis_url", "redis://localhost:6379/0")
-        if hasattr(_url, "get_secret_value"):
-            url = _url.get_secret_value()
-        else:
-            url = str(_url)
+        url = _resolve_redis_url(_url)
 
         max_conns = getattr(settings, "redis_pool_max_size", None) or getattr(
             settings, "redis_max_connections", 50

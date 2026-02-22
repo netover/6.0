@@ -44,7 +44,7 @@ class ProactiveMonitoringSystem:
             Dictionary containing check results, issues detected, and recovery actions
         """
         start_time = time.time()
-        results = {
+        results: dict[str, Any] = {
             "timestamp": start_time,
             "checks_performed": [],
             "issues_detected": [],
