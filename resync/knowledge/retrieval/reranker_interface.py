@@ -392,7 +392,7 @@ class CrossEncoderReranker:
         if self._model is not None:
             return self._model
 
-        if self._available is False:
+        if not self._available:
             return None
 
         try:

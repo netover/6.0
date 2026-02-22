@@ -93,7 +93,7 @@ class ErrorFactory:
 
         # In production, sanitize error messages to prevent information disclosure
         if is_production:
-            builder.with_stack_trace(include_stack_trace and is_production is False)
+            builder.with_stack_trace(include_stack_trace and not is_production)
         else:
             builder.with_stack_trace(include_stack_trace)
 

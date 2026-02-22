@@ -6,7 +6,6 @@ from __future__ import annotations
 # pylint: disable=no-member
 # mypy: ignore-errors
 
-import asyncio
 import inspect
 import contextlib
 import functools

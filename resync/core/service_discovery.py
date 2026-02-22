@@ -36,8 +36,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.networks import AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from resync.core.backends.base import BackendInterface, BackendHealth
-from resync.core.load_balancing import LoadBalancer, LoadBalancingStrategy
 from resync.core.task_tracker import track_task
 
 logger = structlog.get_logger(__name__)
@@ -1181,5 +1179,4 @@ class ServiceDiscoveryManager:
 # =============================================================================
 
 async def get_service_discovery(sdm: ServiceDiscoveryManager = inject.me()) -> ServiceDiscoveryManager:
-    return sdmasync def get_service_discovery(sdm: ServiceDiscoveryManager = inject.me()) -> ServiceDiscoveryManager:
     return sdm
