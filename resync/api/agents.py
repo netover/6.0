@@ -26,8 +26,6 @@ async def list_all_agents(
         ServiceUnavailableError: If there's an infrastructure error.
     """
     logger.info("list_all_agents endpoint called")
-    # FIX: Let exceptions propagate to global handler instead of returning []
-    # This ensures proper error codes (500) are returned instead of empty list
     agents = await agent_manager.get_all_agents()
     return [
         {
