@@ -1,5 +1,3 @@
-# pylint: skip-file
-# mypy: ignore-errors
 """
 TWS API Cache - Near Real-Time Strategy v5.9.3
 
@@ -147,7 +145,7 @@ class TWSAPICache:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if getattr(self, "_initialized", False):
             return
 
@@ -191,7 +189,7 @@ class TWSAPICache:
         job_logs: int | None = None,
         static_structure: int | None = None,
         graph: int | None = None,
-    ):
+    ) -> None:
         """Configure TTLs from settings."""
         if job_status is not None:
             self._ttls[CacheCategory.JOB_STATUS] = job_status
@@ -208,7 +206,7 @@ class TWSAPICache:
         """Get TTL for category."""
         return self._ttls.get(category, self._ttls[CacheCategory.DEFAULT])
 
-    def _make_key(self, prefix: str, *args, **kwargs) -> str:
+    def _make_key(self, prefix: str, *args: Any, **kwargs: Any) -> str:
         """Create cache key from function arguments."""
         key_parts = [prefix]
         key_parts.extend(str(arg) for arg in args)
@@ -255,7 +253,7 @@ class TWSAPICache:
         key: str,
         value: Any,
         category: CacheCategory = CacheCategory.DEFAULT,
-    ):
+    ) -> None:
         """Set value in cache with metadata injection and SWR support."""
         # Inject _fetched_at for transparency
         if isinstance(value, dict):
@@ -344,9 +342,9 @@ class TWSAPICache:
     async def _background_refresh(
         self,
         key: str,
-        fetch_func: Callable,
+        fetch_func: Callable[[], Any],
         category: CacheCategory,
-    ):
+    ) -> None:
         """
         Background refresh for SWR - runs asynchronously without blocking the caller.
 
@@ -398,7 +396,7 @@ class TWSAPICache:
                 self._locks.pop(refresh_lock_key, None)
                 self._lock_refcounts.pop(refresh_lock_key, None)
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all cache entries."""
         count = len(self._cache)
         self._cache.clear()
@@ -409,7 +407,7 @@ class TWSAPICache:
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics including SWR metrics."""
         # Count entries by category
-        category_counts = {}
+        category_counts: dict[str, int] = {}
         for entry in self._cache.values():
             cat = entry.category.value
             category_counts[cat] = category_counts.get(cat, 0) + 1
@@ -453,7 +451,7 @@ def get_tws_cache() -> TWSAPICache:
 def tws_cache(
     category: CacheCategory = CacheCategory.DEFAULT,
     key_prefix: str | None = None,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator for caching TWS API calls.
 
@@ -468,15 +466,15 @@ def tws_cache(
     - Use request coalescing for concurrent calls
     """
 
-    def decorator(func: Callable):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         prefix = key_prefix or func.__name__
 
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             cache = get_tws_cache()
             key = cache._make_key(prefix, *args, **kwargs)
 
-            async def fetch():
+            async def fetch() -> Any:
                 return await func(*args, **kwargs)
 
             value, is_cached, age = await cache.get_or_fetch(key, fetch, category)
