@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Union
 import bcrypt

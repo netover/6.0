@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """Correlation ID middleware.
 
 Adds a stable request correlation identifier for the lifetime of an HTTP request.

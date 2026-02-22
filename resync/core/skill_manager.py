@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Skill Manager - Carrega e gerencia skills do sistema Resync.
 

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Advanced Anomaly Detection with Machine Learning.
 

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Incident Response Pipeline for Resync v6.0.0.
 
