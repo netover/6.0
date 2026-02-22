@@ -29,6 +29,8 @@ import asyncio
 import os
 import sys
 import time
+
+from resync.core.utils.async_bridge import run_sync
 import inspect
 from collections.abc import Callable
 
@@ -766,7 +768,7 @@ def run_smoke_tests(verbose: bool = True) -> bool:
         True if all tests passed, False otherwise
     """
     runner = SmokeTestRunner(verbose=verbose)
-    suite = asyncio.run(runner.run_all())
+    suite = run_sync(runner.run_all())
     return suite.success
 
 

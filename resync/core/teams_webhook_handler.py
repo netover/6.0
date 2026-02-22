@@ -114,7 +114,7 @@ class TeamsWebhookHandler:
     def _extract_answer(self, response: Any) -> str:
         """Extrai resposta do Agent Manager."""
         if isinstance(response, dict):
-            return response.get("response", response.get("answer", str(response)))
+            return str(response.get("response", response.get("answer", str(response))))
         return str(response)
 
     def _format_response(self, answer: str, command_type: str, role: str) -> str:

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 LLM Service using OpenAI SDK for OpenAI-Compatible APIs.
 

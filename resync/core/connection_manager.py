@@ -67,6 +67,8 @@ class ConnectionManager:
         try:
             await websocket.close()
         except Exception as e:
+            if isinstance(e, asyncio.CancelledError):
+                raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
 
         if self._pool_manager:
@@ -105,6 +107,8 @@ class ConnectionManager:
                 else:
                     logger.error("Runtime error sending to client %s: %s", client_id, e)
             except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    raise
                 logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
@@ -132,25 +136,21 @@ class ConnectionManager:
             connections = list(self.active_connections.values())
 
         logger.info("broadcasting_message", client_count=len(connections))
-        # Create a list of tasks to send messages concurrently
-        tasks = [connection.send_text(message) for connection in connections]
-        # In a high-load scenario, you might want to handle exceptions here
-        # for failed sends, but for now, we keep it simple.
-        for task in tasks:
-            try:
-                await task
-            except (WebSocketDisconnect, ConnectionError) as e:
-                # Client disconnected or connection lost during broadcast
-                logger.warning("Connection issue during broadcast: %s", e)
-            except RuntimeError as e:  # pragma: no cover
-                # WebSocket in wrong state
-                if "websocket state" in str(e).lower():
-                    logger.warning("WebSocket in wrong state during broadcast: %s", e)
-                else:
-                    logger.warning("Runtime error during broadcast: %s", e)
-            except Exception as _e:
-                # Log error but don't stop broadcasting to other clients
-                logger.error("Unexpected error during broadcast.", exc_info=True)
+        # HARDENING [P0]: asyncio.TaskGroup previne Head-of-Line Blocking e garante concorrência estruturada.
+        # Um cliente lento ou com erro de rede não atrasa o envio para os demais.
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for idx, connection in enumerate(connections):
+                    tasks.append(tg.create_task(
+                        connection.send_text(message),
+                        name=f"broadcast_text_{idx}"
+                    ))
+        except* asyncio.CancelledError:
+            raise
+        except* Exception as eg:
+            for exc in eg.exceptions:
+                logger.warning("broadcast_connection_error", error=str(exc))
 
     async def broadcast_json(self, data: dict[str, Any]) -> None:
         """
@@ -177,28 +177,20 @@ class ConnectionManager:
             connections = list(self.active_connections.values())
 
         logger.info("Broadcasting JSON data to %d clients.", len(connections))
-        tasks = [connection.send_json(data) for connection in connections]
-        for task in tasks:
-            try:
-                await task
-            except (WebSocketDisconnect, ConnectionError) as e:
-                # Client disconnected or connection lost during broadcast
-                logger.warning("Connection issue during JSON broadcast: %s", e)
-            except RuntimeError as e:  # pragma: no cover
-                # WebSocket in wrong state
-                if "websocket state" in str(e).lower():
-                    logger.warning(
-                        "WebSocket in wrong state during JSON broadcast: %s", e
-                    )
-                else:
-                    logger.error("Runtime error during JSON broadcast: %s", e)
-            except ValueError as e:
-                # JSON serialization error
-                logger.error(
-                    "JSON serialization error during broadcast: %s", e, exc_info=True
-                )
-            except Exception as _e:
-                logger.error("Unexpected error during JSON broadcast.", exc_info=True)
+        # HARDENING [P0]: TaskGroup para concorrência real e isolamento de falhas estruturado
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for idx, connection in enumerate(connections):
+                    tasks.append(tg.create_task(
+                        connection.send_json(data),
+                        name=f"broadcast_json_{idx}"
+                    ))
+        except* asyncio.CancelledError:
+            raise
+        except* Exception as eg:
+            for exc in eg.exceptions:
+                logger.warning("json_broadcast_connection_error", error=str(exc))
 
     def get_connection_stats(self) -> dict[str, Any]:
         """

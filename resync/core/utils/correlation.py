@@ -20,7 +20,7 @@ Usage:
         result = await self._internal_get(key)
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import functools

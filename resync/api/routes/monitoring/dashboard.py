@@ -439,6 +439,7 @@ class DashboardMetricsStore:
 # Singleton do store
 _metrics_store: DashboardMetricsStore | None = None
 _collector_task: asyncio.Task | None = None
+_collector_lock: asyncio.Lock | None = None
 
 
 def get_metrics_store() -> DashboardMetricsStore:
@@ -582,18 +583,33 @@ async def metrics_collector_loop():
         await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
 
 
-def start_metrics_collector():
-    """Inicia o coletor de métricas em background."""
-    global _collector_task
+async def _start_metrics_collector_async() -> None:
+    """Start collector under lock to avoid duplicate background tasks."""
+    global _collector_task, _collector_lock
 
+    if _collector_lock is None:
+        _collector_lock = asyncio.Lock()
+
+    async with _collector_lock:
+        if _collector_task is None or _collector_task.done():
+            _collector_task = asyncio.create_task(metrics_collector_loop())
     if _collector_task is None or _collector_task.done():
         try:
             loop = asyncio.get_running_loop()
             _collector_task = loop.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
-        except RuntimeError:
-            # Não há event loop rodando ainda
-            logger.warning("Event loop não disponível, collector será iniciado depois")
+
+
+def start_metrics_collector():
+    """Inicia o coletor de métricas em background."""
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_start_metrics_collector_async())
+    except RuntimeError:
+        # Não há event loop rodando ainda
+        logger.warning("Event loop não disponível, collector será iniciado depois")
+    except Exception as e:
+        logger.error("Unexpected error starting metrics collector: %s", e)
 
 
 def stop_metrics_collector():

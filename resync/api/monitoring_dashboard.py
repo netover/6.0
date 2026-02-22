@@ -267,12 +267,45 @@ class DashboardMetricsStore:
         """Calcula RPS com estado persistido no Redis (consistente entre workers)."""
         try:
             redis = _get_redis()
-            prev_req_raw, prev_time_raw = await asyncio.gather(
-                redis.get(REDIS_KEY_PREV_REQUESTS),
-                redis.get(REDIS_KEY_PREV_WALLTIME),
-            )
-            prev_requests = _safe_int(prev_req_raw)
-            prev_walltime = _safe_float(prev_time_raw)
+            # Utilizar variáveis explícitas para as tasks
+            task_req = None
+            task_time = None
+            
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    task_req = tg.create_task(
+                        redis.get(REDIS_KEY_PREV_REQUESTS),
+                        name="get_prev_requests"
+                    )
+                    task_time = tg.create_task(
+                        redis.get(REDIS_KEY_PREV_WALLTIME),
+                        name="get_prev_walltime"
+                    )
+            except* asyncio.CancelledError:
+                # Crucial: propagar cancelamento para shutdown limpo
+                raise
+            except* Exception as exc_group:
+                logger.error(
+                    "storage_state_fetch_failure",
+                    exception_count=len(exc_group.exceptions),
+                    exception_types=[type(e).__name__ for e in exc_group.exceptions]
+                )
+            
+            # Extração segura com fallbacks
+            prev_requests = 0
+            prev_walltime = 0.0
+            
+            if task_req and task_req.done() and not task_req.cancelled():
+                try:
+                    prev_requests = _safe_int(task_req.result())
+                except Exception:
+                    pass
+            
+            if task_time and task_time.done() and not task_time.cancelled():
+                try:
+                    prev_walltime = _safe_float(task_time.result())
+                except Exception:
+                    pass
 
             time_delta = (
                 now_wall - prev_walltime
@@ -649,8 +682,13 @@ class WebSocketManager:
                 await self.disconnect(ws)
 
         if clients:
-            tasks = [asyncio.create_task(_safe_send(c)) for c in clients]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    for c in clients:
+                        tg.create_task(_safe_send(c))
+            except* Exception:
+                # _safe_send already handles internal errors/disconnects
+                pass
 
 
 # ── WebSocket Authentication ─────────────────────────────────────────────────

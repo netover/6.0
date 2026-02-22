@@ -319,7 +319,7 @@ class SettingsValidators:
     ) -> bool | str:
         """Emite warning para TWS verification em produção."""
         env = info.data.get("environment")
-        is_disabled = (v is False) or (isinstance(v, str) and v.lower() == "false")
+        is_disabled = (isinstance(v, bool) and not v) or (isinstance(v, str) and v.lower() == "false")
         if env == Environment.PRODUCTION and is_disabled:
             warnings.warn(
                 "TWS verification is disabled in production. This is a security risk.",
@@ -403,7 +403,7 @@ class SettingsValidators:
     def validate_debug_in_production(cls, v: bool, info: ValidationInfo) -> bool:
         """Ensure debug mode is disabled in production."""
         env = info.data.get("environment")
-        if env == Environment.PRODUCTION and v is True:
+        if env == Environment.PRODUCTION and v:
             raise ValueError("Debug mode must be disabled in production")
         return v
 

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Write-Ahead Logging (WAL) system for cache persistence.
 

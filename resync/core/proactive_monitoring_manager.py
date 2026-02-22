@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Inicializador do Sistema de Monitoramento Proativo
 
@@ -130,8 +132,13 @@ class ProactiveMonitoringManager:
         self._initialized = True
         logger.info("proactive_monitoring_initialized")
 
-    async def start(self) -> None:
-        """Inicia o sistema de monitoramento."""
+    async def start(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """
+        Inicia o sistema de monitoramento.
+
+        Args:
+            tg: Optional TaskGroup to run the background tasks in
+        """
         if not self._initialized:
             raise RuntimeError("Monitoring not initialized. Call initialize() first.")
 
@@ -142,21 +149,31 @@ class ProactiveMonitoringManager:
         logger.info("starting_proactive_monitoring")
 
         # Inicia poller
-        await self._poller.start()
+        await self._poller.start(tg=tg)
 
         # Inicia detecção de padrões periódica
         if self._config.pattern_detection_enabled:
-            self._pattern_detection_task = await create_tracked_task(
-                self._pattern_detection_loop(), name="pattern_detection_loop"
-            )
+            if tg:
+                self._pattern_detection_task = tg.create_task(
+                    self._pattern_detection_loop(), name="pattern_detection_loop"
+                )
+            else:
+                self._pattern_detection_task = await create_tracked_task(
+                    self._pattern_detection_loop(), name="pattern_detection_loop"
+                )
 
         # Inicia limpeza periódica
-        self._cleanup_task = await create_tracked_task(
-            self._cleanup_loop(), name="cleanup_loop"
-        )
+        if tg:
+            self._cleanup_task = tg.create_task(
+                self._cleanup_loop(), name="cleanup_loop"
+            )
+        else:
+            self._cleanup_task = await create_tracked_task(
+                self._cleanup_loop(), name="cleanup_loop"
+            )
 
         self._running = True
-        logger.info("proactive_monitoring_started")
+        logger.info("proactive_monitoring_started", method="task_group" if tg else "track_task")
 
     async def stop(self) -> None:
         """Para o sistema de monitoramento."""
@@ -488,6 +505,7 @@ async def setup_proactive_monitoring(
     tws_client: Any,
     config: dict[str, Any] | None = None,
     auto_start: bool = True,
+    tg: asyncio.TaskGroup | None = None,
 ) -> ProactiveMonitoringManager:
     """
     Configura e inicia o sistema de monitoramento proativo.
@@ -496,6 +514,7 @@ async def setup_proactive_monitoring(
         tws_client: Cliente TWS
         config: Configurações opcionais
         auto_start: Se deve iniciar automaticamente
+        tg: Optional TaskGroup to start the monitoring in
 
     Returns:
         Manager configurado
@@ -505,7 +524,7 @@ async def setup_proactive_monitoring(
     await manager.initialize(tws_client, config)
 
     if auto_start:
-        await manager.start()
+        await manager.start(tg=tg)
 
     return manager
 

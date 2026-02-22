@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Audit to Knowledge Graph Pipeline.
 

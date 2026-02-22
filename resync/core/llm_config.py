@@ -5,20 +5,15 @@ Provides LLM model and settings to ALL agents, specialists, and LLM consumers.
 Ensures NO hardcoded models - everything uses central config.
 
 Author: Resync Team
-Version: 5.9.9
+Version: 6.1.2
 """
 
-import sys
 from pathlib import Path
 from typing import Any, Optional
 
-# [FIX] Use tomllib (Python 3.11+) instead of external 'toml' dependency
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import toml as tomllib
+# Python 3.14+ baseline: stdlib tomllib is always available.
+import tomllib
 
-# [FIX] Use standardized project logger
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -63,7 +58,6 @@ class LLMConfig:
                 self._config = self._get_defaults()
                 return
 
-            # [FIX] tomllib (available in 3.11+) requires binary mode ('rb')
             with open(config_file, "rb") as f:
                 self._config = tomllib.load(f)
 
@@ -74,7 +68,6 @@ class LLMConfig:
             )
 
         except Exception as e:
-            # Re-raise programming errors (bugs) vs runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("llm_config_load_failed", error=str(e), exc_info=True)

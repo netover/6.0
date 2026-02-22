@@ -143,7 +143,9 @@ class EnhancedCacheManager:
             if inspect.iscoroutinefunction(fetcher):
                 data = await fetcher()
             else:
-                data = fetcher()
+                data = await asyncio.to_thread(fetcher)
+                if inspect.isawaitable(data):
+                    data = await data
 
             # Armazenar no cache
             import json

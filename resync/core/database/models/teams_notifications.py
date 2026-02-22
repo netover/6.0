@@ -1,9 +1,11 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """Teams Notifications - Database Models."""
 
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 

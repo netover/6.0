@@ -17,13 +17,13 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 from unittest.mock import patch
 
-from resync.core.task_tracker import create_tracked_task
 from resync.core import get_environment_tags, get_global_correlation_id
-from resync.core.agent_manager import AgentManager, AgentConfig
-from resync.core.audit_db import add_audit_records_batch, add_audit_record
+from resync.core.agent_manager import AgentConfig, AgentManager
+from resync.core.audit_db import add_audit_record, add_audit_records_batch
 from resync.core.audit_log import get_audit_log_manager
 from resync.core.cache import AsyncTTLCache
 from resync.core.metrics import log_with_correlation, runtime_metrics
+from resync.core.task_tracker import create_tracked_task
 
 logger = logging.getLogger(__name__)
 
@@ -93,34 +93,43 @@ class ChaosEngineer:
         )
 
         try:
-            # Run all tests concurrently
-            test_tasks = [
-                self._cache_race_condition_fuzzing(),
-                self._agent_concurrent_initialization_chaos(),
-                self._audit_db_failure_injection(),
-                self._memory_pressure_simulation(),
-                self._network_partition_simulation(),
-                self._component_isolation_testing(),
-            ]
-
-            # Run tests with timeout
+            # PHASE 1: Parallel Execution
             timeout_seconds = max(1, int(duration_minutes * 60))
+            tasks = []
+            results = []
+
             try:
-                results = await asyncio.wait_for(
-                    asyncio.gather(*test_tasks, return_exceptions=True),
-                    timeout=timeout_seconds,
-                )
-            except asyncio.TimeoutError:
-                logger.error(
-                    "chaos_suite_timeout",
-                    extra={
-                        "timeout_seconds": timeout_seconds,
-                        "correlation_id": correlation_id,
-                    },
-                )
-                results = [
-                    TimeoutError(f"Chaos suite timed out after {timeout_seconds}s")
-                ]
+                async with asyncio.timeout(timeout_seconds):
+                    try:
+                        async with asyncio.TaskGroup() as tg:
+                            tasks = [
+                                tg.create_task(self._cache_race_condition_fuzzing(), name="cache_race"),
+                                tg.create_task(self._agent_concurrent_initialization_chaos(), name="agent_chaos"),
+                                tg.create_task(self._audit_db_failure_injection(), name="audit_chaos"),
+                                tg.create_task(self._memory_pressure_simulation(), name="memory_chaos"),
+                                tg.create_task(self._network_partition_simulation(), name="network_chaos"),
+                                tg.create_task(self._component_isolation_testing(), name="isolation_chaos"),
+                            ]
+                    except* asyncio.CancelledError:
+                        raise
+                    except* Exception:
+                        logger.warning("chaos_tasks_partial_failure", job_name="chaos_suite")
+            except TimeoutError:
+                logger.error("chaos_suite_timeout", timeout_seconds=timeout_seconds)
+                # results will be partial, processed below
+
+            # PHASE 2: Results Collection (Safe Extraction)
+            for t in tasks:
+                if t.done() and not t.cancelled():
+                    try:
+                        results.append(t.result())
+                    except Exception as e:
+                        if isinstance(e, asyncio.CancelledError):
+                            raise
+                        results.append(e)
+                else:
+                    # Task timed out or was cancelled
+                    results.append(TimeoutError(f"Task {t.get_name()} failed or timed out"))
 
             # Process results
             successful_tests = 0
@@ -140,20 +149,19 @@ class ChaosEngineer:
                             correlation_id=correlation_id,
                         )
                     )
-                else:
-                    if isinstance(result, ChaosTestResult):
-                        self.results.append(result)
-                        if result.success:
-                            successful_tests += 1
-                        total_anomalies += len(result.anomalies_detected)
+                elif isinstance(result, ChaosTestResult):
+                    self.results.append(result)
+                    if result.success:
+                        successful_tests += 1
+                    total_anomalies += len(result.anomalies_detected)
 
             suite_duration = time.time() - start_time
             summary = {
                 "correlation_id": correlation_id,
                 "duration": suite_duration,
-                "total_tests": len(test_tasks),
+                "total_tests": len(tasks),
                 "successful_tests": successful_tests,
-                "success_rate": successful_tests / len(test_tasks) if test_tasks else 0,
+                "success_rate": successful_tests / len(tasks) if tasks else 0,
                 "total_anomalies": total_anomalies,
                 "test_results": [r.__dict__ for r in self.results],
                 "environment": get_environment_tags(),
@@ -161,7 +169,7 @@ class ChaosEngineer:
 
             log_with_correlation(
                 logging.INFO,
-                f"Chaos suite completed: {successful_tests}/{len(test_tasks)} tests passed, "
+                f"Chaos suite completed: {successful_tests}/{len(tasks)} tests passed, "
                 f"{total_anomalies} anomalies detected in {suite_duration:.1f}s",
                 correlation_id,
             )
@@ -201,11 +209,15 @@ class ChaosEngineer:
 
                         operations += 1
                     except Exception as e:
+                        if isinstance(e, asyncio.CancelledError):
+                            raise
                         errors += 1
-                        anomalies.append(f"Worker {worker_id} op {i}: {str(e)}")
+                        anomalies.append(f"Worker {worker_id} op {i}: {e!s}")
 
-            workers = [asyncio.create_task(worker(i)) for i in range(10)]
-            await asyncio.gather(*workers, return_exceptions=True)
+            async with asyncio.TaskGroup() as tg:
+                for i in range(10):
+                    tg.create_task(worker(i))
+            # TaskGroup waits for all workers
 
             metrics = cache.get_detailed_metrics()
             if metrics["size"] < 0 or metrics["hit_rate"] > 1.0:
@@ -255,14 +267,16 @@ class ChaosEngineer:
                     for result in results:
                         if isinstance(result, Exception):
                             errors += 1
-                            anomalies.append(f"Agent operation failed: {str(result)}")
+                            anomalies.append(f"Agent operation failed: {result!s}")
 
                 except Exception as e:
                     errors += 1
-                    anomalies.append(f"Manager init {worker_id}: {str(e)}")
+                    anomalies.append(f"Manager init {worker_id}: {e!s}")
 
-            workers = [asyncio.create_task(init_worker(i)) for i in range(5)]
-            await asyncio.gather(*workers, return_exceptions=True)
+            async with asyncio.TaskGroup() as tg:
+                for i in range(5):
+                    tg.create_task(init_worker(i))
+            # TaskGroup waits for all workers
 
             return ChaosTestResult(
                 test_name=test_name,
@@ -325,7 +339,7 @@ class ChaosEngineer:
                     )
             except Exception as e:
                 errors += 1
-                anomalies.append(f"Batch insert failed: {str(e)}")
+                anomalies.append(f"Batch insert failed: {e!s}")
 
             try:
                 audit_manager = get_audit_log_manager()
@@ -335,7 +349,7 @@ class ChaosEngineer:
                 operations += 1
             except Exception as e:
                 errors += 1
-                anomalies.append(f"Metrics retrieval failed: {str(e)}")
+                anomalies.append(f"Metrics retrieval failed: {e!s}")
 
             try:
                 loop = asyncio.get_running_loop()
@@ -348,7 +362,7 @@ class ChaosEngineer:
                 operations += sweep_result.get("total_processed", 0)
             except Exception as e:
                 errors += 1
-                anomalies.append(f"Auto sweep failed: {str(e)}")
+                anomalies.append(f"Auto sweep failed: {e!s}")
 
             return ChaosTestResult(
                 test_name=test_name,
@@ -388,13 +402,14 @@ class ChaosEngineer:
                     if i % 20 == 0:
                         await asyncio.sleep(0.1)
                         metrics = cache.get_detailed_metrics()
-                        if metrics["size"] > 50:
+                        MAX_CACHE_SIZE = 50
+                        if metrics["size"] > MAX_CACHE_SIZE:
                             anomalies.append(
                                 f"Cache growing too large at {i}: {metrics['size']}"
                             )
                 except Exception as e:
                     errors += 1
-                    anomalies.append(f"Large object storage failed at {i}: {str(e)}")
+                    anomalies.append(f"Large object storage failed at {i}: {e!s}")
 
             await asyncio.sleep(2)
             final_metrics = cache.get_detailed_metrics()
@@ -449,7 +464,7 @@ class ChaosEngineer:
                         errors += 1
                         if "network failure" not in str(e):
                             anomalies.append(
-                                f"Unexpected error during network chaos {i}: {str(e)}"
+                                f"Unexpected error during network chaos {i}: {e!s}"
                             )
                     # Await to yield control and ensure safety
                     await asyncio.sleep(0)
@@ -508,7 +523,7 @@ class ChaosEngineer:
                                 errors += 1
                                 if "import failure" not in str(e):
                                     anomalies.append(
-                                        f"Agent manager unexpected error: {str(e)}"
+                                        f"Agent manager unexpected error: {e!s}"
                                     )
 
                     elif component == "audit_db":
@@ -527,13 +542,13 @@ class ChaosEngineer:
                                 errors += 1
                                 if "DB failure" not in str(e):
                                     anomalies.append(
-                                        f"Audit DB unexpected error: {str(e)}"
+                                        f"Audit DB unexpected error: {e!s}"
                                     )
 
                 except Exception as e:
                     errors += 1
                     anomalies.append(
-                        f"Component {component} isolation test failed: {str(e)}"
+                        f"Component {component} isolation test failed: {e!s}"
                     )
 
             return ChaosTestResult(
@@ -631,7 +646,7 @@ class FuzzingEngine:
                             "result": result,
                         }
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     results.append(
                         {
                             "scenario": scenario.name,
@@ -712,11 +727,11 @@ class FuzzingEngine:
                         results["passed"] += 1
                     else:
                         results["failed"] += 1
-                        results["errors"].append(f"Key {repr(key)}: value mismatch")
+                        results["errors"].append(f"Key {key!r}: value mismatch")
 
                 except Exception as e:
                     results["failed"] += 1
-                    results["errors"].append(f"Key {repr(key)}: {str(e)}")
+                    results["errors"].append(f"Key {key!r}: {e!s}")
         finally:
             await cache.stop()
 
@@ -767,7 +782,7 @@ class FuzzingEngine:
 
                 except Exception as e:
                     results["failed"] += 1
-                    results["errors"].append(f"Value {i}: {str(e)}")
+                    results["errors"].append(f"Value {i}: {e!s}")
         finally:
             await cache.stop()
 
@@ -792,12 +807,12 @@ class FuzzingEngine:
                     else:
                         results["failed"] += 1
                         results["errors"].append(
-                            f"TTL {repr(ttl)}: immediate expiration"
+                            f"TTL {ttl!r}: immediate expiration"
                         )
 
                 except Exception as e:
                     results["failed"] += 1
-                    results["errors"].append(f"TTL {repr(ttl)}: {str(e)}")
+                    results["errors"].append(f"TTL {ttl!r}: {e!s}")
         finally:
             await cache.stop()
 
@@ -861,7 +876,7 @@ class FuzzingEngine:
                 results["passed"] += 1
             except Exception as e:
                 results["failed"] += 1
-                results["errors"].append(f"Config {i}: {str(e)}")
+                results["errors"].append(f"Config {i}: {e!s}")
 
         return dict(results)
 
@@ -900,7 +915,7 @@ class FuzzingEngine:
             except Exception as e:
                 if i == 0:
                     results["failed"] += 1
-                    results["errors"].append(f"Record {i}: {str(e)}")
+                    results["errors"].append(f"Record {i}: {e!s}")
                 else:
                     results["passed"] += 1
 

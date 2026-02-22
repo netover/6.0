@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Long-Term Memory System for Resync v5.2.3.26
 

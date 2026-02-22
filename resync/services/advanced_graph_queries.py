@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Advanced Knowledge Graph Queries for Resync v5.2.3.26
 

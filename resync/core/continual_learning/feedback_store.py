@@ -92,7 +92,7 @@ class FeedbackStore:
         negative = sum(
             1
             for f in all_feedback
-            if f.is_positive is False or (f.rating and f.rating <= 2)
+            if (f.is_positive in (False,)) or (f.rating and f.rating <= 2)
         )
         return {
             "total": len(all_feedback),

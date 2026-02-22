@@ -23,15 +23,15 @@ Changes from legacy version:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import collections
 import contextlib
 import logging
 from dataclasses import dataclass
 from time import time
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, TypeVar
 
 from resync.core.metrics import runtime_metrics
+from resync.core.task_tracker import track_task
 from resync.core.utils.correlation import (
     cache_error_handler,
     ensure_correlation_id,
@@ -44,12 +44,9 @@ T = TypeVar("T")
 
 
 @dataclass(slots=True)
-class CacheEntry(Generic[T]):
+class CacheEntry[T]:
     """
-    Memory-efficient cache entry using __slots__.
-
-    Using __slots__ reduces memory usage by ~40% compared to
-    regular dataclasses by preventing __dict__ creation.
+    Memory-efficient cache entry using type parameters (PEP 695).
     """
 
     data: T
@@ -113,18 +110,18 @@ class AsyncTTLCache:
     """
 
     __slots__ = (
-        "ttl_seconds",
-        "cleanup_interval",
-        "num_shards",
-        "max_entries",
-        "max_memory_mb",
-        "shards",
-        "shard_locks",
-        "cleanup_task",
-        "is_running",
+        "_anomaly_history",
         "_stats",
         "_wal",
-        "_anomaly_history",
+        "cleanup_interval",
+        "cleanup_task",
+        "is_running",
+        "max_entries",
+        "max_memory_mb",
+        "num_shards",
+        "shard_locks",
+        "shards",
+        "ttl_seconds",
     )
 
     def __init__(
@@ -135,7 +132,7 @@ class AsyncTTLCache:
         max_entries: int = 100000,
         max_memory_mb: int = 100,
         enable_wal: bool = False,
-        wal_path: Optional[str] = None,
+        wal_path: str | None = None,
     ):
         """
         Initialize the async TTL cache.
@@ -162,7 +159,7 @@ class AsyncTTLCache:
         ]
 
         # State management
-        self.cleanup_task: Optional[asyncio.Task] = None
+        self.cleanup_task: asyncio.Task | None = None
         self.is_running = False
 
         # Statistics
@@ -172,7 +169,7 @@ class AsyncTTLCache:
         self._anomaly_history: collections.deque = collections.deque(maxlen=1000)
 
         # Write-Ahead Log
-        self._wal: Optional[WriteAheadLog] = None
+        self._wal: WriteAheadLog | None = None
         if enable_wal:
             self._wal = WriteAheadLog(wal_path or "cache_wal")
 
@@ -224,8 +221,9 @@ class AsyncTTLCache:
         # Validate
         if not str_key:
             raise ValueError("Cache key cannot be empty")
-        if len(str_key) > 1000:
-            raise ValueError(f"Cache key too long: {len(str_key)} chars (max 1000)")
+        MAX_KEY_LENGTH = 1000
+        if len(str_key) > MAX_KEY_LENGTH:
+            raise ValueError(f"Cache key too long: {len(str_key)} chars (max {MAX_KEY_LENGTH})")
         if any(c in str_key for c in "\x00\r\n"):
             raise ValueError("Cache key cannot contain control characters")
 
@@ -264,6 +262,8 @@ class AsyncTTLCache:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    break
                 logger.error("Error in cleanup loop: %s", e)
                 self._stats.errors += 1
 
@@ -290,9 +290,22 @@ class AsyncTTLCache:
                 return len(expired)
 
         # Process all shards concurrently
-        results = await asyncio.gather(
-            *[process_shard(i) for i in range(self.num_shards)]
-        )
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for i in range(self.num_shards):
+                    tasks.append(tg.create_task(
+                        process_shard(i),
+                        name=f"cache_cleanup_shard_{i}"
+                    ))
+        except* asyncio.CancelledError:
+            raise
+        except* Exception:
+            # Stats for errors already recorded in _cleanup_loop if needed
+            self._stats.errors += 1
+            pass
+
+        results = [t.result() for t in tasks if t.done() and not t.cancelled() and t.exception() is None]
         total_removed = sum(results)
 
         if total_removed > 0:
@@ -302,7 +315,7 @@ class AsyncTTLCache:
 
         return total_removed
 
-    async def get(self, key: Any, *, correlation_id: Optional[str] = None) -> Any:
+    async def get(self, key: Any, *, correlation_id: str | None = None) -> Any:
         """
         Get a value from the cache.
 
@@ -350,9 +363,9 @@ class AsyncTTLCache:
         self,
         key: Any,
         value: Any,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
         *,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> bool:
         """
         Set a value in the cache.
@@ -407,7 +420,7 @@ class AsyncTTLCache:
         self,
         key: Any,
         *,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> bool:
         """
         Delete a value from the cache.
@@ -449,7 +462,7 @@ class AsyncTTLCache:
         self,
         keys: list[Any],
         *,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Get multiple values from the cache.
@@ -474,9 +487,9 @@ class AsyncTTLCache:
     async def mset(
         self,
         items: dict[Any, Any],
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
         *,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> int:
         """
         Set multiple values in the cache.
@@ -498,7 +511,7 @@ class AsyncTTLCache:
 
         return success_count
 
-    async def clear(self, *, correlation_id: Optional[str] = None) -> int:
+    async def clear(self, *, correlation_id: str | None = None) -> int:
         """
         Clear all entries from the cache.
 
@@ -590,7 +603,7 @@ class AsyncTTLCache:
             "is_running": self.is_running,
         }
 
-    async def __aenter__(self) -> "AsyncTTLCache":
+    async def __aenter__(self) -> AsyncTTLCache:
         """Context manager entry."""
         self.start()
         return self
@@ -639,6 +652,6 @@ __all__ = [
     "AsyncTTLCache",
     "CacheEntry",
     "CacheStats",
-    "create_cache",
     "ImprovedAsyncCache",
+    "create_cache",
 ]

@@ -11,7 +11,7 @@ Características:
 - Integração com sistemas de agregação (ELK, Loki, etc.)
 """
 
-from __future__ import annotations
+
 
 import logging
 import sys
@@ -368,6 +368,7 @@ def configure_structured_logging(
     ]
 
     # Escolher renderer baseado no modo
+    renderer: Any
     if development_mode or not json_logs:
         renderer = structlog.dev.ConsoleRenderer(colors=True)
     else:
@@ -884,7 +885,17 @@ class StructuredErrorLogger:
             **context,
         }
 
-        logger.log(logging.getLevelName(level.upper()), "structured_error", **log_data)
+        level_name = level.lower()
+        if level_name == "debug":
+            logger.debug("structured_error", **log_data)
+        elif level_name == "info":
+            logger.info("structured_error", **log_data)
+        elif level_name == "warning":
+            logger.warning("structured_error", **log_data)
+        elif level_name == "critical":
+            logger.critical("structured_error", **log_data)
+        else:
+            logger.error("structured_error", **log_data)
 
 
 __all__ = [

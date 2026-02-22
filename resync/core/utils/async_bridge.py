@@ -15,7 +15,7 @@ Design principles
 * **Minimal deps**: avoids adding third-party dependencies.
 """
 
-from __future__ import annotations
+
 import asyncio
 from collections.abc import Coroutine
 from typing import Any, Optional

@@ -260,19 +260,30 @@ class TWSBackgroundPoller:
     # LIFECYCLE
     # =========================================================================
 
-    def start(self) -> None:
-        """Inicia o polling em background."""
+    def start(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """
+        Inicia o polling em background.
+
+        Args:
+            tg: Optional TaskGroup to run the polling loop in
+        """
         if self._is_running:
             logger.warning("Poller already running")
             return
 
         self._is_running = True
         self._start_time = datetime.now(timezone.utc)
-        self._polling_task = track_task(self._polling_loop(), name="polling_loop")
+        if tg:
+            self._polling_task = tg.create_task(
+                self._polling_loop(), name="polling_loop"
+            )
+        else:
+            self._polling_task = track_task(self._polling_loop(), name="polling_loop")
 
         logger.info(
             "tws_background_poller_started",
             polling_interval=self.polling_interval,
+            method="task_group" if tg else "track_task",
         )
 
     async def stop(self) -> None:
@@ -438,7 +449,7 @@ class TWSBackgroundPoller:
 
     def _parse_workstations(self, data: Any) -> list[WorkstationStatus]:
         """Converte dados da API para WorkstationStatus."""
-        workstations = []
+        workstations: list[WorkstationStatus] = []
 
         if not data:
             return workstations
@@ -460,7 +471,7 @@ class TWSBackgroundPoller:
 
     def _parse_jobs(self, data: Any) -> list[JobStatus]:
         """Converte dados da API para JobStatus."""
-        jobs = []
+        jobs: list[JobStatus] = []
 
         if not data:
             return jobs
@@ -585,7 +596,7 @@ class TWSBackgroundPoller:
             # Detecta job stuck (rodando há muito tempo)
             if (
                 job.status == "EXEC"
-                and job.duration_seconds
+                and job.duration_seconds is not None
                 and job.duration_seconds > self.job_stuck_threshold_minutes * 60
             ):
                 # Só gera evento se não foi gerado antes

@@ -30,6 +30,11 @@ else:
     EmailStr = str
     EMAIL_VALIDATOR_AVAILABLE = False
 
+if not EMAIL_VALIDATOR_AVAILABLE:
+    logger.warning(
+        "teams_webhook_email_validator_fallback_active",
+        detail="Using regex fallback validator; install email-validator for stricter validation",
+    )
 router = APIRouter(
     prefix="/admin/teams-webhook",
     tags=["Teams Webhook Admin"],
@@ -228,53 +233,60 @@ async def get_stats(db: Session = Depends(get_db)):
     """Obtém estatísticas de uso."""
     from sqlalchemy import func
 
-    # Total de usuários
-    total_users = db.query(func.count(TeamsWebhookUser.id)).scalar()
-    active_users = (
-        db.query(func.count(TeamsWebhookUser.id))
-        .filter(TeamsWebhookUser.is_active)
-        .scalar()
-    )
-    users_with_execute = (
-        db.query(func.count(TeamsWebhookUser.id))
-        .filter(TeamsWebhookUser.can_execute_commands, TeamsWebhookUser.is_active)
-        .scalar()
-    )
-
-    # Interações
-    total_interactions = db.query(func.count(TeamsWebhookAudit.id)).scalar()
-
-    today = datetime.now(timezone.utc).date()
-    interactions_today = (
-        db.query(func.count(TeamsWebhookAudit.id))
-        .filter(func.date(TeamsWebhookAudit.timestamp) == today)
-        .scalar()
-    )
-
-    authorized_commands = (
-        db.query(func.count(TeamsWebhookAudit.id))
-        .filter(
-            TeamsWebhookAudit.command_type == "execute",
-            TeamsWebhookAudit.was_authorized,
+    try:
+        # Total de usuários
+        total_users = db.query(func.count(TeamsWebhookUser.id)).scalar()
+        active_users = (
+            db.query(func.count(TeamsWebhookUser.id))
+            .filter(TeamsWebhookUser.is_active)
+            .scalar()
         )
-        .scalar()
-    )
-
-    unauthorized_attempts = (
-        db.query(func.count(TeamsWebhookAudit.id))
-        .filter(
-            TeamsWebhookAudit.command_type == "execute",
-            TeamsWebhookAudit.was_authorized.is_not(True),
+        users_with_execute = (
+            db.query(func.count(TeamsWebhookUser.id))
+            .filter(TeamsWebhookUser.can_execute_commands, TeamsWebhookUser.is_active)
+            .scalar()
         )
-        .scalar()
-    )
 
-    return StatsResponse(
-        total_users=total_users,
-        active_users=active_users,
-        users_with_execute_permission=users_with_execute,
-        total_interactions=total_interactions,
-        interactions_today=interactions_today,
-        authorized_commands=authorized_commands,
-        unauthorized_attempts=unauthorized_attempts,
-    )
+        # Interações
+        total_interactions = db.query(func.count(TeamsWebhookAudit.id)).scalar()
+
+        today = datetime.now(timezone.utc).date()
+        interactions_today = (
+            db.query(func.count(TeamsWebhookAudit.id))
+            .filter(func.date(TeamsWebhookAudit.timestamp) == today)
+            .scalar()
+        )
+
+        authorized_commands = (
+            db.query(func.count(TeamsWebhookAudit.id))
+            .filter(
+                TeamsWebhookAudit.command_type == "execute",
+                TeamsWebhookAudit.was_authorized,
+            )
+            .scalar()
+        )
+
+        unauthorized_attempts = (
+            db.query(func.count(TeamsWebhookAudit.id))
+            .filter(
+                TeamsWebhookAudit.command_type == "execute",
+                TeamsWebhookAudit.was_authorized.is_not(True),
+            )
+            .scalar()
+        )
+
+        return StatsResponse(
+            total_users=total_users,
+            active_users=active_users,
+            users_with_execute_permission=users_with_execute,
+            total_interactions=total_interactions,
+            interactions_today=interactions_today,
+            authorized_commands=authorized_commands,
+            unauthorized_attempts=unauthorized_attempts,
+        )
+    except Exception as e:
+        logger.error("teams_webhook_stats_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch webhook stats",
+        ) from e

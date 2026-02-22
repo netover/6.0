@@ -56,27 +56,27 @@ class TWSQueryProcessor:
 
     # Padrões de tempo
     TIME_PATTERNS = {
-        r"ontem": lambda: (
+        r"ontem": lambda _m=None: (
             datetime.now(timezone.utc).replace(hour=0, minute=0, second=0)
             - timedelta(days=1),
             datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
         ),
-        r"hoje": lambda: (
+        r"hoje": lambda _m=None: (
             datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
             datetime.now(timezone.utc),
         ),
-        r"esta semana|essa semana|semana atual": lambda: (
+        r"esta semana|essa semana|semana atual": lambda _m=None: (
             datetime.now(timezone.utc)
             - timedelta(days=datetime.now(timezone.utc).weekday()),
             datetime.now(timezone.utc),
         ),
-        r"semana passada|última semana": lambda: (
+        r"semana passada|última semana": lambda _m=None: (
             datetime.now(timezone.utc)
             - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
             datetime.now(timezone.utc)
             - timedelta(days=datetime.now(timezone.utc).weekday()),
         ),
-        r"este mês|esse mês|mês atual": lambda: (
+        r"este mês|esse mês|mês atual": lambda _m=None: (
             datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0),
             datetime.now(timezone.utc),
         ),
@@ -219,10 +219,7 @@ class TWSQueryProcessor:
             match = re.search(pattern, query)
             if match and callable(time_func):
                 # Verifica se a função precisa do match
-                try:
-                    return time_func(match)
-                except TypeError:
-                    return time_func()
+                return time_func(match)
 
         # Default: últimas 24 horas
         return (
@@ -257,7 +254,7 @@ class TWSQueryProcessor:
             )
 
             # Agrupa por tipo
-            event_counts = {}
+            event_counts: dict[str, int] = {}
             for event in events:
                 etype = event.get("event_type", "unknown")
                 event_counts[etype] = event_counts.get(etype, 0) + 1
@@ -332,7 +329,7 @@ class TWSQueryProcessor:
                 ]
 
             # Agrupa por job
-            jobs_failed = {}
+            jobs_failed: dict[str, list[dict[str, Any]]] = {}
             for event in events:
                 job = event.get("source", "unknown")
                 if job not in jobs_failed:
@@ -563,7 +560,7 @@ class TWSQueryProcessor:
                 summary = f"✅ Nenhum problema com workstations {period}."
             else:
                 # Agrupa por workstation
-                ws_issues = {}
+                ws_issues: dict[str, list[dict[str, Any]]] = {}
                 for event in events:
                     ws = event.get("source", "unknown")
                     if ws not in ws_issues:
@@ -770,9 +767,9 @@ async def process_tws_query(query: str) -> QueryResult:
     Returns:
         Resultado da query
     """
-    from resync.core.tws_status_store import get_status_store
+    from resync.core.tws_status_store import get_tws_status_store
 
-    processor = TWSQueryProcessor(status_store=get_status_store())
+    processor = TWSQueryProcessor(status_store=get_tws_status_store())
     return await processor.process_query(query)
 
 
