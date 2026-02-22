@@ -83,17 +83,17 @@ class ErrorFactory:
             builder.with_request_context(request)
 
         # Enhanced security: only include stack traces in non-production environments
-        is_production = (
+        is_production: bool = (
             getattr(request.state, "app_env", "development") == "production"
-            if request
-            else "production"
+            if request is not None
+            else True
         )
         should_include_stack_trace_func = _get_should_include_stack_trace()
         include_stack_trace = should_include_stack_trace_func() and not is_production
 
         # In production, sanitize error messages to prevent information disclosure
         if is_production:
-            builder.with_stack_trace(include_stack_trace and is_production is False)
+            builder.with_stack_trace(False)
         else:
             builder.with_stack_trace(include_stack_trace)
 
@@ -133,14 +133,15 @@ class EnhancedResyncExceptionFactory:
     @staticmethod
     def create_response(
         builder,  # ErrorResponseBuilder
-        exception: EnhancedResyncException,
+        exception: Exception,
         is_production: bool,
     ) -> BaseErrorResponse:
         """Create response for enhanced Resync exceptions."""
         # Use the enhanced exception's information to create a more detailed response
-        message = exception.message
-        user_friendly_message = exception.user_friendly_message
-        details = exception.details.copy()  # Copy to avoid modifying original
+        message = str(getattr(exception, "message", str(exception)))
+        user_friendly_message = str(getattr(exception, "user_friendly_message", message))
+        raw_details = getattr(exception, "details", {})
+        details = dict(raw_details) if isinstance(raw_details, dict) else {}
 
         # Sanitize details in production to prevent sensitive data leakage
         if is_production:
@@ -155,7 +156,9 @@ class EnhancedResyncExceptionFactory:
                 }
 
         # Map the enhanced exception to the appropriate response type based on category
-        if exception.error_category == "VALIDATION":
+        error_category = str(getattr(exception, "error_category", "SYSTEM"))
+
+        if error_category == "VALIDATION":
             return builder.build_validation_error(
                 [
                     {
@@ -166,7 +169,7 @@ class EnhancedResyncExceptionFactory:
                 ],
                 sanitize_error_message(user_friendly_message),
             )
-        if exception.error_category == "BUSINESS_LOGIC":
+        if error_category == "BUSINESS_LOGIC":
             return _handle_business_logic_exception(
                 builder,
                 exception,
@@ -175,7 +178,7 @@ class EnhancedResyncExceptionFactory:
                 details,
                 is_production,
             )
-        if exception.error_category == "EXTERNAL_SERVICE":
+        if error_category == "EXTERNAL_SERVICE":
             service_name = (
                 details.get("service", "External Service")
                 if details
@@ -186,7 +189,7 @@ class EnhancedResyncExceptionFactory:
                 user_friendly_message=sanitize_error_message(user_friendly_message),
                 details=details,
             )
-        if exception.error_category == "SYSTEM":
+        if error_category == "SYSTEM":
             return builder.build_system_error(
                 "internal_server_error",
                 user_friendly_message=sanitize_error_message(user_friendly_message),

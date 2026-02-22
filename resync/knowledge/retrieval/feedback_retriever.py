@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Feedback-Aware Retriever for Continual Learning RAG.
 

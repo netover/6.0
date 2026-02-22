@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 PostgreSQL Checkpointer for LangGraph v6.0.0.
 

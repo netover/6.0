@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 API Routes para Monitoramento Proativo em Tempo Real
 

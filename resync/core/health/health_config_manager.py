@@ -173,7 +173,7 @@ class HealthCheckConfigurationManager:
             "cleanup_batch_size": ("HEALTH_CLEANUP_BATCH_SIZE", int, 100),
         }
 
-        updates = {}
+        updates: dict[str, Any] = {}
         for config_key, (env_var, converter, _default) in env_mappings.items():
             env_value = os.getenv(env_var)
             if env_value is not None:
@@ -219,7 +219,7 @@ class HealthCheckConfigurationManager:
             )
 
         # Validate thresholds
-        if not (0 < self.config.database_connection_threshold_percent <= 100):
+        if self.config.database_connection_threshold_percent <= 0 or self.config.database_connection_threshold_percent > 100:
             errors.append(
                 "database_connection_threshold_percent must be between 0 and 100"
             )
@@ -234,7 +234,7 @@ class HealthCheckConfigurationManager:
         if self.config.history_retention_days <= 0:
             errors.append("history_retention_days must be positive")
 
-        if not (0 < self.config.history_cleanup_threshold <= 1):
+        if self.config.history_cleanup_threshold <= 0 or self.config.history_cleanup_threshold > 1:
             errors.append("history_cleanup_threshold must be between 0 and 1")
 
         return errors

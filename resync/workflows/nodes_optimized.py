@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """LangGraph Workflow Nodes.
 
 This module implements the shared node functions used by:

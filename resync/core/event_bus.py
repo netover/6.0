@@ -315,7 +315,8 @@ class EventBus:
             websocket: Objeto que implementa WebSocketProtocol.
             subscription_types: Filtros de evento. None = todos.
         """
-        assert self._websocket_lock is not None, "EventBus não iniciado. Chame start() primeiro."
+        if self._websocket_lock is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         async with self._websocket_lock:
             self._websocket_clients[client_id] = WebSocketClient(
@@ -331,7 +332,8 @@ class EventBus:
 
     async def unregister_websocket(self, client_id: str) -> None:
         """Remove um cliente WebSocket de forma segura."""
-        assert self._websocket_lock is not None
+        if self._websocket_lock is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         async with self._websocket_lock:
             if self._websocket_clients.pop(client_id, None) is not None:
@@ -343,7 +345,8 @@ class EventBus:
         subscription_types: set[SubscriptionType],
     ) -> None:
         """Atualiza filtros de assinatura de um cliente conectado."""
-        assert self._websocket_lock is not None
+        if self._websocket_lock is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         async with self._websocket_lock:
             if client := self._websocket_clients.get(client_id):
@@ -356,7 +359,8 @@ class EventBus:
         Adquire o lock apenas para copiar a referência ao cliente.
         O envio ocorre fora do lock para não bloquear outros registros.
         """
-        assert self._websocket_lock is not None
+        if self._websocket_lock is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         async with self._websocket_lock:
             client = self._websocket_clients.get(client_id)
@@ -415,7 +419,8 @@ class EventBus:
                    (model_dump), objetos com to_dict(), dicts ou qualquer
                    objeto (convertido via str).
         """
-        assert self._event_queue is not None, "EventBus não iniciado. Chame start() primeiro."
+        if self._event_queue is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         # Serialização com suporte a Pydantic v2 como prioridade
         if hasattr(event, "model_dump"):
@@ -463,7 +468,8 @@ class EventBus:
         Serializa o JSON uma única vez por evento antes de distribuir
         para subscribers e clientes WebSocket em paralelo.
         """
-        assert self._event_queue is not None
+        if self._event_queue is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         while self._is_running:
             try:
@@ -542,7 +548,8 @@ class EventBus:
         bloqueia os demais (head-of-line blocking eliminado).
         Clientes com falha são removidos automaticamente.
         """
-        assert self._websocket_lock is not None
+        if self._websocket_lock is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         event_type = event_data.get("event_type", "")
 
@@ -654,7 +661,8 @@ class EventBus:
 
     def get_metrics(self) -> dict[str, Any]:
         """Retorna métricas completas do event bus."""
-        assert self._event_queue is not None
+        if self._event_queue is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
         return {
             "is_running": self._is_running,
             "subscribers_count": len(self._subscribers),
@@ -690,7 +698,8 @@ class EventBus:
         Returns:
             Número de clientes que receberam a mensagem com sucesso.
         """
-        assert self._websocket_lock is not None
+        if self._websocket_lock is None:
+            raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         msg_json = json.dumps(message, default=str)
 
@@ -715,7 +724,7 @@ class EventBus:
             return_exceptions=True,
         )
 
-        delivered = sum(1 for r in results if r is True)
+        delivered = sum(1 for r in results if isinstance(r, bool) and r)
         failed = len(results) - delivered
 
         if failed > 0:

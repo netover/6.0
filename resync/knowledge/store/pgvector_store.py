@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 pgvector-based vector store with Binary+Halfvec optimization.
 

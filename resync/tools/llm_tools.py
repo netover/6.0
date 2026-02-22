@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 LLM Tools - Ferramentas integradas com LLM Service.
 

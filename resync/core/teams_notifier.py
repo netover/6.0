@@ -1,5 +1,6 @@
 """Teams Notifications - Core Logic."""
 
+import asyncio
 import fnmatch
 import re
 from datetime import datetime, timezone, timedelta
@@ -367,7 +368,15 @@ class TeamsNotificationManager:
 
         # Adicionar mensagem de erro se houver
         if error_message:
-            card["attachments"][0]["content"]["body"].insert(
+            attachments = card.get("attachments")
+            if isinstance(attachments, list) and attachments:
+                first = attachments[0]
+                if isinstance(first, dict):
+                    content = first.get("content")
+                    if isinstance(content, dict):
+                        body = content.get("body")
+                        if isinstance(body, list):
+                            body.insert(
                 2,
                 {
                     "type": "TextBlock",
@@ -375,20 +384,28 @@ class TeamsNotificationManager:
                     "wrap": True,
                     "color": "attention",
                 },
-            )
+                            )
 
         # Adicionar mention se configurado
         config_obj = self._get_config()
         if config_obj and config_obj.include_mention_on_critical:
             if job_status in ["ABEND", "ERROR"]:
-                card["attachments"][0]["content"]["body"].insert(
+                attachments = card.get("attachments")
+                if isinstance(attachments, list) and attachments:
+                    first = attachments[0]
+                    if isinstance(first, dict):
+                        content = first.get("content")
+                        if isinstance(content, dict):
+                            body = content.get("body")
+                            if isinstance(body, list):
+                                body.insert(
                     0,
                     {
                         "type": "TextBlock",
                         "text": config_obj.mention_text,
                         "weight": "bolder",
                     },
-                )
+                                )
 
         return card
 
@@ -417,7 +434,7 @@ class TeamsNotificationManager:
 
                 return True, response.status, None
 
-        except aiohttp.ClientTimeout:
+        except asyncio.TimeoutError:
             return False, None, "Timeout"
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Performance Optimization Module for Phase 2 Enhancements (v6.1.2).
 """

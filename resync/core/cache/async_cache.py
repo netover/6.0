@@ -28,7 +28,7 @@ import contextlib
 import logging
 from dataclasses import dataclass
 from time import time
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, TypeVar
 
 from resync.core.metrics import runtime_metrics
 from resync.core.task_tracker import track_task
