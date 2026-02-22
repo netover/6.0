@@ -607,11 +607,11 @@ def generate_report_node(state: CapacityForecastState) -> CapacityForecastState:
 
     # DEBT: Implement PDF/chart report generation (requires matplotlib/reportlab)
 
-    report_path = f"/tmp/capacity_forecast_{state['workflow_id']}.pdf"
+    report_path = os.path.join(tempfile.gettempdir(), f"capacity_forecast_{state['workflow_id']}.pdf")
     visualizations = [
-        f"/tmp/cpu_forecast_{state['workflow_id']}.png",
-        f"/tmp/memory_forecast_{state['workflow_id']}.png",
-        f"/tmp/disk_forecast_{state['workflow_id']}.png",
+        os.path.join(tempfile.gettempdir(), f"cpu_forecast_{state['workflow_id']}.png"),
+        os.path.join(tempfile.gettempdir(), f"memory_forecast_{state['workflow_id']}.png"),
+        os.path.join(tempfile.gettempdir(), f"disk_forecast_{state['workflow_id']}.png"),
     ]
 
     return {

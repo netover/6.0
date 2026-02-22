@@ -124,7 +124,7 @@ def test_admin_ui_renders_and_serves_css() -> None:
     app_min.mount("/static", StaticFiles(directory=str(root / "static")), name="static")
 
     @app_min.get("/admin", response_class=HTMLResponse)
-    def admin_page(request: Request):
+    def admin_page(request: "Request"):
         return templates.TemplateResponse("admin.html", {"request": request})
 
     with TestClient(app_min) as client:

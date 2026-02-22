@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Correlation and Error Handling Utilities.
 
@@ -25,11 +26,13 @@ Usage:
 import asyncio
 import functools
 import time
+import structlog
 import uuid
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, ParamSpec
 
-import structlog
+
+
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable

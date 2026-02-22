@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+    from fastapi import FastAPI
 
 import httpx
 
@@ -658,7 +659,7 @@ def enforce_startup_policy(result: dict[str, Any]) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
     """Manage application lifecycle with proper startup and shutdown.
 
     Consolidates logic previously in ApplicationFactory for better separation
@@ -793,7 +794,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 # --- Helper methods for optional services (moved from ApplicationFactory) ---
 
 
-async def _init_proactive_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup | None = None) -> None:
+async def _init_proactive_monitoring(app: "FastAPI", bg_tasks: asyncio.TaskGroup | None = None) -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -812,7 +813,7 @@ async def _init_proactive_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup |
         )
 
 
-async def _init_metrics_collector(app: FastAPI) -> None:
+async def _init_metrics_collector(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -839,7 +840,7 @@ async def _init_metrics_collector(app: FastAPI) -> None:
         )
 
 
-async def _init_cache_warmup(app: FastAPI) -> None:
+async def _init_cache_warmup(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -854,7 +855,7 @@ async def _init_cache_warmup(app: FastAPI) -> None:
         get_logger("resync.startup").warning("cache_warming_failed", error=str(exc))
 
 
-async def _init_graphrag(app: FastAPI) -> None:
+async def _init_graphrag(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(15):
             # Wait for core singletons to be ready
@@ -885,7 +886,7 @@ async def _init_graphrag(app: FastAPI) -> None:
         )
 
 
-async def _init_config_system(app: FastAPI) -> None:
+async def _init_config_system(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -902,7 +903,7 @@ async def _init_config_system(app: FastAPI) -> None:
         )
 
 
-async def _init_enterprise_systems(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_enterprise_systems(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(15):
             await app.state.singletons_ready_event.wait()
@@ -915,7 +916,7 @@ async def _init_enterprise_systems(app: FastAPI, bg_tasks: asyncio.TaskGroup) ->
         get_logger("resync.startup").warning("enterprise_systems_init_failed", error=str(exc))
 
 
-async def _init_health_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_health_monitoring(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
@@ -928,7 +929,7 @@ async def _init_health_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> 
         get_logger("resync.startup").warning("health_monitoring_init_failed", error=str(exc))
 
 
-async def _init_backup_scheduler(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_backup_scheduler(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
@@ -941,7 +942,7 @@ async def _init_backup_scheduler(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> N
         get_logger("resync.startup").warning("backup_scheduler_init_failed", error=str(exc))
 
 
-async def _init_security_dashboard(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_security_dashboard(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
@@ -954,7 +955,7 @@ async def _init_security_dashboard(app: FastAPI, bg_tasks: asyncio.TaskGroup) ->
         get_logger("resync.startup").warning("security_dashboard_init_failed", error=str(exc))
 
 
-async def _init_event_bus(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_event_bus(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
@@ -967,7 +968,7 @@ async def _init_event_bus(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
         get_logger("resync.startup").warning("event_bus_init_failed", error=str(exc))
 
 
-async def _init_service_discovery(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_service_discovery(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(15):
             await app.state.singletons_ready_event.wait()
@@ -980,7 +981,7 @@ async def _init_service_discovery(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> 
         get_logger("resync.startup").warning("service_discovery_init_failed", error=str(exc))
 
 
-async def _shutdown_services(app: FastAPI) -> None:
+async def _shutdown_services(app: "FastAPI") -> None:
     """Shutdown services in correct order with individual timeouts.
 
     Order:

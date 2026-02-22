@@ -22,12 +22,12 @@ Usage:
 
     @router.post("/login")
     @rate_limit_auth  # 5/minute for auth endpoints
-    async def login(request: Request):
+    async def login(request: "Request"):
         ...
 
     @router.get("/data")
     @rate_limit("100/minute")  # Custom limit
-    async def get_data(request: Request):
+    async def get_data(request: "Request"):
         ...
 """
 
@@ -142,14 +142,14 @@ def get_bypass_paths() -> list[str]:
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
-def _is_bypass_path(request: Request) -> bool:
+def _is_bypass_path(request: "Request") -> bool:
     """Check if request path should bypass rate limiting."""
     path = request.url.path
     bypass_paths = get_bypass_paths()
     return any(path.startswith(p) for p in bypass_paths)
 
 
-def _is_cors_preflight(request: Request) -> bool:
+def _is_cors_preflight(request: "Request") -> bool:
     """Check if request is a CORS preflight (OPTIONS)."""
     return request.method == "OPTIONS"
 
@@ -159,7 +159,7 @@ def _is_cors_preflight(request: Request) -> bool:
 # =============================================================================
 
 
-def get_remote_address(request: Request) -> str:
+def get_remote_address(request: "Request") -> str:
     """
     Get client IP address.
 
@@ -188,7 +188,7 @@ def get_remote_address(request: Request) -> str:
     return "unknown"
 
 
-def get_user_identifier(request: Request) -> str:
+def get_user_identifier(request: "Request") -> str:
     """
     Get user identifier for rate limiting.
 
@@ -207,7 +207,7 @@ def get_user_identifier(request: Request) -> str:
     return f"ip:{get_remote_address(request)}"
 
 
-def get_api_key(request: Request) -> str:
+def get_api_key(request: "Request") -> str:
     """Get API key for rate limiting."""
     api_key = request.headers.get("X-API-Key", "")
     if api_key:
@@ -309,7 +309,7 @@ def rate_limit(limit: str | None = None, key_func: Callable | None = None):
     Usage:
         @router.get("/data")
         @rate_limit("50/minute")
-        async def get_data(request: Request):
+        async def get_data(request: "Request"):
             ...
     """
 
@@ -321,7 +321,7 @@ def rate_limit(limit: str | None = None, key_func: Callable | None = None):
         limit_str = limit or get_default_limit()
         key = key_func or get_remote_address
 
-        def exempt_condition(request: Request) -> bool:
+        def exempt_condition(request: "Request") -> bool:
             """Bypass rate limit for health endpoints, docs, and CORS preflight."""
             return _is_bypass_path(request) or _is_cors_preflight(request)
 
@@ -341,13 +341,13 @@ def rate_limit_auth(func):
     Usage:
         @router.post("/login")
         @rate_limit_auth
-        async def login(request: Request):
+        async def login(request: "Request"):
             ...
     """
     if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
         return func
 
-    def exempt_condition(request: Request) -> bool:
+    def exempt_condition(request: "Request") -> bool:
         """Bypass rate limit for health endpoints, docs, and CORS preflight."""
         return _is_bypass_path(request) or _is_cors_preflight(request)
 
@@ -365,13 +365,13 @@ def rate_limit_strict(func):
     Usage:
         @router.post("/password-reset")
         @rate_limit_strict
-        async def password_reset(request: Request):
+        async def password_reset(request: "Request"):
             ...
     """
     if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
         return func
 
-    def exempt_condition(request: Request) -> bool:
+    def exempt_condition(request: "Request") -> bool:
         """Bypass rate limit for health endpoints, docs, and CORS preflight."""
         return _is_bypass_path(request) or _is_cors_preflight(request)
 
@@ -390,7 +390,7 @@ def rate_limit_by_user(limit: str | None = None):
     Usage:
         @router.post("/expensive-operation")
         @rate_limit_by_user("10/hour")
-        async def expensive_op(request: Request):
+        async def expensive_op(request: "Request"):
             ...
     """
 
@@ -398,7 +398,7 @@ def rate_limit_by_user(limit: str | None = None):
         if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
             return func
 
-        def exempt_condition(request: Request) -> bool:
+        def exempt_condition(request: "Request") -> bool:
             """Bypass rate limit for health endpoints, docs, and CORS preflight."""
             return _is_bypass_path(request) or _is_cors_preflight(request)
 
@@ -415,7 +415,7 @@ def rate_limit_by_user(limit: str | None = None):
 # =============================================================================
 
 
-def setup_rate_limiting(app: FastAPI) -> None:
+def setup_rate_limiting(app: "FastAPI") -> None:
     from resync.settings import get_settings
 
     get_settings().is_production

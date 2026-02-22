@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Sistema de logging estruturado usando structlog.
 
 Este módulo configura logging estruturado em formato JSON para facilitar
@@ -484,59 +485,21 @@ class LoggerAdapter:
         """Log de warning."""
         self.logger.warning(event, **kwargs)
 
-    def error(self, event: str, exc_info: bool = False, **kwargs) -> None:
-        """Log de error.
-
-        Args:
-            event: Mensagem do evento
-            exc_info: Se True, inclui informações da exceção
-            **kwargs: Contexto adicional
-        """
-        if exc_info:
-            kwargs["exc_info"] = True
-
+    def error(self, event: str, **kwargs) -> None:
+        """Log de erro."""
         self.logger.error(event, **kwargs)
 
-    def critical(self, event: str, exc_info: bool = False, **kwargs) -> None:
-        """Log de critical.
-
-        Args:
-            event: Mensagem do evento
-            exc_info: Se True, inclui informações da exceção
-            **kwargs: Contexto adicional
-        """
-        if exc_info:
-            kwargs["exc_info"] = True
-
+    def critical(self, event: str, **kwargs) -> None:
+        """Log crítico."""
         self.logger.critical(event, **kwargs)
 
-    def bind(self, **kwargs) -> LoggerAdapter:
-        """Cria novo logger com contexto adicional.
+    def exception(self, event: str, **kwargs) -> None:
+        """Log de exceção."""
+        self.logger.exception(event, **kwargs)
 
-        Args:
-            **kwargs: Contexto a ser adicionado
-
-        Returns:
-            Novo LoggerAdapter com contexto
-        """
+    def bind(self, **kwargs) -> "LoggerAdapter":
+        """Retorna novo adapter com contexto adicionado."""
         return LoggerAdapter(self.logger.bind(**kwargs))
-
-
-def get_logger_adapter(name: str | None = None) -> LoggerAdapter:
-    """Obtém um logger adapter.
-
-    Args:
-        name: Nome do logger
-
-    Returns:
-        LoggerAdapter configurado
-    """
-    return LoggerAdapter(get_logger(name))
-
-
-# ============================================================================
-# PERFORMANCE LOGGING
-# ============================================================================
 
 
 class PerformanceLogger:

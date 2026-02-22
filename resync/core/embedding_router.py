@@ -27,6 +27,7 @@ Usage:
 """
 
 import os
+import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -491,7 +492,7 @@ def get_embedding_router() -> EmbeddingRouter:
     global _embedding_router
     if _embedding_router is None:
         _embedding_router = EmbeddingRouter(
-            cache_dir=os.getenv("ROUTER_CACHE_DIR", "/tmp/resync/router_cache"),
+            cache_dir=os.getenv("ROUTER_CACHE_DIR", os.path.join(tempfile.gettempdir(), "resync", "router_cache")),
         )
     return _embedding_router
 

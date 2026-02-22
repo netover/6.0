@@ -128,8 +128,8 @@ class ServiceOrchestrator:
 
     def __init__(
         self,
-        tws_client: ITWSClient,
-        knowledge_graph: IKnowledgeGraph,
+        tws_client: "ITWSClient",
+        knowledge_graph: "IKnowledgeGraph",
         max_retries: int = _DEFAULT_MAX_RETRIES,
         timeout_seconds: int = _DEFAULT_TIMEOUT_SECONDS,
         per_call_timeout: float = _DEFAULT_PER_CALL_TIMEOUT,
