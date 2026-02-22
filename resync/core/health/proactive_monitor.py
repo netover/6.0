@@ -46,7 +46,7 @@ class ProactiveHealthMonitor:
             Dictionary containing proactive health check results
         """
         start_time = time.time()
-        results = {
+        results: dict[str, Any] = {
             "timestamp": start_time,
             "checks_performed": [],
             "issues_detected": [],
@@ -178,7 +178,7 @@ class ProactiveHealthMonitor:
 
     def _check_circuit_breaker_health(self) -> dict[str, Any]:
         """Check health of all circuit breakers."""
-        results = {}
+        results: dict[str, dict[str, Any]] = {}
 
         # Check TWS circuit breakers
         from resync.core.resilience_singletons import (
