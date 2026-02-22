@@ -6,11 +6,13 @@ distributed locking, health checks, and proper error handling.
 """
 
 import asyncio
+import inspect
 import logging
 import os
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Optional
+from collections.abc import Awaitable
+from typing import TYPE_CHECKING, Optional, cast
 
 from resync.core.task_tracker import create_tracked_task
 
@@ -44,6 +46,20 @@ except ImportError:  # redis opcional
     RedisTimeoutError = Exception  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+async def _ensure_awaitable_bool(result: Awaitable[bool] | bool) -> bool:
+    """Normalize redis methods that may return bool or awaitable bool."""
+    if inspect.isawaitable(result):
+        return await cast(Awaitable[bool], result)
+    return cast(bool, result)
+
+
+async def _ensure_awaitable_str(result: Awaitable[str] | str) -> str:
+    """Normalize redis eval that may return str or awaitable str."""
+    if inspect.isawaitable(result):
+        return await cast(Awaitable[str], result)
+    return cast(str, result)
 
 
 def _resolve_redis_url(url_value: object) -> str:
@@ -222,7 +238,7 @@ class RedisInitializer:
         async with self.lock:
             if self._initialized and self._client:
                 try:
-                    await asyncio.wait_for(self._client.ping(), timeout=1.0)
+                    await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=1.0)
                     return self._client
                 except (RedisError, asyncio.TimeoutError):
                     logger.warning("Existing Redis connection lost, reinitializing")
@@ -255,7 +271,7 @@ class RedisInitializer:
 
                     try:
                         # Conectividade básica
-                        await asyncio.wait_for(redis_client.ping(), timeout=2.0)
+                        await asyncio.wait_for(_ensure_awaitable_bool(redis_client.ping()), timeout=2.0)
 
                         # Teste RW coerente com decode_responses=True
                         test_key = f"resync:health:test:{os.getpid()}"
@@ -305,9 +321,9 @@ class RedisInitializer:
                         # SECURITY NOTE: This is legitimate Redis EVAL usage for atomic distributed locking
                         # The Lua script is hardcoded and performs only safe Redis operations
                         with suppress(RedisError, ConnectionError):
-                            await redis_client.eval(
+                            await _ensure_awaitable_str(redis_client.eval(
                                 self.UNLOCK_SCRIPT, 1, lock_key, lock_val
-                            )
+                            ))
 
                 except AuthenticationError as e:
                     msg = f"Redis authentication failed: {e}"
@@ -373,7 +389,7 @@ class RedisInitializer:
             await asyncio.sleep(interval)
             try:
                 if self._client:
-                    await asyncio.wait_for(self._client.ping(), timeout=2.0)
+                    await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=2.0)
             except (RedisError, asyncio.TimeoutError):
                 logger.error(
                     "Redis health check failed - connection may be lost", exc_info=True
