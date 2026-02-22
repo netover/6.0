@@ -13,6 +13,27 @@ from pathlib import Path
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, patch
+
+
+@pytest.fixture(autouse=True)
+def mock_io_bounds():
+    """Bypass expensive startup tasks and I/O bounds for faster UI smoke testing."""
+    import sys
+    from unittest.mock import MagicMock
+    
+    # Block heavy ML imports that add 5+ seconds entirely via mock modules
+    sys.modules['sentence_transformers'] = MagicMock()
+    sys.modules['torch'] = MagicMock()
+    
+    with patch("resync.core.startup.run_startup_checks", new_callable=AsyncMock, return_value={}), \
+         patch("resync.core.startup._init_cache_warmup", new_callable=AsyncMock), \
+         patch("resync.core.startup._init_graphrag", new_callable=AsyncMock), \
+         patch("resync.core.startup._init_metrics_collector", new_callable=AsyncMock), \
+         patch("resync.knowledge.ingestion.embedding_service.MultiProviderEmbeddingService.__init__", return_value=None), \
+         patch("resync.core.langgraph.agent_graph.async_init_router_cache", new_callable=AsyncMock, return_value=None), \
+         patch("resync.core.metrics.RuntimeMetricsCollector.__init__", return_value=None):
+        yield
 
 
 def _root() -> Path:
@@ -121,11 +142,19 @@ def test_admin_ui_renders_and_serves_css() -> None:
     pytest.importorskip("sqlalchemy")
 
     from resync.app_factory import ApplicationFactory
+    import cProfile
+    import pstats
 
+    profiler = cProfile.Profile()
+    profiler.enable()
     app = ApplicationFactory().create_application()
+    profiler.disable()
+    
+    stats = pstats.Stats(profiler).sort_stats('cumtime')
+    stats.dump_stats('ui_profile.prof')
 
     # Override auth for smoke test
-    from resync.api.auth import verify_admin_credentials
+    from resync.api.routes.core.auth import verify_admin_credentials
 
     app.dependency_overrides[verify_admin_credentials] = lambda: {
         "username": "admin",

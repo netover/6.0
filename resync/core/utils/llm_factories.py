@@ -26,20 +26,20 @@ class LLMFactory:
         temperature: float = 0.1,
         max_retries: int = 3,
         _initial_backoff: float = 1.0,
-        api_base: str = None,
-        api_key: str = None,
+        api_base: str | None = None,
+        api_key: str | None = None,
         timeout: float = 30.0,
     ) -> str:
         """Factory method to call LLM with appropriate configuration."""
-        
+
         # Lazy import litellm to avoid side effects at module level
         from litellm import acompletion
         from litellm.exceptions import (
             APIError,
             AuthenticationError,
+            BadRequestError,
             ContentPolicyViolationError,
             ContextWindowExceededError,
-            InvalidRequestError,
             RateLimitError,
         )
 
@@ -55,11 +55,13 @@ class LLMFactory:
             from resync.core.litellm_init import get_litellm_router
 
             router = get_litellm_router()
-            if not router or len(router.model_list) == 0:
+            if not router or len(getattr(router, "model_list", []) or []) == 0:
                 raise ImportError("No models available in LiteLLM router")
         except ImportError:
             # Fallback to simple mock response for development
-            logger.warning("LiteLLM not available or no models configured, using mock response")
+            logger.warning(
+                "LiteLLM not available or no models configured, using mock response"
+            )
             return "LLM service is currently unavailable. This is a mock response for development purposes."
 
         # Use LiteLLM's acompletion for enhanced functionality with timeout
@@ -125,7 +127,7 @@ class LLMFactory:
         except RateLimitError as e:
             logger.warning("llm_rate_limit_exceeded", error=str(e))
             raise LLMError(f"Rate limit exceeded: {str(e)}") from e
-        except InvalidRequestError as e:
+        except BadRequestError as e:
             logger.error("llm_invalid_request", error=str(e))
             raise LLMError(f"Invalid request: {str(e)}") from e
         except APIError as e:
@@ -135,9 +137,8 @@ class LLMFactory:
             logger.error("llm_unexpected_error", error=str(e))
             raise LLMError(f"Unexpected error: {str(e)}") from e
 
-
     @staticmethod
-    def get_langchain_llm(model: str = None, **kwargs):
+    def get_langchain_llm(model: str | None = None, **kwargs):
         """
         Get a LangChain-compatible LLM instance backed by LiteLLM.
         This ensures all LLM calls go through the centralized LiteLLM proxy/logic.
@@ -154,18 +155,16 @@ class LLMFactory:
         # Determine effective configuration
         effective_model = model or getattr(settings, "LLM_MODEL", "gpt-4o")
         effective_api_key = kwargs.get("api_key") or settings.LLM_API_KEY
-        effective_api_base = kwargs.get("api_base") or getattr(settings, "LLM_ENDPOINT", None)
+        effective_api_base = kwargs.get("api_base") or getattr(
+            settings, "LLM_ENDPOINT", None
+        )
 
         # Handle placeholder keys
         if effective_api_key == "your_default_api_key_here":
             effective_api_key = None
 
-        logger.info(
-            "creating_langchain_llm",
-            model=effective_model,
-            provider="litellm"
-        )
-            
+        logger.info("creating_langchain_llm", model=effective_model, provider="litellm")
+
         return ChatLiteLLM(
             model=effective_model,
             api_key=effective_api_key,

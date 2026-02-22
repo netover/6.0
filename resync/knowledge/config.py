@@ -85,14 +85,20 @@ class RagConfig:
 
     # Cross-encoder reranking (v5.3.17+)
     enable_cross_encoder: bool = _bool("RAG_CROSS_ENCODER_ON", True)
-    cross_encoder_model: str = os.getenv("RAG_CROSS_ENCODER_MODEL", "BAAI/bge-reranker-small")
+    cross_encoder_model: str = os.getenv(
+        "RAG_CROSS_ENCODER_MODEL", "BAAI/bge-reranker-small"
+    )
     cross_encoder_top_k: int = int(os.getenv("RAG_CROSS_ENCODER_TOP_K", "5"))
-    cross_encoder_threshold: float = float(os.getenv("RAG_CROSS_ENCODER_THRESHOLD", "0.3"))
+    cross_encoder_threshold: float = float(
+        os.getenv("RAG_CROSS_ENCODER_THRESHOLD", "0.3")
+    )
 
     # v5.9.9: Rerank gating for CPU optimization
     # Only activate reranking when retrieval confidence is low
     rerank_gating_enabled: bool = _bool("RERANK_GATING_ENABLED", True)
-    rerank_score_low_threshold: float = float(os.getenv("RERANK_SCORE_LOW_THRESHOLD", "0.35"))
+    rerank_score_low_threshold: float = float(
+        os.getenv("RERANK_SCORE_LOW_THRESHOLD", "0.35")
+    )
     rerank_margin_threshold: float = float(os.getenv("RERANK_MARGIN_THRESHOLD", "0.05"))
     rerank_max_candidates: int = int(os.getenv("RERANK_MAX_CANDIDATES", "10"))
 

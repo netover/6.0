@@ -42,8 +42,12 @@ class IdempotencyRecord:
             # Use more robust parsing that handles potential format variations
             # If fromisoformat fails or format is slightly different, we might need dateutil
             # For now, sticking to robust stdlib based on expected ISO format
-            created_at=datetime.fromisoformat(str(data["created_at"]).replace("Z", "+00:00")),
-            expires_at=datetime.fromisoformat(str(data["expires_at"]).replace("Z", "+00:00")),
+            created_at=datetime.fromisoformat(
+                str(data["created_at"]).replace("Z", "+00:00")
+            ),
+            expires_at=datetime.fromisoformat(
+                str(data["expires_at"]).replace("Z", "+00:00")
+            ),
             request_metadata=data.get("request_metadata", {}),
         )
 

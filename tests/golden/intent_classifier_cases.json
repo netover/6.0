@@ -1,0 +1,75 @@
+[
+    {
+        "input": "Olá!",
+        "expected_intent": "greeting",
+        "expected_routing": "rag_only"
+    },
+    {
+        "input": "Como está o status do sistema?",
+        "expected_intent": "status",
+        "expected_routing": "agentic"
+    },
+    {
+        "input": "Qual a situação da workstation TWS_PRD1?",
+        "expected_intent": "status",
+        "expected_routing": "agentic",
+        "entities": {
+            "workstation": [
+                "TWS_PRD1"
+            ]
+        }
+    },
+    {
+        "input": "Por que o job JOB_DAILY_01 falhou com ABEND?",
+        "expected_intent": "troubleshooting",
+        "expected_routing": "diagnostic",
+        "entities": {
+            "job_name": [
+                "JOB_DAILY_01"
+            ]
+        }
+    },
+    {
+        "input": "Erro rc=4 no job BACKUP_DB",
+        "expected_intent": "troubleshooting",
+        "expected_routing": "diagnostic",
+        "entities": {
+            "job_name": [
+                "BACKUP_DB"
+            ],
+            "error_code": [
+                "4"
+            ]
+        }
+    },
+    {
+        "input": "Roda o job JOB_RECOVERY agora",
+        "expected_intent": "job_management",
+        "expected_routing": "agentic",
+        "entities": {
+            "job_name": [
+                "JOB_RECOVERY"
+            ]
+        }
+    },
+    {
+        "input": "Me mostra o dashboard de monitoramento",
+        "expected_intent": "monitoring",
+        "expected_routing": "agentic"
+    },
+    {
+        "input": "Analise a performance dos jobs de ontem",
+        "expected_intent": "analysis",
+        "expected_routing": "agentic",
+        "entities": {
+            "time_reference": [
+                "ontem"
+            ]
+        }
+    },
+    {
+        "input": "Como eu faço para criar um novo job no TWS?",
+        "expected_intent": "general",
+        "expected_routing": "rag_only"
+    }
+]

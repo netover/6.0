@@ -14,7 +14,7 @@ Removed in v5.9.3:
 - GraphSnapshot: No longer needed
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -117,7 +117,9 @@ class ExtractedTriplet(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), index=True
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {

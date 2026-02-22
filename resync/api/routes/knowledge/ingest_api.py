@@ -22,7 +22,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.knowledge.ingestion.document_converter import (
     DoclingConverter,
     FORMAT_EXTENSIONS,
@@ -40,6 +40,7 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
 # ── Response Models ─────────────────────────────────────────────────────────
+
 
 class IngestResponse(BaseModel):
     """Response from document ingestion."""
@@ -63,7 +64,9 @@ class BatchIngestRequest(BaseModel):
     tenant: str = Field(default="default")
     tags: list[str] = Field(default_factory=list)
     chunking_strategy: str = Field(default="tws_optimized")
-    reindex: bool = Field(default=False, description="Delete existing chunks before re-ingesting")
+    reindex: bool = Field(
+        default=False, description="Delete existing chunks before re-ingesting"
+    )
 
 
 class BatchIngestResponse(BaseModel):
@@ -87,6 +90,7 @@ class ConverterStatusResponse(BaseModel):
 
 # ── Helper ──────────────────────────────────────────────────────────────────
 
+
 def _get_pipeline():
     """Lazy-load the pipeline to avoid importing heavy deps at module load."""
     from resync.knowledge.ingestion.pipeline import DocumentIngestionPipeline
@@ -100,6 +104,7 @@ def _get_pipeline():
 
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
+
 @router.post(
     "",
     response_model=IngestResponse,
@@ -107,7 +112,9 @@ def _get_pipeline():
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def ingest_document(
-    file: UploadFile = File(..., description="Document file (PDF, DOCX, HTML, MD, XLSX)"),
+    file: UploadFile = File(
+        ..., description="Document file (PDF, DOCX, HTML, MD, XLSX)"
+    ),
     tenant: str = Form(default="default"),
     tags: str = Form(default="", description="Comma-separated tags"),
     chunking_strategy: str = Form(default="tws_optimized"),
@@ -204,24 +211,28 @@ async def ingest_batch(request: BatchIngestRequest):
     for fp in request.file_paths:
         path = Path(fp)
         if not path.exists():
-            results.append(IngestResponse(
-                status="error",
-                doc_id="",
-                source=fp,
-                format="",
-                error=f"File not found: {fp}",
-            ))
+            results.append(
+                IngestResponse(
+                    status="error",
+                    doc_id="",
+                    source=fp,
+                    format="",
+                    error=f"File not found: {fp}",
+                )
+            )
             failed += 1
             continue
 
         if not DoclingConverter.is_supported(path):
-            results.append(IngestResponse(
-                status="error",
-                doc_id="",
-                source=fp,
-                format="",
-                error=f"Unsupported format: {path.suffix}",
-            ))
+            results.append(
+                IngestResponse(
+                    status="error",
+                    doc_id="",
+                    source=fp,
+                    format="",
+                    error=f"Unsupported format: {path.suffix}",
+                )
+            )
             failed += 1
             continue
 
@@ -270,6 +281,7 @@ async def converter_status():
     docling_available = False
     try:
         import docling  # noqa: F401
+
         docling_available = True
     except ImportError:
         logger.error("docling_not_installed — pip install docling is required")

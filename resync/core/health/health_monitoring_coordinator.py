@@ -48,7 +48,11 @@ class HealthMonitoringCoordinator:
                 return
 
             self._is_monitoring = True
-            self._monitoring_task = await create_tracked_task(self._monitoring_loop(health_check_func), name="monitoring_loop")
+            # HARDENING [P0]: Remoção do `await` para não bloquear a thread inicializadora
+            # num loop infinito. A task deve correr em background.
+            self._monitoring_task = create_tracked_task(
+                self._monitoring_loop(health_check_func), name="monitoring_loop"
+            )
             logger.info("health_monitoring_coordinator_started")
 
     async def stop_monitoring(self) -> None:

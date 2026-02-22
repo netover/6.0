@@ -50,11 +50,12 @@ def safe_json_dumps(data: Any) -> str:
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable format"""
+    size = float(size_bytes)
     for _unit in ["B", "KB", "MB", "GB"]:
-        if size_bytes < 1024.0:
-            return ".1f"
-        size_bytes /= 1024.0
-    return ".1f"
+        if size < 1024.0:
+            return f"{size:.1f}{_unit}"
+        size = size / 1024.0
+    return f"{size:.1f}TB"
 
 
 def extract_text_from_filename(filename: str) -> str:
@@ -62,12 +63,9 @@ def extract_text_from_filename(filename: str) -> str:
     path = Path(filename)
     extension = path.suffix.lower()
     stem = path.stem
-
-    # Map extensions to content types
     text_extensions = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".yml", ".yaml"}
     doc_extensions = {".pdf", ".doc", ".docx", ".rtf", ".odt"}
     code_extensions = {".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs"}
-
     if extension in text_extensions:
         return f"text:{stem}"
     if extension in doc_extensions:
@@ -82,8 +80,7 @@ def create_pagination_info(
 ) -> dict[str, Any]:
     """Create pagination information"""
     total_pages = (total_items + limit - 1) // limit if limit > 0 else 1
-    current_page = current_page or (offset // limit) + 1
-
+    current_page = current_page or (offset // limit + 1 if limit > 0 else 1)
     return {
         "total_items": total_items,
         "total_pages": total_pages,
@@ -96,7 +93,6 @@ def create_pagination_info(
 
 def mask_sensitive_data(data: str, mask_char: str = "*") -> str:
     """Mask sensitive data in strings"""
-    # Simple masking for demo - replace with more sophisticated logic
     if len(data) <= 4:
         return mask_char * len(data)
     return data[:2] + mask_char * (len(data) - 4) + data[-2:]
@@ -108,15 +104,17 @@ def validate_redis_connection(redis_client) -> bool:
         redis_client.ping()
         return True
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("exception_caught", error=str(e), exc_info=True)
+        logger.error("Redis connection error: %s", str(e), exc_info=True)
         return False
 
 
 def create_error_response(
-    error_type: str, message: str, status_code: int, details: dict[str, Any] | None = None
+    error_type: str,
+    message: str,
+    status_code: int,
+    details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create standardized error response"""
     response = {
@@ -127,10 +125,8 @@ def create_error_response(
             "timestamp": get_current_timestamp(),
         }
     }
-
     if details:
         response["error"]["details"] = details
-
     return response
 
 
@@ -139,13 +135,10 @@ def create_success_response(
 ) -> dict[str, Any]:
     """Create standardized success response"""
     response = {"success": True, "data": data, "timestamp": get_current_timestamp()}
-
     if message:
         response["message"] = message
-
     if metadata:
         response["metadata"] = metadata
-
     return response
 
 
@@ -162,8 +155,6 @@ def generate_correlation_id() -> str:
 def parse_user_agent(user_agent: str) -> dict[str, str]:
     """Parse user agent string to extract browser, OS, and device info."""
     ua_lower = user_agent.lower()
-
-    # Detect browser
     browser = "unknown"
     if "chrome" in ua_lower and "edg" not in ua_lower:
         browser = "Chrome"
@@ -177,8 +168,6 @@ def parse_user_agent(user_agent: str) -> dict[str, str]:
         browser = "Opera"
     elif "msie" in ua_lower or "trident" in ua_lower:
         browser = "Internet Explorer"
-
-    # Detect OS
     os_name = "unknown"
     if "windows" in ua_lower:
         os_name = "Windows"
@@ -190,8 +179,6 @@ def parse_user_agent(user_agent: str) -> dict[str, str]:
         os_name = "Android"
     elif "iphone" in ua_lower or "ipad" in ua_lower:
         os_name = "iOS"
-
-    # Detect device type
     device = "desktop"
     if "mobile" in ua_lower or "android" in ua_lower:
         device = "mobile"
@@ -199,9 +186,8 @@ def parse_user_agent(user_agent: str) -> dict[str, str]:
         device = "tablet"
     elif "bot" in ua_lower or "crawler" in ua_lower or "spider" in ua_lower:
         device = "bot"
-
     return {
-        "raw": user_agent[:200],  # Truncate for safety
+        "raw": user_agent[:200],
         "browser": browser,
         "os": os_name,
         "device": device,

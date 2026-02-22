@@ -11,11 +11,12 @@ Features:
 - Templates de prompt otimizados por tipo de query
 """
 
-from __future__ import annotations
+
 
 import logging
 import re
 from enum import Enum
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -189,7 +190,9 @@ class QueryProcessor:
 
         return list(set(entities))  # Remove duplicatas
 
-    def _rank_context(self, query: str, raw_context: str, entities: list[str]) -> list[dict]:
+    def _rank_context(
+        self, query: str, raw_context: str, entities: list[str]
+    ) -> list[dict]:
         """
         Rankeia contexto por relevância.
 
@@ -213,7 +216,7 @@ class QueryProcessor:
         # Quebrar contexto em snippets
         snippets = [s.strip() for s in raw_context.split("\n\n") if s.strip()]
 
-        ranked = []
+        ranked: list[dict[str, object]] = []
 
         for snippet in snippets:
             score = 0.0
@@ -243,12 +246,17 @@ class QueryProcessor:
             ranked.append({"content": snippet, "score": score})
 
         # Ordenar por score
-        ranked.sort(key=lambda x: x["score"], reverse=True)
+        ranked.sort(
+            key=lambda x: cast(float, x["score"]) if isinstance(x.get("score"), (int, float)) else 0.0,
+            reverse=True,
+        )
 
         # Retornar top 5
         return ranked[:5]
 
-    def _generate_intent(self, query: str, query_type: QueryType, entities: list[str]) -> str:
+    def _generate_intent(
+        self, query: str, query_type: QueryType, entities: list[str]
+    ) -> str:
         """
         Gera intent resumido.
 
@@ -341,13 +349,17 @@ Use português brasileiro.""",
         }
 
         system_prompt = system_prompts.get(
-            structured.query_type, "Você é um assistente TWS/HWA. Responda de forma clara."
+            structured.query_type,
+            "Você é um assistente TWS/HWA. Responda de forma clara.",
         )
 
         # Contexto rankeado (top 3)
         if structured.ranked_context:
             context_str = "\n\n".join(
-                [f"[Relevância: {c['score']:.1f}]\n{c['content']}" for c in structured.ranked_context[:3]]
+                [
+                    f"[Relevância: {c['score']:.1f}]\n{c['content']}"
+                    for c in structured.ranked_context[:3]
+                ]
             )
         else:
             context_str = ""

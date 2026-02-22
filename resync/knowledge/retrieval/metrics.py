@@ -210,7 +210,9 @@ def ndcg_at_k(
     dcg = dcg_at_k(relevance_scores, retrieved, k)
 
     # Calculate ideal DCG (documents sorted by relevance)
-    ideal_order = sorted(relevance_scores.keys(), key=lambda x: relevance_scores[x], reverse=True)
+    ideal_order = sorted(
+        relevance_scores.keys(), key=lambda x: relevance_scores[x], reverse=True
+    )
     idcg = dcg_at_k(relevance_scores, ideal_order, k)
 
     if idcg == 0:
@@ -397,7 +399,7 @@ class RegressionGate:
                 if regression > threshold:
                     failures.append(
                         f"{metric_name}: {current_val:.4f} vs baseline {baseline_val:.4f} "
-                        f"(-{regression*100:.1f}%, threshold: -{threshold*100:.0f}%)"
+                        f"(-{regression * 100:.1f}%, threshold: -{threshold * 100:.0f}%)"
                     )
 
         # Check latency (lower is better)
@@ -409,7 +411,7 @@ class RegressionGate:
             if latency_increase > self.thresholds.p95_latency:
                 failures.append(
                     f"p95_latency_ms: {current_latency:.1f}ms vs baseline {baseline_latency:.1f}ms "
-                    f"(+{latency_increase*100:.1f}%, threshold: +{self.thresholds.p95_latency*100:.0f}%)"
+                    f"(+{latency_increase * 100:.1f}%, threshold: +{self.thresholds.p95_latency * 100:.0f}%)"
                 )
 
         return len(failures) == 0, failures
@@ -444,18 +446,30 @@ class RegressionGate:
             if "latency" in attr:
                 change = current_val - baseline_val
                 change_str = f"+{change:.1f}ms" if change >= 0 else f"{change:.1f}ms"
-                lines.append(f"  {display_name}: {current_val:.1f}ms (baseline: {baseline_val:.1f}ms, {change_str})")
+                lines.append(
+                    f"  {display_name}: {current_val:.1f}ms (baseline: {baseline_val:.1f}ms, {change_str})"
+                )
             else:
-                change_pct = ((current_val - baseline_val) / baseline_val * 100) if baseline_val > 0 else 0
-                change_str = f"+{change_pct:.1f}%" if change_pct >= 0 else f"{change_pct:.1f}%"
-                lines.append(f"  {display_name}: {current_val:.4f} (baseline: {baseline_val:.4f}, {change_str})")
+                change_pct = (
+                    ((current_val - baseline_val) / baseline_val * 100)
+                    if baseline_val > 0
+                    else 0
+                )
+                change_str = (
+                    f"+{change_pct:.1f}%" if change_pct >= 0 else f"{change_pct:.1f}%"
+                )
+                lines.append(
+                    f"  {display_name}: {current_val:.4f} (baseline: {baseline_val:.4f}, {change_str})"
+                )
 
         if failures:
-            lines.extend([
-                "",
-                "Failures:",
-                "-" * 40,
-            ])
+            lines.extend(
+                [
+                    "",
+                    "Failures:",
+                    "-" * 40,
+                ]
+            )
             for failure in failures:
                 lines.append(f"  ❌ {failure}")
 

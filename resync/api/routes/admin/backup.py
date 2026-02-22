@@ -60,9 +60,15 @@ class CreateBackupRequest(BaseModel):
     """Request to create a backup."""
 
     description: str = Field(default="", description="Optional backup description")
-    compress: bool = Field(default=True, description="Compress the backup (database only)")
-    include_env: bool = Field(default=True, description="Include .env files (config only)")
-    collection_name: str | None = Field(default=None, description="Collection name for RAG backup")
+    compress: bool = Field(
+        default=True, description="Compress the backup (database only)"
+    )
+    include_env: bool = Field(
+        default=True, description="Include .env files (config only)"
+    )
+    collection_name: str | None = Field(
+        default=None, description="Collection name for RAG backup"
+    )
 
 
 class BackupResponse(BaseModel):
@@ -91,7 +97,9 @@ class BackupResponse(BaseModel):
             size_bytes=backup.size_bytes,
             size_human=backup.size_human,
             created_at=backup.created_at.isoformat(),
-            completed_at=backup.completed_at.isoformat() if backup.completed_at else None,
+            completed_at=backup.completed_at.isoformat()
+            if backup.completed_at
+            else None,
             duration_seconds=backup.duration_seconds,
             checksum_sha256=backup.checksum_sha256,
             metadata=backup.metadata,
@@ -116,7 +124,9 @@ class CreateScheduleRequest(BaseModel):
         description="Cron expression (e.g., '0 2 * * *' for 2 AM daily)",
         examples=["0 2 * * *", "0 0 * * 0", "0 0 1 * *"],
     )
-    retention_days: int = Field(default=30, ge=1, le=365, description="Days to retain backups")
+    retention_days: int = Field(
+        default=30, ge=1, le=365, description="Days to retain backups"
+    )
 
 
 class UpdateScheduleRequest(BaseModel):
@@ -209,8 +219,11 @@ async def create_database_backup(
         )
         return BackupResponse.from_backup_info(backup)
     except Exception as e:
-        logger.error("create_database_backup_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        logger.error("create_database_backup_failed", error=str(e))  # type: ignore[call-arg]
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.post("/config", response_model=BackupResponse)
@@ -229,8 +242,11 @@ async def create_config_backup(request: CreateBackupRequest):
         )
         return BackupResponse.from_backup_info(backup)
     except Exception as e:
-        logger.error("create_config_backup_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        logger.error("create_config_backup_failed", error=str(e))  # type: ignore[call-arg]
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.post("/full", response_model=BackupResponse)
@@ -246,13 +262,18 @@ async def create_full_backup(request: CreateBackupRequest):
         backup = await service.create_full_backup(description=request.description)
         return BackupResponse.from_backup_info(backup)
     except Exception as e:
-        logger.error("create_full_backup_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        logger.error("create_full_backup_failed", error=str(e))  # type: ignore[call-arg]
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @router.get("/list", response_model=BackupListResponse)
 async def list_backups(
-    backup_type: str | None = Query(None, description="Filter by type: database, config, full"),
+    backup_type: str | None = Query(
+        None, description="Filter by type: database, config, full"
+    ),
     status: str | None = Query(None, description="Filter by status"),
     limit: int = Query(100, ge=1, le=500),
 ):
@@ -276,7 +297,9 @@ async def list_backups(
         try:
             status_filter = BackupStatus(status)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
+            raise HTTPException(
+                status_code=400, detail=f"Invalid status: {status}"
+            ) from None
 
     backups = service.list_backups(
         backup_type=type_filter,
@@ -361,7 +384,9 @@ async def list_schedules():
     service = get_backup_service()
     schedules = service.list_schedules()
 
-    return ScheduleListResponse(schedules=[ScheduleResponse.from_schedule(s) for s in schedules])
+    return ScheduleListResponse(
+        schedules=[ScheduleResponse.from_schedule(s) for s in schedules]
+    )
 
 
 @router.post("/schedules", response_model=ScheduleResponse)
@@ -484,7 +509,9 @@ async def stop_scheduler():
     return {"message": "Backup scheduler stopped"}
 
 
-@router.post("/rag/index", response_model=BackupResponse,
+@router.post(
+    "/rag/index",
+    response_model=BackupResponse,
     responses={
         500: {"description": "Failed to create RAG index backup"},
     },
@@ -493,16 +520,19 @@ async def create_rag_index_backup(request: CreateBackupRequest):
     """
     Create a backup of the RAG BM25 index.
     """
-    from resync.knowledge.retrieval.hybrid_retriever import BM25Index, INDEX_STORAGE_PATH
-    
+    from resync.knowledge.retrieval.hybrid_retriever import (
+        BM25Index,
+        INDEX_STORAGE_PATH,
+    )
+
     service = get_backup_service()
-    
+
     index = BM25Index.load(INDEX_STORAGE_PATH)
     backup = service.create_rag_index_backup(index, request.collection_name or "bm25")
-    
+
     if backup:
         return BackupResponse.from_backup_info(backup)
-    
+
     raise HTTPException(status_code=500, detail="Failed to create RAG index backup")
 
 
@@ -513,14 +543,15 @@ async def list_rag_backups():
     """
     service = get_backup_service()
     backups = service.list_rag_backups()
-    
+
     return BackupListResponse(
         backups=[BackupResponse.from_backup_info(b) for b in backups],
-        total=len(backups)
+        total=len(backups),
     )
 
 
-@router.post("/rag/{backup_id}/restore",
+@router.post(
+    "/rag/{backup_id}/restore",
     responses={
         404: {"description": "Backup not found"},
     },
@@ -530,10 +561,10 @@ async def restore_rag_index_backup(backup_id: str):
     Restore RAG index from backup.
     """
     service = get_backup_service()
-    
+
     success = service.restore_rag_index_backup(backup_id)
-    
+
     if success:
         return {"message": f"RAG index restored from backup {backup_id}"}
-    
+
     raise HTTPException(status_code=404, detail=f"Backup {backup_id} not found")

@@ -8,7 +8,7 @@ Author: Resync Team
 Version: 5.2.3.29
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -39,9 +39,15 @@ class SpecialistConfig(BaseModel):
     specialist_type: SpecialistType = Field(..., description="Type of specialist")
     enabled: bool = Field(default=True, description="Whether this specialist is active")
     model_name: str = Field(default="gpt-4o", description="LLM model to use")
-    temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Model temperature")
-    max_tokens: int = Field(default=2048, ge=100, le=8192, description="Maximum response tokens")
-    timeout_seconds: int = Field(default=30, ge=5, le=120, description="Request timeout")
+    temperature: float = Field(
+        default=0.3, ge=0.0, le=2.0, description="Model temperature"
+    )
+    max_tokens: int = Field(
+        default=2048, ge=100, le=8192, description="Maximum response tokens"
+    )
+    timeout_seconds: int = Field(
+        default=30, ge=5, le=120, description="Request timeout"
+    )
     retry_attempts: int = Field(
         default=3, ge=0, le=5, description="Number of retry attempts on failure"
     )
@@ -62,11 +68,22 @@ class SpecialistResponse(BaseModel):
     confidence: float = Field(
         default=0.8, ge=0.0, le=1.0, description="Confidence score for the response"
     )
-    tools_used: list[str] = Field(default_factory=list, description="Tools invoked during analysis")
-    processing_time_ms: int = Field(default=0, ge=0, description="Processing time in milliseconds")
-    error: str | None = Field(default=None, description="Error message if processing failed")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    tools_used: list[str] = Field(
+        default_factory=list, description="Tools invoked during analysis"
+    )
+    processing_time_ms: int = Field(
+        default=0, ge=0, description="Processing time in milliseconds"
+    )
+    error: str | None = Field(
+        default=None, description="Error message if processing failed"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Response timestamp",
+    )
 
     @property
     def is_successful(self) -> bool:
@@ -85,15 +102,25 @@ class TeamResponse(BaseModel):
         default_factory=list, description="Individual specialist responses"
     )
     execution_mode: TeamExecutionMode = Field(
-        default=TeamExecutionMode.COORDINATE, description="How specialists were coordinated"
+        default=TeamExecutionMode.COORDINATE,
+        description="How specialists were coordinated",
     )
-    total_processing_time_ms: int = Field(default=0, ge=0, description="Total processing time")
+    total_processing_time_ms: int = Field(
+        default=0, ge=0, description="Total processing time"
+    )
     specialists_used: list[SpecialistType] = Field(
         default_factory=list, description="Which specialists contributed"
     )
-    query_classification: str | None = Field(default=None, description="Detected query type/intent")
-    confidence: float = Field(default=0.8, ge=0.0, le=1.0, description="Overall confidence")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    query_classification: str | None = Field(
+        default=None, description="Detected query type/intent"
+    )
+    confidence: float = Field(
+        default=0.8, ge=0.0, le=1.0, description="Overall confidence"
+    )
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Response timestamp",
+    )
 
     @property
     def successful_specialists(self) -> int:
@@ -118,16 +145,21 @@ class TeamConfig(BaseModel):
     orchestrator_model: str = Field(
         default="gpt-4o", description="Model for the orchestrator/planner"
     )
-    synthesizer_model: str = Field(default="gpt-4o", description="Model for the synthesizer")
+    synthesizer_model: str = Field(
+        default="gpt-4o", description="Model for the synthesizer"
+    )
     parallel_execution: bool = Field(
         default=True, description="Run specialists in parallel when possible"
     )
     max_parallel_specialists: int = Field(
         default=4, ge=1, le=10, description="Maximum specialists to run in parallel"
     )
-    timeout_seconds: int = Field(default=45, ge=10, le=180, description="Overall team timeout")
+    timeout_seconds: int = Field(
+        default=45, ge=10, le=180, description="Overall team timeout"
+    )
     fallback_to_general: bool = Field(
-        default=True, description="Fall back to general assistant if all specialists fail"
+        default=True,
+        description="Fall back to general assistant if all specialists fail",
     )
     specialists: dict[SpecialistType, SpecialistConfig] = Field(
         default_factory=dict, description="Individual specialist configurations"
@@ -143,8 +175,12 @@ class QueryClassification(BaseModel):
     recommended_specialists: list[SpecialistType] = Field(
         default_factory=list, description="Specialists best suited for this query"
     )
-    confidence: float = Field(default=0.8, ge=0.0, le=1.0, description="Classification confidence")
-    requires_graph: bool = Field(default=False, description="Whether query needs dependency graph")
+    confidence: float = Field(
+        default=0.8, ge=0.0, le=1.0, description="Classification confidence"
+    )
+    requires_graph: bool = Field(
+        default=False, description="Whether query needs dependency graph"
+    )
     requires_rag: bool = Field(
         default=False, description="Whether query needs RAG/knowledge search"
     )
@@ -152,7 +188,8 @@ class QueryClassification(BaseModel):
         default=False, description="Whether query needs live TWS data"
     )
     entities: dict[str, list[str]] = Field(
-        default_factory=dict, description="Extracted entities (jobs, workstations, etc.)"
+        default_factory=dict,
+        description="Extracted entities (jobs, workstations, etc.)",
     )
 
     model_config = ConfigDict(use_enum_values=True)

@@ -1,4 +1,4 @@
-"""Interfaces for Resync components."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -46,7 +46,9 @@ class IKnowledgeGraph(Protocol):
         """Searches the knowledge graph for similar past issues and solutions."""
         ...
 
-    def search_similar_issues_sync(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    def search_similar_issues_sync(
+        self, query: str, limit: int = 5
+    ) -> list[dict[str, Any]]:
         """Searches the knowledge graph for similar past issues and solutions."""
         ...
 
@@ -74,7 +76,9 @@ class IKnowledgeGraph(Protocol):
         """Adds user feedback to a specific memory."""
         ...
 
-    def add_solution_feedback_sync(self, memory_id: str, feedback: str, rating: int) -> None:
+    def add_solution_feedback_sync(
+        self, memory_id: str, feedback: str, rating: int
+    ) -> None:
         """Adds user feedback to a specific memory."""
         ...
 
@@ -82,7 +86,9 @@ class IKnowledgeGraph(Protocol):
         """Retrieves all recent conversation-type memories for auditing."""
         ...
 
-    def get_all_recent_conversations_sync(self, limit: int = 100) -> list[dict[str, Any]]:
+    def get_all_recent_conversations_sync(
+        self, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """Retrieves all recent conversation-type memories for auditing."""
         ...
 
@@ -134,11 +140,15 @@ class IKnowledgeGraph(Protocol):
         """Atomically checks if a memory has already been processed."""
         ...
 
-    def atomic_check_and_flag(self, memory_id: str, reason: str, confidence: float) -> bool:
+    def atomic_check_and_flag(
+        self, memory_id: str, reason: str, confidence: float
+    ) -> bool:
         """Atomically checks if memory is already processed, and if not, flags it."""
         ...
 
-    def atomic_check_and_flag_sync(self, memory_id: str, reason: str, confidence: float) -> bool:
+    def atomic_check_and_flag_sync(
+        self, memory_id: str, reason: str, confidence: float
+    ) -> bool:
         """Atomically checks if memory is already processed, and if not, flags it."""
         ...
 
@@ -176,16 +186,20 @@ class IFileIngestor(Protocol):
 class IAgentManager(Protocol):
     """Interface for managing AI agents."""
 
-    def load_agents_from_config(self) -> None:
-        """Loads agent configurations."""
+    async def load_agents_from_config(self, config_path: str | None = None) -> None:
+        """Loads agent configurations (async)."""
         ...
 
-    def get_agent(self, agent_id: str) -> Any:
-        """Retrieves an agent by its ID."""
+    async def get_agent(self, agent_id: str) -> Any:
+        """Retrieves an agent by its ID (async)."""
         ...
 
-    def get_all_agents(self) -> list["AgentConfig"]:
-        """Returns the configuration of all loaded agents."""
+    async def get_all_agents(self) -> list[AgentConfig]:
+        """Returns the configuration of all loaded agents (async)."""
+        ...
+
+    async def get_agent_config(self, agent_id: str) -> AgentConfig | None:
+        """Retrieve the config for a single agent (async)."""
         ...
 
 

@@ -9,6 +9,8 @@ used throughout the application.
 import logging
 import time
 import uuid
+from collections import deque
+from datetime import datetime, timezone
 from typing import Any
 
 from resync.core.metrics_internal import (
@@ -35,13 +37,19 @@ class RuntimeMetricsCollector:
     def __init__(self):
         """Initialize all metrics."""
         # API Metrics
-        self.api_requests_total = create_counter("api_requests_total", "Total API requests")
+        self.api_requests_total = create_counter(
+            "api_requests_total", "Total API requests"
+        )
         self.api_requests_success = create_counter(
             "api_requests_success", "Successful API requests"
         )
-        self.api_requests_failed = create_counter("api_requests_failed", "Failed API requests")
+        self.api_requests_failed = create_counter(
+            "api_requests_failed", "Failed API requests"
+        )
         self.api_errors_total = create_counter("api_errors_total", "Total API errors")
-        self.api_response_time = create_histogram("api_response_time", "API response time")
+        self.api_response_time = create_histogram(
+            "api_response_time", "API response time"
+        )
         self.api_request_duration_histogram = create_histogram(
             "api_request_duration", "API request duration"
         )
@@ -50,27 +58,52 @@ class RuntimeMetricsCollector:
         self.cache_hits = create_counter("cache_hits", "Cache hits")
         self.cache_misses = create_counter("cache_misses", "Cache misses")
         self.cache_evictions = create_counter("cache_evictions", "Cache evictions")
-        self.cache_cleanup_cycles = create_counter("cache_cleanup_cycles", "Cache cleanup cycles")
-        self.cache_avg_latency = create_gauge("cache_avg_latency", "Average cache latency")
+        self.cache_cleanup_cycles = create_counter(
+            "cache_cleanup_cycles", "Cache cleanup cycles"
+        )
+        self.cache_avg_latency = create_gauge(
+            "cache_avg_latency", "Average cache latency"
+        )
         self.cache_size = create_gauge("cache_size", "Current cache size")
 
+        # Router Cache Metrics (Intent Cache)
+        self.router_cache_hits = create_counter(
+            "router_cache_hits", "Router cache hits"
+        )
+        self.router_cache_misses = create_counter(
+            "router_cache_misses", "Router cache misses"
+        )
+        self.router_cache_sets = create_counter(
+            "router_cache_sets", "Router cache sets"
+        )
+
         # TWS Metrics
-        self.tws_requests_total = create_counter("tws_requests_total", "Total TWS requests")
+        self.tws_requests_total = create_counter(
+            "tws_requests_total", "Total TWS requests"
+        )
         self.tws_requests_success = create_counter(
             "tws_requests_success", "Successful TWS requests"
         )
-        self.tws_requests_failed = create_counter("tws_requests_failed", "Failed TWS requests")
+        self.tws_requests_failed = create_counter(
+            "tws_requests_failed", "Failed TWS requests"
+        )
         self.tws_status_requests_failed = create_counter(
             "tws_status_requests_failed", "Failed TWS status requests"
         )
-        self.tws_response_time = create_histogram("tws_response_time", "TWS response time")
+        self.tws_response_time = create_histogram(
+            "tws_response_time", "TWS response time"
+        )
 
         # Health Check Metrics
-        self.health_checks_total = create_counter("health_checks_total", "Total health checks")
+        self.health_checks_total = create_counter(
+            "health_checks_total", "Total health checks"
+        )
         self.health_checks_success = create_counter(
             "health_checks_success", "Successful health checks"
         )
-        self.health_checks_failed = create_counter("health_checks_failed", "Failed health checks")
+        self.health_checks_failed = create_counter(
+            "health_checks_failed", "Failed health checks"
+        )
         self.health_check_duration = create_histogram(
             "health_check_duration", "Health check duration"
         )
@@ -79,45 +112,166 @@ class RuntimeMetricsCollector:
         )
 
         # Agent Metrics
-        self.agent_requests_total = create_counter("agent_requests_total", "Total agent requests")
-        self.agent_mock_fallbacks = create_counter("agent_mock_fallbacks", "Agent mock fallbacks")
-        self.agent_response_time = create_histogram("agent_response_time", "Agent response time")
+        self.agent_requests_total = create_counter(
+            "agent_requests_total", "Total agent requests"
+        )
+        self.agent_mock_fallbacks = create_counter(
+            "agent_mock_fallbacks", "Agent mock fallbacks"
+        )
+        self.agent_response_time = create_histogram(
+            "agent_response_time", "Agent response time"
+        )
 
         # Connection Pool Metrics
         self.pool_connections_active = create_gauge(
             "pool_connections_active", "Active pool connections"
         )
-        self.pool_connections_idle = create_gauge("pool_connections_idle", "Idle pool connections")
+        self.pool_connections_idle = create_gauge(
+            "pool_connections_idle", "Idle pool connections"
+        )
 
         # RAG Metrics
-        self.rag_bm25_index_loads = create_counter("rag_bm25_index_loads", "BM25 index load operations")
-        self.rag_bm25_index_saves = create_counter("rag_bm25_index_saves", "BM25 index save operations")
-        self.rag_bm25_queries_total = create_counter("rag_bm25_queries_total", "Total BM25 queries")
-        self.rag_bm25_queries_success = create_counter("rag_bm25_queries_success", "Successful BM25 queries")
-        self.rag_bm25_queries_failed = create_counter("rag_bm25_queries_failed", "Failed BM25 queries")
-        self.rag_vector_queries_total = create_counter("rag_vector_queries_total", "Total vector search queries")
-        self.rag_vector_queries_success = create_counter("rag_vector_queries_success", "Successful vector queries")
-        self.rag_hybrid_queries_total = create_counter("rag_hybrid_queries_total", "Total hybrid queries")
-        self.rag_hybrid_queries_success = create_counter("rag_hybrid_queries_success", "Successful hybrid queries")
-        self.rag_chat_turns_stored = create_counter("rag_chat_turns_stored", "Chat turns stored")
-        self.rag_chat_searches = create_counter("rag_chat_searches", "Chat memory searches")
-        
+        self.rag_bm25_index_loads = create_counter(
+            "rag_bm25_index_loads", "BM25 index load operations"
+        )
+        self.rag_bm25_index_saves = create_counter(
+            "rag_bm25_index_saves", "BM25 index save operations"
+        )
+        self.rag_bm25_queries_total = create_counter(
+            "rag_bm25_queries_total", "Total BM25 queries"
+        )
+        self.rag_bm25_queries_success = create_counter(
+            "rag_bm25_queries_success", "Successful BM25 queries"
+        )
+        self.rag_bm25_queries_failed = create_counter(
+            "rag_bm25_queries_failed", "Failed BM25 queries"
+        )
+        self.rag_vector_queries_total = create_counter(
+            "rag_vector_queries_total", "Total vector search queries"
+        )
+        self.rag_vector_queries_success = create_counter(
+            "rag_vector_queries_success", "Successful vector queries"
+        )
+        self.rag_hybrid_queries_total = create_counter(
+            "rag_hybrid_queries_total", "Total hybrid queries"
+        )
+        self.rag_hybrid_queries_success = create_counter(
+            "rag_hybrid_queries_success", "Successful hybrid queries"
+        )
+        self.rag_chat_turns_stored = create_counter(
+            "rag_chat_turns_stored", "Chat turns stored"
+        )
+        self.rag_chat_searches = create_counter(
+            "rag_chat_searches", "Chat memory searches"
+        )
+
         # RAG Gauges
-        self.rag_bm25_index_documents = create_gauge("rag_bm25_index_documents", "Number of documents in BM25 index")
-        self.rag_bm25_index_terms = create_gauge("rag_bm25_index_terms", "Number of terms in BM25 index")
-        self.rag_bm25_index_size_bytes = create_gauge("rag_bm25_index_size_bytes", "BM25 index size in bytes")
+        self.rag_bm25_index_documents = create_gauge(
+            "rag_bm25_index_documents", "Number of documents in BM25 index"
+        )
+        self.rag_bm25_index_terms = create_gauge(
+            "rag_bm25_index_terms", "Number of terms in BM25 index"
+        )
+        self.rag_bm25_index_size_bytes = create_gauge(
+            "rag_bm25_index_size_bytes", "BM25 index size in bytes"
+        )
         self.rag_cache_size = create_gauge("rag_cache_size", "RAG cache size")
         self.rag_cache_hits = create_gauge("rag_cache_hits", "RAG cache hits")
         self.rag_cache_misses = create_gauge("rag_cache_misses", "RAG cache misses")
-        
+
         # RAG Histograms
-        self.rag_query_duration = create_histogram("rag_query_duration", "RAG query duration in seconds")
-        self.rag_index_build_duration = create_histogram("rag_index_build_duration", "BM25 index build duration")
+        self.rag_query_duration = create_histogram(
+            "rag_query_duration", "RAG query duration in seconds"
+        )
+        self.rag_index_build_duration = create_histogram(
+            "rag_index_build_duration", "BM25 index build duration"
+        )
+
+        # Routing Monitoring (Phase 2)
+        self.routing_decisions_total = create_counter(
+            "routing_decisions_total",
+            "Total routing decisions",
+            labels=["mode", "intent"],
+        )
+        self.routing_errors_total = create_counter(
+            "routing_errors_total", "Total routing errors"
+        )
+        self.routing_duration_seconds = create_histogram(
+            "routing_duration_seconds", "Routing duration in seconds"
+        )
+        self.recent_decisions = deque(maxlen=50)
 
         # Correlation tracking
         self._correlations: dict[str, dict[str, Any]] = {}
 
+        # Internal counter/gauge storage for dynamic metrics
+        self._dynamic_counters: dict[str, Any] = {}
+        self._dynamic_gauges: dict[str, Any] = {}
+        self._dynamic_histograms: dict[str, Any] = {}
+
         logger.info("RuntimeMetricsCollector initialized")
+
+    # -------------------------------------------------------------------------
+    # Compatibility methods for legacy API (record_counter, record_gauge)
+    # These methods provide backward compatibility with code that expects
+    # runtime_metrics.record_counter(name, value, labels)
+    # -------------------------------------------------------------------------
+    def record_counter(
+        self, name: str, value: float = 1, labels: dict[str, str] | None = None
+    ) -> None:
+        """
+        Record a counter increment. Creates counter if it doesn't exist.
+
+        Args:
+            name: Counter name
+            value: Value to increment (default 1)
+            labels: Optional labels for the counter
+        """
+        if name not in self._dynamic_counters:
+            from resync.core.metrics_internal import create_counter
+
+            self._dynamic_counters[name] = create_counter(
+                name,
+                f"Dynamic counter: {name}",
+                list(labels.keys()) if labels else None,
+            )
+
+        if labels:
+            self._dynamic_counters[name].inc(value, labels)
+        else:
+            self._dynamic_counters[name].inc(value)
+
+    def record_gauge(self, name: str, value: float) -> None:
+        """
+        Record a gauge value. Creates gauge if it doesn't exist.
+
+        Args:
+            name: Gauge name
+            value: Value to set
+        """
+        if name not in self._dynamic_gauges:
+            from resync.core.metrics_internal import create_gauge
+
+            self._dynamic_gauges[name] = create_gauge(name, f"Dynamic gauge: {name}")
+
+        self._dynamic_gauges[name].set(value)
+
+    def record_histogram(self, name: str, value: float) -> None:
+        """
+        Record a histogram observation. Creates histogram if it doesn't exist.
+
+        Args:
+            name: Histogram name
+            value: Value to observe
+        """
+        if name not in self._dynamic_histograms:
+            from resync.core.metrics_internal import create_histogram
+
+            self._dynamic_histograms[name] = create_histogram(
+                name, f"Dynamic histogram: {name}"
+            )
+
+        self._dynamic_histograms[name].observe(value)
 
     def create_correlation_id(self, operation: str, **kwargs) -> str:
         """Create a correlation ID for tracking an operation."""
@@ -176,13 +330,43 @@ class RuntimeMetricsCollector:
         else:
             self.cache_misses.inc()
 
+    def record_routing_decision(
+        self,
+        mode: str,
+        intent: str,
+        confidence: float,
+        latency_ms: float,
+        trace_id: str | None = None,
+        error: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        """Record a routing decision (Phase 2)."""
+        self.routing_decisions_total.labels(mode=mode, intent=intent).inc()
+        self.routing_duration_seconds.observe(latency_ms / 1000)
+
+        if error:
+            self.routing_errors_total.inc()
+
+        self.recent_decisions.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "mode": mode,
+                "intent": intent,
+                "confidence": confidence,
+                "latency_ms": latency_ms,
+                "trace_id": trace_id,
+                "error": error,
+                "message": message[:100] if message else None,  # Truncate for safety
+            }
+        )
+
     def get_stats(self) -> dict[str, Any]:
         """Get all metrics as a dictionary."""
         cache_hits = self.cache_hits.get()
         cache_misses = self.cache_misses.get()
         cache_total = cache_hits + cache_misses
         cache_hit_rate = (cache_hits / cache_total * 100) if cache_total > 0 else 0.0
-        
+
         return {
             "api": {
                 "requests_total": self.api_requests_total.get(),
@@ -194,6 +378,18 @@ class RuntimeMetricsCollector:
                 "misses": cache_misses,
                 "evictions": self.cache_evictions.get(),
                 "hit_rate": cache_hit_rate,
+            },
+            "router_cache": {
+                "hits": self.router_cache_hits.get(),
+                "misses": self.router_cache_misses.get(),
+                "sets": self.router_cache_sets.get(),
+                "hit_rate": (
+                    self.router_cache_hits.get()
+                    / (self.router_cache_hits.get() + self.router_cache_misses.get())
+                    * 100
+                )
+                if (self.router_cache_hits.get() + self.router_cache_misses.get()) > 0
+                else 0.0,
             },
             "tws": {
                 "requests_total": self.tws_requests_total.get(),
@@ -229,10 +425,19 @@ class RuntimeMetricsCollector:
                     "searches": self.rag_chat_searches.get(),
                 },
                 "cache": {
-                    "size": self.rag_cache_size.get(),
                     "hits": self.rag_cache_hits.get(),
                     "misses": self.rag_cache_misses.get(),
                 },
+            },
+            "routing": {
+                "total_decisions": self.routing_decisions_total.get_sum(),
+                "errors": self.routing_errors_total.get(),
+                "avg_latency_ms": (
+                    self.routing_duration_seconds.get_percentile(50) * 1000
+                    if self.routing_duration_seconds.get_percentile(50)
+                    else 0
+                ),
+                "recent_decisions": list(self.recent_decisions),
             },
         }
 

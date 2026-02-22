@@ -27,24 +27,19 @@ def _get_secure_database_url() -> str:
     """
     url = os.getenv("DATABASE_URL")
     env = os.getenv("ENVIRONMENT", "development").lower()
-
     if url:
-        # Warn if using obvious default password
         if ":password@" in url:
             logger.warning(
                 "insecure_database_url_detected",
-                hint="DATABASE_URL contains default password - change for production",
+                extra={
+                    "hint": "DATABASE_URL contains default password - change for production"
+                },
             )
         return url
-
-    # No DATABASE_URL set
     if env == "production":
         raise ValueError(
-            "DATABASE_URL must be set in production. "
-            "Example: postgresql://user:pass@host:5432/dbname"
+            "DATABASE_URL must be set in production. Example: postgresql://user:pass@host:5432/dbname"
         )
-
-    # Development fallback - no password in URL
     return "postgresql://localhost:5432/resync"
 
 
@@ -52,29 +47,22 @@ def _get_secure_database_url() -> str:
 class RAGConfig:
     """Configuration for RAG service with pgvector."""
 
-    # PostgreSQL settings - NO default password
     database_url: str = field(default_factory=_get_secure_database_url)
     collection_name: str = field(
         default_factory=lambda: os.getenv("RAG_COLLECTION", "resync_documents")
     )
-
-    # Embedding settings
     embedding_model: str = field(
         default_factory=lambda: os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     )
     embedding_dim: int = 1536
-
-    # Chunking settings
     chunk_size: int = 512
     chunk_overlap: int = 64
-
-    # Service settings
     use_mock: bool = field(
         default_factory=lambda: os.getenv("RAG_USE_MOCK", "true").lower() == "true"
     )
-    upload_dir: str = field(default_factory=lambda: os.getenv("RAG_UPLOAD_DIR", "uploads"))
-
-    # Search settings
+    upload_dir: str = field(
+        default_factory=lambda: os.getenv("RAG_UPLOAD_DIR", "uploads")
+    )
     default_top_k: int = 10
     max_top_k: int = 100
 
@@ -85,10 +73,9 @@ class RAGConfig:
 
     def is_pgvector_configured(self) -> bool:
         """Check if pgvector is properly configured."""
-        return bool(self.database_url) and not self.use_mock
+        return bool(self.database_url) and (not self.use_mock)
 
 
-# Global configuration instance
 _config: RAGConfig | None = None
 
 

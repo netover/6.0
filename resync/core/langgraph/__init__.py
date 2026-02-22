@@ -19,14 +19,14 @@ Architecture:
 
 Usage:
     from resync.core.langgraph import create_tws_agent_graph
-    
+
     graph = await create_tws_agent_graph()
     result = await graph.ainvoke({"message": "status do job BATCH001"})
-    
+
     # With streaming
     async for event in graph.astream_events(state, version="v2"):
         print(event)
-        
+
     # With checkpointing
     from resync.core.langgraph import get_checkpointer
     checkpointer = await get_checkpointer()
@@ -159,28 +159,30 @@ from resync.core.langgraph.incident_response import (
 async def quick_diagnose(problem: str, job_name: str | None = None) -> dict:
     """
     Quick diagnosis using the diagnostic subgraph.
-    
+
     Args:
         problem: Problem description
         job_name: Optional job name
-        
+
     Returns:
         Diagnosis result dict
     """
     subgraph = get_diagnostic_subgraph()
     if subgraph:
-        return await subgraph.ainvoke({
-            "problem_description": problem,
-            "job_name": job_name,
-            "max_iterations": 3,
-        })
+        return await subgraph.ainvoke(
+            {
+                "problem_description": problem,
+                "job_name": job_name,
+                "max_iterations": 3,
+            }
+        )
     return {"error": "Diagnostic subgraph unavailable"}
 
 
 __all__ = [
     # Agent Graph
     "AgentGraphConfig",
-    "AgentState", 
+    "AgentState",
     "Intent",
     "create_tws_agent_graph",
     "create_router_graph",
@@ -256,6 +258,15 @@ __all__ = [
     "DiagnosticState",
     "create_diagnostic_graph",
     "diagnose_problem",
+    "IncidentState",
+    "IncidentAnalysis",
+    "Severity",
+    "OutputChannel",
+    "create_incident_response_graph",
+    "get_incident_graph",
+    "handle_incident",
+    "integrate_with_anomaly_detector",
+    "integrate_with_chat",
     # Convenience
     "quick_diagnose",
 ]

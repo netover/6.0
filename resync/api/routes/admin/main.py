@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from resync.api.auth import verify_admin_credentials
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.core.fastapi_di import get_teams_integration, get_tws_client
 from resync.core.interfaces import ITWSClient
 from resync.core.teams_integration import TeamsIntegration
@@ -106,7 +106,7 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 
         templates_dir = Path(settings.BASE_DIR) / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
-        return templates.TemplateResponse("admin.html", {"request": request})
+        return templates.TemplateResponse(request, "admin.html")
     except Exception as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -119,10 +119,10 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 
 
 @admin_router.get(
-    "/api-keys", 
-    response_class=HTMLResponse, 
+    "/api-keys",
+    response_class=HTMLResponse,
     summary="API Key Management",
-    dependencies=[Depends(verify_admin_credentials)]
+    dependencies=[Depends(verify_admin_credentials)],
 )
 async def api_keys_admin_page(request: Request) -> HTMLResponse:
     """Serve the API Key Management admin page.
@@ -135,7 +135,7 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
 
         templates_dir = Path(settings.BASE_DIR) / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
-        return templates.TemplateResponse("api_keys_admin.html", {"request": request})
+        return templates.TemplateResponse(request, "api_keys_admin.html")
     except Exception as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

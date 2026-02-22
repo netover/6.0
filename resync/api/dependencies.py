@@ -72,7 +72,7 @@ async def require_idempotency_key(
         Idempotency key
 
     Raises:
-        ValidationError: Se key não foi fornecida
+        ValidationError: Se key não foi fornecida ou é inválida
     """
     if not x_idempotency_key:
         raise ValidationError(
@@ -83,27 +83,23 @@ async def require_idempotency_key(
             },
         )
 
-    # Validar formato (deve ser UUID v4)
-    import re
+    # BUG FIX: Use native uuid.UUID() module instead of fragile regex
+    # This accepts any valid UUID (v1, v4, v7, etc.) instead of just v4
+    import uuid
 
-    uuid_pattern = re.compile(
-        r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-        re.IGNORECASE,
-    )
-
-    if not uuid_pattern.match(x_idempotency_key):
+    try:
+        uuid_obj = uuid.UUID(x_idempotency_key)
+    except ValueError as e:
         raise ValidationError(
             message="Invalid idempotency key format",
             details={
                 "header": "X-Idempotency-Key",
-                "expected": "UUID v4 format",
+                "expected": "Valid UUID (any version)",
                 "received": x_idempotency_key,
             },
-        )
+        ) from e
 
-    return x_idempotency_key
-
-
+    return str(uuid_obj)
 
 
 # ============================================================================
@@ -155,6 +151,9 @@ async def get_current_user(
 
     Returns:
         Um dicionário representando o usuário ou None se não autenticado.
+
+    Raises:
+        AuthenticationError: Se houver erro de infraestrutura (Redis, parsing, etc)
     """
     if not credentials:
         return None
@@ -175,8 +174,18 @@ async def get_current_user(
             "role": payload.get("role", "user"),
             "permissions": payload.get("permissions", []),
         }
-    except Exception:
-        return None
+    except AuthenticationError:
+        # Re-raise auth errors - these are expected "not authenticated" cases
+        raise
+    except Exception as e:
+        # BUG FIX: Log and re-raise infrastructure errors instead of silently swallowing them
+        # This prevents masking serious issues like Redis unavailability or token parsing errors
+        logger.error("Authentication infrastructure error", error=str(e), exc_info=True)
+        # Re-raise as authentication error to inform the client appropriately
+        raise AuthenticationError(
+            message="Authentication service unavailable",
+            details={"error": str(e)},
+        ) from e
 
 
 async def require_authentication(

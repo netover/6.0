@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,9 @@ class Metric:
 class Counter:
     """A counter that only increases."""
 
-    def __init__(self, name: str, description: str = "", labels: list[str] | None = None):
+    def __init__(
+        self, name: str, description: str = "", labels: list[str] | None = None
+    ):
         self.name = name
         self.description = description
         self.label_names = labels or []
@@ -94,6 +96,10 @@ class Counter:
         """Get current value."""
         label_key = tuple(sorted((labels or {}).items()))
         return self._values.get(label_key, 0)
+
+    def get_sum(self) -> float:
+        """Get sum of all label values (for labeled counters)."""
+        return sum(self._values.values())
 
     def labels(self, **kwargs) -> "_LabeledCounter":
         """Return counter with specific labels (for compatibility)."""
@@ -114,7 +120,9 @@ class _LabeledCounter:
 class Gauge:
     """A gauge that can go up or down."""
 
-    def __init__(self, name: str, description: str = "", labels: list[str] | None = None):
+    def __init__(
+        self, name: str, description: str = "", labels: list[str] | None = None
+    ):
         self.name = name
         self.description = description
         self.label_names = labels or []
@@ -133,18 +141,22 @@ class Gauge:
         with self._lock:
             self._values[label_key] += amount
 
-    def dec(self, amount: float = 1, labels: dict[str, str] = None):
+    def dec(self, amount: float = 1, labels: dict[str, str] | None = None):
         """Decrement the gauge."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             self._values[label_key] -= amount
 
-    def get(self, labels: dict[str, str] = None) -> float:
+    def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current value."""
         label_key = tuple(sorted((labels or {}).items()))
         return self._values.get(label_key, 0)
 
-    def labels(self, **kwargs) -> "Gauge":
+    def get_sum(self) -> float:
+        """Get sum of all label values (for labeled gauges)."""
+        return sum(self._values.values())
+
+    def labels(self, **kwargs) -> "_LabeledGauge":
         """Return gauge with specific labels."""
         return _LabeledGauge(self, kwargs)
 
@@ -175,8 +187,8 @@ class Histogram:
         self,
         name: str,
         description: str = "",
-        labels: list[str] = None,
-        buckets: tuple = None,
+        labels: list[str] | None = None,
+        buckets: tuple[float, ...] | None = None,
     ):
         self.name = name
         self.description = description
@@ -185,7 +197,7 @@ class Histogram:
         self._observations: dict[tuple, list[float]] = defaultdict(list)
         self._lock = Lock()
 
-    def observe(self, value: float, labels: dict[str, str] = None):
+    def observe(self, value: float, labels: dict[str, str] | None = None):
         """Record an observation."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
@@ -194,7 +206,9 @@ class Histogram:
             if len(self._observations[label_key]) > 10000:
                 self._observations[label_key] = self._observations[label_key][-10000:]
 
-    def get_percentile(self, percentile: float, labels: dict[str, str] = None) -> float | None:
+    def get_percentile(
+        self, percentile: float, labels: dict[str, str] | None = None
+    ) -> float | None:
         """Get a percentile value."""
         label_key = tuple(sorted((labels or {}).items()))
         observations = self._observations.get(label_key, [])
@@ -204,7 +218,7 @@ class Histogram:
         idx = int(len(sorted_obs) * percentile / 100)
         return sorted_obs[min(idx, len(sorted_obs) - 1)]
 
-    def labels(self, **kwargs) -> "Histogram":
+    def labels(self, **kwargs) -> "_LabeledHistogram":
         """Return histogram with specific labels."""
         return _LabeledHistogram(self, kwargs)
 
@@ -230,7 +244,7 @@ class _LabeledHistogram:
 class _HistogramTimer:
     """Context manager for timing."""
 
-    def __init__(self, histogram: Histogram, labels: dict[str, str] = None):
+    def __init__(self, histogram: Histogram, labels: dict[str, str] | None = None):
         self._histogram = histogram
         self._labels = labels
         self._start: float = 0
@@ -247,7 +261,9 @@ class _HistogramTimer:
 class MetricsRegistry:
     """Central registry for all metrics."""
 
-    _instance: Optional["MetricsRegistry"] = None
+    _instance: "MetricsRegistry | None" = None
+    _metrics: dict[str, Any]
+    _lock: Lock
 
     def __new__(cls):
         if cls._instance is None:
@@ -271,7 +287,7 @@ class MetricsRegistry:
 
     def export_json(self) -> dict[str, Any]:
         """Export all metrics to JSON format."""
-        result = {
+        result: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "metrics": {},
         }
@@ -305,14 +321,18 @@ class MetricsRegistry:
 registry = MetricsRegistry()
 
 
-def create_counter(name: str, description: str = "", labels: list[str] = None) -> Counter:
+def create_counter(
+    name: str, description: str = "", labels: list[str] | None = None
+) -> Counter:
     """Create and register a counter."""
     counter = Counter(name, description, labels)
     registry.register(counter)
     return counter
 
 
-def create_gauge(name: str, description: str = "", labels: list[str] = None) -> Gauge:
+def create_gauge(
+    name: str, description: str = "", labels: list[str] | None = None
+) -> Gauge:
     """Create and register a gauge."""
     gauge = Gauge(name, description, labels)
     registry.register(gauge)
@@ -322,8 +342,8 @@ def create_gauge(name: str, description: str = "", labels: list[str] = None) -> 
 def create_histogram(
     name: str,
     description: str = "",
-    labels: list[str] = None,
-    buckets: tuple = None,
+    labels: list[str] | None = None,
+    buckets: tuple[float, ...] | None = None,
 ) -> Histogram:
     """Create and register a histogram."""
     histogram = Histogram(name, description, labels, buckets)

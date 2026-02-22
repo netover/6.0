@@ -1,5 +1,6 @@
 """Teams Notifications - Core Logic."""
 
+import asyncio
 import fnmatch
 import re
 from datetime import datetime, timezone, timedelta
@@ -47,10 +48,7 @@ class TeamsNotificationManager:
 
         # 1. Verificar mapeamento específico
         stmt = select(TeamsJobMapping).where(
-            and_(
-                TeamsJobMapping.job_name == job_name,
-                TeamsJobMapping.is_active
-            )
+            and_(TeamsJobMapping.job_name == job_name, TeamsJobMapping.is_active)
         )
         mapping = self.db.execute(stmt).scalar_one_or_none()
 
@@ -58,16 +56,16 @@ class TeamsNotificationManager:
             channel = self.db.get(TeamsChannel, mapping.channel_id)
             if channel and channel.is_active:
                 logger.debug(
-                    "channel_matched_by_mapping",
-                    job=job_name,
-                    channel=channel.name
+                    "channel_matched_by_mapping", job=job_name, channel=channel.name
                 )
                 return channel
 
         # 2. Verificar regras de padrões (ordenadas por prioridade)
-        stmt = select(TeamsPatternRule).where(
-            TeamsPatternRule.is_active
-        ).order_by(TeamsPatternRule.priority.desc())
+        stmt = (
+            select(TeamsPatternRule)
+            .where(TeamsPatternRule.is_active)
+            .order_by(TeamsPatternRule.priority.desc())
+        )
 
         rules = self.db.execute(stmt).scalars().all()
 
@@ -83,7 +81,7 @@ class TeamsNotificationManager:
                         "channel_matched_by_pattern",
                         job=job_name,
                         pattern=rule.pattern,
-                        channel=channel.name
+                        channel=channel.name,
                     )
                     return channel
 
@@ -93,9 +91,7 @@ class TeamsNotificationManager:
             channel = self.db.get(TeamsChannel, config.default_channel_id)
             if channel and channel.is_active:
                 logger.debug(
-                    "channel_matched_by_default",
-                    job=job_name,
-                    channel=channel.name
+                    "channel_matched_by_default", job=job_name, channel=channel.name
                 )
                 return channel
 
@@ -129,10 +125,7 @@ class TeamsNotificationManager:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error(
-                "pattern_match_error",
-                pattern=pattern,
-                type=pattern_type,
-                error=str(e)
+                "pattern_match_error", pattern=pattern, type=pattern_type, error=str(e)
             )
             return False
 
@@ -152,32 +145,26 @@ class TeamsNotificationManager:
 
         # Verificar se status está na lista de notificação
         if config and job_status not in config.notify_on_status:
-            logger.debug(
-                "status_not_in_notify_list",
-                job=job_name,
-                status=job_status
-            )
+            logger.debug("status_not_in_notify_list", job=job_name, status=job_status)
             return False
 
         # Verificar horários silenciosos
         if config and config.quiet_hours_enabled:
             if self._is_quiet_hours(config.quiet_hours_start, config.quiet_hours_end):
-                logger.debug(
-                    "quiet_hours_active",
-                    job=job_name
-                )
+                logger.debug("quiet_hours_active", job=job_name)
                 return False
 
         # Verificar rate limiting
-        if config and config.rate_limit_enabled and not self._check_rate_limit(
-            job_name,
-            config.max_notifications_per_job,
-            config.rate_limit_window_minutes
-        ):
-            logger.warning(
-                "rate_limit_exceeded",
-                job=job_name
+        if (
+            config
+            and config.rate_limit_enabled
+            and not self._check_rate_limit(
+                job_name,
+                config.max_notifications_per_job,
+                config.rate_limit_window_minutes,
             )
+        ):
+            logger.warning("rate_limit_exceeded", job=job_name)
             return False
 
         return True
@@ -198,10 +185,7 @@ class TeamsNotificationManager:
         return now >= start_time or now <= end_time
 
     def _check_rate_limit(
-        self,
-        job_name: str,
-        max_count: int,
-        window_minutes: int
+        self, job_name: str, max_count: int, window_minutes: int
     ) -> bool:
         """
         Verifica rate limit para um job.
@@ -216,8 +200,7 @@ class TeamsNotificationManager:
         # Limpa cache antigo
         if job_name in self._rate_limit_cache:
             self._rate_limit_cache[job_name] = [
-                ts for ts in self._rate_limit_cache[job_name]
-                if ts > window_start
+                ts for ts in self._rate_limit_cache[job_name] if ts > window_start
             ]
         else:
             self._rate_limit_cache[job_name] = []
@@ -237,7 +220,7 @@ class TeamsNotificationManager:
         instance_name: str,
         return_code: int | None = None,
         error_message: str | None = None,
-        timestamp: str | None = None
+        timestamp: str | None = None,
     ) -> bool:
         """
         Envia notificação de job para o canal apropriado.
@@ -256,20 +239,13 @@ class TeamsNotificationManager:
 
         # Verificar se deve notificar
         if not self.should_notify(job_name, job_status):
-            logger.debug(
-                "notification_skipped",
-                job=job_name,
-                status=job_status
-            )
+            logger.debug("notification_skipped", job=job_name, status=job_status)
             return False
 
         # Obter canal
         channel = self.get_channel_for_job(job_name)
         if not channel:
-            logger.warning(
-                "no_channel_for_job",
-                job=job_name
-            )
+            logger.warning("no_channel_for_job", job=job_name)
             return False
 
         # Criar mensagem
@@ -280,13 +256,12 @@ class TeamsNotificationManager:
             return_code=return_code,
             error_message=error_message,
             timestamp=timestamp,
-            channel=channel
+            channel=channel,
         )
 
         # Enviar para Teams
         success, response_status, error = await self._send_to_teams(
-            channel.webhook_url,
-            card
+            channel.webhook_url, card
         )
 
         # Registrar log
@@ -300,7 +275,7 @@ class TeamsNotificationManager:
             error_message=error_message,
             notification_sent=success,
             response_status=response_status,
-            error=error
+            error=error,
         )
         self.db.add(log_entry)
 
@@ -316,7 +291,7 @@ class TeamsNotificationManager:
             job=job_name,
             channel=channel.name,
             status=job_status,
-            success=success
+            success=success,
         )
 
         return success
@@ -329,7 +304,7 @@ class TeamsNotificationManager:
         return_code: int | None,
         error_message: str | None,
         timestamp: str | None,
-        channel: TeamsChannel
+        channel: TeamsChannel,
     ) -> dict:
         """Cria Adaptive Card para notificação de job."""
 
@@ -338,14 +313,12 @@ class TeamsNotificationManager:
             "ABEND": {"color": "attention", "emoji": "🚨", "title": "JOB ABEND"},
             "ERROR": {"color": "attention", "emoji": "❌", "title": "JOB ERROR"},
             "FAILED": {"color": "warning", "emoji": "⚠️", "title": "JOB FAILED"},
-            "WARNING": {"color": "warning", "emoji": "⚠️", "title": "JOB WARNING"}
+            "WARNING": {"color": "warning", "emoji": "⚠️", "title": "JOB WARNING"},
         }
 
-        config = status_config.get(job_status, {
-            "color": "default",
-            "emoji": "ℹ️",
-            "title": f"JOB {job_status}"
-        })
+        config = status_config.get(
+            job_status, {"color": "default", "emoji": "ℹ️", "title": f"JOB {job_status}"}
+        )
 
         # Adicionar ícone do canal
         title = f"{channel.icon} {config['emoji']} {config['title']}"
@@ -354,7 +327,7 @@ class TeamsNotificationManager:
             {"title": "Job:", "value": job_name},
             {"title": "Canal:", "value": channel.name},
             {"title": "Status:", "value": job_status},
-            {"title": "Instância:", "value": instance_name}
+            {"title": "Instância:", "value": instance_name},
         ]
 
         if return_code is not None:
@@ -365,60 +338,79 @@ class TeamsNotificationManager:
 
         card = {
             "type": "message",
-            "attachments": [{
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "content": {
-                    "type": "AdaptiveCard",
-                    "version": "1.4",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": title,
-                            "weight": "bolder",
-                            "size": "large",
-                            "color": config["color"]
-                        },
-                        {
-                            "type": "FactSet",
-                            "facts": facts
-                        }
-                    ],
-                    "actions": [
-                        {
-                            "type": "Action.OpenUrl",
-                            "title": "🔍 Ver no Resync",
-                            "url": f"https://resync.company.com/jobs/{job_name}"
-                        }
-                    ]
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "content": {
+                        "type": "AdaptiveCard",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "TextBlock",
+                                "text": title,
+                                "weight": "bolder",
+                                "size": "large",
+                                "color": config["color"],
+                            },
+                            {"type": "FactSet", "facts": facts},
+                        ],
+                        "actions": [
+                            {
+                                "type": "Action.OpenUrl",
+                                "title": "🔍 Ver no Resync",
+                                "url": f"https://resync.company.com/jobs/{job_name}",
+                            }
+                        ],
+                    },
                 }
-            }]
+            ],
         }
 
         # Adicionar mensagem de erro se houver
         if error_message:
-            card["attachments"][0]["content"]["body"].insert(2, {
-                "type": "TextBlock",
-                "text": f"**Erro:** {error_message[:500]}",
-                "wrap": True,
-                "color": "attention"
-            })
+            attachments = card.get("attachments")
+            if isinstance(attachments, list) and attachments:
+                first = attachments[0]
+                if isinstance(first, dict):
+                    content = first.get("content")
+                    if isinstance(content, dict):
+                        body = content.get("body")
+                        if isinstance(body, list):
+                            body.insert(
+                2,
+                {
+                    "type": "TextBlock",
+                    "text": f"**Erro:** {error_message[:500]}",
+                    "wrap": True,
+                    "color": "attention",
+                },
+                            )
 
         # Adicionar mention se configurado
         config_obj = self._get_config()
         if config_obj and config_obj.include_mention_on_critical:
             if job_status in ["ABEND", "ERROR"]:
-                card["attachments"][0]["content"]["body"].insert(0, {
-                    "type": "TextBlock",
-                    "text": config_obj.mention_text,
-                    "weight": "bolder"
-                })
+                attachments = card.get("attachments")
+                if isinstance(attachments, list) and attachments:
+                    first = attachments[0]
+                    if isinstance(first, dict):
+                        content = first.get("content")
+                        if isinstance(content, dict):
+                            body = content.get("body")
+                            if isinstance(body, list):
+                                body.insert(
+                    0,
+                    {
+                        "type": "TextBlock",
+                        "text": config_obj.mention_text,
+                        "weight": "bolder",
+                    },
+                                )
 
         return card
 
     async def _send_to_teams(
-        self,
-        webhook_url: str,
-        card: dict
+        self, webhook_url: str, card: dict
     ) -> tuple[bool, int | None, str | None]:
         """
         Envia mensagem para Teams via webhook.
@@ -428,11 +420,12 @@ class TeamsNotificationManager:
         """
 
         try:
-            async with aiohttp.ClientSession() as session, session.post(
-                webhook_url,
-                json=card,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
+                    webhook_url, json=card, timeout=aiohttp.ClientTimeout(total=10)
+                ) as response,
+            ):
                 success = response.status == 200
 
                 if not success:
@@ -441,7 +434,7 @@ class TeamsNotificationManager:
 
                 return True, response.status, None
 
-        except aiohttp.ClientTimeout:
+        except asyncio.TimeoutError:
             return False, None, "Timeout"
         except Exception as e:
             # Re-raise programming errors — these are bugs, not runtime failures
@@ -480,32 +473,34 @@ class TeamsNotificationManager:
 
         card = {
             "type": "message",
-            "attachments": [{
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "content": {
-                    "type": "AdaptiveCard",
-                    "version": "1.4",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": f"{channel.icon} 🧪 Teste de Notificação",
-                            "weight": "bolder",
-                            "size": "large"
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": f"Este é um teste de notificação para o canal **{channel.name}**.",
-                            "wrap": True
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": f"⏰ {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
-                            "size": "small",
-                            "isSubtle": True
-                        }
-                    ]
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "content": {
+                        "type": "AdaptiveCard",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "TextBlock",
+                                "text": f"{channel.icon} 🧪 Teste de Notificação",
+                                "weight": "bolder",
+                                "size": "large",
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"Este é um teste de notificação para o canal **{channel.name}**.",
+                                "wrap": True,
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"⏰ {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
+                                "size": "small",
+                                "isSubtle": True,
+                            },
+                        ],
+                    },
                 }
-            }]
+            ],
         }
 
         success, _, _ = await self._send_to_teams(channel.webhook_url, card)

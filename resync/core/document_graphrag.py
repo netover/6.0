@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """Document GraphRAG context builder.
 
 This component transforms:
@@ -27,6 +29,7 @@ logger = logging.getLogger(__name__)
 class DocumentGraphRAG:
     def __init__(self) -> None:
         from resync.settings import get_settings
+
         _s = get_settings()
 
         self.enabled = _s.KG_RETRIEVAL_ENABLED

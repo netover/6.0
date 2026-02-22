@@ -77,11 +77,10 @@ class GradeHallucinations(BaseModel):
         default=0.0,
         ge=0.0,
         le=1.0,
-        description="Confidence level of the grading (0.0 to 1.0)"
+        description="Confidence level of the grading (0.0 to 1.0)",
     )
     reasoning: str = Field(
-        default="",
-        description="Brief explanation of the grading decision"
+        default="", description="Brief explanation of the grading decision"
     )
 
 
@@ -97,7 +96,7 @@ class GradeAnswer(BaseModel):
     )
     reasoning: str = Field(
         default="",
-        description="Brief explanation of why the answer does/doesn't address the question"
+        description="Brief explanation of why the answer does/doesn't address the question",
     )
 
 
@@ -109,10 +108,10 @@ class GradeAnswer(BaseModel):
 class GradeDecision(str, Enum):
     """Decision outcomes from the grading process."""
 
-    USEFUL = "useful"              # Grounded AND answers question
+    USEFUL = "useful"  # Grounded AND answers question
     NOT_GROUNDED = "not_grounded"  # Hallucination detected
-    NOT_USEFUL = "not_useful"      # Grounded but doesn't answer question
-    ERROR = "error"                # Grading failed
+    NOT_USEFUL = "not_useful"  # Grounded but doesn't answer question
+    ERROR = "error"  # Grading failed
 
 
 @dataclass
@@ -147,8 +146,12 @@ class HallucinationGradeResult:
         return {
             "is_grounded": self.is_grounded,
             "decision": self.decision.value,
-            "hallucination_score": self.hallucination_score.model_dump() if self.hallucination_score else None,
-            "answer_score": self.answer_score.model_dump() if self.answer_score else None,
+            "hallucination_score": self.hallucination_score.model_dump()
+            if self.hallucination_score
+            else None,
+            "answer_score": self.answer_score.model_dump()
+            if self.answer_score
+            else None,
             "latency_ms": self.latency_ms,
             "model_used": self.model_used,
             "timestamp": self.timestamp.isoformat(),
@@ -338,9 +341,8 @@ class HallucinationGrader:
             if not is_grounded:
                 self._hallucinations_detected += 1
             self._avg_latency_ms = (
-                (self._avg_latency_ms * (self._total_grades - 1) + latency_ms)
-                / self._total_grades
-            )
+                self._avg_latency_ms * (self._total_grades - 1) + latency_ms
+            ) / self._total_grades
 
             result = HallucinationGradeResult(
                 is_grounded=is_grounded,
@@ -534,7 +536,9 @@ Responda em JSON com o formato:
                 raise
             # Fallback
             response_lower = response.lower()
-            if "no" in response_lower and ("address" in response_lower or "answer" in response_lower):
+            if "no" in response_lower and (
+                "address" in response_lower or "answer" in response_lower
+            ):
                 return GradeAnswer(
                     binary_score="no",
                     reasoning="Parsed from text: doesn't address question",
@@ -713,7 +717,9 @@ async def hallucination_check_node(state: dict[str, Any]) -> dict[str, Any]:
         logger.warning(
             "hallucination_detected",
             decision=result.decision.value,
-            confidence=result.hallucination_score.confidence if result.hallucination_score else 0,
+            confidence=result.hallucination_score.confidence
+            if result.hallucination_score
+            else 0,
         )
 
     return state

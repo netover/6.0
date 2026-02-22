@@ -44,6 +44,7 @@ async def test_request_scoped_dependency_is_isolated_under_concurrency() -> None
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+
         async def call_once() -> str:
             resp = await client.get("/rid")
             resp.raise_for_status()

@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 Admin routes for Semantic Cache management.
 
@@ -15,10 +14,8 @@ Security: All endpoints require admin authentication.
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-
 from resync.api.auth import verify_admin_credentials
 from resync.core.cache.embedding_model import get_model_info, preload_model
 from resync.core.cache.redis_config import (
@@ -34,17 +31,11 @@ from resync.core.cache.reranker import (
 from resync.core.cache.semantic_cache import get_semantic_cache
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(
     prefix="/admin/semantic-cache",
     tags=["admin", "semantic-cache"],
     dependencies=[Depends(verify_admin_credentials)],
 )
-
-
-# =============================================================================
-# Request/Response Models
-# =============================================================================
 
 
 class CacheStatsResponse(BaseModel):
@@ -60,7 +51,9 @@ class CacheStatsResponse(BaseModel):
     threshold: float = Field(description="Current similarity threshold")
     default_ttl: int = Field(description="Default TTL in seconds")
     max_entries: int = Field(description="Maximum entries limit")
-    redis_stack_available: bool | None = Field(description="Whether Redis Stack is available")
+    redis_stack_available: bool | None = Field(
+        description="Whether Redis Stack is available"
+    )
     used_memory_human: str = Field(description="Redis memory usage")
 
 
@@ -72,7 +65,7 @@ class ThresholdUpdateRequest(BaseModel):
         ge=0.0,
         le=1.0,
         description="New similarity threshold (0-1, lower = stricter)",
-        examples=[0.25, 0.30, 0.35],
+        examples=[0.25, 0.3, 0.35],
     )
 
 
@@ -87,17 +80,12 @@ class ThresholdUpdateResponse(BaseModel):
 class InvalidateRequest(BaseModel):
     """Request model for cache invalidation."""
 
-    query: str | None = Field(
-        default=None,
-        description="Specific query to invalidate",
-    )
+    query: str | None = Field(default=None, description="Specific query to invalidate")
     pattern: str | None = Field(
-        default=None,
-        description="Pattern to match queries for invalidation",
+        default=None, description="Pattern to match queries for invalidation"
     )
     all: bool = Field(
-        default=False,
-        description="Clear entire cache (use with caution!)",
+        default=False, description="Clear entire cache (use with caution!)"
     )
 
 
@@ -131,34 +119,20 @@ class PreloadResponse(BaseModel):
 class RedisInfoResponse(BaseModel):
     """Response model for Redis server information."""
 
-    # Connection info
     host: str = Field(description="Redis host")
     port: int = Field(description="Redis port")
     database: int = Field(description="Redis database number")
     connected: bool = Field(description="Connection status")
     version: str | None = Field(description="Redis version")
-
-    # Memory info
     used_memory_human: str = Field(description="Used memory (human readable)")
     max_memory_human: str = Field(description="Max memory setting (human readable)")
     memory_usage_percent: float = Field(description="Memory usage percentage")
     maxmemory_policy: str = Field(description="Eviction policy")
-
-    # Modules info
     modules: dict[str, bool] = Field(description="Loaded modules status")
-
-    # Database info (keys per db)
     databases: dict[str, dict[str, Any]] = Field(description="Database statistics")
-
-    # Performance info
     connected_clients: int = Field(description="Number of connected clients")
     ops_per_sec: int = Field(description="Operations per second")
     uptime_days: float = Field(description="Server uptime in days")
-
-
-# =============================================================================
-# Endpoints
-# =============================================================================
 
 
 @router.get(
@@ -171,11 +145,8 @@ async def get_cache_stats() -> CacheStatsResponse:
     try:
         cache = await get_semantic_cache()
         stats = await cache.get_stats()
-
         return CacheStatsResponse(**stats)
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get cache stats: %s", e)
@@ -193,16 +164,9 @@ async def get_cache_stats() -> CacheStatsResponse:
 async def health_check() -> HealthCheckResponse:
     """Perform comprehensive health check of semantic cache."""
     try:
-        # Check Redis
         redis_health = await redis_health_check(RedisDatabase.SEMANTIC_CACHE)
-
-        # Check Redis Stack
         stack_info = await check_redis_stack_available()
-
-        # Check embedding model
         model_info = get_model_info()
-
-        # Determine overall status
         overall_status = "healthy"
         if redis_health["status"] != "healthy":
             overall_status = "degraded"
@@ -210,7 +174,6 @@ async def health_check() -> HealthCheckResponse:
             overall_status = "degraded"
         if redis_health["status"] == "unhealthy":
             overall_status = "unhealthy"
-
         return HealthCheckResponse(
             status=overall_status,
             redis_status=redis_health["status"],
@@ -220,9 +183,7 @@ async def health_check() -> HealthCheckResponse:
             embedding_model_info=model_info,
             timestamp=datetime.now(timezone.utc),
         )
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Health check failed: %s", e)
@@ -247,24 +208,21 @@ async def update_threshold(request: ThresholdUpdateRequest) -> ThresholdUpdateRe
     try:
         cache = await get_semantic_cache()
         old_threshold = cache.threshold
-
         await cache.update_threshold(request.threshold)
-
-        logger.info("Cache threshold updated: %s -> %s", old_threshold, request.threshold)
-
+        logger.info(
+            "Cache threshold updated: %s -> %s", old_threshold, request.threshold
+        )
         return ThresholdUpdateResponse(
             old_threshold=old_threshold,
             new_threshold=request.threshold,
             message=f"Threshold updated from {old_threshold} to {request.threshold}",
         )
-
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Internal server error. Check server logs for details.",
         ) from e
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to update threshold: %s", e)
@@ -283,45 +241,35 @@ async def invalidate_cache(request: InvalidateRequest) -> InvalidateResponse:
     """Invalidate semantic cache entries."""
     try:
         cache = await get_semantic_cache()
-
         if request.all:
-            # Clear entire cache
             success = await cache.clear()
             if success:
                 return InvalidateResponse(
-                    invalidated_count=-1,  # Unknown exact count
-                    message="Entire cache cleared successfully",
+                    invalidated_count=-1, message="Entire cache cleared successfully"
                 )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to clear cache",
             )
-
         if request.query:
-            # Invalidate specific query
             success = await cache.invalidate(request.query)
             return InvalidateResponse(
                 invalidated_count=1 if success else 0,
-                message=f"Query {'invalidated' if success else 'not found in cache'}",
+                message=f"Query {('invalidated' if success else 'not found in cache')}",
             )
-
         if request.pattern:
-            # Invalidate by pattern
             count = await cache.invalidate_pattern(request.pattern)
             return InvalidateResponse(
                 invalidated_count=count,
                 message=f"Invalidated {count} entries matching pattern '{request.pattern}'",
             )
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Must specify query, pattern, or all=true",
         )
-
     except HTTPException:
         raise
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to invalidate cache: %s", e)
@@ -341,7 +289,6 @@ async def preload_embedding_model() -> PreloadResponse:
     try:
         success = preload_model()
         model_info = get_model_info()
-
         if success:
             return PreloadResponse(
                 success=True,
@@ -353,9 +300,7 @@ async def preload_embedding_model() -> PreloadResponse:
             model_info=model_info,
             message="Failed to load embedding model, using fallback",
         )
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to preload model: %s", e)
@@ -377,7 +322,6 @@ async def test_cache_lookup(
     try:
         cache = await get_semantic_cache()
         result = await cache.get(query)
-
         return {
             "query": query,
             "hit": result.hit,
@@ -387,9 +331,7 @@ async def test_cache_lookup(
             "cached_query": result.entry.query if result.entry else None,
             "hit_count": result.entry.hit_count if result.entry else None,
         }
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Test lookup failed: %s", e)
@@ -418,17 +360,16 @@ async def test_cache_store(
             ttl=ttl,
             metadata={"test": True, "stored_via": "admin_endpoint"},
         )
-
         return {
             "success": success,
             "query": query,
             "response_length": len(response),
             "ttl": ttl,
-            "message": "Entry stored successfully" if success else "Failed to store entry",
+            "message": "Entry stored successfully"
+            if success
+            else "Failed to store entry",
         }
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Test store failed: %s", e)
@@ -446,14 +387,9 @@ async def test_cache_store(
 async def get_redis_info() -> RedisInfoResponse:
     """Get comprehensive Redis server information."""
     try:
-        from resync.core.cache.redis_config import (
-            get_redis_client,
-            get_redis_config,
-        )
+        from resync.core.cache.redis_config import get_redis_client, get_redis_config
 
         config = get_redis_config()
-
-        # Try to connect and get info
         try:
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             info = await client.info()
@@ -462,31 +398,32 @@ async def get_redis_info() -> RedisInfoResponse:
             logger.warning("Redis connection failed: %s", conn_err)
             connected = False
             info = {}
-
-        # Parse memory info
         used_memory = info.get("used_memory_human", "0B") if info else "N/A"
         max_memory = info.get("maxmemory_human", "0B") if info else "N/A"
         maxmemory = info.get("maxmemory", 0) if info else 0
         used_memory_bytes = info.get("used_memory", 0) if info else 0
-
-        # Calculate memory percentage
         memory_percent = used_memory_bytes / maxmemory * 100 if maxmemory > 0 else 0.0
-
-        # Check modules
-        modules_status = {"search": False, "json": False, "timeseries": False, "bloom": False}
+        modules_status = {
+            "search": False,
+            "json": False,
+            "timeseries": False,
+            "bloom": False,
+        }
         if connected:
             try:
                 stack_info = await check_redis_stack_available()
                 modules_status = {
                     "search": stack_info.get("search", False),
-                    "json": stack_info.get("ReJSON", False) or stack_info.get("json", False),
+                    "json": stack_info.get("ReJSON", False)
+                    or stack_info.get("json", False),
                     "timeseries": stack_info.get("timeseries", False),
-                    "bloom": stack_info.get("bf", False) or stack_info.get("bloom", False),
+                    "bloom": stack_info.get("bf", False)
+                    or stack_info.get("bloom", False),
                 }
             except Exception as exc:
-                logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
-
-        # Get database stats
+                logger.debug(
+                    "suppressed_exception", exc_info=True, extra={"error": str(exc)}
+                )
         databases = {}
         db_names = {
             0: "Connection Pools",
@@ -495,31 +432,26 @@ async def get_redis_info() -> RedisInfoResponse:
             3: "Semantic Cache",
             4: "Idempotency",
         }
-
         if connected:
-            info.get("db0")  # Example: db0: keys=10,expires=5
-
+            info.get("db0")
             for db_num in range(5):
                 db_key = f"db{db_num}"
                 db_info = info.get(db_key, {})
                 if isinstance(db_info, dict):
                     keys = db_info.get("keys", 0)
                 elif isinstance(db_info, str):
-                    # Parse string format: "keys=10,expires=5"
                     try:
-                        parts = dict(p.split("=") for p in db_info.split(","))
+                        parts = dict((p.split("=") for p in db_info.split(",")))
                         keys = int(parts.get("keys", 0))
                     except Exception:
                         keys = 0
                 else:
                     keys = 0
-
                 databases[db_key] = {
                     "name": db_names.get(db_num, f"DB {db_num}"),
                     "keys": keys,
                     "active": db_num == RedisDatabase.SEMANTIC_CACHE.value,
                 }
-
         return RedisInfoResponse(
             host=config.host,
             port=config.port,
@@ -529,16 +461,18 @@ async def get_redis_info() -> RedisInfoResponse:
             used_memory_human=used_memory,
             max_memory_human=max_memory if max_memory != "0B" else "Unlimited",
             memory_usage_percent=round(memory_percent, 1),
-            maxmemory_policy=info.get("maxmemory_policy", "noeviction") if info else "unknown",
+            maxmemory_policy=info.get("maxmemory_policy", "noeviction")
+            if info
+            else "unknown",
             modules=modules_status,
             databases=databases,
             connected_clients=info.get("connected_clients", 0) if info else 0,
             ops_per_sec=info.get("instantaneous_ops_per_sec", 0) if info else 0,
-            uptime_days=round(info.get("uptime_in_seconds", 0) / 86400, 2) if info else 0,
+            uptime_days=round(info.get("uptime_in_seconds", 0) / 86400, 2)
+            if info
+            else 0,
         )
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get Redis info: %s", e)
@@ -557,22 +491,18 @@ async def test_redis_connection() -> dict[str, Any]:
     """Test Redis connection with ping."""
     try:
         import time
-
         from resync.core.cache.redis_config import get_redis_client
 
         start = time.perf_counter()
         client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
         pong = await client.ping()
         latency_ms = (time.perf_counter() - start) * 1000
-
         return {
             "success": pong,
             "latency_ms": round(latency_ms, 2),
             "message": "Redis connection successful" if pong else "Redis ping failed",
         }
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Redis connection test failed: %s", e)
@@ -582,11 +512,6 @@ async def test_redis_connection() -> dict[str, Any]:
             "message": f"Connection failed: {str(e)}",
             "error": str(e),
         }
-
-
-# =============================================================================
-# Reranker Endpoints (v5.3.17)
-# =============================================================================
 
 
 class RerankerInfoResponse(BaseModel):
@@ -635,26 +560,24 @@ async def get_reranker_status() -> RerankerInfoResponse:
     try:
         cache = await get_semantic_cache()
         info = get_reranker_info()
-
         stats = await cache.get_stats()
-
         return RerankerInfoResponse(
             available=info.get("available", False),
             enabled=cache.enable_reranking,
             model=info.get("model"),
             loaded=info.get("loaded", False),
             threshold=info.get("threshold", 0.5),
-            gray_zone_min=info.get("gray_zone_min", 0.20),
+            gray_zone_min=info.get("gray_zone_min", 0.2),
             gray_zone_max=info.get("gray_zone_max", 0.35),
             stats={
                 "reranks_total": stats.get("reranks_total", 0),
                 "rerank_rejections": stats.get("rerank_rejections", 0),
-                "rerank_rejection_rate_percent": stats.get("rerank_rejection_rate_percent", 0),
+                "rerank_rejection_rate_percent": stats.get(
+                    "rerank_rejection_rate_percent", 0
+                ),
             },
         )
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get reranker info: %s", e)
@@ -676,19 +599,14 @@ async def toggle_reranking(
     try:
         cache = await get_semantic_cache()
         actual_state = cache.set_reranking_enabled(enabled)
-
         return {
             "requested": enabled,
             "actual": actual_state,
-            "message": (
-                f"Reranking {'enabled' if actual_state else 'disabled'}"
-                if actual_state == enabled
-                else "Reranking could not be enabled (model not available)"
-            ),
+            "message": f"Reranking {('enabled' if actual_state else 'disabled')}"
+            if actual_state == enabled
+            else "Reranking could not be enabled (model not available)",
         }
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to toggle reranking: %s", e)
@@ -713,20 +631,17 @@ async def update_reranker_configuration(
             gray_zone_min=request.gray_zone_min,
             gray_zone_max=request.gray_zone_max,
         )
-
         return {
             "success": True,
             "config": new_config,
             "message": "Reranker configuration updated",
         }
-
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Internal server error. Check server logs for details.",
         ) from e
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to update reranker config: %s", e)
@@ -746,18 +661,15 @@ async def preload_reranker_model() -> dict[str, Any]:
     try:
         success = preload_reranker()
         info = get_reranker_info()
-
         return {
             "success": success,
             "model": info.get("model"),
             "loaded": info.get("loaded", False),
-            "message": (
-                "Reranker model loaded successfully" if success else "Failed to load reranker model"
-            ),
+            "message": "Reranker model loaded successfully"
+            if success
+            else "Failed to load reranker model",
         }
-
     except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to preload reranker: %s", e)
@@ -766,9 +678,5 @@ async def preload_reranker_model() -> dict[str, Any]:
             detail="Failed to preload model. Check server logs for details.",
         ) from e
 
-
-# =============================================================================
-# Export router
-# =============================================================================
 
 __all__ = ["router"]

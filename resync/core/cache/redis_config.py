@@ -68,42 +68,79 @@ class RedisConfig:
             redis_url = getattr(app_settings, "redis_url", None)
             # Handle Pydantic SecretStr if applicable
             if hasattr(redis_url, "get_secret_value"):
-                redis_url = redis_url.get_secret_value()
+                redis_url = redis_url.get_secret_value()  # type: ignore[union-attr]
 
         redis_url = redis_url or os.getenv("REDIS_URL") or os.getenv("APP_REDIS_URL")
         parsed = urlparse(redis_url) if redis_url else None
 
         # Base connection settings
-        self.host: str = os.getenv("REDIS_HOST") or (parsed.hostname if parsed and parsed.hostname else "localhost")
-        self.port: int = int(os.getenv("REDIS_PORT") or (str(parsed.port) if parsed and parsed.port else "6379"))
+        self.host: str = os.getenv("REDIS_HOST") or (
+            parsed.hostname if parsed and parsed.hostname else "localhost"
+        )
+        self.port: int = int(
+            os.getenv("REDIS_PORT")
+            or (str(parsed.port) if parsed and parsed.port else "6379")
+        )
         env_password = os.getenv("REDIS_PASSWORD")
         password_from_parsed = parsed.password if parsed and parsed.password else None
-        
+
         self.password: str | None = env_password or password_from_parsed
-        
+
         # Ensure password is a string if it's a SecretStr
         if hasattr(self.password, "get_secret_value"):
-            self.password = self.password.get_secret_value()
+            self.password = self.password.get_secret_value()  # type: ignore[union-attr]
 
         # Connection pool settings
-        default_pool_min = str(getattr(app_settings, "redis_pool_min_size", 5)) if app_settings else "5"
-        default_pool_max = str(getattr(app_settings, "redis_pool_max_size", 20)) if app_settings else "20"
-        default_socket_timeout = str(getattr(app_settings, "redis_timeout", 5.0)) if app_settings else "5.0"
-        default_connect_timeout = str(getattr(app_settings, "redis_pool_connect_timeout", 5.0)) if app_settings else "5.0"
+        default_pool_min = (
+            str(getattr(app_settings, "redis_pool_min_size", 5))
+            if app_settings
+            else "5"
+        )
+        default_pool_max = (
+            str(getattr(app_settings, "redis_pool_max_size", 20))
+            if app_settings
+            else "20"
+        )
+        default_socket_timeout = (
+            str(getattr(app_settings, "redis_timeout", 5.0)) if app_settings else "5.0"
+        )
+        default_connect_timeout = (
+            str(getattr(app_settings, "redis_pool_connect_timeout", 5.0))
+            if app_settings
+            else "5.0"
+        )
 
-        self.pool_min_connections: int = int(os.getenv("REDIS_POOL_MIN", default_pool_min))
-        self.pool_max_connections: int = int(os.getenv("REDIS_POOL_MAX", default_pool_max))
-        self.socket_timeout: float = float(os.getenv("REDIS_SOCKET_TIMEOUT", default_socket_timeout))
-        self.socket_connect_timeout: float = float(os.getenv("REDIS_CONNECT_TIMEOUT", default_connect_timeout))
+        self.pool_min_connections: int = int(
+            os.getenv("REDIS_POOL_MIN", default_pool_min)
+        )
+        self.pool_max_connections: int = int(
+            os.getenv("REDIS_POOL_MAX", default_pool_max)
+        )
+        self.socket_timeout: float = float(
+            os.getenv("REDIS_SOCKET_TIMEOUT", default_socket_timeout)
+        )
+        self.socket_connect_timeout: float = float(
+            os.getenv("REDIS_CONNECT_TIMEOUT", default_connect_timeout)
+        )
 
         # Retry settings
         self.retry_on_timeout: bool = True
-        default_health = str(getattr(app_settings, "redis_health_check_interval", 30)) if app_settings else "30"
-        self.health_check_interval: int = int(os.getenv("REDIS_HEALTH_INTERVAL", default_health))
+        default_health = (
+            str(getattr(app_settings, "redis_health_check_interval", 30))
+            if app_settings
+            else "30"
+        )
+        self.health_check_interval: int = int(
+            os.getenv("REDIS_HEALTH_INTERVAL", default_health)
+        )
 
         # Semantic cache specific
-        self.semantic_cache_ttl: int = int(os.getenv("SEMANTIC_CACHE_TTL", "86400"))  # 24h default
-        self.semantic_cache_threshold: float = float(os.getenv("SEMANTIC_CACHE_THRESHOLD", "0.25"))
+        self.semantic_cache_ttl: int = int(
+            os.getenv("SEMANTIC_CACHE_TTL", "86400")
+        )  # 24h default
+        self.semantic_cache_threshold: float = float(
+            os.getenv("SEMANTIC_CACHE_THRESHOLD", "0.25")
+        )
         self.semantic_cache_max_entries: int = int(
             os.getenv("SEMANTIC_CACHE_MAX_ENTRIES", "100000")
         )
@@ -159,9 +196,11 @@ def get_redis_client(
         ConnectionError: If Redis is unreachable
     """
     try:
-        from redis.asyncio import Redis, from_url
+        from redis.asyncio import from_url
     except ImportError as e:
-        raise RuntimeError("redis-py not installed. Run: pip install redis[hiredis]") from e
+        raise RuntimeError(
+            "redis-py not installed. Run: pip install redis[hiredis]"
+        ) from e
 
     config = get_redis_config()
     url = config.get_url(db)
@@ -173,11 +212,11 @@ def get_redis_client(
         socket_timeout=config.socket_timeout,
         socket_connect_timeout=config.socket_connect_timeout,
         retry_on_timeout=config.retry_on_timeout,
-        health_check_interval=config.health_check_interval
+        health_check_interval=config.health_check_interval,
     )
 
 
-async def check_redis_stack_available() -> dict[str, bool]:
+async def check_redis_stack_available() -> dict[str, bool | str]:
     """
     Check if Redis Stack modules are available.
 
@@ -223,12 +262,14 @@ async def check_redis_stack_available() -> dict[str, bool]:
                 await client.execute_command("FT._LIST")
                 result["search"] = True
             except Exception as exc:
-                logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
+                logger.debug(
+                    "suppressed_exception", extra={"error": str(exc)}, exc_info=True
+                )
 
             try:
                 await client.execute_command("JSON.DEBUG", "MEMORY", "__test__")
-            except Exception as e:
-                if "unknown command" not in str(e).lower():
+            except Exception as exc:
+                if "unknown command" not in str(exc).lower():
                     result["json"] = True
 
         logger.info(
@@ -236,10 +277,10 @@ async def check_redis_stack_available() -> dict[str, bool]:
             f"search={result['search']}, json={result['json']}"
         )
 
-    except Exception as e:
-        logger.warning("Failed to check Redis Stack availability: %s", e)
+    except Exception:
+        logger.warning("Failed to check Redis Stack availability", exc_info=True)
 
-    return result
+    return result  # type: ignore[return-value]
 
 
 async def close_all_pools() -> None:
@@ -251,15 +292,19 @@ async def close_all_pools() -> None:
     for db, pool in _connection_pools.items():
         try:
             await pool.disconnect()
-            logger.info("Closed Redis pool for DB %s", db.name)
+            logger.info("Closed Redis pool", extra={"db": db.name})
         except Exception as e:
-            logger.warning("Error closing Redis pool for DB %s: %s", db.name, e)
+            logger.warning(
+                "Error closing Redis pool", extra={"db": db.name, "error": str(e)}
+            )
 
     _connection_pools.clear()
 
 
 # Health check utility
-async def redis_health_check(db: RedisDatabase = RedisDatabase.CONNECTIONS) -> dict[str, Any]:
+async def redis_health_check(
+    db: RedisDatabase = RedisDatabase.CONNECTIONS,
+) -> dict[str, Any]:
     """
     Perform health check on specific Redis database.
 
@@ -295,7 +340,9 @@ async def redis_health_check(db: RedisDatabase = RedisDatabase.CONNECTIONS) -> d
 
     except Exception as e:
         result["error"] = str(e)
-        logger.error("Redis health check failed for %s: %s", db.name, e)
+        logger.error(
+            "Redis health check failed", extra={"db": db.name, "error": str(e)}
+        )
 
     return result
 

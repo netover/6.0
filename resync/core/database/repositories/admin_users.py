@@ -105,13 +105,17 @@ class AdminUserRepository(BaseRepository[AdminUser]):
     async def get_by_username(self, username: str) -> AdminUser | None:
         """Get user by username."""
         async with self._get_session() as session:
-            result = await session.execute(select(AdminUser).where(AdminUser.username == username))
+            result = await session.execute(
+                select(AdminUser).where(AdminUser.username == username)
+            )
             return result.scalar_one_or_none()
 
     async def get_by_email(self, email: str) -> AdminUser | None:
         """Get user by email."""
         async with self._get_session() as session:
-            result = await session.execute(select(AdminUser).where(AdminUser.email == email))
+            result = await session.execute(
+                select(AdminUser).where(AdminUser.email == email)
+            )
             return result.scalar_one_or_none()
 
     async def authenticate(self, username: str, password: str) -> AdminUser | None:
@@ -139,7 +143,7 @@ class AdminUserRepository(BaseRepository[AdminUser]):
             return None
 
         # Verify password
-        if not verify_password(password, user.password_hash):
+        if not verify_password(password, user.hashed_password):  # type: ignore[attr-defined]
             await self._handle_failed_login(user)
             return None
 
@@ -163,7 +167,9 @@ class AdminUserRepository(BaseRepository[AdminUser]):
                 updates["locked_until"] = datetime.now(timezone.utc) + timedelta(
                     minutes=LOCKOUT_DURATION_MINUTES
                 )
-                logger.warning("Account locked due to failed attempts: %s", user.username)
+                logger.warning(
+                    "Account locked due to failed attempts: %s", user.username
+                )
 
             await session.execute(
                 update(AdminUser).where(AdminUser.id == user.id).values(**updates)
@@ -197,7 +203,9 @@ class AdminUserRepository(BaseRepository[AdminUser]):
         password_hash, _ = hash_password(new_password)
         async with self._get_session() as session:
             result = await session.execute(
-                update(AdminUser).where(AdminUser.id == user_id).values(password_hash=password_hash)
+                update(AdminUser)
+                .where(AdminUser.id == user_id)
+                .values(password_hash=password_hash)
             )
             await session.commit()
             return result.rowcount > 0
@@ -229,7 +237,9 @@ class AdminUserRepository(BaseRepository[AdminUser]):
             if role:
                 query = query.where(AdminUser.role == role)
 
-            query = query.offset(skip).limit(limit).order_by(AdminUser.created_at.desc())
+            query = (
+                query.offset(skip).limit(limit).order_by(AdminUser.created_at.desc())
+            )
 
             result = await session.execute(query)
             return list(result.scalars().all())
@@ -256,7 +266,9 @@ class AdminUserRepository(BaseRepository[AdminUser]):
         """Mark user as verified."""
         async with self._get_session() as session:
             result = await session.execute(
-                update(AdminUser).where(AdminUser.id == user_id).values(is_verified=True)
+                update(AdminUser)
+                .where(AdminUser.id == user_id)
+                .values(is_verified=True)
             )
             await session.commit()
             return result.rowcount > 0

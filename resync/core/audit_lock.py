@@ -5,19 +5,34 @@ This module provides a dedicated distributed locking mechanism for audit operati
 to prevent race conditions during concurrent memory processing.
 """
 
-import logging
+import re
+import structlog
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, cast
-
 from redis.asyncio import Redis as AsyncRedis
 from redis.exceptions import RedisError
-
 from resync.core.exceptions import AuditError, DatabaseError
 from resync.settings import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
+
+
+def _redact_url_credentials(url: str) -> str:
+    """Redact credentials from a URL for safe logging.
+
+    Args:
+        url: The URL to redact (e.g., 'redis://user:password@host:6379/0')
+
+    Returns:
+        The URL with credentials redacted (e.g., 'redis://***:***@host:6379/0')
+    """
+    if not url:
+        return url
+    # Match pattern user:password@host or just :password@host or just user:@host
+    redacted = re.sub(r"(://)([^:@]+:[^@]+)(@)", r"\1***:***\3", url)
+    return redacted
 
 
 class DistributedAuditLock:
@@ -43,25 +58,17 @@ class DistributedAuditLock:
         self.client: AsyncRedis | None = None
         self._lock_prefix: str = "audit_lock"
         self.release_script_sha: str | None = None
-
-        logger.info("DistributedAuditLock initialized with Redis", redis_url=self.redis_url)
+        logger.info(
+            "DistributedAuditLock initialized with Redis",
+            redis_url=_redact_url_credentials(self.redis_url),
+        )
 
     async def connect(self) -> None:
         """Initialize Redis connection."""
         if self.client is None:
             self.client = AsyncRedis.from_url(self.redis_url)
-            # Load Lua script on connection
-            # SECURITY NOTE: This is legitimate Redis EVAL usage for atomic distributed locking
-            # The Lua script is hardcoded and performs only safe Redis operations
-            lua_script = """
-            if redis.call("get", KEYS[1]) == ARGV[1] then
-                return redis.call("del", KEYS[1])
-            else
-                return 0
-            end
-            """
+            lua_script = '\n            if redis.call("get", KEYS[1]) == ARGV[1] then\n                return redis.call("del", KEYS[1])\n            else\n                return 0\n            end\n            '
             self.release_script_sha = await self.client.script_load(lua_script)
-            # Test connection
             await self.client.ping()
             logger.info("DistributedAuditLock connected to Redis")
 
@@ -99,9 +106,7 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-
         self.client = cast(AsyncRedis, self.client)
-
         lock_key = self._get_lock_key(memory_id)
         return AuditLockContext(self.client, lock_key, timeout, self.release_script_sha)
 
@@ -117,9 +122,7 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-
         self.client = cast(AsyncRedis, self.client)
-
         lock_key = self._get_lock_key(memory_id)
         return int(await self.client.exists(lock_key)) == 1
 
@@ -135,13 +138,13 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-
         self.client = cast(AsyncRedis, self.client)
-
         lock_key = self._get_lock_key(memory_id)
         result = await self.client.delete(lock_key)
         if result:
-            logger.warning("forcefully_released_audit_lock_for_memory", memory_id=memory_id)
+            logger.warning(
+                "forcefully_released_audit_lock_for_memory", memory_id=memory_id
+            )
         return bool(result)
 
     async def cleanup_expired_locks(self, max_age: int = 60) -> int:
@@ -156,38 +159,30 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-
         self.client = cast(AsyncRedis, self.client)
-
         try:
             cleaned_count: int = 0
-
-            # Get all audit lock keys
             lock_pattern = f"{self._lock_prefix}:*"
             lock_keys = await self.client.keys(lock_pattern)
-
             if lock_keys:
-                # Batch TTL checks using pipeline
                 pipe = self.client.pipeline(transaction=False)
-                decoded_keys = [k.decode("utf-8") if isinstance(k, bytes) else k for k in lock_keys]
+                decoded_keys = [
+                    k.decode("utf-8") if isinstance(k, bytes) else k for k in lock_keys
+                ]
                 for lock_key in decoded_keys:
                     pipe.ttl(lock_key)
                 ttls = await pipe.execute()
-
-                # Collect keys to delete
                 keys_to_delete = [
-                    k for k, ttl in zip(decoded_keys, ttls)
+                    k
+                    for k, ttl in zip(decoded_keys, ttls)
                     if ttl is None or ttl <= max_age
                 ]
                 if keys_to_delete:
                     await self.client.delete(*keys_to_delete)
                     cleaned_count = len(keys_to_delete)
-
             if cleaned_count > 0:
                 logger.info("Cleaned up %d expired audit locks", cleaned_count)
-
             return cleaned_count
-
         except RedisError as e:
             logger.error("Redis error cleaning up expired audit locks: %s", e)
             raise DatabaseError(f"Redis error during audit lock cleanup: {e}") from e
@@ -202,7 +197,9 @@ class DistributedAuditLock:
                 "Unexpected critical error cleaning up expired audit locks.",
                 exc_info=True,
             )
-            raise AuditError("Unexpected critical error during audit lock cleanup") from e
+            raise AuditError(
+                "Unexpected critical error during audit lock cleanup"
+            ) from e
 
 
 class AuditLockContext:
@@ -240,15 +237,9 @@ class AuditLockContext:
     async def __aenter__(self) -> "AuditLockContext":
         """Acquire the lock."""
         self.lock_value = str(uuid.uuid4())
-
-        # Use Redis SET with NX and PX for atomic lock acquisition
         success = await self.client.set(
-            self.lock_key,
-            self.lock_value,
-            nx=True,  # Only set if key doesn't exist
-            px=self.timeout * 1000,  # Convert seconds to milliseconds
+            self.lock_key, self.lock_value, nx=True, px=self.timeout * 1000
         )
-
         if success:
             self._locked = True
             logger.debug("Acquired audit lock: %s", self.lock_key)
@@ -264,50 +255,37 @@ class AuditLockContext:
         """Release the lock if owned by this instance."""
         if not self.lock_value:
             return
-
-        # Validate lock key and value
         if not isinstance(self.lock_key, str) or len(self.lock_key) == 0:
             raise ValueError("Invalid lock key format - must be non-empty string")
-
         if (
             not isinstance(self.lock_value, str)
             or len(self.lock_value) != 36
-            or not self.lock_value.count("-") == 4
+            or (not self.lock_value.count("-") == 4)
         ):
             raise ValueError("Invalid lock value (must be a UUID)")
-
         try:
-            # Use EVALSHA for atomic check-and-delete
-            # SECURITY NOTE: This is legitimate Redis EVAL usage for atomic distributed locking
-            # The Lua script is hardcoded and performs only safe Redis operations
             if self.release_script_sha:
                 result = await self.client.evalsha(
                     self.release_script_sha, 1, self.lock_key, self.lock_value
                 )
             else:
-                # Fallback to eval if script not loaded
                 logger.warning("Using eval fallback - script not loaded")
-                lua_script = """
-                if redis.call("get", KEYS[1]) == ARGV[1] then
-                    return redis.call("del", KEYS[1])
-                else
-                    return 0
-                end
-                """
-                result = await self.client.eval(lua_script, 1, self.lock_key, self.lock_value)
-
+                lua_script = '\n                if redis.call("get", KEYS[1]) == ARGV[1] then\n                    return redis.call("del", KEYS[1])\n                else\n                    return 0\n                end\n                '
+                result = await self.client.eval(
+                    lua_script, 1, self.lock_key, self.lock_value
+                )
             if result == 1:
                 logger.debug("successfully_released_audit_lock", lock_key=self.lock_key)
             else:
-                # Check current lock value to determine if it was already expired or not owned
                 current_value = await self.client.get(self.lock_key)
                 if current_value is not None:
                     logger.warning(
                         f"Failed to release audit lock: {self.lock_key} (not owned by this instance)"
                     )
                 else:
-                    logger.debug("Audit lock %s was already expired/removed", self.lock_key)
-
+                    logger.debug(
+                        "Audit lock %s was already expired/removed", self.lock_key
+                    )
         except RedisError as e:
             logger.error("Redis error during lock release: %s", e)
             raise DatabaseError(f"Redis error during lock release: {e}") from e
@@ -329,7 +307,9 @@ class AuditLockContext:
 
 
 @asynccontextmanager
-async def distributed_audit_lock(memory_id: str, timeout: int = 5) -> AsyncIterator[None]:
+async def distributed_audit_lock(
+    memory_id: str, timeout: int = 5
+) -> AsyncIterator[None]:
     """
     Convenience context manager for distributed audit locking.
 
@@ -347,9 +327,6 @@ async def distributed_audit_lock(memory_id: str, timeout: int = 5) -> AsyncItera
         yield
 
 
-# For backward compatibility, provide a shared instance if needed
-# This should be initialized during application startup and injected
-# as a dependency rather than using global state
 def get_audit_lock() -> DistributedAuditLock:
     """
     Factory function to get an audit lock instance.

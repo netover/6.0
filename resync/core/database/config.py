@@ -21,6 +21,7 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,9 @@ class DatabaseConfig:
         Useful for direct psql connections or third-party tools.
         """
         password = self.password or os.getenv("DATABASE_PASSWORD", "")
-        return f"postgresql://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
+        return (
+            f"postgresql://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
+        )
 
     def get_pool_options(self) -> dict:
         """Get connection pool options."""
@@ -96,8 +99,6 @@ class DatabaseConfig:
             "pool_recycle": self.pool_recycle,
         }
 
-
-from typing import Optional
 
 def get_database_config() -> DatabaseConfig:
     """

@@ -5,10 +5,11 @@ Creates all schemas and tables required by Resync.
 Run this migration to set up a fresh PostgreSQL database.
 """
 
-import asyncio
 import logging
 
 from sqlalchemy import text
+from resync.core.utils.async_bridge import run_sync
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from .engine import get_engine
@@ -54,7 +55,7 @@ async def create_schemas(engine: AsyncEngine | None = None) -> None:
             if statement and not statement.startswith("--"):
                 try:
                     await conn.execute(text(statement))
-                except Exception as e:
+                except SQLAlchemyError as e:
                     logger.warning("Schema creation warning: %s", e)
 
         logger.info("Database schemas created")
@@ -79,7 +80,9 @@ async def create_tables(engine: AsyncEngine | None = None) -> None:
     logger.info("Database tables created")
 
 
-async def drop_all_tables(engine: AsyncEngine | None = None, confirm: bool = False) -> None:
+async def drop_all_tables(
+    engine: AsyncEngine | None = None, confirm: bool = False
+) -> None:
     """
     Drop all tables. USE WITH CAUTION!
 
@@ -133,7 +136,7 @@ async def check_database_connection(engine: AsyncEngine | None = None) -> bool:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error("Database connection failed: %s", e)
         return False
 
@@ -142,7 +145,7 @@ def run_migrations() -> None:
     """
     Run migrations synchronously (for CLI usage).
     """
-    asyncio.run(initialize_database())
+    run_sync(initialize_database())
 
 
 if __name__ == "__main__":

@@ -16,10 +16,9 @@ Consolidated into a single, well-organized module (~600 lines).
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
 import contextlib
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -32,6 +31,7 @@ from resync.core.health.health_models import (
     HealthStatus,
     HealthStatusHistory,
 )
+from resync.core.task_tracker import track_task
 
 if TYPE_CHECKING:
     from .health_checkers.base_health_checker import BaseHealthChecker
@@ -84,11 +84,12 @@ class UnifiedHealthService:
     # Lifecycle Management
     # =========================================================================
 
-    def start_monitoring(self, interval_seconds: int | None = None) -> None:
+    def start_monitoring(self, tg: asyncio.TaskGroup | None = None, interval_seconds: int | None = None) -> None:
         """
         Start continuous health monitoring.
 
         Args:
+            tg: Optional TaskGroup to run the background task in
             interval_seconds: Check interval (uses config default if None)
         """
         if self._is_monitoring:
@@ -97,8 +98,17 @@ class UnifiedHealthService:
 
         self._is_monitoring = True
         interval = interval_seconds or self.config.check_interval_seconds
-        self._monitoring_task = track_task(self._monitoring_loop(interval), name="monitoring_loop")
-        logger.info("unified_health_monitoring_started", interval=interval)
+
+        if tg:
+            self._monitoring_task = tg.create_task(
+                self._monitoring_loop(interval), name="monitoring_loop"
+            )
+        else:
+            self._monitoring_task = track_task(
+                self._monitoring_loop(interval), name="monitoring_loop"
+            )
+
+        logger.info("unified_health_monitoring_started", interval=interval, method="task_group" if tg else "track_task")
 
     async def stop_monitoring(self) -> None:
         """Stop continuous health monitoring gracefully."""
@@ -128,6 +138,8 @@ class UnifiedHealthService:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    break
                 logger.error("health_monitoring_error", error=str(e))
                 await asyncio.sleep(interval)
 
@@ -145,39 +157,56 @@ class UnifiedHealthService:
         start_time = time.time()
         correlation_id = f"health_{int(start_time * 1000)}"
 
-        logger.debug("starting_comprehensive_health_check", correlation_id=correlation_id)
+        logger.debug(
+            "starting_comprehensive_health_check", correlation_id=correlation_id
+        )
 
         try:
             # Get all health checkers
             checkers = self._get_health_checkers()
 
-            # Execute all checks in parallel with timeout
-            check_tasks = {
-                name: await create_tracked_task(self._execute_check_with_timeout(checker, name), name="execute_check_with_timeout")
-                for name, checker in checkers.items()
-            }
-
-            # Wait for all checks with global timeout
+            # Execute all checks in parallel with timeout using TaskGroup
             components: dict[str, ComponentHealth] = {}
-            done, pending = await asyncio.wait(
-                check_tasks.values(),
-                timeout=self.config.timeout_seconds,
-                return_when=asyncio.ALL_COMPLETED,
-            )
 
-            # Cancel pending tasks
-            for task in pending:
-                task.cancel()
-
-            # Collect results
-            for name, task in check_tasks.items():
-                if task in done and not task.cancelled():
+            try:
+                async with asyncio.timeout(self.config.timeout_seconds):
                     try:
-                        components[name] = task.result()
-                    except Exception as e:
-                        components[name] = self._create_error_health(name, str(e))
-                else:
-                    components[name] = self._create_error_health(name, "Check timeout")
+                        async with asyncio.TaskGroup() as tg:
+                            tasks = {
+                                name: tg.create_task(
+                                    self._execute_check_with_timeout(checker, name),
+                                    name=f"health_check_{name}"
+                                )
+                                for name, checker in checkers.items()
+                            }
+                    except* asyncio.CancelledError:
+                        raise
+                    except* Exception:
+                        # Results extracted below from tasks
+                        pass
+
+                    # Extração segura de resultados
+                    for name, task in tasks.items():
+                        if task.done() and not task.cancelled():
+                            try:
+                                components[name] = task.result()
+                            except Exception as e:
+                                if isinstance(e, asyncio.CancelledError):
+                                    raise
+                                components[name] = self._create_error_health(name, str(e))
+                        else:
+                            components[name] = self._create_error_health(name, "Check interrupted or timed out")
+            except TimeoutError:
+                logger.warning("comprehensive_health_check_timeout", timeout=self.config.timeout_seconds)
+            except Exception as e:
+                if isinstance(e, asyncio.CancelledError):
+                    raise
+                logger.error("comprehensive_health_check_group_error", error=str(e))
+
+            # Fill in missing results (failsafe)
+            for name in checkers:
+                if name not in components:
+                    components[name] = self._create_error_health(name, "Internal health check orchestration failure")
 
             # Calculate overall status
             overall_status = self._calculate_overall_status(components)
@@ -186,7 +215,7 @@ class UnifiedHealthService:
             result = HealthCheckResult(
                 overall_status=overall_status,
                 components=components,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=(time.time() - start_time) * 1000,
                 alerts=self._generate_alerts(components),
                 summary=self._generate_summary(components),
@@ -212,13 +241,15 @@ class UnifiedHealthService:
             return result
 
         except Exception as e:
+            if isinstance(e, asyncio.CancelledError):
+                raise
             logger.error("comprehensive_health_check_failed", error=str(e))
             return HealthCheckResult(
                 overall_status=HealthStatus.UNHEALTHY,
                 components={},
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=(time.time() - start_time) * 1000,
-                alerts=[f"Health check failed: {str(e)}"],
+                alerts=[f"Health check failed: {e!s}"],
                 summary={"error": 1},
             )
 
@@ -238,9 +269,9 @@ class UnifiedHealthService:
         try:
             return await asyncio.wait_for(
                 checker.check_health(),
-                timeout=self.config.component_timeout_seconds,
+                timeout=self.config.timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("health_check_timeout", component=name)
             return self._create_error_health(name, "Check timeout")
         except Exception as e:
@@ -261,7 +292,7 @@ class UnifiedHealthService:
             from .health_checkers.health_checker_factory import HealthCheckerFactory
 
             factory = HealthCheckerFactory()
-            self._checkers = factory.create_all_checkers()
+            self._checkers = factory.get_all_health_checkers()
 
         return self._checkers
 
@@ -269,7 +300,9 @@ class UnifiedHealthService:
     # Status Calculation
     # =========================================================================
 
-    def _calculate_overall_status(self, components: dict[str, ComponentHealth]) -> HealthStatus:
+    def _calculate_overall_status(
+        self, components: dict[str, ComponentHealth]
+    ) -> HealthStatus:
         """
         Calculate overall health status from component results.
 
@@ -301,7 +334,9 @@ class UnifiedHealthService:
             return HealthStatus.DEGRADED
         return HealthStatus.HEALTHY
 
-    def _generate_summary(self, components: dict[str, ComponentHealth]) -> dict[str, int]:
+    def _generate_summary(
+        self, components: dict[str, ComponentHealth]
+    ) -> dict[str, int]:
         """Generate summary counts by status."""
         summary = {"healthy": 0, "degraded": 0, "unhealthy": 0, "unknown": 0}
         for health in components.values():
@@ -342,7 +377,9 @@ class UnifiedHealthService:
             result: Health check result to record
         """
         # Extract individual status changes
-        component_changes = {name: health.status for name, health in result.components.items()}
+        component_changes = {
+            name: health.status for name, health in result.components.items()
+        }
 
         history_entry = HealthStatusHistory(
             timestamp=result.timestamp,
@@ -420,14 +457,18 @@ class UnifiedHealthService:
         Returns:
             Dictionary of metrics
         """
-        avg_duration = self._total_check_time / self._check_count if self._check_count > 0 else 0
+        avg_duration = (
+            self._total_check_time / self._check_count if self._check_count > 0 else 0
+        )
 
         return {
             "check_count": self._check_count,
             "total_check_time_ms": self._total_check_time,
             "average_check_time_ms": avg_duration,
             "is_monitoring": self._is_monitoring,
-            "last_check": self.last_health_check.isoformat() if self.last_health_check else None,
+            "last_check": self.last_health_check.isoformat()
+            if self.last_health_check
+            else None,
             "history_size": len(self.health_history),
             "components_tracked": len(self._component_results),
         }
@@ -485,7 +526,7 @@ async def shutdown_unified_health_service() -> None:
 async def get_health_status() -> HealthCheckResult:
     """
     Convenience function to get a comprehensive health check result.
-    
+
     Returns:
         HealthCheckResult snapshot
     """

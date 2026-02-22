@@ -8,14 +8,12 @@ Replaces the original SQLite implementation.
 import asyncio
 import logging
 from datetime import datetime
-
 from resync.core.task_tracker import track_task
-
+from resync.core.utils.async_bridge import run_sync
 from resync.core.database.models import AuditEntry
 from resync.core.database.repositories import AuditEntryRepository
 
 logger = logging.getLogger(__name__)
-
 __all__ = [
     "AuditDB",
     "get_audit_db",
@@ -42,7 +40,6 @@ class AuditDB:
         """Close the database."""
         self._initialized = False
 
-
     @staticmethod
     def to_record_dict(entry: AuditEntry) -> dict:
         """Convert an AuditEntry model to the legacy dict shape."""
@@ -62,15 +59,16 @@ class AuditDB:
 
     def get_records(self, limit: int = 100, offset: int = 0) -> list[dict]:
         """Backward-compatible sync accessor for legacy admin endpoints."""
-        logger.warning("auditdb_get_records_sync_shim_used", limit=limit, offset=offset)
+        logger.warning(
+            "auditdb_get_records_sync_shim_used",
+            extra={"limit": limit, "offset": offset},
+        )
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            # Safe to run to completion if NO loop is running
-            records = asyncio.run(self.get_recent_actions(limit=limit, offset=offset))
+            records = run_sync(self.get_recent_actions(limit=limit, offset=offset))
             return [self.to_record_dict(entry) for entry in records]
         else:
-            # RuntimeError if loop IS running
             raise RuntimeError(
                 "get_records() cannot be used inside an active event loop; use get_recent_actions()"
             )
@@ -100,7 +98,9 @@ class AuditDB:
             metadata=metadata,
         )
 
-    async def get_user_actions(self, user_id: str, limit: int = 100) -> list[AuditEntry]:
+    async def get_user_actions(
+        self, user_id: str, limit: int = 100
+    ) -> list[AuditEntry]:
         """Get actions by user."""
         return await self._repo.get_user_actions(user_id, limit)
 
@@ -110,9 +110,13 @@ class AuditDB:
         """Get audit history for an entity."""
         return await self._repo.get_entity_history(entity_type, entity_id, limit)
 
-    async def get_recent_actions(self, limit: int = 100, offset: int = 0) -> list[AuditEntry]:
+    async def get_recent_actions(
+        self, limit: int = 100, offset: int = 0
+    ) -> list[AuditEntry]:
         """Get recent audit actions."""
-        return await self._repo.get_all(limit=limit, offset=offset, order_by="timestamp", desc=True)
+        return await self._repo.get_all(
+            limit=limit, offset=offset, order_by="timestamp", desc=True
+        )
 
     async def get_record_count_async(self) -> int:
         """Get total number of audit records asynchronously."""
@@ -127,13 +131,14 @@ class AuditDB:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
+
             async def _count():
                 return await self._repo.count()
-            return asyncio.run(_count())
+
+            return run_sync(_count())
         else:
             raise RuntimeError(
-                "get_record_count() cannot be used inside an active event loop; "
-                "use await get_record_count_async() instead"
+                "get_record_count() cannot be used inside an active event loop; use await get_record_count_async() instead"
             )
 
     async def search_incidents(
@@ -148,18 +153,13 @@ class AuditDB:
 
         Uses the repository's keyword search across action, entity and metadata.
         """
-        # Filter by common incident/job failure actions if not specified
         action = None
         if incident_type == "job_failure":
             action = "job_failure"
         elif status == "resolved":
             action = "incident_resolved"
-
         return await self._repo.search(
-            query=query,
-            action=action,
-            entity_type=incident_type,
-            limit=limit,
+            query=query, action=action, entity_type=incident_type, limit=limit
         )
 
     async def search_actions(
@@ -179,7 +179,6 @@ class AuditDB:
             filters["user_id"] = user_id
         if entity_type:
             filters["entity_type"] = entity_type
-
         if start_date and end_date:
             return await self._repo.find_in_range(
                 start_date, end_date, filters=filters, limit=limit
@@ -206,7 +205,6 @@ async def log_audit_action(action: str, **kwargs) -> AuditEntry:
     return await db.log_action(action, **kwargs)
 
 
-# Legacy function name compatibility
 def get_db_connection():
     """Legacy function - returns None, use AuditDB class instead."""
     logger.warning("get_db_connection is deprecated, use AuditDB class")
@@ -242,14 +240,10 @@ def add_audit_records_batch(records: list) -> int:
             count += 1
         return count
 
-    # If we are already inside an async event loop, schedule the insert and
-    # return the expected count immediately.
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        # No running loop in this thread: safe to run to completion.
-        return asyncio.run(_batch_insert_async(records))
-
+        return run_sync(_batch_insert_async(records))
     track_task(_batch_insert_async(records), name="batch_insert_async")
     return len(records)
 
@@ -296,7 +290,6 @@ def _validate_user_query(record: dict) -> None:
     """Validate user_query field."""
     if "user_query" not in record:
         raise ValueError("User query is required")
-    
     query = record.get("user_query")
     if query is None:
         raise ValueError("User query is required")
@@ -306,9 +299,8 @@ def _validate_user_query(record: dict) -> None:
         raise ValueError("User query must be string")
     if len(query) > 10000:
         raise ValueError("User query too long")
-
-    # Check for dangerous SQL patterns
     from resync.core.database_security import DatabaseInputValidator
+
     DatabaseInputValidator.validate_string_input(query)
 
 
@@ -326,18 +318,10 @@ def _validate_audit_record(record: dict) -> dict:
     """
     if not isinstance(record, dict):
         raise ValueError("Audit record must be a dictionary")
-
-    # Required fields check
     if not record.get("action"):
         raise ValueError("Action field cannot be empty")
-
-    # Validate specific fields
     _validate_memory_id(record)
     _validate_user_query(record)
-
-    # Loose validation for agent_response if present in valid cases
-    # The test expects it to be required for the test cases provided
     if "agent_response" not in record and "user_query" in record:
-         raise ValueError("Agent response is required")
-
+        raise ValueError("Agent response is required")
     return record

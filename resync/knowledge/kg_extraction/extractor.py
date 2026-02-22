@@ -38,28 +38,39 @@ class KGExtractor:
         allowed_relations: Iterable[str] | None = None,
     ):
         from resync.settings import get_settings
+
         _s = get_settings()
 
         self.enabled = enabled if enabled is not None else _s.KG_EXTRACTION_ENABLED
         self.model = model or _s.KG_EXTRACTION_MODEL or (_s.llm_model or "gpt-4o")
-        self.max_concepts_per_chunk = max_concepts_per_chunk or _s.KG_EXTRACTION_MAX_CONCEPTS
+        self.max_concepts_per_chunk = (
+            max_concepts_per_chunk or _s.KG_EXTRACTION_MAX_CONCEPTS
+        )
         self.max_edges_per_chunk = max_edges_per_chunk or _s.KG_EXTRACTION_MAX_EDGES
-        self.allowed_node_types = list(allowed_node_types) if allowed_node_types else [
-            "Concept",
-            "Error",
-            "Solution",
-            "Procedure",
-            "Job",
-            "System",
-        ]
-        self.allowed_relations = list(allowed_relations) if allowed_relations else [
-            "RELATED_TO",
-            "CAUSES",
-            "SOLVED_BY",
-            "DEPENDS_ON",
-            "MENTIONED_IN",
-            "APPLIES_TO",
-        ]
+        self.allowed_node_types = (
+            list(allowed_node_types)
+            if allowed_node_types
+            else [
+                "Concept",
+                "Error",
+                "Solution",
+                "Procedure",
+                "Job",
+                "System",
+            ]
+        )
+        self.allowed_relations = (
+            list(allowed_relations)
+            if allowed_relations
+            else [
+                "RELATED_TO",
+                "CAUSES",
+                "SOLVED_BY",
+                "DEPENDS_ON",
+                "MENTIONED_IN",
+                "APPLIES_TO",
+            ]
+        )
 
     async def extract(
         self,
@@ -96,7 +107,10 @@ class KGExtractor:
                 raw = await call_llm(c_prompt, temperature=0.0, model=self.model)
                 concepts = self._parse_concepts(raw)
             except Exception as e:
-                logger.warning("kg_extract_concepts_failed", extra={"error": str(e), "doc_id": doc_id, "chunk_id": chunk_id})
+                logger.warning(
+                    "kg_extract_concepts_failed",
+                    extra={"error": str(e), "doc_id": doc_id, "chunk_id": chunk_id},
+                )
                 concepts = []
 
             # attach provenance
@@ -116,7 +130,10 @@ class KGExtractor:
                 raw = await call_llm(e_prompt, temperature=0.0, model=self.model)
                 edges = self._parse_edges(raw, doc_id=doc_id, chunk_id=chunk_id)
             except Exception as e:
-                logger.warning("kg_extract_edges_failed", extra={"error": str(e), "doc_id": doc_id, "chunk_id": chunk_id})
+                logger.warning(
+                    "kg_extract_edges_failed",
+                    extra={"error": str(e), "doc_id": doc_id, "chunk_id": chunk_id},
+                )
                 edges = []
 
             # 3) fallback edges by co-occurrence (weak)
@@ -151,7 +168,9 @@ class KGExtractor:
                 continue
         return out
 
-    def _parse_edges(self, raw: str, *, doc_id: str, chunk_id: str | None) -> list[Edge]:
+    def _parse_edges(
+        self, raw: str, *, doc_id: str, chunk_id: str | None
+    ) -> list[Edge]:
         data = json.loads(self._strip_json_fences(raw))
         items = data.get("edges", []) if isinstance(data, dict) else []
         out: list[Edge] = []
@@ -169,7 +188,9 @@ class KGExtractor:
                 continue
         return out
 
-    def _cooc_edges(self, concepts: list[Concept], *, doc_id: str, chunk_id: str | None) -> list[Edge]:
+    def _cooc_edges(
+        self, concepts: list[Concept], *, doc_id: str, chunk_id: str | None
+    ) -> list[Edge]:
         names = [c.name for c in concepts][:8]
         edges: list[Edge] = []
         for i in range(len(names)):
@@ -180,7 +201,12 @@ class KGExtractor:
                         target=names[j],
                         relation_type="RELATED_TO",
                         weight=0.3,
-                        evidence=Evidence(doc_id=doc_id, chunk_id=chunk_id, extractor="cooc", confidence=0.3),
+                        evidence=Evidence(
+                            doc_id=doc_id,
+                            chunk_id=chunk_id,
+                            extractor="cooc",
+                            confidence=0.3,
+                        ),
                     )
                 )
         return edges

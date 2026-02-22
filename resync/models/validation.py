@@ -282,7 +282,9 @@ class JobStatusUpdate(BaseModel):
         """
         valid_statuses = {"running", "completed", "failed", "cancelled", "pending"}
         if v.lower() not in valid_statuses:
-            raise ValueError(f"Invalid job status: {v}. Must be one of {valid_statuses}")
+            raise ValueError(
+                f"Invalid job status: {v}. Must be one of {valid_statuses}"
+            )
         return v.lower()
 
 
@@ -381,12 +383,15 @@ class DocumentUpload(BaseModel):
         # Use settings for dynamic limit, fallback to 10MB
         try:
             from resync.settings import get_settings
+
             max_size = get_settings().max_file_size
         except Exception:
             max_size = 10 * 1024 * 1024
 
         if v > max_size:
-            raise ValueError(f"File too large. Maximum size is {max_size / (1024*1024):.1f}MB.")
+            raise ValueError(
+                f"File too large. Maximum size is {max_size / (1024 * 1024):.1f}MB."
+            )
 
         return v
 

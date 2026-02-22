@@ -16,6 +16,7 @@ _correlation_id_ctx: ContextVar[str | None] = ContextVar("correlation_id", defau
 _user_id_ctx: ContextVar[str | None] = ContextVar("user_id", default=None)
 
 _request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
+_trace_id_ctx: ContextVar[str | None] = ContextVar("trace_id", default=None)
 
 
 # ============================================================================
@@ -167,6 +168,65 @@ def reset_request_id(token: Token[str | None]) -> None:
 
 
 # ============================================================================
+# TRACE ID
+# ============================================================================
+
+
+def set_trace_id(trace_id: str) -> Token[str | None]:
+    """Define o Trace ID para o contexto atual.
+
+    Args:
+        trace_id: ID de rastreamento (trace)
+
+    Returns:
+        Token para resetar o valor posteriormente
+    """
+    return _trace_id_ctx.set(trace_id)
+
+
+def get_trace_id() -> str | None:
+    """Obtém o Trace ID do contexto atual.
+
+    Returns:
+        Trace ID se disponível, None caso contrário
+    """
+    return _trace_id_ctx.get()
+
+
+def get_or_create_trace_id() -> str:
+    """Obtém ou cria um novo Trace ID.
+
+    Se não houver Trace ID no contexto, tenta usar o Correlation ID
+    ou cria um novo UUID caso nenhum esteja disponível.
+
+    Returns:
+        Trace ID (existente, baseado em correlation ou novo)
+    """
+    trace_id = get_trace_id()
+    if not trace_id:
+        # Fallback para correlation_id se disponível
+        trace_id = get_correlation_id()
+        if not trace_id:
+            trace_id = str(uuid.uuid4())
+        set_trace_id(trace_id)
+    return trace_id
+
+
+def reset_trace_id(token: Token[str | None]) -> None:
+    """Reseta o Trace ID para o valor anterior.
+
+    Args:
+        token: Token retornado por set_trace_id
+    """
+    _trace_id_ctx.reset(token)
+
+
+def clear_trace_id() -> None:
+    """Limpa o Trace ID do contexto."""
+    _trace_id_ctx.set(None)
+
+
+# ============================================================================
 # CONTEXT MANAGEMENT
 # ============================================================================
 
@@ -179,6 +239,7 @@ def clear_context() -> None:
     clear_correlation_id()
     clear_user_id()
     clear_request_id()
+    clear_trace_id()
 
 
 def get_context_dict() -> dict:
@@ -191,6 +252,7 @@ def get_context_dict() -> dict:
         "correlation_id": get_correlation_id(),
         "user_id": get_user_id(),
         "request_id": get_request_id(),
+        "trace_id": get_trace_id(),
     }
 
 
@@ -214,6 +276,7 @@ class RequestContext:
         correlation_id: str | None = None,
         user_id: str | None = None,
         request_id: str | None = None,
+        trace_id: str | None = None,
     ):
         """Inicializa o context manager.
 
@@ -221,20 +284,26 @@ class RequestContext:
             correlation_id: Correlation ID (opcional)
             user_id: User ID (opcional)
             request_id: Request ID (opcional)
+            trace_id: Trace ID (opcional)
         """
         self.correlation_id = correlation_id
         self.user_id = user_id
         self.request_id = request_id
+        self.trace_id = trace_id
         self.tokens: list[tuple[str, Token[str | None]]] = []
 
     def __enter__(self):
         """Entra no contexto, definindo os valores."""
         if self.correlation_id:
-            self.tokens.append(("correlation_id", set_correlation_id(self.correlation_id)))
+            self.tokens.append(
+                ("correlation_id", set_correlation_id(self.correlation_id))
+            )
         if self.user_id:
             self.tokens.append(("user_id", set_user_id(self.user_id)))
         if self.request_id:
             self.tokens.append(("request_id", set_request_id(self.request_id)))
+        if self.trace_id:
+            self.tokens.append(("trace_id", set_trace_id(self.trace_id)))
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -246,6 +315,8 @@ class RequestContext:
                 reset_user_id(token)
             elif ctx_name == "request_id":
                 reset_request_id(token)
+            elif ctx_name == "trace_id":
+                reset_trace_id(token)
         return False
 
 
@@ -267,6 +338,12 @@ __all__ = [
     "get_or_create_request_id",
     "reset_request_id",
     "clear_request_id",
+    # Trace ID
+    "set_trace_id",
+    "get_trace_id",
+    "get_or_create_trace_id",
+    "reset_trace_id",
+    "clear_trace_id",
     # Context Management
     "clear_context",
     "get_context_dict",

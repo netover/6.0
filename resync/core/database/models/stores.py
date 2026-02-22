@@ -72,10 +72,15 @@ class TWSSnapshot(Base):
     """Snapshot of TWS status at a point in time."""
 
     __tablename__ = "tws_snapshots"
-    __table_args__ = (Index("idx_tws_snapshots_timestamp", "timestamp"), {"schema": "tws"})
+    __table_args__ = (
+        Index("idx_tws_snapshots_timestamp", "timestamp"),
+        {"schema": "tws"},
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     snapshot_data: Mapped[dict] = mapped_column(JSONB, nullable=False)
     job_count: Mapped[int] = mapped_column(Integer, default=0)
     workstation_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -84,7 +89,7 @@ class TWSSnapshot(Base):
     # lazy="raise" força erro se acessar sem eager loading (previne N+1 queries)
     job_statuses: Mapped[list["TWSJobStatus"]] = relationship(
         back_populates="snapshot",
-        lazy="raise"  # Força uso de selectinload() para prevenir N+1
+        lazy="raise",  # Força uso de selectinload() para prevenir N+1
     )
 
 
@@ -102,7 +107,9 @@ class TWSJobStatus(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    snapshot_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("tws.tws_snapshots.id"))
+    snapshot_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("tws.tws_snapshots.id")
+    )
     job_name: Mapped[str] = mapped_column(String(255), nullable=False)
     job_stream: Mapped[str | None] = mapped_column(String(255))
     workstation: Mapped[str | None] = mapped_column(String(255))
@@ -111,14 +118,16 @@ class TWSJobStatus(Base):
     start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     return_code: Mapped[int | None] = mapped_column(Integer)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
     # Relationships
     # lazy="raise" força erro se acessar sem eager loading (previne N+1 queries)
     snapshot: Mapped[Optional["TWSSnapshot"]] = relationship(
         back_populates="job_statuses",
-        lazy="raise"  # Força uso de joinedload() para prevenir N+1
+        lazy="raise",  # Força uso de joinedload() para prevenir N+1
     )
 
 
@@ -138,7 +147,9 @@ class TWSWorkstationStatus(Base):
     cpu_usage: Mapped[float | None] = mapped_column(Float)
     memory_usage: Mapped[float | None] = mapped_column(Float)
     active_jobs: Mapped[int] = mapped_column(Integer, default=0)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
 
@@ -161,7 +172,9 @@ class TWSEvent(Base):
     workstation: Mapped[str | None] = mapped_column(String(255))
     message: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[dict | None] = mapped_column(JSONB)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     acknowledged_by: Mapped[str | None] = mapped_column(String(255))
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -183,8 +196,12 @@ class TWSPattern(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     occurrences: Mapped[int] = mapped_column(Integer, default=1)
-    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
-    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     pattern_data: Mapped[dict | None] = mapped_column(JSONB)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -207,7 +224,9 @@ class TWSProblemSolution(Base):
     success_count: Mapped[int] = mapped_column(Integer, default=0)
     failure_count: Mapped[int] = mapped_column(Integer, default=0)
     last_used: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
 
@@ -230,11 +249,17 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[str | None] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(50), nullable=False)  # user, assistant, system
+    role: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # user, assistant, system
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
-    embedding_id: Mapped[str | None] = mapped_column(String(255))  # Reference to vector store
+    embedding_id: Mapped[str | None] = mapped_column(
+        String(255)
+    )  # Reference to vector store
     is_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -255,7 +280,9 @@ class ContextContent(Base):
     title: Mapped[str | None] = mapped_column(String(500))
     content: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
@@ -290,7 +317,9 @@ class AuditEntry(Base):
     new_value: Mapped[dict | None] = mapped_column(JSONB)
     ip_address: Mapped[str | None] = mapped_column(String(50))
     user_agent: Mapped[str | None] = mapped_column(String(500))
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
 
@@ -315,7 +344,9 @@ class AuditQueueItem(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
     error_message: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -329,7 +360,10 @@ class UserProfile(Base):
     """User profile and preferences."""
 
     __tablename__ = "user_profiles"
-    __table_args__ = (Index("idx_user_profiles_user", "user_id"), {"schema": "analytics"})
+    __table_args__ = (
+        Index("idx_user_profiles_user", "user_id"),
+        {"schema": "analytics"},
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
@@ -339,7 +373,9 @@ class UserProfile(Base):
     total_sessions: Mapped[int] = mapped_column(Integer, default=0)
     total_queries: Mapped[int] = mapped_column(Integer, default=0)
     last_active: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
@@ -358,8 +394,12 @@ class SessionHistory(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    user_id: Mapped[str] = mapped_column(String(255), ForeignKey("analytics.user_profiles.user_id"))
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    user_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("analytics.user_profiles.user_id")
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     query_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -395,7 +435,9 @@ class Feedback(Base):
     )  # general, accuracy, helpfulness
     feedback_text: Mapped[str | None] = mapped_column(Text)
     is_positive: Mapped[bool | None] = mapped_column(Boolean)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
     # v5.2.3.20: Golden Record fields for knowledge incorporation
@@ -405,7 +447,9 @@ class Feedback(Base):
     )  # pending, approved, rejected, incorporated
     approved_by: Mapped[str | None] = mapped_column(String(255))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    incorporated_doc_id: Mapped[str | None] = mapped_column(String(255))  # Vector store doc ID
+    incorporated_doc_id: Mapped[str | None] = mapped_column(
+        String(255)
+    )  # Vector store doc ID
 
 
 class LearningThreshold(Base):
@@ -418,14 +462,18 @@ class LearningThreshold(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    threshold_name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    threshold_name: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False
+    )
     current_value: Mapped[float] = mapped_column(Float, nullable=False)
     min_value: Mapped[float] = mapped_column(Float, default=0.0)
     max_value: Mapped[float] = mapped_column(Float, default=1.0)
     adjustment_rate: Mapped[float] = mapped_column(Float, default=0.01)
     last_adjusted: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     adjustment_history: Mapped[dict | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
@@ -451,7 +499,9 @@ class ActiveLearningCandidate(Base):
     selected_label: Mapped[str | None] = mapped_column(String(255))
     reviewer_id: Mapped[str | None] = mapped_column(String(255))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
 
@@ -476,7 +526,9 @@ class MetricDataPoint(Base):
     value: Mapped[float] = mapped_column(Float, nullable=False)
     unit: Mapped[str | None] = mapped_column(String(50))
     tags: Mapped[dict | None] = mapped_column(JSONB)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
 
 
 class MetricAggregation(Base):
@@ -486,7 +538,9 @@ class MetricAggregation(Base):
     __table_args__ = (
         Index("idx_metric_agg_name", "metric_name"),
         Index("idx_metric_agg_period", "period_start", "period_end"),
-        UniqueConstraint("metric_name", "aggregation_type", "period_start", name="uq_metric_agg"),
+        UniqueConstraint(
+            "metric_name", "aggregation_type", "period_start", name="uq_metric_agg"
+        ),
         {"schema": "metrics"},
     )
 
@@ -495,14 +549,20 @@ class MetricAggregation(Base):
     aggregation_type: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # hourly, daily, weekly
-    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    period_end: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     min_value: Mapped[float] = mapped_column(Float)
     max_value: Mapped[float] = mapped_column(Float)
     avg_value: Mapped[float] = mapped_column(Float)
     sum_value: Mapped[float] = mapped_column(Float)
     count: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
 
 
 # =============================================================================

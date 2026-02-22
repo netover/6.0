@@ -6,7 +6,7 @@ Represents a single TWS/HWA server connection with its configuration.
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -84,8 +84,8 @@ class TWSInstanceConfig:
     sort_order: int = 0
 
     # Metadata
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -156,14 +156,18 @@ class TWSInstance:
         result.update(
             {
                 "status": self.status.value,
-                "last_connected": self.last_connected.isoformat() if self.last_connected else None,
+                "last_connected": self.last_connected.isoformat()
+                if self.last_connected
+                else None,
                 "last_error": self.last_error,
                 "error_count": self.error_count,
                 "metrics": {
                     "total_requests": self.total_requests,
                     "successful_requests": self.successful_requests,
                     "failed_requests": self.failed_requests,
-                    "success_rate": (self.successful_requests / self.total_requests * 100)
+                    "success_rate": (
+                        self.successful_requests / self.total_requests * 100
+                    )
                     if self.total_requests > 0
                     else 0,
                     "avg_response_time_ms": self.avg_response_time_ms,

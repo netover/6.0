@@ -107,14 +107,19 @@ class CustomMetricRequest(BaseValidatedModel):
     """Custom metric submission request validation."""
 
     metric_name: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True),
     ] = Field(..., description="Custom metric name")
 
     metric_value: float = Field(..., description="Metric value")
 
-    metric_type: MetricType = Field(default=MetricType.CUSTOM, description="Metric type")
+    metric_type: MetricType = Field(
+        default=MetricType.CUSTOM, description="Metric type"
+    )
 
-    timestamp: datetime | None = Field(None, description="Metric timestamp (defaults to now)")
+    timestamp: datetime | None = Field(
+        None, description="Metric timestamp (defaults to now)"
+    )
 
     labels: dict[str, str] | None = Field(
         default_factory=dict, description="Metric labels/dimensions", max_length=10
@@ -126,7 +131,10 @@ class CustomMetricRequest(BaseValidatedModel):
 
     description: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=500, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=500, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Metric description")
@@ -148,7 +156,9 @@ class CustomMetricRequest(BaseValidatedModel):
         reserved_prefixes = ["__", "prometheus_", "process_", "go_"]
         for prefix in reserved_prefixes:
             if v.startswith(prefix):
-                raise ValueError(f"Metric name cannot start with reserved prefix: {prefix}")
+                raise ValueError(
+                    f"Metric name cannot start with reserved prefix: {prefix}"
+                )
         return v
 
     @field_validator("metric_value")
@@ -179,7 +189,9 @@ class CustomMetricRequest(BaseValidatedModel):
             if not value or len(value) > 100:
                 raise ValueError(f"Label value too long or empty for key '{key}'")
             if ValidationPatterns.SCRIPT_PATTERN.search(value):
-                raise ValueError(f"Label value contains malicious content for key '{key}'")
+                raise ValueError(
+                    f"Label value contains malicious content for key '{key}'"
+                )
         return v
 
     @field_validator("description")
@@ -187,7 +199,9 @@ class CustomMetricRequest(BaseValidatedModel):
     def validate_description(cls, v):
         """Validate metric description."""
         if v and ValidationPatterns.SCRIPT_PATTERN.search(v):
-            raise ValueError("Metric description contains potentially malicious content")
+            raise ValueError(
+                "Metric description contains potentially malicious content"
+            )
         return v
 
 
@@ -195,23 +209,30 @@ class AlertRequest(BaseValidatedModel):
     """Alert creation/update request validation."""
 
     alert_name: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True),
     ] = Field(..., description="Alert name")
 
     severity: AlertSeverity = Field(..., description="Alert severity level")
 
     description: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=1000, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=1000, strip_whitespace=True),
     ] = Field(..., description="Detailed alert description")
 
     metric_name: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=100, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Related metric name")
 
-    threshold_value: float | None = Field(None, description="Threshold value that triggered alert")
+    threshold_value: float | None = Field(
+        None, description="Threshold value that triggered alert"
+    )
 
     current_value: float | None = Field(None, description="Current metric value")
 
@@ -275,7 +296,9 @@ class AlertRequest(BaseValidatedModel):
             if not value or len(value) > 100:
                 raise ValueError(f"Label value too long or empty for key '{key}'")
             if ValidationPatterns.SCRIPT_PATTERN.search(value):
-                raise ValueError(f"Label value contains malicious content for key '{key}'")
+                raise ValueError(
+                    f"Label value contains malicious content for key '{key}'"
+                )
         return v
 
     @field_validator("notification_channels")
@@ -305,14 +328,20 @@ class AlertQueryParams(BaseValidatedModel):
 
     alert_name: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=100, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Filter by alert name (partial match)")
 
     metric_name: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=100, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Filter by metric name")
@@ -356,7 +385,10 @@ class HealthCheckRequest(BaseValidatedModel):
 
     component: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=100, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Specific component to check")
@@ -367,9 +399,13 @@ class HealthCheckRequest(BaseValidatedModel):
         description="Health check depth",
     )
 
-    timeout: int = Field(default=30, ge=1, le=300, description="Health check timeout in seconds")
+    timeout: int = Field(
+        default=30, ge=1, le=300, description="Health check timeout in seconds"
+    )
 
-    include_dependencies: bool = Field(default=True, description="Include dependency health checks")
+    include_dependencies: bool = Field(
+        default=True, description="Include dependency health checks"
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -391,18 +427,26 @@ class HealthCheckRequest(BaseValidatedModel):
 class LogQueryParams(BaseValidatedModel):
     """Log query parameters validation."""
 
-    level: list[str] | None = Field(None, description="Filter by log levels", max_length=5)
+    level: list[str] | None = Field(
+        None, description="Filter by log levels", max_length=5
+    )
 
     component: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=100, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Filter by component")
 
     search: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=200, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=200, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Search in log messages")
@@ -411,7 +455,9 @@ class LogQueryParams(BaseValidatedModel):
         default="1h", pattern=r"^(1h|6h|24h|7d|30d)$", description="Time range for logs"
     )
 
-    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of log entries")
+    limit: int = Field(
+        default=100, ge=1, le=1000, description="Maximum number of log entries"
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -453,14 +499,21 @@ class PerformanceTestRequest(BaseValidatedModel):
     )
 
     target_endpoint: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=200, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=200, strip_whitespace=True),
     ] = Field(..., description="Target endpoint to test")
 
-    concurrent_users: int = Field(..., ge=1, le=1000, description="Number of concurrent users")
+    concurrent_users: int = Field(
+        ..., ge=1, le=1000, description="Number of concurrent users"
+    )
 
-    test_duration: int = Field(..., ge=1, le=3600, description="Test duration in seconds")
+    test_duration: int = Field(
+        ..., ge=1, le=3600, description="Test duration in seconds"
+    )
 
-    ramp_up_time: int = Field(default=0, ge=0, le=300, description="Ramp up time in seconds")
+    ramp_up_time: int = Field(
+        default=0, ge=0, le=300, description="Ramp up time in seconds"
+    )
 
     success_criteria: dict[str, Any] | None = Field(
         default_factory=dict, description="Success criteria for the test", max_length=10

@@ -14,6 +14,8 @@ import hashlib
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import lru_cache
+import re
 from typing import Any
 
 from resync.core.structured_logger import get_logger
@@ -27,13 +29,8 @@ logger = get_logger(__name__)
 # PRE-COMPILED REGEX PATTERNS (Performance optimization)
 # =============================================================================
 # Compiled once at module load, not on every call
-import re as _re
-
-_FROM_PATTERN = _re.compile(r"\bfrom\s+(\w+)", _re.IGNORECASE)
-_JOIN_PATTERN = _re.compile(r"\bjoin\s+(\w+)", _re.IGNORECASE)
-
-# LRU cache for table extraction (avoids recomputing for same SQL)
-from functools import lru_cache
+_FROM_PATTERN = re.compile(r"\bfrom\s+(\w+)", re.IGNORECASE)
+_JOIN_PATTERN = re.compile(r"\bjoin\s+(\w+)", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1024)
@@ -70,7 +67,7 @@ class QueryFingerprint:
     _table_names: set[str] | None = field(default=None, repr=False, compare=False)
 
     @property
-    def cache_key(self) -> str:
+    def cache_key(self) -> str | None:
         """Generate cache key from query fingerprint using BLAKE2b."""
         if self._cache_key is None:
             # Create deterministic key from SQL and parameters
@@ -81,7 +78,7 @@ class QueryFingerprint:
         return self._cache_key
 
     @property
-    def table_names(self) -> set[str]:
+    def table_names(self) -> set[str] | None:
         """
         Extract table names from SQL query.
 
@@ -155,7 +152,9 @@ class QueryResult:
             sorted(self.data.items()) if isinstance(self.data, dict) else str(self.data)
         )
         # Use BLAKE2b instead of MD5 for better security
-        self.result_hash = hashlib.blake2b(result_str.encode(), digest_size=16).hexdigest()
+        self.result_hash = hashlib.blake2b(
+            result_str.encode(), digest_size=16
+        ).hexdigest()
 
         # Count rows if it's a list of results
         if isinstance(self.data, list):
@@ -169,7 +168,9 @@ class TableChangeTracker:
     table_name: str
     last_change_timestamp: float = 0.0
     change_count: int = 0
-    tracked_queries: set[str] = field(default_factory=set)  # Query fingerprints affected
+    tracked_queries: set[str] = field(
+        default_factory=set
+    )  # Query fingerprints affected
 
     def record_change(self) -> None:
         """Record a table change."""
@@ -250,7 +251,7 @@ class QueryCacheManager:
         start_time = time.time()
 
         # Check cache first (unless forced refresh)
-        if not force_refresh:
+        if not force_refresh and cache_key:
             cached_result = await self._get_cached_result(cache_key)
             if cached_result:
                 execution_time = time.time() - start_time
@@ -270,14 +271,17 @@ class QueryCacheManager:
             result = QueryResult(
                 data=result_data,
                 execution_time=execution_time,
-                execution_stats=self.query_stats.get(cache_key),
+                execution_stats=self.query_stats.get(cache_key),  # type: ignore[arg-type]
             )
 
             # Update query statistics
             await self._update_query_stats(fingerprint, result, execution_time)
 
             # Cache the result
-            await self._cache_query_result(cache_key, result, fingerprint, ttl_override)
+            if cache_key:
+                await self._cache_query_result(
+                    cache_key, result, fingerprint, ttl_override
+                )
 
             # Track table dependencies
             await self._track_table_dependencies(fingerprint)
@@ -287,7 +291,9 @@ class QueryCacheManager:
 
         except Exception as e:
             logger.error("Query execution failed: %s", e)
-            self._update_cache_stats(hit=False, execution_time=time.time() - start_time, error=True)
+            self._update_cache_stats(
+                hit=False, execution_time=time.time() - start_time, error=True
+            )
             raise
 
     async def execute_batch(
@@ -306,7 +312,10 @@ class QueryCacheManager:
         if len(queries) <= self.max_batch_size:
             # Execute individually with caching
             return await asyncio.gather(
-                *[self.execute_query(sql, params, connection_id) for sql, params in queries]
+                *[
+                    self.execute_query(sql, params, connection_id)
+                    for sql, params in queries
+                ]
             )
 
         # For larger batches, optimize execution
@@ -336,12 +345,18 @@ class QueryCacheManager:
                             query_key, cascade=False
                         )
 
-                logger.info("Invalidated %s queries dependent on table %s", invalidated, table_name)
+                logger.info(
+                    "Invalidated %s queries dependent on table %s",
+                    invalidated,
+                    table_name,
+                )
                 return invalidated
 
         return 0
 
-    async def record_table_change(self, table_name: str, change_type: str = "update") -> None:
+    async def record_table_change(
+        self, table_name: str, change_type: str = "update"
+    ) -> None:
         """
         Record that a table has changed for cache invalidation.
 
@@ -380,7 +395,9 @@ class QueryCacheManager:
             "tables": {
                 "tracked_tables": len(self.table_trackers),
                 "tables_with_changes": sum(
-                    1 for tracker in self.table_trackers.values() if tracker.change_count > 0
+                    1
+                    for tracker in self.table_trackers.values()
+                    if tracker.change_count > 0
                 ),
             },
             "ttl_distribution": self._calculate_ttl_distribution(),
@@ -424,7 +441,7 @@ class QueryCacheManager:
             ttl = 300  # Default 5 minutes
 
         # Determine dependencies (table names)
-        dependencies = list(fingerprint.table_names)
+        dependencies = list(fingerprint.table_names or [])
 
         # Cache with dependencies for automatic invalidation
         await self.cache_manager.set(
@@ -442,12 +459,14 @@ class QueryCacheManager:
     ) -> None:
         """Update statistics for a query."""
         cache_key = fingerprint.cache_key
+        if not cache_key:
+            return
 
         async with self._lock:
             if cache_key not in self.query_stats:
                 self.query_stats[cache_key] = QueryExecutionStats(
                     query_fingerprint=cache_key,
-                    table_dependencies=fingerprint.table_names,
+                    table_dependencies=fingerprint.table_names or set(),
                 )
 
             stats = self.query_stats[cache_key]
@@ -477,12 +496,17 @@ class QueryCacheManager:
 
     async def _track_table_dependencies(self, fingerprint: QueryFingerprint) -> None:
         """Track which queries depend on which tables."""
+        if not fingerprint.cache_key or not fingerprint.table_names:
+            return
+
         async with self._lock:
             for table_name in fingerprint.table_names:
                 if table_name not in self.table_trackers:
                     self.table_trackers[table_name] = TableChangeTracker(table_name)
 
-                self.table_trackers[table_name].tracked_queries.add(fingerprint.cache_key)
+                self.table_trackers[table_name].tracked_queries.add(
+                    fingerprint.cache_key
+                )
 
     def _setup_change_tracking(self) -> None:
         """Set up database change tracking."""
@@ -491,7 +515,9 @@ class QueryCacheManager:
         # For now, this is a placeholder
         logger.info("Database change tracking setup completed")
 
-    async def _simulate_query_execution(self, sql: str, parameters: tuple[Any, ...]) -> Any:
+    async def _simulate_query_execution(
+        self, sql: str, parameters: tuple[Any, ...]
+    ) -> Any:
         """Simulate query execution (replace with actual database calls)."""
         # Simulate execution time based on query complexity
         complexity_factor = len(sql.split()) / 10
@@ -528,7 +554,7 @@ class QueryCacheManager:
                 # Execute other queries individually
                 tasks.extend(
                     [
-                        self.execute_query(sql, params, connection_id)
+                        self.execute_query(sql, params, connection_id)  # type: ignore[misc]
                         for sql, params in group_queries
                     ]
                 )
@@ -579,7 +605,9 @@ class QueryCacheManager:
 
         return ttl_ranges
 
-    def _update_cache_stats(self, hit: bool, execution_time: float, error: bool = False) -> None:
+    def _update_cache_stats(
+        self, hit: bool, execution_time: float, error: bool = False
+    ) -> None:
         """Update cache performance statistics."""
         if hit:
             self.total_queries_cached += 1
@@ -599,7 +627,7 @@ _query_cache_manager_instance: QueryCacheManager | None = None
 class _LazyQueryCacheManager:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
 
-    __slots__ = ("_instance",)
+    _instance: QueryCacheManager | None
 
     def __init__(self) -> None:
         self._instance = None
@@ -625,4 +653,4 @@ async def get_query_cache_manager() -> QueryCacheManager:
     """Get the global query cache manager instance."""
     if not query_cache_manager.cache_manager:
         await query_cache_manager.initialize()
-    return query_cache_manager
+    return query_cache_manager.get_instance()

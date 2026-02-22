@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Enterprise typed state stored on ``app.state.enterprise_state``.
 
 Starlette's ``app.state`` is dynamic. To make the application enterprise-grade and
@@ -16,6 +14,8 @@ References:
 - Starlette lifespan/state docs.
 """
 
+
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from resync.core.agent_router import HybridRouter
     from resync.core.interfaces import IFileIngestor
     from resync.core.a2a_handler import A2AHandler
+    from resync.core.skill_manager import SkillManager
     from resync.services.llm_service import LLMService
 
 
@@ -50,6 +51,7 @@ class EnterpriseState:
     llm_service: "LLMService"
     file_ingestor: "IFileIngestor"
     a2a_handler: "A2AHandler"
+    skill_manager: "SkillManager"
 
     # Lifecycle flags
     startup_complete: bool

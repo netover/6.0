@@ -1,0 +1,4604 @@
+[
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 57,
+      "row": 113
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\chaos_engineering.py",
+    "fix": null,
+    "location": {
+      "column": 43,
+      "row": 113
+    },
+    "message": "Undefined name `ExceptionGroup`. Consider specifying `requires-python = \">= 3.11\"` or `tool.ruff.target-version = \"py311\"` in your `pyproject.toml` file.",
+    "noqa_row": 113,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 48,
+      "row": 123
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\chaos_engineering.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 123
+    },
+    "message": "Undefined name `ExceptionGroup`. Consider specifying `requires-python = \">= 3.11\"` or `tool.ruff.target-version = \"py311\"` in your `pyproject.toml` file.",
+    "noqa_row": 123,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 46,
+      "row": 172
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\chaos_engineering.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 172
+    },
+    "message": "Undefined name `test_tasks`",
+    "noqa_row": 172,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 66,
+      "row": 174
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\chaos_engineering.py",
+    "fix": null,
+    "location": {
+      "column": 56,
+      "row": 174
+    },
+    "message": "Undefined name `test_tasks`",
+    "noqa_row": 174,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 81,
+      "row": 174
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\chaos_engineering.py",
+    "fix": null,
+    "location": {
+      "column": 71,
+      "row": 174
+    },
+    "message": "Undefined name `test_tasks`",
+    "noqa_row": 174,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 76,
+      "row": 182
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\chaos_engineering.py",
+    "fix": null,
+    "location": {
+      "column": 66,
+      "row": 182
+    },
+    "message": "Undefined name `test_tasks`",
+    "noqa_row": 182,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 48,
+      "row": 27
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\config_hot_reload.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 28
+          },
+          "location": {
+            "column": 1,
+            "row": 27
+          }
+        }
+      ],
+      "message": "Remove unused import: `resync.core.task_tracker.track_task`"
+    },
+    "location": {
+      "column": 38,
+      "row": 27
+    },
+    "message": "`resync.core.task_tracker.track_task` imported but unused",
+    "noqa_row": 27,
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 15,
+      "row": 9
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\distributed_tracing.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 10
+          },
+          "location": {
+            "column": 1,
+            "row": 9
+          }
+        }
+      ],
+      "message": "Remove unused import: `asyncio`"
+    },
+    "location": {
+      "column": 8,
+      "row": 9
+    },
+    "message": "`asyncio` imported but unused",
+    "noqa_row": 9,
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 57,
+      "row": 19
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\health\\unified_health_service.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from resync.core.task_tracker import track_task",
+          "end_location": {
+            "column": 69,
+            "row": 19
+          },
+          "location": {
+            "column": 1,
+            "row": 19
+          }
+        }
+      ],
+      "message": "Remove unused import: `resync.core.task_tracker.create_tracked_task`"
+    },
+    "location": {
+      "column": 38,
+      "row": 19
+    },
+    "message": "`resync.core.task_tracker.create_tracked_task` imported but unused",
+    "noqa_row": 19,
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 57,
+      "row": 186
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\health\\unified_health_service.py",
+    "fix": null,
+    "location": {
+      "column": 43,
+      "row": 186
+    },
+    "message": "Undefined name `ExceptionGroup`. Consider specifying `requires-python = \">= 3.11\"` or `tool.ruff.target-version = \"py311\"` in your `pyproject.toml` file.",
+    "noqa_row": 186,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 15,
+      "row": 287
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 6,
+      "row": 287
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 26,
+      "row": 287
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 287
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 12,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 6,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 20,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 32,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 21,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 35,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 50,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 64,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 51,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 69,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 65,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 71,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 70,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 79,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 72,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 86,
+      "row": 289
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 80,
+      "row": 289
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 87,
+      "row": 289
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 18,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 290
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 30,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 290
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 290
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 46,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 290
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 52,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 47,
+      "row": 290
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 79,
+      "row": 290
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 68,
+      "row": 290
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 16,
+      "row": 291
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 10,
+      "row": 291
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 18,
+      "row": 291
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 291
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 26,
+      "row": 291
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 291
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 292
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 291
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 294
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 293
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 5,
+      "row": 294
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 294
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 36,
+      "row": 294
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 294
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 39,
+      "row": 294
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 37,
+      "row": 294
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 63,
+      "row": 294
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 52,
+      "row": 294
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 295
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 26,
+      "row": 295
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 39,
+      "row": 295
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 295
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 47,
+      "row": 295
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 40,
+      "row": 295
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 50,
+      "row": 295
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 48,
+      "row": 295
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 61,
+      "row": 295
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 51,
+      "row": 295
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 297
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 297
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 11,
+      "row": 297
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 297
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 15,
+      "row": 297
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 12,
+      "row": 297
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 298
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 297
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 5,
+      "row": 298
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 298
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 309
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 309
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 5,
+      "row": 323
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 323
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 19,
+      "row": 323
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 323
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 24,
+      "row": 323
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 20,
+      "row": 323
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 323
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 323
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 46,
+      "row": 323
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 323
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 324
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 47,
+      "row": 323
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 326
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 325
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 326
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 326
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 37,
+      "row": 326
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 30,
+      "row": 326
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 45,
+      "row": 326
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 38,
+      "row": 326
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 327
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 327
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 39,
+      "row": 328
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 38,
+      "row": 328
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 49,
+      "row": 328
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 40,
+      "row": 328
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 53,
+      "row": 328
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 50,
+      "row": 328
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 59,
+      "row": 328
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 54,
+      "row": 328
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 68,
+      "row": 328
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 60,
+      "row": 328
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 75,
+      "row": 328
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 69,
+      "row": 328
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 45,
+      "row": 329
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 329
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 50,
+      "row": 329
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 46,
+      "row": 329
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 55,
+      "row": 329
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 51,
+      "row": 329
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 58,
+      "row": 329
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 56,
+      "row": 329
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 68,
+      "row": 329
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 59,
+      "row": 329
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 35,
+      "row": 330
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 330
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 45,
+      "row": 330
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 330
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 49,
+      "row": 330
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 46,
+      "row": 330
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 55,
+      "row": 330
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 50,
+      "row": 330
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 64,
+      "row": 330
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 56,
+      "row": 330
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 5,
+      "row": 331
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 5,
+      "row": 331
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 27,
+      "row": 342
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 342
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 30,
+      "row": 342
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 28,
+      "row": 342
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 35,
+      "row": 342
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 342
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 44,
+      "row": 342
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 342
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 343
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 45,
+      "row": 342
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 16,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 10,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 24,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 32,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 42,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 47,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 43,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 55,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 48,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 58,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 56,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 69,
+      "row": 344
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 59,
+      "row": 344
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 22,
+      "row": 345
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 12,
+      "row": 345
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 345
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 345
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 37,
+      "row": 345
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 345
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 42,
+      "row": 345
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 38,
+      "row": 345
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 52,
+      "row": 345
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 43,
+      "row": 345
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 346
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 53,
+      "row": 345
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 348
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 347
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 348
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 348
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 31,
+      "row": 348
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 29,
+      "row": 348
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 38,
+      "row": 348
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 32,
+      "row": 348
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 46,
+      "row": 348
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 39,
+      "row": 348
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 64,
+      "row": 348
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 53,
+      "row": 348
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 5,
+      "row": 350
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 5,
+      "row": 350
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 351
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 350
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 352
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 352
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 5,
+      "row": 364
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 5,
+      "row": 364
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 376
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 22,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 376
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 32,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 376
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 39,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 376
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 41,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 40,
+      "row": 376
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 52,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 42,
+      "row": 376
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 65,
+      "row": 376
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 53,
+      "row": 376
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 377
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 66,
+      "row": 376
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 379
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 14,
+      "row": 378
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 13,
+      "row": 379
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 379
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 33,
+      "row": 379
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 379
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 44,
+      "row": 379
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 379
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 49,
+      "row": 379
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 45,
+      "row": 379
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 57,
+      "row": 379
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 50,
+      "row": 379
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 36,
+      "row": 380
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 380
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 41,
+      "row": 380
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 37,
+      "row": 380
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 51,
+      "row": 380
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 42,
+      "row": 380
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 382
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 382
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 382
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 13,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 383
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 37,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 42,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 38,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 45,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 43,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 47,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 46,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 53,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 48,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 61,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 54,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 67,
+      "row": 383
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 62,
+      "row": 383
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 384
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 384
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 22,
+      "row": 413
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 413
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 32,
+      "row": 413
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 413
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 45,
+      "row": 413
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 413
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 54,
+      "row": 413
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 46,
+      "row": 413
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 57,
+      "row": 413
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 55,
+      "row": 413
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 66,
+      "row": 413
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 58,
+      "row": 413
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 414
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 67,
+      "row": 413
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 416
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 14,
+      "row": 415
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 13,
+      "row": 416
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 416
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 33,
+      "row": 416
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 416
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 44,
+      "row": 416
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 416
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 45,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 37,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 48,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 46,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 51,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 49,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 61,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 52,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 66,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 62,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 75,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 67,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 78,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 76,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 87,
+      "row": 417
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 79,
+      "row": 417
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 36,
+      "row": 418
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 418
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 41,
+      "row": 418
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 37,
+      "row": 418
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 51,
+      "row": 418
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 42,
+      "row": 418
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 420
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 420
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 421
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 420
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 13,
+      "row": 421
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 421
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 421
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 421
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 37,
+      "row": 421
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 421
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 42,
+      "row": 421
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 38,
+      "row": 421
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 422
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 422
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 21,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 12,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 23,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 22,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 31,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 24,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 41,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 32,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 44,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 42,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 50,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 45,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 58,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 51,
+      "row": 440
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 12,
+      "row": 448
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 59,
+      "row": 440
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 21,
+      "row": 448
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 12,
+      "row": 448
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 25,
+      "row": 448
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 22,
+      "row": 448
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 35,
+      "row": 448
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 26,
+      "row": 448
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 50,
+      "row": 448
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 448
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 12,
+      "row": 453
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 51,
+      "row": 448
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 22,
+      "row": 454
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 454
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 32,
+      "row": 454
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 454
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 47,
+      "row": 454
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 454
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 55,
+      "row": 454
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 48,
+      "row": 454
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 58,
+      "row": 454
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 56,
+      "row": 454
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 64,
+      "row": 454
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 59,
+      "row": 454
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 455
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 65,
+      "row": 454
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 19,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 22,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 20,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 33,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 43,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 52,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 44,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 61,
+      "row": 456
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 53,
+      "row": 456
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 457
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 62,
+      "row": 456
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 20,
+      "row": 491
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 491
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 30,
+      "row": 491
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 21,
+      "row": 491
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 491
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 491
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 491
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 491
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 49,
+      "row": 491
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 491
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 56,
+      "row": 491
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 50,
+      "row": 491
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 492
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 57,
+      "row": 491
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 494
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 14,
+      "row": 493
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 13,
+      "row": 494
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 494
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 33,
+      "row": 494
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 494
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 44,
+      "row": 494
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 494
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 55,
+      "row": 494
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 52,
+      "row": 494
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 67,
+      "row": 494
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 56,
+      "row": 494
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 39,
+      "row": 495
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 37,
+      "row": 495
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 51,
+      "row": 495
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 40,
+      "row": 495
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 54,
+      "row": 495
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 52,
+      "row": 495
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 66,
+      "row": 495
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 64,
+      "row": 495
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 75,
+      "row": 495
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 67,
+      "row": 495
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 9,
+      "row": 496
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 496
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 20,
+      "row": 524
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 524
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 30,
+      "row": 524
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 21,
+      "row": 524
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 34,
+      "row": 524
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 524
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 524
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 524
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 49,
+      "row": 524
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 524
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 525
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 50,
+      "row": 524
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 19,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 22,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 20,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 33,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 34,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 43,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 52,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 44,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 72,
+      "row": 526
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 53,
+      "row": 526
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 527
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 73,
+      "row": 526
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 18,
+      "row": 557
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 15,
+      "row": 557
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 23,
+      "row": 557
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 19,
+      "row": 557
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 32,
+      "row": 557
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 24,
+      "row": 557
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 38,
+      "row": 557
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 557
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 558
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 39,
+      "row": 557
+    },
+    "message": "Expected an identifier",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 14,
+      "row": 559
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 13,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 560
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 40,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 32,
+      "row": 560
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 43,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 41,
+      "row": 560
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 49,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 44,
+      "row": 560
+    },
+    "message": "Simple statements must be separated by newlines or semicolons",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 53,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 51,
+      "row": 560
+    },
+    "message": "Expected an expression",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 61,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 59,
+      "row": 560
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 67,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 62,
+      "row": 560
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 71,
+      "row": 560
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 68,
+      "row": 560
+    },
+    "message": "Expected ',', found name",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 573
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 561
+    },
+    "message": "missing closing quote in string literal",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 573
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\load_balancing.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 573
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 30,
+      "row": 21
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\monitoring_integration.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 21
+    },
+    "message": "Undefined name `asyncio`",
+    "noqa_row": 21,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 17,
+      "row": 398
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 398
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 14,
+      "row": 401
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 401
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 402
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 14,
+      "row": 401
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 21,
+      "row": 439
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 439
+    },
+    "message": "Unexpected indentation",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 17,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 440
+    },
+    "message": "unindent does not match any outer indentation level",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 18,
+      "row": 440
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 440
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 441
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 18,
+      "row": 440
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 14,
+      "row": 441
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 441
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 442
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 14,
+      "row": 441
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 1,
+      "row": 445
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\orchestration\\runner.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 445
+    },
+    "message": "Expected a statement",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 24,
+      "row": 1184
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\service_discovery.py",
+    "fix": null,
+    "location": {
+      "column": 21,
+      "row": 1184
+    },
+    "message": "Compound statements are not allowed on the same line as simple statements",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "invalid-syntax",
+    "end_location": {
+      "column": 11,
+      "row": 1185
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\service_discovery.py",
+    "fix": null,
+    "location": {
+      "column": 5,
+      "row": 1185
+    },
+    "message": "Expected an indented block after function definition",
+    "noqa_row": null,
+    "url": null
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 30,
+      "row": 378
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\specialists\\sub_agent.py",
+    "fix": null,
+    "location": {
+      "column": 22,
+      "row": 378
+    },
+    "message": "Undefined name `SubAgent`",
+    "noqa_row": 378,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 23,
+      "row": 439
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\specialists\\sub_agent.py",
+    "fix": null,
+    "location": {
+      "column": 15,
+      "row": 439
+    },
+    "message": "Undefined name `SubAgent`",
+    "noqa_row": 439,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 27,
+      "row": 402
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\specialists\\tools.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 402
+    },
+    "message": "Undefined name `ToolCatalog`",
+    "noqa_row": 402,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 36,
+      "row": 404
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\specialists\\tools.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 404
+    },
+    "message": "Undefined name `ToolCatalog`",
+    "noqa_row": 404,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 53,
+      "row": 585
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\startup.py",
+    "fix": null,
+    "location": {
+      "column": 39,
+      "row": 585
+    },
+    "message": "Undefined name `ExceptionGroup`. Consider specifying `requires-python = \">= 3.11\"` or `tool.ruff.target-version = \"py311\"` in your `pyproject.toml` file.",
+    "noqa_row": 585,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 61,
+      "row": 734
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\startup.py",
+    "fix": null,
+    "location": {
+      "column": 47,
+      "row": 734
+    },
+    "message": "Undefined name `ExceptionGroup`. Consider specifying `requires-python = \">= 3.11\"` or `tool.ruff.target-version = \"py311\"` in your `pyproject.toml` file.",
+    "noqa_row": 734,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 37,
+      "row": 737
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\startup.py",
+    "fix": null,
+    "location": {
+      "column": 21,
+      "row": 737
+    },
+    "message": "Undefined name `optional_results`",
+    "noqa_row": 737,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 44,
+      "row": 740
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\startup.py",
+    "fix": null,
+    "location": {
+      "column": 28,
+      "row": 740
+    },
+    "message": "Undefined name `optional_results`",
+    "noqa_row": 740,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  },
+  {
+    "cell": null,
+    "code": "F841",
+    "end_location": {
+      "column": 22,
+      "row": 932
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\startup.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 25,
+            "row": 932
+          },
+          "location": {
+            "column": 13,
+            "row": 932
+          }
+        }
+      ],
+      "message": "Remove assignment to unused variable `dashboard`"
+    },
+    "location": {
+      "column": 13,
+      "row": 932
+    },
+    "message": "Local variable `dashboard` is assigned to but never used",
+    "noqa_row": 932,
+    "url": "https://docs.astral.sh/ruff/rules/unused-variable"
+  },
+  {
+    "cell": null,
+    "code": "F841",
+    "end_location": {
+      "column": 20,
+      "row": 958
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\startup.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 23,
+            "row": 958
+          },
+          "location": {
+            "column": 13,
+            "row": 958
+          }
+        }
+      ],
+      "message": "Remove assignment to unused variable `manager`"
+    },
+    "location": {
+      "column": 13,
+      "row": 958
+    },
+    "message": "Local variable `manager` is assigned to but never used",
+    "noqa_row": 958,
+    "url": "https://docs.astral.sh/ruff/rules/unused-variable"
+  },
+  {
+    "cell": null,
+    "code": "F821",
+    "end_location": {
+      "column": 46,
+      "row": 512
+    },
+    "filename": "D:\\Python\\GITHUB\\resync\\6.0-new1\\resync\\core\\structured_logger.py",
+    "fix": null,
+    "location": {
+      "column": 33,
+      "row": 512
+    },
+    "message": "Undefined name `LoggerAdapter`",
+    "noqa_row": 512,
+    "url": "https://docs.astral.sh/ruff/rules/undefined-name"
+  }
+]

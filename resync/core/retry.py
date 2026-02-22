@@ -5,7 +5,7 @@ This module provides standardized retry configurations for different types of op
 ensuring consistent behavior and proper logging of retry attempts.
 """
 
-from __future__ import annotations
+
 
 import logging
 from collections.abc import Callable
@@ -146,7 +146,9 @@ def database_retry(
         exception_tuple = (exceptions,)
     else:
         exception_tuple = (
-            exceptions if isinstance(exceptions, tuple) else (ConnectionError, TimeoutError)
+            exceptions
+            if isinstance(exceptions, tuple)
+            else (ConnectionError, TimeoutError)
         )
 
     return retry(

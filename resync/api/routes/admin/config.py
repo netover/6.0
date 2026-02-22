@@ -27,25 +27,17 @@ import logging
 from datetime import timezone
 from pathlib import Path
 from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, status
-
 from resync.api.routes.admin.main import verify_admin_credentials
 import aiofiles
 
 logger = logging.getLogger(__name__)
-
-
-# v5.9.5: Added authentication - was exposed without auth
 router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
-
-# Determine the path to the configuration file.  We place the file
-# alongside other configuration resources (e.g., settings.toml) inside the
-# top-level ``config`` directory.  ``__file__`` is
-# ``.../resync/fastapi_app/api/v1/routes/admin_config.py``.
-CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / "config" / "admin_config.json"
-
-# Default configuration values used when the config file does not exist.
+CONFIG_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "config"
+    / "admin_config.json"
+)
 DEFAULT_CONFIG: dict[str, Any] = {
     "teams_config": {
         "enabled": False,
@@ -54,13 +46,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "bot_name": "Resync Bot",
         "avatar_url": "",
     },
-    # Configuration for TWS instances.  ``primary_instance`` is
-    # required; ``monitored_instances`` is a list of instance names.
     "tws_config": {
         "primary_instance": "TWS_NAZ",
         "monitored_instances": ["TWS_NAZ", "TWS_SAZ"],
     },
-    # System-wide settings controlling environment and security features.
     "system_settings": {
         "environment": "Production",
         "debug_mode": False,
@@ -68,7 +57,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "csp_enabled": True,
         "cors_enabled": True,
     },
-    # Notification configuration (job status filters and alert toggles).
     "notifications": {
         "job_status_filters": ["ABEND", "ERROR", "FAILED"],
         "notify_job_status": True,
@@ -78,13 +66,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
-# -----------------------------------------------------------------------------
-# Health monitoring helpers
-#
-# The admin UI may request a high-level health report for key services such as
-# the primary database, cache and external integrations.  For demonstration
-# purposes we avoid deep dependency checks and instead return simple boolean
-# flags.  Integrators can replace these stubs with real connectivity tests.
 async def _get_health_report() -> dict[str, Any]:
     """Assemble a basic health report.
 
@@ -98,9 +79,10 @@ async def _get_health_report() -> dict[str, Any]:
         "cache": True,
         "teams": False,
         "llm": True,
-        "timestamp": datetime.datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": datetime.datetime.now(timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
     }
-    # If Teams integration is enabled in config, mark as active
     cfg = await _load_config()
     teams_cfg = cfg.get("teams_config", DEFAULT_CONFIG["teams_config"])
     report["teams"] = bool(teams_cfg.get("enabled"))
@@ -116,27 +98,36 @@ async def _load_config() -> dict[str, Any]:
         The configuration dictionary containing all configurable sections.
     """
     import asyncio
-    
+
     if not CONFIG_PATH.exists():
         return DEFAULT_CONFIG.copy()
-        
     try:
-        # Use asyncio.to_thread for blocking file read
+
         def _read():
             with CONFIG_PATH.open("r", encoding="utf-8") as f:
                 return json.load(f)
-        
+
         data = await asyncio.to_thread(_read)
-        
-        # Merge missing top-level keys from defaults without
-        # overriding existing values.
+
+        # Deep merge by section
         merged = DEFAULT_CONFIG.copy()
-        merged.update(data)
+        for section in merged:
+            if (
+                section in data
+                and isinstance(merged[section], dict)
+                and isinstance(data[section], dict)
+            ):
+                merged[section] = {**merged[section], **data[section]}
+            elif section in data:
+                merged[section] = data[section]
+        # Also merge any new sections not in default config
+        for section in data:
+            if section not in merged:
+                merged[section] = data[section]
+
         return merged
     except Exception as e:
-        logger.error("config_load_failed", error=str(e), exc_info=True)
-        # If the file is corrupted, fall back to defaults but do not
-        # overwrite the file immediately.  The next save will update it.
+        logger.error("config_load_failed", exc_info=True, extra={"error": str(e)})
         return DEFAULT_CONFIG.copy()
 
 
@@ -149,16 +140,16 @@ async def _save_config(config: dict[str, Any]) -> None:
         The configuration to persist.
     """
     import asyncio
-    
+
     try:
+
         def _write():
             CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
             with CONFIG_PATH.open("w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
-        
+
         await asyncio.to_thread(_write)
     except Exception as exc:
-        # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -199,16 +190,11 @@ async def update_teams_config(settings: dict[str, Any]) -> None:
     """
     config = await _load_config()
     teams_config = config.get("teams_config", DEFAULT_CONFIG["teams_config"]).copy()
-    # Update only known keys; ignore unknown keys for forward compatibility.
     for key in ["enabled", "webhook_url", "channel_name", "bot_name", "avatar_url"]:
         if key in settings:
             teams_config[key] = settings[key]
     config["teams_config"] = teams_config
     await _save_config(config)
-    # Returning None with status 204 implies success with no content
-
-
-# ----- TWS Configuration Endpoints -----
 
 
 @router.get("/tws-config", tags=["Admin"])
@@ -228,13 +214,12 @@ async def update_tws_config(settings: dict[str, Any]) -> None:
     tws_config = config.get("tws_config", DEFAULT_CONFIG["tws_config"]).copy()
     if "primary_instance" in settings:
         tws_config["primary_instance"] = settings["primary_instance"]
-    if "monitored_instances" in settings and isinstance(settings["monitored_instances"], list):
+    if "monitored_instances" in settings and isinstance(
+        settings["monitored_instances"], list
+    ):
         tws_config["monitored_instances"] = settings["monitored_instances"]
     config["tws_config"] = tws_config
     await _save_config(config)
-
-
-# ----- System Settings Endpoints -----
 
 
 @router.get("/system-settings", tags=["Admin"])
@@ -252,14 +237,17 @@ async def update_system_settings(settings: dict[str, Any]) -> None:
     """
     config = await _load_config()
     sys_cfg = config.get("system_settings", DEFAULT_CONFIG["system_settings"]).copy()
-    for key in ["environment", "debug_mode", "ssl_enabled", "csp_enabled", "cors_enabled"]:
+    for key in [
+        "environment",
+        "debug_mode",
+        "ssl_enabled",
+        "csp_enabled",
+        "cors_enabled",
+    ]:
         if key in settings:
             sys_cfg[key] = settings[key]
     config["system_settings"] = sys_cfg
     await _save_config(config)
-
-
-# ----- Notifications Endpoints -----
 
 
 @router.get("/notifications", tags=["Admin"])
@@ -278,16 +266,15 @@ async def update_notifications(settings: dict[str, Any]) -> None:
     """
     config = await _load_config()
     notifications = config.get("notifications", DEFAULT_CONFIG["notifications"]).copy()
-    if "job_status_filters" in settings and isinstance(settings["job_status_filters"], list):
+    if "job_status_filters" in settings and isinstance(
+        settings["job_status_filters"], list
+    ):
         notifications["job_status_filters"] = settings["job_status_filters"]
     for key in ["notify_job_status", "notify_alerts", "notify_performance"]:
         if key in settings:
             notifications[key] = bool(settings[key])
     config["notifications"] = notifications
     await _save_config(config)
-
-
-# ----- Logs Endpoint -----
 
 
 @router.get("/logs", tags=["Admin"])
@@ -308,12 +295,30 @@ async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
     """
     logs_dir = Path(__file__).resolve().parent.parent.parent.parent / "logs"
     log_path = logs_dir / file
-    if not log_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found")
+
+    # SECURITY: Validate path to prevent directory traversal attacks
+    # Ensure the resolved path is within the logs directory using is_relative_to()
     try:
-        # Read the last ``lines`` lines efficiently
+        log_path = log_path.resolve()
+        logs_dir = logs_dir.resolve()
+
+        # Use is_relative_to() for proper path containment check
+        if not log_path.is_relative_to(logs_dir):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file path: directory traversal not allowed",
+            )
+    except RuntimeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file path"
+        )
+
+    if not log_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found"
+        )
+    try:
         with log_path.open("r", encoding="utf-8", errors="ignore") as f:
-            # Use deque to store the last ``lines`` lines
             from collections import deque
 
             dq = deque(f, maxlen=lines)
@@ -324,9 +329,6 @@ async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to read log file. Check server logs for details.",
         ) from exc
-
-
-# ----- Backup and Restore Endpoints -----
 
 
 @router.post("/backup", tags=["Admin"])
@@ -344,11 +346,9 @@ async def create_backup() -> dict[str, str]:
     timestamp = datetime.datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     backup_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "backup"
     backup_dir.mkdir(parents=True, exist_ok=True)
-
     try:
         repo = AuditEntryRepository()
         entries = await repo.get_all(limit=10000)
-
         backup_data = [
             {
                 "id": e.id,
@@ -360,16 +360,15 @@ async def create_backup() -> dict[str, str]:
             }
             for e in entries
         ]
-
         backup_file = backup_dir / f"audit_backup_{timestamp}.json"
         async with aiofiles.open(backup_file, "w") as f:
-            json.dump(backup_data, f, indent=2)
-
+            await f.write(json.dumps(backup_data, indent=2))
         return {"created": [backup_file.name], "count": len(backup_data)}
     except Exception as exc:
-        logger.error("backup_failed", error=str(exc), exc_info=True)
+        logger.error("backup_failed", exc_info=True, extra={"error": str(exc)})
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Backup failed. Check server logs for details."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Backup failed. Check server logs for details.",
         ) from exc
 
 
@@ -388,15 +387,15 @@ async def restore_from_latest() -> dict[str, str]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No backup directory found"
         )
-
-    # Find latest JSON backup
     backups = sorted(
-        backup_dir.glob("audit_backup_*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+        backup_dir.glob("audit_backup_*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
     )
-
     if not backups:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No backup files found")
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No backup files found"
+        )
     return {
         "message": "PostgreSQL restore should be done via pg_restore",
         "latest_backup": backups[0].name,
@@ -423,7 +422,6 @@ async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
     try:
         repo = AuditEntryRepository()
         entries = await repo.get_all(limit=limit, order_by="timestamp", desc=True)
-
         records = [
             {
                 "id": e.id,
@@ -436,14 +434,10 @@ async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
             }
             for e in entries
         ]
-
         return {"records": records, "count": len(records)}
     except Exception as exc:
-        logger.error("audit_query_failed", error=str(exc), exc_info=True)
+        logger.error("audit_query_failed", exc_info=True, extra={"error": str(exc)})
         return {"records": [], "error": str(exc)}
-
-
-# ----- Health Monitoring Endpoint -----
 
 
 @router.get("/health", tags=["Admin"])

@@ -3,20 +3,18 @@ import logging
 from dataclasses import dataclass
 from time import time as time_func
 from typing import Any
-
 from cachetools import LRUCache
-
 from resync.core.metrics_compat import Counter, Histogram
 from resync.settings import settings
-
 from .async_cache import AsyncTTLCache
 
 cache_hits = Counter("cache_hierarchy_hits_total", "Total cache hits", ["cache_level"])
-cache_misses = Counter("cache_hierarchy_misses_total", "Total cache misses", ["cache_level"])
+cache_misses = Counter(
+    "cache_hierarchy_misses_total", "Total cache misses", ["cache_level"]
+)
 cache_latency = Histogram(
     "cache_hierarchy_latency_seconds", "Cache operation latency", ["cache_level"]
 )
-
 logger = logging.getLogger(__name__)
 
 
@@ -65,13 +63,11 @@ class L1Cache:
         Initialize L1 cache.
         """
         if max_size > 0 and num_shards > max_size:
-            num_shards = 1  # Use a single shard for small caches to make eviction predictable
+            num_shards = 1
         if num_shards <= 0:
             raise ValueError("num_shards must be a positive integer")
-
         self.max_size = max_size
         self.num_shards = num_shards
-        # Use cachetools LRUCache for better performance and built-in LRU functionality
         self.shards: list[LRUCache] = [
             LRUCache(maxsize=max_size // num_shards if num_shards > 0 else max_size)
             for _ in range(num_shards)
@@ -81,7 +77,7 @@ class L1Cache:
     def _get_shard(self, key: str) -> tuple[LRUCache, asyncio.Lock]:
         """Get the shard and lock for a given key."""
         shard_index = hash(key) % self.num_shards
-        return self.shards[shard_index], self.shard_locks[shard_index]
+        return (self.shards[shard_index], self.shard_locks[shard_index])
 
     async def get(self, key: str) -> Any | None:
         """
@@ -103,7 +99,6 @@ class L1Cache:
         """
         shard, lock = self._get_shard(key)
         async with lock:
-            # cachetools.LRUCache automatically handles eviction when maxsize is reached
             shard[key] = value
 
     async def delete(self, key: str) -> bool:
@@ -130,7 +125,7 @@ class L1Cache:
 
     def size(self) -> int:
         """Get current size of L1 cache."""
-        return sum(len(shard) for shard in self.shards)
+        return sum((len(shard) for shard in self.shards))
 
 
 class CacheHierarchy:
@@ -158,19 +153,14 @@ class CacheHierarchy:
         """
         self.enable_encryption = enable_encryption
         self.key_prefix = key_prefix
-
         self.l1_cache = L1Cache(max_size=l1_max_size)
         self.l2_cache = AsyncTTLCache(
-            ttl_seconds=l2_ttl_seconds,
-            cleanup_interval=l2_cleanup_interval,
+            ttl_seconds=l2_ttl_seconds, cleanup_interval=l2_cleanup_interval
         )
         self.metrics = CacheMetrics()
         self.is_running = False
-
         logger.info(
-            f"CacheHierarchy initialized: L1_max_size={l1_max_size}, "
-            f"L2_ttl={l2_ttl_seconds}s, encryption={enable_encryption}, "
-            f"key_prefix={key_prefix}"
+            f"CacheHierarchy initialized: L1_max_size={l1_max_size}, L2_ttl={l2_ttl_seconds}s, encryption={enable_encryption}, key_prefix={key_prefix}"
         )
 
     def _apply_key_prefix(self, key: str) -> str:
@@ -186,22 +176,24 @@ class CacheHierarchy:
                 import base64
                 import json
 
-                # Simple encryption using base64 encoding
-                # For production, use cryptography.fernet or similar
                 value_str = json.dumps(value, default=str)
                 encoded = base64.b64encode(value_str.encode()).decode()
                 return {"__encrypted__": True, "data": encoded}
             except Exception as e:
                 logger.warning(
-                    "encryption_failed",
-                    error=str(e),
-                    value_type=type(value).__name__,
+                    "encryption_failed: error=%s, value_type=%s",
+                    str(e),
+                    type(value).__name__,
                 )
         return value
 
     def _decrypt_value(self, value: Any) -> Any:
         """Decrypt value if encryption is enabled."""
-        if self.enable_encryption and isinstance(value, dict) and value.get("__encrypted__"):
+        if (
+            self.enable_encryption
+            and isinstance(value, dict)
+            and value.get("__encrypted__")
+        ):
             try:
                 import base64
                 import json
@@ -210,10 +202,7 @@ class CacheHierarchy:
                 decoded = base64.b64decode(encoded.encode()).decode()
                 return json.loads(decoded)
             except Exception as e:
-                logger.warning(
-                    "decryption_failed",
-                    error=str(e),
-                )
+                logger.warning("decryption_failed: error=%s", str(e))
         return value
 
     def start(self) -> None:
@@ -237,14 +226,12 @@ class CacheHierarchy:
         prefixed_key = self._apply_key_prefix(key)
         start_time = time_func()
         self.metrics.total_gets += 1
-
         l1_value = await self.l1_cache.get(prefixed_key)
         if l1_value is not None:
             self.metrics.l1_hits += 1
             cache_hits.labels(cache_level="l1").inc()
             cache_latency.labels(cache_level="l1").observe(time_func() - start_time)
             return self._decrypt_value(l1_value)
-
         self.metrics.l1_misses += 1
         l2_value = await self.l2_cache.get(prefixed_key)
         if l2_value is not None:
@@ -253,7 +240,6 @@ class CacheHierarchy:
             await self.l1_cache.set(prefixed_key, l2_value)
             cache_latency.labels(cache_level="l2").observe(time_func() - start_time)
             return self._decrypt_value(l2_value)
-
         self.metrics.l2_misses += 1
         cache_misses.labels(cache_level="l2").inc()
         return None
@@ -265,13 +251,14 @@ class CacheHierarchy:
         """
         prefixed_key = self._apply_key_prefix(key)
         encrypted_value = self._encrypt_value(value)
-
         self.metrics.total_sets += 1
         await self.l2_cache.set(prefixed_key, encrypted_value, ttl_seconds)
         await self.l1_cache.set(prefixed_key, encrypted_value)
-        logger.debug("cache_hierarchy_set", key=prefixed_key)
+        logger.debug("cache_hierarchy_set: key=%s", prefixed_key)
 
-    async def set_from_source(self, key: str, value: Any, ttl_seconds: int | None = None) -> None:
+    async def set_from_source(
+        self, key: str, value: Any, ttl_seconds: int | None = None
+    ) -> None:
         """
         Set value after fetching from source.
         """
@@ -297,7 +284,7 @@ class CacheHierarchy:
         """Get sizes of both cache tiers."""
         l1_size = self.l1_cache.size()
         l2_size = self.l2_cache.size()
-        return l1_size, l2_size
+        return (l1_size, l2_size)
 
     def get_metrics(self) -> dict[str, Any]:
         """Get comprehensive cache metrics."""
@@ -323,7 +310,6 @@ class CacheHierarchy:
         await self.stop()
 
 
-# Global cache hierarchy instance
 cache_hierarchy: CacheHierarchy | None = None
 
 
@@ -335,7 +321,9 @@ def get_cache_hierarchy() -> CacheHierarchy:
             l1_max_size=settings.CACHE_HIERARCHY.L1_MAX_SIZE,
             l2_ttl_seconds=settings.CACHE_HIERARCHY.L2_TTL_SECONDS,
             l2_cleanup_interval=settings.CACHE_HIERARCHY.L2_CLEANUP_INTERVAL,
-            enable_encryption=getattr(settings.CACHE_HIERARCHY, "CACHE_ENCRYPTION_ENABLED", False),
+            enable_encryption=getattr(
+                settings.CACHE_HIERARCHY, "CACHE_ENCRYPTION_ENABLED", False
+            ),
             key_prefix=getattr(settings.CACHE_HIERARCHY, "CACHE_KEY_PREFIX", "cache:"),
         )
     return cache_hierarchy

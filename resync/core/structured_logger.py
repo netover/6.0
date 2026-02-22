@@ -11,7 +11,7 @@ Características:
 - Integração com sistemas de agregação (ELK, Loki, etc.)
 """
 
-from __future__ import annotations
+
 
 import logging
 import sys
@@ -56,7 +56,9 @@ _current_request_ctx: ContextVar[dict[str, Any] | None] = ContextVar(
 # ============================================================================
 
 
-def add_correlation_id(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_correlation_id(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona Correlation ID ao log.
 
     Args:
@@ -75,7 +77,9 @@ def add_correlation_id(logger: WrappedLogger, method_name: str, event_dict: Even
     return event_dict
 
 
-def add_user_context(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_user_context(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona contexto do usuário ao log.
 
     Args:
@@ -115,6 +119,27 @@ def add_request_context(
     return event_dict
 
 
+def add_trace_id(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Adiciona Trace ID ao log.
+
+    Args:
+        logger: Logger
+        method_name: Nome do método de log
+        event_dict: Dicionário do evento
+
+    Returns:
+        Event dict com trace_id
+    """
+    from resync.core.context import get_trace_id
+
+    trace_id = get_trace_id()
+    if trace_id:
+        event_dict["trace_id"] = trace_id
+    return event_dict
+
+
 def add_service_context(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -136,7 +161,9 @@ def add_service_context(
     return event_dict
 
 
-def add_timestamp(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_timestamp(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona timestamp ISO 8601 ao log.
 
     Args:
@@ -151,7 +178,9 @@ def add_timestamp(logger: WrappedLogger, method_name: str, event_dict: EventDict
     return event_dict
 
 
-def add_log_level(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_log_level(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona nível de log padronizado.
 
     Args:
@@ -236,9 +265,9 @@ def censor_sensitive_data(
         re.compile(r"mongodb://[^@]+@[^\s]+", re.IGNORECASE),
     ]
 
-    def censor_dict(d: dict[str, Any]) -> dict[str, Any]:
+    def censor_dict(d: dict[str, Any] | Any) -> dict[str, Any]:  # type: ignore[assignment]
         """Censura recursivamente um dicionário."""
-        result = {}
+        result: dict[str, Any] = {}
         for key, value in d.items():
             key_lower = key.lower()
 
@@ -249,18 +278,19 @@ def censor_sensitive_data(
                 result[key] = censor_dict(value)
             elif isinstance(value, list):
                 result[key] = [
-                    censor_dict(item) if isinstance(item, dict) else item for item in value
+                    censor_dict(item) if isinstance(item, dict) else item
+                    for item in value
                 ]
             elif isinstance(value, str):
                 # Apply value pattern censoring
                 censored_value = value
                 for pattern in _sensitive_value_patterns:
-                    censored_value = re.sub(
-                        pattern, "***REDACTED***", censored_value, flags=re.IGNORECASE
-                    )
+                    # v6.2.1: Use pattern.sub and ensure case-insensitivity (Redaction bypass fix)
+                    # The patterns are already compiled with re.IGNORECASE in _sensitive_value_patterns
+                    censored_value = pattern.sub("***REDACTED***", censored_value)
                 result[key] = censored_value
             else:
-                result[key] = value
+                result[key] = value  # type: ignore
 
         return result
 
@@ -296,7 +326,7 @@ def protect_log_injection(
 ) -> EventDict:
     """
     Prevent log injection by escaping newlines and control characters.
-    
+
     OWASP Recommendation: Ensure user input cannot introduce false log entries.
     """
     for key, value in event_dict.items():
@@ -311,62 +341,80 @@ def protect_log_injection(
 def configure_structured_logging(
     log_level: str = "INFO", json_logs: bool = True, development_mode: bool = False
 ) -> None:
-    """Configura logging estruturado para a aplicação.
+    """Configura logging estruturado unificado (stdlib + structlog) para a aplicação.
 
     Args:
         log_level: Nível de log (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         json_logs: Se True, usa formato JSON; se False, formato legível
         development_mode: Se True, usa formato mais legível para desenvolvimento
     """
-    # Configurar root logger para interceptar stdlib logging e aplicar redactor
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, log_level.upper()))
-    
-    # Remove existing handlers to avoid duplication
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-        
-    # Create handler
-    handler = logging.StreamHandler(sys.stdout)
-    
-    # Attach SecretRedactor to the handler (this catches everything at the IO boundary)
-    from resync.core.logging_utils import SecretRedactor
-    handler.addFilter(SecretRedactor())
-    
-    root_logger.addHandler(handler)
+    level = getattr(logging, log_level.upper())
 
-    # Processadores comuns
+    # Processadores comuns utilizados por structlog e stdlib
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         add_timestamp,
         add_log_level,
         add_correlation_id,
+        add_trace_id,  # ← NOVO
         add_user_context,
         add_request_context,
         add_request_metadata,
         add_service_context,
-        protect_log_injection, # Added log injection protection
+        protect_log_injection,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
-        censor_sensitive_data, # Calls structlog-specific redactor
+        censor_sensitive_data,
     ]
 
-    # Processadores específicos por modo
+    # Escolher renderer baseado no modo
+    renderer: Any
     if development_mode or not json_logs:
-        # Modo desenvolvimento: logs coloridos e legíveis
-        processors = shared_processors + [structlog.dev.ConsoleRenderer(colors=True)]
+        renderer = structlog.dev.ConsoleRenderer(colors=True)
     else:
-        # Modo produção: logs em JSON
-        processors = shared_processors + [structlog.processors.JSONRenderer()]
+        renderer = structlog.processors.JSONRenderer()
 
-    # Configurar structlog
+    # 1. Configurar structlog
     structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level.upper())),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        processors=shared_processors  # type: ignore[arg-type]
+        + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
+
+    # 2. Configurar stdlib logging para usar os mesmos processadores
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,  # type: ignore[arg-type]
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+    )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    # Attach SecretRedactor to the handler (IO boundary security)
+    from resync.core.logging_utils import SecretRedactor
+
+    handler.addFilter(SecretRedactor())
+
+    root_logger = logging.getLogger()
+
+    # Limpar handlers existentes
+    for h in root_logger.handlers[:]:
+        root_logger.removeHandler(h)
+
+    root_logger.addHandler(handler)
+    root_logger.setLevel(level)
+
+    # Silenciar logs muito verbosos de bibliotecas
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def get_logger(name: str | None = None):
@@ -767,7 +815,7 @@ def set_request_context(request: Request) -> None:
                 filtered_params[key] = "***REDACTED***"
             else:
                 filtered_params[key] = value
-        context["query_params"] = filtered_params
+        context["query_params"] = filtered_params  # type: ignore[assignment]
 
     _current_request_ctx.set(context)
 
@@ -794,7 +842,7 @@ class SafeEncodingFormatter(logging.Formatter):
             if hasattr(sys.stdout, "encoding") and sys.stdout.encoding:
                 encoding = sys.stdout.encoding
         except Exception as _e:
-            logger.debug("suppressed_exception", error=str(_e), exc_info=True)  # was: pass
+            logger.debug("suppressed_exception", exc_info=True)  # was: pass
 
         if not can_encode(message, encoding=encoding):
             # Apply fallback: replace common emoji patterns
@@ -837,7 +885,17 @@ class StructuredErrorLogger:
             **context,
         }
 
-        logger.log(logging.getLevelName(level.upper()), "structured_error", **log_data)
+        level_name = level.lower()
+        if level_name == "debug":
+            logger.debug("structured_error", **log_data)
+        elif level_name == "info":
+            logger.info("structured_error", **log_data)
+        elif level_name == "warning":
+            logger.warning("structured_error", **log_data)
+        elif level_name == "critical":
+            logger.critical("structured_error", **log_data)
+        else:
+            logger.error("structured_error", **log_data)
 
 
 __all__ = [

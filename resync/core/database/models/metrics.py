@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, Float, Index, Integer, String
 from resync.core.database import Base
+
 
 class WorkstationMetricsHistory(Base):
     """
@@ -32,24 +33,17 @@ class WorkstationMetricsHistory(Base):
 
     # Reception Timestamp (Audit)
     received_at = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.utcnow,
-        index=True
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True
     )
 
     __table_args__ = (
         Index(
-            'ix_workstation_timestamp',
-            'workstation',
-            'timestamp',
-            postgresql_using='btree'
+            "ix_workstation_timestamp",
+            "workstation",
+            "timestamp",
+            postgresql_using="btree",
         ),
-        Index(
-            'ix_received_at',
-            'received_at',
-            postgresql_using='btree'
-        ),
+        Index("ix_received_at", "received_at", postgresql_using="btree"),
     )
 
     def __repr__(self):

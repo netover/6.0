@@ -14,10 +14,10 @@ No Global State:
 import hashlib
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.staticfiles import FileResponse, StaticFiles as StarletteStaticFiles
 
 from resync.core.structured_logger import get_logger
@@ -82,23 +82,18 @@ class CachedStaticFiles(StarletteStaticFiles):
                     # Fallback: file stat not available, use path hash
                     file_metadata = None
 
-                if file_metadata is None:
-                    # Fallback to deterministic hash of path if metadata fails
-                    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
-                else:
+                if file_metadata is not None:
                     hash_len = getattr(
                         settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
                     )
                     digest = hashlib.sha256(file_metadata.encode()).hexdigest()[
                         :hash_len
                     ]
-
-                response.headers["ETag"] = f'"{digest}"'
+                    response.headers["ETag"] = f'"{digest}"'
             except Exception as exc:
                 logger.warning("failed_to_generate_etag", error=str(exc))
-                # Fallback to deterministic hash of path if metadata fails
-                digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
-                response.headers["ETag"] = f'"{digest}"'
+                # Don't generate ETag if we can't get file metadata
+                # This prevents serving stale content indefinitely
 
         return response
 
@@ -124,6 +119,15 @@ class ApplicationFactory:
         Returns:
             Fully configured FastAPI application instance
         """
+        # Configure logging EARLY
+        from resync.core.structured_logger import configure_structured_logging
+
+        configure_structured_logging(
+            log_level=settings.log_level,
+            json_logs=settings.log_format == "json",
+            development_mode=settings.is_development,
+        )
+
         # Validate settings first
         self._validate_critical_settings()
 
@@ -190,7 +194,9 @@ class ApplicationFactory:
                 errors.append("Insecure admin password in production")
 
             # JWT secret key
-            secret = settings.secret_key.get_secret_value()
+            secret = (
+                settings.secret_key.get_secret_value() if settings.secret_key else ""
+            )
             if (
                 not secret
                 or len(secret.strip()) < min_sk_len
@@ -380,6 +386,7 @@ class ApplicationFactory:
         # Optional routers - graceful degradation in prod, fail-fast in dev
         optional_routers = [
             ("resync.api.routes.admin.prompts", "prompt_router", "prompt_router"),
+            ("resync.api.routes.admin.routing", "router", "routing_router"),
             ("resync.api.routes.audit", "router", "audit_router"),
             ("resync.api.routes.cache", "router", "cache_router"),
             ("resync.api.routes.cors_monitoring", "router", "cors_monitor_router"),
@@ -420,9 +427,14 @@ class ApplicationFactory:
         # v5.9.9: Enhanced endpoints (orchestrator-based)
         try:
             from resync.api.enhanced_endpoints import enhanced_router
+            from resync.api.routes.orchestration import router as orchestration_router
 
             self.app.include_router(enhanced_router)
+            self.app.include_router(orchestration_router, prefix="/api/v1")
             logger.info("enhanced_endpoints_registered", prefix="/api/v2")
+            logger.info(
+                "orchestration_router_registered", prefix="/api/v1/orchestration"
+            )
         except ImportError as e:
             if settings.is_development:
                 logger.error("enhanced_endpoints_not_available", error=str(e))
@@ -521,6 +533,7 @@ class ApplicationFactory:
             )
             from resync.api.routes.admin.users import router as admin_users_router
             from resync.api.routes.admin.v2 import router as admin_v2_router
+            from resync.api.routes.admin.skills import router as skills_router
 
             # API Key Management
             from resync.api.v1.admin import admin_api_keys_router
@@ -581,10 +594,13 @@ class ApplicationFactory:
                 (feedback_curation_router, "", ["Admin - Feedback Curation"]),
                 (admin_api_keys_router, "/api/v1/admin", ["Admin - API Keys"]),
                 (admin_v2_router, "/api/v2/admin", ["Admin V2"]),
+                (skills_router, "/api/v1/admin", ["Admin - Skills"]),
             ]
 
             # Register unified monitoring routes (with admin auth)
-            from resync.api.auth import verify_admin_credentials as _verify_admin
+            from resync.api.routes.core.auth import (
+                verify_admin_credentials as _verify_admin,
+            )
 
             unified_monitoring_routers = [
                 (ai_monitoring_router, "/api/v1/monitoring", ["Monitoring - AI"]),
@@ -661,9 +677,9 @@ class ApplicationFactory:
 
         # Root redirect
         @self.app.get("/", include_in_schema=False)
-        def root():
-            """Redirect root to admin panel."""
-            return RedirectResponse(url="/admin", status_code=302)
+        async def root() -> RedirectResponse:
+            """Redirect root to admin dashboard."""
+            return RedirectResponse(url="/admin", status_code=307)
 
         # Admin panel is now handled by the admin router
 
@@ -679,7 +695,19 @@ class ApplicationFactory:
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
         async def csp_violation_report(request: Request):
-            """Handle CSP violation reports."""
+            """Handle CSP violation reports with payload size limit."""
+            # Limit payload size to prevent DoS
+            content_length = request.headers.get("content-length")
+            # Safely parse content-length, defaulting to 0 if invalid
+            try:
+                parsed_length = int(content_length) if content_length else 0
+            except ValueError:
+                parsed_length = 0
+            if parsed_length > 4096:
+                return JSONResponse(
+                    {"status": "ignored", "reason": "payload_too_large"},
+                    status_code=413,
+                )
             return await self._handle_csp_report(request)
 
         logger.info("special_endpoints_registered")
@@ -719,10 +747,10 @@ class ApplicationFactory:
                 "settings": {
                     "project_name": settings.project_name,
                     "version": settings.project_version,
-                    "environment": settings.environment.value,
+                    # Security: don't expose environment to prevent fingerprinting
                 },
             }
-            return self.templates.TemplateResponse(template_name, context)
+            return self.templates.TemplateResponse(request, template_name, context)
         except FileNotFoundError:
             logger.error("template_not_found", template=template_name)
             raise HTTPException(

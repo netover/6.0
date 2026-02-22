@@ -1,0 +1,22 @@
+startup:
+  fail_fast: true
+  max_retries: 3
+  backoff_seconds: 0.5
+
+runtime:
+  default_policy: fail_fast
+  exceptions:
+    read_only:
+      - "GET /health"
+      - "GET /docs"
+      - "GET /openapi.json"
+    best_effort:
+      - pattern: "GET /tws/*"
+        degraded_behavior: "query_tws_direct"
+    critical:
+      - pattern: "POST /tws/execute/job"
+        reason: "Job execution requires Redis"
+
+monitoring:
+  alert_on_degraded: true
+  alert_threshold_percent: 5

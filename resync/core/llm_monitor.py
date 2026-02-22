@@ -114,7 +114,9 @@ class LLMCostMonitor:
             ) / self.usage_stats.total_requests
 
         # Update model usage
-        self.usage_stats.model_usage[model] = self.usage_stats.model_usage.get(model, 0) + 1
+        self.usage_stats.model_usage[model] = (
+            self.usage_stats.model_usage.get(model, 0) + 1
+        )
 
         # Check budget
         self._check_budget_alerts()
@@ -137,7 +139,9 @@ class LLMCostMonitor:
                 return {"input": input_cost * 1000, "output": output_cost * 1000}
         except Exception as e:
             # Log pricing calculation error and fallback to hardcoded values
-            logger.debug("LLM pricing calculation failed, using hardcoded values: %s", e)
+            logger.debug(
+                "LLM pricing calculation failed, using hardcoded values: %s", e
+            )
 
         # Approximate costs (update with real pricing)
         costs = {
@@ -177,7 +181,9 @@ class LLMCostMonitor:
 
         # Alert if over budget
         if daily_cost > self.budget_limit:
-            logger.error(f"Daily LLM budget exceeded: ${daily_cost:.2f}/${self.budget_limit:.2f}")
+            logger.error(
+                f"Daily LLM budget exceeded: ${daily_cost:.2f}/${self.budget_limit:.2f}"
+            )
 
     def get_usage_report(self) -> dict[str, Any]:
         """Get comprehensive usage report."""
@@ -191,7 +197,10 @@ class LLMCostMonitor:
             "model_usage": self.usage_stats.model_usage,
             "daily_costs": self.usage_stats.daily_costs,
             "budget_limit": self.budget_limit,
-            "budget_usage_percent": (self.usage_stats.total_cost_usd / self.budget_limit) * 100,
+            "budget_usage_percent": (
+                self.usage_stats.total_cost_usd / self.budget_limit
+            )
+            * 100,
         }
 
 
@@ -245,17 +254,13 @@ class StreamingLLMResponse:
         return "".join(self.response_chunks)
 
 
-# Global instances
-_llm_cost_monitor_instance: LLMCostMonitor | None = None
-
-
 class _LazyLLMCostMonitor:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
 
     __slots__ = ("_instance",)
 
     def __init__(self) -> None:
-        self._instance = None
+        self._instance: LLMCostMonitor | None = None
 
     def get_instance(self) -> LLMCostMonitor:
         if self._instance is None:

@@ -90,7 +90,10 @@ async def list_users(
 
 
 @router.post(
-    "/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Admin Users"]
+    "/users",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Admin Users"],
 )
 async def create_user(user: UserCreate):
     """Create a new user."""
@@ -163,11 +166,13 @@ async def update_user(user_id: str, user_update: UserUpdate):
     for field, value in user_update.dict(exclude_unset=True).items():
         user[field] = value
 
-    logger.info("User updated: %s", user['username'])
+    logger.info("User updated: %s", user["username"])
     return UserResponse(**user)
 
 
-@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Users"])
+@router.delete(
+    "/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Users"]
+)
 async def delete_user(user_id: str):
     """Delete a user."""
     if user_id not in _users:
@@ -182,7 +187,9 @@ async def delete_user(user_id: str):
 
 
 @router.post(
-    "/users/{user_id}/change-password", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Users"]
+    "/users/{user_id}/change-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Admin Users"],
 )
 async def change_password(user_id: str, password_change: PasswordChange):
     """Change user password."""
@@ -205,11 +212,13 @@ async def change_password(user_id: str, password_change: PasswordChange):
 
     # Update password
     user["hashed_password"] = get_password_hash(password_change.new_password)
-    logger.info("Password changed for user: %s", user['username'])
+    logger.info("Password changed for user: %s", user["username"])
 
 
 @router.post(
-    "/users/{user_id}/activate", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Users"]
+    "/users/{user_id}/activate",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Admin Users"],
 )
 async def activate_user(user_id: str):
     """Activate a user account."""
@@ -220,11 +229,13 @@ async def activate_user(user_id: str):
         )
 
     _users[user_id]["is_active"] = True
-    logger.info("User activated: %s", _users[user_id]['username'])
+    logger.info("User activated: %s", _users[user_id]["username"])
 
 
 @router.post(
-    "/users/{user_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Users"]
+    "/users/{user_id}/deactivate",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Admin Users"],
 )
 async def deactivate_user(user_id: str):
     """Deactivate a user account."""
@@ -235,7 +246,7 @@ async def deactivate_user(user_id: str):
         )
 
     _users[user_id]["is_active"] = False
-    logger.info("User deactivated: %s", _users[user_id]['username'])
+    logger.info("User deactivated: %s", _users[user_id]["username"])
 
 
 @router.post("/users/bulk-action", tags=["Admin Users"])

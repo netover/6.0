@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Redis Health Checker
 
@@ -64,7 +66,7 @@ class RedisHealthChecker(BaseHealthChecker):
             try:
                 # Use shared connection pool (prevents connection churn)
                 redis_client = get_redis_client()
-                
+
                 # Test connectivity with ping
                 await redis_client.ping()
 

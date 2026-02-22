@@ -72,7 +72,9 @@ class NotificationRequest(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=200)
     message: str = Field(..., min_length=1, max_length=5000)
-    severity: str = Field(default="info", pattern="^(info|success|warning|error|critical)$")
+    severity: str = Field(
+        default="info", pattern="^(info|success|warning|error|critical)$"
+    )
     job_id: str | None = None
     instance_name: str | None = None
     additional_data: dict[str, Any] = Field(default_factory=dict)
@@ -243,7 +245,8 @@ async def send_notification(request: NotificationRequest):
 
     if not integration.config.webhook_url:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Teams webhook URL not configured"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Teams webhook URL not configured",
         )
 
     notification = TeamsNotification(
@@ -261,12 +264,14 @@ async def send_notification(request: NotificationRequest):
 
         return NotificationResponse(
             success=success,
-            message="Notification sent successfully" if success else "Notification failed",
+            message="Notification sent successfully"
+            if success
+            else "Notification failed",
             notification_id=f"teams_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
     except Exception as e:
-        logger.error("notification_send_error", error=str(e))
+        logger.error("notification_send_error", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send notification. Check server logs for details.",
@@ -286,7 +291,8 @@ async def send_test_notification():
 
     if not integration.config.webhook_url:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Teams webhook URL not configured"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Teams webhook URL not configured",
         )
 
     # Temporarily enable for test
@@ -319,7 +325,7 @@ async def send_test_notification():
 
     except Exception as e:
         response_time = (time.time() - start_time) * 1000
-        logger.error("test_notification_error", error=str(e))
+        logger.error("test_notification_error", error=str(e))  # type: ignore[call-arg]
         return TestNotificationResponse(
             success=False,
             message=f"Test failed: {str(e)}",
@@ -417,7 +423,12 @@ async def get_notification_filters():
         "notification_types": integration.config.notification_types,
         "monitored_instances": integration.config.monitored_tws_instances,
         "available_severities": ["info", "success", "warning", "error", "critical"],
-        "available_notification_types": ["job_status", "alerts", "performance", "system"],
+        "available_notification_types": [
+            "job_status",
+            "alerts",
+            "performance",
+            "system",
+        ],
     }
 
 

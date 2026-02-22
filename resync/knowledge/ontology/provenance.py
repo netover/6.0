@@ -127,7 +127,7 @@ class ExtractionInfo:
     validation_errors: list[str] = field(default_factory=list)
 
     # Timing
-    extracted_at: datetime = field(default_factory=datetime.utcnow)
+    extracted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     extraction_duration_ms: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -185,8 +185,8 @@ class ProvenanceRecord:
 
     # Record metadata
     record_id: str = ""
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self):
         """Generate record ID if not provided."""
@@ -596,11 +596,13 @@ class ProvenanceTracker:
 
         verified = sum(1 for r in self._records.values() if r.is_verified)
         rejected = sum(
-            1 for r in self._records.values()
+            1
+            for r in self._records.values()
             if r.verification.status == VerificationStatus.REJECTED
         )
         auto_verified = sum(
-            1 for r in self._records.values()
+            1
+            for r in self._records.values()
             if r.verification.status == VerificationStatus.AUTO_VERIFIED
         )
 

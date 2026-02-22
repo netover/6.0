@@ -16,15 +16,20 @@ async def atomizer_node(state: RomaState) -> dict[str, Any]:
     """Detect whether the user query is atomic or needs decomposition."""
     query = state.get("user_query", "").strip()
     if not query:
-        return {"is_atomic": True, "execution_logs": ["empty_query_defaulted_to_atomic"]}
+        return {
+            "is_atomic": True,
+            "execution_logs": ["empty_query_defaulted_to_atomic"],
+        }
 
     prompt = (
         "Classify if this task is atomic or composite. "
-        "Return ONLY JSON with {\"is_atomic\": boolean}.\n\n"
+        'Return ONLY JSON with {"is_atomic": boolean}.\n\n'
         f"Query: {query}"
     )
     try:
-        response = await LLMFactory.call_llm(prompt=prompt, model="tws-intent", temperature=0.1)
+        response = await LLMFactory.call_llm(
+            prompt=prompt, model="tws-intent", temperature=0.1
+        )
         payload = json.loads(response)
         is_atomic = bool(payload.get("is_atomic", False))
     except Exception as e:
@@ -47,9 +52,13 @@ async def planner_node(state: RomaState) -> dict[str, Any]:
     )
 
     try:
-        response = await LLMFactory.call_llm(prompt=prompt, model="tws-reasoning", temperature=0.1)
+        response = await LLMFactory.call_llm(
+            prompt=prompt, model="tws-reasoning", temperature=0.1
+        )
         parsed = json.loads(response)
-        tasks = [SubTask.model_validate(item) for item in parsed if isinstance(item, dict)]
+        tasks = [
+            SubTask.model_validate(item) for item in parsed if isinstance(item, dict)
+        ]
     except Exception as e:
         logger.warning("roma_planner_fallback", error=str(e))
         tasks = [
@@ -78,7 +87,9 @@ async def executor_node(state: RomaState) -> dict[str, Any]:
             f"Task: {task.title}\nDescription: {task.description}"
         )
         try:
-            output = await LLMFactory.call_llm(prompt=prompt, model="tws-reasoning", temperature=0.2)
+            output = await LLMFactory.call_llm(
+                prompt=prompt, model="tws-reasoning", temperature=0.2
+            )
             results.append({"task_id": task.id, "status": "done", "output": output})
         except Exception as e:
             logger.warning("roma_executor_task_failed", task_id=task.id, error=str(e))
@@ -94,7 +105,10 @@ def aggregator_node(state: RomaState) -> dict[str, Any]:
     """Aggregate outputs into a user-facing summary."""
     if state.get("is_atomic") and not state.get("plan"):
         summary = "Solicitação tratada como tarefa atômica; nenhuma decomposição adicional necessária."
-        return {"final_response": summary, "execution_logs": ["aggregator_atomic_short_circuit"]}
+        return {
+            "final_response": summary,
+            "execution_logs": ["aggregator_atomic_short_circuit"],
+        }
 
     results = state.get("execution_results", [])
     if not results:

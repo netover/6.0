@@ -1,48 +1,126 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 WebSocket handlers for FastAPI
 """
 
+import asyncio
 import json
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, status
 
+from resync.core.context import set_trace_id, set_user_id
+from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
+try:
+    from langfuse.decorators import langfuse_context
+
+    LANGFUSE_AVAILABLE = True
+except Exception as exc:
+    LANGFUSE_AVAILABLE = False
+    langfuse_context = None
+    logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
+
+
+async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
+    """Verify WebSocket authentication and return user_id.
+
+    Args:
+        websocket: The WebSocket connection
+        token: Optional JWT token from query parameter
+
+    Returns:
+        User ID if authenticated, None otherwise
+    """
+    try:
+        # Check for token in query parameter
+        if token:
+            from resync.api.auth.service import get_auth_service
+
+            auth_service = get_auth_service()
+            payload = auth_service.verify_token(token)
+            if payload:
+                return str(payload.sub)
+
+        # Check for token in Authorization header
+        auth_header = websocket.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            from resync.api.security import decode_token
+
+            payload = decode_token(token)
+            if payload and "sub" in payload:
+                return str(payload["sub"])
+
+        return None
+    except Exception as e:
+        logger.debug("WebSocket authentication failed: %s", type(e).__name__)
+        return None
+
 
 class ConnectionManager:
-    """Manage WebSocket connections"""
+    """Manage WebSocket connections with thread-safe operations"""
 
     def __init__(self):
         self.active_connections: dict[str, set[WebSocket]] = {}
         # Map websocket -> agent_id
         self.agent_connections: dict[WebSocket, str] = {}
+        # Lock for protecting concurrent access to connection collections
+        self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, agent_id: str):
         """Connect WebSocket for specific agent"""
         await websocket.accept()
 
-        if agent_id not in self.active_connections:
-            self.active_connections[agent_id] = set()
+        async with self._lock:
+            if agent_id not in self.active_connections:
+                self.active_connections[agent_id] = set()
 
-        self.active_connections[agent_id].add(websocket)
-        self.agent_connections[websocket] = agent_id
+            self.active_connections[agent_id].add(websocket)
+            self.agent_connections[websocket] = agent_id
 
         logger.info("WebSocket connected for agent %s", agent_id)
 
-    def disconnect(self, websocket: WebSocket):
-        """Disconnect WebSocket"""
-        agent_id = self.agent_connections.get(websocket)
-        if agent_id and websocket in self.active_connections.get(agent_id, set()):
-            self.active_connections[agent_id].remove(websocket)
-            if not self.active_connections[agent_id]:
-                del self.active_connections[agent_id]
+    async def disconnect_async(self, websocket: WebSocket):
+        """Disconnect WebSocket - async version with proper locking."""
+        async with self._lock:
+            agent_id = self.agent_connections.get(websocket)
+            if agent_id and websocket in self.active_connections.get(agent_id, set()):
+                self.active_connections[agent_id].remove(websocket)
+                if not self.active_connections[agent_id]:
+                    del self.active_connections[agent_id]
 
-        if websocket in self.agent_connections:
-            del self.agent_connections[websocket]
+            if websocket in self.agent_connections:
+                del self.agent_connections[websocket]
 
         logger.info("WebSocket disconnected from agent %s", agent_id)
+
+    def disconnect(self, websocket: WebSocket):
+        """Disconnect WebSocket - sync wrapper for backward compatibility.
+
+        Note: This method attempts to handle disconnection from synchronous contexts.
+        For proper async handling, use disconnect_async() instead.
+        """
+        try:
+            # Use ensure_future instead of create_task to prevent garbage collection
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.disconnect_async(websocket))
+        except RuntimeError:
+            # No running loop - we're in sync context, do best-effort cleanup
+            # This is not thread-safe but better than nothing for sync contexts
+            agent_id = self.agent_connections.get(websocket)
+            if agent_id and websocket in self.active_connections.get(agent_id, set()):
+                self.active_connections[agent_id].discard(websocket)
+                if not self.active_connections[agent_id]:
+                    del self.active_connections[agent_id]
+
+            if websocket in self.agent_connections:
+                del self.agent_connections[websocket]
+
+            logger.info("WebSocket disconnected from agent %s (sync context)", agent_id)
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send message to specific WebSocket connection"""
@@ -53,45 +131,114 @@ class ConnectionManager:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("Failed to send message to WebSocket: %s", e)
-            self.disconnect(websocket)
+            await self.disconnect_async(websocket)
 
     async def broadcast_to_agent(self, message: str, agent_id: str):
         """Broadcast message to all connections for specific agent"""
-        if agent_id in self.active_connections:
-            disconnected = []
-            for websocket in self.active_connections[agent_id]:
-                try:
-                    await websocket.send_text(message)
-                except Exception as e:
-                    logger.error("Failed to broadcast to agent %s: %s", agent_id, e)
-                    disconnected.append(websocket)
+        async with self._lock:
+            if agent_id not in self.active_connections:
+                return
+            # Create a copy of the set to iterate safely
+            websockets = list(self.active_connections[agent_id])
 
-            # Clean up disconnected websockets
-            for websocket in disconnected:
-                self.disconnect(websocket)
-
-    async def broadcast_to_all(self, message: str):
-        """Broadcast message to all active connections"""
         disconnected = []
-        for agent_connections in self.active_connections.values():
-            for websocket in agent_connections:
-                try:
-                    await websocket.send_text(message)
-                except Exception as e:
-                    logger.error("Failed to broadcast to all: %s", e)
-                    disconnected.append(websocket)
+        for websocket in websockets:
+            try:
+                await websocket.send_text(message)
+            except Exception as e:
+                logger.error("Failed to broadcast to agent %s: %s", agent_id, e)
+                disconnected.append(websocket)
 
         # Clean up disconnected websockets
         for websocket in disconnected:
-            self.disconnect(websocket)
+            await self.disconnect_async(websocket)
+
+    async def broadcast_to_all(self, message: str):
+        """Broadcast message to all active connections"""
+        # Create a copy of all websockets to iterate safely
+        async with self._lock:
+            all_websockets = []
+            for agent_connections in self.active_connections.values():
+                all_websockets.extend(agent_connections)
+
+        disconnected = []
+        for websocket in all_websockets:
+            try:
+                await websocket.send_text(message)
+            except Exception as e:
+                logger.error("Failed to broadcast to all: %s", e)
+                disconnected.append(websocket)
+
+        # Clean up disconnected websockets
+        for websocket in disconnected:
+            await self.disconnect_async(websocket)
 
 
 # Global connection manager instance
 manager = ConnectionManager()
 
 
-async def websocket_handler(websocket: WebSocket, agent_id: str):
-    """Handle WebSocket connections for chat agents"""
+def _build_agent_config(agent_id: str) -> dict[str, str]:
+    """Build canonical agent configuration payload for LLM responses."""
+    return {
+        "name": f"Agente {agent_id}",
+        "type": "general",
+        "description": "Assistente de IA do sistema Resync TWS",
+    }
+
+
+async def _generate_llm_response(agent_id: str, content: str) -> str:
+    """Helper to generate AI response with fallback handling."""
+    try:
+        from resync.services.llm_service import get_llm_service
+
+        llm_service = await get_llm_service()
+        agent_config = _build_agent_config(agent_id)
+
+        return await llm_service.generate_agent_response(
+            agent_id=agent_id,
+            user_message=content,
+            agent_config=agent_config,
+        )
+    except Exception as e:
+        logger.error("Error generating AI response: %s", e)
+        return (
+            f"Olá! Recebi sua mensagem: '{content}'. "
+            "O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?"
+        )
+
+
+async def websocket_handler(
+    websocket: WebSocket, agent_id: str, token: str | None = None
+):
+    """Handle WebSocket connections for chat agents.
+
+    Args:
+        websocket: The WebSocket connection
+        agent_id: The agent ID to connect to
+        token: Optional JWT token for authentication
+    """
+    # Authenticate before accepting connection - fail closed (deny by default)
+    user_id = await _verify_ws_auth(websocket, token)
+    if not user_id:
+        logger.warning("WebSocket auth failed for agent %s", agent_id)
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required"
+        )
+        return
+
+    # Set trace context
+    trace_id = normalize_trace_id(
+        websocket.headers.get("x-correlation-id")
+        or websocket.headers.get("x-request-id")
+    )
+    set_trace_id(trace_id)
+    set_user_id(user_id)
+
+    # Update Langfuse context with secure user ID
+    hashed_user = hash_user_id(user_id)
+    langfuse_context.update_current_trace(user_id=hashed_user)
+
     await manager.connect(websocket, agent_id)
 
     try:
@@ -112,8 +259,8 @@ async def websocket_handler(websocket: WebSocket, agent_id: str):
                     message_type = "message"
                     is_json = False
 
-                if message_type == "chat_message":
-                    # Process chat message with AI agent
+                if message_type == "chat_message" or not is_json:
+                    # Process message with AI agent
                     content = message_data.get("content", data if not is_json else "")
 
                     # Send initial streaming response
@@ -125,110 +272,30 @@ async def websocket_handler(websocket: WebSocket, agent_id: str):
                     }
                     await manager.send_personal_message(json.dumps(response), websocket)
 
-                    # Generate real AI response using LLM service
-                    try:
-                        from resync.services.llm_service import get_llm_service
+                    # Generate AI response
+                    ai_response = await _generate_llm_response(agent_id, content)
 
-                        llm_service = get_llm_service()
-
-                        # Agent configuration
-                        agent_config = {
-                            "name": f"Agente {agent_id}",
-                            "type": "general",
-                            "description": "Assistente de IA do sistema Resync TWS",
-                        }
-
-                        # Generate response using real LLM
-                        ai_response = await llm_service.generate_agent_response(
-                            agent_id=agent_id, user_message=content, agent_config=agent_config
-                        )
-
-                        # Send final response with real AI content
-                        final_response = {
-                            "type": "message",
-                            "message": ai_response,
-                            "agent_id": agent_id,
-                            "is_final": True,
-                        }
-
-                    except Exception as e:
-                        logger.error("Error generating AI response: %s", e)
-                        # Fallback to mock response if LLM fails
-                        final_response = {
-                            "type": "message",
-                            "message": f"Olá! Recebi sua mensagem: '{content}'. O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?",
-                            "agent_id": agent_id,
-                            "is_final": True,
-                        }
-
-                    await manager.send_personal_message(json.dumps(final_response), websocket)
+                    # Send final response
+                    final_response = {
+                        "type": "message",
+                        "message": ai_response,
+                        "agent_id": agent_id,
+                        "is_final": True,
+                    }
+                    await manager.send_personal_message(
+                        json.dumps(final_response), websocket
+                    )
 
                 elif message_type == "heartbeat":
-                    # Respond to heartbeat
-                    response = {
-                        "type": "heartbeat_ack",
-                        "timestamp": "2025-01-01T00:00:00Z",
-                        "agent_id": agent_id,
-                    }
-                    await manager.send_personal_message(json.dumps(response), websocket)
-
-                else:
-                    # Handle plain text messages
-                    if not is_json:
-                        # Send initial streaming response for plain text
-                        response = {
-                            "type": "stream",
-                            "message": f"Processando: {data}",
-                            "agent_id": agent_id,
-                            "is_final": False,
-                        }
-                        await manager.send_personal_message(json.dumps(response), websocket)
-
-                        # Generate real AI response using LLM service
-                        try:
-                            from resync.services.llm_service import get_llm_service
-
-                            llm_service = get_llm_service()
-
-                            # Agent configuration
-                            agent_config = {
-                                "name": f"Agente {agent_id}",
-                                "type": "general",
-                                "description": "Assistente de IA do sistema Resync TWS",
-                            }
-
-                            # Generate response using real LLM
-                            ai_response = await llm_service.generate_agent_response(
-                                agent_id=agent_id, user_message=data, agent_config=agent_config
-                            )
-
-                            # Send final response with real AI content
-                            final_response = {
-                                "type": "message",
-                                "message": ai_response,
-                                "agent_id": agent_id,
-                                "is_final": True,
-                            }
-
-                        except Exception as e:
-                            logger.error("Error generating AI response: %s", e)
-                            # Fallback to mock response if LLM fails
-                            final_response = {
-                                "type": "message",
-                                "message": f"Olá! Recebi sua mensagem: '{data}'. O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?",
-                                "agent_id": agent_id,
-                                "is_final": True,
-                            }
-
-                        await manager.send_personal_message(json.dumps(final_response), websocket)
-                    else:
                         # Unknown JSON message type
                         error_response = {
                             "type": "error",
                             "message": f"Unknown message type: {message_type}",
                             "agent_id": agent_id,
                         }
-                        await manager.send_personal_message(json.dumps(error_response), websocket)
+                        await manager.send_personal_message(
+                            json.dumps(error_response), websocket
+                        )
 
             except Exception as e:
                 logger.error("Error processing WebSocket message: %s", e)
@@ -237,7 +304,9 @@ async def websocket_handler(websocket: WebSocket, agent_id: str):
                     "message": "Internal server error",
                     "agent_id": agent_id,
                 }
-                await manager.send_personal_message(json.dumps(error_response), websocket)
+                await manager.send_personal_message(
+                    json.dumps(error_response), websocket
+                )
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

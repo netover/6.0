@@ -99,7 +99,9 @@ class HealthServiceFacade:
                 logger.info("health_service_facade_components_initialized")
 
             except Exception as e:
-                logger.error("health_service_facade_initialization_failed", error=str(e))
+                logger.error(
+                    "health_service_facade_initialization_failed", error=str(e)
+                )
                 raise
 
     async def start_monitoring(self) -> None:
@@ -121,7 +123,9 @@ class HealthServiceFacade:
                 logger.info("health_service_facade_monitoring_started")
 
             except Exception as e:
-                logger.error("health_service_facade_monitoring_start_failed", error=str(e))
+                logger.error(
+                    "health_service_facade_monitoring_start_failed", error=str(e)
+                )
                 raise
 
     async def stop_monitoring(self) -> None:
@@ -136,7 +140,9 @@ class HealthServiceFacade:
                 logger.info("health_service_facade_monitoring_stopped")
 
             except Exception as e:
-                logger.error("health_service_facade_monitoring_stop_failed", error=str(e))
+                logger.error(
+                    "health_service_facade_monitoring_stop_failed", error=str(e)
+                )
                 raise
 
     async def perform_comprehensive_health_check(self) -> HealthCheckResult:
@@ -152,7 +158,9 @@ class HealthServiceFacade:
         start_time = time.time()
         correlation_id = f"facade_health_{int(start_time)}"
 
-        logger.debug("facade_comprehensive_health_check_started", correlation_id=correlation_id)
+        logger.debug(
+            "facade_comprehensive_health_check_started", correlation_id=correlation_id
+        )
 
         try:
             # Use the unified health service directly

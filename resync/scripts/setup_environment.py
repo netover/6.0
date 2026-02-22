@@ -22,11 +22,13 @@ from pathlib import Path
 DOCKER_COMPOSE_FILE = "docker-compose.resync.yml"
 
 
-def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subprocess.CompletedProcess:
+def run_command(
+    cmd: list[str], check: bool = True, cwd: str | None = None
+) -> subprocess.CompletedProcess:
     """Executa um comando shell."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running: {' '.join(cmd)}")
-    print('='*60)
+    print("=" * 60)
     result = subprocess.run(cmd, check=check, capture_output=True, text=True, cwd=cwd)
     if result.stdout:
         print(result.stdout)
@@ -36,8 +38,10 @@ def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subproce
 def check_python_version() -> bool:
     """Verifica versão do Python."""
     version = sys.version_info
-    if version.major < 3 or (version.major == 3 and version.minor < 10):
-        print(f"❌ Python 3.10+ necessário. Versão atual: {version.major}.{version.minor}")
+    if version.major < 3 or (version.major == 3 and version.minor < 14):
+        print(
+            f"❌ Python 3.14+ necessário. Versão atual: {version.major}.{version.minor}"
+        )
         return False
     print(f"✅ Python {version.major}.{version.minor}.{version.micro}")
     return True
@@ -45,9 +49,9 @@ def check_python_version() -> bool:
 
 def install_python_deps() -> None:
     """Instala dependências Python."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("INSTALANDO DEPENDÊNCIAS PYTHON")
-    print("="*60)
+    print("=" * 60)
 
     requirements_file = Path(__file__).parent.parent / "requirements.txt"
 
@@ -86,9 +90,9 @@ def install_python_deps() -> None:
 
 def setup_postgres() -> None:
     """Configura PostgreSQL."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CONFIGURANDO POSTGRESQL")
-    print("="*60)
+    print("=" * 60)
 
     script_path = Path(__file__).parent / "install_postgres.py"
     if script_path.exists():
@@ -99,9 +103,9 @@ def setup_postgres() -> None:
 
 def setup_redis() -> None:
     """Configura Redis."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CONFIGURANDO REDIS")
-    print("="*60)
+    print("=" * 60)
 
     script_path = Path(__file__).parent / "install_redis.py"
     if script_path.exists():
@@ -112,9 +116,9 @@ def setup_redis() -> None:
 
 def setup_docker() -> None:
     """Setup usando Docker."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CONFIGURANDO COM DOCKER")
-    print("="*60)
+    print("=" * 60)
 
     # Docker Compose para PostgreSQL e Redis
     docker_compose = """
@@ -176,9 +180,9 @@ volumes:
 
 def create_env_file() -> None:
     """Cria arquivo .env de exemplo."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CRIANDO ARQUIVO .env")
-    print("="*60)
+    print("=" * 60)
 
     env_example = """# =============================================================================
 # RESYNC v6.2.0 - Environment Configuration
@@ -251,15 +255,27 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 
 def verify_setup() -> None:
     """Verifica se tudo está configurado."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VERIFICANDO CONFIGURAÇÃO")
-    print("="*60)
+    print("=" * 60)
 
     # Verificar PostgreSQL
     try:
         result = subprocess.run(
-            ["psql", "-h", "localhost", "-p", "5432", "-U", "resync", "-c", "SELECT 1;"],
-            capture_output=True, text=True, check=False
+            [
+                "psql",
+                "-h",
+                "localhost",
+                "-p",
+                "5432",
+                "-U",
+                "resync",
+                "-c",
+                "SELECT 1;",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if result.returncode == 0:
             print("✅ PostgreSQL conectado")
@@ -271,8 +287,7 @@ def verify_setup() -> None:
     # Verificar Redis
     try:
         result = subprocess.run(
-            ["redis-cli", "ping"],
-            capture_output=True, text=True, check=False
+            ["redis-cli", "ping"], capture_output=True, text=True, check=False
         )
         if result.returncode == 0 and "PONG" in result.stdout:
             print("✅ Redis conectado")
@@ -282,7 +297,11 @@ def verify_setup() -> None:
         print("⚠️  Redis: cliente não encontrado")
 
     # Verificar Python deps
-    venv_python = Path(__file__).parent.parent / ".venv" / ("python.exe" if sys.platform == "win32" else "bin/python")
+    venv_python = (
+        Path(__file__).parent.parent
+        / ".venv"
+        / ("python.exe" if sys.platform == "win32" else "bin/python")
+    )
     if venv_python.exists():
         print("✅ Ambiente virtual criado")
     else:
@@ -291,9 +310,17 @@ def verify_setup() -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Setup Completo para Resync")
-    parser.add_argument("--skip-db", action="store_true", help="Pula configuração de banco de dados")
-    parser.add_argument("--docker", action="store_true", help="Usa Docker para PostgreSQL e Redis")
-    parser.add_argument("--skip-deps", action="store_true", help="Pula instalação de dependências Python")
+    parser.add_argument(
+        "--skip-db", action="store_true", help="Pula configuração de banco de dados"
+    )
+    parser.add_argument(
+        "--docker", action="store_true", help="Usa Docker para PostgreSQL e Redis"
+    )
+    parser.add_argument(
+        "--skip-deps",
+        action="store_true",
+        help="Pula instalação de dependências Python",
+    )
 
     args = parser.parse_args()
 

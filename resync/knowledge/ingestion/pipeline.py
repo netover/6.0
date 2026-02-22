@@ -16,16 +16,13 @@ Usage:
 """
 
 from __future__ import annotations
-
 import hashlib
 import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-
 from resync.knowledge.interfaces import Embedder, VectorStore
-
 from .document_converter import DoclingConverter
 from .ingest import IngestService
 
@@ -72,11 +69,8 @@ class DocumentIngestionPipeline:
         batch_size: int = 128,
     ):
         self.ingest_service = IngestService(embedder, store, batch_size=batch_size)
-
         self.converter = converter or DoclingConverter(
-            do_table_structure=True,
-            do_ocr=False,
-            process_timeout=300,
+            do_table_structure=True, do_ocr=False, process_timeout=300
         )
 
     async def ingest_file(
@@ -105,15 +99,10 @@ class DocumentIngestionPipeline:
         """
         file_path = Path(file_path)
         source = file_path.name
-
         if doc_id is None:
             doc_id = self._generate_doc_id(file_path)
-
         t_total = time.perf_counter()
-
-        # ── Step 1: Convert with Docling ────────────────────────────────
         converted = await self.converter.convert(file_path)
-
         if converted.status != "success":
             return IngestionResult(
                 doc_id=doc_id,
@@ -128,7 +117,6 @@ class DocumentIngestionPipeline:
                 status="error",
                 error=converted.error or "Conversion failed",
             )
-
         if not converted.markdown.strip():
             return IngestionResult(
                 doc_id=doc_id,
@@ -143,17 +131,13 @@ class DocumentIngestionPipeline:
                 status="warning",
                 error="Document converted but no text extracted",
             )
-
-        # ── Step 2: Ingest into RAG ─────────────────────────────────────
         t_ingest = time.perf_counter()
         ts_iso = datetime.now(timezone.utc).isoformat()
         document_title = converted.metadata.get("title", file_path.stem)
-
         auto_tags = list(tags or [])
         auto_tags.append(f"format:{converted.format}")
         if converted.tables:
             auto_tags.append(f"tables:{len(converted.tables)}")
-
         try:
             if reindex:
                 chunks_stored = await self.ingest_service.reindex_document(
@@ -178,10 +162,9 @@ class DocumentIngestionPipeline:
                     chunking_strategy=chunking_strategy,
                 )
         except Exception as e:
-            # Re-raise programming errors
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("ingestion_failed", doc_id=doc_id, error=str(e))
+            logger.error("ingestion_failed", extra={"doc_id": doc_id, "error": str(e)})
             return IngestionResult(
                 doc_id=doc_id,
                 source=source,
@@ -195,23 +178,22 @@ class DocumentIngestionPipeline:
                 status="error",
                 error=f"Ingestion failed: {e}",
             )
-
         ingestion_time = time.perf_counter() - t_ingest
         total_time = time.perf_counter() - t_total
-
         logger.info(
             "document_ingested",
-            doc_id=doc_id,
-            source=source,
-            format=converted.format,
-            pages=converted.pages,
-            tables=len(converted.tables),
-            chunks=chunks_stored,
-            convert_s=f"{converted.conversion_time_s:.1f}",
-            ingest_s=f"{ingestion_time:.1f}",
-            total_s=f"{total_time:.1f}",
+            extra={
+                "doc_id": doc_id,
+                "source": source,
+                "format": converted.format,
+                "pages": converted.pages,
+                "tables": len(converted.tables),
+                "chunks": chunks_stored,
+                "convert_s": f"{converted.conversion_time_s:.1f}",
+                "ingest_s": f"{ingestion_time:.1f}",
+                "total_s": f"{total_time:.1f}",
+            },
         )
-
         return IngestionResult(
             doc_id=doc_id,
             source=source,
@@ -245,13 +227,8 @@ class DocumentIngestionPipeline:
             List of IngestionResult (same order as input).
         """
         results = []
-        # Process sequentially to manage memory — each conversion is ~4 GB
         for fp in file_paths:
-            result = await self.ingest_file(
-                fp,
-                tenant=tenant,
-                tags=tags,
-            )
+            result = await self.ingest_file(fp, tenant=tenant, tags=tags)
             results.append(result)
         return results
 

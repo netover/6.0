@@ -37,7 +37,9 @@ logger = get_logger(__name__)
 # ============================================================================
 
 
-async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
+async def base_app_exception_handler(
+    request: Request, exc: BaseAppException
+) -> JSONResponse:
     """Handler para exceções da aplicação (BaseAppException).
 
     Args:
@@ -70,9 +72,10 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
     # Adicionar headers específicos
     headers = {}
 
-    # Rate limiting
-    if isinstance(exc, RateLimitError) and exc.details.get("retry_after"):
-        headers["Retry-After"] = str(exc.details["retry_after"])
+    # Rate limiting - FIX: Safe access to details attribute
+    details = getattr(exc, "details", None) or {}
+    if isinstance(exc, RateLimitError) and details.get("retry_after"):
+        headers["Retry-After"] = str(details["retry_after"])
 
     # Correlation ID
     if exc.correlation_id:
@@ -85,7 +88,9 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
     )
 
 
-async def resync_exception_handler(request: Request, exc: ResyncException) -> JSONResponse:
+async def resync_exception_handler(
+    request: Request, exc: ResyncException
+) -> JSONResponse:
     """Handler para exceções ResyncException.
 
     Args:
@@ -198,7 +203,9 @@ async def validation_exception_handler(
     )
 
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
     """Handler para exceções HTTP do Starlette.
 
     Args:
@@ -232,20 +239,29 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
     mapped: BaseAppException
     if exc.status_code == 404:
-        mapped = ResourceNotFoundError(message=safe_message, correlation_id=correlation_id)
+        mapped = ResourceNotFoundError(
+            message=safe_message, correlation_id=correlation_id
+        )
     elif exc.status_code == 401:
-        mapped = AuthenticationError(message=safe_message, correlation_id=correlation_id)
+        mapped = AuthenticationError(
+            message=safe_message, correlation_id=correlation_id
+        )
     elif exc.status_code == 403:
         mapped = AuthorizationError(message=safe_message, correlation_id=correlation_id)
     elif exc.status_code == 409:
-        mapped = ResourceConflictError(message=safe_message, correlation_id=correlation_id)
+        mapped = ResourceConflictError(
+            message=safe_message, correlation_id=correlation_id
+        )
     elif exc.status_code == 429:
         mapped = RateLimitError(message=safe_message, correlation_id=correlation_id)
     elif exc.status_code >= 500:
         mapped = InternalError(
             message=safe_message,
             correlation_id=correlation_id,
-            details={"original_detail": str(exc.detail), "http_status": exc.status_code},
+            details={
+                "original_detail": str(exc.detail),
+                "http_status": exc.status_code,
+            },
             original_exception=exc,
         )
     else:

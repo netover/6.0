@@ -9,7 +9,6 @@
 
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import logging
 import time
 from collections import deque
@@ -17,10 +16,45 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
 
+from resync.api.security import decode_token
+
 logger = logging.getLogger(__name__)
+
+
+def _verify_ws_admin(websocket: WebSocket) -> bool:
+    """Verify admin authentication for WebSocket connection.
+
+    Returns True if authenticated as admin, False otherwise.
+    """
+    try:
+        # Check for token in Authorization header
+        auth_header = websocket.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False
+
+        token = auth_header[7:]
+        payload = decode_token(token)
+        if not payload:
+            return False
+
+        # Verify admin role
+        roles_claim = payload.get("roles")
+        if roles_claim is None:
+            legacy_role = payload.get("role")
+            roles = [legacy_role] if legacy_role else []
+        elif isinstance(roles_claim, list):
+            roles = roles_claim
+        else:
+            roles = [roles_claim]
+
+        return "admin" in roles
+    except Exception as e:
+        logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
+        return False
+
 
 # Configurações do rolling buffer
 HISTORY_WINDOW_SECONDS = 2 * 60 * 60  # 2 horas
@@ -50,6 +84,11 @@ class MetricSample:
     cache_hit_ratio: float = 0.0
     cache_size: int = 0
     cache_evictions: int = 0
+
+    # Router Cache Metrics
+    router_cache_hits: int = 0
+    router_cache_misses: int = 0
+    router_cache_hit_ratio: float = 0.0
 
     # Agent Metrics
     agents_active: int = 0
@@ -90,7 +129,9 @@ class MetricSample:
 class DashboardMetricsStore:
     """Store para métricas do dashboard com rolling window."""
 
-    samples: deque[MetricSample] = field(default_factory=lambda: deque(maxlen=MAX_SAMPLES))
+    samples: deque[MetricSample] = field(
+        default_factory=lambda: deque(maxlen=MAX_SAMPLES)
+    )
     start_time: float = field(default_factory=time.time)
     last_sample_time: float = 0.0
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -101,6 +142,8 @@ class DashboardMetricsStore:
     _prev_cache_misses: int = 0
     _prev_agents_created: int = 0
     _prev_llm_requests: int = 0
+    _prev_router_cache_hits: int = 0
+    _prev_router_cache_misses: int = 0
 
     # Alertas ativos
     alerts: list[dict[str, Any]] = field(default_factory=list)
@@ -130,7 +173,10 @@ class DashboardMetricsStore:
             )
 
         # Alerta: Cache hit ratio < 80%
-        if sample.cache_hit_ratio < 80.0 and (sample.cache_hits + sample.cache_misses) > 100:
+        if (
+            sample.cache_hit_ratio < 80.0
+            and (sample.cache_hits + sample.cache_misses) > 100
+        ):
             new_alerts.append(
                 {
                     "type": "cache_ratio",
@@ -145,7 +191,9 @@ class DashboardMetricsStore:
             new_alerts.append(
                 {
                     "type": "latency",
-                    "severity": "warning" if sample.response_time_p95 < 1000 else "critical",
+                    "severity": "warning"
+                    if sample.response_time_p95 < 1000
+                    else "critical",
                     "message": "Latência P95 elevada: {sample.response_time_p95:.0f}ms",
                     "timestamp": sample.datetime_str,
                 }
@@ -205,7 +253,17 @@ class DashboardMetricsStore:
                     "size": current.cache_size,
                     "evictions": current.cache_evictions,
                     "trend": self._calc_trend(
-                        current.cache_hit_ratio, trend_sample.cache_hit_ratio if trend_sample else 0
+                        current.cache_hit_ratio,
+                        trend_sample.cache_hit_ratio if trend_sample else 0,
+                    ),
+                },
+                "router_cache": {
+                    "hit_ratio": round(current.router_cache_hit_ratio, 1),
+                    "hits": current.router_cache_hits,
+                    "misses": current.router_cache_misses,
+                    "trend": self._calc_trend(
+                        current.router_cache_hit_ratio,
+                        trend_sample.router_cache_hit_ratio if trend_sample else 0,
                     ),
                 },
                 "agents": {
@@ -213,7 +271,8 @@ class DashboardMetricsStore:
                     "created_total": current.agents_created,
                     "failed_total": current.agents_failed,
                     "trend": self._calc_trend(
-                        current.agents_active, trend_sample.agents_active if trend_sample else 0
+                        current.agents_active,
+                        trend_sample.agents_active if trend_sample else 0,
                     ),
                 },
                 "llm": {
@@ -251,7 +310,9 @@ class DashboardMetricsStore:
         """Retorna histórico de métricas para gráficos."""
         async with self._lock:
             # Calcular quantas amostras pegar
-            samples_needed = min(len(self.samples), (minutes * 60) // SAMPLE_INTERVAL_SECONDS)
+            samples_needed = min(
+                len(self.samples), (minutes * 60) // SAMPLE_INTERVAL_SECONDS
+            )
 
             if samples_needed == 0:
                 return self._empty_history()
@@ -263,14 +324,31 @@ class DashboardMetricsStore:
             return {
                 "timestamps": [s.datetime_str for s in recent_samples],
                 "api": {
-                    "requests_per_sec": [round(s.requests_per_sec, 1) for s in recent_samples],
+                    "requests_per_sec": [
+                        round(s.requests_per_sec, 1) for s in recent_samples
+                    ],
                     "error_rate": [round(s.error_rate, 2) for s in recent_samples],
-                    "response_time_p50": [round(s.response_time_p50, 1) for s in recent_samples],
-                    "response_time_p95": [round(s.response_time_p95, 1) for s in recent_samples],
+                    "response_time_p50": [
+                        round(s.response_time_p50, 1) for s in recent_samples
+                    ],
+                    "response_time_p95": [
+                        round(s.response_time_p95, 1) for s in recent_samples
+                    ],
                 },
                 "cache": {
                     "hit_ratio": [round(s.cache_hit_ratio, 1) for s in recent_samples],
-                    "operations": [s.cache_hits + s.cache_misses for s in recent_samples],
+                    "operations": [
+                        s.cache_hits + s.cache_misses for s in recent_samples
+                    ],
+                },
+                "router_cache": {
+                    "hit_ratio": [
+                        round(s.router_cache_hit_ratio, 1) for s in recent_samples
+                    ],
+                    "operations": [
+                        s.router_cache_hits + s.router_cache_misses
+                        for s in recent_samples
+                    ],
                 },
                 "agents": {
                     "active": [s.agents_active for s in recent_samples],
@@ -293,8 +371,14 @@ class DashboardMetricsStore:
             "version": "5.1.0",
             "last_update": datetime.now(timezone.utc).strftime("%H:%M:%S"),
             "timestamp": time.time(),
-            "api": {"requests_per_sec": 0, "error_rate": 0, "response_time_p95": 0, "trend": 0},
+            "api": {
+                "requests_per_sec": 0,
+                "error_rate": 0,
+                "response_time_p95": 0,
+                "trend": 0,
+            },
             "cache": {"hit_ratio": 0, "hits": 0, "misses": 0, "trend": 0},
+            "router_cache": {"hit_ratio": 0, "hits": 0, "misses": 0, "trend": 0},
             "agents": {"active": 0, "created_total": 0, "failed_total": 0, "trend": 0},
             "llm": {"requests": 0, "tokens_used": 0, "errors": 0},
             "tws": {"connected": False, "latency_ms": 0, "status": "unknown"},
@@ -324,6 +408,7 @@ class DashboardMetricsStore:
                 "response_time_p95": [],
             },
             "cache": {"hit_ratio": [], "operations": []},
+            "router_cache": {"hit_ratio": [], "operations": []},
             "agents": {"active": [], "created": []},
             "tws": {"latency": [], "connected": []},
             "sample_count": 0,
@@ -354,6 +439,7 @@ class DashboardMetricsStore:
 # Singleton do store
 _metrics_store: DashboardMetricsStore | None = None
 _collector_task: asyncio.Task | None = None
+_collector_lock: asyncio.Lock | None = None
 
 
 def get_metrics_store() -> DashboardMetricsStore:
@@ -385,7 +471,9 @@ async def collect_metrics_sample() -> MetricSample:
 
         # Estimar requests/sec (simplificado)
         time_delta = (
-            now - store.last_sample_time if store.last_sample_time > 0 else SAMPLE_INTERVAL_SECONDS
+            now - store.last_sample_time
+            if store.last_sample_time > 0
+            else SAMPLE_INTERVAL_SECONDS
         )
         requests_delta = requests_total - store._prev_requests
         requests_per_sec = requests_delta / time_delta if time_delta > 0 else 0
@@ -397,6 +485,15 @@ async def collect_metrics_sample() -> MetricSample:
         cache_misses = cache.get("misses", 0)
         cache_total = cache_hits + cache_misses
         cache_hit_ratio = (cache_hits / cache_total * 100) if cache_total > 0 else 100
+
+        # Router cache metrics
+        router_cache = snapshot.get("router_cache", {})
+        router_hits = router_cache.get("hits", 0)
+        router_misses = router_cache.get("misses", 0)
+        router_total = router_hits + router_misses
+        router_hit_ratio = (
+            (router_hits / router_total * 100) if router_total > 0 else 0.0
+        )
 
         # SLO metrics
         slo = snapshot.get("slo", {})
@@ -412,7 +509,8 @@ async def collect_metrics_sample() -> MetricSample:
             response_time_p50=slo.get("api_response_time_p50", 0) * 1000,  # ms
             response_time_p95=slo.get("api_response_time_p95", 0) * 1000,  # ms
             response_time_avg=(
-                slo.get("api_response_time_p50", 0) + slo.get("api_response_time_p95", 0)
+                slo.get("api_response_time_p50", 0)
+                + slo.get("api_response_time_p95", 0)
             )
             / 2
             * 1000,
@@ -422,6 +520,10 @@ async def collect_metrics_sample() -> MetricSample:
             cache_hit_ratio=cache_hit_ratio,
             cache_size=int(cache.get("size", 0)),
             cache_evictions=cache.get("evictions", 0),
+            # Router Cache
+            router_cache_hits=router_hits,
+            router_cache_misses=router_misses,
+            router_cache_hit_ratio=router_hit_ratio,
             # Agents
             agents_active=snapshot.get("agent", {}).get("active_count", 0),
             agents_created=snapshot.get("agent", {}).get("initializations", 0),
@@ -439,10 +541,16 @@ async def collect_metrics_sample() -> MetricSample:
             # System
             system_uptime=now - store.start_time,
             system_availability=slo.get("availability", 1.0) * 100,
-            async_operations_active=snapshot.get("system", {}).get("async_operations_active", 0),
-            correlation_ids_active=snapshot.get("system", {}).get("correlation_ids_active", 0),
+            async_operations_active=snapshot.get("system", {}).get(
+                "async_operations_active", 0
+            ),
+            correlation_ids_active=snapshot.get("system", {}).get(
+                "correlation_ids_active", 0
+            ),
             # RAG Metrics
-            rag_bm25_index_loaded=snapshot.get("rag", {}).get("bm25_index_loaded", False),
+            rag_bm25_index_loaded=snapshot.get("rag", {}).get(
+                "bm25_index_loaded", False
+            ),
             rag_bm25_documents=snapshot.get("rag", {}).get("bm25_documents", 0),
             rag_bm25_terms=snapshot.get("rag", {}).get("bm25_terms", 0),
             rag_bm25_size_mb=snapshot.get("rag", {}).get("bm25_size_mb", 0.0),
@@ -455,7 +563,10 @@ async def collect_metrics_sample() -> MetricSample:
 
     except Exception as e:
         logger.error("Erro ao coletar métricas: %s", e)
-        return MetricSample(timestamp=time.time(), datetime_str=datetime.now(timezone.utc).strftime("%H:%M:%S"))
+        return MetricSample(
+            timestamp=time.time(),
+            datetime_str=datetime.now(timezone.utc).strftime("%H:%M:%S"),
+        )
 
 
 async def metrics_collector_loop():
@@ -472,18 +583,29 @@ async def metrics_collector_loop():
         await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
 
 
+async def _start_metrics_collector_async() -> None:
+    """Start collector under lock to avoid duplicate background tasks."""
+    global _collector_task, _collector_lock
+
+    if _collector_lock is None:
+        _collector_lock = asyncio.Lock()
+
+    async with _collector_lock:
+        if _collector_task is None or _collector_task.done():
+            _collector_task = asyncio.create_task(metrics_collector_loop())
+            logger.info("Dashboard metrics collector iniciado")
+
+
 def start_metrics_collector():
     """Inicia o coletor de métricas em background."""
-    global _collector_task
-
-    if _collector_task is None or _collector_task.done():
-        try:
-            loop = asyncio.get_event_loop()
-            _collector_task = loop.create_task(metrics_collector_loop())
-            logger.info("Dashboard metrics collector iniciado")
-        except RuntimeError:
-            # Não há event loop rodando ainda
-            logger.warning("Event loop não disponível, collector será iniciado depois")
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_start_metrics_collector_async())
+    except RuntimeError:
+        # Não há event loop rodando ainda
+        logger.warning("Event loop não disponível, collector será iniciado depois")
+    except Exception as e:
+        logger.error("Unexpected error starting metrics collector: %s", e)
 
 
 def stop_metrics_collector():
@@ -500,14 +622,6 @@ def stop_metrics_collector():
 # =====================================
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
-
-
-@router.on_event("startup")
-async def startup_collector():
-    """Inicia o coletor no startup."""
-    global _collector_task
-    _collector_task = await create_tracked_task(metrics_collector_loop(), name="metrics_collector_loop")
-    logger.info("Dashboard metrics collector iniciado")
 
 
 @router.get("/current")
@@ -543,7 +657,9 @@ async def get_active_alerts():
     """Retorna alertas ativos do sistema."""
     store = get_metrics_store()
     async with store._lock:
-        return JSONResponse(content={"alerts": store.alerts, "count": len(store.alerts)})
+        return JSONResponse(
+            content={"alerts": store.alerts, "count": len(store.alerts)}
+        )
 
 
 @router.get("/health")
@@ -557,13 +673,16 @@ async def monitoring_health():
             "max_samples": MAX_SAMPLES,
             "history_window": f"{HISTORY_WINDOW_SECONDS // 3600}h",
             "sample_interval": f"{SAMPLE_INTERVAL_SECONDS}s",
-            "memory_estimate_mb": round(len(store.samples) * 0.001, 2),  # ~1KB por amostra
+            "memory_estimate_mb": round(
+                len(store.samples) * 0.001, 2
+            ),  # ~1KB por amostra
         }
     )
 
 
 # WebSocket para atualizações em tempo real
 connected_clients: list[WebSocket] = []
+_clients_lock = asyncio.Lock()
 
 
 @router.websocket("/ws")
@@ -572,9 +691,21 @@ async def websocket_metrics(websocket: WebSocket):
     WebSocket para métricas em tempo real.
 
     Envia atualizações a cada 5 segundos automaticamente.
+    Requires admin authentication via Authorization header.
     """
+    # Verify admin authentication - fail closed (deny by default)
+    if not _verify_ws_admin(websocket):
+        logger.warning(
+            "Monitoring Dashboard WebSocket auth failed - rejecting connection"
+        )
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Admin authentication required"
+        )
+        return
+
     await websocket.accept()
-    connected_clients.append(websocket)
+    async with _clients_lock:
+        connected_clients.append(websocket)
 
     try:
         store = get_metrics_store()
@@ -588,8 +719,10 @@ async def websocket_metrics(websocket: WebSocket):
             await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
 
     except WebSocketDisconnect:
-        connected_clients.remove(websocket)
+        async with _clients_lock:
+            connected_clients.remove(websocket)
     except Exception as e:
         logger.error("WebSocket error: %s", e)
-        if websocket in connected_clients:
-            connected_clients.remove(websocket)
+        async with _clients_lock:
+            if websocket in connected_clients:
+                connected_clients.remove(websocket)

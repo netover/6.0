@@ -38,11 +38,9 @@ sys.path.insert(0, str(BASE_DIR))
 # before dotenv has had a chance to populate them
 load_dotenv(BASE_DIR / ".env")
 
-from resync.app_factory import ApplicationFactory  # noqa: E402
+from resync.app_factory import create_app  # noqa: E402
 
-
-_factory = ApplicationFactory()
-app = _factory.create_application()
+app = create_app()
 
 
 def main() -> None:
