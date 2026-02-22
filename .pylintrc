@@ -1,9 +1,0 @@
-[MASTER]
-ignore-patterns=^tools/.*
-
-[MESSAGES CONTROL]
-# Temporary repository-wide gate to allow zero-pendency CI while incremental pylint backlog is addressed.
-disable=all
-
-[REPORTS]
-score=no
