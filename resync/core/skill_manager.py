@@ -193,7 +193,7 @@ class SkillManager:
                     return {}
 
                 # Validar e filtrar campos permitidos
-                validated = {}
+                validated: dict[str, Any] = {}
                 for key in ALLOWED_FRONTMATTER_FIELDS:
                     if key in raw_data:
                         value = raw_data[key]

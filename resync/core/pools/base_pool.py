@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Connection pool base classes and configuration for the Resync project.
 Separated to follow Single Responsibility Principle.

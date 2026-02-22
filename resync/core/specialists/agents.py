@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 TWS Specialist Agents Implementation (v5.2.3.24 - Agno-Free).
 

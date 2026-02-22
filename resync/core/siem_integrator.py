@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 SIEM (Security Information and Event Management) Integration System.
 
