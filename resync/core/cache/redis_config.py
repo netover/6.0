@@ -262,12 +262,14 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
                 await client.execute_command("FT._LIST")
                 result["search"] = True
             except Exception as exc:
-                logger.debug("suppressed_exception", extra={"error": str(exc)}, exc_info=True)
+                logger.debug(
+                    "suppressed_exception", extra={"error": str(exc)}, exc_info=True
+                )
 
             try:
                 await client.execute_command("JSON.DEBUG", "MEMORY", "__test__")
-            except Exception as e:
-                if "unknown command" not in str(e).lower():
+            except Exception as exc:
+                if "unknown command" not in str(exc).lower():
                     result["json"] = True
 
         logger.info(
@@ -275,7 +277,7 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
             f"search={result['search']}, json={result['json']}"
         )
 
-    except Exception as e:
+    except Exception:
         logger.warning("Failed to check Redis Stack availability", exc_info=True)
 
     return result  # type: ignore[return-value]
@@ -292,7 +294,9 @@ async def close_all_pools() -> None:
             await pool.disconnect()
             logger.info("Closed Redis pool", extra={"db": db.name})
         except Exception as e:
-            logger.warning("Error closing Redis pool", extra={"db": db.name, "error": str(e)})
+            logger.warning(
+                "Error closing Redis pool", extra={"db": db.name, "error": str(e)}
+            )
 
     _connection_pools.clear()
 
@@ -336,7 +340,9 @@ async def redis_health_check(
 
     except Exception as e:
         result["error"] = str(e)
-        logger.error("Redis health check failed", extra={"db": db.name, "error": str(e)})
+        logger.error(
+            "Redis health check failed", extra={"db": db.name, "error": str(e)}
+        )
 
     return result
 

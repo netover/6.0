@@ -17,7 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.staticfiles import FileResponse, StaticFiles as StarletteStaticFiles
 
 from resync.core.structured_logger import get_logger
@@ -676,12 +676,10 @@ class ApplicationFactory:
         """Register special endpoints (frontend, CSP, etc.)."""
 
         # Root redirect
-        # Root serves Operator Chat
-        @self.app.get("/", include_in_schema=False, response_class=HTMLResponse)
-        async def root(request: Request):
-            """Serve Operator Chat interface."""
-            # Reuse _render_template for CSP nonce injection
-            return self._render_template("chat.html", request)
+        @self.app.get("/", include_in_schema=False)
+        async def root() -> RedirectResponse:
+            """Redirect root to admin dashboard."""
+            return RedirectResponse(url="/admin", status_code=307)
 
         # Admin panel is now handled by the admin router
 
@@ -752,7 +750,7 @@ class ApplicationFactory:
                     # Security: don't expose environment to prevent fingerprinting
                 },
             }
-            return self.templates.TemplateResponse(template_name, context)
+            return self.templates.TemplateResponse(request, template_name, context)
         except FileNotFoundError:
             logger.error("template_not_found", template=template_name)
             raise HTTPException(

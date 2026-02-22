@@ -21,8 +21,15 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from redisvl.index import SearchIndex
-from redisvl.query import VectorQuery
+try:
+    from redisvl.index import SearchIndex
+    from redisvl.query import VectorQuery
+
+    REDISVL_AVAILABLE = True
+except Exception:
+    SearchIndex = None  # type: ignore[assignment]
+    VectorQuery = None  # type: ignore[assignment]
+    REDISVL_AVAILABLE = False
 
 from resync.models.cache import CacheEntry, CacheResult
 from .embedding_model import (
@@ -94,9 +101,9 @@ class SemanticCache:
         self.max_entries = max_entries or config.semantic_cache_max_entries
         self.enable_reranking = enable_reranking and is_reranker_available()
 
-        # Initialize Vectorizer and Index
+        # Initialize Vectorizer and Index (best-effort if RedisVL is available)
         self.vectorizer = ResyncVectorizer()
-        self.index = SearchIndex.from_dict(SCHEMA)
+        self.index = SearchIndex.from_dict(SCHEMA) if REDISVL_AVAILABLE else None
 
         self._initialized = False
         self._redis_stack_available: bool | None = None
@@ -110,7 +117,7 @@ class SemanticCache:
             "reranks": 0,
             "rerank_rejections": 0,
         }
-        self._memory_only = False
+        self._memory_only = not REDISVL_AVAILABLE
         self._memory_store: OrderedDict[str, tuple[CacheEntry, float, str | None]] = (
             OrderedDict()
         )
@@ -120,6 +127,15 @@ class SemanticCache:
     async def initialize(self) -> bool:
         """Initialize connection and verify index/stack availability."""
         if self._initialized:
+            return True
+
+        if not REDISVL_AVAILABLE:
+            self._memory_only = True
+            self._redis_stack_available = False
+            self._initialized = True
+            logger.warning(
+                "RedisVL unavailable; semantic cache running in memory-only mode"
+            )
             return True
 
         try:
@@ -179,7 +195,7 @@ class SemanticCache:
             self._redis_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
         except Exception:
             self._redis_stack_available = False
-        self._memory_only = False
+        self._memory_only = not REDISVL_AVAILABLE
 
     async def _memory_cleanup_locked(self) -> None:
         now = time.monotonic()

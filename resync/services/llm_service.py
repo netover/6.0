@@ -95,6 +95,8 @@ def _count_tokens(text: str) -> int:
         except Exception:
             pass
     return int(len(text.split()) * 1.3)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -720,7 +722,8 @@ class LLMService:
                     system_message = prompt.compile(context=context)
                     logger.debug(
                         "prompt_loaded_from_manager: prompt_id=%s, agent_id=%s",
-                        prompt.id, agent_id,
+                        prompt.id,
+                        agent_id,
                     )
             except Exception as e:
                 if isinstance(

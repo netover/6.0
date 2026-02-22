@@ -27,9 +27,10 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+import aiofiles
+
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
-import aiofiles
 
 logger = get_logger(__name__)
 
@@ -38,9 +39,13 @@ try:
     from langfuse import Langfuse
 
     LANGFUSE_AVAILABLE = True
-except ImportError:
+except Exception as exc:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
+    logger.warning(
+        "langfuse_prompt_manager_disabled reason=%s",
+        type(exc).__name__,
+    )
 
 
 # =============================================================================

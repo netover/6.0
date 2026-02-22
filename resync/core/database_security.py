@@ -532,7 +532,9 @@ def validate_database_inputs(
     Raises:
         DatabaseSecurityError: If any input is invalid
     """
-    validated: dict[str, Any] = {"table": DatabaseInputValidator.validate_table_name(table_name)}
+    validated: dict[str, Any] = {
+        "table": DatabaseInputValidator.validate_table_name(table_name)
+    }
 
     if limit is not None:
         validated["limit"] = DatabaseInputValidator.validate_limit(limit)

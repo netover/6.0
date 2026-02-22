@@ -683,17 +683,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.info("core_services_initialized")
 
             # 3. Optional services (failures are non-fatal, except programming errors)
-            results = await asyncio.gather(
-                _init_proactive_monitoring(app),
-                _init_metrics_collector(app),
-                _init_cache_warmup(app),
-                _init_graphrag(app),
-                _init_config_system(app),
-                return_exceptions=True,
-            )
+            optional_results: list[Exception] = []
+            optional_timeout = max(0.5, min(3.0, float(startup_timeout) / 2.0))
+            try:
+                async with asyncio.timeout(optional_timeout):
+                    results = await asyncio.gather(
+                        _init_proactive_monitoring(app),
+                        _init_metrics_collector(app),
+                        _init_cache_warmup(app),
+                        _init_graphrag(app),
+                        _init_config_system(app),
+                        return_exceptions=True,
+                    )
+                    optional_results = [r for r in results if isinstance(r, Exception)]
+            except TimeoutError:
+                logger.warning(
+                    "optional_startup_services_timeout",
+                    timeout_seconds=optional_timeout,
+                )
 
             # Re-raise critical programming errors (bugs, not environmental timeouts)
-            for res in results:
+            for res in optional_results:
                 if isinstance(
                     res, (TypeError, KeyError, AttributeError, IndexError, NameError)
                 ):
@@ -780,7 +790,7 @@ async def _init_metrics_collector(app: FastAPI) -> None:
 
 async def _init_cache_warmup(app: FastAPI) -> None:
     try:
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(10):
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
 
@@ -799,15 +809,17 @@ async def _init_graphrag(app: FastAPI) -> None:
             # Wait for core singletons to be ready
             await app.state.singletons_ready_event.wait()
 
+            settings = get_settings()
+            graphrag_enabled = getattr(settings, "GRAPHRAG_ENABLED", False)
+            if not isinstance(graphrag_enabled, bool) or not graphrag_enabled:
+                return
+
             from resync.core.graphrag_integration import initialize_graphrag
             from resync.core.redis_init import get_redis_client
             from resync.knowledge.retrieval.graph import get_knowledge_graph
             from resync.services.llm_service import get_llm_service
             from resync.services.tws_service import get_tws_client
 
-            settings = get_settings()
-            if not getattr(settings, "GRAPHRAG_ENABLED", False):
-                return
             initialize_graphrag(
                 llm_service=get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
@@ -816,7 +828,7 @@ async def _init_graphrag(app: FastAPI) -> None:
                 enabled=True,
             )
     except Exception as exc:
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
+        if isinstance(exc, (TypeError, KeyError, IndexError)):
             raise
         get_logger("resync.startup").warning(
             "graphrag_initialization_failed", error=str(exc)

@@ -101,7 +101,8 @@ def retry_on_exception(
     max_retries: int = 3,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: tuple[type[BaseException], ...] | Callable[[], tuple[type[BaseException], ...]] = (Exception,),
+    exceptions: tuple[type[BaseException], ...]
+    | Callable[[], tuple[type[BaseException], ...]] = (Exception,),
     logger: logging.Logger | None = None,
 ) -> Callable[[F], F]:
     """

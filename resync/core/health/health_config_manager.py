@@ -389,7 +389,9 @@ class HealthCheckConfigurationManager:
         """
         if component_name == "database" and "connection_usage_warning" in thresholds:
             self.update_config(
-                database_connection_threshold_percent=thresholds["connection_usage_warning"]
+                database_connection_threshold_percent=thresholds[
+                    "connection_usage_warning"
+                ]
             )
 
         logger.info(
