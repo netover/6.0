@@ -8,6 +8,7 @@ from typing import Any, Tuple
 
 _litellm_router = None
 
+
 def get_litellm_exceptions() -> Tuple[type, ...]:
     """
     Lazy load LiteLLM exceptions.
@@ -23,6 +24,7 @@ def get_litellm_exceptions() -> Tuple[type, ...]:
         ServiceUnavailableError,
         Timeout,
     )
+
     return (
         APIError,
         AuthenticationError,
@@ -34,12 +36,21 @@ def get_litellm_exceptions() -> Tuple[type, ...]:
         Timeout,
     )
 
+
 def get_acompletion() -> Any:
     """Lazy load litellm.acompletion function."""
     from litellm import acompletion
+
     return acompletion
+
 
 def get_available_models() -> Any:
     """Lazy load litellm.get_available_models function."""
-    from litellm import get_available_models
-    return get_available_models
+    import litellm
+
+    # Use getattr to avoid mypy issues with non-existent attributes
+    func = getattr(litellm, "get_available_models", None)
+    if func is None:
+        # Fallback - return a no-op function
+        return lambda *args, **kwargs: []
+    return func

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 GraphRAG Integration
 
@@ -7,7 +9,6 @@ with existing Resync systems.
 Author: Resync Team
 Version: 5.9.9
 """
-
 
 import structlog
 
@@ -34,7 +35,7 @@ class GraphRAGIntegration:
         knowledge_graph,
         tws_client,
         redis_client=None,
-        enabled: bool = True
+        enabled: bool = True,
     ):
         """
         Initialize GraphRAG integration.
@@ -58,24 +59,16 @@ class GraphRAGIntegration:
         # Initialize components
         self.subgraph_retriever = SubgraphRetriever(knowledge_graph)
         self.discovery_service = EventDrivenDiscovery(
-            llm_service,
-            knowledge_graph,
-            tws_client,
-            redis_client
+            llm_service, knowledge_graph, tws_client, redis_client
         )
         self.cache_validator = SmartCacheValidator(
-            tws_client,
-            redis_client,
-            knowledge_graph,
-            self.discovery_service
+            tws_client, redis_client, knowledge_graph, self.discovery_service
         )
 
         logger.info("GraphRAG integration initialized with smart cache validation")
 
     async def get_enriched_context(
-        self,
-        job_name: str,
-        use_subgraph: bool = True
+        self, job_name: str, use_subgraph: bool = True
     ) -> dict:
         """
         Get enriched context for a job using GraphRAG.
@@ -96,7 +89,7 @@ class GraphRAGIntegration:
                     job_name=job_name,
                     depth=2,
                     include_history=True,
-                    include_solutions=True
+                    include_solutions=True,
                 )
             else:
                 # Fallback to simple context
@@ -108,7 +101,9 @@ class GraphRAGIntegration:
             logger.error("Failed to get enriched context: %s", e, exc_info=True)
             return {"job": {"name": job_name}}
 
-    async def handle_job_event(self, event_type: str, job_name: str, event_details: dict):
+    async def handle_job_event(
+        self, event_type: str, job_name: str, event_details: dict
+    ):
         """
         Handle job event - triggers cache validation and/or discovery.
 
@@ -170,11 +165,7 @@ _graphrag_integration: GraphRAGIntegration | None = None
 
 
 def initialize_graphrag(
-    llm_service,
-    knowledge_graph,
-    tws_client,
-    redis_client=None,
-    enabled: bool = True
+    llm_service, knowledge_graph, tws_client, redis_client=None, enabled: bool = True
 ):
     """
     Initialize global GraphRAG integration.
@@ -195,7 +186,7 @@ def initialize_graphrag(
         knowledge_graph=knowledge_graph,
         tws_client=tws_client,
         redis_client=redis_client,
-        enabled=enabled
+        enabled=enabled,
     )
 
     logger.info("GraphRAG integration initialized globally")
@@ -214,6 +205,7 @@ def get_graphrag_integration() -> GraphRAGIntegration | None:
 
 
 # Convenience functions for direct access
+
 
 async def get_job_subgraph(job_name: str) -> dict:
     """

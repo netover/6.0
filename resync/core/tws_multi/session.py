@@ -93,7 +93,9 @@ class SessionManager:
     def __init__(self):
         self._sessions: dict[str, TWSSession] = {}
         self._user_sessions: dict[str, list[str]] = {}  # user_id -> [session_ids]
-        self._instance_sessions: dict[str, list[str]] = {}  # instance_id -> [session_ids]
+        self._instance_sessions: dict[
+            str, list[str]
+        ] = {}  # instance_id -> [session_ids]
 
     def create_session(
         self,
@@ -123,7 +125,9 @@ class SessionManager:
             self._instance_sessions[instance_id] = []
         self._instance_sessions[instance_id].append(session.id)
 
-        logger.info("Session created: %s for user %s on %s", session.id, username, instance_name)
+        logger.info(
+            "Session created: %s for user %s on %s", session.id, username, instance_name
+        )
 
         return session
 
@@ -157,7 +161,9 @@ class SessionManager:
 
         if session.instance_id in self._instance_sessions:
             self._instance_sessions[session.instance_id] = [
-                sid for sid in self._instance_sessions[session.instance_id] if sid != session_id
+                sid
+                for sid in self._instance_sessions[session.instance_id]
+                if sid != session_id
             ]
 
         del self._sessions[session_id]
@@ -166,7 +172,9 @@ class SessionManager:
 
     def cleanup_inactive_sessions(self):
         """Clean up inactive sessions."""
-        inactive = [sid for sid, session in self._sessions.items() if not session.is_active]
+        inactive = [
+            sid for sid, session in self._sessions.items() if not session.is_active
+        ]
 
         for session_id in inactive:
             self.close_session(session_id)
@@ -184,10 +192,12 @@ class SessionManager:
             "total_sessions": len(self._sessions),
             "active_sessions": self.get_active_session_count(),
             "sessions_by_instance": {
-                inst_id: len(sessions) for inst_id, sessions in self._instance_sessions.items()
+                inst_id: len(sessions)
+                for inst_id, sessions in self._instance_sessions.items()
             },
             "sessions_by_user": {
-                user_id: len(sessions) for user_id, sessions in self._user_sessions.items()
+                user_id: len(sessions)
+                for user_id, sessions in self._user_sessions.items()
             },
         }
 

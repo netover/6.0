@@ -46,7 +46,12 @@ def _sanitize_metric_name(name: str) -> str:
     """Sanitiza nomes para Prometheus (básico: substitui chars inválidos por '_')."""
     out = []
     for ch in name:
-        if ("A" <= ch <= "Z") or ("a" <= ch <= "z") or ("0" <= ch <= "9") or ch in [":", "_"]:
+        if (
+            ("A" <= ch <= "Z")
+            or ("a" <= ch <= "z")
+            or ("0" <= ch <= "9")
+            or ch in [":", "_"]
+        ):
             out.append(ch)
         else:
             out.append("_")
@@ -290,7 +295,9 @@ class RuntimeMetrics:
         self.llm_tokens = MetricCounter()
 
         # "error_rate" era usado para tempos de erro — manter nome por compatibilidade
-        self.error_rate = MetricHistogram(help_text="Observed error processing duration seconds")
+        self.error_rate = MetricHistogram(
+            help_text="Observed error processing duration seconds"
+        )
 
         # Error tracking
         self.error_counts: dict[str, MetricCounter] = {}
@@ -313,7 +320,9 @@ class RuntimeMetrics:
         self.api_error_rate = MetricGauge()  # percentual agregado externamente
         self.system_availability = MetricGauge()  # percentual agregado externamente
         self.tws_connection_success_rate = MetricGauge()
-        self.ai_agent_response_time = MetricHistogram(help_text="AI agent response time seconds")
+        self.ai_agent_response_time = MetricHistogram(
+            help_text="AI agent response time seconds"
+        )
 
         # Orchestration Metrics (Multi-Agent Workflows)
         self.orchestration_executions_total = MetricCounter()
@@ -322,8 +331,12 @@ class RuntimeMetrics:
         self.orchestration_steps_completed = MetricCounter()
         self.orchestration_steps_failed = MetricCounter()
         self.orchestration_active_executions = MetricGauge()
-        self.orchestration_execution_time = MetricHistogram(help_text="Orchestration execution duration seconds")
-        self.orchestration_step_time = MetricHistogram(help_text="Orchestration step duration seconds")
+        self.orchestration_execution_time = MetricHistogram(
+            help_text="Orchestration execution duration seconds"
+        )
+        self.orchestration_step_time = MetricHistogram(
+            help_text="Orchestration step duration seconds"
+        )
 
         # Correlation tracking
         self._correlation_context: dict[str, dict[str, Any]] = {}
@@ -388,7 +401,9 @@ class RuntimeMetrics:
     class _Span:
         """_ span."""
 
-        def __init__(self, rm: "RuntimeMetrics", name: str, context: dict[str, Any] | None = None):
+        def __init__(
+            self, rm: "RuntimeMetrics", name: str, context: dict[str, Any] | None = None
+        ):
             self.rm = rm
             self.name = name
             self.context = context or {}
@@ -396,7 +411,9 @@ class RuntimeMetrics:
             self._t0 = 0.0
 
         def __enter__(self):
-            self.correlation_id = self.rm.create_correlation_id({"span": self.name, **self.context})
+            self.correlation_id = self.rm.create_correlation_id(
+                {"span": self.name, **self.context}
+            )
             self.rm.set_current_correlation_id(self.correlation_id)
             self._t0 = _now_perf()
             return self.correlation_id
@@ -407,12 +424,16 @@ class RuntimeMetrics:
             self.rm.agent_orchestration_time.observe(dur)
             cid = self.correlation_id
             if cid:
-                self.rm.add_correlation_event(cid, "span_end", {"duration_seconds": dur})
+                self.rm.add_correlation_event(
+                    cid, "span_end", {"duration_seconds": dur}
+                )
                 self.rm.close_correlation_id(cid)
             # limpar contextvar
             self.rm.set_current_correlation_id(None)
 
-    def span(self, name: str, context: dict[str, Any] | None = None) -> "RuntimeMetrics._Span":
+    def span(
+        self, name: str, context: dict[str, Any] | None = None
+    ) -> "RuntimeMetrics._Span":
         """Cria um span de correlação (context manager)."""
         return RuntimeMetrics._Span(self, name, context)
 
@@ -456,7 +477,8 @@ class RuntimeMetrics:
         )
         if total_requests > 0:
             return (
-                self.agent_creation_failures.value + self.tws_status_requests_failed.value
+                self.agent_creation_failures.value
+                + self.tws_status_requests_failed.value
             ) / total_requests
         return 0.0
 
@@ -552,7 +574,10 @@ class RuntimeMetrics:
         # error_counts: expor como métricas rotuladas
         with self._error_lock:
             for etype, ctr in self.error_counts.items():
-                yield f"error_counts__{etype}", ctr  # nome composto → vira label no render
+                yield (
+                    f"error_counts__{etype}",
+                    ctr,
+                )  # nome composto → vira label no render
 
     def generate_prometheus_metrics(self) -> str:
         """

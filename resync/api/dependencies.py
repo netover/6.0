@@ -89,7 +89,7 @@ async def require_idempotency_key(
 
     try:
         uuid_obj = uuid.UUID(x_idempotency_key)
-    except ValueError:
+    except ValueError as e:
         raise ValidationError(
             message="Invalid idempotency key format",
             details={
@@ -97,11 +97,9 @@ async def require_idempotency_key(
                 "expected": "Valid UUID (any version)",
                 "received": x_idempotency_key,
             },
-        )
+        ) from e
 
     return str(uuid_obj)
-
-
 
 
 # ============================================================================
@@ -182,16 +180,12 @@ async def get_current_user(
     except Exception as e:
         # BUG FIX: Log and re-raise infrastructure errors instead of silently swallowing them
         # This prevents masking serious issues like Redis unavailability or token parsing errors
-        logger.error(
-            "Authentication infrastructure error",
-            error=str(e),
-            exc_info=True
-        )
+        logger.error("Authentication infrastructure error", error=str(e), exc_info=True)
         # Re-raise as authentication error to inform the client appropriately
         raise AuthenticationError(
             message="Authentication service unavailable",
             details={"error": str(e)},
-        )
+        ) from e
 
 
 async def require_authentication(

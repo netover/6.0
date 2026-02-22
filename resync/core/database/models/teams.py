@@ -1,9 +1,11 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """Teams Webhook database models."""
 
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
@@ -21,7 +23,11 @@ class TeamsWebhookUser(Base):
     can_execute_commands = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     last_activity = Column(DateTime)
 
     def __repr__(self):

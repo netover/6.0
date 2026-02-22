@@ -156,14 +156,18 @@ class TWSInstance:
         result.update(
             {
                 "status": self.status.value,
-                "last_connected": self.last_connected.isoformat() if self.last_connected else None,
+                "last_connected": self.last_connected.isoformat()
+                if self.last_connected
+                else None,
                 "last_error": self.last_error,
                 "error_count": self.error_count,
                 "metrics": {
                     "total_requests": self.total_requests,
                     "successful_requests": self.successful_requests,
                     "failed_requests": self.failed_requests,
-                    "success_rate": (self.successful_requests / self.total_requests * 100)
+                    "success_rate": (
+                        self.successful_requests / self.total_requests * 100
+                    )
                     if self.total_requests > 0
                     else 0,
                     "avg_response_time_ms": self.avg_response_time_ms,

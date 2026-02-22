@@ -8,7 +8,12 @@ from typing import Annotated, Any
 from pydantic import ConfigDict, Field, field_validator
 from pydantic import StringConstraints as PydanticStringConstraints
 
-from .common import BaseValidatedModel, NumericConstraints, StringConstraints, ValidationPatterns
+from .common import (
+    BaseValidatedModel,
+    NumericConstraints,
+    StringConstraints,
+    ValidationPatterns,
+)
 
 
 class SortOrder(str, Enum):
@@ -80,7 +85,8 @@ class SearchParams(BaseValidatedModel):
     """Search query parameters."""
 
     query: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=200, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=200, strip_whitespace=True),
     ] = Field(..., description="Search query string")
 
     search_fields: list[str] | None = Field(
@@ -159,7 +165,9 @@ class FilterParams(BaseValidatedModel):
             # Validate filter structure
             required_keys = {"field", "operator", "value"}
             if not all(key in filter_condition for key in required_keys):
-                raise ValueError(f"Filter at index {i} missing required keys: {required_keys}")
+                raise ValueError(
+                    f"Filter at index {i} missing required keys: {required_keys}"
+                )
             # Validate field name
             field = filter_condition["field"]
             if not field.replace("_", "").replace(".", "").isalnum():
@@ -174,7 +182,9 @@ class FilterParams(BaseValidatedModel):
             if operator in {"in", "not_in"} and not isinstance(value, list):
                 raise ValueError(f"Filter operator '{operator}' requires a list value")
             # Check for malicious content in string values
-            if isinstance(value, str) and ValidationPatterns.SCRIPT_PATTERN.search(value):
+            if isinstance(value, str) and ValidationPatterns.SCRIPT_PATTERN.search(
+                value
+            ):
                 raise ValueError(f"Filter value contains malicious content: {value}")
             # Check for SQL injection in field names and values
             if isinstance(field, str):
@@ -184,7 +194,9 @@ class FilterParams(BaseValidatedModel):
                 ]
                 for pattern in sql_patterns:
                     if re.search(pattern, field, re.IGNORECASE):
-                        raise ValueError(f"Filter field contains invalid patterns: {field}")
+                        raise ValueError(
+                            f"Filter field contains invalid patterns: {field}"
+                        )
         return v
 
 
@@ -231,7 +243,9 @@ class SortParams(BaseValidatedModel):
 class DateRangeParams(BaseValidatedModel):
     """Date range query parameters."""
 
-    start_date: datetime | None = Field(None, description="Start date (ISO 8601 format)")
+    start_date: datetime | None = Field(
+        None, description="Start date (ISO 8601 format)"
+    )
 
     end_date: datetime | None = Field(None, description="End date (ISO 8601 format)")
 
@@ -258,11 +272,13 @@ class DateRangeParams(BaseValidatedModel):
 class AgentQueryParams(BaseValidatedModel):
     """Agent-specific query parameters."""
 
-    agent_id: StringConstraints.AGENT_ID | None = Field(None, description="Filter by agent ID")
-
-    name: Annotated[str, PydanticStringConstraints(min_length=1, max_length=100)] | None = Field(
-        None, description="Filter by agent name (partial match)"
+    agent_id: StringConstraints.AGENT_ID | None = Field(
+        None, description="Filter by agent ID"
     )
+
+    name: (
+        Annotated[str, PydanticStringConstraints(min_length=1, max_length=100)] | None
+    ) = Field(None, description="Filter by agent name (partial match)")
 
     type: str | None = Field(None, description="Filter by agent type")
 
@@ -278,9 +294,10 @@ class AgentQueryParams(BaseValidatedModel):
 
     include_inactive: bool = Field(default=False, description="Include inactive agents")
 
-    tags: list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]] | None = (
-        Field(None, description="Filter by tags", max_length=5)
-    )
+    tags: (
+        list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]]
+        | None
+    ) = Field(None, description="Filter by tags", max_length=5)
 
     model_config = ConfigDict(
         extra="forbid",
@@ -360,16 +377,25 @@ class AuditQueryParams(BaseValidatedModel):
 
     query: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=200, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=200, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="Search query")
 
-    user_id: StringConstraints.SAFE_TEXT | None = Field(None, description="Filter by user ID")
+    user_id: StringConstraints.SAFE_TEXT | None = Field(
+        None, description="Filter by user ID"
+    )
 
-    agent_id: StringConstraints.AGENT_ID | None = Field(None, description="Filter by agent ID")
+    agent_id: StringConstraints.AGENT_ID | None = Field(
+        None, description="Filter by agent ID"
+    )
 
-    severity: list[str] | None = Field(None, description="Filter by severity levels", max_length=3)
+    severity: list[str] | None = Field(
+        None, description="Filter by severity levels", max_length=3
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -387,13 +413,17 @@ class AuditQueryParams(BaseValidatedModel):
 class FileQueryParams(BaseValidatedModel):
     """File-related query parameters."""
 
-    file_types: list[str] | None = Field(None, description="Filter by file types", max_length=10)
+    file_types: list[str] | None = Field(
+        None, description="Filter by file types", max_length=10
+    )
 
     size_min: int | None = Field(None, ge=0, description="Minimum file size in bytes")
 
     size_max: int | None = Field(None, ge=0, description="Maximum file size in bytes")
 
-    uploaded_by: StringConstraints.SAFE_TEXT | None = Field(None, description="Filter by uploader")
+    uploaded_by: StringConstraints.SAFE_TEXT | None = Field(
+        None, description="Filter by uploader"
+    )
 
     status: str | None = Field(None, description="Filter by file processing status")
 
@@ -420,7 +450,9 @@ class FileQueryParams(BaseValidatedModel):
             if isinstance(v, list):
                 for item in v:
                     if ValidationPatterns.SCRIPT_PATTERN.search(item):
-                        raise ValueError(f"List item contains malicious content: {item}")
+                        raise ValueError(
+                            f"List item contains malicious content: {item}"
+                        )
         return v
 
 

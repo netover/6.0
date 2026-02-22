@@ -13,6 +13,7 @@ Não há necessidade de L1 (memory) cache - seria over-engineering.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -139,10 +140,12 @@ class EnhancedCacheManager:
                 return
 
             # Buscar dados
-            if asyncio.iscoroutinefunction(fetcher):
+            if inspect.iscoroutinefunction(fetcher):
                 data = await fetcher()
             else:
-                data = fetcher()
+                data = await asyncio.to_thread(fetcher)
+                if inspect.isawaitable(data):
+                    data = await data
 
             # Armazenar no cache
             import json
@@ -196,7 +199,9 @@ class EnhancedCacheManager:
             )
 
         except Exception as e:
-            logger.error("Failed to invalidate pattern %s: %s", pattern, e, exc_info=True)
+            logger.error(
+                "Failed to invalidate pattern %s: %s", pattern, e, exc_info=True
+            )
             raise
 
     async def invalidate_job_cache(self, job_name: str):

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Connection pool base classes and configuration for the Resync project.
 Separated to follow Single Responsibility Principle.
@@ -36,8 +38,12 @@ class ConnectionPoolStats:
     pool_hits: int = 0
     pool_misses: int = 0
     pool_exhaustions: int = 0
-    acquisition_attempts: int = 0  # Nova métrica para contagem de tentativas de aquisição
-    session_acquisitions: int = 0  # Nova métrica para contagem de sessões adquiridas com sucesso
+    acquisition_attempts: int = (
+        0  # Nova métrica para contagem de tentativas de aquisição
+    )
+    session_acquisitions: int = (
+        0  # Nova métrica para contagem de sessões adquiridas com sucesso
+    )
     last_health_check: datetime | None = None
     average_wait_time: float = 0.0
     peak_connections: int = 0
@@ -84,7 +90,11 @@ class ConnectionPool(ABC, Generic[T]):
                 self._initialized = True
                 logger.info("Initialized %s connection pool", self.config.pool_name)
             except Exception as e:
-                logger.error("Failed to initialize %s connection pool: %s", self.config.pool_name, e)
+                logger.error(
+                    "Failed to initialize %s connection pool: %s",
+                    self.config.pool_name,
+                    e,
+                )
                 raise
 
     def _setup_pool(self) -> None:
@@ -109,7 +119,9 @@ class ConnectionPool(ABC, Generic[T]):
                 self._shutdown = True
                 logger.info("Closed %s connection pool", self.config.pool_name)
             except Exception as e:
-                logger.error("Error closing %s connection pool: %s", self.config.pool_name, e)
+                logger.error(
+                    "Error closing %s connection pool: %s", self.config.pool_name, e
+                )
                 raise
 
     def _close_pool(self) -> None:

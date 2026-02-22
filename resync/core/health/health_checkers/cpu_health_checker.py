@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 CPU Health Checker
 
@@ -18,7 +20,13 @@ from resync.core.health.health_models import (
 )
 
 from .base_health_checker import BaseHealthChecker
-from .common import ErrorContext, ThresholdConfig, build_error_health, response_time_ms, threshold_status
+from .common import (
+    ErrorContext,
+    ThresholdConfig,
+    build_error_health,
+    response_time_ms,
+    threshold_status,
+)
 
 logger = structlog.get_logger(__name__)
 

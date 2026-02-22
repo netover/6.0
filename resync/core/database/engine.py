@@ -8,9 +8,11 @@ v5.9.4: Implementação de graceful shutdown com draining de requisições.
 
 import asyncio
 import logging
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import AsyncAdaptedQueuePool
@@ -28,6 +30,7 @@ class Base(DeclarativeBase):
 # Global engine and session factory
 _engine = None
 _session_factory = None
+_engine_lock = threading.Lock()  # Lock síncrono para a inicialização lazy
 
 # v5.9.4: Contador de sessões ativas para graceful shutdown
 _active_sessions = 0
@@ -55,6 +58,7 @@ def _get_active_sessions_lock() -> asyncio.Lock:
         _active_sessions_lock_loop = loop
     return _active_sessions_lock
 
+
 _shutdown_event: asyncio.Event | None = None
 
 
@@ -80,37 +84,40 @@ def get_engine():
     """
     global _engine
 
+    # HARDENING [P2]: Proteção Thread-safe contra Double-Checked Locking para inicialização do Engine
     if _engine is None:
-        config = get_database_config()
+        with _engine_lock:
+            if _engine is None:
+                config = get_database_config()
 
-        # Engine options with connection pooling
-        options = {
-            "poolclass": AsyncAdaptedQueuePool,
-            "pool_size": config.pool_size,
-            "max_overflow": config.max_overflow,
-            "pool_timeout": config.pool_timeout,
-            "pool_recycle": config.pool_recycle,
-            "pool_pre_ping": config.pool_pre_ping,
-            # Timeouts críticos para produção
-            "connect_args": {
-                "timeout": 5,  # Connection timeout (segundos)
-                "command_timeout": 60,  # Query timeout (segundos)
-                "server_settings": {
-                    "jit": "off",  # Desabilita JIT para queries simples (menor overhead)
-                },
-            },
-        }
+                # Engine options with connection pooling
+                options = {
+                    "poolclass": AsyncAdaptedQueuePool,
+                    "pool_size": config.pool_size,
+                    "max_overflow": config.max_overflow,
+                    "pool_timeout": config.pool_timeout,
+                    "pool_recycle": config.pool_recycle,
+                    "pool_pre_ping": config.pool_pre_ping,
+                    # Timeouts críticos para produção
+                    "connect_args": {
+                        "timeout": 5,  # Connection timeout (segundos)
+                        "command_timeout": 60,  # Query timeout (segundos)
+                        "server_settings": {
+                            "jit": "off",  # Desabilita JIT para queries simples (menor overhead)
+                        },
+                    },
+                }
 
-        logger.info(
-            "Creating PostgreSQL database engine",
-            extra={
-                "host": config.host,
-                "database": config.name,
-                "pool_size": config.pool_size,
-            },
-        )
+                logger.info(
+                    "Creating PostgreSQL database engine",
+                    extra={
+                        "host": config.host,
+                        "database": config.name,
+                        "pool_size": config.pool_size,
+                    },
+                )
 
-        _engine = create_async_engine(config.url, **options)
+                _engine = create_async_engine(config.url, **options)
 
     return _engine
 
@@ -152,7 +159,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         RuntimeError: Se engine está em processo de shutdown.
     """
     if _shutdown_event is not None:
-        raise RuntimeError("Database engine is shutting down. Cannot create new sessions.")
+        raise RuntimeError(
+            "Database engine is shutting down. Cannot create new sessions."
+        )
 
     if _engine is None:
         # Lazy initialization
@@ -201,7 +210,8 @@ async def close_engine(timeout: float = 30.0):
     logger.info("Database shutdown initiated, waiting for active sessions...")
 
     # Aguardar sessões ativas com timeout
-    start_time = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
     while True:
         async with _get_active_sessions_lock():
             active = _active_sessions
@@ -210,7 +220,7 @@ async def close_engine(timeout: float = 30.0):
             logger.info("All database sessions completed")
             break
 
-        elapsed = asyncio.get_event_loop().time() - start_time
+        elapsed = loop.time() - start_time
         if elapsed >= timeout:
             logger.warning(
                 f"Shutdown timeout reached with {active} active sessions. Forcing close."
@@ -224,7 +234,7 @@ async def close_engine(timeout: float = 30.0):
     try:
         await _engine.dispose()
         logger.info("Database engine closed successfully")
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error("Error closing database engine: %s", e)
     finally:
         _engine = None

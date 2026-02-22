@@ -98,11 +98,16 @@ class TWSSnapshotRepository(TimestampedRepository[TWSSnapshot]):
         super().__init__(TWSSnapshot, session_factory)
 
     async def create_snapshot(
-        self, snapshot_data: dict[str, Any], job_count: int = 0, workstation_count: int = 0
+        self,
+        snapshot_data: dict[str, Any],
+        job_count: int = 0,
+        workstation_count: int = 0,
     ) -> TWSSnapshot:
         """Create a new snapshot."""
         return await self.create(
-            snapshot_data=snapshot_data, job_count=job_count, workstation_count=workstation_count
+            snapshot_data=snapshot_data,
+            job_count=job_count,
+            workstation_count=workstation_count,
         )
 
 
@@ -157,9 +162,13 @@ class TWSJobStatusRepository(TimestampedRepository[TWSJobStatus]):
             await session.refresh(record)
             return record
 
-    async def get_job_history(self, job_name: str, limit: int = 100) -> list[TWSJobStatus]:
+    async def get_job_history(
+        self, job_name: str, limit: int = 100
+    ) -> list[TWSJobStatus]:
         """Get job status history."""
-        return await self.find({"job_name": job_name}, limit=limit, order_by="timestamp", desc=True)
+        return await self.find(
+            {"job_name": job_name}, limit=limit, order_by="timestamp", desc=True
+        )
 
     async def get_failed_jobs(
         self, since: datetime | None = None, limit: int = 100
@@ -227,7 +236,9 @@ class TWSEventRepository(TimestampedRepository[TWSEvent]):
             {"acknowledged": False}, limit=limit, order_by="timestamp", desc=True
         )
 
-    async def acknowledge_event(self, event_id: int, acknowledged_by: str) -> TWSEvent | None:
+    async def acknowledge_event(
+        self, event_id: int, acknowledged_by: str
+    ) -> TWSEvent | None:
         """Acknowledge an event."""
         return await self.update(
             event_id,
@@ -357,7 +368,9 @@ class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
-    async def record_outcome(self, solution_id: int, success: bool) -> TWSProblemSolution | None:
+    async def record_outcome(
+        self, solution_id: int, success: bool
+    ) -> TWSProblemSolution | None:
         """Record whether a solution worked."""
         async with self._get_session() as session:
             solution = await session.get(TWSProblemSolution, solution_id)
@@ -412,11 +425,15 @@ class TWSStore:
         """Get latest status for a job."""
         return await self.jobs.get_latest({"job_name": job_name})
 
-    async def get_job_history(self, job_name: str, limit: int = 100) -> list[TWSJobStatus]:
+    async def get_job_history(
+        self, job_name: str, limit: int = 100
+    ) -> list[TWSJobStatus]:
         """Get job status history."""
         return await self.jobs.get_job_history(job_name, limit)
 
-    async def get_failed_jobs(self, hours: int = 24, limit: int = 100) -> list[TWSJobStatus]:
+    async def get_failed_jobs(
+        self, hours: int = 24, limit: int = 100
+    ) -> list[TWSJobStatus]:
         """Get recently failed jobs."""
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
         return await self.jobs.get_failed_jobs(since, limit)

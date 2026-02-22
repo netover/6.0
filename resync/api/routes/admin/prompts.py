@@ -168,7 +168,10 @@ async def list_prompts(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("list_prompts_error", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from e
 
 
 @prompt_router.get("/{prompt_id}", summary="Get a prompt")
@@ -203,9 +206,7 @@ async def get_prompt(
     )
 
 
-@prompt_router.post(
-    "", status_code=201, summary="Create a prompt"
-)
+@prompt_router.post("", status_code=201, summary="Create a prompt")
 async def create_prompt(
     request: PromptCreateRequest,
     _: Annotated[str, Depends(verify_admin_credentials)],
@@ -240,7 +241,9 @@ async def create_prompt(
         created = await prompt_manager.create_prompt(config)
     except ValueError as e:
         logger.error("request_failed: %s (%s)", str(e), type(e).__name__, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid request. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=400, detail="Invalid request. Check server logs for details."
+        ) from e
 
     return PromptDetailResponse(
         id=created.id,
@@ -311,7 +314,6 @@ async def delete_prompt(
         raise HTTPException(status_code=404, detail=f"Prompt '{prompt_id}' not found")
 
 
-
 @prompt_router.post("/{prompt_id}/test", summary="Test a prompt")
 async def test_prompt(
     prompt_id: str,
@@ -336,7 +338,9 @@ async def test_prompt(
         compiled = template.compile(**final_vars)
     except ValueError as e:
         logger.error("request_failed: %s (%s)", str(e), type(e).__name__, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid request. Check server logs for details.") from e
+        raise HTTPException(
+            status_code=400, detail="Invalid request. Check server logs for details."
+        ) from e
 
     return PromptTestResponse(
         compiled=compiled,

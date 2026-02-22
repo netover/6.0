@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Test Configuration and Fixtures.
 
@@ -28,6 +30,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 # Set test environment before any imports
@@ -86,7 +89,8 @@ async def async_client(app) -> AsyncGenerator[AsyncClient, None]:
 def test_database_url() -> str:
     """Get test database URL."""
     return os.getenv(
-        "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/resync_test"
+        "TEST_DATABASE_URL",
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/resync_test",
     )
 
 

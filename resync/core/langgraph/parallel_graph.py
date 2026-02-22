@@ -201,7 +201,9 @@ async def tws_status_node(state: ParallelState) -> dict[str, Any]:
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
-        logger.error("parallel_node_error", node=source_name, error=str(e), exc_info=True)
+        logger.error(
+            "parallel_node_error", node=source_name, error=str(e), exc_info=True
+        )
         return {
             "parallel_results": [
                 DataSourceResult(
@@ -280,7 +282,9 @@ async def rag_search_node(state: ParallelState) -> dict[str, Any]:
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
-        logger.error("parallel_node_error", node=source_name, error=str(e), exc_info=True)
+        logger.error(
+            "parallel_node_error", node=source_name, error=str(e), exc_info=True
+        )
         return {
             "parallel_results": [
                 DataSourceResult(
@@ -624,7 +628,9 @@ Responda de forma estruturada e acionável."""
         if available_sources:
             fallback_response = f"Não foi possível gerar análise completa, mas coletei dados de: {', '.join(available_sources)}.\n\n"
             if aggregated.get("tws_status"):
-                fallback_response += f"Status TWS: {json.dumps(aggregated['tws_status'], indent=2)}"
+                fallback_response += (
+                    f"Status TWS: {json.dumps(aggregated['tws_status'], indent=2)}"
+                )
             return {"response": fallback_response}
 
         return {
@@ -773,7 +779,9 @@ class FallbackParallelGraph:
                     full_state["errors"].append(f"{task_names[i]}: {str(result)}")
                 elif isinstance(result, dict):
                     if "parallel_results" in result:
-                        full_state["parallel_results"].extend(result["parallel_results"])
+                        full_state["parallel_results"].extend(
+                            result["parallel_results"]
+                        )
                     if "errors" in result:
                         full_state["errors"].extend(result["errors"])
 

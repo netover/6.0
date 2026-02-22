@@ -8,12 +8,17 @@ from datetime import datetime, timezone
 import structlog
 
 from dataclasses import dataclass
-from resync.core.health.health_models import ComponentHealth, ComponentType, HealthStatus
+from resync.core.health.health_models import (
+    ComponentHealth,
+    ComponentType,
+    HealthStatus,
+)
 
 
 @dataclass(frozen=True)
 class ThresholdConfig:
     """Thresholds and messages for health checks."""
+
     warning: float
     critical: float
     healthy_msg: str
@@ -41,6 +46,7 @@ def threshold_status(
 @dataclass(frozen=True)
 class ErrorContext:
     """Context for building error health results."""
+
     name: str
     type: ComponentType
     status: HealthStatus

@@ -118,7 +118,9 @@ volumes:
 """
 
 
-def run_command(cmd: list[str], check: bool = True, cwd: str = None) -> subprocess.CompletedProcess:
+def run_command(
+    cmd: list[str], check: bool = True, cwd: str | None = None
+) -> subprocess.CompletedProcess:
     """Executa um comando shell."""
     print(f"Running: {' '.join(cmd)}")
     return subprocess.run(cmd, check=check, capture_output=True, text=True, cwd=cwd)
@@ -246,9 +248,21 @@ def start_redis() -> None:
         result = run_command(["docker", "--version"], check=False)
         if result.returncode == 0:
             print("Iniciando Redis via Docker...")
-            run_command(["docker", "run", "-d", "--name", "resync-redis",
-                        "-p", "6379:6379", "-v", "redis_data:/data",
-                        "redis:7-alpine"], check=False)
+            run_command(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    "resync-redis",
+                    "-p",
+                    "6379:6379",
+                    "-v",
+                    "redis_data:/data",
+                    "redis:7-alpine",
+                ],
+                check=False,
+            )
             print("Redis iniciado via Docker!")
             return
     except FileNotFoundError:
@@ -287,9 +301,9 @@ def test_redis() -> None:
     print("\n=== Testando Conexão com Redis ===")
 
     try:
-        result = run_command([
-            "redis-cli", "-h", REDIS_HOST, "-p", str(REDIS_PORT), "ping"
-        ], check=False)
+        result = run_command(
+            ["redis-cli", "-h", REDIS_HOST, "-p", str(REDIS_PORT), "ping"], check=False
+        )
 
         if result.returncode == 0:
             print(f"✅ Redis conectado: {result.stdout.strip()}")
@@ -307,7 +321,7 @@ def main():
         "--action",
         choices=["install", "setup", "all", "start", "docker", "test"],
         default="all",
-        help="Ação a executar"
+        help="Ação a executar",
     )
     parser.add_argument("--host", default=REDIS_HOST, help="Host do Redis")
     parser.add_argument("--port", type=int, default=REDIS_PORT, help="Porta do Redis")

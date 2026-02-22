@@ -2,10 +2,12 @@
 """Teams Webhook Administration API."""
 
 from datetime import datetime, timezone
+from importlib.util import find_spec
+import re
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -16,10 +18,27 @@ from resync.core.teams_permissions import TeamsPermissionsManager
 
 logger = structlog.get_logger(__name__)
 
+EMAIL_FALLBACK_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# pydantic.EmailStr requires the optional `email-validator` package.
+# Keep router import resilient when this extra dependency is absent.
+if find_spec("email_validator") is not None:
+    from pydantic import EmailStr
+
+    EMAIL_VALIDATOR_AVAILABLE = True
+else:
+    EmailStr = str
+    EMAIL_VALIDATOR_AVAILABLE = False
+
+if not EMAIL_VALIDATOR_AVAILABLE:
+    logger.warning(
+        "teams_webhook_email_validator_fallback_active",
+        detail="Using regex fallback validator; install email-validator for stricter validation",
+    )
 router = APIRouter(
     prefix="/admin/teams-webhook",
     tags=["Teams Webhook Admin"],
-    dependencies=[Depends(verify_admin_credentials)]
+    dependencies=[Depends(verify_admin_credentials)],
 )
 
 
@@ -30,6 +49,19 @@ class UserCreate(BaseModel):
     role: str = Field(default="viewer", pattern="^(viewer|operator|admin)$")
     can_execute_commands: bool = False
     aad_object_id: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_when_optional_dependency_missing(cls, value: str) -> str:
+        """Apply basic validation when email-validator optional dependency is absent."""
+        if EMAIL_VALIDATOR_AVAILABLE:
+            return value
+
+        normalized = value.strip()
+        if not EMAIL_FALLBACK_REGEX.match(normalized):
+            raise ValueError("Invalid email format")
+
+        return normalized
 
 
 class UserUpdate(BaseModel):
@@ -77,10 +109,7 @@ class StatsResponse(BaseModel):
 
 # Endpoints
 @router.get("/users", response_model=list[UserResponse])
-async def list_users(
-    active_only: bool = True,
-    db: Session = Depends(get_db)
-):
+async def list_users(active_only: bool = True, db: Session = Depends(get_db)):
     """Lista todos os usuários cadastrados."""
     stmt = select(TeamsWebhookUser)
     if active_only:
@@ -94,10 +123,7 @@ async def list_users(
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    user_data: UserCreate,
-    db: Session = Depends(get_db)
-):
+async def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """Cria novo usuário."""
     # Verifica se já existe
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.email == user_data.email)
@@ -106,7 +132,7 @@ async def create_user(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"User with email {user_data.email} already exists"
+            detail=f"User with email {user_data.email} already exists",
         )
 
     pm = TeamsPermissionsManager(db)
@@ -115,25 +141,21 @@ async def create_user(
         name=user_data.name,
         role=user_data.role,
         can_execute=user_data.can_execute_commands,
-        aad_object_id=user_data.aad_object_id
+        aad_object_id=user_data.aad_object_id,
     )
 
     return UserResponse.model_validate(user)
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_user(user_id: int, db: Session = Depends(get_db)):
     """Obtém usuário por ID."""
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.id == user_id)
     user = db.execute(stmt).scalar_one_or_none()
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
     return UserResponse.model_validate(user)
@@ -141,9 +163,7 @@ async def get_user(
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: int,
-    update_data: UserUpdate,
-    db: Session = Depends(get_db)
+    user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)
 ):
     """Atualiza usuário."""
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.id == user_id)
@@ -151,8 +171,7 @@ async def update_user(
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
     if update_data.name is not None:
@@ -174,18 +193,14 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
     """Deleta usuário (soft delete - marca como inativo)."""
     stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.id == user_id)
     user = db.execute(stmt).scalar_one_or_none()
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
     user.is_active = False
@@ -197,9 +212,7 @@ async def delete_user(
 
 @router.get("/audit-logs", response_model=list[AuditLogResponse])
 async def get_audit_logs(
-    limit: int = 100,
-    user_email: str | None = None,
-    db: Session = Depends(get_db)
+    limit: int = 100, user_email: str | None = None, db: Session = Depends(get_db)
 ):
     """Obtém logs de auditoria."""
     stmt = select(TeamsWebhookAudit)
@@ -220,40 +233,60 @@ async def get_stats(db: Session = Depends(get_db)):
     """Obtém estatísticas de uso."""
     from sqlalchemy import func
 
-    # Total de usuários
-    total_users = db.query(func.count(TeamsWebhookUser.id)).scalar()
-    active_users = db.query(func.count(TeamsWebhookUser.id)).filter(
-        TeamsWebhookUser.is_active
-    ).scalar()
-    users_with_execute = db.query(func.count(TeamsWebhookUser.id)).filter(
-        TeamsWebhookUser.can_execute_commands,
-        TeamsWebhookUser.is_active
-    ).scalar()
+    try:
+        # Total de usuários
+        total_users = db.query(func.count(TeamsWebhookUser.id)).scalar()
+        active_users = (
+            db.query(func.count(TeamsWebhookUser.id))
+            .filter(TeamsWebhookUser.is_active)
+            .scalar()
+        )
+        users_with_execute = (
+            db.query(func.count(TeamsWebhookUser.id))
+            .filter(TeamsWebhookUser.can_execute_commands, TeamsWebhookUser.is_active)
+            .scalar()
+        )
 
-    # Interações
-    total_interactions = db.query(func.count(TeamsWebhookAudit.id)).scalar()
+        # Interações
+        total_interactions = db.query(func.count(TeamsWebhookAudit.id)).scalar()
 
-    today = datetime.now(timezone.utc).date()
-    interactions_today = db.query(func.count(TeamsWebhookAudit.id)).filter(
-        func.date(TeamsWebhookAudit.timestamp) == today
-    ).scalar()
+        today = datetime.now(timezone.utc).date()
+        interactions_today = (
+            db.query(func.count(TeamsWebhookAudit.id))
+            .filter(func.date(TeamsWebhookAudit.timestamp) == today)
+            .scalar()
+        )
 
-    authorized_commands = db.query(func.count(TeamsWebhookAudit.id)).filter(
-        TeamsWebhookAudit.command_type == "execute",
-        TeamsWebhookAudit.was_authorized
-    ).scalar()
+        authorized_commands = (
+            db.query(func.count(TeamsWebhookAudit.id))
+            .filter(
+                TeamsWebhookAudit.command_type == "execute",
+                TeamsWebhookAudit.was_authorized,
+            )
+            .scalar()
+        )
 
-    unauthorized_attempts = db.query(func.count(TeamsWebhookAudit.id)).filter(
-        TeamsWebhookAudit.command_type == "execute",
-        not TeamsWebhookAudit.was_authorized
-    ).scalar()
+        unauthorized_attempts = (
+            db.query(func.count(TeamsWebhookAudit.id))
+            .filter(
+                TeamsWebhookAudit.command_type == "execute",
+                TeamsWebhookAudit.was_authorized.is_not(True),
+            )
+            .scalar()
+        )
 
-    return StatsResponse(
-        total_users=total_users,
-        active_users=active_users,
-        users_with_execute_permission=users_with_execute,
-        total_interactions=total_interactions,
-        interactions_today=interactions_today,
-        authorized_commands=authorized_commands,
-        unauthorized_attempts=unauthorized_attempts
-    )
+        return StatsResponse(
+            total_users=total_users,
+            active_users=active_users,
+            users_with_execute_permission=users_with_execute,
+            total_interactions=total_interactions,
+            interactions_today=interactions_today,
+            authorized_commands=authorized_commands,
+            unauthorized_attempts=unauthorized_attempts,
+        )
+    except Exception as e:
+        logger.error("teams_webhook_stats_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch webhook stats",
+        ) from e

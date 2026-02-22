@@ -141,6 +141,7 @@ resync/
 ### Pré-requisitos
 
 - Python 3.14+
+- Pydantic v2+ (>=2.10)
 - PostgreSQL 14+ (com extensão pgvector)
 - Redis 6+
 

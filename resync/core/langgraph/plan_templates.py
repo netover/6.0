@@ -69,7 +69,6 @@ PLAN_TEMPLATES: dict[str, list[PlanStep]] = {
             requires=["collect"],
         ),
     ],
-
     # Status: collect light -> format
     "status": [
         PlanStep(
@@ -84,7 +83,6 @@ PLAN_TEMPLATES: dict[str, list[PlanStep]] = {
             requires=["collect"],
         ),
     ],
-
     # Action: validate -> approve -> execute -> verify
     "action": [
         PlanStep(

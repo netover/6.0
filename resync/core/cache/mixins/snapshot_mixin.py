@@ -16,8 +16,8 @@ class CacheSnapshotMixin:
     Mixin providing snapshot/backup capabilities for cache.
 
     Requires base class to have:
-    - self.shards: List of cache shards
-    - self.shard_locks: List of shard locks
+    - self.shards: List of cache shards  # type: ignore[attr-defined]
+    - self.shard_locks: List of shard locks  # type: ignore[attr-defined]
     """
 
     def create_backup_snapshot(self) -> dict[str, Any]:
@@ -33,7 +33,7 @@ class CacheSnapshotMixin:
             "shards": [],
         }
 
-        for _i, shard in enumerate(self.shards):
+        for _i, shard in enumerate(self.shards):  # type: ignore[attr-defined]
             shard_data = {}
             for key, entry in shard.items():
                 shard_data[key] = {
@@ -41,11 +41,11 @@ class CacheSnapshotMixin:
                     "timestamp": entry.timestamp,
                     "ttl": entry.ttl,
                 }
-            snapshot["shards"].append(shard_data)
+            snapshot["shards"].append(shard_data)  # type: ignore[attr-defined]
 
-        snapshot["total_entries"] = sum(len(s) for s in self.shards)
+        snapshot["total_entries"] = sum(len(s) for s in self.shards)  # type: ignore[misc,attr-defined]
 
-        logger.info("Created snapshot with %s entries", snapshot['total_entries'])
+        logger.info("Created snapshot with %s entries", snapshot["total_entries"])
 
         return snapshot
 
@@ -65,7 +65,7 @@ class CacheSnapshotMixin:
                 return False
 
             # Clear current cache
-            await self.clear()
+            await self.clear()  # type: ignore[attr-defined]
 
             # Restore entries
             restored_count = 0
@@ -74,16 +74,16 @@ class CacheSnapshotMixin:
             from ..async_cache import CacheEntry
 
             for i, shard_data in enumerate(snapshot["shards"]):
-                if i >= len(self.shards):
+                if i >= len(self.shards):  # type: ignore[attr-defined]
                     break
 
-                async with self.shard_locks[i]:
+                async with self.shard_locks[i]:  # type: ignore[attr-defined]
                     for key, entry_data in shard_data.items():
                         # Skip expired entries
                         if current_time > entry_data["timestamp"] + entry_data["ttl"]:
                             continue
 
-                        self.shards[i][key] = CacheEntry(
+                        self.shards[i][key] = CacheEntry(  # type: ignore[attr-defined]
                             data=entry_data["data"],
                             timestamp=entry_data["timestamp"],
                             ttl=entry_data["ttl"],

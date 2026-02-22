@@ -21,7 +21,7 @@ Global State:
     in this module.
 """
 
-from __future__ import annotations
+
 
 import inspect
 from collections.abc import Iterator

@@ -19,11 +19,13 @@ def _get_encoding(stream: TextIO | None) -> str | None:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("exception_caught", error=str(e), exc_info=True)
+        logger.error("exception_caught", exc_info=True)
         return None
 
 
-def can_encode(text: str, stream: TextIO | None = None, encoding: str | None = None) -> bool:
+def can_encode(
+    text: str, stream: TextIO | None = None, encoding: str | None = None
+) -> bool:
     """
     Check if text can be encoded with the given encoding/stream.
 

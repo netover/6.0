@@ -47,9 +47,11 @@ class TWSLearningStore:
     async def get_job_outcomes(self, job_name: str, limit: int = 100) -> list[Feedback]:
         """Get outcomes for a job."""
         all_feedback = await self._store.feedback.get_all(limit=limit * 2)
-        return [f for f in all_feedback if f.metadata_ and f.metadata_.get("job_name") == job_name][
-            :limit
-        ]
+        return [
+            f
+            for f in all_feedback
+            if f.metadata_ and f.metadata_.get("job_name") == job_name
+        ][:limit]
 
     async def get_success_rate(self, job_name: str, window: int = 100) -> float:
         """Get success rate for a job."""

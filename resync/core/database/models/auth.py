@@ -110,7 +110,7 @@ class User(Base):
         default=0,
     )
     locked_until: Mapped[datetime | None] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=True,
     )
 

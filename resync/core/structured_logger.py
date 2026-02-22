@@ -11,7 +11,7 @@ Características:
 - Integração com sistemas de agregação (ELK, Loki, etc.)
 """
 
-from __future__ import annotations
+
 
 import logging
 import sys
@@ -56,7 +56,9 @@ _current_request_ctx: ContextVar[dict[str, Any] | None] = ContextVar(
 # ============================================================================
 
 
-def add_correlation_id(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_correlation_id(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona Correlation ID ao log.
 
     Args:
@@ -75,7 +77,9 @@ def add_correlation_id(logger: WrappedLogger, method_name: str, event_dict: Even
     return event_dict
 
 
-def add_user_context(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_user_context(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona contexto do usuário ao log.
 
     Args:
@@ -157,7 +161,9 @@ def add_service_context(
     return event_dict
 
 
-def add_timestamp(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_timestamp(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona timestamp ISO 8601 ao log.
 
     Args:
@@ -172,7 +178,9 @@ def add_timestamp(logger: WrappedLogger, method_name: str, event_dict: EventDict
     return event_dict
 
 
-def add_log_level(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_log_level(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Adiciona nível de log padronizado.
 
     Args:
@@ -257,9 +265,9 @@ def censor_sensitive_data(
         re.compile(r"mongodb://[^@]+@[^\s]+", re.IGNORECASE),
     ]
 
-    def censor_dict(d: dict[str, Any]) -> dict[str, Any]:
+    def censor_dict(d: dict[str, Any] | Any) -> dict[str, Any]:  # type: ignore[assignment]
         """Censura recursivamente um dicionário."""
-        result = {}
+        result: dict[str, Any] = {}
         for key, value in d.items():
             key_lower = key.lower()
 
@@ -270,7 +278,8 @@ def censor_sensitive_data(
                 result[key] = censor_dict(value)
             elif isinstance(value, list):
                 result[key] = [
-                    censor_dict(item) if isinstance(item, dict) else item for item in value
+                    censor_dict(item) if isinstance(item, dict) else item
+                    for item in value
                 ]
             elif isinstance(value, str):
                 # Apply value pattern censoring
@@ -281,7 +290,7 @@ def censor_sensitive_data(
                     censored_value = pattern.sub("***REDACTED***", censored_value)
                 result[key] = censored_value
             else:
-                result[key] = value
+                result[key] = value  # type: ignore
 
         return result
 
@@ -317,7 +326,7 @@ def protect_log_injection(
 ) -> EventDict:
     """
     Prevent log injection by escaping newlines and control characters.
-    
+
     OWASP Recommendation: Ensure user input cannot introduce false log entries.
     """
     for key, value in event_dict.items():
@@ -340,7 +349,7 @@ def configure_structured_logging(
         development_mode: Se True, usa formato mais legível para desenvolvimento
     """
     level = getattr(logging, log_level.upper())
-    
+
     # Processadores comuns utilizados por structlog e stdlib
     shared_processors = [
         structlog.contextvars.merge_contextvars,
@@ -359,6 +368,7 @@ def configure_structured_logging(
     ]
 
     # Escolher renderer baseado no modo
+    renderer: Any
     if development_mode or not json_logs:
         renderer = structlog.dev.ConsoleRenderer(colors=True)
     else:
@@ -366,7 +376,8 @@ def configure_structured_logging(
 
     # 1. Configurar structlog
     structlog.configure(
-        processors=shared_processors + [
+        processors=shared_processors  # type: ignore[arg-type]
+        + [
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -376,7 +387,7 @@ def configure_structured_logging(
 
     # 2. Configurar stdlib logging para usar os mesmos processadores
     formatter = structlog.stdlib.ProcessorFormatter(
-        foreign_pre_chain=shared_processors,
+        foreign_pre_chain=shared_processors,  # type: ignore[arg-type]
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             renderer,
@@ -385,20 +396,21 @@ def configure_structured_logging(
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
-    
+
     # Attach SecretRedactor to the handler (IO boundary security)
     from resync.core.logging_utils import SecretRedactor
+
     handler.addFilter(SecretRedactor())
 
     root_logger = logging.getLogger()
-    
+
     # Limpar handlers existentes
     for h in root_logger.handlers[:]:
         root_logger.removeHandler(h)
-        
+
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
-    
+
     # Silenciar logs muito verbosos de bibliotecas
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -803,7 +815,7 @@ def set_request_context(request: Request) -> None:
                 filtered_params[key] = "***REDACTED***"
             else:
                 filtered_params[key] = value
-        context["query_params"] = filtered_params
+        context["query_params"] = filtered_params  # type: ignore[assignment]
 
     _current_request_ctx.set(context)
 
@@ -830,7 +842,7 @@ class SafeEncodingFormatter(logging.Formatter):
             if hasattr(sys.stdout, "encoding") and sys.stdout.encoding:
                 encoding = sys.stdout.encoding
         except Exception as _e:
-            logger.debug("suppressed_exception", error=str(_e), exc_info=True)  # was: pass
+            logger.debug("suppressed_exception", exc_info=True)  # was: pass
 
         if not can_encode(message, encoding=encoding):
             # Apply fallback: replace common emoji patterns
@@ -873,7 +885,17 @@ class StructuredErrorLogger:
             **context,
         }
 
-        logger.log(logging.getLevelName(level.upper()), "structured_error", **log_data)
+        level_name = level.lower()
+        if level_name == "debug":
+            logger.debug("structured_error", **log_data)
+        elif level_name == "info":
+            logger.info("structured_error", **log_data)
+        elif level_name == "warning":
+            logger.warning("structured_error", **log_data)
+        elif level_name == "critical":
+            logger.critical("structured_error", **log_data)
+        else:
+            logger.error("structured_error", **log_data)
 
 
 __all__ = [

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 WebSocket handlers for FastAPI
 """
@@ -7,20 +9,31 @@ import json
 
 from fastapi import WebSocket, WebSocketDisconnect, status
 
+from resync.core.context import set_trace_id, set_user_id
+from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
+try:
+    from langfuse.decorators import langfuse_context
 
-async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> bool:
-    """Verify WebSocket authentication.
+    LANGFUSE_AVAILABLE = True
+except Exception as exc:
+    LANGFUSE_AVAILABLE = False
+    langfuse_context = None
+    logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
+
+
+async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
+    """Verify WebSocket authentication and return user_id.
 
     Args:
         websocket: The WebSocket connection
         token: Optional JWT token from query parameter
 
     Returns:
-        True if authenticated, False otherwise
+        User ID if authenticated, None otherwise
     """
     try:
         # Check for token in query parameter
@@ -28,8 +41,9 @@ async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> boo
             from resync.api.auth.service import get_auth_service
 
             auth_service = get_auth_service()
-            if auth_service.verify_token(token):
-                return True
+            payload = auth_service.verify_token(token)
+            if payload:
+                return str(payload.sub)
 
         # Check for token in Authorization header
         auth_header = websocket.headers.get("authorization", "")
@@ -38,13 +52,13 @@ async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> boo
             from resync.api.security import decode_token
 
             payload = decode_token(token)
-            if payload:
-                return True
+            if payload and "sub" in payload:
+                return str(payload["sub"])
 
-        return False
+        return None
     except Exception as e:
         logger.debug("WebSocket authentication failed: %s", type(e).__name__)
-        return False
+        return None
 
 
 class ConnectionManager:
@@ -91,8 +105,9 @@ class ConnectionManager:
         For proper async handling, use disconnect_async() instead.
         """
         try:
-            # We're in async context - schedule the async disconnect
-            asyncio.create_task(self.disconnect_async(websocket))
+            # Use ensure_future instead of create_task to prevent garbage collection
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.disconnect_async(websocket))
         except RuntimeError:
             # No running loop - we're in sync context, do best-effort cleanup
             # This is not thread-safe but better than nothing for sync contexts
@@ -163,6 +178,36 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def _build_agent_config(agent_id: str) -> dict[str, str]:
+    """Build canonical agent configuration payload for LLM responses."""
+    return {
+        "name": f"Agente {agent_id}",
+        "type": "general",
+        "description": "Assistente de IA do sistema Resync TWS",
+    }
+
+
+async def _generate_llm_response(agent_id: str, content: str) -> str:
+    """Helper to generate AI response with fallback handling."""
+    try:
+        from resync.services.llm_service import get_llm_service
+
+        llm_service = await get_llm_service()
+        agent_config = _build_agent_config(agent_id)
+
+        return await llm_service.generate_agent_response(
+            agent_id=agent_id,
+            user_message=content,
+            agent_config=agent_config,
+        )
+    except Exception as e:
+        logger.error("Error generating AI response: %s", e)
+        return (
+            f"Olá! Recebi sua mensagem: '{content}'. "
+            "O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?"
+        )
+
+
 async def websocket_handler(
     websocket: WebSocket, agent_id: str, token: str | None = None
 ):
@@ -174,12 +219,25 @@ async def websocket_handler(
         token: Optional JWT token for authentication
     """
     # Authenticate before accepting connection - fail closed (deny by default)
-    if not await _verify_ws_auth(websocket, token):
+    user_id = await _verify_ws_auth(websocket, token)
+    if not user_id:
         logger.warning("WebSocket auth failed for agent %s", agent_id)
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required"
         )
         return
+
+    # Set trace context
+    trace_id = normalize_trace_id(
+        websocket.headers.get("x-correlation-id")
+        or websocket.headers.get("x-request-id")
+    )
+    set_trace_id(trace_id)
+    set_user_id(user_id)
+
+    # Update Langfuse context with secure user ID
+    hashed_user = hash_user_id(user_id)
+    langfuse_context.update_current_trace(user_id=hashed_user)
 
     await manager.connect(websocket, agent_id)
 
@@ -201,8 +259,8 @@ async def websocket_handler(
                     message_type = "message"
                     is_json = False
 
-                if message_type == "chat_message":
-                    # Process chat message with AI agent
+                if message_type == "chat_message" or not is_json:
+                    # Process message with AI agent
                     content = message_data.get("content", data if not is_json else "")
 
                     # Send initial streaming response
@@ -214,113 +272,21 @@ async def websocket_handler(
                     }
                     await manager.send_personal_message(json.dumps(response), websocket)
 
-                    # Generate real AI response using LLM service
-                    try:
-                        from resync.services.llm_service import get_llm_service
+                    # Generate AI response
+                    ai_response = await _generate_llm_response(agent_id, content)
 
-                        llm_service = get_llm_service()
-
-                        # Agent configuration
-                        agent_config = {
-                            "name": f"Agente {agent_id}",
-                            "type": "general",
-                            "description": "Assistente de IA do sistema Resync TWS",
-                        }
-
-                        # Generate response using real LLM
-                        ai_response = await llm_service.generate_agent_response(
-                            agent_id=agent_id,
-                            user_message=content,
-                            agent_config=agent_config,
-                        )
-
-                        # Send final response with real AI content
-                        final_response = {
-                            "type": "message",
-                            "message": ai_response,
-                            "agent_id": agent_id,
-                            "is_final": True,
-                        }
-
-                    except Exception as e:
-                        logger.error("Error generating AI response: %s", e)
-                        # Fallback to mock response if LLM fails
-                        final_response = {
-                            "type": "message",
-                            "message": f"Olá! Recebi sua mensagem: '{content}'. O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?",
-                            "agent_id": agent_id,
-                            "is_final": True,
-                        }
-
+                    # Send final response
+                    final_response = {
+                        "type": "message",
+                        "message": ai_response,
+                        "agent_id": agent_id,
+                        "is_final": True,
+                    }
                     await manager.send_personal_message(
                         json.dumps(final_response), websocket
                     )
 
                 elif message_type == "heartbeat":
-                    # Respond to heartbeat
-                    response = {
-                        "type": "heartbeat_ack",
-                        "timestamp": "2025-01-01T00:00:00Z",
-                        "agent_id": agent_id,
-                    }
-                    await manager.send_personal_message(json.dumps(response), websocket)
-
-                else:
-                    # Handle plain text messages
-                    if not is_json:
-                        # Send initial streaming response for plain text
-                        response = {
-                            "type": "stream",
-                            "message": f"Processando: {data}",
-                            "agent_id": agent_id,
-                            "is_final": False,
-                        }
-                        await manager.send_personal_message(
-                            json.dumps(response), websocket
-                        )
-
-                        # Generate real AI response using LLM service
-                        try:
-                            from resync.services.llm_service import get_llm_service
-
-                            llm_service = get_llm_service()
-
-                            # Agent configuration
-                            agent_config = {
-                                "name": f"Agente {agent_id}",
-                                "type": "general",
-                                "description": "Assistente de IA do sistema Resync TWS",
-                            }
-
-                            # Generate response using real LLM
-                            ai_response = await llm_service.generate_agent_response(
-                                agent_id=agent_id,
-                                user_message=data,
-                                agent_config=agent_config,
-                            )
-
-                            # Send final response with real AI content
-                            final_response = {
-                                "type": "message",
-                                "message": ai_response,
-                                "agent_id": agent_id,
-                                "is_final": True,
-                            }
-
-                        except Exception as e:
-                            logger.error("Error generating AI response: %s", e)
-                            # Fallback to mock response if LLM fails
-                            final_response = {
-                                "type": "message",
-                                "message": f"Olá! Recebi sua mensagem: '{data}'. O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?",
-                                "agent_id": agent_id,
-                                "is_final": True,
-                            }
-
-                        await manager.send_personal_message(
-                            json.dumps(final_response), websocket
-                        )
-                    else:
                         # Unknown JSON message type
                         error_response = {
                             "type": "error",

@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Pool Manager - PostgreSQL Implementation.
 

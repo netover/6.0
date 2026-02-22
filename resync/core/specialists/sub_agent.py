@@ -18,7 +18,7 @@ Author: Resync Team
 Version: 5.4.2
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import uuid
@@ -57,7 +57,9 @@ class SubAgentConfig:
     # Tool restrictions
     only_read_only_tools: bool = True
     prevent_recursive_spawn: bool = True  # Sub-agent can't create sub-agents
-    blocked_tool_names: list[str] = field(default_factory=lambda: ["dispatch_agent", "sub_agent"])
+    blocked_tool_names: list[str] = field(
+        default_factory=lambda: ["dispatch_agent", "sub_agent"]
+    )
 
     # Execution limits
     max_tool_calls: int = 10
@@ -281,7 +283,9 @@ class SubAgent:
             ws_names = self._extract_workstation_names(self.prompt)
             if ws_names:
                 requests = [
-                    ToolRequest(tool_name="get_workstation_status", parameters={"ws_name": ws})
+                    ToolRequest(
+                        tool_name="get_workstation_status", parameters={"ws_name": ws}
+                    )
                     for ws in ws_names[:5]
                 ]
                 responses = await self._executor.execute(
@@ -291,9 +295,10 @@ class SubAgent:
                 results.extend([r for r in responses if r.success])
 
         if (
-            ("search" in prompt_lower or "find" in prompt_lower or "documentation" in prompt_lower)
-            and self._catalog.get("search_knowledge_base")
-        ):
+            "search" in prompt_lower
+            or "find" in prompt_lower
+            or "documentation" in prompt_lower
+        ) and self._catalog.get("search_knowledge_base"):
             # Use RAG search
             request = ToolRequest(
                 tool_name="search_knowledge_base",
@@ -354,7 +359,9 @@ class SubAgent:
     def _get_duration_ms(self) -> int:
         """Get execution duration in milliseconds."""
         if self._started_at:
-            return int((datetime.now(timezone.utc) - self._started_at).total_seconds() * 1000)
+            return int(
+                (datetime.now(timezone.utc) - self._started_at).total_seconds() * 1000
+            )
         return 0
 
     def cancel(self) -> None:
@@ -396,7 +403,24 @@ class SubAgent:
             max_concurrent=max_concurrent,
         )
 
-        results = await asyncio.gather(*[execute_with_semaphore(agent) for agent in agents])
+        tasks = []
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for agent in agents:
+                    tasks.append(tg.create_task(execute_with_semaphore(agent)))
+        except* Exception:
+            # Individual results are collected by checking task.result()
+            pass
+
+        results = []
+        for task in tasks:
+            try:
+                results.append(task.result())
+            except (asyncio.CancelledError, Exception) as e:
+                # We don't have the specific agent here easily without mapping, 
+                # but we can return a generic failure if the task itself died.
+                # In most cases, agent.execute() handles its own exceptions.
+                logger.error("sub_agent_task_failed", error=str(e))
 
         success_count = sum(1 for r in results if r.status == SubAgentStatus.COMPLETED)
         logger.info(
@@ -405,7 +429,7 @@ class SubAgent:
             success_count=success_count,
         )
 
-        return list(results)
+        return results
 
     @classmethod
     def create_search_agents(

@@ -5,14 +5,17 @@ This script is intentionally lightweight and is meant for local ad-hoc checks.
 
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import json
 import math
 import os
 import sys
+
+from resync.core.utils.async_bridge import run_sync
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
@@ -23,16 +26,19 @@ def _require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+MOCKED_IMPORT_MODULES = (
+    "fastapi",
+    "fastapi.responses",
+    "resync.core.redis_init",
+    "resync.api.security",
+    "resync.core.metrics",
+    "structlog",
+)
+
+
 def _install_import_mocks() -> None:
     """Install module mocks required to import runtime modules in isolation."""
-    for module_name in (
-        "fastapi",
-        "fastapi.responses",
-        "resync.core.redis_init",
-        "resync.api.security",
-        "resync.core.metrics",
-        "structlog",
-    ):
+    for module_name in MOCKED_IMPORT_MODULES:
         sys.modules[module_name] = MagicMock()
 
     import fastapi  # type: ignore
@@ -45,42 +51,70 @@ def _install_import_mocks() -> None:
     fastapi.responses.JSONResponse = MagicMock
 
 
+@contextlib.contextmanager
+def _patched_import_mocks() -> Iterator[None]:
+    """Temporarily install import mocks and restore previous modules afterwards."""
+    previous_modules = {name: sys.modules.get(name) for name in MOCKED_IMPORT_MODULES}
+    try:
+        _install_import_mocks()
+        yield
+    finally:
+        for name, module in previous_modules.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
+
+
 async def test_dashboard_redis_integration() -> None:
     """Validate Redis persistence and pub/sub broadcast paths."""
-    _install_import_mocks()
-
-    from resync.api.monitoring_dashboard import (
-        DashboardMetricsStore,
-        MetricSample,
-        REDIS_CH_BROADCAST,
-        collect_metrics_sample,
-        get_ws_manager,
-    )
+    with _patched_import_mocks():
+        from resync.api.monitoring_dashboard import (
+            DashboardMetricsStore,
+            MetricSample,
+            REDIS_CH_BROADCAST,
+            REDIS_KEY_LATEST,
+            REDIS_KEY_START_TIME,
+            collect_metrics_sample,
+            get_ws_manager,
+        )
 
     print("Running test_dashboard_redis_integration...")
 
     mock_redis = MagicMock()
     mock_redis.set = AsyncMock(return_value=True)
-    mock_redis.get = AsyncMock(
-        return_value='{"status": "ok", "api": {"requests_per_sec": 0}}'
-    )
+
+    async def _mock_get(key: str) -> str | None:
+        if key == REDIS_KEY_START_TIME:
+            return str(time.time() - 60.0)
+        if key == REDIS_KEY_LATEST:
+            return '{"status": "ok", "api": {"requests_per_sec": 0}}'
+        return None
+
+    mock_redis.get = AsyncMock(side_effect=_mock_get)
     mock_redis.lrange = AsyncMock(return_value=[])
     mock_redis.publish = AsyncMock(return_value=1)
     mock_redis.ping = AsyncMock(return_value=True)
     mock_redis.delete = AsyncMock(return_value=1)
 
     mock_pipeline = MagicMock()
+    mock_pipeline.lpush = MagicMock(return_value=1)
+    mock_pipeline.ltrim = MagicMock(return_value=True)
     mock_pipeline.execute = AsyncMock(return_value=[])
     mock_redis.pipeline.return_value = mock_pipeline
-    
+
     mock_lock = MagicMock()
     mock_lock.acquire = AsyncMock(return_value=True)
     mock_lock.release = AsyncMock()
     mock_redis.lock.return_value = mock_lock
 
-    with patch("resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis), patch(
-        "resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"
-    ), patch("resync.core.metrics.runtime_metrics") as mock_metrics:
+    with (
+        patch(
+            "resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis
+        ),
+        patch("resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"),
+        patch("resync.core.metrics.runtime_metrics") as mock_metrics,
+    ):
         mock_metrics.get_snapshot.return_value = {
             "agent": {
                 "initializations": 100,
@@ -119,13 +153,13 @@ async def test_dashboard_redis_integration() -> None:
 
         mock_ws = AsyncMock()
         mock_ws.send_text = AsyncMock()
-        
+
         # Mock ws_manager methods to avoid real background tasks
         ws_manager = get_ws_manager()
         ws_manager.connect = AsyncMock(return_value=True)
         ws_manager.disconnect = AsyncMock()
         ws_manager.broadcast = AsyncMock()
-        
+
         await ws_manager.connect(mock_ws)
         # Simulate what broadcast would do if it worked
         await mock_ws.send_text('{"status": "sync_test"}')
@@ -163,13 +197,6 @@ async def test_workflows_history() -> None:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=result)
 
-    os.environ["WORKFLOW_MODE"] = "verbose"
-
-    history = await fetch_job_execution_history(db=db)
-    _require(len(history) == 1, "Expected one job history row.")
-    _require(history[0]["timestamp"] == now.isoformat(), "Unexpected timestamp serialization.")
-    _require(history[0]["workstation"] == "UNKNOWN", "Expected workstation fallback.")
-
     rows_metrics = [
         {
             "timestamp": now,
@@ -186,13 +213,26 @@ async def test_workflows_history() -> None:
     result_metrics = SimpleNamespace(
         mappings=lambda: SimpleNamespace(fetchall=lambda: rows_metrics)
     )
-    db.execute = AsyncMock(return_value=result_metrics)
 
-    history_metrics = await fetch_workstation_metrics_history(db=db)
-    _require(
-        math.isclose(history_metrics[0]["total_memory_gb"], 32.0, rel_tol=0.0, abs_tol=1e-9),
-        "Unexpected total_memory_gb conversion.",
-    )
+    with patch.dict(os.environ, {"WORKFLOW_MODE": "verbose"}):
+        history = await fetch_job_execution_history(db=db)
+        _require(len(history) == 1, "Expected one job history row.")
+        _require(
+            history[0]["timestamp"] == now.isoformat(),
+            "Unexpected timestamp serialization.",
+        )
+        _require(
+            history[0]["workstation"] == "UNKNOWN", "Expected workstation fallback."
+        )
+
+        db.execute = AsyncMock(return_value=result_metrics)
+        history_metrics = await fetch_workstation_metrics_history(db=db)
+        _require(
+            math.isclose(
+                history_metrics[0]["total_memory_gb"], 32.0, rel_tol=0.0, abs_tol=1e-9
+            ),
+            "Unexpected total_memory_gb conversion.",
+        )
     print("test_workflows_history passed!")
 
 
@@ -202,10 +242,10 @@ async def test_settings_validation() -> bool:
     try:
         print(f"DEBUG: _redact_sensitive exists: {'_redact_sensitive' in globals()}")
         from resync.settings import settings
-        
+
         # Issue 5: Environment Precedence & Dump
         print("Loading and resolving settings...")
-        
+
         print("\nResolved Configuration (Redacted):")
         # Issue 6: Secret Redaction in Dump
         for field, value in settings.model_dump().items():
@@ -214,7 +254,7 @@ async def test_settings_validation() -> bool:
                 print(f"  {field}: {redacted}")
             else:
                 print(f"  {field}: {value}")
-                
+
         print("\nSettings validation PASSED.")
         return True
     except Exception as e:
@@ -225,6 +265,7 @@ async def test_settings_validation() -> bool:
 def _redact_sensitive(val: Any) -> str:
     """Helper for redacted dump in manual verify."""
     from pydantic import SecretStr
+
     if isinstance(val, SecretStr):
         return "**********"
     s = str(val)
@@ -238,14 +279,14 @@ def _redact_sensitive(val: Any) -> str:
 async def main() -> int:
     """Main entry point with fail-fast (Issue 8)."""
     success = True
-    
+
     # 1. Settings Validation (New)
     if not await test_settings_validation():
         success = False
         # Fail fast if settings are broken
         print("\nABORTING: Settings validation failed.")
         return 1
-        
+
     # 2. Redis Integration
     try:
         await test_dashboard_redis_integration()
@@ -269,5 +310,5 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    exit_code = asyncio.run(main())
+    exit_code = run_sync(main())
     sys.exit(exit_code)

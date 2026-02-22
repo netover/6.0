@@ -3,279 +3,412 @@ Background Task Tracking System
 
 Prevents task leaks and ensures proper cleanup on shutdown.
 
-PROBLEM:
-========
-Creating tasks without tracking leads to:
-- Memory leaks (tasks never garbage collected)
-- Incomplete shutdown (tasks still running)
-- No way to cancel tasks gracefully
+Key guarantees:
+- Tasks can be created only when a running event loop exists (fail-fast).
+- Tracked tasks are cancelled on shutdown with bounded waiting (two-phase).
+- Unhandled task exceptions are surfaced (logged) to avoid silent failures.
+- Optional backpressure cap avoids runaway spawning / DoS-by-tasks.
 
-Example of problematic code:
-```python
-asyncio.create_task(long_running_work())  # Task is lost!
-```
-
-SOLUTION:
-=========
-Use tracked task creation:
-
-```python
-from resync.core.task_tracker import create_tracked_task, track_task
-
-# Task is automatically tracked and cleaned up
-task = track_task(long_running_work())
-```
-
-Or use decorator for background functions:
-
-```python
-from resync.core.task_tracker import background_task
-
-@background_task
-async def periodic_cleanup():
-    while True:
-        # Do work
-        await asyncio.sleep(60)
-
-# Start it
-await periodic_cleanup()  # Automatically tracked!
-```
-
-SHUTDOWN:
-=========
-All tracked tasks are automatically cancelled during application shutdown
-via the lifespan manager.
-
-Tasks get:
-1. Graceful cancellation (CancelledError)
-2. 5 second timeout for cleanup
-3. Forced termination if timeout exceeded
+Integration notes:
+- [DEPRECATED] Internal components should use `asyncio.TaskGroup` for structured concurrency.
+- Intended for legacy FastAPI lifespan, request, websocket handlers, etc.
+- For cross-thread scheduling, use create_tracked_task_threadsafe().
 """
+
+
+
 import asyncio
 import functools
 import logging
+import os
+import threading
 from collections.abc import Callable, Coroutine
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
+
+from resync.core.utils.async_bridge import run_sync
+
 logger = logging.getLogger(__name__)
-_background_tasks: set[asyncio.Task] = set()
-T = TypeVar('T')
 
-async def create_tracked_task(coro: Coroutine[Any, Any, T], name: str | None=None, *, cancel_on_shutdown: bool=True) -> asyncio.Task[T]:
+T = TypeVar("T")
+
+# HARDENING [P0]: Strict lock required for free-threaded Python (3.13/3.14+ variants)
+# where Python code may execute concurrently in multiple OS threads.
+_tasks_lock = threading.Lock()
+_background_tasks: set[asyncio.Task[Any]] = set()
+
+# Backpressure cap (configurable).
+# Keep it high by default to avoid breaking legitimate workloads, but bounded.
+MAX_BACKGROUND_TASKS: int = int(os.getenv("MAX_BACKGROUND_TASKS", "10000"))
+
+# Default shutdown timeout (seconds).
+DEFAULT_SHUTDOWN_TIMEOUT: float = float(os.getenv("TASK_TRACKER_SHUTDOWN_TIMEOUT", "5.0"))
+
+
+def _require_running_loop() -> asyncio.AbstractEventLoop:
     """
-    Create a background task that is automatically tracked and cleaned up.
+    Return the running event loop or raise a clear error.
+    """
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError as e:
+        raise RuntimeError(
+            "create_tracked_task() must be called with a running event loop "
+            "(e.g., inside FastAPI lifespan/request/websocket context). "
+            "If you are calling from another thread, use create_tracked_task_threadsafe()."
+        ) from e
 
-    Args:
-        coro: Coroutine to run as a task
-        name: Optional name for the task (for debugging)
-        cancel_on_shutdown: If True, task will be cancelled on shutdown
 
-    Returns:
-        Task object
+def _validate_timeout_positive(timeout: float | None, *, param_name: str = "timeout") -> None:
+    if timeout is None:
+        return
+    if timeout <= 0:
+        raise ValueError(f"{param_name} must be > 0 or None, got: {timeout!r}")
 
-    Example:
-        ```python
-        async def monitor_redis():
-            while True:
-                await check_redis_health()
-                await asyncio.sleep(30)
 
-        # Create tracked background task
-        task = await create_tracked_task(
-            monitor_redis(),
-            name="redis-monitor"
+def _try_close_coroutine(coro: Coroutine[Any, Any, Any]) -> None:
+    """
+    Close a coroutine object if we are going to drop it without scheduling.
+    Prevents "coroutine was never awaited" ResourceWarning in some paths.
+    """
+    try:
+        coro.close()
+    except Exception:
+        # Defensive: coroutine.close() shouldn't normally fail, but never break caller.
+        logger.exception("task_tracker_coroutine_close_failed")
+
+
+def _cap_check_or_reject(coro: Coroutine[Any, Any, Any]) -> None:
+    """
+    Enforce MAX_BACKGROUND_TASKS for tracked tasks.
+    Must be called before creating the asyncio.Task to prevent task leaks.
+    """
+    with _tasks_lock:
+        if len(_background_tasks) >= MAX_BACKGROUND_TASKS:
+            _try_close_coroutine(coro)
+            raise RuntimeError(
+                f"Too many background tasks tracked (limit={MAX_BACKGROUND_TASKS}). "
+                "This indicates runaway task spawning or insufficient cleanup."
+            )
+
+
+def _on_task_done(task: asyncio.Task[Any]) -> None:
+    """
+    Done callback for all tasks created by this module.
+
+    Notes:
+    - This callback runs on the event loop thread.
+    - It must be fast and must not await.
+    """
+    # Remove from tracking set if present.
+    try:
+        with _tasks_lock:
+            _background_tasks.discard(task)
+    except Exception:
+        # Never allow callback failure to bubble into event loop.
+        logger.exception(
+            "task_tracker_done_callback_lock_failed",
+            extra={"task": task.get_name()},
         )
-        ```
-    """
-    task = asyncio.create_task(coro, name=name)
-    if cancel_on_shutdown:
-        _background_tasks.add(task)
+        return
 
-        def remove_task(t: asyncio.Task) -> None:
-            _background_tasks.discard(t)
-        task.add_done_callback(remove_task)
-    logger.debug('Created tracked task', extra={'task_name': name or task.get_name(), 'total_tasks': len(_background_tasks)})
+    # Surface unhandled exceptions (avoid silent task death).
+    if task.cancelled():
+        return
+
+    try:
+        exc = task.exception()
+    except asyncio.CancelledError:
+        # Race: in rare cases exception() may raise CancelledError
+        return
+    except Exception:
+        logger.exception(
+            "task_tracker_done_callback_exception_failed",
+            extra={"task": task.get_name()},
+        )
+        return
+
+    if exc is not None:
+        logger.error(
+            "unhandled_background_task_error",
+            extra={"task": task.get_name(), "error": str(exc)},
+            exc_info=exc,
+        )
+
+
+def create_tracked_task(
+    coro: Coroutine[Any, Any, T],
+    name: str | None = None,
+    *,
+    cancel_on_shutdown: bool = True,
+) -> asyncio.Task[T]:
+    """
+    Create a background task that can be cancelled on shutdown and is tracked.
+
+    Hardening:
+    - Fail-fast if no running loop in current thread.
+    - Backpressure cap for tracked tasks.
+    - Done callback logs unhandled exceptions.
+    """
+    loop = _require_running_loop()
+
+    if cancel_on_shutdown:
+        _cap_check_or_reject(coro)
+
+    task = loop.create_task(coro, name=name)
+    task.add_done_callback(_on_task_done)
+
+    if cancel_on_shutdown:
+        with _tasks_lock:
+            _background_tasks.add(cast(asyncio.Task[Any], task))
+            total_tasks = len(_background_tasks)
+    else:
+        with _tasks_lock:
+            total_tasks = len(_background_tasks)
+
+    logger.debug(
+        "Created task",
+        extra={
+            "task_name": name or task.get_name(),
+            "tracked": cancel_on_shutdown,
+            "total_tracked_tasks": total_tasks,
+        },
+    )
     return task
 
-def background_task(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., asyncio.Task[T]]:
+
+def create_tracked_task_threadsafe(
+    coro_factory: Callable[[], Coroutine[Any, Any, T]],
+    loop: asyncio.AbstractEventLoop,
+    *,
+    name: str | None = None,
+    cancel_on_shutdown: bool = True,
+) -> "asyncio.Future[asyncio.Task[T]]":
     """
-    Decorator to automatically track background tasks.
+    Thread-safe API to create a tracked task from a non-event-loop thread.
 
-    Usage:
-        ```python
-        @background_task
-        async def periodic_cleanup():
-            while True:
-                await cleanup()
-                await asyncio.sleep(3600)
+    Why a factory:
+    - Creates the coroutine in the loop thread, avoiding cross-thread surprises.
 
-        # Start background task
-        task = await periodic_cleanup()
-        ```
+    Returns:
+    - An asyncio.Future resolved in the target loop, containing the created Task.
+      If you need a concurrent.futures.Future for use outside asyncio, wrap with
+      asyncio.run_coroutine_threadsafe in your caller.
+    """
+    fut: asyncio.Future[asyncio.Task[T]] = loop.create_future()
+
+    def _create() -> None:
+        try:
+            coro = coro_factory()
+            t = create_tracked_task(coro, name=name, cancel_on_shutdown=cancel_on_shutdown)
+            fut.set_result(t)
+        except Exception as e:
+            fut.set_exception(e)
+
+    loop.call_soon_threadsafe(_create)
+    return fut
+
+
+def background_task(
+    func: Callable[..., Coroutine[Any, Any, T]],
+) -> Callable[..., asyncio.Task[T]]:
+    """
+    Decorator: calling the function schedules it immediately and returns a Task.
+
+    Important:
+    - The decorated function no longer returns a coroutine; it returns asyncio.Task[T].
     """
 
     @functools.wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> asyncio.Task[T]:
+    def wrapper(*args: Any, **kwargs: Any) -> asyncio.Task[T]:
         coro = func(*args, **kwargs)
-        return await create_tracked_task(coro, name=func.__name__)
+        return create_tracked_task(coro, name=func.__name__, cancel_on_shutdown=True)
+
     return wrapper
 
-async def cancel_all_tasks(timeout: float=5.0) -> dict[str, int]:
+
+async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[str, int]:
     """
-    Cancel all tracked background tasks gracefully.
+    Cancel all tracked background tasks gracefully, with bounded waiting.
 
-    Called automatically during application shutdown.
+    Two-phase shutdown:
+    1) Cancel + wait(timeout)
+    2) Re-cancel pending + wait(timeout)
+       Remaining pending are considered "stuck" and kept tracked for visibility.
 
-    Args:
-        timeout: Maximum time to wait for tasks to cleanup (seconds)
-
-    Returns:
-        Dictionary with cancellation statistics
-
-    Example:
-        ```python
-        # In lifespan shutdown:
-        stats = await cancel_all_tasks(timeout=10.0)
-        logger.info("Cancelled %s tasks", stats['cancelled'])
-        ```
+    Returns stats with stable keys + richer observability fields.
     """
-    tasks_to_cancel = list(_background_tasks)
+    _validate_timeout_positive(timeout, param_name="timeout")
+
+    with _tasks_lock:
+        tasks_to_cancel = list(_background_tasks)
+
     total = len(tasks_to_cancel)
-    if not tasks_to_cancel:
-        return {'total': 0, 'cancelled': 0, 'timeout': 0, 'error': 0}
-    logger.info('Cancelling %s background tasks...', total)
-    for task in tasks_to_cancel:
-        task.cancel()
-    done, pending = await asyncio.wait(tasks_to_cancel, timeout=timeout)
-    cancelled_count = 0
-    error_count = 0
-    success_count = 0
-    for task in done:
-        try:
-            if task.cancelled():
-                cancelled_count += 1
+    if total == 0:
+        return {
+            "total": 0,
+            "cancelled": 0,
+            "completed": 0,
+            "errors": 0,
+            "timeout": 0,
+            "timed_out": 0,  # alias
+            "stuck": 0,
+        }
+
+    logger.info("Cancelling %s background tasks...", total)
+
+    for t in tasks_to_cancel:
+        t.cancel()
+
+    done1, pending1 = await asyncio.wait(tasks_to_cancel, timeout=timeout)
+
+    cancelled = 0
+    completed = 0
+    errors = 0
+
+    def _consume_done(done_set: set[asyncio.Task[Any]]) -> None:
+        nonlocal cancelled, completed, errors
+        for t in done_set:
+            if t.cancelled():
+                cancelled += 1
+                continue
+            try:
+                exc = t.exception()
+            except asyncio.CancelledError:
+                cancelled += 1
+                continue
+            if exc is not None:
+                logger.error(
+                    "background_task_error",
+                    extra={"task": t.get_name(), "error": str(exc)},
+                    exc_info=exc,
+                )
+                errors += 1
             else:
-                exc = task.exception()
-                if exc and (not isinstance(exc, asyncio.CancelledError)):
-                    logger.error('background_task_error', extra={'task': task.get_name(), 'error': str(exc)})
-                    error_count += 1
-                else:
-                    success_count += 1
-        except asyncio.CancelledError:
-            cancelled_count += 1
-    if pending:
-        logger.warning('background_tasks_timeout', extra={'pending_count': len(pending), 'tasks': [t.get_name() for t in pending]})
-    stats = {'total': total, 'cancelled': cancelled_count + len(pending), 'completed': success_count, 'errors': error_count}
-    logger.info('Background tasks shutdown complete', extra=stats)
-    _background_tasks.clear()
+                completed += 1
+
+    _consume_done(set(done1))
+
+    timed_out = len(pending1)
+    stuck = 0
+
+    if pending1:
+        logger.warning(
+            "background_tasks_timeout",
+            extra={"pending_count": len(pending1), "tasks": [t.get_name() for t in pending1]},
+        )
+        # Second bounded window.
+        for t in pending1:
+            t.cancel()
+
+        done2, pending2 = await asyncio.wait(pending1, timeout=timeout)
+        _consume_done(set(done2))
+
+        if pending2:
+            stuck = len(pending2)
+            logger.error(
+                "background_tasks_stuck_after_cancel",
+                extra={"stuck_count": stuck, "tasks": [t.get_name() for t in pending2]},
+            )
+            # IMPORTANT: do NOT discard them here. Keep tracked for operator visibility.
+
+    stats = {
+        "total": total,
+        "cancelled": cancelled,
+        "completed": completed,
+        "errors": errors,
+        "timeout": timed_out,   # backward-compatible field name
+        "timed_out": timed_out, # clearer alias
+        "stuck": stuck,
+    }
+    logger.info("Background tasks shutdown complete", extra=stats)
     return stats
 
+
 def get_task_count() -> int:
-    """
-    Get number of currently running background tasks.
+    """Get number of currently tracked background tasks."""
+    with _tasks_lock:
+        return len(_background_tasks)
 
-    Returns:
-        Number of active tasks
-    """
-    return len(_background_tasks)
-
-def track_task(coro: Coroutine[Any, Any, T], name: str | None=None) -> asyncio.Task[T]:
-    """Create a tracked task from a **sync** context (``def``, not ``async def``).
-
-    Unlike :func:`create_tracked_task` this function is synchronous and can be
-    called from any ``def`` function that runs inside the event-loop (e.g. a
-    callback, an ``on_modified`` handler, or a class ``start()`` method).
-
-    It is equivalent to::
-
-        task = asyncio.create_task(coro, name=name)
-        _background_tasks.add(task)
-
-    The task is automatically removed from ``_background_tasks`` when done
-    and will be cancelled by :func:`cancel_all_tasks` during shutdown.
-    """
-    task = asyncio.create_task(coro, name=name)
-    _background_tasks.add(task)
-
-    def _remove(t: asyncio.Task) -> None:
-        _background_tasks.discard(t)
-    task.add_done_callback(_remove)
-    logger.debug('Created tracked task (sync)', extra={'task_name': name or task.get_name(), 'total_tasks': len(_background_tasks)})
-    return task
 
 def get_task_names() -> list[str]:
+    """Get names of all currently tracked background tasks (sorted for stability)."""
+    with _tasks_lock:
+        names = [t.get_name() for t in _background_tasks]
+    names.sort()
+    return names
+
+
+async def wait_for_tasks(
+    timeout: float | None = None,
+    *,
+    cancel_pending: bool = False,
+    cancel_timeout: float | None = None,
+) -> bool:
     """
-    Get names of all running background tasks.
+    Wait for tracked tasks to complete.
+
+    By default it only observes (does not cancel).
+    If cancel_pending=True, it will request cancellation of pending tasks and
+    wait up to cancel_timeout (defaults to timeout if provided, else DEFAULT_SHUTDOWN_TIMEOUT).
 
     Returns:
-        List of task names
+        True if all tasks finished within timeout, else False.
     """
-    return [task.get_name() for task in _background_tasks]
+    _validate_timeout_positive(timeout, param_name="timeout")
+    _validate_timeout_positive(cancel_timeout, param_name="cancel_timeout")
 
-async def wait_for_tasks(timeout: float | None=None) -> bool:
-    """
-    Wait for all background tasks to complete.
+    with _tasks_lock:
+        tasks = set(_background_tasks)
 
-    Args:
-        timeout: Maximum time to wait (None = wait forever)
-
-    Returns:
-        True if all tasks completed, False if timeout
-
-    Example:
-        ```python
-        # Wait for all tasks to finish
-        completed = await wait_for_tasks(timeout=30.0)
-        if not completed:
-            logger.warning("Some tasks didn't finish in time")
-        ```
-    """
-    tasks = list(_background_tasks)
     if not tasks:
         return True
-    try:
-        await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
+
+    done, pending = await asyncio.wait(tasks, timeout=timeout)
+    if not pending:
         return True
-    except asyncio.TimeoutError:
+
+    if not cancel_pending:
         return False
-if __name__ == '__main__':
 
-    async def example_manual():
+    # Cancel with bounded wait (do not hang forever).
+    bounded = cancel_timeout if cancel_timeout is not None else (
+        timeout if timeout is not None else DEFAULT_SHUTDOWN_TIMEOUT
+    )
 
-        async def worker(n: int):
-            for i in range(n):
-                print(f'Worker iteration {i}')
-                await asyncio.sleep(1)
-        task = await create_tracked_task(worker(5), name='worker-1')
-        await task
+    for t in pending:
+        t.cancel()
 
-    async def example_decorator():
+    await asyncio.wait(pending, timeout=bounded)
+    return False
 
+
+def track_task(
+    coro: Coroutine[Any, Any, T],
+    name: str | None = None,
+    *,
+    cancel_on_shutdown: bool = True,
+) -> asyncio.Task[T]:
+    """Backward-compatibility alias for create_tracked_task()."""
+    return create_tracked_task(coro, name=name, cancel_on_shutdown=cancel_on_shutdown)
+
+
+if __name__ == "__main__":
+
+    async def example_shutdown() -> None:
         @background_task
-        async def monitor():
-            count = 0
-            while True:
-                count += 1
-                print(f'Monitor check {count}')
-                await asyncio.sleep(2)
-                if count >= 5:
-                    break
-        task = await monitor()
-        await task
-
-    async def example_shutdown():
-
-        @background_task
-        async def long_task():
+        async def long_task() -> None:
             try:
                 while True:
-                    print('Working...')
+                    print("Working...")
                     await asyncio.sleep(1)
             except asyncio.CancelledError:
-                print('Task cancelled, cleaning up...')
+                print("Task cancelled, cleaning up...")
                 raise
-        await long_task()
-        await long_task()
+
+        long_task()
+        long_task()
         await asyncio.sleep(3)
         stats = await cancel_all_tasks(timeout=2.0)
-        print(f"Cancelled {stats['cancelled']} tasks")
-    asyncio.run(example_shutdown())
+        print(f"Cancelled confirmed: {stats['cancelled']}, stuck: {stats['stuck']}")
+
+    run_sync(example_shutdown())

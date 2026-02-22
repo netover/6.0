@@ -59,7 +59,9 @@ class ModeRequest(BaseModel):
     """Request to set auto-tuning mode."""
 
     mode: str = Field(
-        ..., description="Mode: 'off', 'low', 'mid', or 'high'", pattern="^(off|low|mid|high)$"
+        ...,
+        description="Mode: 'off', 'low', 'mid', or 'high'",
+        pattern="^(off|low|mid|high)$",
     )
     admin_user: str = Field(default="admin", description="User making the change")
 
@@ -69,7 +71,9 @@ class ThresholdRequest(BaseModel):
 
     value: float = Field(..., description="New threshold value")
     admin_user: str = Field(default="admin", description="User making the change")
-    reason: str = Field(default="Manual adjustment via API", description="Reason for change")
+    reason: str = Field(
+        default="Manual adjustment via API", description="Reason for change"
+    )
 
 
 class ApprovalRequest(BaseModel):
@@ -93,7 +97,9 @@ class ResetRequest(BaseModel):
 async def _get_manager():
     """Get the ThresholdTuningManager instance."""
     try:
-        from resync.core.continual_learning.threshold_tuning import get_threshold_tuning_manager
+        from resync.core.continual_learning.threshold_tuning import (
+            get_threshold_tuning_manager,
+        )
 
         return await get_threshold_tuning_manager()
     except ImportError as e:
@@ -212,7 +218,9 @@ async def set_threshold(name: str, request: ThresholdRequest) -> dict[str, Any]:
     )
 
     if result["status"] == "error":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"]
+        )
 
     return result
 
@@ -231,7 +239,9 @@ async def rollback_to_last_good(request: ResetRequest) -> dict[str, Any]:
     result = await manager.rollback_to_last_good(request.admin_user)
 
     if result["status"] == "error":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"]
+        )
 
     return result
 
@@ -243,7 +253,9 @@ async def rollback_to_last_good(request: ResetRequest) -> dict[str, Any]:
 
 @router.get("/metrics")
 async def get_metrics(
-    days: int = Query(default=30, ge=1, le=365, description="Number of days to aggregate"),
+    days: int = Query(
+        default=30, ge=1, le=365, description="Number of days to aggregate"
+    ),
 ) -> dict[str, Any]:
     """
     Get metrics summary for the specified period.
@@ -265,7 +277,9 @@ async def get_metrics(
 
 @router.get("/metrics/daily")
 async def get_daily_metrics(
-    days: int = Query(default=30, ge=1, le=365, description="Number of days to retrieve"),
+    days: int = Query(
+        default=30, ge=1, le=365, description="Number of days to retrieve"
+    ),
 ) -> dict[str, Any]:
     """
     Get daily metrics for charting.
@@ -325,7 +339,9 @@ async def approve_recommendation(
     result = await manager.approve_recommendation(recommendation_id, request.admin_user)
 
     if result["status"] == "error":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"]
+        )
 
     return result
 
@@ -344,7 +360,9 @@ async def reject_recommendation(
     )
 
     if result["status"] == "error":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"]
+        )
 
     return result
 
@@ -378,7 +396,9 @@ async def reset_circuit_breaker(request: ResetRequest) -> dict[str, Any]:
     result = await manager.reset_circuit_breaker(request.admin_user)
 
     if result["status"] == "error":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"]
+        )
 
     return result
 
@@ -407,7 +427,9 @@ async def get_circuit_breaker_status() -> dict[str, Any]:
 
 @router.get("/audit-log")
 async def get_audit_log(
-    limit: int = Query(default=50, ge=1, le=500, description="Maximum entries to return"),
+    limit: int = Query(
+        default=50, ge=1, le=500, description="Maximum entries to return"
+    ),
     threshold: str | None = Query(default=None, description="Filter by threshold name"),
 ) -> dict[str, Any]:
     """

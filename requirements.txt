@@ -12,12 +12,15 @@
 # =============================================================================
 
 # =============================================================================
+# CPU-only Torch wheels (Resync CPU-only)
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # CORE - FastAPI & Server
 # =============================================================================
 fastapi>=0.104.0
 starlette>=0.27.0
 uvicorn[standard]>=0.24.0
-pydantic>=2.5.0
+pydantic>=2.10.0
 pydantic-settings>=2.1.0
 
 # =============================================================================
@@ -64,7 +67,7 @@ pandas>=2.0.0
 # EMBEDDINGS
 # =============================================================================
 sentence-transformers>=2.2.0
-torch>=2.0.0
+torch==2.9.1+cpu
 transformers>=4.35.0
 tokenizers>=0.15.0
 
@@ -72,6 +75,8 @@ tokenizers>=0.15.0
 # SECURITY & AUTH
 # =============================================================================
 python-jose[cryptography]>=3.3.0
+pyjwt>=2.10.1
+email-validator>=2.2.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 bcrypt>=4.1.0

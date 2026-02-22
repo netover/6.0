@@ -38,7 +38,7 @@ class SubgraphRetriever:
         job_name: str,
         depth: int = 2,
         include_history: bool = True,
-        include_solutions: bool = True
+        include_solutions: bool = True,
     ) -> dict[str, Any]:
         """
         Retrieve comprehensive job context as subgraph.
@@ -72,7 +72,7 @@ class SubgraphRetriever:
                 job_name=job_name,
                 depth=depth,
                 include_history=include_history,
-                include_solutions=include_solutions
+                include_solutions=include_solutions,
             )
 
             # Execute query
@@ -89,7 +89,7 @@ class SubgraphRetriever:
                 job_name=job_name,
                 dependencies=len(context.get("dependencies", [])),
                 errors=len(context.get("errors", [])),
-                solutions=len(context.get("solutions", []))
+                solutions=len(context.get("solutions", [])),
             )
 
             return context
@@ -99,11 +99,7 @@ class SubgraphRetriever:
             return self._empty_context(job_name)
 
     def _build_job_context_query(
-        self,
-        job_name: str,
-        depth: int,
-        include_history: bool,
-        include_solutions: bool
+        self, job_name: str, depth: int, include_history: bool, include_solutions: bool
     ) -> str:
         """Build Cypher query for job context."""
 
@@ -155,28 +151,19 @@ class SubgraphRetriever:
         return {
             "job": row.get("job", {}),
             "dependencies": [
-                self._node_to_dict(dep)
-                for dep in row.get("dependencies", [])
-                if dep
+                self._node_to_dict(dep) for dep in row.get("dependencies", []) if dep
             ],
             "workstation": self._node_to_dict(row.get("workstation")),
-            "errors": [
-                self._node_to_dict(err)
-                for err in row.get("errors", [])
-                if err
-            ],
+            "errors": [self._node_to_dict(err) for err in row.get("errors", []) if err],
             "solutions": [
-                self._node_to_dict(sol)
-                for sol in row.get("solutions", [])
-                if sol
+                self._node_to_dict(sol) for sol in row.get("solutions", []) if sol
             ],
             "executions": [
                 self._node_to_dict(exec_)
                 for exec_ in row.get("executions", [])
                 if exec_
-            ]
+            ],
         }
-
 
     def _node_to_dict(self, node) -> dict | None:
         """Convert graph node to dictionary."""
@@ -196,7 +183,7 @@ class SubgraphRetriever:
             "workstation": None,
             "errors": [],
             "solutions": [],
-            "executions": []
+            "executions": [],
         }
 
     def format_for_llm(self, context: dict[str, Any]) -> str:

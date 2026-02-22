@@ -83,7 +83,9 @@ class ConversationContext:
     # User preferences detected in session
     user_preferences: dict[str, Any] = field(default_factory=dict)
 
-    def add_message(self, role: str, content: str, metadata: dict | None = None) -> None:
+    def add_message(
+        self, role: str, content: str, metadata: dict | None = None
+    ) -> None:
         """Add a message to the conversation."""
         msg = Message(
             role=role,
@@ -141,9 +143,13 @@ class ConversationContext:
         # Add entity context
         if self.referenced_jobs:
             lines.append("\n<referenced_entities>")
-            lines.append(f"Recently mentioned jobs: {', '.join(self.referenced_jobs[-5:])}")
+            lines.append(
+                f"Recently mentioned jobs: {', '.join(self.referenced_jobs[-5:])}"
+            )
             if self.referenced_workstations:
-                lines.append(f"Workstations: {', '.join(self.referenced_workstations[-3:])}")
+                lines.append(
+                    f"Workstations: {', '.join(self.referenced_workstations[-3:])}"
+                )
             lines.append("</referenced_entities>")
 
         return "\n".join(lines)
@@ -269,7 +275,9 @@ class RedisMemoryStore(MemoryStore):
         data = json.dumps(context.to_dict())
         await redis.setex(key, self.ttl_seconds, data)
 
-        logger.debug("Saved context %s, %s messages", context.session_id, len(context.messages))
+        logger.debug(
+            "Saved context %s, %s messages", context.session_id, len(context.messages)
+        )
 
     async def load_context(self, session_id: str) -> ConversationContext | None:
         """Load context from Redis."""

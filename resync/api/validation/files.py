@@ -9,7 +9,12 @@ from typing import Annotated, Any
 from pydantic import ConfigDict, Field, field_validator, model_validator
 from pydantic import StringConstraints as PydanticStringConstraints
 
-from .common import BaseValidatedModel, NumericConstraints, StringConstraints, ValidationPatterns
+from .common import (
+    BaseValidatedModel,
+    NumericConstraints,
+    StringConstraints,
+    ValidationPatterns,
+)
 
 
 class FileType(str, Enum):
@@ -49,18 +54,25 @@ class FileUploadRequest(BaseValidatedModel):
     file_type: FileType | None = Field(None, description="Categorized file type")
 
     purpose: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True),
     ] = Field(..., description="Purpose of file upload")
 
     metadata: dict[str, Any] | None = Field(
         default_factory=dict, description="Additional file metadata", max_length=50
     )
 
-    sanitize_content: bool = Field(default=True, description="Whether to sanitize file content")
+    sanitize_content: bool = Field(
+        default=True, description="Whether to sanitize file content"
+    )
 
-    extract_text: bool = Field(default=False, description="Whether to extract text content")
+    extract_text: bool = Field(
+        default=False, description="Whether to extract text content"
+    )
 
-    generate_thumbnail: bool = Field(default=False, description="Whether to generate thumbnail")
+    generate_thumbnail: bool = Field(
+        default=False, description="Whether to generate thumbnail"
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -162,7 +174,9 @@ class FileUploadRequest(BaseValidatedModel):
                 if len(value) > 1000:  # Max metadata value length
                     raise ValueError(f"Metadata value too long for key '{key}'")
                 if ValidationPatterns.SCRIPT_PATTERN.search(value):
-                    raise ValueError(f"Metadata value contains malicious content for key '{key}'")
+                    raise ValueError(
+                        f"Metadata value contains malicious content for key '{key}'"
+                    )
             # Validate nested dictionaries
             elif isinstance(value, dict):
                 if len(value) > 10:  # Max nested items
@@ -170,10 +184,12 @@ class FileUploadRequest(BaseValidatedModel):
                 for nested_key, nested_value in value.items():
                     if not nested_key.replace("_", "").isalnum():
                         raise ValueError(f"Invalid nested metadata key: {nested_key}")
-                    if isinstance(nested_value, str) and ValidationPatterns.SCRIPT_PATTERN.search(
-                        nested_value
-                    ):
-                        raise ValueError("Nested metadata value contains malicious content")
+                    if isinstance(
+                        nested_value, str
+                    ) and ValidationPatterns.SCRIPT_PATTERN.search(nested_value):
+                        raise ValueError(
+                            "Nested metadata value contains malicious content"
+                        )
         return v
 
     @model_validator(mode="before")
@@ -205,7 +221,9 @@ class FileUploadRequest(BaseValidatedModel):
 class FileChunkUploadRequest(BaseValidatedModel):
     """Chunked file upload request validation."""
 
-    upload_id: StringConstraints.SAFE_TEXT = Field(..., description="Unique upload session ID")
+    upload_id: StringConstraints.SAFE_TEXT = Field(
+        ..., description="Unique upload session ID"
+    )
 
     chunk_index: int = Field(..., ge=0, description="Chunk index (0-based)")
 
@@ -265,20 +283,28 @@ class FileChunkUploadRequest(BaseValidatedModel):
 class FileUpdateRequest(BaseValidatedModel):
     """File update request validation."""
 
-    filename: StringConstraints.FILENAME | None = Field(None, description="New filename")
+    filename: StringConstraints.FILENAME | None = Field(
+        None, description="New filename"
+    )
 
     purpose: (
         Annotated[
-            str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+            str,
+            PydanticStringConstraints(
+                min_length=1, max_length=100, strip_whitespace=True
+            ),
         ]
         | None
     ) = Field(None, description="New purpose")
 
-    metadata: dict[str, Any] | None = Field(None, description="Updated metadata", max_length=50)
-
-    tags: list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]] | None = (
-        Field(None, description="File tags", max_length=10)
+    metadata: dict[str, Any] | None = Field(
+        None, description="Updated metadata", max_length=50
     )
+
+    tags: (
+        list[Annotated[str, PydanticStringConstraints(min_length=1, max_length=50)]]
+        | None
+    ) = Field(None, description="File tags", max_length=10)
 
     model_config = ConfigDict(
         extra="forbid",
@@ -326,7 +352,9 @@ class FileUpdateRequest(BaseValidatedModel):
                 if len(value) > 1000:
                     raise ValueError(f"Metadata value too long for key '{key}'")
                 if ValidationPatterns.SCRIPT_PATTERN.search(value):
-                    raise ValueError(f"Metadata value contains malicious content for key '{key}'")
+                    raise ValueError(
+                        f"Metadata value contains malicious content for key '{key}'"
+                    )
         return v
 
     @field_validator("tags")
@@ -362,7 +390,9 @@ class FileProcessingRequest(BaseValidatedModel):
         description="Processing priority",
     )
 
-    callback_url: str | None = Field(None, description="Callback URL for processing completion")
+    callback_url: str | None = Field(
+        None, description="Callback URL for processing completion"
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -438,14 +468,17 @@ class RAGUploadRequest(BaseValidatedModel):
     )
 
     collection_name: Annotated[
-        str, PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True)
+        str,
+        PydanticStringConstraints(min_length=1, max_length=100, strip_whitespace=True),
     ] = Field(..., description="RAG collection name")
 
     chunk_size: int = Field(
         default=1000, ge=100, le=10000, description="Text chunk size for processing"
     )
 
-    chunk_overlap: int = Field(default=200, ge=0, le=1000, description="Overlap between chunks")
+    chunk_overlap: int = Field(
+        default=200, ge=0, le=1000, description="Overlap between chunks"
+    )
 
     embedding_model: StringConstraints.MODEL_NAME | None = Field(
         None, description="Embedding model to use"
@@ -511,7 +544,9 @@ class RAGUploadRequest(BaseValidatedModel):
             if not key.replace("_", "").isalnum():
                 raise ValueError(f"Invalid metadata template key: {key}")
             if ValidationPatterns.SCRIPT_PATTERN.search(template):
-                raise ValueError(f"Metadata template contains malicious content for key '{key}'")
+                raise ValueError(
+                    f"Metadata template contains malicious content for key '{key}'"
+                )
         return v
 
 
