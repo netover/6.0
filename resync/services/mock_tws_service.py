@@ -65,7 +65,7 @@ class MockTWSClient:
             return
 
         try:
-            with open(mock_data_path, encoding="utf-8") as f:
+            with mock_data_path.open(encoding="utf-8") as f:
                 self.mock_data = json.load(f)
         except json.JSONDecodeError as e:
             logger.error(
@@ -424,7 +424,7 @@ class MockTWSClient:
         """
         await asyncio.sleep(0.1)  # Simulate network delay
 
-        events_data = [
+        events_data: list[dict[str, Any]] = [
             {
                 "event_id": "EVENT_001",
                 "timestamp": datetime.now(timezone.utc),
@@ -517,11 +517,11 @@ class MockTWSClient:
 
     async def validate_connection(
         self,
-        host: str = None,
-        port: int = None,
-        user: str = None,
-        password: str = None,
-    ) -> dict[str, bool]:
+        host: str | None = None,
+        port: int | None = None,
+        user: str | None = None,
+        password: str | None = None,
+    ) -> dict[str, Any]:
         """
         Mocks validating TWS connection parameters.
 

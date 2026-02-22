@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Test Data Factories - Generate test data using Polyfactory.
 

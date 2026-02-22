@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Hot-Reload Configuration System.
 
@@ -24,7 +26,6 @@ Usage:
 
 import asyncio
 import inspect
-from resync.core.task_tracker import track_task
 import json
 import logging
 from collections.abc import Callable

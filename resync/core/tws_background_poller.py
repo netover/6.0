@@ -449,7 +449,7 @@ class TWSBackgroundPoller:
 
     def _parse_workstations(self, data: Any) -> list[WorkstationStatus]:
         """Converte dados da API para WorkstationStatus."""
-        workstations = []
+        workstations: list[WorkstationStatus] = []
 
         if not data:
             return workstations
@@ -471,7 +471,7 @@ class TWSBackgroundPoller:
 
     def _parse_jobs(self, data: Any) -> list[JobStatus]:
         """Converte dados da API para JobStatus."""
-        jobs = []
+        jobs: list[JobStatus] = []
 
         if not data:
             return jobs

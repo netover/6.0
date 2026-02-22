@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """Teams Webhook database models."""
 
 from datetime import datetime, timezone

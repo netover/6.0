@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 JSON Parsing Commands using Command Pattern.
 

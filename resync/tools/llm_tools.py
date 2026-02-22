@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -61,7 +62,7 @@ class GetJobLogsInput(BaseModel):
     output_schema=GetJobStatusOutput,
     tags=["tws", "status", "monitoring"],
 )
-async def get_job_status(job_name: str, workspace: str = "PROD") -> dict:
+async def get_job_status(job_name: str, workspace: str = "PROD") -> dict[str, Any]:
     """
     Obtém o status atual de um job TWS/HWA.
 
@@ -79,8 +80,8 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict:
     from resync.services.tws_service import get_tws_client
 
     try:
-        client = await get_tws_client()
-        status_data = await client.get_job_status(job_name, workspace)
+        client: Any = get_tws_client()
+        status_data = await client.get_job_status(job_name)
 
         return {
             "job_name": job_name,
@@ -111,7 +112,7 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict:
     permission=ToolPermission.READ_ONLY,
     tags=["tws", "monitoring", "troubleshoot"],
 )
-async def get_failed_jobs(hours: int = 24) -> dict:
+async def get_failed_jobs(hours: int = 24) -> dict[str, Any]:
     """
     Lista todos os jobs que falharam nas últimas N horas.
 
@@ -127,8 +128,8 @@ async def get_failed_jobs(hours: int = 24) -> dict:
     from resync.services.tws_service import get_tws_client
 
     try:
-        client = await get_tws_client()
-        jobs = await client.query_jobs(status="ABEND", hours=hours)
+        client: Any = get_tws_client()
+        jobs = await client.get_jobs(status="ABEND", hours=hours)
 
         return {
             "count": len(jobs),
@@ -158,7 +159,7 @@ async def get_failed_jobs(hours: int = 24) -> dict:
     input_schema=GetJobLogsInput,
     tags=["tws", "logs", "troubleshoot"],
 )
-async def get_job_logs(job_name: str, lines: int = 100) -> dict:
+async def get_job_logs(job_name: str, lines: int = 100) -> dict[str, Any]:
     """
     Recupera os últimos logs de execução de um job.
 
@@ -175,10 +176,12 @@ async def get_job_logs(job_name: str, lines: int = 100) -> dict:
     from resync.services.tws_service import get_tws_client
 
     try:
-        client = await get_tws_client()
-        logs = await client.get_job_logs(job_name, lines=min(lines, 1000))
+        client: Any = get_tws_client()
+        jobs = await client.get_jobs(q=job_name, limit=1)
+        first_job = jobs[0] if jobs else {}
+        log_content = first_job.get("logs") if isinstance(first_job, dict) else None
 
-        return {"job_name": job_name, "lines": lines, "content": logs}
+        return {"job_name": job_name, "lines": lines, "content": log_content or ""}
     except Exception as e:
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -190,7 +193,7 @@ async def get_job_logs(job_name: str, lines: int = 100) -> dict:
     permission=ToolPermission.READ_ONLY,
     tags=["tws", "monitoring"],
 )
-async def get_system_health() -> dict:
+async def get_system_health() -> dict[str, Any]:
     """
     Verifica a saúde geral do sistema TWS/HWA.
 
@@ -203,25 +206,26 @@ async def get_system_health() -> dict:
     from resync.services.tws_service import get_tws_client
 
     try:
-        client = await get_tws_client()
+        client: Any = get_tws_client()
 
         # Coletar informações em paralelo
         import asyncio
 
-        engine_info, failed_jobs = await asyncio.gather(
+        gathered: tuple[Any, Any] = await asyncio.gather(
             client.get_engine_info(),
-            client.query_jobs(status="ABEND", hours=24),
+            client.get_jobs(status="ABEND", hours=24),
             return_exceptions=True,
         )
+        engine_info, failed_jobs = gathered
 
         if isinstance(engine_info, Exception):
             engine_status = "ERROR"
-            engine_details = str(engine_info)
+            engine_details: dict[str, Any] | str = str(engine_info)
         else:
             engine_status = "HEALTHY"
-            engine_details = engine_info
+            engine_details = engine_info if isinstance(engine_info, dict) else {"value": engine_info}
 
-        failed_count = len(failed_jobs) if not isinstance(failed_jobs, Exception) else 0
+        failed_count = len(failed_jobs) if isinstance(failed_jobs, list) else 0
 
         return {
             "status": "HEALTHY" if failed_count < 10 else "DEGRADED",
@@ -242,7 +246,7 @@ async def get_system_health() -> dict:
     permission=ToolPermission.READ_ONLY,
     tags=["tws", "dependencies"],
 )
-async def get_job_dependencies(job_name: str) -> dict:
+async def get_job_dependencies(job_name: str) -> dict[str, Any]:
     """
     Obtém as dependências de um job (predecessores e sucessores).
 
@@ -257,13 +261,16 @@ async def get_job_dependencies(job_name: str) -> dict:
     from resync.services.tws_service import get_tws_client
 
     try:
-        client = await get_tws_client()
-        deps = await client.get_job_dependencies(job_name)
+        client: Any = get_tws_client()
+        jobs = await client.get_jobs(q=job_name, limit=1)
+        first_job = jobs[0] if jobs else {}
+        predecessors = first_job.get("predecessors", []) if isinstance(first_job, dict) else []
+        successors = first_job.get("successors", []) if isinstance(first_job, dict) else []
 
         return {
             "job_name": job_name,
-            "predecessors": deps.get("predecessors", []),
-            "successors": deps.get("successors", []),
+            "predecessors": predecessors if isinstance(predecessors, list) else [],
+            "successors": successors if isinstance(successors, list) else [],
         }
     except Exception as e:
         if isinstance(e, PROGRAMMING_ERRORS):
@@ -282,7 +289,7 @@ async def get_job_dependencies(job_name: str) -> dict:
 # =============================================================================
 
 
-def pydantic_to_openai_schema(model: type[BaseModel]) -> dict:
+def pydantic_to_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     """
     Converte Pydantic BaseModel para OpenAI Function JSON Schema.
 

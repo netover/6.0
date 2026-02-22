@@ -4,7 +4,6 @@ from typing import List
 
 import pytest
 import pytest_asyncio
-from unittest.mock import patch
 
 from resync.core.task_tracker import (
     background_task,
@@ -123,8 +122,8 @@ async def test_cancel_all_tasks_cancels_running_tasks_and_reports_stats():
             raise
 
     # Create multiple long-running tracked tasks
-    t1 = create_tracked_task(long_running(), name="long-1")
-    t2 = create_tracked_task(long_running(), name="long-2")
+    _ = create_tracked_task(long_running(), name="long-1")
+    _ = create_tracked_task(long_running(), name="long-2")
 
     await asyncio.sleep(0.05)
 

@@ -41,7 +41,7 @@ class AgentCapabilities(BaseModel):
         default_factory=list, description="List of JSON-RPC methods supported."
     )
     communication_modes: List[str] = Field(
-        default_factory=["json-rpc"],
+        default_factory=lambda: ["json-rpc"],
         description="Supported modes: json-rpc, websocket, sse, webhooks.",
     )
     supports_streaming: bool = Field(

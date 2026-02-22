@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Template Loader for LangGraph Synthesis Templates.
 

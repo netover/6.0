@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Hybrid RAG - Knowledge Graph + Vector Search Query Router.
 

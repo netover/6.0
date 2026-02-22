@@ -189,7 +189,7 @@ class OptimizedTWSClient:
         job_logs_ttl: int | None = None,
         static_ttl: int | None = None,
         graph_ttl: int | None = None,
-    ):
+    ) -> None:
         """Configure cache TTLs."""
         self._cache.configure_ttls(
             job_status=job_status_ttl,
@@ -202,7 +202,7 @@ class OptimizedTWSClient:
         """Get cache statistics."""
         return self._cache.get_stats()
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all cached data."""
         self._cache.clear()
 
@@ -250,7 +250,7 @@ class OptimizedTWSClient:
         backoff_base = settings.tws_retry_backoff_base
         backoff_max = settings.tws_retry_backoff_max
 
-        last_exception = None
+        last_exception: Exception | None = None
 
         def _compute_backoff(attempt_idx: int) -> float:
             """Compute exponential backoff with *full jitter*.

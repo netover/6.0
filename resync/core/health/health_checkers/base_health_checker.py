@@ -17,6 +17,7 @@ from resync.core.health.health_models import (
     ComponentHealth,
     ComponentType,
     HealthCheckConfig,
+    HealthStatus,
 )
 
 logger = structlog.get_logger(__name__)
@@ -102,7 +103,7 @@ class BaseHealthChecker(ABC):
                 error_count=1,
             )
 
-    def _get_status_for_exception(self, exception: Exception) -> ComponentType:
+    def _get_status_for_exception(self, exception: Exception) -> HealthStatus:
         """
         Determine health status based on exception type.
 
@@ -113,7 +114,7 @@ class BaseHealthChecker(ABC):
             Appropriate health status for the exception
         """
         # Default to UNKNOWN for most exceptions
-        return ComponentType.UNKNOWN
+        return HealthStatus.UNKNOWN
 
     def get_component_config(self) -> dict[str, Any]:
         """

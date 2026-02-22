@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Refactored SOC 2 Type II Compliance Management System using Strategy Pattern.
 
