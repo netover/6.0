@@ -210,7 +210,7 @@ class ParallelToolExecutor:
                     tasks.append(
                         tg.create_task(
                             self._execute_single_with_semaphore(req),
-                            name=f"tool_{req.tool_name}_{idx}"
+                            name=f"tool_{req.tool_name}_{idx}",
                         )
                     )
         except* asyncio.CancelledError:

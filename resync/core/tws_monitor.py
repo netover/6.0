@@ -118,7 +118,9 @@ class TWSMonitor:
             self._monitoring_task = track_task(
                 self._monitoring_loop(), name="monitoring_loop"
             )
-        logger.info("tws_monitoring_started", method="task_group" if tg else "track_task")
+        logger.info(
+            "tws_monitoring_started", method="task_group" if tg else "track_task"
+        )
 
     async def stop_monitoring(self) -> None:
         """Stop continuous monitoring."""
@@ -512,7 +514,9 @@ class TWSMonitor:
 _tws_monitor: TWSMonitor | None = None
 
 
-async def get_tws_monitor(tws_client: ITWSClient, tg: asyncio.TaskGroup | None = None) -> TWSMonitor:
+async def get_tws_monitor(
+    tws_client: ITWSClient, tg: asyncio.TaskGroup | None = None
+) -> TWSMonitor:
     """Get global TWS monitor instance.
 
     Args:

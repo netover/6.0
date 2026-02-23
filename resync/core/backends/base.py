@@ -15,7 +15,7 @@ Exemplo de uso:
     class MyCustomBackend(BackendInterface):
         async def register_service(self, service_def, instance) -> bool:
             ...
-        
+
         async def discover_services(self, service_name) -> list[ServiceInstance]:
             ...
 """
@@ -44,7 +44,7 @@ class ServiceStatus(str, Enum):
 class ServiceInstance(BaseModel):
     """
     Modelo para instância de serviço.
-    
+
     Attributes:
         service_name: Nome do serviço
         instance_id: ID único da instância
@@ -59,7 +59,10 @@ class ServiceInstance(BaseModel):
         consecutive_failures: Falhas consecutivas
         response_time_avg: Tempo médio de resposta
     """
-    model_config = Field(default=BaseModel.Config(validate_assignment=True, arbitrary_types_allowed=True))
+
+    model_config = Field(
+        default=BaseModel.Config(validate_assignment=True, arbitrary_types_allowed=True)
+    )
 
     service_name: str = Field(min_length=1)
     instance_id: str = Field(min_length=1)
@@ -124,7 +127,7 @@ class ServiceInstance(BaseModel):
 class ServiceDefinition(BaseModel):
     """
     Modelo para definição de serviço.
-    
+
     Attributes:
         service_name: Nome do serviço
         discovery_backend: Backend de discovery a ser usado
@@ -141,6 +144,7 @@ class ServiceDefinition(BaseModel):
         deregister_on_shutdown: Se deve deregistrar ao encerrar
         backend_config: Configurações específicas do backend
     """
+
     model_config = Field(default=BaseModel.Config(frozen=True))
 
     service_name: str = Field(min_length=1)
@@ -201,13 +205,13 @@ class BackendHealth:
 class BackendInterface(ABC):
     """
     Interface abstrata para backends de service discovery.
-    
+
     Esta interface define os métodos que todos os backends de discovery
     (Consul, Kubernetes, Redis, etc.) devem implementar.
-    
+
     Attributes:
         backend_name: Nome identificador do backend
-        
+
     Example:
         class ConsulBackend(BackendInterface):
             async def register_service(self, service_def, instance) -> bool:
@@ -229,11 +233,11 @@ class BackendInterface(ABC):
     ) -> bool:
         """
         Register a service instance with the backend.
-        
+
         Args:
             service_def: Service definition
             instance: Service instance to register
-            
+
         Returns:
             True if registration was successful, False otherwise
         """
@@ -247,11 +251,11 @@ class BackendInterface(ABC):
     ) -> bool:
         """
         Deregister a service instance from the backend.
-        
+
         Args:
             service_name: Name of the service
             instance_id: ID of the instance to deregister
-            
+
         Returns:
             True if deregistration was successful, False otherwise
         """
@@ -264,10 +268,10 @@ class BackendInterface(ABC):
     ) -> list[ServiceInstance]:
         """
         Discover all instances of a service.
-        
+
         Args:
             service_name: Name of the service to discover
-            
+
         Returns:
             List of service instances
         """
@@ -281,7 +285,7 @@ class BackendInterface(ABC):
     ) -> None:
         """
         Watch for changes in a service and call the callback on changes.
-        
+
         Args:
             service_name: Name of the service to watch
             callback: Async callback to call when service changes
@@ -292,7 +296,7 @@ class BackendInterface(ABC):
     async def health_check(self) -> bool:
         """
         Check if the backend itself is healthy.
-        
+
         Returns:
             True if the backend is healthy, False otherwise
         """
@@ -324,5 +328,3 @@ __all__ = [
     "ServiceDefinition",
     "ServiceStatus",
 ]
-
-

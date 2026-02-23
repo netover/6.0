@@ -343,11 +343,9 @@ class IncidentDetector:
                 "name": "anomaly_detected",
                 "category": IncidentCategory.UNAUTHORIZED_ACCESS,
                 "severity": IncidentSeverity.HIGH,
-                "condition": lambda events: (
-                    any(
-                        e.get("event_type") == "anomaly" and e.get("severity") == "high"
-                        for e in events
-                    )
+                "condition": lambda events: any(
+                    e.get("event_type") == "anomaly" and e.get("severity") == "high"
+                    for e in events
                 ),
                 "time_window": 60,  # 1 minute
             },
@@ -858,9 +856,14 @@ class IncidentResponseEngine:
             self._escalation_task = track_task(
                 self._escalation_worker(), name="escalation_worker"
             )
-            self._cleanup_task = track_task(self._cleanup_worker(), name="cleanup_worker")
+            self._cleanup_task = track_task(
+                self._cleanup_worker(), name="cleanup_worker"
+            )
 
-        logger.info("Incident response engine started", method="task_group" if tg else "track_task")
+        logger.info(
+            "Incident response engine started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the incident response engine."""
@@ -1197,7 +1200,9 @@ class IncidentResponse:
         return await self.engine.process_security_event(details)
 
 
-async def get_incident_response_engine(tg: asyncio.TaskGroup | None = None) -> IncidentResponseEngine:
+async def get_incident_response_engine(
+    tg: asyncio.TaskGroup | None = None,
+) -> IncidentResponseEngine:
     """
     Get the global incident response engine instance.
 

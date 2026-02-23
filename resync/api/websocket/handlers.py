@@ -287,15 +287,15 @@ async def websocket_handler(
                     )
 
                 elif message_type == "heartbeat":
-                        # Unknown JSON message type
-                        error_response = {
-                            "type": "error",
-                            "message": f"Unknown message type: {message_type}",
-                            "agent_id": agent_id,
-                        }
-                        await manager.send_personal_message(
-                            json.dumps(error_response), websocket
-                        )
+                    # Unknown JSON message type
+                    error_response = {
+                        "type": "error",
+                        "message": f"Unknown message type: {message_type}",
+                        "agent_id": agent_id,
+                    }
+                    await manager.send_personal_message(
+                        json.dumps(error_response), websocket
+                    )
 
             except Exception as e:
                 logger.error("Error processing WebSocket message: %s", e)

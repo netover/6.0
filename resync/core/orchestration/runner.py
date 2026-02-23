@@ -216,7 +216,11 @@ class OrchestrationRunner:
                         async with asyncio.TaskGroup() as tg:
                             for s_run, step_config in step_run_objects:
                                 tasks.append(
-                                    tg.create_task(self._run_step(step_repo, s_run.id, step_config, context))
+                                    tg.create_task(
+                                        self._run_step(
+                                            step_repo, s_run.id, step_config, context
+                                        )
+                                    )
                                 )
                     except* Exception as eg:
                         # Process ExceptionGroup (Python 3.11+) or handle individual exceptions
@@ -373,4 +377,3 @@ class OrchestrationRunner:
             )
 
             return {"status": "failed", "error": str(e)}
-

@@ -409,7 +409,9 @@ async def get_stats(db: Session = Depends(get_db)):
     try:
         total_channels = db.query(func.count(TeamsChannel.id)).scalar()
         active_channels = (
-            db.query(func.count(TeamsChannel.id)).filter(TeamsChannel.is_active).scalar()
+            db.query(func.count(TeamsChannel.id))
+            .filter(TeamsChannel.is_active)
+            .scalar()
         )
 
         total_mappings = db.query(func.count(TeamsJobMapping.id)).scalar()

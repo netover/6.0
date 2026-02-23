@@ -73,8 +73,9 @@ class EvidentlyConfig:
     """Evidently configuration."""
 
     enabled: bool = field(
-        default_factory=lambda: os.getenv("EVIDENTLY_ENABLED", "false").lower()
-        == "true"
+        default_factory=lambda: (
+            os.getenv("EVIDENTLY_ENABLED", "false").lower() == "true"
+        )
     )
 
     # Reference data settings

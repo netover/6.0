@@ -11,8 +11,6 @@ Features:
 - Templates de prompt otimizados por tipo de query
 """
 
-
-
 import logging
 import re
 from enum import Enum
@@ -247,7 +245,11 @@ class QueryProcessor:
 
         # Ordenar por score
         ranked.sort(
-            key=lambda x: cast(float, x["score"]) if isinstance(x.get("score"), (int, float)) else 0.0,
+            key=lambda x: (
+                cast(float, x["score"])
+                if isinstance(x.get("score"), (int, float))
+                else 0.0
+            ),
             reverse=True,
         )
 

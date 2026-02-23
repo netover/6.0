@@ -188,7 +188,9 @@ class ProactiveMonitoringSystem:
             for name, breaker in breakers.items():
                 if breaker:
                     try:
-                        stats = breaker.get_stats() if hasattr(breaker, "get_stats") else {}
+                        stats = (
+                            breaker.get_stats() if hasattr(breaker, "get_stats") else {}
+                        )
                         results[name] = {
                             "state": stats.get("state", "unknown"),
                             "failures": stats.get("failures", 0),

@@ -6,8 +6,6 @@ Returns a small connected subgraph for a set of seed node_ids or names.
 Uses a recursive CTE traversal over kg_edges.
 """
 
-
-
 import logging
 from typing import Any
 

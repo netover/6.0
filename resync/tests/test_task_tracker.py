@@ -18,6 +18,7 @@ from resync.core.task_tracker import (
 
 pytestmark = pytest.mark.asyncio(loop_scope="function")
 
+
 async def eventually(assert_fn, timeout=1.0, step=0.01):
     """Helper for eventual consistency polling to eliminate generic short sleeps."""
     deadline = asyncio.get_running_loop().time() + timeout
@@ -29,6 +30,7 @@ async def eventually(assert_fn, timeout=1.0, step=0.01):
             if asyncio.get_running_loop().time() >= deadline:
                 raise
             await asyncio.sleep(step)
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def cleanup_tasks_between_tests():
@@ -71,7 +73,8 @@ async def test_create_tracked_task_not_tracked_when_cancel_on_shutdown_false():
 
     # Count should remain unchanged
     await eventually(lambda: get_task_count() == before)
-    
+
+
 @pytest.mark.asyncio
 async def test_track_task_tracks_sync_context():
     async def quick():
@@ -80,10 +83,10 @@ async def test_track_task_tracks_sync_context():
 
     before = get_task_count()
     t = track_task(quick(), name="sync-start")
-    
+
     assert get_task_count() == before + 1
     assert await t == 1
-    
+
     await eventually(lambda: get_task_count() == before)
 
 
@@ -102,11 +105,11 @@ async def test_background_task_decorator_tracks_and_names_function():
     assert "worker" in names
 
     await t
-    
+
     def assert_removed():
         assert "worker" not in get_task_names()
         assert get_task_count() == len(before_names)
-        
+
     await eventually(assert_removed)
 
 
@@ -140,7 +143,7 @@ async def test_cancel_all_tasks_cancels_running_tasks_and_reports_stats():
 @pytest.mark.asyncio
 async def test_cancel_all_tasks_collects_errors_for_failed_tasks_and_logs_error(caplog):
     caplog.set_level(logging.ERROR)
-    
+
     async def failing_on_cancel():
         try:
             while True:
@@ -187,6 +190,7 @@ async def test_wait_for_tasks_returns_true_when_all_complete_and_false_on_timeou
     # Ensure global set is cleaned (pending was cancelled inside wait_for_tasks)
     await cancel_all_tasks(timeout=0.2)
     assert get_task_count() == 0
+
 
 @pytest.mark.asyncio
 async def test_cancel_all_tasks_empty_set():

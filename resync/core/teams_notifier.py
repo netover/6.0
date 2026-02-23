@@ -377,13 +377,13 @@ class TeamsNotificationManager:
                         body = content.get("body")
                         if isinstance(body, list):
                             body.insert(
-                2,
-                {
-                    "type": "TextBlock",
-                    "text": f"**Erro:** {error_message[:500]}",
-                    "wrap": True,
-                    "color": "attention",
-                },
+                                2,
+                                {
+                                    "type": "TextBlock",
+                                    "text": f"**Erro:** {error_message[:500]}",
+                                    "wrap": True,
+                                    "color": "attention",
+                                },
                             )
 
         # Adicionar mention se configurado
@@ -399,12 +399,12 @@ class TeamsNotificationManager:
                             body = content.get("body")
                             if isinstance(body, list):
                                 body.insert(
-                    0,
-                    {
-                        "type": "TextBlock",
-                        "text": config_obj.mention_text,
-                        "weight": "bolder",
-                    },
+                                    0,
+                                    {
+                                        "type": "TextBlock",
+                                        "text": config_obj.mention_text,
+                                        "weight": "bolder",
+                                    },
                                 )
 
         return card

@@ -520,7 +520,9 @@ class LogAggregator:
 
         # Add time range filter
         if start_time or end_time:
-            range_filter: dict[str, dict[str, dict[str, str]]] = {"range": {"@timestamp": {}}}
+            range_filter: dict[str, dict[str, dict[str, str]]] = {
+                "range": {"@timestamp": {}}
+            }
             if start_time:
                 range_filter["range"]["@timestamp"]["gte"] = datetime.fromtimestamp(
                     start_time, tz=timezone.utc

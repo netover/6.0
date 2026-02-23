@@ -31,8 +31,6 @@ Usage:
         ...
 """
 
-
-
 import os
 import ipaddress
 import warnings as _warnings

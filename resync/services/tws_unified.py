@@ -48,7 +48,9 @@ class TWSClientState(str, Enum):
 
 
 class TWSClientConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TWS_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="TWS_", env_file=".env", extra="ignore"
+    )
 
     base_url: str = "http://localhost:31182"
     username: str = ""
@@ -174,7 +176,11 @@ class UnifiedTWSClient:
 
     @property
     def state(self) -> TWSClientState:
-        return TWSClientState.CIRCUIT_OPEN if self._circuit_breaker.state.value == "open" else self._state
+        return (
+            TWSClientState.CIRCUIT_OPEN
+            if self._circuit_breaker.state.value == "open"
+            else self._state
+        )
 
     async def connect(self) -> None:
         async with self._lock:
@@ -206,7 +212,9 @@ class UnifiedTWSClient:
         if self._client is None:
             raise TWSConnectionError("Client not initialized")
         try:
-            await TimeoutManager.with_timeout(self._client.get_engine_info(), self.config.connect_timeout)
+            await TimeoutManager.with_timeout(
+                self._client.get_engine_info(), self.config.connect_timeout
+            )
         except asyncio.TimeoutError as e:
             raise TWSTimeoutError("Connection verification timed out") from e
         except Exception as e:
@@ -229,7 +237,9 @@ class UnifiedTWSClient:
                     self._client = None
                     self._state = TWSClientState.DISCONNECTED
 
-    async def _execute_with_resilience(self, operation: str, func: Callable[[], Awaitable[Any]]) -> Any:
+    async def _execute_with_resilience(
+        self, operation: str, func: Callable[[], Awaitable[Any]]
+    ) -> Any:
         start_time = datetime.now(timezone.utc)
         self._metrics.total_requests += 1
         retries = 0
@@ -239,16 +249,22 @@ class UnifiedTWSClient:
             if self._client is None:
                 await self.connect()
             try:
-                return await TimeoutManager.with_timeout(func(), self.config.read_timeout)
+                return await TimeoutManager.with_timeout(
+                    func(), self.config.read_timeout
+                )
             except Exception:
                 retries += 1
                 raise
 
         try:
-            result = await self._circuit_breaker.call(self._retry_handler.execute, _wrapped)
+            result = await self._circuit_breaker.call(
+                self._retry_handler.execute, _wrapped
+            )
             self._metrics.successful_requests += 1
             self._metrics.last_success = datetime.now(timezone.utc)
-            self._metrics.total_latency_ms += (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            self._metrics.total_latency_ms += (
+                datetime.now(timezone.utc) - start_time
+            ).total_seconds() * 1000
             self._metrics.retries += max(0, retries - 1)
             return result
         except CircuitBreakerError:
@@ -264,25 +280,39 @@ class UnifiedTWSClient:
             raise
 
     async def get_system_status(self) -> dict[str, Any]:
-        return await self._execute_with_resilience("get_system_status", lambda: self._require_client().get_system_status())
+        return await self._execute_with_resilience(
+            "get_system_status", lambda: self._require_client().get_system_status()
+        )
 
     async def get_engine_info(self) -> dict[str, Any]:
-        return await self._execute_with_resilience("get_engine_info", lambda: self._require_client().get_engine_info())
+        return await self._execute_with_resilience(
+            "get_engine_info", lambda: self._require_client().get_engine_info()
+        )
 
     async def get_jobs(self, **params: Any) -> list[dict[str, Any]]:
-        return await self._execute_with_resilience("get_jobs", lambda: self._require_client().get_jobs(**params))
+        return await self._execute_with_resilience(
+            "get_jobs", lambda: self._require_client().get_jobs(**params)
+        )
 
     async def get_job(self, job_name: str) -> dict[str, Any]:
-        return await self._execute_with_resilience("get_job", lambda: self._require_client().get_job(job_name))
+        return await self._execute_with_resilience(
+            "get_job", lambda: self._require_client().get_job(job_name)
+        )
 
     async def get_job_status(self, job_name: str) -> dict[str, Any]:
-        return await self._execute_with_resilience("get_job_status", lambda: self._require_client().get_job_status(job_name))
+        return await self._execute_with_resilience(
+            "get_job_status", lambda: self._require_client().get_job_status(job_name)
+        )
 
     async def get_workstations(self) -> list[dict[str, Any]]:
-        return await self._execute_with_resilience("get_workstations", lambda: self._require_client().get_workstations())
+        return await self._execute_with_resilience(
+            "get_workstations", lambda: self._require_client().get_workstations()
+        )
 
     async def get_plan(self) -> dict[str, Any]:
-        return await self._execute_with_resilience("get_plan", lambda: self._require_client().get_plan())
+        return await self._execute_with_resilience(
+            "get_plan", lambda: self._require_client().get_plan()
+        )
 
     async def health_check(self) -> bool:
         try:
@@ -299,8 +329,16 @@ class UnifiedTWSClient:
         return self._client
 
     def get_metrics_summary(self) -> dict[str, Any]:
-        success_rate = self._metrics.successful_requests / self._metrics.total_requests if self._metrics.total_requests else 0.0
-        avg_latency = self._metrics.total_latency_ms / self._metrics.successful_requests if self._metrics.successful_requests else 0.0
+        success_rate = (
+            self._metrics.successful_requests / self._metrics.total_requests
+            if self._metrics.total_requests
+            else 0.0
+        )
+        avg_latency = (
+            self._metrics.total_latency_ms / self._metrics.successful_requests
+            if self._metrics.successful_requests
+            else 0.0
+        )
         return {
             "state": self.state.value,
             "total_requests": self._metrics.total_requests,
@@ -310,8 +348,12 @@ class UnifiedTWSClient:
             "retries": self._metrics.retries,
             "avg_latency_ms": avg_latency,
             "circuit_breaker_trips": self._metrics.circuit_breaker_trips,
-            "last_success": self._metrics.last_success.isoformat() if self._metrics.last_success else None,
-            "last_failure": self._metrics.last_failure.isoformat() if self._metrics.last_failure else None,
+            "last_success": self._metrics.last_success.isoformat()
+            if self._metrics.last_success
+            else None,
+            "last_failure": self._metrics.last_failure.isoformat()
+            if self._metrics.last_failure
+            else None,
             "last_error": self._metrics.last_error,
         }
 
@@ -364,7 +406,9 @@ class MockTWSClient(UnifiedTWSClient):
         self._responses = responses or {}
         self._calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
         self._circuit_breaker = CircuitBreaker(CircuitBreakerConfig(name="mock_tws"))
-        self._retry_handler = RetryWithBackoff(RetryConfig(max_retries=1, base_delay=0.1))
+        self._retry_handler = RetryWithBackoff(
+            RetryConfig(max_retries=1, base_delay=0.1)
+        )
 
     async def connect(self) -> None:
         self._state = TWSClientState.CONNECTED

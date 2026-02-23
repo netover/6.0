@@ -103,17 +103,37 @@ class ChaosEngineer:
                     try:
                         async with asyncio.TaskGroup() as tg:
                             tasks = [
-                                tg.create_task(self._cache_race_condition_fuzzing(), name="cache_race"),
-                                tg.create_task(self._agent_concurrent_initialization_chaos(), name="agent_chaos"),
-                                tg.create_task(self._audit_db_failure_injection(), name="audit_chaos"),
-                                tg.create_task(self._memory_pressure_simulation(), name="memory_chaos"),
-                                tg.create_task(self._network_partition_simulation(), name="network_chaos"),
-                                tg.create_task(self._component_isolation_testing(), name="isolation_chaos"),
+                                tg.create_task(
+                                    self._cache_race_condition_fuzzing(),
+                                    name="cache_race",
+                                ),
+                                tg.create_task(
+                                    self._agent_concurrent_initialization_chaos(),
+                                    name="agent_chaos",
+                                ),
+                                tg.create_task(
+                                    self._audit_db_failure_injection(),
+                                    name="audit_chaos",
+                                ),
+                                tg.create_task(
+                                    self._memory_pressure_simulation(),
+                                    name="memory_chaos",
+                                ),
+                                tg.create_task(
+                                    self._network_partition_simulation(),
+                                    name="network_chaos",
+                                ),
+                                tg.create_task(
+                                    self._component_isolation_testing(),
+                                    name="isolation_chaos",
+                                ),
                             ]
                     except* asyncio.CancelledError:
                         raise
                     except* Exception:
-                        logger.warning("chaos_tasks_partial_failure", job_name="chaos_suite")
+                        logger.warning(
+                            "chaos_tasks_partial_failure", job_name="chaos_suite"
+                        )
             except TimeoutError:
                 logger.error("chaos_suite_timeout", timeout_seconds=timeout_seconds)
                 # results will be partial, processed below
@@ -129,7 +149,9 @@ class ChaosEngineer:
                         results.append(e)
                 else:
                     # Task timed out or was cancelled
-                    results.append(TimeoutError(f"Task {t.get_name()} failed or timed out"))
+                    results.append(
+                        TimeoutError(f"Task {t.get_name()} failed or timed out")
+                    )
 
             # Process results
             successful_tests = 0
@@ -806,9 +828,7 @@ class FuzzingEngine:
                         results["passed"] += 1
                     else:
                         results["failed"] += 1
-                        results["errors"].append(
-                            f"TTL {ttl!r}: immediate expiration"
-                        )
+                        results["errors"].append(f"TTL {ttl!r}: immediate expiration")
 
                 except Exception as e:
                     results["failed"] += 1

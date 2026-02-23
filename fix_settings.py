@@ -1,6 +1,4 @@
-import sys
-
-with open('resync/settings.py', 'r') as f:
+with open("resync/settings.py", "r") as f:
     lines = f.readlines()
 
 # Remove the appended SMTP config from the end (if it exists outside class)
@@ -29,7 +27,7 @@ for line in lines:
 insert_idx = -1
 for i, line in enumerate(clean_lines):
     if "# VALIDADORES" in line:
-        insert_idx = i - 1 # Insert before Validators section
+        insert_idx = i - 1  # Insert before Validators section
         break
 
 if insert_idx != -1:
@@ -47,7 +45,7 @@ if insert_idx != -1:
 
     final_lines = clean_lines[:insert_idx] + indented_smtp + clean_lines[insert_idx:]
 
-    with open('resync/settings.py', 'w') as f:
+    with open("resync/settings.py", "w") as f:
         f.writelines(final_lines)
     print("Settings updated successfully.")
 else:

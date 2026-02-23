@@ -319,7 +319,9 @@ class SettingsValidators:
     ) -> bool | str:
         """Emite warning para TWS verification em produção."""
         env = info.data.get("environment")
-        is_disabled = (isinstance(v, bool) and not v) or (isinstance(v, str) and v.lower() == "false")
+        is_disabled = (isinstance(v, bool) and not v) or (
+            isinstance(v, str) and v.lower() == "false"
+        )
         if env == Environment.PRODUCTION and is_disabled:
             warnings.warn(
                 "TWS verification is disabled in production. This is a security risk.",

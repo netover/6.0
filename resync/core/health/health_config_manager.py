@@ -219,7 +219,10 @@ class HealthCheckConfigurationManager:
             )
 
         # Validate thresholds
-        if self.config.database_connection_threshold_percent <= 0 or self.config.database_connection_threshold_percent > 100:
+        if (
+            self.config.database_connection_threshold_percent <= 0
+            or self.config.database_connection_threshold_percent > 100
+        ):
             errors.append(
                 "database_connection_threshold_percent must be between 0 and 100"
             )
@@ -234,7 +237,10 @@ class HealthCheckConfigurationManager:
         if self.config.history_retention_days <= 0:
             errors.append("history_retention_days must be positive")
 
-        if self.config.history_cleanup_threshold <= 0 or self.config.history_cleanup_threshold > 1:
+        if (
+            self.config.history_cleanup_threshold <= 0
+            or self.config.history_cleanup_threshold > 1
+        ):
             errors.append("history_cleanup_threshold must be between 0 and 1")
 
         return errors

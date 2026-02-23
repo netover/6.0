@@ -393,13 +393,18 @@ class GDPRComplianceManager:
                 self._breach_monitor(), name="breach_monitor"
             )
         else:
-            self._cleanup_task = track_task(self._cleanup_worker(), name="cleanup_worker")
+            self._cleanup_task = track_task(
+                self._cleanup_worker(), name="cleanup_worker"
+            )
             self._audit_task = track_task(self._audit_worker(), name="audit_worker")
             self._breach_monitor_task = track_task(
                 self._breach_monitor(), name="breach_monitor"
             )
 
-        logger.info("GDPR compliance manager started", method="task_group" if tg else "track_task")
+        logger.info(
+            "GDPR compliance manager started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the GDPR compliance manager."""
@@ -986,7 +991,9 @@ def _get_gdpr_compliance_manager_instance() -> GDPRComplianceManager:
 gdpr_compliance_manager: GDPRComplianceManager | None = None  # type: ignore[assignment]
 
 
-async def get_gdpr_compliance_manager(tg: asyncio.TaskGroup | None = None) -> GDPRComplianceManager:
+async def get_gdpr_compliance_manager(
+    tg: asyncio.TaskGroup | None = None,
+) -> GDPRComplianceManager:
     """
     Get the global GDPR compliance manager instance.
 

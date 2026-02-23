@@ -4,19 +4,20 @@ from typing import Any
 from resync.core.specialists.tools import tool, ToolPermission
 from resync.services.notification.email_service import get_email_service
 
+
 @tool(
     name="send_email_report",
     description="Send a formatted report via email to a user. Supports optional attachment.",
-    permission=ToolPermission.READ_WRITE, # Has side effects (sending email)
-    requires_approval=False, # Could be True in prod
-    tags=["email", "notification", "report"]
+    permission=ToolPermission.READ_WRITE,  # Has side effects (sending email)
+    requires_approval=False,  # Could be True in prod
+    tags=["email", "notification", "report"],
 )
 async def send_email_report(
     recipient: str,
     subject: str,
     message: str,
     data: dict[str, Any] | None = None,
-    attachment_path: str | None = None
+    attachment_path: str | None = None,
 ) -> str:
     """
     Send an email report.
@@ -37,11 +38,7 @@ async def send_email_report(
         return "Email service is disabled in configuration."
 
     # Render body
-    context = {
-        "title": subject,
-        "message": message,
-        "data": data or {}
-    }
+    context = {"title": subject, "message": message, "data": data or {}}
 
     body = await service.render_template("default_report.html", context)
 
@@ -52,7 +49,7 @@ async def send_email_report(
         subject=subject,
         body=body,
         is_html=True,
-        attachments=attachments
+        attachments=attachments,
     )
 
     if success:

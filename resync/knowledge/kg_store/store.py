@@ -65,7 +65,6 @@ class PostgresGraphStore:
             )
         self._schema_ensured = False
 
-
     @staticmethod
     def _pool_is_closed(pool: asyncpg.Pool | None) -> bool:
         """Safely check pool closed state without relying on private attrs only."""

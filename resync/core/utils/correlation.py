@@ -6,6 +6,7 @@ import structlog
 import uuid
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, ParamSpec
+
 """
 Correlation and Error Handling Utilities.
 
@@ -27,11 +28,6 @@ Usage:
     async with cache_error_handler("get", correlation_id):
         result = await self._internal_get(key)
 """
-
-
-
-
-
 
 
 if TYPE_CHECKING:

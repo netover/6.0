@@ -114,7 +114,9 @@ def decode_token(
 
     jwt_module = jwt
     if jwt_module is None:
-        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+        raise RuntimeError(
+            "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
+        )
     return jwt_module.decode(token, secret_key, algorithms=algorithms, **kwargs)
 
 
@@ -157,7 +159,9 @@ def create_token(
 
     jwt_module = jwt
     if jwt_module is None:
-        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+        raise RuntimeError(
+            "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
+        )
     return jwt_module.encode(to_encode, secret_key, algorithm=algorithm)
 
 

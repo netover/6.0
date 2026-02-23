@@ -677,7 +677,7 @@ class AgenticHandler(BaseHandler):
     def specialist_team(self):
         """
         Lazy load TWSSpecialistTeam for advanced agentic reasoning.
-        
+
         v6.0: Integrated into AgenticHandler and DiagnosticHandler
         to provide comprehensive context before LLM interpretation.
         """
@@ -957,17 +957,18 @@ PERGUNTA DO USUÁRIO:
 
         # Buscar o conteúdo das skills (Deep Loading) usando helper
         skill_context = self._build_skill_context(classification)
-        
+
         # v6.0: Optionally run specialist team for complex analysis
         if classification.primary_intent == Intent.ANALYSIS:
             try:
                 team_summary = await self.specialist_team.analyze(
-                    query=message,
-                    context={"entities": classification.entities}
+                    query=message, context={"entities": classification.entities}
                 )
                 if team_summary:
                     # Inject specialist team summary into skill context
-                    skill_context = f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
+                    skill_context = (
+                        f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
+                    )
                     self.last_tools_used.append("specialist_team")
             except Exception as e:
                 logger.warning("Specialist team analysis failed: %s", e)
@@ -1077,13 +1078,12 @@ class DiagnosticHandler(BaseHandler):
 
             # GAP C: Build skill context for diagnostic injection
             skill_context = self._build_skill_context(classification)
-            
+
             # v6.0: Run specialist team for diagnostic context (best-effort)
             # This provides additional context before LangGraph diagnosis
             try:
                 team_summary = await self.specialist_team.diagnose(
-                    query=message,
-                    context={"entities": classification.entities}
+                    query=message, context={"entities": classification.entities}
                 )
                 if team_summary:
                     # Inject specialist team findings into skill context

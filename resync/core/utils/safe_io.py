@@ -19,10 +19,10 @@ def safe_write_file(
 ) -> None:
     """
     Writes content to a file atomically using a temporary file.
-    
+
     This ensures that the target file is either fully written or
     remains unchanged in case of a crash during the write process.
-    
+
     Args:
         filepath: Path to the target file
         content: String or bytes to write
@@ -30,7 +30,7 @@ def safe_write_file(
     """
     path = Path(filepath)
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Create a temporary file in the same directory to ensure it's on the same filesystem
     # for an atomic rename operation.
     fd, temp_path_str = tempfile.mkstemp(
@@ -38,7 +38,7 @@ def safe_write_file(
         prefix=f".{path.name}.tmp-",
     )
     temp_path = Path(temp_path_str)
-    
+
     try:
         if isinstance(content, str):
             with os.fdopen(fd, "w", encoding=encoding) as f:
@@ -46,17 +46,17 @@ def safe_write_file(
         else:
             with os.fdopen(fd, "wb") as f:
                 f.write(content)
-        
+
         # Ensure data is flushed to disk
         # (Though rename is atomic, we want the content to be there)
         # os.fsync(fd) is handled by os.fdopen(fd, "w").close() mostly,
         # but for maximum safety:
         with open(temp_path, "ab") as f:
             os.fsync(f.fileno())
-            
+
         # Atomic replace
         os.replace(temp_path, path)
-        
+
     except Exception as e:
         # Cleanup temp file on failure
         if temp_path.exists():
@@ -83,5 +83,5 @@ def backup_and_replace(
     if path.exists():
         backup_path = path.with_suffix(path.suffix + backup_ext)
         shutil.copy2(path, backup_path)
-    
+
     safe_write_file(path, new_content)

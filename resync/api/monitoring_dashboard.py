@@ -270,16 +270,14 @@ class DashboardMetricsStore:
             # Utilizar variáveis explícitas para as tasks
             task_req = None
             task_time = None
-            
+
             try:
                 async with asyncio.TaskGroup() as tg:
                     task_req = tg.create_task(
-                        redis.get(REDIS_KEY_PREV_REQUESTS),
-                        name="get_prev_requests"
+                        redis.get(REDIS_KEY_PREV_REQUESTS), name="get_prev_requests"
                     )
                     task_time = tg.create_task(
-                        redis.get(REDIS_KEY_PREV_WALLTIME),
-                        name="get_prev_walltime"
+                        redis.get(REDIS_KEY_PREV_WALLTIME), name="get_prev_walltime"
                     )
             except* asyncio.CancelledError:
                 # Crucial: propagar cancelamento para shutdown limpo
@@ -288,19 +286,19 @@ class DashboardMetricsStore:
                 logger.error(
                     "storage_state_fetch_failure",
                     exception_count=len(exc_group.exceptions),
-                    exception_types=[type(e).__name__ for e in exc_group.exceptions]
+                    exception_types=[type(e).__name__ for e in exc_group.exceptions],
                 )
-            
+
             # Extração segura com fallbacks
             prev_requests = 0
             prev_walltime = 0.0
-            
+
             if task_req and task_req.done() and not task_req.cancelled():
                 try:
                     prev_requests = _safe_int(task_req.result())
                 except Exception:
                     pass
-            
+
             if task_time and task_time.done() and not task_time.cancelled():
                 try:
                     prev_walltime = _safe_float(task_time.result())

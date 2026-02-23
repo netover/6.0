@@ -522,6 +522,7 @@ class ApplicationFactory:
             from resync.api.routes.admin.teams_webhook_admin import (
                 router as teams_webhook_admin_router,
             )
+            from resync.api.routes.admin.notification_admin import router as notification_admin_router
             from resync.api.routes.admin.teams_notifications_admin import (
                 router as teams_notifications_admin_router,
             )
@@ -575,7 +576,6 @@ class ApplicationFactory:
                 ),
                 (teams_router, "/api/v1/admin", ["Admin - Teams"]),
                 (teams_webhook_admin_router, "/api", ["Admin - Teams Webhook Users"]),
-                (notification_admin_router, "/api/v1/admin", ["Admin - Notifications"]),
                 (notification_admin_router, "/api/v1/admin", ["Admin - Notifications"]),
                 (
                     teams_notifications_admin_router,

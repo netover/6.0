@@ -5,8 +5,6 @@ This module provides standardized retry configurations for different types of op
 ensuring consistent behavior and proper logging of retry attempts.
 """
 
-
-
 import logging
 from collections.abc import Callable
 from typing import Any, TypeVar

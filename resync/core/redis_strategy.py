@@ -19,8 +19,6 @@ Author: Resync Team
 Version: 5.4.2
 """
 
-
-
 import os
 import re
 from enum import Enum

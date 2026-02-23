@@ -5,20 +5,24 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 class LoggerCallFixer(ast.NodeTransformer):
     """
     Transforms logger calls from f-strings to structured logging.
     Example: logger.info(f"User {user} logged in") -> logger.info("user_logged_in", user=user)
     """
+
     def __init__(self, source: str):
         self.source = source
         self.fixes = 0
 
     def visit_Call(self, node: ast.Call) -> ast.AST:
         # Check if it's a logger call (logger.info, logger.error, etc.)
-        if not (isinstance(node.func, ast.Attribute) and
-                isinstance(node.func.value, ast.Name) and
-                node.func.value.id == "logger"):
+        if not (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "logger"
+        ):
             return self.generic_visit(node)
 
         # Check for f-string as first argument
@@ -37,7 +41,9 @@ class LoggerCallFixer(ast.NodeTransformer):
                 if isinstance(value.value, ast.Name):
                     var_name = value.value.id
                     new_keywords.append(ast.keyword(arg=var_name, value=value.value))
-                    message_parts.append(f"{{{var_name}}}") # Keep placeholder if needed, or structured key
+                    message_parts.append(
+                        f"{{{var_name}}}"
+                    )  # Keep placeholder if needed, or structured key
                 else:
                     # Complex expression, keep as is or simplify?
                     # For safety, we might skip complex expressions or name them arg_N
@@ -64,6 +70,7 @@ class LoggerCallFixer(ast.NodeTransformer):
         self.fixes += 1
 
         return node
+
 
 def fix_file_ast(file_path: str, dry_run: bool = True) -> int:
     path = Path(file_path)
@@ -93,25 +100,30 @@ def fix_file_ast(file_path: str, dry_run: bool = True) -> int:
                     path.write_text(new_source, encoding="utf-8")
                     # Try to format with ruff if available
                     try:
-                        subprocess.run(["ruff", "format", file_path], check=True, capture_output=True)
+                        subprocess.run(
+                            ["ruff", "format", file_path],
+                            check=True,
+                            capture_output=True,
+                        )
                     except (FileNotFoundError, subprocess.CalledProcessError):
-                        pass # Ruff not found or failed, ignore
+                        pass  # Ruff not found or failed, ignore
                 except Exception as e:
-                    shutil.copy2(backup, path) # Rollback
+                    shutil.copy2(backup, path)  # Rollback
                     raise RuntimeError(f"Failed to write {file_path}") from e
 
                 # Verify syntax
                 try:
-                    compile(new_source, file_path, 'exec')
+                    compile(new_source, file_path, "exec")
                 except SyntaxError:
-                     shutil.copy2(backup, path) # Rollback
-                     raise RuntimeError(f"Generated invalid syntax for {file_path}")
+                    shutil.copy2(backup, path)  # Rollback
+                    raise RuntimeError(f"Generated invalid syntax for {file_path}")
 
         return fixer.fixes
 
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
         return 0
+
 
 def main():
     dry_run = "--dry-run" in sys.argv
@@ -128,6 +140,7 @@ def main():
         total_fixes += fixes
 
     print(f"Total fixes {'identified' if dry_run else 'applied'}: {total_fixes}")
+
 
 if __name__ == "__main__":
     main()

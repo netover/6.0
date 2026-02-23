@@ -866,7 +866,10 @@ class SecurityDashboard:
                 self._report_generation_worker(), name="report_generation_worker"
             )
 
-        logger.info("Security dashboard system started", method="task_group" if tg else "track_task")
+        logger.info(
+            "Security dashboard system started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the security dashboard system."""
@@ -1165,7 +1168,9 @@ class _LazySecurityDashboard:
 security_dashboard = _LazySecurityDashboard()
 
 
-async def get_security_dashboard(tg: asyncio.TaskGroup | None = None) -> SecurityDashboard:
+async def get_security_dashboard(
+    tg: asyncio.TaskGroup | None = None,
+) -> SecurityDashboard:
     """
     Get the global security dashboard instance (lazy initialized).
 

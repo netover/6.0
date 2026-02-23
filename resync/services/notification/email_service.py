@@ -3,6 +3,7 @@
 This module provides the EmailService class to handle SMTP communication,
 template rendering, and attachment management.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +23,7 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class EmailService:
     """Service to send emails using SMTP with template support."""
 
@@ -36,7 +38,7 @@ class EmailService:
         return Environment(
             loader=FileSystemLoader(str(template_dir)),
             autoescape=select_autoescape(["html", "xml"]),
-            enable_async=True
+            enable_async=True,
         )
 
     async def render_template(self, template_name: str, context: dict[str, Any]) -> str:
@@ -45,8 +47,12 @@ class EmailService:
             template = self.template_env.get_template(template_name)
             return await template.render_async(**context)
         except Exception as e:
-            logger.error("email_template_render_error", template=template_name, error=str(e))
-            raise RuntimeError(f"Failed to render email template {template_name}") from e
+            logger.error(
+                "email_template_render_error", template=template_name, error=str(e)
+            )
+            raise RuntimeError(
+                f"Failed to render email template {template_name}"
+            ) from e
 
     async def send_email(
         self,
@@ -54,7 +60,7 @@ class EmailService:
         subject: str,
         body: str,
         is_html: bool = True,
-        attachments: list[Path | str] | None = None
+        attachments: list[Path | str] | None = None,
     ) -> bool:
         """
         Send an email asynchronously (runs blocking SMTP in a thread).
@@ -70,7 +76,9 @@ class EmailService:
             True if sent successfully, False otherwise.
         """
         if not self.enabled:
-            logger.warning("email_service_disabled", action="send_email", recipient=to_email)
+            logger.warning(
+                "email_service_disabled", action="send_email", recipient=to_email
+            )
             return False
 
         if isinstance(to_email, str):
@@ -122,14 +130,18 @@ class EmailService:
     def _send_smtp(self, msg: EmailMessage | MIMEMultipart) -> None:
         """Blocking SMTP send logic."""
         try:
-            with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port, timeout=self.settings.smtp_timeout) as server:
+            with smtplib.SMTP(
+                self.settings.smtp_host,
+                self.settings.smtp_port,
+                timeout=self.settings.smtp_timeout,
+            ) as server:
                 if self.settings.smtp_use_tls:
                     server.starttls()
 
                 if self.settings.smtp_username and self.settings.smtp_password:
                     server.login(
                         self.settings.smtp_username,
-                        self.settings.smtp_password.get_secret_value()
+                        self.settings.smtp_password.get_secret_value(),
                     )
 
                 server.send_message(msg)
@@ -137,8 +149,10 @@ class EmailService:
             # Re-raise to be caught by the async wrapper
             raise e
 
+
 # Singleton factory
 _email_service_instance: EmailService | None = None
+
 
 def get_email_service() -> EmailService:
     global _email_service_instance

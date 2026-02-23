@@ -17,6 +17,7 @@ logger = structlog.get_logger(__name__)
 
 class ToolPermission(str, Enum):
     """Tool permission levels."""
+
     READ_ONLY = "read_only"  # Safe for parallel execution
     READ_WRITE = "read_write"  # Side effects, serial execution recommended
     ADMIN = "admin"  # Requires elevated privileges
@@ -24,6 +25,7 @@ class ToolPermission(str, Enum):
 
 class UserRole(str, Enum):
     """User roles for permission checking."""
+
     VIEWER = "viewer"
     OPERATOR = "operator"
     ADMIN = "admin"
@@ -32,6 +34,7 @@ class UserRole(str, Enum):
 @dataclass
 class ToolDefinition:
     """Definition of a tool available to agents."""
+
     name: str
     description: str
     function: Callable[..., Awaitable[Any] | Any]
@@ -90,8 +93,7 @@ class ToolCatalog:
     def get_read_only_tools(self) -> list[ToolDefinition]:
         """Get only read-only tools (safe for parallel execution)."""
         return [
-            t for t in self._tools.values()
-            if t.permission == ToolPermission.READ_ONLY
+            t for t in self._tools.values() if t.permission == ToolPermission.READ_ONLY
         ]
 
 
@@ -109,6 +111,7 @@ def tool(
     tags: list[str] | None = None,
 ):
     """Decorator to register a function as a specialist tool."""
+
     def decorator(func):
         definition = ToolDefinition(
             name=name,
@@ -121,6 +124,7 @@ def tool(
         )
         get_tool_catalog().register(definition)
         return func
+
     return decorator
 
 
@@ -133,7 +137,7 @@ def tool(
     name="get_job_logs",
     description="Retrieve logs for a specific job execution.",
     permission=ToolPermission.READ_ONLY,
-    tags=["logs", "job", "tws"]
+    tags=["logs", "job", "tws"],
 )
 async def get_job_logs(job_id: str, limit: int = 100) -> str:
     """Tool for retrieving and analyzing job logs."""

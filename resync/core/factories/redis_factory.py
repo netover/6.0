@@ -33,12 +33,16 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from redis import Redis as SyncRedis
+from resync.settings import Settings as AppSettings
 from functools import lru_cache
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import Depends
 
 if TYPE_CHECKING:
+    from resync.settings import Settings as AppSettings
+    from redis import Redis as SyncRedis
     from redis.asyncio import Redis as AsyncRedis
 
 # Thread-safe singleton instances

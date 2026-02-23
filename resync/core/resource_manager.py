@@ -20,8 +20,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-
-
 @dataclass
 class ResourceInfo:
     """Information about a managed resource."""
@@ -80,7 +78,9 @@ class ManagedResource[T]:
             try:
                 await self._cleanup()
                 self._closed = True
-                lifetime = (datetime.now(timezone.utc) - self.created_at).total_seconds()
+                lifetime = (
+                    datetime.now(timezone.utc) - self.created_at
+                ).total_seconds()
                 logger.debug(
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     f"lifetime: {lifetime:.2f}s"
@@ -95,7 +95,9 @@ class ManagedResource[T]:
             try:
                 self._cleanup_sync()
                 self._closed = True
-                lifetime = (datetime.now(timezone.utc) - self.created_at).total_seconds()
+                lifetime = (
+                    datetime.now(timezone.utc) - self.created_at
+                ).total_seconds()
                 logger.debug(
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     f"lifetime: {lifetime:.2f}s"
@@ -353,10 +355,18 @@ class ResourcePool[T]:
         return {
             "active_resources": len(self.active_resources),
             "max_resources": self.max_resources,
-            "utilization": len(self.active_resources) / self.max_resources * 100 if self.max_resources > 0 else 0,
+            "utilization": len(self.active_resources) / self.max_resources * 100
+            if self.max_resources > 0
+            else 0,
             "resource_types": {
-                res_type: sum(1 for i in self.active_resources.values() if i.resource_type == res_type)
-                for res_type in set(i.resource_type for i in self.active_resources.values())
+                res_type: sum(
+                    1
+                    for i in self.active_resources.values()
+                    if i.resource_type == res_type
+                )
+                for res_type in set(
+                    i.resource_type for i in self.active_resources.values()
+                )
             },
         }
 

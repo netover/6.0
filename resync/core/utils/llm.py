@@ -27,12 +27,14 @@ T = TypeVar("T", bound=BaseModel)
     delay=1.0,
     backoff=2.0,
     # Lazy load exceptions to prevent import-time side effects
-    exceptions=lambda: tuple(get_litellm_exceptions())
-    + (
-        ConnectionError,
-        TimeoutError,
-        ValueError,
-        Exception,
+    exceptions=lambda: (
+        tuple(get_litellm_exceptions())
+        + (
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            Exception,
+        )
     ),
     logger=logger,
 )

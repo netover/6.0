@@ -28,6 +28,7 @@ logger = structlog.get_logger(__name__)
 
 class SubAgentStatus(str, Enum):
     """Status of sub-agent execution."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -39,6 +40,7 @@ class SubAgentStatus(str, Enum):
 @dataclass
 class SubAgentResult:
     """Result from a sub-agent execution."""
+
     agent_id: str
     status: SubAgentStatus
     result: Any | None = None
@@ -133,10 +135,7 @@ class SubAgent:
             tools = self._catalog.get_all_tools()
 
         # Filter blocked tools
-        return [
-            t for t in tools
-            if t.name not in self.config.blocked_tool_names
-        ]
+        return [t for t in tools if t.name not in self.config.blocked_tool_names]
 
     def get_tool_names(self) -> list[str]:
         return [t.name for t in self.get_available_tools()]
@@ -277,11 +276,11 @@ class SubAgent:
             except Exception as e:
                 logger.error("sub_agent_task_failed", error=str(e))
                 # Create a failed result for this agent
-                results.append(SubAgentResult(
-                    agent_id="unknown",
-                    status=SubAgentStatus.FAILED,
-                    error=str(e)
-                ))
+                results.append(
+                    SubAgentResult(
+                        agent_id="unknown", status=SubAgentStatus.FAILED, error=str(e)
+                    )
+                )
 
         success_count = sum(1 for r in results if r.status == SubAgentStatus.COMPLETED)
         logger.info(

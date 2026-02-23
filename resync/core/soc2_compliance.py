@@ -308,7 +308,10 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
                 self._reporting_worker(), name="reporting_worker"
             )
 
-        logger.info("SOC 2 compliance manager started", method="task_group" if tg else "track_task")
+        logger.info(
+            "SOC 2 compliance manager started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the SOC 2 compliance manager."""
@@ -981,7 +984,9 @@ class _LazySOC2ComplianceManager:
 soc2_compliance_manager = _LazySOC2ComplianceManager()
 
 
-async def get_soc2_compliance_manager(tg: asyncio.TaskGroup | None = None) -> SOC2ComplianceManager:
+async def get_soc2_compliance_manager(
+    tg: asyncio.TaskGroup | None = None,
+) -> SOC2ComplianceManager:
     """
     Get the global SOC 2 compliance manager instance.
 

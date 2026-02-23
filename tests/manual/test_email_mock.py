@@ -1,7 +1,6 @@
 import asyncio
 import os
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # Add project root to path
@@ -9,6 +8,7 @@ sys.path.append(os.getcwd())
 
 from resync.services.notification.email_service import get_email_service
 from resync.settings import get_settings
+
 
 async def test_email_service():
     print("Testing EmailService...")
@@ -34,7 +34,7 @@ async def test_email_service():
             to_email="test@example.com",
             subject="Test Subject",
             body="Test Body",
-            is_html=False
+            is_html=False,
         )
 
         if success:
@@ -63,16 +63,14 @@ async def test_email_service():
             print(html_body)
 
         success = await service.send_email(
-            to_email="admin@example.com",
-            subject="Report",
-            body=html_body,
-            is_html=True
+            to_email="admin@example.com", subject="Report", body=html_body, is_html=True
         )
 
         if success:
             print("✅ HTML email sent")
         else:
             print("❌ HTML email failed")
+
 
 if __name__ == "__main__":
     asyncio.run(test_email_service())

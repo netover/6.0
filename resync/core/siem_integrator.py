@@ -584,16 +584,24 @@ class SIEMIntegrator:
             self._processor_task = tg.create_task(
                 self._event_processor(), name="event_processor"
             )
-            self._flusher_task = tg.create_task(self._batch_flusher(), name="batch_flusher")
-            self._monitor_task = tg.create_task(self._health_monitor(), name="health_monitor")
+            self._flusher_task = tg.create_task(
+                self._batch_flusher(), name="batch_flusher"
+            )
+            self._monitor_task = tg.create_task(
+                self._health_monitor(), name="health_monitor"
+            )
         else:
             self._processor_task = track_task(
                 self._event_processor(), name="event_processor"
             )
             self._flusher_task = track_task(self._batch_flusher(), name="batch_flusher")
-            self._monitor_task = track_task(self._health_monitor(), name="health_monitor")
+            self._monitor_task = track_task(
+                self._health_monitor(), name="health_monitor"
+            )
 
-        logger.info("SIEM integrator started", method="task_group" if tg else "track_task")
+        logger.info(
+            "SIEM integrator started", method="task_group" if tg else "track_task"
+        )
 
     async def stop(self) -> None:
         """Stop the SIEM integrator."""

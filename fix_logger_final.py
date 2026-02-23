@@ -1,10 +1,8 @@
-import sys
-
-filename = 'resync/core/structured_logger.py'
-with open(filename, 'r') as f:
+filename = "resync/core/structured_logger.py"
+with open(filename, "r") as f:
     lines = f.readlines()
 
-future_import = [lines[0]] if lines[0].startswith('from __future__') else []
+future_import = [lines[0]] if lines[0].startswith("from __future__") else []
 start_idx = 1 if future_import else 0
 
 docstring = []
@@ -25,12 +23,12 @@ for i in range(start_idx, len(lines)):
             docstring.append(line)
     elif in_docstring:
         docstring.append(line)
-    elif stripped.startswith('import ') or stripped.startswith('from '):
+    elif stripped.startswith("import ") or stripped.startswith("from "):
         imports.append(line)
     else:
         code.append(line)
 
-with open(filename, 'w') as f:
+with open(filename, "w") as f:
     f.writelines(future_import)
     f.writelines(docstring)
     f.writelines(imports)

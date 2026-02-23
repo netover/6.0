@@ -80,13 +80,15 @@ class ConfigFileHandler(FileSystemEventHandler):
             except RuntimeError:
                 # No loop running in this thread (expected for watchdog thread)
                 pass
-            
+
             if loop and loop.is_running():
                 loop.call_soon_threadsafe(
                     lambda: asyncio.create_task(self.callback(event.src_path))
                 )
             else:
-                logger.warning("config_file_modified_but_no_loop_active", path=event.src_path)
+                logger.warning(
+                    "config_file_modified_but_no_loop_active", path=event.src_path
+                )
 
 
 class ConfigManager:
@@ -128,7 +130,7 @@ class ConfigManager:
 
     async def start(self, tg: asyncio.TaskGroup | None = None):
         """Start the configuration manager.
-        
+
         Args:
             tg: Optional TaskGroup for background tasks (currently unused by observer)
         """

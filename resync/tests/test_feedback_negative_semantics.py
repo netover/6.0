@@ -28,9 +28,9 @@ def test_negative_predicate_tri_state_semantics(
     predicate = or_(literal(is_positive).is_not(True), literal(rating) <= 2)
 
     compiled = str(
-        select(literal(1)).where(predicate).compile(
-            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
-        )
+        select(literal(1))
+        .where(predicate)
+        .compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
     )
 
     # Evaluate truth table in Python equivalent for tri-state business semantics

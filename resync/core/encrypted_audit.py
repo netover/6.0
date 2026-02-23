@@ -366,7 +366,9 @@ class EncryptedAuditTrail:
 
         if tg:
             # All tasks must be created within an active TaskGroup
-            self._flush_task = tg.create_task(self._flush_worker(), name="audit_flush_worker")
+            self._flush_task = tg.create_task(
+                self._flush_worker(), name="audit_flush_worker"
+            )
             self._archival_task = tg.create_task(
                 self._archival_worker(), name="audit_archival_worker"
             )
@@ -375,7 +377,10 @@ class EncryptedAuditTrail:
             )
         else:
             from resync.core.task_tracker import track_task
-            self._flush_task = track_task(self._flush_worker(), name="audit_flush_worker")
+
+            self._flush_task = track_task(
+                self._flush_worker(), name="audit_flush_worker"
+            )
             self._archival_task = track_task(
                 self._archival_worker(), name="audit_archival_worker"
             )
@@ -385,7 +390,7 @@ class EncryptedAuditTrail:
 
         logger.info(
             "Encrypted audit trail system started",
-            method="task_group" if tg else "track_task"
+            method="task_group" if tg else "track_task",
         )
 
     async def stop(self) -> None:

@@ -47,6 +47,7 @@ tracer = trace.get_tracer(__name__)
 # Prometheus helpers (safe on reload/dev)
 # =============================================================================
 
+
 def _get_or_create_metric(factory, name: str, *args, **kwargs):
     try:
         return factory(name, *args, **kwargs)
@@ -60,81 +61,113 @@ def _get_or_create_metric(factory, name: str, *args, **kwargs):
 
 # Low-cardinality metrics (recommended for production)
 _prom_registrations = _get_or_create_metric(
-    Counter, "sdm_registrations_total",
-    "Total de registros de serviço bem-sucedidos", ["backend", "service_name"],
+    Counter,
+    "sdm_registrations_total",
+    "Total de registros de serviço bem-sucedidos",
+    ["backend", "service_name"],
 )
 _prom_deregistrations = _get_or_create_metric(
-    Counter, "sdm_deregistrations_total",
-    "Total de deregistros de serviço bem-sucedidos", ["backend", "service_name"],
+    Counter,
+    "sdm_deregistrations_total",
+    "Total de deregistros de serviço bem-sucedidos",
+    ["backend", "service_name"],
 )
 _prom_discoveries = _get_or_create_metric(
-    Counter, "sdm_discoveries_total",
-    "Total de descobertas (cache hit/miss)", ["service_name", "source"],  # cache|backend
+    Counter,
+    "sdm_discoveries_total",
+    "Total de descobertas (cache hit/miss)",
+    ["service_name", "source"],  # cache|backend
 )
 _prom_instances_discovered = _get_or_create_metric(
-    Counter, "sdm_instances_discovered_total",
-    "Total de instâncias retornadas pelos backends", ["service_name"],
+    Counter,
+    "sdm_instances_discovered_total",
+    "Total de instâncias retornadas pelos backends",
+    ["service_name"],
 )
 _prom_health_checks = _get_or_create_metric(
-    Counter, "sdm_health_checks_total",
-    "Total de health checks executados", ["service_name", "result"],  # healthy|unhealthy|skipped|error
+    Counter,
+    "sdm_health_checks_total",
+    "Total de health checks executados",
+    ["service_name", "result"],  # healthy|unhealthy|skipped|error
 )
 _prom_health_check_duration = _get_or_create_metric(
-    Histogram, "sdm_health_check_duration_seconds",
-    "Duração de health checks por serviço", ["service_name"],
+    Histogram,
+    "sdm_health_check_duration_seconds",
+    "Duração de health checks por serviço",
+    ["service_name"],
     buckets=[0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
 _prom_lb_decisions = _get_or_create_metric(
-    Counter, "sdm_lb_decisions_total",
-    "Total de decisões de load balancing", ["service_name", "strategy"],
+    Counter,
+    "sdm_lb_decisions_total",
+    "Total de decisões de load balancing",
+    ["service_name", "strategy"],
 )
 _prom_errors = _get_or_create_metric(
-    Counter, "sdm_errors_total",
-    "Erros por tipo", ["error_type"],
+    Counter,
+    "sdm_errors_total",
+    "Erros por tipo",
+    ["error_type"],
 )
 
 _prom_active_services = _get_or_create_metric(
-    Gauge, "sdm_active_services",
+    Gauge,
+    "sdm_active_services",
     "Quantidade de serviços registrados no manager",
 )
 _prom_total_instances = _get_or_create_metric(
-    Gauge, "sdm_total_instances",
+    Gauge,
+    "sdm_total_instances",
     "Total de instâncias no cache (todos os serviços)",
 )
 _prom_service_instances = _get_or_create_metric(
-    Gauge, "sdm_service_instances",
-    "Instâncias no cache por serviço", ["service_name"],
+    Gauge,
+    "sdm_service_instances",
+    "Instâncias no cache por serviço",
+    ["service_name"],
 )
 _prom_service_healthy_instances = _get_or_create_metric(
-    Gauge, "sdm_service_healthy_instances",
-    "Instâncias saudáveis por serviço (considerando circuit breaker)", ["service_name"],
+    Gauge,
+    "sdm_service_healthy_instances",
+    "Instâncias saudáveis por serviço (considerando circuit breaker)",
+    ["service_name"],
 )
 _prom_service_active_connections = _get_or_create_metric(
-    Gauge, "sdm_service_active_connections",
-    "Conexões ativas agregadas por serviço", ["service_name"],
+    Gauge,
+    "sdm_service_active_connections",
+    "Conexões ativas agregadas por serviço",
+    ["service_name"],
 )
 _prom_service_circuit_open = _get_or_create_metric(
-    Gauge, "sdm_service_circuit_open_instances",
-    "Quantidade de instâncias com circuit breaker aberto por serviço", ["service_name"],
+    Gauge,
+    "sdm_service_circuit_open_instances",
+    "Quantidade de instâncias com circuit breaker aberto por serviço",
+    ["service_name"],
 )
 
 # Optional per-instance metrics (HIGH cardinality) – disabled by default
 _prom_instance_active_connections = _get_or_create_metric(
-    Gauge, "sdm_instance_active_connections",
-    "Conexões ativas por instância (alta cardinalidade)", ["instance_id"],
+    Gauge,
+    "sdm_instance_active_connections",
+    "Conexões ativas por instância (alta cardinalidade)",
+    ["instance_id"],
 )
 _prom_instance_circuit_open = _get_or_create_metric(
-    Gauge, "sdm_instance_circuit_open",
-    "Circuit breaker aberto por instância (alta cardinalidade)", ["instance_id"],
+    Gauge,
+    "sdm_instance_circuit_open",
+    "Circuit breaker aberto por instância (alta cardinalidade)",
+    ["instance_id"],
 )
 
 # =============================================================================
 # Enums
 # =============================================================================
 
+
 class DiscoveryBackend(str, Enum):
     CONSUL = "consul"
     KUBERNETES = "kubernetes"
+
 
 class ServiceStatus(str, Enum):
     HEALTHY = "healthy"
@@ -142,6 +175,7 @@ class ServiceStatus(str, Enum):
     MAINTENANCE = "maintenance"
     DRAINING = "draining"
     UNKNOWN = "unknown"
+
 
 class LoadBalancingStrategy(str, Enum):
     ROUND_ROBIN = "round_robin"
@@ -155,6 +189,7 @@ class LoadBalancingStrategy(str, Enum):
 # =============================================================================
 # Settings
 # =============================================================================
+
 
 class ServiceDiscoveryConfig(BaseSettings):
     model_config = SettingsConfigDict(
@@ -227,6 +262,7 @@ def _make_limits(cfg: ServiceDiscoveryConfig) -> httpx.Limits:
 
 _HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$")
 
+
 def _is_valid_hostname(host: str) -> bool:
     host = host.rstrip(".")
     if not host or len(host) > 253:
@@ -245,6 +281,7 @@ def _is_valid_hostname(host: str) -> bool:
 # =============================================================================
 # Models
 # =============================================================================
+
 
 class ServiceInstance(BaseModel):
     model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
@@ -343,15 +380,20 @@ class ServiceDefinition(BaseModel):
 # Backend Interface
 # =============================================================================
 
+
 class DiscoveryBackendInterface(ABC):
     @abstractmethod
-    async def register_service(self, service_def: ServiceDefinition, instance: ServiceInstance) -> bool: ...
+    async def register_service(
+        self, service_def: ServiceDefinition, instance: ServiceInstance
+    ) -> bool: ...
     @abstractmethod
     async def deregister_service(self, service_name: str, instance_id: str) -> bool: ...
     @abstractmethod
     async def discover_services(self, service_name: str) -> list[ServiceInstance]: ...
     @abstractmethod
-    async def watch_service(self, service_name: str, callback: Callable[..., Any]) -> None: ...
+    async def watch_service(
+        self, service_name: str, callback: Callable[..., Any]
+    ) -> None: ...
     @abstractmethod
     async def health_check(self) -> bool: ...
     @abstractmethod
@@ -362,8 +404,11 @@ class DiscoveryBackendInterface(ABC):
 # Consul Backend
 # =============================================================================
 
+
 class ConsulBackend(DiscoveryBackendInterface):
-    def __init__(self, cfg: ServiceDiscoveryConfig, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, cfg: ServiceDiscoveryConfig, config: dict[str, Any] | None = None
+    ) -> None:
         self._cfg = cfg
         c = config or {}
         self._consul_url = str(c.get("url", str(cfg.consul_url))).rstrip("/")
@@ -388,10 +433,15 @@ class ConsulBackend(DiscoveryBackendInterface):
             await self._client.aclose()
         self._client = None
 
-    async def register_service(self, service_def: ServiceDefinition, instance: ServiceInstance) -> bool:
+    async def register_service(
+        self, service_def: ServiceDefinition, instance: ServiceInstance
+    ) -> bool:
         with tracer.start_as_current_span(
             "sdm.backend.consul.register",
-            attributes={"service.name": service_def.service_name, "instance.id": instance.instance_id},
+            attributes={
+                "service.name": service_def.service_name,
+                "instance.id": instance.instance_id,
+            },
         ) as span:
             client = self._ensure_client()
             payload: dict[str, Any] = {
@@ -422,7 +472,11 @@ class ConsulBackend(DiscoveryBackendInterface):
                 raise
             except Exception as e:
                 span.set_status(Status(StatusCode.ERROR, str(e)))
-                logger.error("consul_register_failed", service=service_def.service_name, error=str(e))
+                logger.error(
+                    "consul_register_failed",
+                    service=service_def.service_name,
+                    error=str(e),
+                )
                 return False
 
     async def deregister_service(self, service_name: str, instance_id: str) -> bool:
@@ -440,7 +494,9 @@ class ConsulBackend(DiscoveryBackendInterface):
                 raise
             except Exception as e:
                 span.set_status(Status(StatusCode.ERROR, str(e)))
-                logger.error("consul_deregister_failed", service=service_name, error=str(e))
+                logger.error(
+                    "consul_deregister_failed", service=service_name, error=str(e)
+                )
                 return False
 
     async def discover_services(self, service_name: str) -> list[ServiceInstance]:
@@ -460,9 +516,17 @@ class ConsulBackend(DiscoveryBackendInterface):
                 for entry in data:
                     svc = entry.get("Service") or {}
                     checks = entry.get("Checks") or []
-                    status = ServiceStatus.HEALTHY if any(c.get("Status") == "passing" for c in checks) else ServiceStatus.UNHEALTHY
+                    status = (
+                        ServiceStatus.HEALTHY
+                        if any(c.get("Status") == "passing" for c in checks)
+                        else ServiceStatus.UNHEALTHY
+                    )
 
-                    host = svc.get("Address") or (entry.get("Node") or {}).get("Address") or ""
+                    host = (
+                        svc.get("Address")
+                        or (entry.get("Node") or {}).get("Address")
+                        or ""
+                    )
                     port = int(svc.get("Port") or 0)
                     iid = svc.get("ID")
                     if not host or not port or not iid:
@@ -485,10 +549,14 @@ class ConsulBackend(DiscoveryBackendInterface):
                 raise
             except Exception as e:
                 span.set_status(Status(StatusCode.ERROR, str(e)))
-                logger.error("consul_discover_failed", service=service_name, error=str(e))
+                logger.error(
+                    "consul_discover_failed", service=service_name, error=str(e)
+                )
                 return []
 
-    async def watch_service(self, service_name: str, callback: Callable[..., Any]) -> None:
+    async def watch_service(
+        self, service_name: str, callback: Callable[..., Any]
+    ) -> None:
         raise NotImplementedError("Consul watch_service não implementado nesta versão.")
 
     async def health_check(self) -> bool:
@@ -507,11 +575,16 @@ class ConsulBackend(DiscoveryBackendInterface):
 # Kubernetes Backend (optional discovery via Endpoints)
 # =============================================================================
 
+
 class KubernetesBackend(DiscoveryBackendInterface):
-    def __init__(self, cfg: ServiceDiscoveryConfig, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, cfg: ServiceDiscoveryConfig, config: dict[str, Any] | None = None
+    ) -> None:
         self._cfg = cfg
         c = config or {}
-        self._api_server = str(c.get("api_server", cfg.kubernetes_api_server)).rstrip("/")
+        self._api_server = str(c.get("api_server", cfg.kubernetes_api_server)).rstrip(
+            "/"
+        )
         self._token = str(c.get("token", cfg.kubernetes_token) or "")
         self._namespace = str(c.get("namespace", cfg.kubernetes_namespace) or "default")
         self._verify = bool(c.get("verify_tls", cfg.kubernetes_verify_tls))
@@ -536,7 +609,9 @@ class KubernetesBackend(DiscoveryBackendInterface):
             await self._client.aclose()
         self._client = None
 
-    async def register_service(self, service_def: ServiceDefinition, instance: ServiceInstance) -> bool:
+    async def register_service(
+        self, service_def: ServiceDefinition, instance: ServiceInstance
+    ) -> bool:
         return True  # K8s gerencia via manifestos
 
     async def deregister_service(self, service_name: str, instance_id: str) -> bool:
@@ -575,8 +650,12 @@ class KubernetesBackend(DiscoveryBackendInterface):
             logger.error("k8s_discover_failed", service=service_name, error=str(e))
             return []
 
-    async def watch_service(self, service_name: str, callback: Callable[..., Any]) -> None:
-        raise NotImplementedError("Kubernetes watch_service não implementado nesta versão.")
+    async def watch_service(
+        self, service_name: str, callback: Callable[..., Any]
+    ) -> None:
+        raise NotImplementedError(
+            "Kubernetes watch_service não implementado nesta versão."
+        )
 
     async def health_check(self) -> bool:
         client = self._ensure_client()
@@ -593,6 +672,7 @@ class KubernetesBackend(DiscoveryBackendInterface):
 # =============================================================================
 # Service Discovery Manager
 # =============================================================================
+
 
 @injectable
 class ServiceDiscoveryManager:
@@ -620,8 +700,16 @@ class ServiceDiscoveryManager:
         self._circuit_open_until: dict[str, float] = {}
 
         # concurrency
-        self._disc_sem = asyncio.Semaphore(self.config.discovery_concurrency) if self.config.discovery_concurrency > 0 else None
-        self._hc_sem = asyncio.Semaphore(self.config.health_check_concurrency) if self.config.health_check_concurrency > 0 else None
+        self._disc_sem = (
+            asyncio.Semaphore(self.config.discovery_concurrency)
+            if self.config.discovery_concurrency > 0
+            else None
+        )
+        self._hc_sem = (
+            asyncio.Semaphore(self.config.health_check_concurrency)
+            if self.config.health_check_concurrency > 0
+            else None
+        )
 
         self._initialize_backends()
 
@@ -651,11 +739,15 @@ class ServiceDiscoveryManager:
                 using=next(iter(self.backends.keys())),
             )
 
-    def _get_backend(self, service_def: ServiceDefinition) -> DiscoveryBackendInterface | None:
+    def _get_backend(
+        self, service_def: ServiceDefinition
+    ) -> DiscoveryBackendInterface | None:
         key = service_def.discovery_backend.value
         if key in self.backends:
             return self.backends[key]
-        return self.backends.get(self.config.default_backend.value) or next(iter(self.backends.values()), None)
+        return self.backends.get(self.config.default_backend.value) or next(
+            iter(self.backends.values()), None
+        )
 
     # ---------------------------------------------------------------------
     # Lifecycle
@@ -683,10 +775,16 @@ class ServiceDiscoveryManager:
         ]
 
         for coro, name in coros:
-            task = tg.create_task(coro, name=name) if tg else track_task(coro, name=name)
+            task = (
+                tg.create_task(coro, name=name) if tg else track_task(coro, name=name)
+            )
             self._tasks.append(task)
 
-        logger.info("sdm_started", enabled_backends=list(self.backends.keys()), default_backend=self.config.default_backend.value)
+        logger.info(
+            "sdm_started",
+            enabled_backends=list(self.backends.keys()),
+            default_backend=self.config.default_backend.value,
+        )
 
     async def stop(self) -> None:
         if not self._running:
@@ -740,10 +838,15 @@ class ServiceDiscoveryManager:
         except OSError:
             return "127.0.0.1"
 
-    async def register_service(self, service_def: ServiceDefinition, instance: ServiceInstance | None = None) -> str:
+    async def register_service(
+        self, service_def: ServiceDefinition, instance: ServiceInstance | None = None
+    ) -> str:
         with tracer.start_as_current_span(
             "sdm.register_service",
-            attributes={"service.name": service_def.service_name, "backend": service_def.discovery_backend.value},
+            attributes={
+                "service.name": service_def.service_name,
+                "backend": service_def.discovery_backend.value,
+            },
         ) as span:
             try:
                 if instance is None:
@@ -775,7 +878,11 @@ class ServiceDiscoveryManager:
                         service_name=service_def.service_name,
                     ).inc()
                     span.set_status(Status(StatusCode.OK))
-                    logger.info("service_registered", service=service_def.service_name, instance_id=instance.instance_id)
+                    logger.info(
+                        "service_registered",
+                        service=service_def.service_name,
+                        instance_id=instance.instance_id,
+                    )
                     return instance.instance_id
 
                 _prom_errors.labels(error_type="registration_failed").inc()
@@ -786,7 +893,11 @@ class ServiceDiscoveryManager:
             except Exception as e:
                 _prom_errors.labels(error_type="registration_exception").inc()
                 span.set_status(Status(StatusCode.ERROR, str(e)))
-                logger.error("registration_exception", service=service_def.service_name, error=str(e))
+                logger.error(
+                    "registration_exception",
+                    service=service_def.service_name,
+                    error=str(e),
+                )
                 return ""
 
     async def deregister_service(self, service_name: str, instance_id: str) -> bool:
@@ -808,9 +919,15 @@ class ServiceDiscoveryManager:
             try:
                 if await backend.deregister_service(service_name, instance_id):
                     self.local_instances.pop(service_name, None)
-                    _prom_deregistrations.labels(backend=sd.discovery_backend.value, service_name=service_name).inc()
+                    _prom_deregistrations.labels(
+                        backend=sd.discovery_backend.value, service_name=service_name
+                    ).inc()
                     span.set_status(Status(StatusCode.OK))
-                    logger.info("service_deregistered", service=service_name, instance_id=instance_id)
+                    logger.info(
+                        "service_deregistered",
+                        service=service_name,
+                        instance_id=instance_id,
+                    )
                     return True
 
                 _prom_errors.labels(error_type="deregistration_failed").inc()
@@ -821,7 +938,9 @@ class ServiceDiscoveryManager:
             except Exception as e:
                 _prom_errors.labels(error_type="deregistration_exception").inc()
                 span.set_status(Status(StatusCode.ERROR, str(e)))
-                logger.error("deregistration_exception", service=service_name, error=str(e))
+                logger.error(
+                    "deregistration_exception", service=service_name, error=str(e)
+                )
                 return False
 
     # ---------------------------------------------------------------------
@@ -841,9 +960,11 @@ class ServiceDiscoveryManager:
 
             if self.config.enable_instance_metrics:
                 with contextlib.suppress(KeyError, ValueError):
-                    _prom_instance_active_connections.remove(dead_id)  # remove(*labelvalues)
+                    _prom_instance_active_connections.remove(
+                        dead_id
+                    )  # remove(*labelvalues)
                 with contextlib.suppress(KeyError, ValueError):
-                    _prom_instance_circuit_open.remove(dead_id)        # remove(*labelvalues)
+                    _prom_instance_circuit_open.remove(dead_id)  # remove(*labelvalues)
 
     async def get_service_instances(self, service_name: str) -> list[ServiceInstance]:
         """
@@ -853,7 +974,11 @@ class ServiceDiscoveryManager:
         age = now - self._discovery_cache_time.get(service_name, 0.0)
 
         # cache hit
-        if service_name in self.instances and self.instances[service_name] and age < self.config.discovery_refresh_interval:
+        if (
+            service_name in self.instances
+            and self.instances[service_name]
+            and age < self.config.discovery_refresh_interval
+        ):
             _prom_discoveries.labels(service_name=service_name, source="cache").inc()
             return self.instances[service_name]
 
@@ -870,7 +995,10 @@ class ServiceDiscoveryManager:
 
         with tracer.start_as_current_span(
             "sdm.get_service_instances",
-            attributes={"service.name": service_name, "backend": sd.discovery_backend.value},
+            attributes={
+                "service.name": service_name,
+                "backend": sd.discovery_backend.value,
+            },
         ) as span:
             try:
                 insts = await backend.discover_services(service_name)
@@ -888,9 +1016,13 @@ class ServiceDiscoveryManager:
                 self.instances[service_name] = insts
                 self._discovery_cache_time[service_name] = time.monotonic()
 
-                _prom_instances_discovered.labels(service_name=service_name).inc(len(insts))
+                _prom_instances_discovered.labels(service_name=service_name).inc(
+                    len(insts)
+                )
                 _prom_total_instances.set(sum(len(v) for v in self.instances.values()))
-                _prom_service_instances.labels(service_name=service_name).set(len(insts))
+                _prom_service_instances.labels(service_name=service_name).set(
+                    len(insts)
+                )
 
                 span.set_status(Status(StatusCode.OK))
                 return insts
@@ -909,7 +1041,12 @@ class ServiceDiscoveryManager:
     def _circuit_is_open(self, instance_id: str) -> bool:
         return time.monotonic() < self._circuit_open_until.get(instance_id, 0.0)
 
-    def _select_instance(self, insts: list[ServiceInstance], strategy: LoadBalancingStrategy, service_name: str) -> ServiceInstance | None:
+    def _select_instance(
+        self,
+        insts: list[ServiceInstance],
+        strategy: LoadBalancingStrategy,
+        service_name: str,
+    ) -> ServiceInstance | None:
         if not insts:
             return None
         match strategy:
@@ -920,7 +1057,10 @@ class ServiceDiscoveryManager:
             case LoadBalancingStrategy.RANDOM:
                 return random.choice(insts)
             case LoadBalancingStrategy.LEAST_CONNECTIONS:
-                return min(insts, key=lambda i: self._conn_counts_by_instance.get(i.instance_id, 0))
+                return min(
+                    insts,
+                    key=lambda i: self._conn_counts_by_instance.get(i.instance_id, 0),
+                )
             case LoadBalancingStrategy.WEIGHTED_RANDOM:
                 return random.choices(insts, weights=[i.weight for i in insts], k=1)[0]
             case LoadBalancingStrategy.LATENCY_BASED:
@@ -928,24 +1068,41 @@ class ServiceDiscoveryManager:
             case _:
                 return insts[0]
 
-    async def discover_service(self, service_name: str, strategy: LoadBalancingStrategy | None = None) -> ServiceInstance | None:
-        with tracer.start_as_current_span("sdm.discover_service", attributes={"service.name": service_name}) as span:
+    async def discover_service(
+        self, service_name: str, strategy: LoadBalancingStrategy | None = None
+    ) -> ServiceInstance | None:
+        with tracer.start_as_current_span(
+            "sdm.discover_service", attributes={"service.name": service_name}
+        ) as span:
             insts = await self.get_service_instances(service_name)
             sd = self.services.get(service_name)
 
-            candidates = [i for i in insts if i.is_healthy and not self._circuit_is_open(i.instance_id)]
-            _prom_service_healthy_instances.labels(service_name=service_name).set(len(candidates))
+            candidates = [
+                i
+                for i in insts
+                if i.is_healthy and not self._circuit_is_open(i.instance_id)
+            ]
+            _prom_service_healthy_instances.labels(service_name=service_name).set(
+                len(candidates)
+            )
 
             if not candidates:
                 span.set_status(Status(StatusCode.ERROR, "no_candidates"))
                 return None
 
-            resolved = strategy or (sd.load_balancing_strategy if sd else LoadBalancingStrategy.ROUND_ROBIN)
+            resolved = strategy or (
+                sd.load_balancing_strategy if sd else LoadBalancingStrategy.ROUND_ROBIN
+            )
             chosen = self._select_instance(candidates, resolved, service_name)
 
             if chosen:
-                _prom_lb_decisions.labels(service_name=service_name, strategy=resolved.value).inc()
-                span.add_event("lb_decision", {"strategy": resolved.value, "instance_id": chosen.instance_id})
+                _prom_lb_decisions.labels(
+                    service_name=service_name, strategy=resolved.value
+                ).inc()
+                span.add_event(
+                    "lb_decision",
+                    {"strategy": resolved.value, "instance_id": chosen.instance_id},
+                )
                 span.set_status(Status(StatusCode.OK))
             return chosen
 
@@ -957,13 +1114,17 @@ class ServiceDiscoveryManager:
         sc = self._conn_counts_by_service.get(service_name, 0)
         if sc > 0:
             self._conn_counts_by_service[service_name] = sc - 1
-            _prom_service_active_connections.labels(service_name=service_name).set(self._conn_counts_by_service[service_name])
+            _prom_service_active_connections.labels(service_name=service_name).set(
+                self._conn_counts_by_service[service_name]
+            )
 
         if self.config.enable_instance_metrics:
             _prom_instance_active_connections.labels(instance_id=instance_id).dec()
 
     @contextlib.asynccontextmanager
-    async def borrow_instance(self, service_name: str, strategy: LoadBalancingStrategy | None = None):
+    async def borrow_instance(
+        self, service_name: str, strategy: LoadBalancingStrategy | None = None
+    ):
         """
         Context Manager obrigatório para Least Connections correto (incrementa/decrementa com segurança).
         """
@@ -971,10 +1132,14 @@ class ServiceDiscoveryManager:
         if inst is not None:
             self._conn_counts_by_instance[inst.instance_id] += 1
             self._conn_counts_by_service[service_name] += 1
-            _prom_service_active_connections.labels(service_name=service_name).set(self._conn_counts_by_service[service_name])
+            _prom_service_active_connections.labels(service_name=service_name).set(
+                self._conn_counts_by_service[service_name]
+            )
 
             if self.config.enable_instance_metrics:
-                _prom_instance_active_connections.labels(instance_id=inst.instance_id).inc()
+                _prom_instance_active_connections.labels(
+                    instance_id=inst.instance_id
+                ).inc()
 
         try:
             yield inst
@@ -986,61 +1151,101 @@ class ServiceDiscoveryManager:
     # Health checks
     # ---------------------------------------------------------------------
 
-    async def _perform_health_check(self, inst: ServiceInstance, sd: ServiceDefinition) -> None:
+    async def _perform_health_check(
+        self, inst: ServiceInstance, sd: ServiceDefinition
+    ) -> None:
         if not self._health_client:
             return
 
         if not sd.health_check_enabled:
-            _prom_health_checks.labels(service_name=sd.service_name, result="skipped").inc()
+            _prom_health_checks.labels(
+                service_name=sd.service_name, result="skipped"
+            ).inc()
             return
 
         url = f"{inst.url}{sd.health_check_path}"
 
         with tracer.start_as_current_span(
             "sdm.health_check",
-            attributes={"service.name": sd.service_name, "instance.id": inst.instance_id},
+            attributes={
+                "service.name": sd.service_name,
+                "instance.id": inst.instance_id,
+            },
         ) as span:
             start = time.monotonic()
             try:
-                resp = await self._health_client.get(url, timeout=httpx.Timeout(sd.health_check_timeout))
+                resp = await self._health_client.get(
+                    url, timeout=httpx.Timeout(sd.health_check_timeout)
+                )
                 elapsed = time.monotonic() - start
-                _prom_health_check_duration.labels(service_name=sd.service_name).observe(elapsed)
+                _prom_health_check_duration.labels(
+                    service_name=sd.service_name
+                ).observe(elapsed)
 
-                inst.response_time_avg = elapsed if inst.response_time_avg == 0 else (0.7 * inst.response_time_avg + 0.3 * elapsed)
+                inst.response_time_avg = (
+                    elapsed
+                    if inst.response_time_avg == 0
+                    else (0.7 * inst.response_time_avg + 0.3 * elapsed)
+                )
 
                 if resp.status_code == 200:
                     inst.status = ServiceStatus.HEALTHY
                     inst.consecutive_failures = 0
-                    _prom_health_checks.labels(service_name=sd.service_name, result="healthy").inc()
+                    _prom_health_checks.labels(
+                        service_name=sd.service_name, result="healthy"
+                    ).inc()
                     span.set_status(Status(StatusCode.OK))
 
                     self._circuit_open_until.pop(inst.instance_id, None)
                     if self.config.enable_instance_metrics:
-                        _prom_instance_circuit_open.labels(instance_id=inst.instance_id).set(0)
+                        _prom_instance_circuit_open.labels(
+                            instance_id=inst.instance_id
+                        ).set(0)
                 else:
                     inst.status = ServiceStatus.UNHEALTHY
                     inst.consecutive_failures += 1
-                    _prom_health_checks.labels(service_name=sd.service_name, result="unhealthy").inc()
-                    span.set_status(Status(StatusCode.ERROR, f"HTTP {resp.status_code}"))
+                    _prom_health_checks.labels(
+                        service_name=sd.service_name, result="unhealthy"
+                    ).inc()
+                    span.set_status(
+                        Status(StatusCode.ERROR, f"HTTP {resp.status_code}")
+                    )
 
                 # circuit breaker (minimal)
-                if sd.circuit_breaker_enabled and inst.consecutive_failures >= sd.circuit_breaker_failure_threshold:
-                    self._circuit_open_until[inst.instance_id] = time.monotonic() + sd.circuit_breaker_recovery_timeout
+                if (
+                    sd.circuit_breaker_enabled
+                    and inst.consecutive_failures
+                    >= sd.circuit_breaker_failure_threshold
+                ):
+                    self._circuit_open_until[inst.instance_id] = (
+                        time.monotonic() + sd.circuit_breaker_recovery_timeout
+                    )
                     if self.config.enable_instance_metrics:
-                        _prom_instance_circuit_open.labels(instance_id=inst.instance_id).set(1)
+                        _prom_instance_circuit_open.labels(
+                            instance_id=inst.instance_id
+                        ).set(1)
 
                 inst.last_health_check_mono = time.monotonic()
                 inst.last_health_check_epoch = time.time()
 
                 if inst.consecutive_failures >= sd.max_consecutive_failures:
-                    logger.warning("instance_unhealthy", service=sd.service_name, instance_id=inst.instance_id, failures=inst.consecutive_failures)
+                    logger.warning(
+                        "instance_unhealthy",
+                        service=sd.service_name,
+                        instance_id=inst.instance_id,
+                        failures=inst.consecutive_failures,
+                    )
 
             except asyncio.CancelledError:
                 raise
             except Exception as e:
                 elapsed = time.monotonic() - start
-                _prom_health_check_duration.labels(service_name=sd.service_name).observe(elapsed)
-                _prom_health_checks.labels(service_name=sd.service_name, result="error").inc()
+                _prom_health_check_duration.labels(
+                    service_name=sd.service_name
+                ).observe(elapsed)
+                _prom_health_checks.labels(
+                    service_name=sd.service_name, result="error"
+                ).inc()
                 _prom_errors.labels(error_type="health_check_exception").inc()
 
                 inst.status = ServiceStatus.UNHEALTHY
@@ -1049,9 +1254,18 @@ class ServiceDiscoveryManager:
                 inst.last_health_check_epoch = time.time()
 
                 span.set_status(Status(StatusCode.ERROR, str(e)))
-                logger.error("health_check_exception", service=sd.service_name, instance_id=inst.instance_id, error=str(e))
+                logger.error(
+                    "health_check_exception",
+                    service=sd.service_name,
+                    instance_id=inst.instance_id,
+                    error=str(e),
+                )
 
-    async def _run_with_sem(self, sem: asyncio.Semaphore | None, coro_factory: Callable[[], Coroutine[Any, Any, None]]) -> None:
+    async def _run_with_sem(
+        self,
+        sem: asyncio.Semaphore | None,
+        coro_factory: Callable[[], Coroutine[Any, Any, None]],
+    ) -> None:
         if sem is None:
             await coro_factory()
             return
@@ -1093,17 +1307,23 @@ class ServiceDiscoveryManager:
                         if not sd:
                             continue
                         for inst in list(insts):
-                            due = (time.monotonic() - inst.last_health_check_mono) > float(inst.health_check_interval)
+                            due = (
+                                time.monotonic() - inst.last_health_check_mono
+                            ) > float(inst.health_check_interval)
                             if not due:
                                 continue
 
-                            async def _hc(i: ServiceInstance = inst, d: ServiceDefinition = sd) -> None:
+                            async def _hc(
+                                i: ServiceInstance = inst, d: ServiceDefinition = sd
+                            ) -> None:
                                 await self._perform_health_check(i, d)
 
                             tg.create_task(self._run_with_sem(self._hc_sem, _hc))
 
                 for svc, insts in snapshot.items():
-                    opened = sum(1 for i in insts if self._circuit_is_open(i.instance_id))
+                    opened = sum(
+                        1 for i in insts if self._circuit_is_open(i.instance_id)
+                    )
                     _prom_service_circuit_open.labels(service_name=svc).set(opened)
 
             except asyncio.CancelledError:
@@ -1119,7 +1339,9 @@ class ServiceDiscoveryManager:
                 async with asyncio.TaskGroup() as tg:
                     for key, backend in list(self.backends.items()):
 
-                        async def _check(k: str = key, b: DiscoveryBackendInterface = backend) -> None:
+                        async def _check(
+                            k: str = key, b: DiscoveryBackendInterface = backend
+                        ) -> None:
                             ok = await b.health_check()
                             self._backend_health[k] = ok
                             if not ok:
@@ -1149,7 +1371,8 @@ class ServiceDiscoveryManager:
                         1
                         for insts in self.instances.values()
                         for inst in insts
-                        if inst.is_healthy and not self._circuit_is_open(inst.instance_id)
+                        if inst.is_healthy
+                        and not self._circuit_is_open(inst.instance_id)
                     ),
                     backends_healthy=sum(1 for v in self._backend_health.values() if v),
                 )
@@ -1171,7 +1394,11 @@ class ServiceDiscoveryManager:
             "backends_status": dict(self._backend_health),
             "active_connections": dict(self._conn_counts_by_service),
             "circuit_breaker": {
-                "open_instances": sum(1 for _, until in self._circuit_open_until.items() if time.monotonic() < until)
+                "open_instances": sum(
+                    1
+                    for _, until in self._circuit_open_until.items()
+                    if time.monotonic() < until
+                )
             },
         }
 
@@ -1180,5 +1407,8 @@ class ServiceDiscoveryManager:
 # FastAPI Dependency (antidote)
 # =============================================================================
 
-async def get_service_discovery(sdm: ServiceDiscoveryManager = inject.me()) -> ServiceDiscoveryManager:
+
+async def get_service_discovery(
+    sdm: ServiceDiscoveryManager = inject.me(),
+) -> ServiceDiscoveryManager:
     return sdm

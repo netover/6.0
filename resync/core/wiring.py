@@ -157,7 +157,6 @@ async def init_domain_singletons(app: FastAPI) -> None:
     # RAG client singleton (initializes and validates Config/URL)
     get_rag_client_singleton()
 
-
     # Initialize RAG File Ingestor
     vector_store = PgVectorStore()
     embedding_service = MultiProviderEmbeddingService()

@@ -16,8 +16,6 @@ Note:
     consider ``aiocircuitbreaker`` or a custom state machine per dependency.
 """
 
-
-
 import asyncio
 import random
 from collections.abc import Callable, Coroutine
@@ -279,7 +277,7 @@ class ServiceOrchestrator:
                     logger.warning(
                         "orchestration_tasks_partial_failure",
                         job_name=job_name,
-                        count=len(eg.exceptions)
+                        count=len(eg.exceptions),
                     )
         except TimeoutError:
             logger.error(
@@ -338,7 +336,9 @@ class ServiceOrchestrator:
                 try:
                     async with asyncio.TaskGroup() as tg:
                         for name, coro in tasks.items():
-                            task_objs[name] = tg.create_task(coro, name=f"health_{name}")
+                            task_objs[name] = tg.create_task(
+                                coro, name=f"health_{name}"
+                            )
                 except* asyncio.CancelledError:
                     raise
                 except* Exception:
@@ -405,9 +405,7 @@ class ServiceOrchestrator:
                 if attr:
                     setattr(result, attr, task_result)
             except (asyncio.CancelledError, Exception) as e:
-                result.errors[task_name] = (
-                    f"{type(e).__name__}: {e}"
-                )
+                result.errors[task_name] = f"{type(e).__name__}: {e}"
                 logger.warning(
                     "orchestration_task_failed",
                     task=task_name,

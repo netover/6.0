@@ -173,7 +173,9 @@ class ProactiveMonitoringManager:
             )
 
         self._running = True
-        logger.info("proactive_monitoring_started", method="task_group" if tg else "track_task")
+        logger.info(
+            "proactive_monitoring_started", method="task_group" if tg else "track_task"
+        )
 
     async def stop(self) -> None:
         """Para o sistema de monitoramento."""

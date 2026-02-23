@@ -47,8 +47,9 @@ class ChatTurn:
     role: str
     content: str
     expires_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-        + timedelta(days=CHAT_MEMORY_TTL_DAYS)
+        default_factory=lambda: (
+            datetime.now(timezone.utc) + timedelta(days=CHAT_MEMORY_TTL_DAYS)
+        )
     )
     metadata: Optional[dict] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

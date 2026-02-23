@@ -965,9 +965,9 @@ class HybridRetriever:
         bm25_weight = classification.bm25_weight
         candidate_k = top_k * self.config.candidate_multiplier
         async with asyncio.TaskGroup() as tg:
-            v_task = tg.create_task(self._vector_search(
-                query, candidate_k, collection, filters
-            ))
+            v_task = tg.create_task(
+                self._vector_search(query, candidate_k, collection, filters)
+            )
             b_task = tg.create_task(self._bm25_search(query, candidate_k, collection))
         vector_results = v_task.result()
         bm25_results = b_task.result()

@@ -22,31 +22,27 @@ def mock_io_bounds(monkeypatch):
     import resync.core.langgraph.agent_graph as agent_graph
     import resync.core.utils.llm as llm
     from resync.core.langgraph.models import Intent
-    
+
     # We patch at the module level where they are used to prevent 8s model loading.
     monkeypatch.setattr(
-        agent_graph,
-        "async_init_router_cache", 
-        AsyncMock(return_value=None)
+        agent_graph, "async_init_router_cache", AsyncMock(return_value=None)
     )
-    
+
     # We also mock the structured LLM response to avoid OpenAI delays or timeouts
     class DummyRouterOutput:
         intent = Intent.STATUS
         confidence = 1.0
         entities = {}
-        
+
     monkeypatch.setattr(
-        llm,
-        "call_llm_structured",
-        AsyncMock(return_value=DummyRouterOutput())
+        llm, "call_llm_structured", AsyncMock(return_value=DummyRouterOutput())
     )
-    
+
     # And mock the standard fallback llm call as well just in case
     monkeypatch.setattr(
         llm,
         "call_llm",
-        AsyncMock(return_value='{"satisfactory": true, "issues": [], "missing": []}')
+        AsyncMock(return_value='{"satisfactory": true, "issues": [], "missing": []}'),
     )
 
 

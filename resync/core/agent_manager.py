@@ -316,7 +316,9 @@ class AgentManager:
         except RuntimeError:
             loop = None
 
-        if self._agent_creation_lock is None or (loop and self._agent_creation_lock._loop != loop):
+        if self._agent_creation_lock is None or (
+            loop and self._agent_creation_lock._loop != loop
+        ):
             self._agent_creation_lock = asyncio.Lock()
         return self._agent_creation_lock
 

@@ -142,10 +142,11 @@ class ConnectionManager:
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(tg.create_task(
-                        connection.send_text(message),
-                        name=f"broadcast_text_{idx}"
-                    ))
+                    tasks.append(
+                        tg.create_task(
+                            connection.send_text(message), name=f"broadcast_text_{idx}"
+                        )
+                    )
         except* asyncio.CancelledError:
             raise
         except* Exception as eg:
@@ -182,10 +183,11 @@ class ConnectionManager:
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(tg.create_task(
-                        connection.send_json(data),
-                        name=f"broadcast_json_{idx}"
-                    ))
+                    tasks.append(
+                        tg.create_task(
+                            connection.send_json(data), name=f"broadcast_json_{idx}"
+                        )
+                    )
         except* asyncio.CancelledError:
             raise
         except* Exception as eg:

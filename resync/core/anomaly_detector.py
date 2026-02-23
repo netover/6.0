@@ -561,9 +561,14 @@ class AnomalyDetectionEngine:
             self._processing_task = track_task(
                 self._processing_loop(), name="processing_loop"
             )
-            self._training_task = track_task(self._training_loop(), name="training_loop")
+            self._training_task = track_task(
+                self._training_loop(), name="training_loop"
+            )
 
-        logger.info("Anomaly detection engine started", method="task_group" if tg else "track_task")
+        logger.info(
+            "Anomaly detection engine started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the anomaly detection engine."""

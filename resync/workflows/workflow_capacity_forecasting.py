@@ -16,6 +16,7 @@ Passos:
 Author: Resync Team
 Version: 1.0.0
 """
+
 from __future__ import annotations
 
 import os
@@ -69,6 +70,7 @@ def get_db_url() -> str:
 
 class CapacityForecastState(TypedDict):
     """State para workflow de Capacity Forecasting."""
+
     workflow_id: str
     resource_id: str
     resource_type: Literal["server", "database", "service"]
@@ -107,10 +109,7 @@ async def fetch_metrics_node(state: CapacityForecastState) -> CapacityForecastSt
         for i, d in enumerate(dates)
     ]
 
-    state["historical_data"] = {
-        "cpu_usage": cpu_usage,
-        "memory_usage": memory_usage
-    }
+    state["historical_data"] = {"cpu_usage": cpu_usage, "memory_usage": memory_usage}
 
     return state
 
@@ -134,7 +133,7 @@ def analyze_trends_node(state: CapacityForecastState) -> CapacityForecastState:
             "type": "linear",
             "slope": slope,
             "intercept": intercept,
-            "r_squared": 0.85  # Mock R2
+            "r_squared": 0.85,  # Mock R2
         }
 
     state["trends"] = trends
@@ -163,11 +162,13 @@ def forecast_node(state: CapacityForecastState) -> CapacityForecastState:
                 # Add some randomness/seasonality mock
                 val += np.random.normal(0, 2)
 
-                date = start_date + timedelta(days=i+1)
-                future_values.append({
-                    "timestamp": date.isoformat(),
-                    "value": max(0, min(100, val))  # Clamp 0-100%
-                })
+                date = start_date + timedelta(days=i + 1)
+                future_values.append(
+                    {
+                        "timestamp": date.isoformat(),
+                        "value": max(0, min(100, val)),  # Clamp 0-100%
+                    }
+                )
 
             forecast_data[metric] = future_values
 
@@ -185,12 +186,14 @@ def identify_saturation_node(state: CapacityForecastState) -> CapacityForecastSt
     for metric, data in state["forecast"].items():
         for item in data:
             if item["value"] >= threshold:
-                saturation_points.append({
-                    "metric": metric,
-                    "date": item["timestamp"],
-                    "value": item["value"],
-                    "threshold": threshold
-                })
+                saturation_points.append(
+                    {
+                        "metric": metric,
+                        "date": item["timestamp"],
+                        "value": item["value"],
+                        "threshold": threshold,
+                    }
+                )
                 # Only record first saturation point per metric to avoid spam
                 break
 
@@ -215,7 +218,9 @@ async def generate_report_node(state: CapacityForecastState) -> CapacityForecast
     else:
         report_content += "No saturation predicted in the next period.\n"
 
-    report_path = os.path.join(report_dir, f"capacity_report_{state['workflow_id']}.txt")
+    report_path = os.path.join(
+        report_dir, f"capacity_report_{state['workflow_id']}.txt"
+    )
 
     try:
         with open(report_path, "w") as f:
@@ -256,9 +261,7 @@ def build_capacity_forecast_graph() -> StateGraph:
 
 
 async def run_workflow(
-    resource_id: str,
-    forecast_days: int = 90,
-    checkpointer: Any = None
+    resource_id: str, forecast_days: int = 90, checkpointer: Any = None
 ) -> dict[str, Any]:
     """Execute the capacity forecasting workflow."""
 
@@ -284,7 +287,7 @@ async def run_workflow(
         recommendations=[],
         report_url=None,
         status="pending",
-        error=None
+        error=None,
     )
 
     final_state = await app.ainvoke(initial_state)

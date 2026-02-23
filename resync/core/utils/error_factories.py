@@ -139,7 +139,9 @@ class EnhancedResyncExceptionFactory:
         """Create response for enhanced Resync exceptions."""
         # Use the enhanced exception's information to create a more detailed response
         message = str(getattr(exception, "message", str(exception)))
-        user_friendly_message = str(getattr(exception, "user_friendly_message", message))
+        user_friendly_message = str(
+            getattr(exception, "user_friendly_message", message)
+        )
         raw_details = getattr(exception, "details", {})
         details = dict(raw_details) if isinstance(raw_details, dict) else {}
 
