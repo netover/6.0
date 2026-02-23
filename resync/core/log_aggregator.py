@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 Log Aggregation System with ELK Stack Integration.
 

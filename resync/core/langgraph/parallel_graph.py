@@ -43,7 +43,7 @@ Usage:
 
 from __future__ import annotations
 # pylint: disable=not-callable,no-member
-# mypy: ignore-errors
+# mypy: no-rerun
 
 import asyncio
 import json

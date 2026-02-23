@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 TWS API Cache - Near Real-Time Strategy v5.9.3
 

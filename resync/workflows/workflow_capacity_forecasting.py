@@ -19,6 +19,7 @@ Version: 1.0.0
 
 from __future__ import annotations
 
+import asyncio
 import os
 import tempfile
 from datetime import datetime, timezone, timedelta
@@ -223,9 +224,8 @@ async def generate_report_node(state: CapacityForecastState) -> CapacityForecast
     )
 
     try:
-        with open(report_path, "w") as f:
-            f.write(report_content)
-        state["report_url"] = report_path  # Local path for now
+        await asyncio.to_thread(_write_report, report_path, report_content)
+        state["report_url"] = report_path
     except Exception as e:
         logger.error("report_generation_failed", error=str(e))
         state["error"] = f"Failed to generate report: {str(e)}"
@@ -260,6 +260,11 @@ def build_capacity_forecast_graph() -> StateGraph:
     return workflow
 
 
+def _write_report(report_path: str, report_content: str) -> None:
+    with open(report_path, "w") as f:
+        f.write(report_content)
+
+
 async def run_workflow(
     resource_id: str, forecast_days: int = 90, checkpointer: Any = None
 ) -> dict[str, Any]:
@@ -292,3 +297,9 @@ async def run_workflow(
 
     final_state = await app.ainvoke(initial_state)
     return final_state
+
+
+async def run_capacity_forecast(
+    resource_id: str, forecast_days: int = 90, checkpointer: Any = None
+) -> dict[str, Any]:
+    return await run_workflow(resource_id, forecast_days, checkpointer)

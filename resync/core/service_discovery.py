@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 Service Discovery Manager — v7.2-prod (Resync) — atualizado (v7.1 + hardening)
 

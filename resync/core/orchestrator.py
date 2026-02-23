@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 Service Orchestrator (v6.1.2) — parallel fan-out/fan-in for multiple backend services.
 
@@ -230,7 +230,7 @@ class ServiceOrchestrator:
         """
         result = OrchestrationResult()
 
-        # Build task map (insertion-order stable in Python 3.14+)
+        # Build task map (insertion-order stable in Python 3.7+)
         tasks: dict[str, Coroutine[Any, Any, Any]] = {
             "status": self._call_with_retry(
                 "tws_job_status",

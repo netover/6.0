@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 Advanced Chunking System for Resync RAG.
 

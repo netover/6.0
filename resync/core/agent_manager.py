@@ -10,6 +10,7 @@ v6.1.2 — Removed singleton anti-pattern, fixed DI, per-session history,
 from __future__ import annotations
 
 import asyncio
+import inspect
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -108,6 +109,8 @@ class Agent:
 
             return response.choices[0].message.content
 
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -148,7 +151,12 @@ class Agent:
 
     def run(self, message: str) -> str:
         """Synchronous wrapper around :meth:`arun`."""
-        return run_sync(self.arun(message))
+        coro = self.arun(message)
+        try:
+            return run_sync(coro)
+        except RuntimeError:
+            coro.close()
+            raise
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the agent for API responses."""
@@ -196,8 +204,8 @@ def _discover_tools() -> dict[str, Any]:
 class AgentManager:
     """Manages agent lifecycle: creation, caching, configuration, and tools.
 
-    **Not a singleton.**  Create via :func:`initialize_agent_manager` (called
-    by the app lifespan in ``wiring.py``) and retrieve with
+    Cached module-level instance. Create via :func:`initialize_agent_manager`
+    (called by the app lifespan in ``wiring.py``) and retrieve with
     :func:`get_agent_manager`.
 
     Args:
@@ -268,11 +276,8 @@ class AgentManager:
             self.tools: dict[str, Any] = _discover_tools()
             self._tws_client_factory = tws_client_factory
             self.tws_client: Any = None
-
-            # Lazy-created async primitives (must not be created at import
-            # time when there is no running event loop).
-            self._tws_init_lock: asyncio.Lock | None = None
-            self._agent_creation_lock: asyncio.Lock | None = None
+            self._tws_locks: dict[int, asyncio.Lock] = {}
+            self._agent_locks: dict[int, asyncio.Lock] = {}
 
             runtime_metrics.record_health_check("agent_manager", "healthy")
             logger.info(
@@ -301,26 +306,22 @@ class AgentManager:
     # -----------------------------------------------------------------
 
     def _get_tws_lock(self) -> asyncio.Lock:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if self._tws_init_lock is None or (loop and self._tws_init_lock._loop != loop):
-            self._tws_init_lock = asyncio.Lock()
-        return self._tws_init_lock
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        lock = self._tws_locks.get(loop_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._tws_locks[loop_id] = lock
+        return lock
 
     def _get_agent_lock(self) -> asyncio.Lock:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if self._agent_creation_lock is None or (
-            loop and self._agent_creation_lock._loop != loop
-        ):
-            self._agent_creation_lock = asyncio.Lock()
-        return self._agent_creation_lock
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        lock = self._agent_locks.get(loop_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._agent_locks[loop_id] = lock
+        return lock
 
     # -----------------------------------------------------------------
     # YAML configuration loader
@@ -356,7 +357,7 @@ class AgentManager:
         try:
             async with aiofiles.open(config_file, encoding="utf-8") as fh:
                 content = await fh.read()
-                config_data = yaml.safe_load(content)
+                config_data = await asyncio.to_thread(yaml.safe_load, content)
 
             if not config_data or "agents" not in config_data:
                 logger.error(
@@ -442,6 +443,8 @@ class AgentManager:
                 file=str(config_file),
                 error=str(exc),
             )
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             logger.error(
                 "agent_config_load_error",
@@ -561,7 +564,10 @@ class AgentManager:
                 return
 
             try:
-                self.tws_client = self._tws_client_factory()
+                if inspect.iscoroutinefunction(self._tws_client_factory):
+                    self.tws_client = await self._tws_client_factory()
+                else:
+                    self.tws_client = await asyncio.to_thread(self._tws_client_factory)
                 logger.info(
                     "tws_client_initialized",
                     client_type=type(self.tws_client).__name__,

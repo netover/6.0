@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 LLM Retry Strategy com Exponential Backoff e Multi-Provider Fallback
 

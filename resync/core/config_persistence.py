@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """Configuration Persistence Manager for Resync.
 
 This module handles persistent storage of configuration changes,

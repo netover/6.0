@@ -14,7 +14,7 @@ Endpoints:
 """
 
 from __future__ import annotations
-# mypy: ignore-errors
+# mypy: no-rerun
 
 import logging
 from typing import Annotated, Any

@@ -55,6 +55,19 @@ _REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
 )
 
 
+def validate_app_state_contract(app: FastAPI) -> None:
+    state = getattr(app.state, "enterprise_state", None)
+    if state is None:
+        raise RuntimeError("enterprise_state is missing from app.state")
+
+    missing = [key for key in _REQUIRED_SINGLETONS if getattr(state, key, None) is None]
+    if missing:
+        missing_sorted = ", ".join(sorted(missing))
+        raise RuntimeError(
+            f"enterprise_state missing required fields: {missing_sorted}"
+        )
+
+
 # -----------------------------------------------------------------------------
 # App-level startup/shutdown hooks (lifespan)
 # -----------------------------------------------------------------------------

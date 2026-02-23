@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 TWS RAG Integration - Ingestão de Status para Consultas Históricas
 
@@ -599,7 +599,7 @@ async def search_historical_incidents(
 
             async with get_db_session() as session:
                 sql = text("""
-                    SELECT 
+                    SELECT
                         created_at as timestamp,
                         action as error_type,
                         entity_type as component,

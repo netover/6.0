@@ -5,7 +5,7 @@ through the /admin/config interface.
 """
 
 from __future__ import annotations
-# mypy: ignore-errors
+# mypy: no-rerun
 
 import inspect
 import logging

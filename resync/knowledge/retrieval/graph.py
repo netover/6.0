@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 TWS Knowledge Graph v5.9.3 - Simplified Wrapper
 

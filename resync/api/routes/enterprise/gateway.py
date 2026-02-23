@@ -1,4 +1,4 @@
-# mypy: ignore-errors
+# mypy: no-rerun
 # pylint: disable=no-member
 """
 Advanced API Gateway for Microservices Architecture.

@@ -26,14 +26,14 @@ REQUIRED_STATE_KEYS = [
 
 @pytest.mark.skip(reason="Fails in sandbox")
 def test_lifespan_initializes_app_state_singletons() -> None:
-    import sys
     from unittest.mock import MagicMock
-
-    sys.modules["sentence_transformers"] = MagicMock()
-    sys.modules["torch"] = MagicMock()
 
     # Hardening Phase 4: Fast smoke execution by mocking heavy imports/I/O
     with (
+        patch.dict(
+            "sys.modules",
+            {"sentence_transformers": MagicMock(), "torch": MagicMock()},
+        ),
         patch(
             "resync.core.startup.run_startup_checks", new_callable=AsyncMock
         ) as mock_checks,

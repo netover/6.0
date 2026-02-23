@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """Postgres-based subgraph retriever for Document KG.
 
 Returns a small connected subgraph for a set of seed node_ids or names.

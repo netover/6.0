@@ -147,7 +147,7 @@ class MetricsResponse(BaseModel):
     summary="Receive workstation metrics",
     description="""
     Receives resource metrics from a TWS workstation FTA.
-    
+
     Security: Requires X-API-Key header validated against settings.metrics_api_key_hash.
     """,
 )

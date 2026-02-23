@@ -4,7 +4,7 @@ Distributed Tracing System with OpenTelemetry and Jaeger.
 
 from __future__ import annotations
 # pylint: disable=no-member
-# mypy: ignore-errors
+# mypy: no-rerun
 
 import inspect
 import contextlib

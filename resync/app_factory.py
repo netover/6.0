@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 Application factory for creating and configuring the FastAPI application.
 
@@ -12,6 +11,7 @@ No Global State:
 """
 
 import hashlib
+from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -20,8 +20,19 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.staticfiles import FileResponse, StaticFiles as StarletteStaticFiles
 
-from resync.core.structured_logger import get_logger
+from resync.core.structured_logger import get_logger, configure_structured_logging
 from resync.settings import settings
+
+if TYPE_CHECKING:
+    from resync.core.startup import lifespan as app_lifespan
+
+
+def _get_lifespan() -> "app_lifespan":
+    """Lazy loader for lifespan to avoid circular imports at module load time."""
+    from resync.core.startup import lifespan
+
+    return lifespan
+
 
 # =============================================================================
 # MODULE CONSTANTS (configurable via settings / admin UI where noted)
@@ -49,6 +60,12 @@ _DEFAULT_MIN_PASSWORD_LENGTH = 8
 
 #: Minimum SECRET_KEY length in production.
 _DEFAULT_MIN_SECRET_KEY_LENGTH = 32
+
+#: Maximum CSP report payload size (bytes) - prevents DoS via large payloads.
+_MAX_CSP_PAYLOAD_SIZE = 4096
+
+#: Minimum CSP nonce length for production (hex characters).
+_MIN_CSP_NONCE_LENGTH = 16
 
 # Configure app factory logger
 app_logger = get_logger("resync.app_factory")
@@ -90,7 +107,7 @@ class CachedStaticFiles(StarletteStaticFiles):
                         :hash_len
                     ]
                     response.headers["ETag"] = f'"{digest}"'
-            except Exception as exc:
+            except OSError as exc:
                 logger.warning("failed_to_generate_etag", error=str(exc))
                 # Don't generate ETag if we can't get file metadata
                 # This prevents serving stale content indefinitely
@@ -108,7 +125,7 @@ class ApplicationFactory:
 
     def __init__(self):
         """Initialize the application factory."""
-        self.app: FastAPI | None = None
+        self.app: FastAPI
         self.templates: Jinja2Templates | None = None
         self.template_env: Environment | None = None
 
@@ -119,9 +136,7 @@ class ApplicationFactory:
         Returns:
             Fully configured FastAPI application instance
         """
-        # Configure logging EARLY
-        from resync.core.structured_logger import configure_structured_logging
-
+        # Configure logging EARLY - must be before any other imports that use logging
         configure_structured_logging(
             log_level=settings.log_level,
             json_logs=settings.log_format == "json",
@@ -131,7 +146,8 @@ class ApplicationFactory:
         # Validate settings first
         self._validate_critical_settings()
 
-        from resync.core.startup import lifespan as app_lifespan
+        # Get lifespan via lazy loader to avoid circular imports
+        app_lifespan = _get_lifespan()
 
         # Create FastAPI app with lifespan
         self.app = FastAPI(
@@ -167,8 +183,10 @@ class ApplicationFactory:
 
         # Redis configuration
         if settings.redis_pool_min_size > settings.redis_pool_max_size:
+            max_sz = settings.redis_pool_max_size
+            min_sz = settings.redis_pool_min_size
             raise ValueError(
-                f"redis_pool_max_size ({settings.redis_pool_max_size}) must be >= redis_pool_min_size ({settings.redis_pool_min_size})"
+                f"redis_pool_max_size ({max_sz}) must be >= redis_pool_min_size ({min_sz})"
             )
 
         # Production-specific validations
@@ -190,7 +208,11 @@ class ApplicationFactory:
                 errors.append(
                     f"ADMIN_PASSWORD must be set (>= {min_pw_len} chars) in production"
                 )
-            elif admin_pw.strip().lower() in {"change_me_please", "admin", "password"}:
+            elif admin_pw.strip().lower() in {
+                "change_me_please",
+                "admin",
+                "password",
+            }:
                 errors.append("Insecure admin password in production")
 
             # JWT secret key
@@ -220,7 +242,7 @@ class ApplicationFactory:
                 try:
                     if llm_key.get_secret_value() == "dummy_key_for_development":
                         errors.append("Invalid LLM API key in production")
-                except Exception:
+                except (AttributeError, TypeError):
                     # If type drifts, fail closed in production
                     errors.append("Invalid LLM API key in production")
 
@@ -288,8 +310,9 @@ class ApplicationFactory:
             from resync.core.security.rate_limiter_v2 import setup_rate_limiting
 
             setup_rate_limiting(self.app)
-        except Exception as e:
+        except BaseException as e:
             # Rate limiting must not silently fail open in production.
+            # Use BaseException to catch ALL errors including KeyboardInterrupt
             if settings.is_production:
                 logger.critical("rate_limiting_setup_failed_prod", error=str(e))
                 raise
@@ -522,7 +545,9 @@ class ApplicationFactory:
             from resync.api.routes.admin.teams_webhook_admin import (
                 router as teams_webhook_admin_router,
             )
-            from resync.api.routes.admin.notification_admin import router as notification_admin_router
+            from resync.api.routes.admin.notification_admin import (
+                router as notification_admin_router,
+            )
             from resync.api.routes.admin.teams_notifications_admin import (
                 router as teams_notifications_admin_router,
             )
@@ -697,20 +722,70 @@ class ApplicationFactory:
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
         async def csp_violation_report(request: Request):
-            """Handle CSP violation reports with payload size limit."""
-            # Limit payload size to prevent DoS
-            content_length = request.headers.get("content-length")
-            # Safely parse content-length, defaulting to 0 if invalid
+            """
+            Handle CSP violation reports with stream-based payload validation.
+
+            Security:
+                - Stream-based validation prevents DoS via Content-Length spoofing
+                - Transfer-Encoding: chunked bypass protection
+                - Size limit prevents memory exhaustion
+            """
+            body_size = 0
+            chunks: list[bytes] = []
+
             try:
-                parsed_length = int(content_length) if content_length else 0
-            except ValueError:
-                parsed_length = 0
-            if parsed_length > 4096:
+                async for chunk in request.stream():
+                    body_size += len(chunk)
+                    if body_size > _MAX_CSP_PAYLOAD_SIZE:
+                        logger.warning(
+                            "csp_report_payload_rejected",
+                            size=body_size,
+                            max_allowed=_MAX_CSP_PAYLOAD_SIZE,
+                            client_host=request.client.host
+                            if request.client
+                            else "unknown",
+                        )
+                        return JSONResponse(
+                            {"status": "ignored", "reason": "payload_too_large"},
+                            status_code=413,
+                        )
+                    chunks.append(chunk)
+            except Exception as e:  # noqa: BLE001 - Stream errors must be handled
+                logger.error("csp_report_stream_error", error=str(e))
                 return JSONResponse(
-                    {"status": "ignored", "reason": "payload_too_large"},
-                    status_code=413,
+                    {"status": "ignored", "reason": "stream_error"},
+                    status_code=400,
                 )
-            return await self._handle_csp_report(request)
+
+            import orjson
+
+            try:
+                report_data: object = orjson.loads(b"".join(chunks))
+            except (ValueError, orjson.JSONDecodeError) as e:
+                logger.warning(
+                    "csp_invalid_json",
+                    error=str(e),
+                    client_host=request.client.host if request.client else "unknown",
+                )
+                return JSONResponse(
+                    {"status": "ignored", "reason": "invalid_json"},
+                    status_code=400,
+                )
+
+            if not isinstance(report_data, dict):
+                logger.warning(
+                    "csp_report_invalid_structure",
+                    received_type=type(report_data).__name__,
+                    client_host=request.client.host if request.client else "unknown",
+                )
+                return JSONResponse(
+                    {"status": "ignored", "reason": "invalid_structure"},
+                    status_code=400,
+                )
+
+            from resync.csp_validation import process_csp_report
+
+            return await process_csp_report(request)
 
         logger.info("special_endpoints_registered")
 
@@ -733,12 +808,26 @@ class ApplicationFactory:
                 status_code=500, detail="Template engine not configured"
             )
 
-        # Hardening: fail-closed in production if nonce missing
         nonce = getattr(request.state, "csp_nonce", None)
 
-        if settings.is_production and not nonce:
-            logger.critical("csp_nonce_missing_prod", template=template_name)
-            raise HTTPException(status_code=500, detail="Security middleware failed")
+        if settings.is_production:
+            if not nonce:
+                logger.critical("csp_nonce_missing_prod", template=template_name)
+                raise HTTPException(
+                    status_code=500, detail="Security middleware failed"
+                )
+            if not isinstance(nonce, str) or len(nonce) < _MIN_CSP_NONCE_LENGTH:
+                logger.critical(
+                    "csp_nonce_invalid_prod",
+                    template=template_name,
+                    nonce_present=nonce is not None,
+                    nonce_type=type(nonce).__name__ if nonce else "None",
+                    nonce_length=len(nonce) if isinstance(nonce, str) else 0,
+                    required_length=_MIN_CSP_NONCE_LENGTH,
+                )
+                raise HTTPException(
+                    status_code=500, detail="Security middleware failed"
+                )
 
         try:
             nonce_value = nonce or ""
@@ -758,54 +847,11 @@ class ApplicationFactory:
             raise HTTPException(
                 status_code=404, detail=f"Template {template_name} not found"
             ) from None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Template errors must not leak
             logger.error("template_render_error", template=template_name, error=str(e))
             raise HTTPException(
                 status_code=500, detail="Internal server error"
             ) from None
-
-    async def _handle_csp_report(self, request: Request) -> JSONResponse:
-        """
-        Handle CSP violation reports with validation.
-
-        Args:
-            request: FastAPI request containing CSP report
-
-        Returns:
-            JSON response acknowledging receipt
-        """
-        try:
-            from resync.csp_validation import process_csp_report
-
-            result = await process_csp_report(request)
-
-            # Log violation details
-            report = result.get("report", {})
-            csp_report = (
-                report.get("csp-report", report) if isinstance(report, dict) else report
-            )
-
-            logger.warning(
-                "csp_violation_reported",
-                client_host=request.client.host if request.client else "unknown",
-                blocked_uri=csp_report.get("blocked-uri", "unknown"),
-                violated_directive=csp_report.get("violated-directive", "unknown"),
-                effective_directive=csp_report.get("effective-directive", "unknown"),
-            )
-
-            return JSONResponse(content={"status": "received"}, status_code=200)
-
-        except Exception as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error(
-                "csp_report_error",
-                error_type=type(e).__name__,
-                client_host=request.client.host if request.client else "unknown",
-            )
-            # Always return 200 to prevent information leakage
-            return JSONResponse(content={"status": "received"}, status_code=200)
 
 
 def create_app() -> FastAPI:

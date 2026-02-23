@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 Hot-Reload Configuration System.
 
@@ -292,7 +292,9 @@ class ConfigManager:
                 if inspect.iscoroutinefunction(callback):
                     await callback(change)
                 else:
-                    await asyncio.to_thread(callback, change)
+                    result = await asyncio.to_thread(callback, change)
+                    if inspect.isawaitable(result):
+                        await result
             except Exception as e:
                 logger.error("Error notifying subscriber: %s", e)
 

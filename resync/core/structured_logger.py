@@ -149,6 +149,8 @@ def censor_sensitive_data(
         re.compile(r'(?:token|secret|key)=["\']?[^"\'&\s]*["\']?', re.IGNORECASE),
         re.compile(r"(?:authorization)[:\s]*bearer\s+[^\s]+", re.IGNORECASE),
         re.compile(r"(?:basic)\s+[a-zA-Z0-9+/=]+", re.IGNORECASE),
+        # JWT token pattern (eyJ...): JWT tokens are base64url encoded
+        re.compile(r"eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*", re.IGNORECASE),
     ]
 
     def censor_dict(d: dict[str, Any] | Any) -> dict[str, Any]:

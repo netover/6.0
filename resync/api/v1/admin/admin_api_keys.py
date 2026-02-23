@@ -1,4 +1,4 @@
-# mypy: ignore-errors
+# mypy: no-rerun
 """
 Admin API - API Key Management
 

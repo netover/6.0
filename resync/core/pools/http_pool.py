@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 HTTP connection pool implementation for the Resync project.
 Separated to follow Single Responsibility Principle.

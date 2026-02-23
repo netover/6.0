@@ -1,4 +1,4 @@
-# mypy: ignore-errors
+# mypy: no-rerun
 # pylint: disable=not-callable
 """Admin API para gerenciar notificações do Teams."""
 

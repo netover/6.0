@@ -743,7 +743,7 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 optional_results: list[Exception] = []
                 try:
                     async with asyncio.timeout(optional_timeout):
-                        # Scoped TG for initialization; some of these might spawn background tasks in bg_tasks
+                        # Scoped TG for init; some might spawn bg tasks
                         try:
                             async with asyncio.TaskGroup() as init_tg:
                                 init_tg.create_task(
@@ -807,7 +807,7 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
         logger.critical(
             "application_startup_timeout",
             timeout_seconds=startup_timeout,
-            hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB connectivity and network firewalls.",
+            hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB/networking.",
             troubleshooting={
                 "redis": "Verify REDIS_URL and Redis server status.",
                 "database": "Check DATABASE_URL and PostgreSQL availability.",
@@ -949,7 +949,7 @@ async def _init_enterprise_systems(app: "FastAPI", bg_tasks: asyncio.TaskGroup) 
             await app.state.singletons_ready_event.wait()
             from resync.core.enterprise.manager import get_enterprise_manager
 
-            manager = get_enterprise_manager()
+            manager = await get_enterprise_manager()
             await manager.initialize(tg=bg_tasks)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -965,7 +965,7 @@ async def _init_health_monitoring(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -
             await app.state.singletons_ready_event.wait()
             from resync.core.health import get_unified_health_service
 
-            service = get_unified_health_service()
+            service = await get_unified_health_service()
             service.start_monitoring(tg=bg_tasks)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -997,7 +997,7 @@ async def _init_security_dashboard(app: "FastAPI", bg_tasks: asyncio.TaskGroup) 
             await app.state.singletons_ready_event.wait()
             from resync.core.security_dashboard import get_security_dashboard
 
-            _dashboard = get_security_dashboard(tg=bg_tasks)
+            _dashboard = await get_security_dashboard(tg=bg_tasks)
             # dashboard is automatically started via get_security_dashboard and its lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):

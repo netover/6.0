@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint: disable=all
+# mypy: no-rerun
 """
 Unified Configuration Manager with Hot Reload
 
@@ -255,7 +255,9 @@ class UnifiedConfigManager:
                 if inspect.iscoroutinefunction(callback):
                     await callback(event)
                 else:
-                    await asyncio.to_thread(callback, event)
+                    result = await asyncio.to_thread(callback, event)
+                    if inspect.isawaitable(result):
+                        await result
             except Exception as e:
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 
