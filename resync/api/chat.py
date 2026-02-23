@@ -19,7 +19,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from resync.core.task_tracker import create_tracked_task
-import structlog
+import logging
 import weakref
 from typing import Any, Protocol
 
@@ -36,13 +36,11 @@ from resync.core.exceptions import (
 from resync.core.fastapi_di import get_agent_manager
 from resync.core.ia_auditor import analyze_and_flag_memories
 from resync.core.interfaces import IAgentManager
-from resync.core.context import set_trace_id, reset_trace_id
 from resync.core.security import SafeAgentID, sanitize_input
 from resync.core.types.app_state import enterprise_state_from_app
-from resync.settings import settings
 
 # --- Logging Setup ---
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # --- APIRouter Initialization ---
 chat_router = APIRouter()
@@ -66,9 +64,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-async def send_error_message(
-    websocket: WebSocket, message: str, agent_id: str, session_id: str
-) -> None:
+async def send_error_message(websocket: WebSocket, message: str, agent_id: str, session_id: str) -> None:
     """
     Helper function to send error messages to the client.
     Handles exceptions if the WebSocket connection is already closed.
@@ -98,9 +94,7 @@ async def send_error_message(
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         # Last resort to prevent the application from crashing if sending fails.
-        logger.warning(
-            "Failed to send error message due to an unexpected error.", exc_info=True
-        )
+        logger.warning("Failed to send error message due to an unexpected error.", exc_info=True)
 
 
 async def run_auditor_safely() -> None:
@@ -138,7 +132,7 @@ async def _handle_agent_interaction(
 ) -> None:
     """
     Handles the core logic of agent interaction using HybridRouter.
-
+    
     v6.0 REFACTORING:
     - Uses HybridRouter as single source of truth
     - Gets dependencies from enterprise_state (not Depends injection)
@@ -149,7 +143,7 @@ async def _handle_agent_interaction(
     from resync.core.context_store import ContextStore
 
     sanitized = sanitize_input(data)
-
+    
     # Get enterprise state (includes hybrid_router and knowledge_graph)
     st = enterprise_state_from_app(websocket.app)
     router = st.hybrid_router
@@ -188,12 +182,12 @@ async def _handle_agent_interaction(
 
         # Route via HybridRouter (single source of truth)
         start_time = time.time()
-
+        
         result = await router.route(
             sanitized,
             context={"agent_id": agent_id_str, "session_id": session_id},
         )
-
+        
         processing_time_ms = int((time.time() - start_time) * 1000)
 
         # Send final response ONCE with metadata in correct location
@@ -254,19 +248,12 @@ async def _handle_agent_interaction(
 
         # Schedule the IA Auditor to run in the background
         logger.info("Scheduling IA Auditor to run in the background.")
-        task = await create_tracked_task(
-            run_auditor_safely(), name="run_auditor_safely"
-        )
+        task = await create_tracked_task(run_auditor_safely(), name="run_auditor_safely")
         _bg_tasks.add(task)
 
     except Exception as e:
         logger.error("Error in agent interaction: %s", e, exc_info=True)
-        await send_error_message(
-            websocket,
-            "Erro ao processar sua mensagem. Tente novamente.",
-            agent_id_str,
-            session_id,
-        )
+        await send_error_message(websocket, "Erro ao processar sua mensagem. Tente novamente.", agent_id_str, session_id)
 
 
 async def _setup_websocket_session(
@@ -280,17 +267,15 @@ async def _setup_websocket_session(
     # requires a Request object.  Access the singleton directly from app state.
     st = enterprise_state_from_app(websocket.app)
     agent_manager: IAgentManager = st.agent_manager
-
-    # Get agent asynchronously from the manager
-    agent = await agent_manager.get_agent(str(agent_id))
+    
+    # Get agent synchronously from the manager
+    agent = agent_manager.get_agent(agent_id)
     agent_id_str = str(agent_id)
     session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
 
     if not agent:
         logger.warning("Agent '%s' not found.", agent_id)
-        await send_error_message(
-            websocket, f"Agente '{agent_id}' não encontrado.", agent_id_str, session_id
-        )
+        await send_error_message(websocket, f"Agente '{agent_id}' não encontrado.", agent_id_str, session_id)
         raise WebSocketDisconnect(code=1008, reason=f"Agent '{agent_id}' not found")
 
     # Welcome message - per WebSocketMessage model with type="system"
@@ -317,7 +302,9 @@ async def _setup_websocket_session(
 
 async def _message_processing_loop(
     websocket: WebSocket,
+    agent: SupportsAgentMeta | Any,
     agent_id: SafeAgentID,
+    session_id: str,
 ) -> None:
     """Main loop for receiving and processing messages from the client."""
     while True:
@@ -339,12 +326,12 @@ async def websocket_endpoint(
 ) -> None:
     """
     Main WebSocket endpoint for real-time chat with an agent.
-
+    
     v6.0 REFACTORING:
     - Removed knowledge_graph dependency injection (now gets from enterprise_state)
     - Uses HybridRouter as single source of truth
     - Normalized payload per WebSocketMessage validation model
-
+    
     Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
     """
     # Verify token before accepting connection
@@ -356,33 +343,12 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="Authentication required")
             return
     except Exception:
-        if settings.is_production:
-            logger.error("WebSocket auth service unavailable, rejecting connection")
-            await websocket.close(
-                code=1008, reason="Authentication service unavailable"
-            )
-            return
-        logger.warning(
-            "WebSocket auth check failed, allowing connection (auth service unavailable - DEV ONLY)"
-        )
-
-    # Criar trace_id para sessão WebSocket
-    import uuid
-
-    trace_id = str(uuid.uuid4())
-    trace_token = set_trace_id(trace_id)
-
-    if structlog:
-        structlog.contextvars.bind_contextvars(
-            trace_id=trace_id,
-            websocket_session=True,
-            agent_id=str(agent_id),
-        )
+        logger.warning("WebSocket auth check failed, allowing connection (auth service unavailable)")
 
     try:
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
         # Note: No knowledge_graph passed - it's now obtained from enterprise_state
-        await _message_processing_loop(websocket, agent_id)
+        await _message_processing_loop(websocket, agent, agent_id, session_id)
     except WebSocketDisconnect:
         code = getattr(websocket.state, "code", "unknown")
         reason = getattr(websocket.state, "reason", "unknown")
@@ -394,38 +360,19 @@ async def websocket_endpoint(
         )
     except (LLMError, ToolExecutionError, AgentExecutionError) as exc:
         logger.error(
-            "Agent-related error in WebSocket for agent '%s': %s",
-            agent_id,
-            exc,
-            exc_info=True,
+            "Agent-related error in WebSocket for agent '%s': %s", agent_id, exc, exc_info=True
         )
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
-        await send_error_message(
-            websocket,
-            "Ocorreu um erro com o agente. Tente novamente.",
-            agent_id_str,
-            session_id,
-        )
+        await send_error_message(websocket, "Ocorreu um erro com o agente. Tente novamente.", agent_id_str, session_id)
     except Exception as _e:  # pylint: disable=broad-exception-caught
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.critical(
-            "Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True
-        )
+        logger.critical("Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True)
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
-        await send_error_message(
-            websocket,
-            "Ocorreu um erro inesperado no servidor.",
-            agent_id_str,
-            session_id,
-        )
-    finally:
-        reset_trace_id(trace_token)
-        if structlog:
-            structlog.contextvars.clear_contextvars()
+        await send_error_message(websocket, "Ocorreu um erro inesperado no servidor.", agent_id_str, session_id)
 
 
 async def _validate_input(
@@ -437,10 +384,7 @@ async def _validate_input(
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(
-            websocket,
-            "Mensagem muito longa. Máximo de 10.000 caracteres permitido.",
-            agent_id_str,
-            session_id,
+            websocket, "Mensagem muito longa. Máximo de 10.000 caracteres permitido.", agent_id_str, session_id
         )
         return {"is_valid": False}
 
@@ -453,9 +397,7 @@ async def _validate_input(
         )
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
-        await send_error_message(
-            websocket, "Conteúdo não permitido detectado.", agent_id_str, session_id
-        )
+        await send_error_message(websocket, "Conteúdo não permitido detectado.", agent_id_str, session_id)
         return {"is_valid": False}
 
     return {"is_valid": True}

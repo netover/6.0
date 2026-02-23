@@ -87,7 +87,9 @@ class EnterpriseConfig:
     auto_recovery_cooldown_seconds: int = 60
 
     # Incident settings
-    incident_notification_channels: list[str] = field(default_factory=lambda: ["log", "metrics"])
+    incident_notification_channels: list[str] = field(
+        default_factory=lambda: ["log", "metrics"]
+    )
     incident_auto_escalate: bool = True
     incident_escalation_timeout_minutes: int = 15
 
@@ -202,8 +204,12 @@ class EnterpriseManager:
     # Initialization
     # =========================================================================
 
-    async def initialize(self) -> None:
-        """Initialize all enabled enterprise modules."""
+    async def initialize(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """Initialize all enabled enterprise modules.
+
+        Args:
+            tg: Optional TaskGroup to run background tasks in
+        """
         if self._initialized:
             logger.warning("Enterprise manager already initialized")
             return
@@ -217,7 +223,7 @@ class EnterpriseManager:
         await self._init_phase_resilience()
 
         # Start background tasks
-        self._start_background_tasks()
+        await self._start_background_tasks(tg=tg)
 
         self._initialized = True
         logger.info(
@@ -377,17 +383,47 @@ class EnterpriseManager:
         # Register runbook execution callback
         logger.info("Connected Incident Response to Runbooks")
 
-    def _start_background_tasks(self) -> None:
-        """Start background monitoring tasks."""
+    async def _start_background_tasks(self, tg: asyncio.TaskGroup | None = None) -> None:
+        """Start background monitoring tasks.
+
+        Args:
+            tg: Optional TaskGroup to run the tasks in
+        """
         # Anomaly detection background task
         if self._anomaly_detector:
-            task = track_task(self._anomaly_monitoring_loop(), name="anomaly_monitoring_loop")
+            if tg:
+                task = tg.create_task(
+                    self._anomaly_monitoring_loop(), name="anomaly_monitoring_loop"
+                )
+            else:
+                task = track_task(
+                    self._anomaly_monitoring_loop(), name="anomaly_monitoring_loop"
+                )
             self._tasks.append(task)
 
         # Auto-recovery monitoring
         if self._auto_recovery and self._incident_response:
-            task = track_task(self._auto_recovery_loop(), name="auto_recovery_loop")
+            if tg:
+                task = tg.create_task(self._auto_recovery_loop(), name="auto_recovery_loop")
+            else:
+                task = track_task(self._auto_recovery_loop(), name="auto_recovery_loop")
             self._tasks.append(task)
+            
+        # Start component background tasks
+        if self._incident_response:
+            await self._incident_response.start(tg=tg)
+
+        if self._siem_integrator:
+            await self._siem_integrator.start(tg=tg)
+
+        if self._gdpr_manager:
+            await self._gdpr_manager.start(tg=tg)
+
+        if self._soc2_manager:
+            await self._soc2_manager.start(tg=tg)
+
+        if self._encrypted_audit:
+            await self._encrypted_audit.start(tg=tg)
 
     async def _anomaly_monitoring_loop(self) -> None:
         """Background loop for anomaly detection."""
@@ -552,8 +588,12 @@ class EnterpriseManager:
 _enterprise_manager: EnterpriseManager | None = None
 
 
-async def get_enterprise_manager() -> EnterpriseManager:
-    """Get or create the enterprise manager instance."""
+async def get_enterprise_manager(tg: asyncio.TaskGroup | None = None) -> EnterpriseManager:
+    """Get or create the enterprise manager instance.
+
+    Args:
+        tg: Optional TaskGroup to initialize background tasks in
+    """
     global _enterprise_manager
     if _enterprise_manager is None:
         # Load config from application settings
@@ -565,7 +605,7 @@ async def get_enterprise_manager() -> EnterpriseManager:
             config = EnterpriseConfig()  # Use defaults
 
         _enterprise_manager = EnterpriseManager(config)
-        await _enterprise_manager.initialize()
+        await _enterprise_manager.initialize(tg=tg)
     return _enterprise_manager
 
 

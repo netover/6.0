@@ -10,17 +10,22 @@ This module provides automated testing for SQL injection vulnerabilities:
 Tests cover common attack vectors and edge cases.
 """
 
-import asyncio
 import importlib.util
 
 import pytest
 
+from resync.core.utils.async_bridge import run_sync
+
 if importlib.util.find_spec("sqlalchemy") is None:
     pytest.skip("sqlalchemy not installed in this environment", allow_module_level=True)
 if importlib.util.find_spec("structlog") is None:
-    pytest.skip("Optional dependency 'structlog' not installed", allow_module_level=True)
+    pytest.skip(
+        "Optional dependency 'structlog' not installed", allow_module_level=True
+    )
 
-from resync.api.middleware.database_security_middleware import DatabaseSecurityMiddleware
+from resync.api.middleware.database_security_middleware import (
+    DatabaseSecurityMiddleware,
+)
 from resync.core.audit_db import _validate_audit_record
 from resync.core.database_security import (
     DatabaseInputValidator,
@@ -115,7 +120,9 @@ class TestDatabaseInputValidator:
         ]
 
         for value, min_val, max_val in valid_inputs:
-            result = DatabaseInputValidator.validate_numeric_input(value, min_val, max_val)
+            result = DatabaseInputValidator.validate_numeric_input(
+                value, min_val, max_val
+            )
             assert result == value, f"Valid numeric input rejected: {value}"
 
     def test_validate_numeric_input_invalid_cases(self):
@@ -234,7 +241,9 @@ class TestSQLInjectionMiddleware:
         """Create mock request for testing."""
 
         class MockRequest:
-            def __init__(self, query_params=None, path_params=None, headers=None, method="GET"):
+            def __init__(
+                self, query_params=None, path_params=None, headers=None, method="GET"
+            ):
                 self.query_params = query_params or {}
                 self.path_params = path_params or {}
                 self.headers = headers or {}
@@ -280,10 +289,10 @@ class TestSQLInjectionMiddleware:
 
             if should_detect:
                 with pytest.raises(Exception):  # HTTPException
-                    asyncio.run(middleware._analyze_request_for_sql_injection(request))
+                    run_sync(middleware._analyze_request_for_sql_injection(request))
             else:
                 # Should not raise exception
-                asyncio.run(middleware._analyze_request_for_sql_injection(request))
+                run_sync(middleware._analyze_request_for_sql_injection(request))
 
     def test_safe_requests_pass_through(self, mock_request):
         """Test that safe requests pass through middleware."""
@@ -301,7 +310,7 @@ class TestSQLInjectionMiddleware:
 
             # Should not raise exception
             try:
-                asyncio.run(middleware._analyze_request_for_sql_injection(request))
+                run_sync(middleware._analyze_request_for_sql_injection(request))
             except Exception as e:
                 pytest.fail(f"Safe input was blocked: {safe_input} - {e}")
 
@@ -315,7 +324,7 @@ class TestSQLInjectionMiddleware:
         )
 
         middleware = DatabaseSecurityMiddleware(None, enabled=True)
-        data = asyncio.run(middleware._extract_request_data(request))
+        data = run_sync(middleware._extract_request_data(request))
 
         assert "query.id" in data
         assert "path.user_id" in data
@@ -373,23 +382,46 @@ class TestAuditRecordValidation:
             # Missing required fields
             ({"user_query": "test", "action": "TEST"}, "Memory ID is required"),
             ({"id": "test", "action": "TEST"}, "User query is required"),
-            ({"id": "test", "user_query": "test", "action": "TEST"}, "Agent response is required"),
+            (
+                {"id": "test", "user_query": "test", "action": "TEST"},
+                "Agent response is required",
+            ),
             # Invalid data types
             (
-                {"id": 123, "user_query": "test", "agent_response": "response", "action": "TEST"},
+                {
+                    "id": 123,
+                    "user_query": "test",
+                    "agent_response": "response",
+                    "action": "TEST",
+                },
                 "Memory ID must be string",
             ),
             (
-                {"id": "test", "user_query": None, "agent_response": "response", "action": "TEST"},
+                {
+                    "id": "test",
+                    "user_query": None,
+                    "agent_response": "response",
+                    "action": "TEST",
+                },
                 "User query is required",
             ),
             # Length validation
             (
-                {"id": "x" * 256, "user_query": "test", "agent_response": "response", "action": "TEST"},
+                {
+                    "id": "x" * 256,
+                    "user_query": "test",
+                    "agent_response": "response",
+                    "action": "TEST",
+                },
                 "Memory ID too long",
             ),
             (
-                {"id": "test", "user_query": "x" * 10001, "agent_response": "response", "action": "TEST"},
+                {
+                    "id": "test",
+                    "user_query": "x" * 10001,
+                    "agent_response": "response",
+                    "action": "TEST",
+                },
                 "User query too long",
             ),
             # Dangerous content
@@ -405,7 +437,9 @@ class TestAuditRecordValidation:
         ]
 
         for record, expected_error in invalid_cases:
-            with pytest.raises((ValueError, TypeError, DatabaseSecurityError), match=expected_error):
+            with pytest.raises(
+                (ValueError, TypeError, DatabaseSecurityError), match=expected_error
+            ):
                 _validate_audit_record(record)
 
 
@@ -415,7 +449,9 @@ class TestDatabaseSecurityIntegration:
     def test_validate_database_inputs_convenience_function(self):
         """Test the convenience validation function."""
         # Valid inputs
-        result = validate_database_inputs("audit_log", limit=50, columns=["id", "status"])
+        result = validate_database_inputs(
+            "audit_log", limit=50, columns=["id", "status"]
+        )
         assert result["table"] == "audit_log"
         assert result["limit"] == 50
         assert "id" in result["columns"]
@@ -444,7 +480,9 @@ class TestDatabaseSecurityIntegration:
         assert security_middleware.enabled is True
 
         # Test connection security middleware factory
-        connection_middleware = create_database_connection_security_middleware(app, enabled=False)
+        connection_middleware = create_database_connection_security_middleware(
+            app, enabled=False
+        )
         assert connection_middleware.enabled is False
 
 
@@ -560,7 +598,9 @@ class TestDatabaseSecurityPerformance:
             contains_injection = any(
                 pattern.search(str(value)) for pattern in middleware._compiled_patterns
             )
-            assert not contains_injection, f"Valid input flagged as injection: {request_data}"
+            assert not contains_injection, (
+                f"Valid input flagged as injection: {request_data}"
+            )
 
         end_time = time.time()
         duration = end_time - start_time

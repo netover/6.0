@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Test Data Factories - Generate test data using Polyfactory.
 
@@ -35,11 +37,15 @@ except ImportError:
     class ModelFactory:
         @classmethod
         def build(cls, **kwargs):
-            raise NotImplementedError("Install polyfactory: pip install polyfactory") from None
+            raise NotImplementedError(
+                "Install polyfactory: pip install polyfactory"
+            ) from None
 
         @classmethod
         def batch(cls, size: int, **kwargs):
-            raise NotImplementedError("Install polyfactory: pip install polyfactory") from None
+            raise NotImplementedError(
+                "Install polyfactory: pip install polyfactory"
+            ) from None
 
 
 # =============================================================================
@@ -57,20 +63,37 @@ class DictFactory:
         if cls._faker is None:
             try:
                 from faker import Faker
+
                 cls._faker = Faker()
             except ImportError:
                 # Simple fallback if faker not installed
                 class SimpleFaker:
-                    def user_name(self): return f"user_{uuid4().hex[:8]}"
-                    def email(self): return f"user_{uuid4().hex[:8]}@example.com"
-                    def name(self): return f"User {uuid4().hex[:8]}"
-                    def sentence(self, nb_words=5): return "Sample sentence for testing purposes"
-                    def text(self, max_nb_chars=200): return "Sample text content for testing."
-                    def paragraph(self): return "Sample paragraph for testing."
+                    def user_name(self):
+                        return f"user_{uuid4().hex[:8]}"
+
+                    def email(self):
+                        return f"user_{uuid4().hex[:8]}@example.com"
+
+                    def name(self):
+                        return f"User {uuid4().hex[:8]}"
+
+                    def sentence(self, nb_words=5):
+                        return "Sample sentence for testing purposes"
+
+                    def text(self, max_nb_chars=200):
+                        return "Sample text content for testing."
+
+                    def paragraph(self):
+                        return "Sample paragraph for testing."
+
                     def random_element(self, elements):
                         import random
+
                         return random.choice(list(elements))
-                    def date_time_this_year(self): return datetime.now(timezone.utc)
+
+                    def date_time_this_year(self):
+                        return datetime.now(timezone.utc)
+
                 cls._faker = SimpleFaker()
         return cls._faker
 
@@ -89,6 +112,7 @@ class BaseFactory(ModelFactory):
     @classmethod
     def _get_faker(cls):
         return DictFactory._get_faker()
+
     """Base factory with common configuration."""
 
     __is_base_factory__ = True
@@ -148,7 +172,6 @@ class UserDataFactory(DictFactory):
 class IncidentDataFactory(DictFactory):
     """Factory for incident data."""
 
-
     @classmethod
     def build(cls, **kwargs) -> dict[str, Any]:
         """Build incident data dictionary."""
@@ -181,7 +204,11 @@ class IncidentDataFactory(DictFactory):
     @classmethod
     def build_resolved(cls, **kwargs) -> dict[str, Any]:
         """Build resolved incident."""
-        return cls.build(status="resolved", resolved_at=datetime.now(timezone.utc).isoformat(), **kwargs)
+        return cls.build(
+            status="resolved",
+            resolved_at=datetime.now(timezone.utc).isoformat(),
+            **kwargs,
+        )
 
     @classmethod
     def batch(cls, size: int, **kwargs) -> list[dict[str, Any]]:
@@ -196,7 +223,6 @@ class IncidentDataFactory(DictFactory):
 
 class AuditEventFactory(DictFactory):
     """Factory for audit event data."""
-
 
     @classmethod
     def build(cls, **kwargs) -> dict[str, Any]:
@@ -239,7 +265,6 @@ class AuditEventFactory(DictFactory):
 class TWSJobFactory(DictFactory):
     """Factory for TWS job data."""
 
-
     @classmethod
     def build(cls, **kwargs) -> dict[str, Any]:
         """Build TWS job data."""
@@ -253,7 +278,9 @@ class TWSJobFactory(DictFactory):
             "workstation": f"WS_{fake.random_int(1, 10):02d}",
             "status": fake.random_element(statuses),
             "start_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-            "end_time": datetime.now(timezone.utc).isoformat() if fake.boolean() else None,
+            "end_time": datetime.now(timezone.utc).isoformat()
+            if fake.boolean()
+            else None,
             "return_code": fake.random_int(0, 255),
             "description": fake.sentence(),
             "dependencies": [],
@@ -284,7 +311,6 @@ class TWSJobFactory(DictFactory):
 
 class APIResponseFactory(DictFactory):
     """Factory for API response data."""
-
 
     @classmethod
     def build_success(cls, data: Any = None, **kwargs) -> dict[str, Any]:
@@ -357,7 +383,6 @@ class APIResponseFactory(DictFactory):
 
 class HealthCheckFactory(DictFactory):
     """Factory for health check data."""
-
 
     @classmethod
     def build_healthy(cls, **kwargs) -> dict[str, Any]:

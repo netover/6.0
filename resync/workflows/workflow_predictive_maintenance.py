@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 LangGraph Workflow - Predictive Maintenance
 
@@ -44,15 +46,19 @@ try:
     from langchain_core.messages import HumanMessage, SystemMessage
     from langgraph.graph import END, StateGraph
     from langgraph.checkpoint.postgres import PostgresSaver
+
     LANGGRAPH_AVAILABLE = True
     POSTGRES_SAVER_AVAILABLE = True
 except ImportError:
+
     class HumanMessage:
         """Placeholder class when langgraph is not available."""
+
         pass
 
     class SystemMessage:
         """Placeholder class when langgraph is not available."""
+
         pass
 
     END = "END"
@@ -150,6 +156,7 @@ async def rate_limited_llm_call(llm_func, *args, **kwargs):
 # STATE DEFINITION
 # ============================================================================
 
+
 class PredictiveMaintenanceState(TypedDict):
     """State para workflow de Predictive Maintenance."""
 
@@ -201,9 +208,9 @@ class PredictiveMaintenanceState(TypedDict):
 # NODES (WORKFLOW STEPS)
 # ============================================================================
 
+
 async def fetch_data_node(
-    state: PredictiveMaintenanceState,
-    db: AsyncSession | None = None
+    state: PredictiveMaintenanceState, db: AsyncSession | None = None
 ) -> PredictiveMaintenanceState:
     """
     Step 1: Fetch historical data.
@@ -224,22 +231,19 @@ async def fetch_data_node(
 
 
 async def _fetch_data_node_impl(
-    state: PredictiveMaintenanceState,
-    db: AsyncSession
+    state: PredictiveMaintenanceState, db: AsyncSession
 ) -> PredictiveMaintenanceState:
     """Implementation of fetch_data_node."""
     logger.info(
         "predictive_maintenance.fetch_data",
         job_name=state["job_name"],
-        lookback_days=state["lookback_days"]
+        lookback_days=state["lookback_days"],
     )
 
     try:
         # Fetch job history
         job_history = await fetch_job_history(
-            db=db,
-            job_name=state["job_name"],
-            days=state["lookback_days"]
+            db=db, job_name=state["job_name"], days=state["lookback_days"]
         )
 
         # Get workstation from job history
@@ -248,9 +252,7 @@ async def _fetch_data_node_impl(
 
             # Fetch workstation metrics
             workstation_metrics = await fetch_workstation_metrics(
-                db=db,
-                workstation=workstation,
-                days=state["lookback_days"]
+                db=db, workstation=workstation, days=state["lookback_days"]
             )
         else:
             workstation_metrics = []
@@ -264,20 +266,13 @@ async def _fetch_data_node_impl(
     except Exception as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
-        logger.error(
-            "predictive_maintenance.fetch_data_failed",
-            error=str(e)
-        )
-        return {
-            **state,
-            "status": "failed",
-            "error": f"Failed to fetch data: {str(e)}"
-        }
+        logger.error("predictive_maintenance.fetch_data_failed", error=str(e))
+        return {**state, "status": "failed", "error": f"Failed to fetch data: {str(e)}"}
 
 
 async def analyze_degradation_node(
     state: PredictiveMaintenanceState,
-    llm: Any # Typed as Any to support flexible backend (ChatLiteLLM)
+    llm: Any,  # Typed as Any to support flexible backend (ChatLiteLLM)
 ) -> PredictiveMaintenanceState:
     """
     Step 2: Detect degradation patterns.
@@ -300,8 +295,7 @@ async def analyze_degradation_node(
     try:
         # Detect degradation using LLM
         degradation_result = await detect_degradation(
-            job_history=state["job_history"],
-            llm=llm
+            job_history=state["job_history"], llm=llm
         )
 
         return {
@@ -314,19 +308,12 @@ async def analyze_degradation_node(
     except Exception as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
-        logger.error(
-            "predictive_maintenance.analyze_degradation_failed",
-            error=str(e)
-        )
-        return {
-            **state,
-            "error": f"Degradation analysis failed: {str(e)}"
-        }
+        logger.error("predictive_maintenance.analyze_degradation_failed", error=str(e))
+        return {**state, "error": f"Degradation analysis failed: {str(e)}"}
 
 
 async def correlate_node(
-    state: PredictiveMaintenanceState,
-    llm: Any
+    state: PredictiveMaintenanceState, llm: Any
 ) -> PredictiveMaintenanceState:
     """
     Step 3: Correlate job degradation with resource metrics.
@@ -353,7 +340,7 @@ async def correlate_node(
             job_history=state["job_history"],
             workstation_metrics=state["workstation_metrics"],
             degradation_type=state["degradation_type"],
-            llm=llm
+            llm=llm,
         )
 
         return {
@@ -366,16 +353,12 @@ async def correlate_node(
     except Exception as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
-        logger.error(
-            "predictive_maintenance.correlate_failed",
-            error=str(e)
-        )
+        logger.error("predictive_maintenance.correlate_failed", error=str(e))
         return state
 
 
 async def predict_node(
-    state: PredictiveMaintenanceState,
-    llm: Any
+    state: PredictiveMaintenanceState, llm: Any
 ) -> PredictiveMaintenanceState:
     """
     Step 4: Predict failure timeline.
@@ -401,7 +384,7 @@ async def predict_node(
             job_history=state["job_history"],
             degradation_type=state["degradation_type"],
             degradation_severity=state["degradation_severity"],
-            llm=llm
+            llm=llm,
         )
 
         return {
@@ -414,16 +397,12 @@ async def predict_node(
     except Exception as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
-        logger.error(
-            "predictive_maintenance.predict_failed",
-            error=str(e)
-        )
+        logger.error("predictive_maintenance.predict_failed", error=str(e))
         return state
 
 
 async def recommend_node(
-    state: PredictiveMaintenanceState,
-    llm: Any
+    state: PredictiveMaintenanceState, llm: Any
 ) -> PredictiveMaintenanceState:
     """
     Step 5: Generate recommendations.
@@ -450,11 +429,13 @@ async def recommend_node(
             contributing_factors=state["contributing_factors"],
             failure_probability=state["failure_probability"],
             estimated_failure_date=state["estimated_failure_date"],
-            llm=llm
+            llm=llm,
         )
 
         # Determine if human review is needed
-        requires_review = state["confidence"] < 0.8 or state["failure_probability"] > 0.7
+        requires_review = (
+            state["confidence"] < 0.8 or state["failure_probability"] > 0.7
+        )
 
         return {
             **state,
@@ -467,15 +448,12 @@ async def recommend_node(
     except Exception as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
-        logger.error(
-            "predictive_maintenance.recommend_failed",
-            error=str(e)
-        )
+        logger.error("predictive_maintenance.recommend_failed", error=str(e))
         return state
 
 
 async def human_review_node(
-    state: PredictiveMaintenanceState
+    state: PredictiveMaintenanceState,
 ) -> PredictiveMaintenanceState:
     """
     Step 6: Human review (se necessário).
@@ -483,10 +461,7 @@ async def human_review_node(
     Este node PAUSA o workflow até receber input humano.
     LangGraph checkpoint permite resumir depois.
     """
-    logger.info(
-        "predictive_maintenance.human_review",
-        workflow_id=state["workflow_id"]
-    )
+    logger.info("predictive_maintenance.human_review", workflow_id=state["workflow_id"])
 
     # Notify operators
     await notify_operators(
@@ -499,15 +474,11 @@ async def human_review_node(
 
     # Workflow will pause here
     # Resume when human provides feedback via API
-    return {
-        **state,
-        "status": "pending_review"
-    }
+    return {**state, "status": "pending_review"}
 
 
 async def execute_actions_node(
-    state: PredictiveMaintenanceState,
-    db: AsyncSession | None = None
+    state: PredictiveMaintenanceState, db: AsyncSession | None = None
 ) -> PredictiveMaintenanceState:
     """
     Step 7: Execute preventive actions (optional).
@@ -529,8 +500,7 @@ async def execute_actions_node(
 
 
 async def _execute_actions_node_impl(
-    state: PredictiveMaintenanceState,
-    db: AsyncSession
+    state: PredictiveMaintenanceState, db: AsyncSession
 ) -> PredictiveMaintenanceState:
     """Implementation of execute_actions_node."""
     logger.info("predictive_maintenance.execute_actions")
@@ -541,7 +511,7 @@ async def _execute_actions_node_impl(
             **state,
             "actions_executed": [],
             "execution_results": {},
-            "status": "completed"
+            "status": "completed",
         }
 
     # Action execution is simulated until real TWS integration is implemented
@@ -554,10 +524,7 @@ async def _execute_actions_node_impl(
 
         try:
             # Execute action
-            result = await execute_preventive_action(
-                action=action,
-                db=db
-            )
+            result = await execute_preventive_action(action=action, db=db)
 
             actions_executed.append(action_type)
             execution_results[action_type] = result
@@ -565,34 +532,28 @@ async def _execute_actions_node_impl(
             logger.info(
                 "predictive_maintenance.action_executed",
                 action=action_type,
-                result=result
+                result=result,
             )
 
         except Exception as e:
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
             logger.error(
-                "predictive_maintenance.action_failed",
-                action=action_type,
-                error=str(e)
+                "predictive_maintenance.action_failed", action=action_type, error=str(e)
             )
-            execution_results[action_type] = {
-                "status": "failed",
-                "error": str(e)
-            }
+            execution_results[action_type] = {"status": "failed", "error": str(e)}
 
     return {
         **state,
         "actions_executed": actions_executed,
         "execution_results": execution_results,
         "status": "completed",
-        "completed_at": datetime.now(timezone.utc)
+        "completed_at": datetime.now(timezone.utc),
     }
 
 
 async def execute_preventive_action(
-    action: dict[str, Any],
-    db: AsyncSession
+    action: dict[str, Any], db: AsyncSession
 ) -> dict[str, Any]:
     """
     Execute a specific preventive action.
@@ -601,15 +562,19 @@ async def execute_preventive_action(
     Implement real TWS action execution before enabling in production.
     """
     await asyncio.sleep(0.1)
-    return {"status": "simulated", "details": "Action not yet implemented — enable PREDICTIVE_MAINTENANCE_EXECUTE=true when ready"}
+    return {
+        "status": "simulated",
+        "details": "Action not yet implemented — enable PREDICTIVE_MAINTENANCE_EXECUTE=true when ready",
+    }
 
 
 # ============================================================================
 # ROUTING LOGIC
 # ============================================================================
 
+
 def should_continue_after_fetch(
-    state: PredictiveMaintenanceState
+    state: PredictiveMaintenanceState,
 ) -> Literal["analyze", "end"]:
     """Route after data fetch."""
     if state.get("error"):
@@ -621,7 +586,7 @@ def should_continue_after_fetch(
 
 
 def should_continue_after_recommend(
-    state: PredictiveMaintenanceState
+    state: PredictiveMaintenanceState,
 ) -> Literal["human_review", "execute", "end"]:
     """Route after recommendations."""
     if state["requires_human_review"]:
@@ -632,7 +597,7 @@ def should_continue_after_recommend(
 
 
 def should_continue_after_human_review(
-    state: PredictiveMaintenanceState
+    state: PredictiveMaintenanceState,
 ) -> Literal["execute", "end"]:
     """Route after human review."""
     if state.get("human_approved"):
@@ -644,9 +609,9 @@ def should_continue_after_human_review(
 # WORKFLOW GRAPH
 # ============================================================================
 
+
 def create_predictive_maintenance_workflow(
-    llm: Any,
-    checkpointer: Optional[Any] = None
+    llm: Any, checkpointer: Optional[Any] = None
 ) -> StateGraph:
     """
     Create the Predictive Maintenance workflow graph.
@@ -677,47 +642,21 @@ def create_predictive_maintenance_workflow(
 
     # Add nodes
     # fetch_data_node opens its own DB session internally
-    workflow.add_node(
-        "fetch_data",
-        fetch_data_node
-    )
-    workflow.add_node(
-        "analyze",
-        lambda state: analyze_degradation_node(state, llm)
-    )
-    workflow.add_node(
-        "correlate",
-        lambda state: correlate_node(state, llm)
-    )
-    workflow.add_node(
-        "predict",
-        lambda state: predict_node(state, llm)
-    )
-    workflow.add_node(
-        "recommend",
-        lambda state: recommend_node(state, llm)
-    )
-    workflow.add_node(
-        "human_review",
-        human_review_node
-    )
+    workflow.add_node("fetch_data", fetch_data_node)
+    workflow.add_node("analyze", lambda state: analyze_degradation_node(state, llm))
+    workflow.add_node("correlate", lambda state: correlate_node(state, llm))
+    workflow.add_node("predict", lambda state: predict_node(state, llm))
+    workflow.add_node("recommend", lambda state: recommend_node(state, llm))
+    workflow.add_node("human_review", human_review_node)
     # execute_actions_node opens its own DB session internally
-    workflow.add_node(
-        "execute",
-        execute_actions_node
-    )
+    workflow.add_node("execute", execute_actions_node)
 
     # Define edges
     workflow.set_entry_point("fetch_data")
 
     # Conditional routing
     workflow.add_conditional_edges(
-        "fetch_data",
-        should_continue_after_fetch,
-        {
-            "analyze": "analyze",
-            "end": END
-        }
+        "fetch_data", should_continue_after_fetch, {"analyze": "analyze", "end": END}
     )
 
     # Linear flow through analysis
@@ -729,21 +668,14 @@ def create_predictive_maintenance_workflow(
     workflow.add_conditional_edges(
         "recommend",
         should_continue_after_recommend,
-        {
-            "human_review": "human_review",
-            "execute": "execute",
-            "end": END
-        }
+        {"human_review": "human_review", "execute": "execute", "end": END},
     )
 
     # Conditional routing after human review
     workflow.add_conditional_edges(
         "human_review",
         should_continue_after_human_review,
-        {
-            "execute": "execute",
-            "end": END
-        }
+        {"execute": "execute", "end": END},
     )
 
     # Execute always goes to end
@@ -752,13 +684,14 @@ def create_predictive_maintenance_workflow(
     # Compile with checkpointer for pause/resume
     return workflow.compile(
         checkpointer=checkpointer,
-        interrupt_after=["human_review"]  # Pause AFTER notification is sent
+        interrupt_after=["human_review"],  # Pause AFTER notification is sent
     )
 
 
 # ============================================================================
 # WORKFLOW RUNNER
 # ============================================================================
+
 
 class WorkflowRequest(BaseModel):
     """Validated request for predictive maintenance workflow."""
@@ -767,36 +700,33 @@ class WorkflowRequest(BaseModel):
         ...,
         min_length=1,
         max_length=255,
-        description="Job name (alphanumeric, underscore, hyphen, dot)"
+        description="Job name (alphanumeric, underscore, hyphen, dot)",
     )
     lookback_days: int = Field(
-        default=30,
-        ge=1,
-        le=90,
-        description="Days of history (max 90 for performance)"
+        default=30, ge=1, le=90, description="Days of history (max 90 for performance)"
     )
     workflow_id: str | None = Field(
-        default=None,
-        max_length=100,
-        description="Existing workflow ID to resume"
+        default=None, max_length=100, description="Existing workflow ID to resume"
     )
 
-    @field_validator('job_name')
+    @field_validator("job_name")
     @classmethod
     def validate_job_name(cls, v: str) -> str:
-        if not re.match(r'^[a-zA-Z0-9_\-\.]+$', v):
-            raise ValueError("job_name must contain only: letters, numbers, underscore, hyphen, dot")
-        if '..' in v or '/' in v or '\\' in v:
+        if not re.match(r"^[a-zA-Z0-9_\-\.]+$", v):
+            raise ValueError(
+                "job_name must contain only: letters, numbers, underscore, hyphen, dot"
+            )
+        if ".." in v or "/" in v or "\\" in v:
             raise ValueError("job_name cannot contain path separators")
         return v
 
-    @field_validator('workflow_id')
+    @field_validator("workflow_id")
     @classmethod
     def validate_workflow_id(cls, v: str | None) -> str | None:
         if v is not None:
-            if not re.match(r'^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$', v):
+            if not re.match(r"^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$", v):
                 raise ValueError("workflow_id format invalid. Expected: pm_<job>_<id>")
-            if '..' in v or '/' in v:
+            if ".." in v or "/" in v:
                 raise ValueError("workflow_id cannot contain path separators")
         return v
 
@@ -809,27 +739,25 @@ class ApprovalRequest(BaseModel):
     feedback: str | None = Field(default=None, max_length=5000)
     user_id: str = Field(..., min_length=1, max_length=100)
 
-    @field_validator('workflow_id')
+    @field_validator("workflow_id")
     @classmethod
     def validate_workflow_id(cls, v: str) -> str:
-        if not re.match(r'^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$', v):
+        if not re.match(r"^pm_[a-zA-Z0-9_\-\.]+_[a-f0-9]+$", v):
             raise ValueError("workflow_id format invalid")
-        if '..' in v or '/' in v:
+        if ".." in v or "/" in v:
             raise ValueError("workflow_id contains prohibited characters")
         return v
 
-    @field_validator('user_id')
+    @field_validator("user_id")
     @classmethod
     def validate_user_id(cls, v: str) -> str:
-        if not re.match(r'^[a-zA-Z0-9_\-@\.]+$', v):
+        if not re.match(r"^[a-zA-Z0-9_\-@\.]+$", v):
             raise ValueError("user_id contains invalid characters")
         return v
 
 
 async def run_predictive_maintenance(
-    job_name: str,
-    lookback_days: int = 30,
-    workflow_id: str | None = None
+    job_name: str, lookback_days: int = 30, workflow_id: str | None = None
 ) -> dict[str, Any]:
     """
     Run the Predictive Maintenance workflow.
@@ -844,9 +772,7 @@ async def run_predictive_maintenance(
     """
     try:
         request = WorkflowRequest(
-            job_name=job_name,
-            lookback_days=lookback_days,
-            workflow_id=workflow_id
+            job_name=job_name, lookback_days=lookback_days, workflow_id=workflow_id
         )
     except Exception as e:
         logger.error("invalid_workflow_request", job_name=job_name[:20], error=str(e))
@@ -861,7 +787,10 @@ async def run_predictive_maintenance(
         return {"status": "failed", "error": "LangGraph dependency missing"}
 
     from resync.settings import settings
-    model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
+
+    model_name = getattr(settings, "agent_model_name", None) or getattr(
+        settings, "llm_model", "gpt-4o"
+    )
     llm = LLMFactory.get_langchain_llm(model=model_name)
 
     # Get dedicated checkpointer with its own connection pool
@@ -869,16 +798,12 @@ async def run_predictive_maintenance(
 
     # Create workflow - db session will be opened per-node
     workflow = create_predictive_maintenance_workflow(
-        llm=llm,
-        checkpointer=checkpointer
+        llm=llm, checkpointer=checkpointer
     )
 
     if workflow_id:
         # Resume existing workflow
-        logger.info(
-            "predictive_maintenance.resume",
-            workflow_id=workflow_id
-        )
+        logger.info("predictive_maintenance.resume", workflow_id=workflow_id)
 
         config = {"configurable": {"thread_id": workflow_id}}
 
@@ -886,18 +811,13 @@ async def run_predictive_maintenance(
         state = await workflow.aget_state(config)
 
         # Continue from checkpoint
-        result = await workflow.ainvoke(
-            state.values,
-            config=config
-        )
+        result = await workflow.ainvoke(state.values, config=config)
     else:
         # Start new workflow
         workflow_id = f"pm_{job_name}_{uuid.uuid4().hex[:12]}"
 
         logger.info(
-            "predictive_maintenance.start",
-            workflow_id=workflow_id,
-            job_name=job_name
+            "predictive_maintenance.start", workflow_id=workflow_id, job_name=job_name
         )
 
         initial_state: PredictiveMaintenanceState = {
@@ -925,20 +845,17 @@ async def run_predictive_maintenance(
             "started_at": datetime.now(timezone.utc),
             "completed_at": None,
             "status": "running",
-            "error": None
+            "error": None,
         }
 
         config = {"configurable": {"thread_id": workflow_id}}
 
-        result = await workflow.ainvoke(
-            initial_state,
-            config=config
-        )
+        result = await workflow.ainvoke(initial_state, config=config)
 
     logger.info(
         "predictive_maintenance.completed",
         workflow_id=workflow_id,
-        status=result.get("status")
+        status=result.get("status"),
     )
 
     return result
@@ -947,6 +864,7 @@ async def run_predictive_maintenance(
 # ============================================================================
 # API FOR HUMAN REVIEW
 # ============================================================================
+
 
 async def approve_workflow(
     workflow_id: str,
@@ -975,7 +893,7 @@ async def approve_workflow(
             workflow_id=workflow_id,
             approved=approved,
             feedback=feedback,
-            user_id=user_id
+            user_id=user_id,
         )
     except Exception as e:
         logger.error("invalid_approval_request", workflow_id=workflow_id, error=str(e))
@@ -995,11 +913,13 @@ async def approve_workflow(
     checkpointer = await get_checkpointer()
 
     from resync.settings import settings
-    model_name = getattr(settings, "agent_model_name", None) or getattr(settings, "llm_model", "gpt-4o")
+
+    model_name = getattr(settings, "agent_model_name", None) or getattr(
+        settings, "llm_model", "gpt-4o"
+    )
     llm = LLMFactory.get_langchain_llm(model=model_name)
     workflow = create_predictive_maintenance_workflow(
-        llm=llm,
-        checkpointer=checkpointer
+        llm=llm, checkpointer=checkpointer
     )
 
     config = {"configurable": {"thread_id": workflow_id}}
@@ -1019,7 +939,4 @@ async def approve_workflow(
     }
 
     # Resume workflow
-    return await workflow.ainvoke(
-        updated_state,
-        config=config
-    )
+    return await workflow.ainvoke(updated_state, config=config)

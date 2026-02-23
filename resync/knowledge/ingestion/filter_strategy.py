@@ -14,7 +14,15 @@ from __future__ import annotations
 
 _ALLOWED: dict[str, set[str]] = {
     "platform": {"all", "web", "desktop", "mobile", "ios", "android"},
-    "environment": {"all", "prod", "production", "staging", "dev", "development", "test"},
+    "environment": {
+        "all",
+        "prod",
+        "production",
+        "staging",
+        "dev",
+        "development",
+        "test",
+    },
 }
 
 

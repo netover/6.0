@@ -57,7 +57,9 @@ class CircuitBreakerConfig:
 
     failure_threshold: int = 5
     recovery_timeout: int = 60  # seconds
-    expected_exception: type[BaseException] | tuple[type[BaseException], ...] = Exception
+    expected_exception: type[BaseException] | tuple[type[BaseException], ...] = (
+        Exception
+    )
     exclude_exceptions: tuple[type[BaseException], ...] = ()
     name: str = "default"
 
@@ -109,7 +111,6 @@ class CircuitBreaker:
             recovery_timeout=config.recovery_timeout,
         )
 
-
     def _get_lock(self) -> asyncio.Lock:
         """Return the internal asyncio lock.
 
@@ -147,7 +148,9 @@ class CircuitBreaker:
                         name=self.config.name,
                         calls_blocked=self.metrics.total_calls,
                     )
-                    raise CircuitBreakerError(f"Circuit breaker '{self.config.name}' is OPEN")
+                    raise CircuitBreakerError(
+                        f"Circuit breaker '{self.config.name}' is OPEN"
+                    )
                 self.state = CircuitBreakerState.HALF_OPEN
                 self.metrics.state_changes += 1
                 logger.info(
@@ -169,7 +172,9 @@ class CircuitBreaker:
             return result
 
         except expected_exc as e:
-            if self.config.exclude_exceptions and isinstance(e, self.config.exclude_exceptions):
+            if self.config.exclude_exceptions and isinstance(
+                e, self.config.exclude_exceptions
+            ):
                 raise
             async with self._get_lock():
                 logger.debug(
@@ -193,7 +198,9 @@ class CircuitBreaker:
         if self.metrics.last_failure_time is None:
             return True
 
-        elapsed = (datetime.now(timezone.utc) - self.metrics.last_failure_time).total_seconds()
+        elapsed = (
+            datetime.now(timezone.utc) - self.metrics.last_failure_time
+        ).total_seconds()
         return elapsed >= self.config.recovery_timeout
 
     def _on_success(self) -> None:
@@ -303,9 +310,13 @@ class RetryWithBackoff:
         the codebase.
         """
         wait_strategy = (
-            wait_random_exponential(multiplier=self.config.base_delay, max=self.config.max_delay)
+            wait_random_exponential(
+                multiplier=self.config.base_delay, max=self.config.max_delay
+            )
             if self.config.jitter
-            else wait_exponential(multiplier=self.config.base_delay, max=self.config.max_delay)
+            else wait_exponential(
+                multiplier=self.config.base_delay, max=self.config.max_delay
+            )
         )
 
         def _before_sleep(retry_state):
@@ -329,6 +340,7 @@ class RetryWithBackoff:
             reraise=True,
         )
 
+        result: T | None = None
         try:
             async for attempt in retrying:
                 self.metrics.total_attempts += 1
@@ -350,6 +362,13 @@ class RetryWithBackoff:
                 error=str(exc),
             )
             raise
+        finally:
+            if result is None:
+                # This should not happen, but return a default for type safety
+                raise RuntimeError("No result from retry execution")
+
+        # This line is unreachable but required for type checking
+        return result
 
     def get_metrics(self) -> dict[str, Any]:
         """Retorna métricas de retry"""
@@ -402,7 +421,9 @@ class TimeoutManager:
         except asyncio.TimeoutError as exc:
             if timeout_exception:
                 raise timeout_exception from exc
-            raise TimeoutError(f"Operation timed out after {timeout_seconds} seconds") from exc
+            raise TimeoutError(
+                f"Operation timed out after {timeout_seconds} seconds"
+            ) from exc
 
 
 # Decoradores para facilitar uso dos padrões
@@ -412,7 +433,7 @@ def circuit_breaker(
     failure_threshold: int = 5,
     recovery_timeout: int = 60,
     expected_exception: type = Exception,
-    name: str = None,
+    name: str | None = None,
 ):
     """
     Decorador para aplicar Circuit Breaker
@@ -439,8 +460,8 @@ def circuit_breaker(
             return await breaker.call(func, *args, **kwargs)
 
         # Expor circuit breaker para monitoramento
-        wrapper.circuit_breaker = breaker
-        return wrapper
+        wrapper.circuit_breaker = breaker  # type: ignore[attr-defined]
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -481,8 +502,8 @@ def retry_with_backoff(
             return await retry.execute(func, *args, **kwargs)
 
         # Expor retry handler para monitoramento
-        wrapper.retry_handler = retry
-        return wrapper
+        wrapper.retry_handler = retry  # type: ignore[attr-defined]
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -558,7 +579,8 @@ class CircuitBreakerManager:
         *,
         fail_max: int = 5,
         reset_timeout: int = 60,
-        expected_exception: type[BaseException] | tuple[type[BaseException], ...] = Exception,
+        expected_exception: type[BaseException]
+        | tuple[type[BaseException], ...] = Exception,
         exclude: tuple[type[BaseException], ...] = (),
     ) -> CircuitBreaker:
         if name not in self._breakers:
@@ -578,7 +600,9 @@ class CircuitBreakerManager:
             raise KeyError(f"Circuit breaker '{name}' not registered")
         return br
 
-    async def call(self, name: str, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    async def call(
+        self, name: str, func: Callable[..., Awaitable[T]], *args, **kwargs
+    ) -> T:
         br = self.get(name)
         return await br.call(func, *args, **kwargs)
 

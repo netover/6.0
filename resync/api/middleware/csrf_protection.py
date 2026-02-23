@@ -92,7 +92,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # Validate lengths first (prevents length-based timing differences and
         # avoids unnecessary work on malformed tokens).
-        if len(cookie_bytes) != 64 or len(header_bytes) != 64:  # 32 bytes random + 32 bytes HMAC-SHA256
+        if (
+            len(cookie_bytes) != 64 or len(header_bytes) != 64
+        ):  # 32 bytes random + 32 bytes HMAC-SHA256
             return False
 
         # Constant-time comparison of the two submitted tokens.
@@ -102,7 +104,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         random_part = cookie_bytes[:32]
         signature_part = cookie_bytes[32:]
 
-        expected_signature = hmac.new(self.secret_key, random_part, digestmod="sha256").digest()
+        expected_signature = hmac.new(
+            self.secret_key, random_part, digestmod="sha256"
+        ).digest()
 
         return secrets.compare_digest(signature_part, expected_signature)
 

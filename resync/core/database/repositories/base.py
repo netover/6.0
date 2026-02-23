@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import and_, delete, func, select, text, update
+from sqlalchemy.exc import ResourceClosedError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -35,7 +36,9 @@ class BaseRepository(Generic[ModelT]):
                 super().__init__(TWSJobStatus, session_factory)
     """
 
-    def __init__(self, model: type[ModelT], session_factory: async_sessionmaker | None = None):
+    def __init__(
+        self, model: type[ModelT], session_factory: async_sessionmaker | None = None
+    ):
         """
         Initialize repository.
 
@@ -103,11 +106,17 @@ class BaseRepository(Generic[ModelT]):
             Model instance or None
         """
         async with self._get_session() as session:
-            result = await session.execute(select(self.model).where(self.model.id == id))
+            result = await session.execute(
+                select(self.model).where(self.model.id == id)
+            )
             return result.scalar_one_or_none()
 
     async def get_all(
-        self, limit: int = 100, offset: int = 0, order_by: str | None = None, desc: bool = True
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        order_by: str | None = None,
+        desc: bool = True,
     ) -> list[ModelT]:
         """
         Get all records with pagination.
@@ -126,7 +135,9 @@ class BaseRepository(Generic[ModelT]):
 
             if order_by and hasattr(self.model, order_by):
                 order_field = getattr(self.model, order_by)
-                query = query.order_by(order_field.desc() if desc else order_field.asc())
+                query = query.order_by(
+                    order_field.desc() if desc else order_field.asc()
+                )
 
             query = query.limit(limit).offset(offset)
             result = await session.execute(query)
@@ -167,7 +178,9 @@ class BaseRepository(Generic[ModelT]):
 
             if order_by and hasattr(self.model, order_by):
                 order_field = getattr(self.model, order_by)
-                query = query.order_by(order_field.desc() if desc else order_field.asc())
+                query = query.order_by(
+                    order_field.desc() if desc else order_field.asc()
+                )
 
             query = query.limit(limit).offset(offset)
             result = await session.execute(query)
@@ -199,7 +212,10 @@ class BaseRepository(Generic[ModelT]):
         """
         async with self._get_session() as session:
             result = await session.execute(
-                update(self.model).where(self.model.id == id).values(**kwargs).returning(self.model)
+                update(self.model)
+                .where(self.model.id == id)
+                .values(**kwargs)
+                .returning(self.model)
             )
             await session.commit()
             return result.scalar_one_or_none()
@@ -241,7 +257,9 @@ class BaseRepository(Generic[ModelT]):
             True if deleted, False if not found
         """
         async with self._get_session() as session:
-            result = await session.execute(delete(self.model).where(self.model.id == id))
+            result = await session.execute(
+                delete(self.model).where(self.model.id == id)
+            )
             await session.commit()
             return result.rowcount > 0
 
@@ -328,7 +346,8 @@ class BaseRepository(Generic[ModelT]):
                     keys = result.keys()
                     return [dict(zip(keys, row, strict=False)) for row in rows]
                 return []
-            except Exception:
+            except ResourceClosedError:
+                # Non-SELECT queries do not produce row results.
                 await session.commit()
                 return []
 
@@ -407,7 +426,9 @@ class TimestampedRepository(BaseRepository[ModelT]):
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
-    async def delete_older_than(self, cutoff: datetime, timestamp_field: str = "timestamp") -> int:
+    async def delete_older_than(
+        self, cutoff: datetime, timestamp_field: str = "timestamp"
+    ) -> int:
         """
         Delete records older than cutoff.
 

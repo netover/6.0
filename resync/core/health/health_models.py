@@ -97,7 +97,9 @@ class HealthCheckConfig:
     # Alert settings
     alert_enabled: bool = True
     alert_threshold_degraded: int = 1  # Number of degraded components to trigger alert
-    alert_threshold_unhealthy: int = 1  # Number of unhealthy components to trigger alert
+    alert_threshold_unhealthy: int = (
+        1  # Number of unhealthy components to trigger alert
+    )
     alert_cooldown_seconds: int = 300  # Minimum time between alerts
 
     # Performance monitoring

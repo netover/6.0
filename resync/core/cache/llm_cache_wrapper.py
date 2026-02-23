@@ -303,7 +303,9 @@ def with_semantic_cache(
             return await llm.generate(message, context)
     """
 
-    def decorator(func: Callable[..., Awaitable[str]]) -> Callable[..., Awaitable[CachedResponse]]:
+    def decorator(
+        func: Callable[..., Awaitable[str]],
+    ) -> Callable[..., Awaitable[CachedResponse]]:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> CachedResponse:
             # Extract query from kwargs or args

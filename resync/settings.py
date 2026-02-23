@@ -196,7 +196,7 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     llm_api_key: SecretStr = Field(
-        default="",
+        default=SecretStr(""),
         min_length=0,
         description=(
             "Chave de API do LLM (NVIDIA). Deve ser configurada via variável de ambiente."
@@ -278,7 +278,7 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     langfuse_secret_key: SecretStr = Field(
-        default="",
+        default=SecretStr(""),
         description="LangFuse secret key for API authentication",
         validation_alias=AliasChoices("LANGFUSE_SECRET_KEY", "APP_LANGFUSE_SECRET_KEY"),
         exclude=True,

@@ -6,6 +6,7 @@ across multiple modules in the application.
 """
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from functools import wraps
@@ -101,7 +102,8 @@ def retry_on_exception(
     max_retries: int = 3,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: tuple = (Exception,),
+    exceptions: tuple[type[BaseException], ...]
+    | Callable[[], tuple[type[BaseException], ...]] = (Exception,),
     logger: logging.Logger | None = None,
 ) -> Callable[[F], F]:
     """
@@ -122,7 +124,7 @@ def retry_on_exception(
     """
 
     def decorator(func: F) -> F:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
@@ -132,6 +134,11 @@ def retry_on_exception(
                 current_max_retries = kwargs.pop("max_retries", max_retries)
                 current_delay = kwargs.pop("initial_backoff", delay)
 
+                if current_max_retries < 0:
+                    raise ValueError("max_retries must be non-negative")
+                if current_delay <= 0:
+                    raise ValueError("initial_backoff must be positive")
+
                 cleaned_kwargs = kwargs
 
                 for attempt in range(current_max_retries + 1):
@@ -139,20 +146,22 @@ def retry_on_exception(
                         return await func(*args, **cleaned_kwargs)
                     except Exception as e:
                         # Resolve lazy exceptions if callable
-                        allowed_exceptions = exceptions() if callable(exceptions) else exceptions
+                        allowed_exceptions = (
+                            exceptions() if callable(exceptions) else exceptions
+                        )
                         if not isinstance(e, allowed_exceptions):
                             raise
 
                         if attempt < current_max_retries:
                             logger_instance.info(
                                 f"Attempt {attempt + 1} failed: {e}. "
-                                "Retrying in {current_delay:.2f} seconds..."
+                                f"Retrying in {current_delay:.2f} seconds..."
                             )
                             await asyncio.sleep(current_delay)
                             current_delay *= backoff
                         else:
                             logger_instance.error(
-                                f"Failed after {max_retries} retries: {e}",
+                                f"Failed after {current_max_retries} retries: {e}",
                                 exc_info=True,
                             )
                             raise
@@ -165,27 +174,35 @@ def retry_on_exception(
             import time
 
             logger_instance = logger or logging.getLogger(func.__module__)
-            current_delay = delay
+            current_max_retries = kwargs.pop("max_retries", max_retries)
+            current_delay = kwargs.pop("initial_backoff", delay)
 
-            for attempt in range(max_retries + 1):
+            if current_max_retries < 0:
+                raise ValueError("max_retries must be non-negative")
+            if current_delay <= 0:
+                raise ValueError("initial_backoff must be positive")
+
+            for attempt in range(current_max_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
                     # Resolve lazy exceptions if callable
-                    allowed_exceptions = exceptions() if callable(exceptions) else exceptions
+                    allowed_exceptions = (
+                        exceptions() if callable(exceptions) else exceptions
+                    )
                     if not isinstance(e, allowed_exceptions):
                         raise
 
-                    if attempt < max_retries:
+                    if attempt < current_max_retries:
                         logger_instance.info(
                             f"Attempt {attempt + 1} failed: {e}. "
-                            "Retrying in {current_delay:.2f} seconds..."
+                            f"Retrying in {current_delay:.2f} seconds..."
                         )
                         time.sleep(current_delay)  # Use sync sleep for sync functions
                         current_delay *= backoff
                     else:
                         logger_instance.error(
-                            f"Failed after {max_retries} retries: {e}",
+                            f"Failed after {current_max_retries} retries: {e}",
                             exc_info=True,
                         )
                         raise

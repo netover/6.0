@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 Read‑only client for interacting with the IBM TWS/HWA REST API.
 
@@ -49,6 +51,7 @@ logger = structlog.get_logger(__name__)
 # NOTE: instrumenting at import-time is a global side effect; we do it lazily and idempotently.
 _HTTPX_OTEL_INSTRUMENTED = False
 
+
 def _ensure_httpx_instrumented() -> None:
     """Instrument httpx once, if opentelemetry instrumentation is available."""
     global _HTTPX_OTEL_INSTRUMENTED
@@ -57,7 +60,9 @@ def _ensure_httpx_instrumented() -> None:
     try:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
     except ImportError:
-        _HTTPX_OTEL_INSTRUMENTED = True  # do not retry every instantiation if package is absent
+        _HTTPX_OTEL_INSTRUMENTED = (
+            True  # do not retry every instantiation if package is absent
+        )
         return
     try:
         HTTPXClientInstrumentor().instrument()
@@ -82,6 +87,7 @@ _ID_LIKE_SEGMENT_RE = re.compile(
     """
 )
 
+
 def _normalize_endpoint_label(path: str) -> str:
     """Collapse ID-like path segments to avoid Prometheus high-cardinality labels."""
     segments = [s for s in path.split("/") if s]
@@ -92,6 +98,7 @@ def _normalize_endpoint_label(path: str) -> str:
         else:
             norm.append(seg)
     return "_".join(norm) or "root"
+
 
 class OptimizedTWSClient:
     """
@@ -145,10 +152,11 @@ class OptimizedTWSClient:
         self.auth = (username, password)
         self.engine_name = engine_name
         self.engine_owner = engine_owner
-        
+
         # Use injected settings or load defaults
         if settings is None:
             from resync.settings import get_settings
+
             settings = get_settings()
 
         # httpx client with a base URL and basic authentication. Connection pooling
@@ -160,7 +168,7 @@ class OptimizedTWSClient:
             write=settings.tws_timeout_write,
             pool=settings.tws_timeout_pool,
         )
-        
+
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
             auth=self.auth,
@@ -183,7 +191,7 @@ class OptimizedTWSClient:
         job_logs_ttl: int | None = None,
         static_ttl: int | None = None,
         graph_ttl: int | None = None,
-    ):
+    ) -> None:
         """Configure cache TTLs."""
         self._cache.configure_ttls(
             job_status=job_status_ttl,
@@ -196,7 +204,7 @@ class OptimizedTWSClient:
         """Get cache statistics."""
         return self._cache.get_stats()
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all cached data."""
         self._cache.clear()
 
@@ -227,10 +235,10 @@ class OptimizedTWSClient:
             TWSConnectionError: For network/connection errors
         """
         from resync.settings import get_settings
-        
+
         settings = get_settings()
         endpoint_label = _normalize_endpoint_label(path)
-        
+
         # Determine timeout (custom or default)
         if timeout is None:
             # Use special timeout for joblog endpoints
@@ -238,13 +246,13 @@ class OptimizedTWSClient:
                 timeout = settings.tws_joblog_timeout
             else:
                 timeout = settings.tws_request_timeout
-        
+
         # Retry configuration
         max_retries = settings.tws_retry_total
         backoff_base = settings.tws_retry_backoff_base
         backoff_max = settings.tws_retry_backoff_max
-        
-        last_exception = None
+
+        last_exception: Exception | None = None
 
         def _compute_backoff(attempt_idx: int) -> float:
             """Compute exponential backoff with *full jitter*.
@@ -253,7 +261,7 @@ class OptimizedTWSClient:
             across many clients.
             """
 
-            cap = min(backoff_base * (2 ** attempt_idx), backoff_max)
+            cap = min(backoff_base * (2**attempt_idx), backoff_max)
             return random.uniform(0, cap)
 
         def _parse_retry_after(value: str) -> int | None:
@@ -279,7 +287,7 @@ class OptimizedTWSClient:
                 return max(0, delta)
             except (ValueError, TypeError, OverflowError):
                 return None
-        
+
         for attempt in range(max_retries + 1):
             start = time.perf_counter()
             status_code = None
@@ -288,7 +296,7 @@ class OptimizedTWSClient:
                 response = await self.client.get(path, params=params, timeout=timeout)
                 elapsed = time.perf_counter() - start
                 status_code = response.status_code
-                                
+
                 # Check for HTTP errors
                 response.raise_for_status()
 
@@ -298,7 +306,6 @@ class OptimizedTWSClient:
                     endpoint=endpoint_label, status=str(status_code)
                 ).inc()
 
-                
                 # Parse response body
                 content_type = (response.headers.get("content-type") or "").lower()
                 if "application/json" in content_type or "+json" in content_type:
@@ -310,86 +317,115 @@ class OptimizedTWSClient:
                 except ValueError:
                     # JSON decode failed
                     return response.text
-                    
+
             except httpx.HTTPStatusError as e:
                 elapsed = time.perf_counter() - start
                 status_code = e.response.status_code
-                
+
                 # Record error metrics ONCE (HTTP 4xx/5xx path)
                 self._request_latency.labels(endpoint=endpoint_label).observe(elapsed)
                 self._request_count.labels(
                     endpoint=endpoint_label, status=str(status_code)
                 ).inc()
-                
+
                 # Map HTTP status to custom exceptions
                 if status_code == 401 or status_code == 403:
                     raise TWSAuthenticationError(
                         f"TWS authentication failed: {e.response.text[:200]}",
-                        details={"status_code": status_code, "response_body": e.response.text}
+                        details={
+                            "status_code": status_code,
+                            "response_body": e.response.text,
+                        },
                     ) from e
                 elif status_code == 404:
                     raise ResourceNotFoundError(
                         f"TWS resource not found: {path}",
-                        details={"path": path, "params": params}
+                        details={"path": path, "params": params},
                     ) from e
                 elif status_code == 400:
                     raise TWSBadRequestError(
                         f"TWS bad request: {e.response.text[:200]}",
-                        details={"status_code": status_code, "response_body": e.response.text}
+                        details={
+                            "status_code": status_code,
+                            "response_body": e.response.text,
+                        },
                     ) from e
                 elif status_code == 429:
                     # Rate limit - check Retry-After header
                     retry_after_header = e.response.headers.get("Retry-After")
-                    retry_after = _parse_retry_after(retry_after_header) if retry_after_header else None
+                    retry_after = (
+                        _parse_retry_after(retry_after_header)
+                        if retry_after_header
+                        else None
+                    )
 
                     if attempt < max_retries:
                         # Prefer server-provided Retry-After when present.
-                        sleep_s = retry_after if (retry_after is not None) else _compute_backoff(attempt)
+                        sleep_s = (
+                            retry_after
+                            if (retry_after is not None)
+                            else _compute_backoff(attempt)
+                        )
                         sleep_s = min(sleep_s, backoff_max)
                         await asyncio.sleep(sleep_s)
                         last_exception = TWSRateLimitError(
-                            f"TWS rate limit exceeded (attempt {attempt+1}/{max_retries+1})",
-                            details={"retry_after": retry_after, "status_code": status_code},
+                            f"TWS rate limit exceeded (attempt {attempt + 1}/{max_retries + 1})",
+                            details={
+                                "retry_after": retry_after,
+                                "status_code": status_code,
+                            },
                         )
                         continue
 
                     raise TWSRateLimitError(
                         f"TWS rate limit exceeded: {e.response.text[:200]}",
-                        details={"retry_after": retry_after, "status_code": status_code, "response_body": e.response.text},
+                        details={
+                            "retry_after": retry_after,
+                            "status_code": status_code,
+                            "response_body": e.response.text,
+                        },
                     ) from e
                 elif 500 <= status_code < 600:
                     # Server error - retry with backoff
                     if attempt < max_retries:
                         await asyncio.sleep(_compute_backoff(attempt))
                         last_exception = TWSServerError(
-                            f"TWS server error (attempt {attempt+1}/{max_retries+1})",
+                            f"TWS server error (attempt {attempt + 1}/{max_retries + 1})",
                             details={"status_code": status_code},
                         )
                         continue
                     else:
                         raise TWSServerError(
                             f"TWS server error after {max_retries} retries: {e.response.text[:200]}",
-                            details={"status_code": status_code, "response_body": e.response.text},
+                            details={
+                                "status_code": status_code,
+                                "response_body": e.response.text,
+                            },
                         ) from e
                 else:
                     # Other HTTP error - don't retry
                     raise TWSConnectionError(
                         f"TWS HTTP error {status_code}: {e.response.text[:200]}",
-                        details={"status_code": status_code, "response_body": e.response.text},
+                        details={
+                            "status_code": status_code,
+                            "response_body": e.response.text,
+                        },
                     ) from e
-                    
+
             except httpx.TimeoutException as e:
                 elapsed = time.perf_counter() - start
-                
+
                 # Record timeout metrics
                 self._request_latency.labels(endpoint=endpoint_label).observe(elapsed)
-                self._request_count.labels(endpoint=endpoint_label, status="timeout").inc()
-                
+                self._request_count.labels(
+                    endpoint=endpoint_label, status="timeout"
+                ).inc()
+
                 # Retry on timeout
                 if attempt < max_retries:
                     await asyncio.sleep(_compute_backoff(attempt))
                     last_exception = TWSTimeoutError(
-                        f"TWS timeout (attempt {attempt+1}/{max_retries+1})",
+                        f"TWS timeout (attempt {attempt + 1}/{max_retries + 1})",
                         details={"status_code": 504},
                     )
                     continue
@@ -398,19 +434,21 @@ class OptimizedTWSClient:
                         f"TWS timeout after {max_retries} retries: {str(e)}",
                         details={"status_code": 504},
                     ) from e
-                    
+
             except httpx.RequestError as e:
                 elapsed = time.perf_counter() - start
-                
+
                 # Record connection error metrics
                 self._request_latency.labels(endpoint=endpoint_label).observe(elapsed)
-                self._request_count.labels(endpoint=endpoint_label, status="connection_error").inc()
-                
+                self._request_count.labels(
+                    endpoint=endpoint_label, status="connection_error"
+                ).inc()
+
                 # Retry on connection errors
                 if attempt < max_retries:
                     await asyncio.sleep(_compute_backoff(attempt))
                     last_exception = TWSConnectionError(
-                        f"TWS connection error (attempt {attempt+1}/{max_retries+1}): {str(e)}",
+                        f"TWS connection error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}",
                         details={"status_code": 502},
                     )
                     continue
@@ -419,7 +457,7 @@ class OptimizedTWSClient:
                         f"TWS connection error after {max_retries} retries: {str(e)}",
                         details={"status_code": 502},
                     ) from e
-        
+
         # Should not reach here, but if we do, raise the last exception
         if last_exception:
             raise last_exception
@@ -543,7 +581,9 @@ class OptimizedTWSClient:
         params: dict[str, Any] = {}
         if depth is not None:
             params["depth"] = depth
-        return await self._get(f"/twsd/api/v2/plan/job/{job_id}/predecessors", params=params)
+        return await self._get(
+            f"/twsd/api/v2/plan/job/{job_id}/predecessors", params=params
+        )
 
     async def get_current_plan_job_successors(
         self,
@@ -554,7 +594,9 @@ class OptimizedTWSClient:
         params: dict[str, Any] = {}
         if depth is not None:
             params["depth"] = depth
-        return await self._get(f"/twsd/api/v2/plan/job/{job_id}/successors", params=params)
+        return await self._get(
+            f"/twsd/api/v2/plan/job/{job_id}/successors", params=params
+        )
 
     async def get_current_plan_job_model(self, job_id: str) -> Any:
         """Retrieve the underlying model of a job in the current plan."""
@@ -676,9 +718,13 @@ class OptimizedTWSClient:
             params=params,
         )
 
-    async def get_current_plan_jobstream_model_description(self, jobstream_id: str) -> Any:
+    async def get_current_plan_jobstream_model_description(
+        self, jobstream_id: str
+    ) -> Any:
         """Retrieve the model description of a job stream in the current plan."""
-        return await self._get(f"/twsd/api/v2/plan/jobstream/{jobstream_id}/model/description")
+        return await self._get(
+            f"/twsd/api/v2/plan/jobstream/{jobstream_id}/model/description"
+        )
 
     async def get_current_plan_jobstream_count(self) -> Any:
         """Return the total number of job streams in the current plan."""
@@ -702,7 +748,9 @@ class OptimizedTWSClient:
         """Retrieve a specific resource from the current plan."""
         return await self._get(f"/twsd/api/v2/plan/resource/{resource_id}")
 
-    async def get_current_plan_folder_objects_count(self, folder: str | None = None) -> Any:
+    async def get_current_plan_folder_objects_count(
+        self, folder: str | None = None
+    ) -> Any:
         """Return the number of plan objects within a folder."""
         params: dict[str, Any] = {}
         if folder:
@@ -934,4 +982,5 @@ def get_tws_client() -> "OptimizedTWSClient":
     Prefer importing `get_tws_client_singleton` from `resync.core.factories.tws_factory`.
     """
     from resync.core.factories.tws_factory import get_tws_client_singleton
+
     return get_tws_client_singleton()

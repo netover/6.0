@@ -72,11 +72,15 @@ class TWSStatusStore:
         """Get latest status for a job."""
         return await self._store.get_job_status(job_name)
 
-    async def get_job_history(self, job_name: str, limit: int = 100) -> list[TWSJobStatus]:
+    async def get_job_history(
+        self, job_name: str, limit: int = 100
+    ) -> list[TWSJobStatus]:
         """Get job status history."""
         return await self._store.get_job_history(job_name, limit)
 
-    async def get_failed_jobs(self, hours: int = 24, limit: int = 100) -> list[TWSJobStatus]:
+    async def get_failed_jobs(
+        self, hours: int = 24, limit: int = 100
+    ) -> list[TWSJobStatus]:
         """Get recently failed jobs."""
         return await self._store.get_failed_jobs(hours, limit)
 
@@ -113,7 +117,9 @@ class TWSStatusStore:
     ) -> list[TWSEvent]:
         """Get events with optional filters."""
         if severity:
-            return await self._store.events.get_events_by_severity(severity, limit=limit)
+            return await self._store.events.get_events_by_severity(
+                severity, limit=limit
+            )
         if job_name:
             return await self._store.events.find({"job_name": job_name}, limit=limit)
         return await self._store.events.get_all(limit=limit)
@@ -128,7 +134,9 @@ class TWSStatusStore:
         """Get unacknowledged events."""
         return await self._store.events.get_unacknowledged(limit)
 
-    async def acknowledge_event(self, event_id: int, acknowledged_by: str) -> TWSEvent | None:
+    async def acknowledge_event(
+        self, event_id: int, acknowledged_by: str
+    ) -> TWSEvent | None:
         """Acknowledge an event."""
         return await self._store.events.acknowledge_event(event_id, acknowledged_by)
 

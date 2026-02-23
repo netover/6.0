@@ -40,97 +40,101 @@ class SettingsValidators:
     # =========================================================================
     # CONSTANTS
     # =========================================================================
-    _INSECURE_ADMIN_PASSWORDS: ClassVar[frozenset[str]] = frozenset({
-        # Common weak passwords
-        "change_me_please",
-        "change_me_immediately",
-        "change_me",
-        "admin",
-        "administrator",
-        "root",
-        "password",
-        "password123",
-        "password1234",
-        "password12345",
-        "12345678",
-        "123456789",
-        "1234567890",
-        "qwerty",
-        "qwerty123",
-        "qwertyuiop",
-        "letmein",
-        "welcome",
-        "welcome1",
-        "monkey",
-        "dragon",
-        "master",
-        "login",
-        "passw0rd",
-        "p@ssword",
-        "p@ssw0rd",
-        "admin123",
-        "admin1234",
-        "root123",
-        "toor",
-        "test",
-        "test1234",
-        "guest",
-        "guest123",
-        "default",
-        "secret",
-        "secret123",
-        "111111",
-        "222222",
-        "333333",
-        "444444",
-        "555555",
-        "666666",
-        "7777777",
-        "888888",
-        "999999",
-        "000000",
-        "abc123",
-        "abcd1234",
-        "1234abcd",
-        "iloveyou",
-        "sunshine",
-        "princess",
-        "football",
-        "baseball",
-        "soccer",
-        "hockey",
-        "shadow",
-        "ashley",
-        "michael",
-        "superman",
-        "batman",
-        "trustno1",
-        "access",
-        # Note: "master" appears earlier in the list, removed duplicate
-        "hello",
-        "charlie",
-        "donald",
-        "admin888",
-        "admin666",
-        "q1w2e3r4",
-        "1q2w3e4r",
-        "zaq12wsx",
-        "xsw21qaz",
-    })
+    _INSECURE_ADMIN_PASSWORDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            # Common weak passwords
+            "change_me_please",
+            "change_me_immediately",
+            "change_me",
+            "admin",
+            "administrator",
+            "root",
+            "password",
+            "password123",
+            "password1234",
+            "password12345",
+            "12345678",
+            "123456789",
+            "1234567890",
+            "qwerty",
+            "qwerty123",
+            "qwertyuiop",
+            "letmein",
+            "welcome",
+            "welcome1",
+            "monkey",
+            "dragon",
+            "master",
+            "login",
+            "passw0rd",
+            "p@ssword",
+            "p@ssw0rd",
+            "admin123",
+            "admin1234",
+            "root123",
+            "toor",
+            "test",
+            "test1234",
+            "guest",
+            "guest123",
+            "default",
+            "secret",
+            "secret123",
+            "111111",
+            "222222",
+            "333333",
+            "444444",
+            "555555",
+            "666666",
+            "7777777",
+            "888888",
+            "999999",
+            "000000",
+            "abc123",
+            "abcd1234",
+            "1234abcd",
+            "iloveyou",
+            "sunshine",
+            "princess",
+            "football",
+            "baseball",
+            "soccer",
+            "hockey",
+            "shadow",
+            "ashley",
+            "michael",
+            "superman",
+            "batman",
+            "trustno1",
+            "access",
+            # Note: "master" appears earlier in the list, removed duplicate
+            "hello",
+            "charlie",
+            "donald",
+            "admin888",
+            "admin666",
+            "q1w2e3r4",
+            "1q2w3e4r",
+            "zaq12wsx",
+            "xsw21qaz",
+        }
+    )
 
-    _COMMON_TWS_PASSWORDS: ClassVar[frozenset[str]] = frozenset({
-        "password",
-        "twsuser",
-        "tws_password",
-        "change_me",
-        "tws123",
-        "tws1234",
-        "ibkr",
-        "interactive",
-        "broker",
-        "demo",
-        "demo1234",
-    })
+    _COMMON_TWS_PASSWORDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "password",
+            "twsuser",
+            "tws_password",
+            "change_me",
+            "tws123",
+            "tws1234",
+            "ibkr",
+            "interactive",
+            "broker",
+            "demo",
+            "demo1234",
+        }
+    )
 
     _PASSWORD_COMPLEXITY_MIN_LENGTH: ClassVar[int] = 12
     _PASSWORD_COMPLEXITY_REQUIRE_UPPER: ClassVar[bool] = True
@@ -144,12 +148,18 @@ class SettingsValidators:
         """Resolve base_dir to absolute path and validate existence/permissions."""
         resolved_path = v.resolve()
         if not resolved_path.exists():
-            raise ValueError(f"REQUIRED: base_dir directory must exist. Path not found: {resolved_path}")
+            raise ValueError(
+                f"REQUIRED: base_dir directory must exist. Path not found: {resolved_path}"
+            )
         if not resolved_path.is_dir():
-            raise ValueError(f"REQUIRED: base_dir must be a directory, not a file: {resolved_path}")
+            raise ValueError(
+                f"REQUIRED: base_dir must be a directory, not a file: {resolved_path}"
+            )
         # Issue 11: Permission checks
         if not os.access(resolved_path, os.R_OK):
-            raise ValueError(f"PERMISSION DENIED: base_dir is not readable: {resolved_path}")
+            raise ValueError(
+                f"PERMISSION DENIED: base_dir is not readable: {resolved_path}"
+            )
         return resolved_path
 
     @field_validator("db_pool_max_size")
@@ -158,7 +168,9 @@ class SettingsValidators:
         """Validate that max_size >= min_size."""
         min_size = info.data.get("db_pool_min_size", 0)
         if v < min_size:
-            raise ValueError(f"CONFIGURATION ERROR: db_pool_max_size ({v}) must be >= db_pool_min_size ({min_size})")
+            raise ValueError(
+                f"CONFIGURATION ERROR: db_pool_max_size ({v}) must be >= db_pool_min_size ({min_size})"
+            )
         return v
 
     @field_validator("redis_pool_max_size")
@@ -234,13 +246,15 @@ class SettingsValidators:
 
             # Check complexity requirements
             errors = []
-            if cls._PASSWORD_COMPLEXITY_REQUIRE_UPPER and not re.search(r'[A-Z]', pwd):
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_UPPER and not re.search(r"[A-Z]", pwd):
                 errors.append("at least 1 uppercase letter")
-            if cls._PASSWORD_COMPLEXITY_REQUIRE_LOWER and not re.search(r'[a-z]', pwd):
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_LOWER and not re.search(r"[a-z]", pwd):
                 errors.append("at least 1 lowercase letter")
-            if cls._PASSWORD_COMPLEXITY_REQUIRE_DIGIT and not re.search(r'\d', pwd):
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_DIGIT and not re.search(r"\d", pwd):
                 errors.append("at least 1 digit")
-            if cls._PASSWORD_COMPLEXITY_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>]', pwd):
+            if cls._PASSWORD_COMPLEXITY_REQUIRE_SPECIAL and not re.search(
+                r'[!@#$%^&*(),.?":{}|<>]', pwd
+            ):
                 errors.append("at least 1 special character (!@#$%^&*() etc.)")
 
             if errors:
@@ -267,8 +281,6 @@ class SettingsValidators:
 
         return v
 
-
-
     @field_validator("cors_allow_credentials")
     @classmethod
     def validate_credentials_with_wildcard(cls, v: bool, info: ValidationInfo) -> bool:
@@ -293,19 +305,21 @@ class SettingsValidators:
     def validate_llm_api_key(cls, v: SecretStr, info: ValidationInfo) -> SecretStr:
         """Valida chave da API em produção."""
         env = info.data.get("environment")
-        if (
-            env == Environment.PRODUCTION
-            and (not v.get_secret_value() or v.get_secret_value() == "dummy_key_for_development")
+        if env == Environment.PRODUCTION and (
+            not v.get_secret_value()
+            or v.get_secret_value() == "dummy_key_for_development"
         ):
             raise ValueError("LLM_API_KEY must be set to a valid key in production")
         return v
 
     @field_validator("tws_verify")
     @classmethod
-    def validate_tws_verify_warning(cls, v: bool | str, info: ValidationInfo) -> bool | str:
+    def validate_tws_verify_warning(
+        cls, v: bool | str, info: ValidationInfo
+    ) -> bool | str:
         """Emite warning para TWS verification em produção."""
         env = info.data.get("environment")
-        is_disabled = (v is False) or (isinstance(v, str) and v.lower() == "false")
+        is_disabled = (isinstance(v, bool) and not v) or (isinstance(v, str) and v.lower() == "false")
         if env == Environment.PRODUCTION and is_disabled:
             warnings.warn(
                 "TWS verification is disabled in production. This is a security risk.",
@@ -340,22 +354,20 @@ class SettingsValidators:
         if env == Environment.PRODUCTION and not mock_mode:
             pwd = v.get_secret_value()
             if not pwd:
-                raise ValueError(
-                    "TWS_PASSWORD is required when not in mock mode"
-                )
+                raise ValueError("TWS_PASSWORD is required when not in mock mode")
             if len(pwd) < 12:
                 raise ValueError(
                     "TWS_PASSWORD must be at least 12 characters in production"
                 )
             if pwd.lower() in cls._COMMON_TWS_PASSWORDS:
-                raise ValueError(
-                    "TWS_PASSWORD cannot be a common/default password"
-                )
+                raise ValueError("TWS_PASSWORD cannot be a common/default password")
         return v
 
     @field_validator("secret_key")
     @classmethod
-    def validate_secret_key(cls, v: SecretStr | None, info: ValidationInfo) -> SecretStr | None:
+    def validate_secret_key(
+        cls, v: SecretStr | None, info: ValidationInfo
+    ) -> SecretStr | None:
         """
         Validate secret_key for JWT signing.
 
@@ -391,7 +403,7 @@ class SettingsValidators:
     def validate_debug_in_production(cls, v: bool, info: ValidationInfo) -> bool:
         """Ensure debug mode is disabled in production."""
         env = info.data.get("environment")
-        if env == Environment.PRODUCTION and v is True:
+        if env == Environment.PRODUCTION and v:
             raise ValueError("Debug mode must be disabled in production")
         return v
 
@@ -407,7 +419,7 @@ class SettingsValidators:
                 UserWarning,
                 stacklevel=2,
             )
-        
+
         # Issue 11: Write permission check if directory exists
         if v.exists():
             if not os.access(v, os.W_OK):
@@ -416,8 +428,10 @@ class SettingsValidators:
             # Check if parent is writable to allow creation
             parent = v.parent
             if parent.exists() and not os.access(parent, os.W_OK):
-                raise ValueError(f"PERMISSION DENIED: Cannot create upload_dir, parent not writable: {parent}")
-                
+                raise ValueError(
+                    f"PERMISSION DENIED: Cannot create upload_dir, parent not writable: {parent}"
+                )
+
         return v
 
     @field_validator("cors_allowed_origins")
@@ -515,7 +529,9 @@ class SettingsValidators:
             )
         # Issue 12: Positive range
         if v <= 0:
-            raise ValueError(f"INVALID RANGE: redis_max_connections must be > 0. Got {v}")
+            raise ValueError(
+                f"INVALID RANGE: redis_max_connections must be > 0. Got {v}"
+            )
         return v
 
     # =========================================================================
@@ -575,7 +591,11 @@ class SettingsValidators:
 
         # 4. Backoff ranges: base must be <= max
         backoff_pairs = [
-            ("redis_startup_backoff_base", "redis_startup_backoff_max", "Redis startup"),
+            (
+                "redis_startup_backoff_base",
+                "redis_startup_backoff_max",
+                "Redis startup",
+            ),
             ("tws_retry_backoff_base", "tws_retry_backoff_max", "TWS retry"),
         ]
         for base_field, max_field, label in backoff_pairs:
@@ -600,20 +620,14 @@ class SettingsValidators:
         # 6. Service credentials when enabled
         if getattr(self, "langfuse_enabled", False):
             if not getattr(self, "langfuse_public_key", ""):
-                errors.append(
-                    "langfuse_public_key required when langfuse_enabled=True"
-                )
+                errors.append("langfuse_public_key required when langfuse_enabled=True")
             lf_secret = getattr(self, "langfuse_secret_key", None)
             if not lf_secret or not lf_secret.get_secret_value():
-                errors.append(
-                    "langfuse_secret_key required when langfuse_enabled=True"
-                )
+                errors.append("langfuse_secret_key required when langfuse_enabled=True")
 
         if getattr(self, "enterprise_enable_siem", False):
             if not getattr(self, "enterprise_siem_endpoint", None):
-                errors.append(
-                    "enterprise_siem_endpoint required when SIEM enabled"
-                )
+                errors.append("enterprise_siem_endpoint required when SIEM enabled")
 
         # 7. Production-specific cross-checks (FIXED: use direct enum comparison)
         env = getattr(self, "environment")
@@ -640,14 +654,10 @@ class SettingsValidators:
         # 8. TWS credentials when not in mock mode
         if not getattr(self, "tws_mock_mode", True):
             if not getattr(self, "tws_user", None):
-                errors.append(
-                    "tws_user is required when tws_mock_mode=False"
-                )
+                errors.append("tws_user is required when tws_mock_mode=False")
             tws_pw = getattr(self, "tws_password", None)
             if not tws_pw or not tws_pw.get_secret_value():
-                errors.append(
-                    "tws_password is required when tws_mock_mode=False"
-                )
+                errors.append("tws_password is required when tws_mock_mode=False")
 
         if errors:
             raise ValueError(

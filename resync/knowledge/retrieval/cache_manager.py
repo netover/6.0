@@ -127,7 +127,9 @@ class KGCacheManager:
         """Get current TTL in seconds."""
         return self._ttl_seconds
 
-    def register_refresh_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
+    def register_refresh_callback(
+        self, callback: Callable[[], Awaitable[None]]
+    ) -> None:
         """
         Register a callback to be called on cache refresh.
 
@@ -198,7 +200,9 @@ class KGCacheManager:
                 for callback in self._on_refresh_callbacks:
                     await callback()
 
-                duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                duration_ms = (
+                    datetime.now(timezone.utc) - start_time
+                ).total_seconds() * 1000
                 self._stats.record_load(duration_ms)
                 self._last_refresh = datetime.now(timezone.utc)
 
@@ -228,7 +232,9 @@ class KGCacheManager:
         stats = self._stats.to_dict()
         stats["ttl_seconds"] = self._ttl_seconds
         stats["is_stale"] = self.is_stale()
-        stats["time_until_stale_seconds"] = max(0, self.time_until_stale().total_seconds())
+        stats["time_until_stale_seconds"] = max(
+            0, self.time_until_stale().total_seconds()
+        )
         return stats
 
     # =========================================================================
@@ -243,7 +249,9 @@ class KGCacheManager:
             logger.warning("background_refresh_already_running")
             return
 
-        self._refresh_task = track_task(self._background_refresh_loop(), name="background_refresh_loop")
+        self._refresh_task = track_task(
+            self._background_refresh_loop(), name="background_refresh_loop"
+        )
         logger.info("background_refresh_started", interval_seconds=self._ttl_seconds)
 
     async def stop_background_refresh(self) -> None:

@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from resync.core.exceptions import AgentError
 from resync.core.metrics import runtime_metrics
+from resync.core.utils.async_bridge import run_sync
 from resync.models.agents import AgentConfig, AgentType
 from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
 from resync.settings import settings
@@ -147,17 +148,7 @@ class Agent:
 
     def run(self, message: str) -> str:
         """Synchronous wrapper around :meth:`arun`."""
-        import asyncio as _asyncio
-
-        try:
-            _asyncio.get_running_loop()
-        except RuntimeError:
-            return _asyncio.run(self.arun(message))
-
-        raise RuntimeError(
-            "Agent.run() cannot be called from an async event loop; "
-            "use `await agent.arun()` instead."
-        )
+        return run_sync(self.arun(message))
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the agent for API responses."""
@@ -310,12 +301,22 @@ class AgentManager:
     # -----------------------------------------------------------------
 
     def _get_tws_lock(self) -> asyncio.Lock:
-        if self._tws_init_lock is None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._tws_init_lock is None or (loop and self._tws_init_lock._loop != loop):
             self._tws_init_lock = asyncio.Lock()
         return self._tws_init_lock
 
     def _get_agent_lock(self) -> asyncio.Lock:
-        if self._agent_creation_lock is None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._agent_creation_lock is None or (loop and self._agent_creation_lock._loop != loop):
             self._agent_creation_lock = asyncio.Lock()
         return self._agent_creation_lock
 

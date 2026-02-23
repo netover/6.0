@@ -19,9 +19,7 @@ class TeamsPermissionsManager:
         self.db = db_session
 
     def check_user_permission(
-        self,
-        email: str,
-        command_type: str = "query"
+        self, email: str, command_type: str = "query"
     ) -> dict[str, Any]:
         """
         Verifica permissão do usuário.
@@ -35,8 +33,7 @@ class TeamsPermissionsManager:
         """
         # Busca usuário no banco
         stmt = select(TeamsWebhookUser).where(
-            TeamsWebhookUser.email == email,
-            TeamsWebhookUser.is_active
+            TeamsWebhookUser.email == email, TeamsWebhookUser.is_active
         )
         result = self.db.execute(stmt)
         user = result.scalar_one_or_none()
@@ -46,7 +43,7 @@ class TeamsPermissionsManager:
             return {
                 "has_permission": command_type == "query",
                 "role": "viewer",
-                "reason": "User not registered - read-only mode"
+                "reason": "User not registered - read-only mode",
             }
 
         # Atualiza last_activity
@@ -66,14 +63,14 @@ class TeamsPermissionsManager:
             email=email,
             role=user.role,
             command_type=command_type,
-            has_permission=has_permission
+            has_permission=has_permission,
         )
 
         return {
             "has_permission": has_permission,
             "role": user.role,
             "reason": reason,
-            "user_id": user.id
+            "user_id": user.id,
         }
 
     def create_user(
@@ -82,7 +79,7 @@ class TeamsPermissionsManager:
         name: str,
         role: str = "viewer",
         can_execute: bool = False,
-        aad_object_id: str | None = None
+        aad_object_id: str | None = None,
     ) -> TeamsWebhookUser:
         """Cria novo usuário com permissões."""
         user = TeamsWebhookUser(
@@ -90,7 +87,7 @@ class TeamsPermissionsManager:
             name=name,
             role=role,
             can_execute_commands=can_execute,
-            aad_object_id=aad_object_id
+            aad_object_id=aad_object_id,
         )
         self.db.add(user)
         self.db.commit()
@@ -100,10 +97,7 @@ class TeamsPermissionsManager:
         return user
 
     def update_user_permissions(
-        self,
-        email: str,
-        role: str | None = None,
-        can_execute: bool | None = None
+        self, email: str, role: str | None = None, can_execute: bool | None = None
     ) -> TeamsWebhookUser | None:
         """Atualiza permissões do usuário."""
         stmt = select(TeamsWebhookUser).where(TeamsWebhookUser.email == email)
@@ -135,7 +129,7 @@ class TeamsPermissionsManager:
         command_type: str,
         was_authorized: bool,
         response_sent: bool,
-        error_message: str | None = None
+        error_message: str | None = None,
     ) -> None:
         """Registra interação no audit log."""
         audit = TeamsWebhookAudit(
@@ -147,7 +141,7 @@ class TeamsPermissionsManager:
             command_type=command_type,
             was_authorized=was_authorized,
             response_sent=response_sent,
-            error_message=error_message
+            error_message=error_message,
         )
         self.db.add(audit)
         self.db.commit()

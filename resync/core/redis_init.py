@@ -6,12 +6,15 @@ distributed locking, health checks, and proper error handling.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
+import inspect
 import logging
 import os
 import socket
 from contextlib import suppress
-from typing import TYPE_CHECKING, Optional
+from collections.abc import Awaitable
+from typing import TYPE_CHECKING, Optional, cast
+
+from resync.core.task_tracker import create_tracked_task
 
 if TYPE_CHECKING:
     from resync.core.idempotency.manager import IdempotencyManager
@@ -43,6 +46,33 @@ except ImportError:  # redis opcional
     RedisTimeoutError = Exception  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+async def _ensure_awaitable_bool(result: Awaitable[bool] | bool) -> bool:
+    """Normalize redis methods that may return bool or awaitable bool."""
+    if inspect.isawaitable(result):
+        return await cast(Awaitable[bool], result)
+    return cast(bool, result)
+
+
+async def _ensure_awaitable_str(result: Awaitable[str] | str) -> str:
+    """Normalize redis eval that may return str or awaitable str."""
+    if inspect.isawaitable(result):
+        return await cast(Awaitable[str], result)
+    return cast(str, result)
+
+
+def _resolve_redis_url(url_value: object) -> str:
+    """Normalize redis url value from str/SecretStr-like objects."""
+    getter = getattr(url_value, "get_secret_value", None)
+    if callable(getter):
+        secret = getter()
+        return str(secret)
+    if isinstance(url_value, str):
+        return url_value
+    if url_value is None:
+        return "redis://localhost:6379/0"
+    return str(url_value)
 
 
 def _env_flag(name: str, default: str = "0") -> bool:
@@ -98,7 +128,11 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
     global _REDIS_CLIENT  # pylint: disable=W0603
 
     if _REDIS_CLIENT is None:
-        lazy = os.getenv("RESYNC_REDIS_LAZY_INIT", "0").strip().lower() in {"1", "true", "yes"}
+        lazy = os.getenv("RESYNC_REDIS_LAZY_INIT", "0").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         if not lazy:
             raise RuntimeError(
                 "Redis client not initialized. Ensure RedisInitializer.initialize() runs "
@@ -108,13 +142,12 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
 
         # Legacy path (scripts/dev only)
         _url = getattr(settings, "redis_url", None)
-        if hasattr(_url, "get_secret_value"):
-            url = _url.get_secret_value()
-        else:
-            url = _url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
-            
+        url = _resolve_redis_url(_url) if _url is not None else os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
         _REDIS_CLIENT = redis.from_url(url, encoding="utf-8", decode_responses=True)
-        logger.warning("Initialized Redis client via lazy init (RESYNC_REDIS_LAZY_INIT=1).")
+        logger.warning(
+            "Initialized Redis client via lazy init (RESYNC_REDIS_LAZY_INIT=1)."
+        )
 
     return _REDIS_CLIENT
 
@@ -134,7 +167,6 @@ async def close_redis_client() -> None:
         _REDIS_CLIENT = None
 
 
-
 def get_idempotency_manager() -> "IdempotencyManager":
     """Return the global idempotency manager if initialized.
 
@@ -149,6 +181,8 @@ def get_idempotency_manager() -> "IdempotencyManager":
         client = get_redis_client()
         _IDEMPOTENCY_MANAGER = IdempotencyManager(client)
     return _IDEMPOTENCY_MANAGER
+
+
 class RedisInitializer:
     """
     Thread-safe Redis initialization with connection pooling.
@@ -204,7 +238,7 @@ class RedisInitializer:
         async with self.lock:
             if self._initialized and self._client:
                 try:
-                    await asyncio.wait_for(self._client.ping(), timeout=1.0)
+                    await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=1.0)
                     return self._client
                 except (RedisError, asyncio.TimeoutError):
                     logger.warning("Existing Redis connection lost, reinitializing")
@@ -218,7 +252,9 @@ class RedisInitializer:
                 try:
                     redis_client = self._create_client_with_pool(redis_url)
 
-                    acquired = await redis_client.set(lock_key, lock_val, nx=True, ex=lock_timeout)
+                    acquired = await redis_client.set(
+                        lock_key, lock_val, nx=True, ex=lock_timeout
+                    )
                     if not acquired:
                         logger.info(
                             "Another instance is initializing Redis, waiting... (attempt %s/%s)",
@@ -235,7 +271,7 @@ class RedisInitializer:
 
                     try:
                         # Conectividade básica
-                        await asyncio.wait_for(redis_client.ping(), timeout=2.0)
+                        await asyncio.wait_for(_ensure_awaitable_bool(redis_client.ping()), timeout=2.0)
 
                         # Teste RW coerente com decode_responses=True
                         test_key = f"resync:health:test:{os.getpid()}"
@@ -285,7 +321,9 @@ class RedisInitializer:
                         # SECURITY NOTE: This is legitimate Redis EVAL usage for atomic distributed locking
                         # The Lua script is hardcoded and performs only safe Redis operations
                         with suppress(RedisError, ConnectionError):
-                            await redis_client.eval(self.UNLOCK_SCRIPT, 1, lock_key, lock_val)
+                            await _ensure_awaitable_str(redis_client.eval(
+                                self.UNLOCK_SCRIPT, 1, lock_key, lock_val
+                            ))
 
                 except AuthenticationError as e:
                     msg = f"Redis authentication failed: {e}"
@@ -297,7 +335,9 @@ class RedisInitializer:
                     logger.critical(msg, exc_info=True)
                     raise RedisInitError(f"{msg}: {e}") from e
 
-        raise RedisInitError("Redis initialization failed - unexpected fallthrough") from None
+        raise RedisInitError(
+            "Redis initialization failed - unexpected fallthrough"
+        ) from None
 
     def _create_client_with_pool(self, redis_url: str | None = None) -> "redis.Redis":  # type: ignore
         if redis is None:
@@ -313,12 +353,11 @@ class RedisInitializer:
                 }[name]
         # v5.9.7: Use consolidated settings field names
         _url = redis_url or getattr(settings, "redis_url", "redis://localhost:6379/0")
-        if hasattr(_url, "get_secret_value"):
-            url = _url.get_secret_value()
-        else:
-            url = str(_url)
-            
-        max_conns = getattr(settings, "redis_pool_max_size", None) or getattr(settings, "redis_max_connections", 50)
+        url = _resolve_redis_url(_url)
+
+        max_conns = getattr(settings, "redis_pool_max_size", None) or getattr(
+            settings, "redis_max_connections", 50
+        )
         socket_connect_timeout = getattr(settings, "redis_pool_connect_timeout", 5)
         socket_timeout = getattr(settings, "redis_timeout", 30)
         health_interval = getattr(settings, "redis_health_check_interval", 30)
@@ -350,13 +389,17 @@ class RedisInitializer:
             await asyncio.sleep(interval)
             try:
                 if self._client:
-                    await asyncio.wait_for(self._client.ping(), timeout=2.0)
+                    await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=2.0)
             except (RedisError, asyncio.TimeoutError):
-                logger.error("Redis health check failed - connection may be lost", exc_info=True)
+                logger.error(
+                    "Redis health check failed - connection may be lost", exc_info=True
+                )
                 self._initialized = False
                 break
             except (OSError, ValueError) as e:
-                logger.error("Unexpected error in Redis health check: %s", e, exc_info=True)
+                logger.error(
+                    "Unexpected error in Redis health check: %s", e, exc_info=True
+                )
 
     async def close(self) -> None:
         """Close the Redis initializer and cleanup resources."""

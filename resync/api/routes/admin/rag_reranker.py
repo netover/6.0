@@ -67,7 +67,9 @@ class GatingConfigResponse(BaseModel):
     """Response model for gating configuration."""
 
     enabled: bool = Field(description="Whether gating is enabled")
-    score_low_threshold: float = Field(description="Activate rerank if top1 < threshold")
+    score_low_threshold: float = Field(
+        description="Activate rerank if top1 < threshold"
+    )
     margin_threshold: float = Field(description="Activate rerank if top1-top2 < margin")
     max_candidates: int = Field(description="Maximum candidates to rerank")
     entropy_check_enabled: bool = Field(description="Whether entropy check is enabled")

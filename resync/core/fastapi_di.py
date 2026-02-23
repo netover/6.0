@@ -27,11 +27,11 @@ from fastapi import HTTPException, Request, status
 # Minimal generic container (kept for backwards compatibility)
 # ---------------------------------------------------------------------------
 
-T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
 
 
-class ServiceFactory(Protocol[T]):
-    def __call__(self) -> T: ...
+class ServiceFactory(Protocol[T_co]):
+    def __call__(self) -> T_co: ...
 
 
 @dataclass
@@ -131,6 +131,7 @@ async def get_file_ingestor(request: Request):
 
     try:
         from resync.core.wiring import get_file_ingestor as _get
+
         return _get(request)
     except Exception as exc:
         raise HTTPException(

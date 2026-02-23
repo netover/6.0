@@ -9,7 +9,9 @@ class SOC2TrustServiceCriteria(Enum):
 
     SECURITY = "security"  # Protects against unauthorized access
     AVAILABILITY = "availability"  # Systems available for operation
-    PROCESSING_INTEGRITY = "processing_integrity"  # System processing complete, accurate, timely
+    PROCESSING_INTEGRITY = (
+        "processing_integrity"  # System processing complete, accurate, timely
+    )
     CONFIDENTIALITY = "confidentiality"  # Information designated confidential protected
     PRIVACY = "privacy"  # Personal information collected, used, retained appropriately
 

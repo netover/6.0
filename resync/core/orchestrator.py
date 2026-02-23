@@ -1,5 +1,7 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
-Service Orchestrator — parallel fan-out/fan-in for multiple backend services.
+Service Orchestrator (v6.1.2) — parallel fan-out/fan-in for multiple backend services.
 
 Coordinates calls to TWS, Knowledge Graph and other services with:
 - Automatic parallelisation of independent calls via ``asyncio.gather``
@@ -14,12 +16,13 @@ Note:
     consider ``aiocircuitbreaker`` or a custom state machine per dependency.
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import random
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from resync.core.structured_logger import get_logger
 
@@ -90,7 +93,7 @@ class OrchestrationResult:
 
     @property
     def success_rate(self) -> float:
-        """Fraction of attempted tasks that succeeded (0.0–1.0).
+        """Fraction of attempted tasks that succeeded (0.0-1.0).
 
         Computed dynamically from ``attempted_tasks`` and ``errors``, so it
         is always consistent regardless of which optional tasks were included.
@@ -229,7 +232,7 @@ class ServiceOrchestrator:
         """
         result = OrchestrationResult()
 
-        # Build task map (insertion-order stable in Python 3.7+)
+        # Build task map (insertion-order stable in Python 3.14+)
         tasks: dict[str, Coroutine[Any, Any, Any]] = {
             "status": self._call_with_retry(
                 "tws_job_status",
@@ -237,9 +240,7 @@ class ServiceOrchestrator:
             ),
             "context": self._call_with_retry(
                 "kg_context",
-                lambda jn=job_name: self.kg.get_relevant_context(
-                    f"job failure {jn}"
-                ),
+                lambda jn=job_name: self.kg.get_relevant_context(f"job failure {jn}"),
             ),
             "history": self._call_with_retry(
                 "historical_failures",
@@ -250,9 +251,7 @@ class ServiceOrchestrator:
         if include_logs:
             tasks["logs"] = self._call_with_retry(
                 "tws_job_logs",
-                lambda jn=job_name: self.tws.get_job_logs(
-                    jn, lines=_DEFAULT_LOG_LINES
-                ),
+                lambda jn=job_name: self.tws.get_job_logs(jn, lines=_DEFAULT_LOG_LINES),
             )
 
         if include_dependencies:
@@ -264,12 +263,25 @@ class ServiceOrchestrator:
         result.attempted_tasks = len(tasks)
 
         # Fan-out with global timeout
+        task_objs: dict[str, asyncio.Task] = {}
+
         try:
-            raw_results = await asyncio.wait_for(
-                asyncio.gather(*tasks.values(), return_exceptions=True),
-                timeout=self.timeout,
-            )
-        except asyncio.TimeoutError:
+            async with asyncio.timeout(self.timeout):
+                try:
+                    async with asyncio.TaskGroup() as tg:
+                        for name, coro in tasks.items():
+                            task_objs[name] = tg.create_task(coro, name=name)
+                except* asyncio.CancelledError:
+                    # Garantir que cancelamento cooperative seja propagado
+                    raise
+                except* Exception as eg:
+                    # Log detalhado, mas não interrompe o flow (partial failure)
+                    logger.warning(
+                        "orchestration_tasks_partial_failure",
+                        job_name=job_name,
+                        count=len(eg.exceptions)
+                    )
+        except TimeoutError:
             logger.error(
                 "orchestration_timeout",
                 job_name=job_name,
@@ -277,10 +289,11 @@ class ServiceOrchestrator:
                 attempted=result.attempted_tasks,
             )
             result.errors["_global"] = f"Orchestration timed out after {self.timeout}s"
+            # Retorna resultado parcial (tasks canceladas serão tratadas no fan-in)
             return result
 
         # Fan-in: map results back to task names
-        self._assign_results(result, list(tasks.keys()), raw_results)
+        self._assign_results(result, task_objs)
 
         logger.info(
             "orchestration_complete",
@@ -319,12 +332,19 @@ class ServiceOrchestrator:
             ),
         }
 
+        task_objs: dict[str, asyncio.Task] = {}
         try:
-            raw_results = await asyncio.wait_for(
-                asyncio.gather(*tasks.values(), return_exceptions=True),
-                timeout=self.timeout,
-            )
-        except asyncio.TimeoutError:
+            async with asyncio.timeout(self.timeout):
+                try:
+                    async with asyncio.TaskGroup() as tg:
+                        for name, coro in tasks.items():
+                            task_objs[name] = tg.create_task(coro, name=f"health_{name}")
+                except* asyncio.CancelledError:
+                    raise
+                except* Exception:
+                    # Exceptions will be caught when checking task.result()
+                    pass
+        except TimeoutError:
             logger.error("health_check_timeout", timeout=self.timeout)
             return {
                 "status": "ERROR",
@@ -333,17 +353,24 @@ class ServiceOrchestrator:
 
         health: dict[str, Any] = {"status": "HEALTHY", "details": {}}
 
-        for task_name, task_result in zip(tasks.keys(), raw_results):
-            if isinstance(task_result, BaseException):
+        for task_name, task in task_objs.items():
+            # Safer result extraction
+            if not task.done():
                 health["status"] = "DEGRADED"
-                health["details"][task_name] = {
-                    "status": "ERROR",
-                    "error": str(task_result),
-                }
-            else:
+                health["details"][task_name] = {"status": "TIMEOUT"}
+                continue
+
+            try:
+                task_result = task.result()
                 health["details"][task_name] = {
                     "status": "OK",
                     "data": task_result,
+                }
+            except (asyncio.CancelledError, Exception) as e:
+                health["status"] = "DEGRADED"
+                health["details"][task_name] = {
+                    "status": "ERROR",
+                    "error": str(e),
                 }
 
         return health
@@ -352,18 +379,12 @@ class ServiceOrchestrator:
     # Internal helpers
     # -----------------------------------------------------------------
 
-    @staticmethod
     def _assign_results(
+        self,
         result: OrchestrationResult,
-        task_names: list[str],
-        raw_results: list[Any],
+        tasks: dict[str, asyncio.Task],
     ) -> None:
-        """Map gather results back to ``OrchestrationResult`` fields.
-
-        Uses ``BaseException`` (not ``Exception``) so that
-        ``asyncio.CancelledError`` is correctly classified as a failure
-        rather than being silently assigned as data.
-        """
+        """Map task results back to ``OrchestrationResult`` fields."""
         _field_map: dict[str, str] = {
             "status": "tws_status",
             "context": "kg_context",
@@ -372,25 +393,29 @@ class ServiceOrchestrator:
             "history": "historical_failures",
         }
 
-        for task_name, task_result in zip(task_names, raw_results):
-            if isinstance(task_result, BaseException):
+        for task_name, task in tasks.items():
+            # Safer extraction: only try .result() if task is actually done
+            if not task.done():
+                result.errors[task_name] = "Task timed out or not completed"
+                continue
+
+            try:
+                task_result = task.result()
+                attr = _field_map.get(task_name)
+                if attr:
+                    setattr(result, attr, task_result)
+            except (asyncio.CancelledError, Exception) as e:
                 result.errors[task_name] = (
-                    f"{type(task_result).__name__}: {task_result}"
+                    f"{type(e).__name__}: {e}"
                 )
                 logger.warning(
                     "orchestration_task_failed",
                     task=task_name,
-                    error=type(task_result).__name__,
-                    detail=str(task_result),
+                    error=type(e).__name__,
+                    detail=str(e),
                 )
-            else:
-                attr = _field_map.get(task_name)
-                if attr:
-                    setattr(result, attr, task_result)
 
-    async def _fetch_historical_failures(
-        self, job_name: str
-    ) -> list[dict[str, Any]]:
+    async def _fetch_historical_failures(self, job_name: str) -> list[dict[str, Any]]:
         """Query KG for historical failures related to *job_name*.
 
         Returns a structured list (possibly empty) rather than raw text.

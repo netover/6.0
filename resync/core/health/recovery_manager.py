@@ -125,7 +125,9 @@ class HealthRecoveryManager:
             recovery_time_ms = (time.time() - start_time) * 1000
             error_message = f"Database recovery failed: {str(e)}"
 
-            logger.error("database_recovery_failed", error=str(e), duration_ms=recovery_time_ms)
+            logger.error(
+                "database_recovery_failed", error=str(e), duration_ms=recovery_time_ms
+            )
 
             result = RecoveryResult(
                 success=False,
@@ -219,7 +221,9 @@ class HealthRecoveryManager:
             recovery_time_ms = (time.time() - start_time) * 1000
             error_message = f"Cache recovery failed: {str(e)}"
 
-            logger.error("cache_recovery_failed", error=str(e), duration_ms=recovery_time_ms)
+            logger.error(
+                "cache_recovery_failed", error=str(e), duration_ms=recovery_time_ms
+            )
 
             result = RecoveryResult(
                 success=False,
@@ -311,7 +315,9 @@ class HealthRecoveryManager:
             recovery_time_ms = (time.time() - start_time) * 1000
             error_message = f"Service recovery failed: {str(e)}"
 
-            logger.error("service_recovery_failed", error=str(e), duration_ms=recovery_time_ms)
+            logger.error(
+                "service_recovery_failed", error=str(e), duration_ms=recovery_time_ms
+            )
 
             result = RecoveryResult(
                 success=False,
@@ -362,34 +368,34 @@ class HealthRecoveryManager:
         """Test production cache connectivity and performance."""
         try:
             from resync.core.cache import get_cache_hierarchy
- 
+
             hierarchy = await get_cache_hierarchy()
             if not hierarchy:
                 return {"success": False, "error": "Cache hierarchy not initialized"}
- 
+
             # Test basic operations on the actual production cache
             test_key = f"health_recovery_ping_{int(time.time())}"
             test_value = "pong"
- 
+
             start_time = time.time()
             await hierarchy.set(test_key, test_value, ttl=10)
             retrieved = await hierarchy.get(test_key)
             perf_time = (time.time() - start_time) * 1000
- 
+
             if retrieved != test_value:
                 return {
                     "success": False,
                     "error": "Cache data integrity check failed",
                     "performance_poor": True,
                 }
- 
+
             return {
                 "success": True,
                 "performance_poor": perf_time > 200,
                 "performance_time_ms": perf_time,
                 "needs_restart": False,
             }
- 
+
         except Exception as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -408,7 +414,9 @@ class HealthRecoveryManager:
 
     def _clear_stale_cache_entries(self) -> dict[str, Any]:
         """Clear stale cache entries (Placeholder)."""
-        logger.warning("recovery_action_not_fully_implemented", action="clear_stale_entries")
+        logger.warning(
+            "recovery_action_not_fully_implemented", action="clear_stale_entries"
+        )
         return {
             "success": False,
             "error": "Manual cache cleanup not yet implemented",
@@ -417,8 +425,13 @@ class HealthRecoveryManager:
 
     def _restart_cache_connections(self) -> dict[str, Any]:
         """Restart cache connections (Placeholder)."""
-        logger.warning("recovery_action_not_fully_implemented", action="restart_connections")
-        return {"success": False, "error": "Cache connection restart not yet implemented"}
+        logger.warning(
+            "recovery_action_not_fully_implemented", action="restart_connections"
+        )
+        return {
+            "success": False,
+            "error": "Cache connection restart not yet implemented",
+        }
 
     def _reset_cache_system(self) -> dict[str, Any]:
         """Reset the entire cache system."""
@@ -480,7 +493,9 @@ class HealthRecoveryManager:
             # Cleanup old entries if needed
             if len(self.recovery_history) > self.max_history_entries:
                 # Keep most recent entries
-                self.recovery_history = self.recovery_history[-self.max_history_entries :]
+                self.recovery_history = self.recovery_history[
+                    -self.max_history_entries :
+                ]
 
     def get_recovery_history(
         self,
@@ -503,13 +518,17 @@ class HealthRecoveryManager:
 
         # Filter results
         filtered_results = [
-            result for result in self.recovery_history if result.timestamp >= cutoff_time
+            result
+            for result in self.recovery_history
+            if result.timestamp >= cutoff_time
         ]
 
         # Filter by component if specified
         if component_name:
             filtered_results = [
-                result for result in filtered_results if result.component_name == component_name
+                result
+                for result in filtered_results
+                if result.component_name == component_name
             ]
 
         # Sort by timestamp (most recent first)
@@ -527,7 +546,9 @@ class HealthRecoveryManager:
             return {"total_attempts": 0, "success_rate": 0.0}
 
         total_attempts = len(self.recovery_history)
-        successful_attempts = sum(1 for result in self.recovery_history if result.success)
+        successful_attempts = sum(
+            1 for result in self.recovery_history if result.success
+        )
 
         # Calculate success rate by component
         component_stats = {}

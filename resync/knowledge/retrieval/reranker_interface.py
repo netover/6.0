@@ -110,14 +110,19 @@ class RerankGatingPolicy:
     # Statistics for monitoring
     _total_decisions: int = field(default=0, repr=False)
     _rerank_activated: int = field(default=0, repr=False)
-    _reasons: dict[str, int] = field(default_factory=lambda: {
-        "low_score": 0,
-        "small_margin": 0,
-        "high_entropy": 0,
-        "skipped": 0,
-    }, repr=False)
+    _reasons: dict[str, int] = field(
+        default_factory=lambda: {
+            "low_score": 0,
+            "small_margin": 0,
+            "high_entropy": 0,
+            "skipped": 0,
+        },
+        repr=False,
+    )
 
-    def should_rerank(self, scores: list[float], normalize: bool = True) -> tuple[bool, str]:
+    def should_rerank(
+        self, scores: list[float], normalize: bool = True
+    ) -> tuple[bool, str]:
         """
         Determine if reranking should be activated.
 
@@ -159,7 +164,9 @@ class RerankGatingPolicy:
         if s1 < self.config.score_low_threshold:
             self._rerank_activated += 1
             self._reasons["low_score"] += 1
-            logger.debug("Rerank activated: low top1 score ({s1:.3f} < {self.config.score_low_threshold})")
+            logger.debug(
+                "Rerank activated: low top1 score ({s1:.3f} < {self.config.score_low_threshold})"
+            )
             return True, "low_score"
 
         # Rule B: Small margin between top1 and top2 → ambiguity
@@ -167,7 +174,9 @@ class RerankGatingPolicy:
         if margin < self.config.margin_threshold:
             self._rerank_activated += 1
             self._reasons["small_margin"] += 1
-            logger.debug("Rerank activated: small margin ({margin:.3f} < {self.config.margin_threshold})")
+            logger.debug(
+                "Rerank activated: small margin ({margin:.3f} < {self.config.margin_threshold})"
+            )
             return True, "small_margin"
 
         # Rule C: High entropy (optional, more expensive to compute)
@@ -176,12 +185,16 @@ class RerankGatingPolicy:
             if entropy > self.config.entropy_threshold:
                 self._rerank_activated += 1
                 self._reasons["high_entropy"] += 1
-                logger.debug("Rerank activated: high entropy ({entropy:.3f} > {self.config.entropy_threshold})")
+                logger.debug(
+                    "Rerank activated: high entropy ({entropy:.3f} > {self.config.entropy_threshold})"
+                )
                 return True, "high_entropy"
 
         # All checks passed → retrieval confident, skip rerank
         self._reasons["skipped"] += 1
-        logger.debug("Rerank skipped: confident retrieval (top1={s1:.3f}, margin={margin:.3f})")
+        logger.debug(
+            "Rerank skipped: confident retrieval (top1={s1:.3f}, margin={margin:.3f})"
+        )
         return False, "confident"
 
     def _compute_normalized_entropy(self, scores: list[float]) -> float:
@@ -379,7 +392,7 @@ class CrossEncoderReranker:
         if self._model is not None:
             return self._model
 
-        if self._available is False:
+        if not self._available:
             return None
 
         try:
@@ -440,13 +453,11 @@ class CrossEncoderReranker:
             pairs = []
             for doc in candidates:
                 text = (
-                    doc.get("text") or
-                    doc.get("content") or
-                    doc.get("chunk_text", "")
+                    doc.get("text") or doc.get("content") or doc.get("chunk_text", "")
                 )
                 if isinstance(text, dict):
                     text = text.get("text", str(text))
-                pairs.append((query, str(text)[:self.max_length]))
+                pairs.append((query, str(text)[: self.max_length]))
 
             # Get scores from cross-encoder
             scores = model.predict(pairs)
@@ -456,7 +467,9 @@ class CrossEncoderReranker:
 
             # Attach scores and original rank
             scored_docs = []
-            for idx, (doc, score) in enumerate(zip(candidates, normalized, strict=False)):
+            for idx, (doc, score) in enumerate(
+                zip(candidates, normalized, strict=False)
+            ):
                 doc_copy = dict(doc)
                 doc_copy["rerank_score"] = round(score, 4)
                 doc_copy["original_rank"] = idx + 1
@@ -466,10 +479,7 @@ class CrossEncoderReranker:
             scored_docs.sort(key=lambda x: x[1], reverse=True)
 
             # Filter by threshold
-            result = [
-                doc for doc, score in scored_docs
-                if score >= self.threshold
-            ]
+            result = [doc for doc, score in scored_docs if score >= self.threshold]
 
             # If all filtered out, return top results anyway
             if not result:
@@ -520,15 +530,13 @@ class CrossEncoderReranker:
     def get_info(self) -> dict[str, Any]:
         """Get cross-encoder reranker info."""
         avg_latency = (
-            self._total_latency_ms / self._call_count
-            if self._call_count > 0
-            else 0.0
+            self._total_latency_ms / self._call_count if self._call_count > 0 else 0.0
         )
 
         return {
             "type": "cross_encoder",
             "enabled": True,
-            "available": self._available is not False,
+            "available": self._available in (True, None),
             "loaded": self._model is not None,
             "model": self.model_name,
             "threshold": self.threshold,
@@ -566,7 +574,7 @@ def create_reranker(
         reranker = create_reranker()
 
         # In retrieval
-        results = await reranker.rerank(query, candidates)
+        results = reranker.rerank(query, candidates)
     """
     from resync.knowledge.config import CFG
 
@@ -612,7 +620,7 @@ def create_gated_reranker(
         should_rerank, reason = gating.should_rerank(scores)
         if should_rerank:
             pool = candidates[:gating.config.max_candidates]
-            results = await reranker.rerank(query, pool)
+            results = reranker.rerank(query, pool)
     """
     if reranker is None:
         reranker = create_reranker()

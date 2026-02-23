@@ -9,7 +9,7 @@ Usage::
     from resync.core.resilience_singletons import adaptive_tws_api_breaker
 """
 
-from __future__ import annotations
+
 
 from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
 

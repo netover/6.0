@@ -541,10 +541,22 @@ def install_postgres_linux() -> None:
     if os.path.exists("/etc/debian_version"):
         # Debian/Ubuntu
         run_command(["sudo", "apt", "update"])
-        run_command(["sudo", "apt", "install", "-y", "postgresql", "postgresql-contrib", "postgresql-16-pgvector"])
+        run_command(
+            [
+                "sudo",
+                "apt",
+                "install",
+                "-y",
+                "postgresql",
+                "postgresql-contrib",
+                "postgresql-16-pgvector",
+            ]
+        )
     elif os.path.exists("/etc/redhat-release"):
         # RHEL/CentOS/Fedora
-        run_command(["sudo", "yum", "install", "-y", "postgresql-server", "postgresql-contrib"])
+        run_command(
+            ["sudo", "yum", "install", "-y", "postgresql-server", "postgresql-contrib"]
+        )
         run_command(["sudo", "postgresql-setup", "initdb"])
     else:
         print("Distribuição não suportada. Instale manualmente.")
@@ -569,10 +581,20 @@ def setup_database() -> None:
 
     # Verifica se PostgreSQL está rodando
     try:
-        result = run_command([
-            "psql", "-h", DB_HOST, "-p", str(DB_PORT),
-            "-U", "postgres", "-c", "SELECT version();"
-        ], check=False)
+        result = run_command(
+            [
+                "psql",
+                "-h",
+                DB_HOST,
+                "-p",
+                str(DB_PORT),
+                "-U",
+                "postgres",
+                "-c",
+                "SELECT version();",
+            ],
+            check=False,
+        )
         if result.returncode != 0:
             print("Erro ao conectar ao PostgreSQL. Verifique se está rodando.")
             return
@@ -594,10 +616,20 @@ def setup_database() -> None:
 
     for cmd in commands:
         try:
-            run_command([
-                "psql", "-h", DB_HOST, "-p", str(DB_PORT),
-                "-U", "postgres", "-c", cmd
-            ], check=False)
+            run_command(
+                [
+                    "psql",
+                    "-h",
+                    DB_HOST,
+                    "-p",
+                    str(DB_PORT),
+                    "-U",
+                    "postgres",
+                    "-c",
+                    cmd,
+                ],
+                check=False,
+            )
         except Exception as e:
             print(f"Nota: {e}")
 
@@ -606,10 +638,21 @@ def setup_database() -> None:
     schema_file = Path(__file__).parent / "schema.sql"
     schema_file.write_text(SCHEMA_SQL)
 
-    run_command([
-        "psql", "-h", DB_HOST, "-p", str(DB_PORT),
-        "-U", "postgres", "-d", DB_NAME, "-f", str(schema_file)
-    ])
+    run_command(
+        [
+            "psql",
+            "-h",
+            DB_HOST,
+            "-p",
+            str(DB_PORT),
+            "-U",
+            "postgres",
+            "-d",
+            DB_NAME,
+            "-f",
+            str(schema_file),
+        ]
+    )
 
     print(f"""
 === Banco de Dados Configurado ===
@@ -628,18 +671,20 @@ def run_migrations() -> None:
     """Executa migrações SQLAlchemy (se houver)."""
     print("\n=== Executando Migrações ===")
     print("Para criar tabelas via SQLAlchemy, execute:")
-    print("    python -c \"from resync.core.database import engine; from resync.core.database.models import *; import resync.core.database.models_registry; from resync.core.database.schema import Base; Base.metadata.create_all(engine)\"")
+    print(
+        '    python -c "from resync.core.database import engine; from resync.core.database.models import *; import resync.core.database.models_registry; from resync.core.database.schema import Base; Base.metadata.create_all(engine)"'
+    )
 
 
 def main():
     global DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
-    
+
     parser = argparse.ArgumentParser(description="PostgreSQL Setup for Resync")
     parser.add_argument(
         "--action",
         choices=["install", "setup", "all", "migrate"],
         default="all",
-        help="Ação a executar"
+        help="Ação a executar",
     )
     parser.add_argument("--db-name", default=DB_NAME, help="Nome do banco de dados")
     parser.add_argument("--db-user", default=DB_USER, help="Usuário do banco")

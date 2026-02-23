@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+import types
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -25,23 +26,25 @@ logger = logging.getLogger(__name__)
 
 JWT_LIBRARY: str = "none"
 JWTError: type[Exception]
+jwt: types.ModuleType | None = None
 
 try:
     # Prefer PyJWT (more actively maintained, simpler API)
-    import jwt as _pyjwt
+    import jwt as _pyjwt  # type: ignore[import-not-found]
 
     jwt = _pyjwt
     JWTError = _pyjwt.PyJWTError
     JWT_LIBRARY = "pyjwt"
     logger.info(
-        "jwt_library_loaded library=pyjwt version=%s", getattr(_pyjwt, "__version__", "unknown")
+        "jwt_library_loaded library=pyjwt version=%s",
+        getattr(_pyjwt, "__version__", "unknown"),
     )
 
 except ImportError:
     try:
         # Fallback to python-jose
-        from jose import JWTError as _JoseJWTError
-        from jose import jwt as _jose_jwt
+        from jose import JWTError as _JoseJWTError  # type: ignore[import-untyped]
+        from jose import jwt as _jose_jwt  # type: ignore[import-untyped]
 
         jwt = _jose_jwt
         JWTError = _JoseJWTError
@@ -102,12 +105,17 @@ def decode_token(
         RuntimeError: If no JWT library is available
     """
     if not is_jwt_available():
-        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+        raise RuntimeError(
+            "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
+        )
 
     if algorithms is None:
         algorithms = ["HS256"]
 
-    return jwt.decode(token, secret_key, algorithms=algorithms, **kwargs)
+    jwt_module = jwt
+    if jwt_module is None:
+        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+    return jwt_module.decode(token, secret_key, algorithms=algorithms, **kwargs)
 
 
 def create_token(
@@ -134,7 +142,9 @@ def create_token(
         RuntimeError: If no JWT library is available
     """
     if not is_jwt_available():
-        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+        raise RuntimeError(
+            "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
+        )
 
     to_encode = payload.copy()
 
@@ -145,7 +155,10 @@ def create_token(
     if expires_in is not None:
         to_encode["exp"] = int(now + expires_in)
 
-    return jwt.encode(to_encode, secret_key, algorithm=algorithm)
+    jwt_module = jwt
+    if jwt_module is None:
+        raise RuntimeError("No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1")
+    return jwt_module.encode(to_encode, secret_key, algorithm=algorithm)
 
 
 def verify_token(
@@ -182,7 +195,11 @@ def verify_token(
         if not verify_exp:
             options["verify_exp"] = False
 
-        payload = jwt.decode(
+        jwt_module = jwt
+        if jwt_module is None:
+            return False, "No JWT library available"
+
+        payload = jwt_module.decode(
             token,
             secret_key,
             algorithms=algorithms,

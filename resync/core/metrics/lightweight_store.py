@@ -101,15 +101,21 @@ class LightweightMetricsStore:
         """Record a metric data point."""
         return await self._store.record(metric_name, value, unit=unit, tags=tags)
 
-    async def record_metric(self, metric_name: str, value: float, **kwargs) -> MetricDataPoint:
+    async def record_metric(
+        self, metric_name: str, value: float, **kwargs
+    ) -> MetricDataPoint:
         """Alias for record."""
         return await self.record(metric_name, value, **kwargs)
 
-    async def query(self, metric_name: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
+    async def query(
+        self, metric_name: str, start: datetime, end: datetime
+    ) -> list[dict[str, Any]]:
         """Query metric data."""
         return await self._store.query(metric_name, start, end)
 
-    async def get_metric_values(self, metric_name: str, hours: int = 24) -> list[dict[str, Any]]:
+    async def get_metric_values(
+        self, metric_name: str, hours: int = 24
+    ) -> list[dict[str, Any]]:
         """Get metric values for last N hours."""
         end = datetime.now(timezone.utc)
         start = end - timedelta(hours=hours)
@@ -126,7 +132,9 @@ class LightweightMetricsStore:
         return await self._store.cleanup(days)
 
     # Convenience methods for common metrics
-    async def record_latency(self, operation: str, latency_ms: float) -> MetricDataPoint:
+    async def record_latency(
+        self, operation: str, latency_ms: float
+    ) -> MetricDataPoint:
         """Record latency metric."""
         return await self.record(f"latency.{operation}", latency_ms, unit="ms")
 

@@ -20,7 +20,6 @@ Author: Resync Team
 Version: 5.8.0
 """
 
-
 try:
     from .registry import (
         ROLE_PERMISSIONS,
@@ -41,7 +40,7 @@ try:
         # Decorator
         tool,
     )
-    
+
 except ImportError:  # pragma: no cover
     # Optional tool system deps (e.g., structlog) may not be installed in minimal/test environments.
     pass

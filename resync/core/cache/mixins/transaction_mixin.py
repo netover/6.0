@@ -5,9 +5,16 @@ Provides transaction and rollback functionality for cache implementations.
 """
 
 import logging
-from typing import Any
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
+
+
+class CacheTransactionMixinProtocol(Protocol):
+    """Protocol defining methods expected by CacheTransactionMixin."""
+
+    async def delete(self, key: str) -> None: ...
+    async def set(self, key: str, value: Any, **kwargs: Any) -> None: ...
 
 
 class CacheTransactionMixin:
@@ -17,8 +24,12 @@ class CacheTransactionMixin:
     Supports recording operations and rolling them back if needed.
     """
 
-    _transaction_log: list[dict[str, Any]] = []
-    _in_transaction: bool = False
+    _transaction_log: list[dict[str, Any]]
+    _in_transaction: bool
+
+    def __init__(self) -> None:
+        self._transaction_log = []
+        self._in_transaction = False
 
     def begin_transaction(self):
         """Begin a new transaction."""
@@ -43,7 +54,9 @@ class CacheTransactionMixin:
         self._in_transaction = False
         logger.debug("Cache transaction committed")
 
-    async def rollback_transaction(self, operations: list[dict[str, Any]] | None = None) -> bool:
+    async def rollback_transaction(
+        self, operations: list[dict[str, Any]] | None = None
+    ) -> bool:
         """
         Rollback operations from the transaction log.
 
@@ -67,11 +80,11 @@ class CacheTransactionMixin:
 
                 if operation == "set":
                     if old_value is None:
-                        await self.delete(key)
+                        await self.delete(key)  # type: ignore[attr-defined]
                     else:
-                        await self.set(key, old_value)
+                        await self.set(key, old_value)  # type: ignore[attr-defined]
                 elif operation == "delete" and old_value is not None:
-                    await self.set(key, old_value)
+                    await self.set(key, old_value)  # type: ignore[attr-defined]
 
             logger.info("Rolled back %s operations", len(ops_to_rollback))
 

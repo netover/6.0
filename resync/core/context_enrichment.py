@@ -198,7 +198,9 @@ class ContextEnricher:
 
         # Enrich from Learning Store
         if self.enable_learning_store:
-            ls_context, ls_types = await self._enrich_from_learning_store(entities, instance_id)
+            ls_context, ls_types = await self._enrich_from_learning_store(
+                entities, instance_id
+            )
             context_snippets.extend(ls_context)
             enrichments_applied.extend(ls_types)
 
@@ -221,7 +223,9 @@ class ContextEnricher:
         if enrichments_applied:
             self._queries_enriched += 1
             for etype in enrichments_applied:
-                self._enrichment_counts[etype] = self._enrichment_counts.get(etype, 0) + 1
+                self._enrichment_counts[etype] = (
+                    self._enrichment_counts.get(etype, 0) + 1
+                )
 
         result = EnrichmentResult(
             original_query=query,
@@ -291,7 +295,9 @@ class ContextEnricher:
                 if pattern and pattern.execution_count >= 5:
                     # Job pattern context
                     if pattern.avg_duration_seconds > 0:
-                        context = self.CONTEXT_TEMPLATES[EnrichmentType.JOB_PATTERN].format(
+                        context = self.CONTEXT_TEMPLATES[
+                            EnrichmentType.JOB_PATTERN
+                        ].format(
                             job=job_name,
                             duration=int(pattern.avg_duration_seconds / 60),
                             hour=pattern.typical_start_hour,
@@ -301,8 +307,12 @@ class ContextEnricher:
 
                     # Failure history context
                     if pattern.failure_rate > 0.05 and pattern.execution_count >= 10:
-                        errors = ", ".join(pattern.common_failure_reasons[:3]) or "vários"
-                        context = self.CONTEXT_TEMPLATES[EnrichmentType.FAILURE_HISTORY].format(
+                        errors = (
+                            ", ".join(pattern.common_failure_reasons[:3]) or "vários"
+                        )
+                        context = self.CONTEXT_TEMPLATES[
+                            EnrichmentType.FAILURE_HISTORY
+                        ].format(
                             job=job_name,
                             rate=pattern.failure_rate,
                             errors=errors,
@@ -348,7 +358,9 @@ class ContextEnricher:
                 deps = await kg.get_dependency_chain(job_name, max_depth=2)
                 if deps and len(deps) > 1:
                     dep_list = ", ".join(deps[:5])
-                    context = self.CONTEXT_TEMPLATES[EnrichmentType.DEPENDENCY_CONTEXT].format(
+                    context = self.CONTEXT_TEMPLATES[
+                        EnrichmentType.DEPENDENCY_CONTEXT
+                    ].format(
                         job=job_name,
                         deps=dep_list,
                     )
@@ -359,7 +371,9 @@ class ContextEnricher:
                 resources = await self._get_job_resources(kg, job_name)
                 if resources:
                     resource_list = ", ".join(resources[:3])
-                    context = self.CONTEXT_TEMPLATES[EnrichmentType.RESOURCE_CONTEXT].format(
+                    context = self.CONTEXT_TEMPLATES[
+                        EnrichmentType.RESOURCE_CONTEXT
+                    ].format(
                         job=job_name,
                         resources=resource_list,
                     )
@@ -393,7 +407,8 @@ class ContextEnricher:
 
         # Check for time-related queries
         time_patterns = {
-            r"\b(?:hoje|today)\b": "hoje, " + datetime.now(timezone.utc).strftime("%d/%m/%Y"),
+            r"\b(?:hoje|today)\b": "hoje, "
+            + datetime.now(timezone.utc).strftime("%d/%m/%Y"),
             r"\b(?:ontem|yesterday)\b": "ontem, "
             + (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%d/%m/%Y"),
             r"\b(?:esta semana|this week)\b": "semana atual",
@@ -444,9 +459,13 @@ class ContextEnricher:
             "total_queries": self._total_queries,
             "queries_enriched": self._queries_enriched,
             "enrichment_rate": (
-                self._queries_enriched / self._total_queries if self._total_queries > 0 else 0.0
+                self._queries_enriched / self._total_queries
+                if self._total_queries > 0
+                else 0.0
             ),
-            "enrichment_counts": {k.value: v for k, v in self._enrichment_counts.items()},
+            "enrichment_counts": {
+                k.value: v for k, v in self._enrichment_counts.items()
+            },
             "config": {
                 "enable_learning_store": self.enable_learning_store,
                 "enable_knowledge_graph": self.enable_knowledge_graph,

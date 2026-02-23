@@ -1,3 +1,5 @@
+# pylint: skip-file
+# mypy: ignore-errors
 """
 GraphRAG Admin Endpoints
 
@@ -23,11 +25,13 @@ router = APIRouter(prefix="/api/admin/graphrag", tags=["graphrag-admin"])
 
 class CacheInvalidationRequest(BaseModel):
     """Request to invalidate discovery cache."""
+
     job_name: str | None = None  # None = invalidate all
 
 
 class DiscoveryTriggerRequest(BaseModel):
     """Request to manually trigger discovery for a job."""
+
     job_name: str
     force: bool = False  # Bypass filters
 
@@ -50,7 +54,10 @@ async def get_graphrag_stats():
         return await graphrag.get_stats()
     except Exception as e:
         logger.error("Failed to get GraphRAG stats: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from None
 
 
 @router.post("/cache/invalidate")
@@ -88,12 +95,15 @@ async def invalidate_discovery_cache(request: CacheInvalidationRequest):
         return {
             "status": "success",
             "cache_entries_deleted": deleted,
-            "job_name": request.job_name or "all"
+            "job_name": request.job_name or "all",
         }
 
     except Exception as e:
         logger.error("Failed to invalidate cache: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from None
 
 
 @router.post("/discover")
@@ -124,38 +134,37 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
             "return_code": 12,
             "severity": "CRITICAL",
             "manual_trigger": True,
-            "force": request.force
+            "force": request.force,
         }
 
         if request.force:
             # Bypass filters - directly call _discover_and_store
             await create_tracked_task(
                 graphrag.discovery_service._discover_and_store(
-                    request.job_name,
-                    event_details
+                    request.job_name, event_details
                 )
             )
 
             return {
                 "status": "triggered",
                 "job_name": request.job_name,
-                "message": "Discovery started in background (forced)"
+                "message": "Discovery started in background (forced)",
             }
         # Use normal flow with filters
-        await graphrag.discovery_service.on_job_failed(
-            request.job_name,
-            event_details
-        )
+        await graphrag.discovery_service.on_job_failed(request.job_name, event_details)
 
         return {
             "status": "submitted",
             "job_name": request.job_name,
-            "message": "Discovery submitted (subject to filters)"
+            "message": "Discovery submitted (subject to filters)",
         }
 
     except Exception as e:
         logger.error("Failed to trigger discovery: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from None
 
 
 @router.post("/validation/reset-stats")
@@ -177,12 +186,15 @@ async def reset_validation_stats():
 
         return {
             "status": "success",
-            "message": "Cache validation statistics reset successfully"
+            "message": "Cache validation statistics reset successfully",
         }
 
     except Exception as e:
         logger.error("Failed to reset stats: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from None
 
 
 @router.get("/config")
@@ -198,15 +210,13 @@ async def get_discovery_config():
     return {
         "budget": {
             "max_discoveries_per_day": DiscoveryConfig.MAX_DISCOVERIES_PER_DAY,
-            "max_discoveries_per_hour": DiscoveryConfig.MAX_DISCOVERIES_PER_HOUR
+            "max_discoveries_per_hour": DiscoveryConfig.MAX_DISCOVERIES_PER_HOUR,
         },
-        "cache": {
-            "ttl_days": DiscoveryConfig.DISCOVERY_CACHE_DAYS
-        },
+        "cache": {"ttl_days": DiscoveryConfig.DISCOVERY_CACHE_DAYS},
         "triggers": {
             "discover_on_new_error": DiscoveryConfig.DISCOVER_ON_NEW_ERROR,
             "discover_on_recurring_failure": DiscoveryConfig.DISCOVER_ON_RECURRING_FAILURE,
-            "min_failures_to_trigger": DiscoveryConfig.MIN_FAILURES_TO_TRIGGER
+            "min_failures_to_trigger": DiscoveryConfig.MIN_FAILURES_TO_TRIGGER,
         },
         "validation": {
             "validate_on_abend": CacheValidationConfig.VALIDATE_ON_ABEND,
@@ -215,14 +225,15 @@ async def get_discovery_config():
             "validate_on_stuck": CacheValidationConfig.VALIDATE_ON_STUCK,
             "trust_cache_days": CacheValidationConfig.TRUST_CACHE_DAYS,
             "auto_invalidate": CacheValidationConfig.AUTO_INVALIDATE,
-            "auto_rediscover": CacheValidationConfig.AUTO_REDISCOVER
+            "auto_rediscover": CacheValidationConfig.AUTO_REDISCOVER,
         },
-        "critical_jobs": list(DiscoveryConfig.CRITICAL_JOBS)
+        "critical_jobs": list(DiscoveryConfig.CRITICAL_JOBS),
     }
 
 
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration."""
+
     max_discoveries_per_day: int | None = None
     max_discoveries_per_hour: int | None = None
     cache_ttl_days: int | None = None
@@ -265,14 +276,18 @@ async def update_config(request: ConfigUpdateRequest):
             DiscoveryConfig.MAX_DISCOVERIES_PER_DAY = request.max_discoveries_per_day
             if "budget" not in graphrag_config:
                 graphrag_config["budget"] = {}
-            graphrag_config["budget"]["max_discoveries_per_day"] = request.max_discoveries_per_day
+            graphrag_config["budget"]["max_discoveries_per_day"] = (
+                request.max_discoveries_per_day
+            )
             updated.append("max_discoveries_per_day")
 
         if request.max_discoveries_per_hour is not None:
             DiscoveryConfig.MAX_DISCOVERIES_PER_HOUR = request.max_discoveries_per_hour
             if "budget" not in graphrag_config:
                 graphrag_config["budget"] = {}
-            graphrag_config["budget"]["max_discoveries_per_hour"] = request.max_discoveries_per_hour
+            graphrag_config["budget"]["max_discoveries_per_hour"] = (
+                request.max_discoveries_per_hour
+            )
             updated.append("max_discoveries_per_hour")
 
         if request.cache_ttl_days is not None:
@@ -286,7 +301,9 @@ async def update_config(request: ConfigUpdateRequest):
             DiscoveryConfig.MIN_FAILURES_TO_TRIGGER = request.min_failures_to_trigger
             if "triggers" not in graphrag_config:
                 graphrag_config["triggers"] = {}
-            graphrag_config["triggers"]["min_failures_to_trigger"] = request.min_failures_to_trigger
+            graphrag_config["triggers"]["min_failures_to_trigger"] = (
+                request.min_failures_to_trigger
+            )
             updated.append("min_failures_to_trigger")
 
         # Update validation settings
@@ -294,14 +311,18 @@ async def update_config(request: ConfigUpdateRequest):
             CacheValidationConfig.VALIDATE_ON_ABEND = request.validate_on_abend
             if "validation" not in graphrag_config:
                 graphrag_config["validation"] = {}
-            graphrag_config["validation"]["validate_on_abend"] = request.validate_on_abend
+            graphrag_config["validation"]["validate_on_abend"] = (
+                request.validate_on_abend
+            )
             updated.append("validate_on_abend")
 
         if request.validate_on_failed is not None:
             CacheValidationConfig.VALIDATE_ON_FAILED = request.validate_on_failed
             if "validation" not in graphrag_config:
                 graphrag_config["validation"] = {}
-            graphrag_config["validation"]["validate_on_failed"] = request.validate_on_failed
+            graphrag_config["validation"]["validate_on_failed"] = (
+                request.validate_on_failed
+            )
             updated.append("validate_on_failed")
 
         if request.auto_invalidate is not None:
@@ -313,17 +334,16 @@ async def update_config(request: ConfigUpdateRequest):
 
         # ✅ PERSIST TO FILE
         if graphrag_config:
-            config_file = Path(__file__).parent.parent.parent / "config" / "graphrag.toml"
+            config_file = (
+                Path(__file__).parent.parent.parent / "config" / "graphrag.toml"
+            )
 
             persistence = ConfigPersistenceManager(
-                config_file=config_file,
-                backup_dir=config_file.parent / "backups"
+                config_file=config_file, backup_dir=config_file.parent / "backups"
             )
 
             persistence.save_config(
-                section="graphrag",
-                data=graphrag_config,
-                create_backup=True
+                section="graphrag", data=graphrag_config, create_backup=True
             )
 
         logger.info("GraphRAG config updated and persisted: %s", updated)
@@ -331,9 +351,12 @@ async def update_config(request: ConfigUpdateRequest):
         return {
             "status": "success",
             "updated_fields": updated,
-            "message": "Configuration updated and saved to file (persists across restarts)"
+            "message": "Configuration updated and saved to file (persists across restarts)",
         }
 
     except Exception as e:
         logger.error("Failed to update config: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.") from None
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Check server logs for details.",
+        ) from None

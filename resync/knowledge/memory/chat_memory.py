@@ -41,11 +41,15 @@ class ChatTurn:
         metadata: Dados adicionais opcionais
         created_at: Timestamp de criação
     """
+
     session_id: str
     user_id: str
     role: str
     content: str
-    expires_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=CHAT_MEMORY_TTL_DAYS))
+    expires_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+        + timedelta(days=CHAT_MEMORY_TTL_DAYS)
+    )
     metadata: Optional[dict] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -65,7 +69,7 @@ class ChatMemoryStore:
         self,
         vector_store: Any = None,
         embedder: Any = None,
-        ttl_days: int = CHAT_MEMORY_TTL_DAYS
+        ttl_days: int = CHAT_MEMORY_TTL_DAYS,
     ):
         self._vector_store = vector_store
         self._embedder = embedder
@@ -78,6 +82,7 @@ class ChatMemoryStore:
         """Lazy load do vector store."""
         if self._vector_store is None:
             from resync.knowledge.store.pgvector_store import PgVectorStore
+
             self._vector_store = PgVectorStore()
         return self._vector_store
 
@@ -85,6 +90,7 @@ class ChatMemoryStore:
         """Lazy load do embedder."""
         if self._embedder is None:
             from resync.knowledge.ingestion.embedding_service import get_embedder
+
             self._embedder = get_embedder()
         return self._embedder
 
@@ -93,11 +99,13 @@ class ChatMemoryStore:
         Armazena um turn de chat com REDAÇÃO OBRIGATÓRIA de PII.
         """
         try:
-            safe_data = self._anonymizer.anonymize_personal_data({
-                "content": turn.content,
-                "session_id": turn.session_id,
-                "user_id": turn.user_id
-            })
+            safe_data = self._anonymizer.anonymize_personal_data(
+                {
+                    "content": turn.content,
+                    "session_id": turn.session_id,
+                    "user_id": turn.user_id,
+                }
+            )
 
             safe_content = safe_data.get("content", turn.content)
 
@@ -106,10 +114,12 @@ class ChatMemoryStore:
                     "pii_redacted",
                     original_length=len(turn.content),
                     redacted_length=len(safe_content),
-                    session_id=turn.session_id[:8]
+                    session_id=turn.session_id[:8],
                 )
 
-            turn.expires_at = datetime.now(timezone.utc) + timedelta(days=self._ttl_days)
+            turn.expires_at = datetime.now(timezone.utc) + timedelta(
+                days=self._ttl_days
+            )
             turn_id = self._generate_turn_id(turn)
 
             embedder = await self._get_embedder()
@@ -120,15 +130,17 @@ class ChatMemoryStore:
             await vector_store.upsert_batch(
                 ids=[turn_id],
                 vectors=[vector],
-                payloads=[{
-                    "content": safe_content,
-                    "session_id": turn.session_id,
-                    "user_id": turn.user_id,
-                    "role": turn.role,
-                    "expires_at": turn.expires_at.isoformat(),
-                    "metadata": turn.metadata or {}
-                }],
-                collection=CHAT_MEMORY_COLLECTION
+                payloads=[
+                    {
+                        "content": safe_content,
+                        "session_id": turn.session_id,
+                        "user_id": turn.user_id,
+                        "role": turn.role,
+                        "expires_at": turn.expires_at.isoformat(),
+                        "metadata": turn.metadata or {},
+                    }
+                ],
+                collection=CHAT_MEMORY_COLLECTION,
             )
 
             self._update_cache(turn)
@@ -137,7 +149,7 @@ class ChatMemoryStore:
                 "chat_turn_stored",
                 turn_id=turn_id[:8],
                 session_id=turn.session_id[:8],
-                ttl_days=self._ttl_days
+                ttl_days=self._ttl_days,
             )
 
             return True
@@ -147,11 +159,7 @@ class ChatMemoryStore:
             return False
 
     async def search(
-        self,
-        query: str,
-        user_id: str,
-        session_id: Optional[str] = None,
-        top_k: int = 5
+        self, query: str, user_id: str, session_id: Optional[str] = None, top_k: int = 5
     ) -> list[dict[str, Any]]:
         """
         Busca em conversas anteriores por similaridade semântica.
@@ -171,7 +179,7 @@ class ChatMemoryStore:
                 top_k=top_k,
                 collection=CHAT_MEMORY_COLLECTION,
                 filters=filters,
-                with_vectors=False
+                with_vectors=False,
             )
 
             now = datetime.now(timezone.utc)
@@ -190,7 +198,7 @@ class ChatMemoryStore:
                 "chat_history_search",
                 query=query[:50],
                 user_id=user_id[:8],
-                results_found=len(valid_results)
+                results_found=len(valid_results),
             )
 
             return valid_results
@@ -204,10 +212,7 @@ class ChatMemoryStore:
         Task agendada para deletar registros expirados.
         """
         try:
-            logger.info(
-                "chat_memory_cleanup_triggered",
-                ttl_days=self._ttl_days
-            )
+            logger.info("chat_memory_cleanup_triggered", ttl_days=self._ttl_days)
             return 0
 
         except Exception as e:
@@ -231,7 +236,7 @@ class ChatMemoryStore:
         if len(self._session_cache) > self._cache_max_size:
             oldest_session = min(
                 self._session_cache.keys(),
-                key=lambda s: self._session_cache[s][0].created_at
+                key=lambda s: self._session_cache[s][0].created_at,
             )
             del self._session_cache[oldest_session]
 
@@ -247,8 +252,4 @@ def get_chat_memory_store() -> ChatMemoryStore:
     return _chat_memory_store
 
 
-__all__ = [
-    "ChatTurn",
-    "ChatMemoryStore",
-    "get_chat_memory_store"
-]
+__all__ = ["ChatTurn", "ChatMemoryStore", "get_chat_memory_store"]
