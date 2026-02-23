@@ -575,6 +575,8 @@ class ApplicationFactory:
                 ),
                 (teams_router, "/api/v1/admin", ["Admin - Teams"]),
                 (teams_webhook_admin_router, "/api", ["Admin - Teams Webhook Users"]),
+                (notification_admin_router, "/api/v1/admin", ["Admin - Notifications"]),
+                (notification_admin_router, "/api/v1/admin", ["Admin - Notifications"]),
                 (
                     teams_notifications_admin_router,
                     "/api",

@@ -1557,6 +1557,43 @@ class Settings(BaseSettings, SettingsValidators):
         description="Minimum length for SECRET_KEY in production",
     )
 
+    smtp_enabled: bool = Field(
+        default=False,
+        description="Enable SMTP email notifications",
+    )
+    smtp_host: str = Field(
+        default="localhost",
+        description="SMTP server host",
+    )
+    smtp_port: int = Field(
+        default=587,
+        ge=1,
+        le=65535,
+        description="SMTP server port",
+    )
+    smtp_username: str | None = Field(
+        default=None,
+        description="SMTP username",
+    )
+    smtp_password: SecretStr | None = Field(
+        default=None,
+        description="SMTP password",
+        exclude=True,
+        repr=False,
+    )
+    smtp_from_email: str = Field(
+        default="noreply@resync.local",
+        description="Default sender email address",
+    )
+    smtp_use_tls: bool = Field(
+        default=True,
+        description="Use TLS for SMTP connection",
+    )
+    smtp_timeout: int = Field(
+        default=30,
+        ge=1,
+        description="SMTP connection timeout in seconds",
+    )
     # ============================================================================
     # VALIDADORES
     # ============================================================================
@@ -1668,3 +1705,7 @@ class _TeamsConfigProxy(Mapping[str, Any]):
 
 
 TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()
+
+    # ============================================================================
+    # NOTIFICATION (EMAIL/SMTP)
+    # ============================================================================

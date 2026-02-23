@@ -88,6 +88,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.services.pg_vector_store import PgVectorStore
     from resync.services.rag_client import get_rag_client_singleton
     from resync.tws.factory import get_tws_client_singleton
+    from resync.services.notification.email_service import get_email_service
 
     # Core Infrastructure
     connection_manager = ConnectionManager()
@@ -115,6 +116,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
 
             # Attempt a safe fallback if appropriate for the domain
             from resync.tws.factory import get_tws_client_singleton
+    from resync.services.notification.email_service import get_email_service
 
             tws = get_tws_client_singleton()
             logger.info("tws_client_mode", mode="optimized_fallback")
@@ -157,6 +159,9 @@ async def init_domain_singletons(app: FastAPI) -> None:
 
     # RAG client singleton (initializes and validates Config/URL)
     get_rag_client_singleton()
+
+    # Initialize Email Service
+    get_email_service()
 
     # Initialize RAG File Ingestor
     vector_store = PgVectorStore()
