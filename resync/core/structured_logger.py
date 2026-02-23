@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable, cast
 
 from fastapi import Request
 
@@ -19,6 +20,11 @@ except ModuleNotFoundError:  # pragma: no cover
 from .encoding_utils import can_encode
 
 logger = logging.getLogger(__name__)
+
+StructlogProcessor = Callable[
+    [Any, str, MutableMapping[str, Any]],
+    Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...],
+]
 
 # ============================================================================
 # CONTEXT VARIABLES
@@ -207,7 +213,7 @@ def configure_structured_logging(
 ) -> None:
     level = getattr(logging, log_level.upper())
 
-    shared_processors = [
+    shared_processors: list[StructlogProcessor] = [
         structlog.contextvars.merge_contextvars,
         add_timestamp,
         add_log_level,
@@ -229,18 +235,22 @@ def configure_structured_logging(
     else:
         renderer = structlog.processors.JSONRenderer()
 
-    structlog.configure(
-        processors=shared_processors
-        + [
+    configure_processors: Iterable[StructlogProcessor] = shared_processors + [
+        cast(
+            StructlogProcessor,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-        ],
+        ),
+    ]
+
+    structlog.configure(
+        processors=configure_processors,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
 
     formatter = structlog.stdlib.ProcessorFormatter(
-        foreign_pre_chain=shared_processors,
+        foreign_pre_chain=cast(Sequence[StructlogProcessor], shared_processors),
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             renderer,

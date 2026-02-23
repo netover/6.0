@@ -187,7 +187,9 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
     # FastAPI
     if app:
         try:
-            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore[import-not-found]
+            from opentelemetry.instrumentation.fastapi import (
+                FastAPIInstrumentor,  # type: ignore[import-not-found]
+            )
 
             FastAPIInstrumentor.instrument_app(app)
             logger.debug("FastAPI instrumented")

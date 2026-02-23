@@ -10,8 +10,8 @@ import inspect
 import logging
 import os
 import socket
-from contextlib import suppress
 from collections.abc import Awaitable
+from contextlib import suppress
 from typing import TYPE_CHECKING, Optional, cast
 
 from resync.core.task_tracker import create_tracked_task
@@ -37,7 +37,8 @@ try:  # pragma: no cover
         TimeoutError as RedisTimeoutError,
     )
 except ImportError:  # redis opcional
-    # If redis is not installed, define placeholder types for exceptions to avoid NameError
+    # If redis is not installed, define placeholder
+    # exception types to avoid NameError
     redis = None  # type: ignore
     RedisError = Exception  # type: ignore
     BusyLoadingError = Exception  # type: ignore
@@ -135,7 +136,8 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
         }
         if not lazy:
             raise RuntimeError(
-                "Redis client not initialized. Ensure RedisInitializer.initialize() runs "
+                "Redis client not initialized. Ensure "
+                "RedisInitializer.initialize() runs "
                 "during application startup (lifespan). To allow lazy init (legacy), "
                 "set RESYNC_REDIS_LAZY_INIT=1."
             )
@@ -263,11 +265,15 @@ class RedisInitializer:
                     )
                     if not acquired:
                         logger.info(
-                            "Another instance is initializing Redis, waiting... (attempt %s/%s)",
+                            (
+                                "Another instance is initializing Redis, "
+                                "waiting... (attempt %s/%s)"
+                            ),
                             attempt + 1,
                             max_retries,
                         )
-                        # Avoid leaking clients/pools when the init lock is held elsewhere.
+                        # Avoid leaking clients/pools
+                        # when init lock is held elsewhere.
                         try:
                             await redis_client.close()
                         except Exception:
@@ -326,8 +332,10 @@ class RedisInitializer:
 
                     finally:
                         # Unlock seguro (só remove se ainda for nosso lock)
-                        # SECURITY NOTE: This is legitimate Redis EVAL usage for atomic distributed locking
-                        # The Lua script is hardcoded and performs only safe Redis operations
+                        # SECURITY NOTE: legit Redis EVAL usage
+                        # for atomic distributed locking
+                        # Lua script is hardcoded and
+                        # performs only safe Redis operations
                         with suppress(RedisError, ConnectionError):
                             await _ensure_awaitable_str(
                                 redis_client.eval(

@@ -219,7 +219,8 @@ class EventBus:
             asyncio.get_running_loop()
         except RuntimeError:
             raise RuntimeError(
-                "EventBus.start() deve ser chamado dentro de um contexto assíncrono ativo. "
+                "EventBus.start() deve ser chamado em contexto "
+                "assíncrono ativo. "
                 "Garanta que start() seja chamado em um lifespan ou handler async."
             )
 
@@ -602,7 +603,8 @@ class EventBus:
             if isinstance(r, str):
                 disconnected.append(r)
             elif isinstance(r, Exception):
-                # Exceção grave que escapou do _send (ex: CancelledError durante shutdown)
+                # Exceção grave que escapou do _send
+                # (ex: CancelledError durante shutdown)
                 logger.debug("severe_broadcast_exception", error=str(r))
 
         for client_id in disconnected:
@@ -759,7 +761,8 @@ def get_event_bus() -> EventBus:
     if _event_bus_instance is None:
         raise RuntimeError(
             "EventBus não inicializado. "
-            "Chame init_event_bus() no lifespan da aplicação antes de usar get_event_bus()."
+            "Chame init_event_bus() no lifespan da aplicação "
+            "antes de usar get_event_bus()."
         )
     return _event_bus_instance
 

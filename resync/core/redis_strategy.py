@@ -12,7 +12,9 @@ Usage:
     strategy = get_redis_strategy()
     tier = strategy.get_tier("POST", "/tws/execute/job1")
 
-    if not redis_available and strategy.should_fail_fast("POST", "/tws/execute/job1", False):
+    if not redis_available and strategy.should_fail_fast(
+        "POST", "/tws/execute/job1", False
+    ):
         raise HTTPException(503)
 
 Author: Resync Team
@@ -202,7 +204,9 @@ class RedisStrategy:
         tier = strategy.get_tier("POST", "/tws/execute/job1")
         # RedisTier.CRITICAL
 
-        if not redis_available and strategy.should_fail_fast("POST", "/tws/execute/job1", False):
+        if not redis_available and strategy.should_fail_fast(
+        "POST", "/tws/execute/job1", False
+    ):
             raise HTTPException(503)
     """
 

@@ -59,7 +59,8 @@ class ContextStore:
             "add_conversation_sync is deprecated, use async add_conversation"
         )
         raise NotImplementedError(
-            "Sync method add_conversation_sync is deprecated, use async add_conversation"
+            "Sync method add_conversation_sync is deprecated; "
+            "use async add_conversation"
         )
 
     async def get_session_history(
