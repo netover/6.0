@@ -18,7 +18,7 @@ Author: Resync Team
 Version: 5.4.2
 """
 
-
+from __future__ import annotations
 
 import asyncio
 import uuid
@@ -417,7 +417,7 @@ class SubAgent:
             try:
                 results.append(task.result())
             except (asyncio.CancelledError, Exception) as e:
-                # We don't have the specific agent here easily without mapping, 
+                # We don't have the specific agent here easily without mapping,
                 # but we can return a generic failure if the task itself died.
                 # In most cases, agent.execute() handles its own exceptions.
                 logger.error("sub_agent_task_failed", error=str(e))
