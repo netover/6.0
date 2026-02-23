@@ -15,7 +15,6 @@ This module provides intelligent anomaly detection capabilities using:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import hashlib
 import time
@@ -24,6 +23,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+
+from resync.core.task_tracker import track_task
 
 try:
     from sklearn.ensemble import IsolationForest
@@ -801,7 +802,8 @@ class AnomalyDetectionEngine:
         return False
 
 
-# Global anomaly detection engine instance (lazy-initialized to avoid crash without sklearn)
+# Global anomaly detection engine instance
+# (lazy-initialized to avoid crash without sklearn)
 _anomaly_detection_engine: AnomalyDetectionEngine | None = None
 
 

@@ -20,14 +20,13 @@ from typing import TYPE_CHECKING, cast
 from fastapi import FastAPI, Request
 
 if TYPE_CHECKING:
-    from resync.core.connection_manager import ConnectionManager
-    from resync.core.idempotency.manager import IdempotencyManager
-    from resync.core.context_store import ContextStore
-    from resync.core.interfaces import ITWSClient
+    from resync.core.a2a_handler import A2AHandler
     from resync.core.agent_manager import AgentManager
     from resync.core.agent_router import HybridRouter
-    from resync.core.interfaces import IFileIngestor
-    from resync.core.a2a_handler import A2AHandler
+    from resync.core.connection_manager import ConnectionManager
+    from resync.core.context_store import ContextStore
+    from resync.core.idempotency.manager import IdempotencyManager
+    from resync.core.interfaces import IFileIngestor, ITWSClient
     from resync.core.skill_manager import SkillManager
     from resync.services.llm_service import LLMService
 
@@ -36,7 +35,8 @@ if TYPE_CHECKING:
 class EnterpriseState:
     """All application singletons and lifecycle flags.
 
-    Required for serving HTTP traffic. Must be fully initialized during lifespan startup.
+    Required for serving HTTP traffic.
+    Must be fully initialized during lifespan startup.
     """
 
     # Domain singletons

@@ -10,7 +10,6 @@ Central manager for all TWS instances, providing:
 - Session management
 """
 
-from resync.core.task_tracker import track_task
 import json
 import logging
 from datetime import datetime, timezone
@@ -20,6 +19,7 @@ from typing import Any
 import httpx
 
 from resync.core.exceptions import IntegrationError
+from resync.core.task_tracker import track_task
 
 from .instance import TWSEnvironment, TWSInstance, TWSInstanceConfig, TWSInstanceStatus
 from .learning import TWSLearningStore

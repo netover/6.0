@@ -1,7 +1,8 @@
 """
 Configuration for the pgvector-based RAG system.
 
-Defines environment variables and defaults for PostgreSQL connection, embedding model, and search parameters.
+Defines environment variables and defaults for PostgreSQL
+connection, embedding model, and search parameters.
 
 SECURITY (v5.4.1):
 - DATABASE_URL has no default password
@@ -37,7 +38,8 @@ def _get_database_url() -> str:
         # Warn if using obvious default password
         if "password@" in url or ":password@" in url:
             logger.warning(
-                "insecure_database_url: DATABASE_URL contains default password - change for production"
+                "insecure_database_url: DATABASE_URL contains default "
+                "password - change for production"
             )
         return url
 

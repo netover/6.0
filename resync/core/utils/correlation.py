@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import asyncio
 import functools
 import time
-import structlog
 import uuid
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, ParamSpec
+from typing import TYPE_CHECKING, Any, Callable, Optional, ParamSpec, TypeVar
+
+import structlog
 
 """
 Correlation and Error Handling Utilities.

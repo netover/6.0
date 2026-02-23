@@ -2,8 +2,7 @@
 
 import json
 import re
-
-from typing import TypeVar, Type
+from typing import Type, TypeVar
 
 from pydantic import BaseModel
 
@@ -11,8 +10,8 @@ from ...settings import settings
 from ..resilience import circuit_breaker, retry_with_backoff, with_timeout
 from ..structured_logger import get_logger
 from .common_error_handlers import retry_on_exception
-from .llm_factories import LLMFactory
 from .llm_deps import get_litellm_exceptions
+from .llm_factories import LLMFactory
 
 logger = get_logger(__name__)
 
@@ -50,7 +49,8 @@ async def call_llm(
     timeout: float = 30.0,
 ) -> str:
     """
-    Calls an LLM through LiteLLM with support for multiple providers (OpenAI, Ollama, etc.).
+    Calls an LLM through LiteLLM with support for multiple providers
+    (OpenAI, Ollama, etc.).
     Provides enhanced error handling, cost tracking, and model flexibility.
 
     Args:

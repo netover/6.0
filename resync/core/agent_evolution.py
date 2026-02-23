@@ -18,16 +18,16 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-from resync.core.task_tracker import create_tracked_task
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 
+import aiofiles
 import structlog
 from pydantic import BaseModel, Field
 
 from resync.core.llm_config import get_llm_config
-import aiofiles
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
@@ -429,8 +429,13 @@ Output JSON format:
 
     def _call_llm(self, model: str, prompt: str) -> str:
         """Call LLM (placeholder - implement with litellm)."""
-        # STUB: Returns hardcoded response — implement with litellm for real pattern detection
-        return '{"pattern_found": true, "pattern_type": "missing_dependency", "description": "PAYROLL jobs missing TIMEKEEPING dependency", "job_pattern": "PAYROLL_*", "confidence": 0.85}'
+        # STUB: Returns hardcoded response;
+        # implement with litellm for real pattern detection
+        return (
+            '{"pattern_found": true, "pattern_type": "missing_dependency", '
+            '"description": "PAYROLL jobs missing TIMEKEEPING dependency", '
+            '"job_pattern": "PAYROLL_*", "confidence": 0.85}'
+        )
 
     async def _store_pattern(self, pattern: DetectedPattern):
         """Store detected pattern."""
@@ -582,7 +587,8 @@ Output only the improved prompt (no explanation).
 
     def _call_llm(self, model: str, prompt: str) -> str:
         """Call LLM (placeholder)."""
-        # STUB: Returns hardcoded prompt — implement with litellm for real prompt improvement
+        # STUB: Returns hardcoded prompt;
+        # implement with litellm for real prompt improvement
         return """
 You are a TWS/HWA job analyst. Analyze job dependencies and risks.
 
@@ -600,7 +606,11 @@ When analyzing jobs:
 
     def _generate_rationale(self, pattern: DetectedPattern) -> str:
         """Generate human-readable rationale."""
-        return f"Pattern detected: {pattern.description}. Seen {pattern.frequency} times with {int(pattern.confidence * 100)}% confidence."
+        return (
+            "Pattern detected: "
+            f"{pattern.description}. Seen {pattern.frequency} times "
+            f"with {int(pattern.confidence * 100)}% confidence."
+        )
 
     def _infer_agent_name(self, pattern_type: str) -> str:
         """Infer which agent needs improvement."""
