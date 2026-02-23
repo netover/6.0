@@ -14,7 +14,6 @@ This module provides intelligent incident response capabilities including:
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import deque
@@ -24,6 +23,7 @@ from enum import Enum
 from typing import Any
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -389,12 +389,19 @@ class IncidentDetector:
         for rule in self.detection_rules:
             if rule["condition"](events):
                 # Create incident
-                incident_id = f"inc_{int(time.time())}_{rule['name']}_{hash(str(events)[:50]) % 10000}"
+                event_hash = hash(str(events)[:50]) % 10000
+                incident_id = f"inc_{int(time.time())}_{rule['name']}_{event_hash}"
 
                 incident = Incident(
                     incident_id=incident_id,
-                    title=f"Security Incident: {rule['name'].replace('_', ' ').title()}",
-                    description=f"Detected {rule['name']} based on security event patterns",
+                    title=(
+                        "Security Incident: "
+                        f"{rule['name'].replace('_', ' ').title()}"
+                    ),
+                    description=(
+                        f"Detected {rule['name']} based on "
+                        "security event patterns"
+                    ),
                     severity=rule["severity"],
                     category=rule["category"],
                     detection_source="automated_detection",
@@ -650,6 +657,9 @@ class NotificationManager:
 
     def _format_incident_notification(self, incident: Incident, event_type: str) -> str:
         """Format incident notification message."""
+        detected_at_str = datetime.fromtimestamp(
+            incident.detected_at, tz=timezone.utc
+        ).strftime("%Y-%m-%d %H:%M:%S")
         return f"""
 INCIDENT {event_type}: {incident.incident_id}
 
@@ -660,7 +670,7 @@ Status: {incident.status.value.replace("_", " ").title()}
 
 Description: {incident.description}
 
-Detected: {datetime.fromtimestamp(incident.detected_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
+Detected: {detected_at_str} UTC
 Duration: {int(incident.duration)} seconds
 
 Impact:
@@ -1063,7 +1073,9 @@ class IncidentResponseEngine:
         if applicable_playbook:
             incident.tags.add(f"playbook_{applicable_playbook.playbook_id}")
             logger.info(
-                f"Applied playbook {applicable_playbook.playbook_id} to incident {incident.incident_id}"
+                "Applied playbook "
+                f"{applicable_playbook.playbook_id} to incident "
+                f"{incident.incident_id}"
             )
 
         # Execute automated response

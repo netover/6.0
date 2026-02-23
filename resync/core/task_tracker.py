@@ -10,7 +10,8 @@ Key guarantees:
 - Optional backpressure cap avoids runaway spawning / DoS-by-tasks.
 
 Integration notes:
-- [DEPRECATED] Internal components should use `asyncio.TaskGroup` for structured concurrency.
+- [DEPRECATED] Internal components should use `asyncio.TaskGroup`
+  for structured concurrency.
 - Intended for legacy FastAPI lifespan, request, websocket handlers, etc.
 - For cross-thread scheduling, use create_tracked_task_threadsafe().
 """
@@ -54,7 +55,8 @@ def _require_running_loop() -> asyncio.AbstractEventLoop:
         raise RuntimeError(
             "create_tracked_task() must be called with a running event loop "
             "(e.g., inside FastAPI lifespan/request/websocket context). "
-            "If you are calling from another thread, use create_tracked_task_threadsafe()."
+            "If calling from another thread, use "
+            "create_tracked_task_threadsafe()."
         ) from e
 
 
@@ -356,7 +358,8 @@ async def wait_for_tasks(
 
     By default it only observes (does not cancel).
     If cancel_pending=True, it will request cancellation of pending tasks and
-    wait up to cancel_timeout (defaults to timeout if provided, else DEFAULT_SHUTDOWN_TIMEOUT).
+    wait up to cancel_timeout (defaults to timeout if provided,
+    else DEFAULT_SHUTDOWN_TIMEOUT).
 
     Returns:
         True if all tasks finished within timeout, else False.

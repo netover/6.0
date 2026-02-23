@@ -14,7 +14,6 @@ This module provides comprehensive SIEM integration capabilities including:
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import json
 import secrets
@@ -30,6 +29,7 @@ from typing import Any, Optional
 import aiohttp
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -120,7 +120,10 @@ class SIEMEvent:
 
         extension_str = " ".join(extensions)
 
-        return f"CEF:{cef_version}|{device_vendor}|{device_product}|{device_version}|{signature_id}|{name}|{severity}|{extension_str}"
+        return (
+            f"CEF:{cef_version}|{device_vendor}|{device_product}|"
+            f"{device_version}|{signature_id}|{name}|{severity}|{extension_str}"
+        )
 
     def to_leef(self) -> str:
         """Convert event to LEEF format."""
@@ -143,7 +146,10 @@ class SIEMEvent:
 
         attribute_str = "\t".join(attributes)
 
-        return f"LEEF:{leef_version}|{vendor}|{product}|{version}|{event_id}|{attribute_str}|{self.message}"
+        return (
+            f"LEEF:{leef_version}|{vendor}|{product}|{version}|"
+            f"{event_id}|{attribute_str}|{self.message}"
+        )
 
     def to_json(self) -> str:
         """Convert event to JSON format."""
@@ -355,7 +361,8 @@ class SplunkConnector(SIEMConnector):
                     self.last_event_sent = time.time()
                     return len(events)
                 logger.error(
-                    f"Splunk batch send failed: {response.status} - {await response.text()}"
+                    "Splunk batch send failed: "
+                    f"{response.status} - {await response.text()}"
                 )
                 return 0
 

@@ -3,7 +3,8 @@
 """
 Security Metrics Dashboard and Monitoring System.
 
-This module provides comprehensive security monitoring and dashboard capabilities including:
+This module provides comprehensive security monitoring
+and dashboard capabilities including:
 - Real-time security metrics collection and aggregation
 - Interactive dashboards with customizable widgets
 - Automated report generation and compliance tracking
@@ -14,7 +15,6 @@ This module provides comprehensive security monitoring and dashboard capabilitie
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import defaultdict, deque
@@ -24,6 +24,7 @@ from enum import Enum
 from typing import Any
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -588,7 +589,10 @@ class AlertManager:
                     "threshold": rule.threshold,
                     "condition": rule.condition,
                     "timestamp": time.time(),
-                    "description": f"{rule.description} - Current value: {metric.current_value}",
+                    "description": (
+                        f"{rule.description} - "
+                        f"Current value: {metric.current_value}"
+                    ),
                 }
 
                 # Mark rule as triggered
@@ -692,10 +696,15 @@ class ReportGenerator:
         # This would integrate with the actual metric collectors
         # For now, provide sample content
 
+        period_end_str = datetime.fromtimestamp(
+            report.period_end, tz=timezone.utc
+        ).strftime("%Y-%m-%d")
         report.executive_summary = f"""
-        Security Report for {report.report_type} period ending {datetime.fromtimestamp(report.period_end, tz=timezone.utc).strftime("%Y-%m-%d")}.
+        Security Report for {report.report_type} period ending
+        {period_end_str}.
 
-        This report provides an overview of security metrics, incidents, and compliance status for the reporting period.
+        This report provides an overview of security metrics,
+        incidents, and compliance status for the reporting period.
         """
 
         report.findings = [
@@ -703,7 +712,10 @@ class ReportGenerator:
                 "severity": "medium",
                 "category": "threat_detection",
                 "title": "Increased Anomalous Activity",
-                "description": "Detected 15% increase in anomalous user behavior patterns",
+                "description": (
+                    "Detected 15% increase in anomalous "
+                    "user behavior patterns"
+                ),
                 "recommendation": "Review user behavior monitoring rules",
             },
             {
