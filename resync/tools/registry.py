@@ -22,11 +22,10 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from typing import cast
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, cast
 
 import structlog
 from pydantic import BaseModel, ValidationError

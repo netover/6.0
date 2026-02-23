@@ -49,16 +49,16 @@ WORKFLOW_MODE: Literal["optimized", "verbose"] = config.legacy_mode.value
 if WORKFLOW_MODE == "verbose":
     logger.info("Loading VERBOSE workflow implementation (1813 lines, v5.11.0)")
     from .nodes_verbose import (
-        fetch_job_history,
-        fetch_workstation_metrics,
-        detect_degradation,
         correlate_metrics,
-        predict_timeline,
-        generate_recommendations,
-        notify_operators,
+        detect_degradation,
         # verbose-only
         fetch_job_execution_history,
+        fetch_job_history,
+        fetch_workstation_metrics,
         fetch_workstation_metrics_history,
+        generate_recommendations,
+        notify_operators,
+        predict_timeline,
     )
 
     # Export all workflow functions
@@ -81,13 +81,13 @@ if WORKFLOW_MODE == "verbose":
 else:
     logger.info("Loading OPTIMIZED workflow implementation (998 lines, v6.0.3)")
     from .nodes_optimized import (
+        correlate_metrics,
+        detect_degradation,
         fetch_job_history,
         fetch_workstation_metrics,
-        detect_degradation,
-        correlate_metrics,
-        predict_timeline,
         generate_recommendations,
         notify_operators,
+        predict_timeline,
     )
 
     # Export all workflow functions

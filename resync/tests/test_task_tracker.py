@@ -9,12 +9,11 @@ from resync.core.task_tracker import (
     background_task,
     cancel_all_tasks,
     create_tracked_task,
-    track_task,
     get_task_count,
     get_task_names,
+    track_task,
     wait_for_tasks,
 )
-
 
 pytestmark = pytest.mark.asyncio(loop_scope="function")
 
@@ -116,9 +115,9 @@ async def test_background_task_decorator_tracks_and_names_function():
 @pytest.mark.asyncio
 async def test_cancel_all_tasks_cancels_running_tasks_and_reports_stats():
     async def long_running():
+        never = asyncio.Event()
         try:
-            while True:
-                await asyncio.sleep(0.1)
+            await never.wait()
         except asyncio.CancelledError:
             # simulate small cleanup
             await asyncio.sleep(0.05)
@@ -145,9 +144,9 @@ async def test_cancel_all_tasks_collects_errors_for_failed_tasks_and_logs_error(
     caplog.set_level(logging.ERROR)
 
     async def failing_on_cancel():
+        never = asyncio.Event()
         try:
-            while True:
-                await asyncio.sleep(0.1)
+            await never.wait()
         except asyncio.CancelledError:
             raise RuntimeError("cleanup failed boom")
 

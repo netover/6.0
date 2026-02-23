@@ -19,16 +19,17 @@ Version: 1.0.0
 """
 
 import asyncio
-import uuid
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Literal, Optional, TypedDict
 
 import structlog
 from pydantic import BaseModel, Field, field_validator
-from resync.core.utils.llm_factories import LLMFactory
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from resync.core.database import get_async_session
+from resync.core.utils.llm_factories import LLMFactory
 from resync.workflows.nodes import (
     correlate_metrics,
     detect_degradation,
@@ -43,8 +44,8 @@ from resync.workflows.nodes import (
 LANGGRAPH_AVAILABLE = False
 POSTGRES_SAVER_AVAILABLE = False
 try:
-    from langgraph.graph import END, StateGraph
     from langgraph.checkpoint.postgres import PostgresSaver
+    from langgraph.graph import END, StateGraph
 
     LANGGRAPH_AVAILABLE = True
     POSTGRES_SAVER_AVAILABLE = True
@@ -97,6 +98,7 @@ async def get_checkpointer() -> Optional[Any]:
 
         try:
             from psycopg_pool import AsyncConnectionPool
+
             from resync.settings import settings
 
             conn_url = settings.database_url.replace("postgresql+asyncpg", "postgresql")
@@ -491,7 +493,8 @@ async def execute_actions_node(
     Note: Opens its own DB session if not provided to avoid holding
     connection open during execution.
     """
-    # Open own session if not provided to avoid holding connection during action execution
+    # Open own session if not provided to avoid
+    # holding connection during action execution.
     if db is None:
         async with get_async_session() as session:
             return await _execute_actions_node_impl(state, session)
@@ -563,7 +566,10 @@ async def execute_preventive_action(
     await asyncio.sleep(0.1)
     return {
         "status": "simulated",
-        "details": "Action not yet implemented — enable PREDICTIVE_MAINTENANCE_EXECUTE=true when ready",
+        "details": (
+            "Action not yet implemented — enable "
+            "PREDICTIVE_MAINTENANCE_EXECUTE=true when ready"
+        ),
     }
 
 

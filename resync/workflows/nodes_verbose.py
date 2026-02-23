@@ -220,28 +220,28 @@ async def fetch_workstation_metrics_history(
 
 
 async def detect_degradation(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until full analytical implementation is restored."""
+    """TODO: Verbose-mode placeholder until analytical implementation returns."""
     await asyncio.sleep(0)
     _ = (args, kwargs)
     return {}
 
 
 async def correlate_metrics(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until full analytical implementation is restored."""
+    """TODO: Verbose-mode placeholder until analytical implementation returns."""
     await asyncio.sleep(0)
     _ = (args, kwargs)
     return {}
 
 
 async def predict_timeline(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until full analytical implementation is restored."""
+    """TODO: Verbose-mode placeholder until analytical implementation returns."""
     await asyncio.sleep(0)
     _ = (args, kwargs)
     return {}
 
 
 async def generate_recommendations(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until full recommendation implementation is restored."""
+    """TODO: Verbose-mode placeholder until recommendation implementation returns."""
     await asyncio.sleep(0)
     _ = (args, kwargs)
     return {}
