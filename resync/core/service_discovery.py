@@ -1,16 +1,17 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Service Discovery Manager — v7.2-prod (Resync) — atualizado (v7.1 + hardening)
 
 Objetivos de produção:
-- Lifecycle determinístico (start/stop corretos + cancelamento de tasks + aclose em httpx).
+- Lifecycle determinístico (start/stop corretos + cancelamento
+  de tasks + aclose em httpx).
 - Reuso de httpx.AsyncClient (pooling) com httpx.Limits.
 - Prometheus com baixa cardinalidade por padrão; métricas por instância opcionais.
 - OpenTelemetry: spans apenas em operações request-like; workers só logs/métricas.
 - Least Connections seguro: borrow_instance como async context manager garante release.
 - Circuit breaker mínimo: open_until por instância e filtragem no LB.
-- GARBAGE COLLECTION: remove estado e séries por instância quando instâncias somem do backend.
+- GARBAGE COLLECTION: remove estado e séries por instância
+  quando instâncias somem do backend.
 """
 
 from __future__ import annotations
@@ -30,12 +31,11 @@ from typing import Any, Callable, Coroutine
 import httpx
 import orjson
 import structlog
-from antidote import inject, injectable
+from antidote import inject, injectable  # type: ignore[import-not-found]
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
-from prometheus_client import Counter, Gauge, Histogram, REGISTRY
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from pydantic.networks import AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from resync.core.task_tracker import track_task
@@ -202,7 +202,7 @@ class ServiceDiscoveryConfig(BaseSettings):
     default_backend: DiscoveryBackend = DiscoveryBackend.CONSUL
 
     # Consul
-    consul_url: AnyUrl = "http://localhost:8500"
+    consul_url: str = "http://localhost:8500"
     consul_acl_token: str = ""
 
     # Kubernetes (optional)
@@ -248,7 +248,8 @@ class ServiceDiscoveryConfig(BaseSettings):
 
 
 def _make_limits(cfg: ServiceDiscoveryConfig) -> httpx.Limits:
-    # httpx.Limits controls connection pool sizing (max_connections, keepalive, expiry). :contentReference[oaicite:3]{index=3}
+    # httpx.Limits controls connection pool sizing
+    # (max_connections, keepalive, expiry).
     return httpx.Limits(
         max_connections=cfg.http_max_connections,
         max_keepalive_connections=cfg.http_max_keepalive,
@@ -952,7 +953,8 @@ class ServiceDiscoveryManager:
         Remove estado por instância (previne leak lógico em churn).
         E remove séries Prometheus se enable_instance_metrics=True.
 
-        Prometheus client libs recomendam remove() com a mesma assinatura de labels(). :contentReference[oaicite:4]{index=4}
+        Prometheus client libs recomendam remove() com
+        a mesma assinatura de labels().
         """
         for dead_id in dead_ids:
             self._conn_counts_by_instance.pop(dead_id, None)
@@ -968,7 +970,8 @@ class ServiceDiscoveryManager:
 
     async def get_service_instances(self, service_name: str) -> list[ServiceInstance]:
         """
-        Retorna instâncias (cache local) e faz GC de instâncias mortas ao atualizar do backend.
+        Retorna instâncias (cache local) e faz GC
+        de instâncias mortas ao atualizar do backend.
         """
         now = time.monotonic()
         age = now - self._discovery_cache_time.get(service_name, 0.0)
@@ -1126,7 +1129,8 @@ class ServiceDiscoveryManager:
         self, service_name: str, strategy: LoadBalancingStrategy | None = None
     ):
         """
-        Context Manager obrigatório para Least Connections correto (incrementa/decrementa com segurança).
+        Context manager obrigatório para least-connections
+        correto (incrementa/decrementa com segurança).
         """
         inst = await self.discover_service(service_name, strategy)
         if inst is not None:
@@ -1313,8 +1317,11 @@ class ServiceDiscoveryManager:
                             if not due:
                                 continue
 
+                            service_def = sd
+
                             async def _hc(
-                                i: ServiceInstance = inst, d: ServiceDefinition = sd
+                                i: ServiceInstance = inst,
+                                d: ServiceDefinition = service_def,
                             ) -> None:
                                 await self._perform_health_check(i, d)
 

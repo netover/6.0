@@ -210,8 +210,10 @@ class DIContainer:
             # No scope active - this is a programming error.
             # We fail-fast to avoid non-deterministic behavior.
             raise RuntimeError(
-                f"Scoped service {interface.__name__} requested outside an active scope. "
-                "Use 'async with container.create_scope()' in non-HTTP execution contexts."
+                f"Scoped service {interface.__name__} "
+                "requested outside an active scope. "
+                "Use 'async with container.create_scope()' in "
+                "non-HTTP execution contexts."
             )
 
         # Check if already in scope

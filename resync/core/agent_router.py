@@ -36,6 +36,7 @@ from enum import Enum
 from typing import Any, Protocol
 
 import structlog
+
 from resync.core.context import get_trace_id
 from resync.core.metrics.runtime_metrics import runtime_metrics
 
@@ -787,7 +788,8 @@ class AgenticHandler(BaseHandler):
                                 )
                                 response_parts.append(
                                     f"{status_icon} **{ws.get('name')}**: "
-                                    f"{ws.get('status')} - {ws.get('jobs_running', 0)} jobs"
+                                    f"{ws.get('status')} - "
+                                    f"{ws.get('jobs_running', 0)} jobs"
                                 )
                         else:
                             ws = result
@@ -950,7 +952,8 @@ PERGUNTA DO USUÁRIO:
                 f"Período: últimos {history.get('period_days', 7)} dias\n"
                 f"Execuções: {history.get('total_executions', 0)}\n"
                 f"Taxa de sucesso: {history.get('success_rate', 0) * 100:.1f}%\n"
-                f"Duração média: {history.get('avg_duration_seconds', 0) / 60:.1f} min\n"
+                "Duração média: "
+                f"{history.get('avg_duration_seconds', 0) / 60:.1f} min\n"
                 f"Falhas: {history.get('failure_count', 0)}\n"
                 f"Tendência: {history.get('trend', 'estável')}"
             )
@@ -1087,7 +1090,10 @@ class DiagnosticHandler(BaseHandler):
                 )
                 if team_summary:
                     # Inject specialist team findings into skill context
-                    skill_context = f"# Specialist Team Diagnostic Findings\n{team_summary}\n\n{skill_context}"
+                    skill_context = (
+                        "# Specialist Team Diagnostic Findings\n"
+                        f"{team_summary}\n\n{skill_context}"
+                    )
                     self.last_tools_used.append("specialist_team")
             except Exception as e:
                 logger.warning("Specialist team diagnostic failed: %s", e)
@@ -1103,7 +1109,10 @@ class DiagnosticHandler(BaseHandler):
                 team_summary = getattr(team_resp, "synthesized_response", "")
                 if team_summary:
                     # Inject specialist team findings into skill context
-                    skill_context = f"# Specialist Team Diagnostic Findings\n{team_summary}\n\n{skill_context}"
+                    skill_context = (
+                        "# Specialist Team Diagnostic Findings\n"
+                        f"{team_summary}\n\n{skill_context}"
+                    )
                     self.last_tools_used.append("specialist_team")
             except Exception as e:
                 logger.warning("Specialist team diagnostic failed: %s", e)
@@ -1138,7 +1147,8 @@ class DiagnosticHandler(BaseHandler):
                 if result.get("requires_action"):
                     response_parts.append(
                         f"\n\n⚠️ **Atenção:** Esta solução requer ações que "
-                        f"precisam de aprovação humana. Nível de risco: {result.get('risk_level', 'médio')}"
+                        "precisam de aprovação humana. "
+                        f"Nível de risco: {result.get('risk_level', 'médio')}"
                     )
 
                 return "\n".join(response_parts)

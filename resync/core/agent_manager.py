@@ -16,21 +16,22 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import structlog
 import yaml
-import aiofiles
 from pydantic import BaseModel, Field
 
 from resync.core.exceptions import AgentError
 from resync.core.metrics import runtime_metrics
 from resync.core.utils.async_bridge import run_sync
+from resync.models.a2a import AgentCapabilities, AgentCard, AgentContact
 from resync.models.agents import AgentConfig, AgentType
-from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
 from resync.settings import settings
 from resync.tools.definitions.tws import (
     tws_status_tool,
     tws_troubleshooting_tool,
 )
+
 from .global_utils import get_environment_tags, get_global_correlation_id
 
 agent_logger = structlog.get_logger("resync.agent_manager")
@@ -88,7 +89,8 @@ class Agent:
 
             system_prompt = (
                 f"You are {self.name}.\n"
-                f"{full_instructions}\n\n"  # Use full_instructions em vez de self.instructions
+                f"{full_instructions}\n\n"
+                # Use full_instructions em vez de self.instructions
                 f"Available tools: "
                 f"{', '.join(str(t) for t in self.tools) if self.tools else 'None'}\n\n"
                 "Respond in Portuguese (Brazilian) unless the user writes in English."

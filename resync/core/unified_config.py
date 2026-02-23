@@ -32,8 +32,9 @@ except ImportError:
     FileSystemEventHandler = object
     Observer = None
 
-from resync.core.config_persistence import ConfigPersistenceManager
 import aiofiles
+
+from resync.core.config_persistence import ConfigPersistenceManager
 
 logger = structlog.get_logger(__name__)
 

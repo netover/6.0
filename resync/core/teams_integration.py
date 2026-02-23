@@ -426,7 +426,7 @@ class TeamsIntegration:
     async def monitor_job_status(
         self, job_data: dict[str, Any], instance_name: str
     ) -> None:
-        """Monitor job status and send notifications for configured job status changes."""
+        """Monitor job status and notify configured job state changes."""
         if not self.config.enabled or not self.config.enable_job_notifications:
             return
 

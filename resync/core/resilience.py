@@ -19,13 +19,18 @@ import asyncio
 import weakref
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from functools import wraps
 from typing import Any, ClassVar, TypeVar
 
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt
-from tenacity import wait_exponential, wait_random_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+    wait_random_exponential,
+)
 
 from resync.core.exceptions import CircuitBreakerError
 from resync.core.structured_logger import get_logger
@@ -52,7 +57,8 @@ class CircuitBreakerConfig:
     -----
     * ``expected_exception`` can be a single exception class **or** a tuple of classes.
       Only exceptions matching it are considered circuit-breaker failures.
-    * ``exclude_exceptions`` are *never* counted as failures (useful for 4xx / validation).
+    * ``exclude_exceptions`` are *never* counted as failures
+      (useful for 4xx / validation).
     """
 
     failure_threshold: int = 5
@@ -93,7 +99,8 @@ class CircuitBreaker:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
         self.metrics = CircuitBreakerMetrics()
-        # Lazy-init to avoid binding to an event loop during module import (gunicorn --preload).
+        # Lazy-init to avoid binding to an event loop
+        # during module import (gunicorn --preload).
         self._lock: asyncio.Lock | None = None
 
         # Properties for compatibility with tests
@@ -567,7 +574,8 @@ DEFAULT_EXTERNAL_API_CONFIG = CircuitBreakerConfig(
 
 class CircuitBreakerManager:
     """
-    Registry-based Circuit Breaker manager (client-side), inspired by Resilience4j's registry.
+    Registry-based Circuit Breaker manager (client-side),
+    inspired by Resilience4j's registry.
     """
 
     def __init__(self) -> None:

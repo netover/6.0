@@ -112,7 +112,9 @@ class InputSanitizer:
             # If conversion fails, return the default value
             logger = logging.getLogger(__name__)
             logger.warning(
-                f"Invalid value for environment variable {env_var_name}: {raw_value}. Using default: {default_value}"
+                "Invalid value for environment variable "
+                f"{env_var_name}: {raw_value}. "
+                f"Using default: {default_value}"
             )
             return default_value
 
@@ -180,7 +182,8 @@ class InputSanitizer:
         Args:
             text: User input string.
             max_length: Maximum length allowed for the string.
-            strip_dangerous: If True, removes dangerous chars. If False, returns empty on dangerous input.
+            strip_dangerous: If True, removes dangerous chars.
+                If False, returns empty on dangerous input.
 
         Returns:
             Sanitized string.

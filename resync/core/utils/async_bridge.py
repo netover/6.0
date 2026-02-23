@@ -16,9 +16,9 @@ Design principles
 """
 
 import asyncio
+import logging
 from collections.abc import Coroutine
 from typing import Any, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,8 @@ def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
     except RuntimeError:
         return asyncio.run(coro)
     raise RuntimeError(
-        "run_sync() was called from within a running event loop. Convert the caller to async and `await` the coroutine instead."
+        "run_sync() called from a running event loop. "
+        "Convert caller to async and `await` coroutine instead."
     )
 
 
