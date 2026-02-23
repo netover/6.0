@@ -40,8 +40,6 @@ from fastapi import Depends
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis as AsyncRedis
-    from redis import Redis as SyncRedis
-    from resync.settings import Settings as AppSettings
 
 # Thread-safe singleton instances
 _async_redis_instance: Optional["AsyncRedis"] = None

@@ -25,7 +25,7 @@ class SMTPTestRequest(BaseModel):
 
 @router.get("/smtp", response_model=SMTPConfigUpdate)
 async def get_smtp_config(
-    admin: Annotated[dict, Depends(get_current_admin)]
+    _admin: Annotated[dict, Depends(get_current_admin)]
 ):
     """Get current SMTP configuration."""
     settings = get_settings()
@@ -43,7 +43,7 @@ async def get_smtp_config(
 @router.put("/smtp")
 async def update_smtp_config(
     config: SMTPConfigUpdate,
-    admin: Annotated[dict, Depends(get_current_admin)]
+    _admin: Annotated[dict, Depends(get_current_admin)]
 ):
     """Update SMTP configuration (persists to .env not implemented in this demo)."""
     # In a real app, you would write these to .env file or a database settings table.
@@ -70,7 +70,7 @@ async def update_smtp_config(
 @router.post("/smtp/test")
 async def test_smtp_config(
     request: SMTPTestRequest,
-    admin: Annotated[dict, Depends(get_current_admin)]
+    _admin: Annotated[dict, Depends(get_current_admin)]
 ):
     """Send a test email to verify SMTP configuration."""
     service = get_email_service()

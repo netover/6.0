@@ -25,7 +25,6 @@ try:
         Sampler,
         SamplingResult,
     )
-    from opentelemetry.trace import SpanKind, Status, StatusCode  # type: ignore
 except ImportError:
     trace = None  # type: ignore
     TracerProvider = object  # type: ignore

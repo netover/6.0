@@ -43,7 +43,6 @@ from resync.workflows.nodes import (
 LANGGRAPH_AVAILABLE = False
 POSTGRES_SAVER_AVAILABLE = False
 try:
-    from langchain_core.messages import HumanMessage, SystemMessage
     from langgraph.graph import END, StateGraph
     from langgraph.checkpoint.postgres import PostgresSaver
 
