@@ -87,8 +87,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.services.ingest_service import IngestService
     from resync.services.pg_vector_store import PgVectorStore
     from resync.services.rag_client import get_rag_client_singleton
-    from resync.tws.factory import get_tws_client_singleton
-    from resync.services.notification.email_service import get_email_service
+    from resync.core.factories.tws_factory import get_tws_client_singleton
 
     # Core Infrastructure
     connection_manager = ConnectionManager()
@@ -96,13 +95,13 @@ async def init_domain_singletons(app: FastAPI) -> None:
 
     # TWS Client (Mock vs Real)
     if getattr(settings, "TWS_MOCK_MODE", False):
-        from resync.tws.mock_client import MockTWSClient
+        from resync.services.mock_tws_service import MockTWSClient
 
-        tws = MockTWSClient()
+        tws: ITWSClient = MockTWSClient()
         logger.info("tws_client_mode", mode="mock_enabled")
     else:
         try:
-            tws = get_tws_client_singleton()
+            tws = get_tws_client_singleton()  # type: ignore
         except Exception as exc:
             # Fallback to optimized client or fail hard?
             # For now, let's log and try once more or propagate.
@@ -115,10 +114,8 @@ async def init_domain_singletons(app: FastAPI) -> None:
             # raise RuntimeError("Failed to initialize TWS client") from exc
 
             # Attempt a safe fallback if appropriate for the domain
-            from resync.tws.factory import get_tws_client_singleton
-    from resync.services.notification.email_service import get_email_service
+            from resync.core.factories.tws_factory import get_tws_client_singleton
 
-            tws = get_tws_client_singleton()
             logger.info("tws_client_mode", mode="optimized_fallback")
 
     # Agent manager depends on settings + TWS reference
@@ -160,8 +157,6 @@ async def init_domain_singletons(app: FastAPI) -> None:
     # RAG client singleton (initializes and validates Config/URL)
     get_rag_client_singleton()
 
-    # Initialize Email Service
-    get_email_service()
 
     # Initialize RAG File Ingestor
     vector_store = PgVectorStore()
@@ -172,7 +167,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
 
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # redis_available is set based on IdempotencyManager initialization above.
-    enterprise_state = EnterpriseState(
+    enterprise_state = EnterpriseState(  # type: ignore
         connection_manager=connection_manager,
         knowledge_graph=knowledge_graph,
         tws_client=tws,
