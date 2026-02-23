@@ -542,12 +542,13 @@ def start_metrics_collector():
     global _collector_task
 
     if _collector_task is None or _collector_task.done():
+        if _collector_task and _collector_task.exception():
+            logger.error("Collector task anterior falhou: %s", _collector_task.exception())
         try:
             loop = asyncio.get_event_loop()
             _collector_task = loop.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
         except RuntimeError:
-            # Não há event loop rodando ainda
             logger.warning("Event loop não disponível, collector será iniciado depois")
 
 
