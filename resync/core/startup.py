@@ -30,7 +30,6 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
-    from fastapi import FastAPI
 
 import httpx
 
