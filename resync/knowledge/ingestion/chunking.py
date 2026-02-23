@@ -55,7 +55,8 @@ def chunk_text(
     text: str, max_tokens: int = 512, overlap_tokens: int = 64
 ) -> Iterator[str]:
     """
-    Chunk text in a token-aware way, respecting sentence boundaries and applying overlap.
+    Chunk text in a token-aware way, respecting sentence boundaries
+    and applying overlap.
 
     v5.4.2: Now uses AdvancedChunker with recursive strategy for improved quality.
 

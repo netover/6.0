@@ -238,7 +238,8 @@ class TWSRelation:
         props_json_escaped = props_json.replace("'", "''")
 
         return f"""
-        INSERT INTO {safe_table} (from_node, to_node, relation_type, properties, weight, tenant_id)
+        INSERT INTO {safe_table}
+            (from_node, to_node, relation_type, properties, weight, tenant_id)
         VALUES ('{safe_from}', '{safe_to}', '{safe_rel_type}',
                 '{props_json_escaped}'::jsonb, {float(self.weight)}, '{safe_tenant}')
         ON CONFLICT (from_node, to_node, relation_type, tenant_id)

@@ -20,13 +20,16 @@ Integrates Prometheus metrics for observability.
 """
 
 from __future__ import annotations
+
 import hashlib
 import logging
 import time
 from typing import Any
+
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import Embedder, VectorStore
 from resync.knowledge.monitoring import embed_seconds, jobs_total, upsert_seconds
+
 from .chunking import chunk_text
 
 logger = logging.getLogger(__name__)
@@ -176,8 +179,10 @@ class IngestService:
             max_tokens: Maximum tokens per chunk
             overlap_tokens: Token overlap
             use_contextual_content: Whether to use contextualized content for embedding
-            doc_type: Document type for authority scoring (policy, manual, kb, blog, forum)
-            source_tier: Source credibility tier (verified, official, curated, community, generated)
+            doc_type: Document type for authority scoring
+                (policy, manual, kb, blog, forum)
+            source_tier: Source credibility tier
+                (verified, official, curated, community, generated)
             authority_tier: Authority level 1-5 (lower = more authoritative)
             is_deprecated: Whether this document is deprecated
             platform: Target platform (ios, android, mobile, web, desktop, all)
@@ -359,7 +364,10 @@ class IngestService:
             error_code_count += len(chunk.metadata.error_codes)
         jobs_total.labels(status="ingested").inc()
         logger.info(
-            "Advanced ingest: %s chunks for doc_id=%s in %.2fs (strategy=%s, overlap=%s, types=%s, error_codes=%s)",
+            (
+                "Advanced ingest: %s chunks for doc_id=%s in %.2fs "
+                "(strategy=%s, overlap=%s, types=%s, error_codes=%s)"
+            ),
             total_upsert,
             doc_id,
             time.perf_counter() - t0,

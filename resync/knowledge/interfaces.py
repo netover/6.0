@@ -1,7 +1,8 @@
 """
 Protocols for RAG system components.
 
-Defines interfaces for Embedder, VectorStore, and Retriever to enable dependency injection and testing.
+Defines interfaces for Embedder, VectorStore, and Retriever
+to enable dependency injection and testing.
 """
 
 from __future__ import annotations

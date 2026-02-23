@@ -396,7 +396,10 @@ Required Properties:
                     if prop.validation_rules.pattern:
                         prompt += f"  Pattern: {prop.validation_rules.pattern}\n"
                     if prop.validation_rules.allowed_values:
-                        prompt += f"  Allowed values: {', '.join(prop.validation_rules.allowed_values)}\n"
+                        allowed_values = ", ".join(
+                            prop.validation_rules.allowed_values
+                        )
+                        prompt += f"  Allowed values: {allowed_values}\n"
 
         prompt += "\nOptional Properties:\n"
         for prop in et.properties:

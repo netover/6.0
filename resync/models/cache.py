@@ -6,12 +6,10 @@ Separated from semantic_cache.py to allow lightweight imports and better testing
 
 from __future__ import annotations
 
-
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
-
 
 _EPOCH_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
 

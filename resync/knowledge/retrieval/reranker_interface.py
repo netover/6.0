@@ -165,7 +165,10 @@ class RerankGatingPolicy:
             self._rerank_activated += 1
             self._reasons["low_score"] += 1
             logger.debug(
-                "Rerank activated: low top1 score ({s1:.3f} < {self.config.score_low_threshold})"
+                (
+                    "Rerank activated: low top1 score "
+                    f"({s1:.3f} < {self.config.score_low_threshold})"
+                )
             )
             return True, "low_score"
 
@@ -175,7 +178,10 @@ class RerankGatingPolicy:
             self._rerank_activated += 1
             self._reasons["small_margin"] += 1
             logger.debug(
-                "Rerank activated: small margin ({margin:.3f} < {self.config.margin_threshold})"
+                (
+                    "Rerank activated: small margin "
+                    f"({margin:.3f} < {self.config.margin_threshold})"
+                )
             )
             return True, "small_margin"
 
@@ -186,7 +192,10 @@ class RerankGatingPolicy:
                 self._rerank_activated += 1
                 self._reasons["high_entropy"] += 1
                 logger.debug(
-                    "Rerank activated: high entropy ({entropy:.3f} > {self.config.entropy_threshold})"
+                    (
+                        "Rerank activated: high entropy "
+                        f"({entropy:.3f} > {self.config.entropy_threshold})"
+                    )
                 )
                 return True, "high_entropy"
 

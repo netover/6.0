@@ -347,7 +347,8 @@ class ChunkingConfig:
     overlap_tokens: int = 75  # 15% overlap
 
     # === v6.0: Structure-Aware Overlap (Decision #3) ===
-    # Overlap strategy: "constant" (traditional), "structure" (at boundaries only), "none"
+    # Overlap strategy:
+    # "constant" (traditional), "structure" (at boundaries only), "none"
     overlap_strategy: OverlapStrategy = OverlapStrategy.STRUCTURE
 
     # Semantic chunking

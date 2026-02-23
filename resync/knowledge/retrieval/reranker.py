@@ -56,7 +56,8 @@ def is_cross_encoder_available() -> bool:
     except ImportError:
         _cross_encoder_available = False
         logger.warning(
-            "Cross-encoder not available for RAG. Install with: pip install sentence-transformers"
+            "Cross-encoder not available for RAG. "
+            "Install with: pip install sentence-transformers"
         )
 
     return _cross_encoder_available

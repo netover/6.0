@@ -17,6 +17,8 @@ v5.2.3.24: Added query classification cache and performance metrics.
 """
 
 from __future__ import annotations
+
+import asyncio
 import gzip
 import hashlib
 import json
@@ -25,7 +27,6 @@ import math
 import os
 import re
 import time
-import asyncio
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -285,7 +286,9 @@ class BM25Index:
                     seen_terms.add(term)
         self.avg_doc_length = total_length / len(documents) if documents else 0.0
         logger.info(
-            f"BM25 index built with field boosting: {len(documents)} docs, {len(self.inverted_index)} unique terms, avg_length={{self.avg_doc_length:.1f}}"
+            "BM25 index built with field boosting: "
+            f"{len(documents)} docs, {len(self.inverted_index)} unique terms, "
+            f"avg_length={self.avg_doc_length:.1f}"
         )
 
     def _extract_error_codes(self, text: str) -> list[str]:
@@ -768,7 +771,9 @@ class HybridRetriever:
         if self._classification_cache:
             self._classification_cache.put(query, result)
         logger.debug(
-            f"Query classified as {query_type.value}: {query[:50]}... (weights: v={weights[0]:.1f}, b={weights[1]:.1f})"
+            "Query classified as "
+            f"{query_type.value}: {query[:50]}... "
+            f"(weights: v={weights[0]:.1f}, b={weights[1]:.1f})"
         )
         return result
 
@@ -972,7 +977,10 @@ class HybridRetriever:
         vector_results = v_task.result()
         bm25_results = b_task.result()
         logger.debug(
-            f"Hybrid search: vector={len(vector_results)}, bm25={len(bm25_results)}, weights=(v:{{vector_weight:.1f}}, b:{{bm25_weight:.1f}}), type={classification.query_type.value}"
+            "Hybrid search: "
+            f"vector={len(vector_results)}, bm25={len(bm25_results)}, "
+            f"weights=(v:{vector_weight:.1f}, b:{bm25_weight:.1f}), "
+            f"type={classification.query_type.value}"
         )
         if not vector_results and (not bm25_results):
             return []

@@ -14,10 +14,11 @@ Version: 5.9.0
 
 from __future__ import annotations
 
-import structlog
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -131,7 +132,10 @@ class PgVectorService:
                 await conn.execute(
                     """
                     INSERT INTO document_embeddings
-                    (collection_name, document_id, chunk_id, content, embedding, metadata)
+                    (
+                        collection_name, document_id, chunk_id,
+                        content, embedding, metadata
+                    )
                     VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb)
                     ON CONFLICT (collection_name, document_id, chunk_id)
                     DO UPDATE SET
@@ -192,7 +196,8 @@ class PgVectorService:
                 or score_threshold > 1
             ):
                 raise ValueError(
-                    f"score_threshold must be a number between 0 and 1, got: {score_threshold}"
+                    "score_threshold must be a number between 0 and 1, "
+                    f"got: {score_threshold}"
                 )
             threshold_clause = f"WHERE similarity >= {float(score_threshold)}"
 
@@ -202,7 +207,9 @@ class PgVectorService:
                 FROM document_embeddings
                 WHERE collection_name = $3
                 {filter_clause}
-                ORDER BY binary_quantize(embedding_half)::bit({self._embedding_dimension}) <~> $2::bit({self._embedding_dimension})
+                ORDER BY
+                    binary_quantize(embedding_half)::bit({self._embedding_dimension})
+                    <~> $2::bit({self._embedding_dimension})
                 LIMIT {candidates}
             ),
             rescored AS (

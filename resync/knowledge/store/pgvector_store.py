@@ -17,8 +17,10 @@ Version: 5.9.0
 """
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import VectorStore
 
@@ -115,7 +117,20 @@ class PgVectorStore(VectorStore):
             )
         async with pool.acquire() as conn:
             await conn.executemany(
-                "\n                INSERT INTO document_embeddings\n                (collection_name, document_id, chunk_id, content, embedding, metadata, sha256)\n                VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb, $7)\n                ON CONFLICT (collection_name, document_id, chunk_id)\n                DO UPDATE SET\n                    content = EXCLUDED.content,\n                    embedding = EXCLUDED.embedding,\n                    metadata = EXCLUDED.metadata,\n                    sha256 = EXCLUDED.sha256,\n                    updated_at = CURRENT_TIMESTAMP\n            ",
+                """
+                INSERT INTO document_embeddings (
+                    collection_name, document_id, chunk_id,
+                    content, embedding, metadata, sha256
+                )
+                VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb, $7)
+                ON CONFLICT (collection_name, document_id, chunk_id)
+                DO UPDATE SET
+                    content = EXCLUDED.content,
+                    embedding = EXCLUDED.embedding,
+                    metadata = EXCLUDED.metadata,
+                    sha256 = EXCLUDED.sha256,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
                 records,
             )
         logger.debug("batch_upserted", extra={"collection": col, "count": len(ids)})
@@ -156,7 +171,28 @@ class PgVectorStore(VectorStore):
                 filter_params.append(str(value))
                 param_idx += 1
         candidates = max(top_k * 10, 50)
-        query = f"\n            WITH binary_candidates AS (\n                -- Phase 1: Fast binary search\n                SELECT id, document_id, chunk_id, content, metadata, sha256, embedding_half\n                FROM document_embeddings\n                WHERE collection_name = $3\n                {filter_clause}\n                ORDER BY binary_quantize(embedding_half)::bit({self._dim}) <~> $2::bit({self._dim})\n                LIMIT {candidates}\n            )\n            -- Phase 2: Precise halfvec rescoring\n            SELECT\n                document_id, chunk_id, content, metadata, sha256,\n                1 - (embedding_half <=> $1::halfvec) AS similarity\n            FROM binary_candidates\n            ORDER BY embedding_half <=> $1::halfvec\n            LIMIT ${param_idx}\n        "
+        query = f"""
+            WITH binary_candidates AS (
+                -- Phase 1: Fast binary search
+                SELECT
+                    id, document_id, chunk_id, content,
+                    metadata, sha256, embedding_half
+                FROM document_embeddings
+                WHERE collection_name = $3
+                {filter_clause}
+                ORDER BY
+                    binary_quantize(embedding_half)::bit({self._dim})
+                    <~> $2::bit({self._dim})
+                LIMIT {candidates}
+            )
+            -- Phase 2: Precise halfvec rescoring
+            SELECT
+                document_id, chunk_id, content, metadata, sha256,
+                1 - (embedding_half <=> $1::halfvec) AS similarity
+            FROM binary_candidates
+            ORDER BY embedding_half <=> $1::halfvec
+            LIMIT ${param_idx}
+        """
         params = [embedding_str, binary_str, col, *filter_params, top_k]
         async with pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
@@ -195,7 +231,15 @@ class PgVectorStore(VectorStore):
         col = collection or CFG.collection_read
         pool = await self._get_pool()
         embedding_str = f"[{','.join((str(x) for x in vector))}]"
-        query = "\n            SELECT\n                document_id, chunk_id, content, metadata, sha256,\n                1 - (embedding_half <=> $1::halfvec) AS similarity\n            FROM document_embeddings\n            WHERE collection_name = $2\n            ORDER BY embedding_half <=> $1::halfvec\n            LIMIT $3\n        "
+        query = """
+            SELECT
+                document_id, chunk_id, content, metadata, sha256,
+                1 - (embedding_half <=> $1::halfvec) AS similarity
+            FROM document_embeddings
+            WHERE collection_name = $2
+            ORDER BY embedding_half <=> $1::halfvec
+            LIMIT $3
+        """
         async with pool.acquire() as conn:
             rows = await conn.fetch(query, embedding_str, col, top_k)
         results = []
@@ -230,7 +274,11 @@ class PgVectorStore(VectorStore):
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             exists = await conn.fetchval(
-                "\n                SELECT 1 FROM document_embeddings\n                WHERE collection_name = $1 AND document_id = $2\n                LIMIT 1\n                ",
+                """
+                SELECT 1 FROM document_embeddings
+                WHERE collection_name = $1 AND document_id = $2
+                LIMIT 1
+                """,
                 col,
                 document_id,
             )
@@ -242,7 +290,10 @@ class PgVectorStore(VectorStore):
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             result = await conn.execute(
-                "\n                DELETE FROM document_embeddings\n                WHERE collection_name = $1 AND document_id = $2\n                ",
+                """
+                DELETE FROM document_embeddings
+                WHERE collection_name = $1 AND document_id = $2
+                """,
                 col,
                 document_id,
             )
@@ -265,7 +316,17 @@ class PgVectorStore(VectorStore):
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             stats = await conn.fetchrow(
-                "\n                SELECT\n                    COUNT(*) as document_count,\n                    COUNT(DISTINCT document_id) as unique_documents,\n                    MIN(created_at) as oldest_doc,\n                    MAX(updated_at) as newest_doc,\n                    pg_size_pretty(pg_total_relation_size('document_embeddings')) as table_size\n                FROM document_embeddings\n                WHERE collection_name = $1\n                ",
+                """
+                SELECT
+                    COUNT(*) as document_count,
+                    COUNT(DISTINCT document_id) as unique_documents,
+                    MIN(created_at) as oldest_doc,
+                    MAX(updated_at) as newest_doc,
+                    pg_size_pretty(pg_total_relation_size('document_embeddings'))
+                        as table_size
+                FROM document_embeddings
+                WHERE collection_name = $1
+                """,
                 col,
             )
         return {
@@ -301,7 +362,19 @@ class PgVectorStore(VectorStore):
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                "\n                SELECT\n                    document_id,\n                    chunk_index,\n                    content,\n                    metadata,\n                    created_at,\n                    updated_at\n                FROM document_embeddings\n                WHERE collection_name = $1\n                ORDER BY document_id, chunk_index\n                LIMIT $2\n                ",
+                """
+                SELECT
+                    document_id,
+                    chunk_index,
+                    content,
+                    metadata,
+                    created_at,
+                    updated_at
+                FROM document_embeddings
+                WHERE collection_name = $1
+                ORDER BY document_id, chunk_index
+                LIMIT $2
+                """,
                 col,
                 limit,
             )

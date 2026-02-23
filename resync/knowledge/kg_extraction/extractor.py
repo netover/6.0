@@ -8,8 +8,8 @@ By default, extraction is gated by env var KG_EXTRACTION_ENABLED.
 """
 
 from __future__ import annotations
-# mypy: no-rerun
 
+# mypy: no-rerun
 import json
 import logging
 import re
@@ -19,9 +19,9 @@ from pydantic import ValidationError
 
 from resync.core.utils.llm import call_llm
 
+from .normalizer import dedup_concepts, dedup_edges
 from .prompts import build_concepts_prompt, build_edges_prompt
 from .schemas import Concept, Edge, Evidence, ExtractionResult
-from .normalizer import dedup_concepts, dedup_edges
 
 logger = logging.getLogger(__name__)
 

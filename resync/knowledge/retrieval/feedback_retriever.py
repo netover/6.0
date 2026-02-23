@@ -172,7 +172,9 @@ class FeedbackAwareRetriever(Retriever):
         Apply feedback-based score adjustments.
 
         Scoring formula:
-        final_score = base_score * (1 + clamp(feedback_weight * feedback_score, min, max))
+        final_score = base_score * (
+            1 + clamp(feedback_weight * feedback_score, min, max)
+        )
         """
         # Get document IDs
         doc_ids = [hit.get("id", hit.get("doc_id", "")) for hit in hits]

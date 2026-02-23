@@ -191,7 +191,10 @@ class ProvenanceRecord:
     def __post_init__(self):
         """Generate record ID if not provided."""
         if not self.record_id:
-            hash_input = f"{self.entity_id}:{self.source.source_file}:{self.created_at.isoformat()}"
+            hash_input = (
+                f"{self.entity_id}:{self.source.source_file}:"
+                f"{self.created_at.isoformat()}"
+            )
             self.record_id = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
     def to_dict(self) -> dict[str, Any]:

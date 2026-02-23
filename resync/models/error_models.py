@@ -178,7 +178,10 @@ class AuthenticationErrorResponse(BaseErrorResponse):
             path=path,
             method=method,
             severity=ErrorSeverity.MEDIUM,
-            user_friendly_message="The provided credentials are invalid. Please check and try again.",
+            user_friendly_message=(
+                "The provided credentials are invalid. "
+                "Please check and try again."
+            ),
             troubleshooting_hints=[
                 "Verify your username and password",
                 "Check for typos",
@@ -253,7 +256,11 @@ class AuthorizationErrorResponse(BaseErrorResponse):
         # Build contextual message with request information
         message = f"Insufficient permissions. Required: {', '.join(required)}"
         if path and method:
-            message = f"Insufficient permissions for {method} {path}. Required: {', '.join(required)}"
+            required_str = ", ".join(required)
+            message = (
+                f"Insufficient permissions for {method} {path}. "
+                f"Required: {required_str}"
+            )
 
         return cls(
             error_code="INSUFFICIENT_PERMISSIONS",
@@ -263,7 +270,10 @@ class AuthorizationErrorResponse(BaseErrorResponse):
             path=path,
             method=method,
             severity=ErrorSeverity.MEDIUM,
-            user_friendly_message="You don't have the required permissions to perform this action.",
+            user_friendly_message=(
+                "You don't have the required permissions "
+                "to perform this action."
+            ),
             troubleshooting_hints=[
                 "Contact your administrator to request additional permissions"
             ],
@@ -293,7 +303,8 @@ class BusinessLogicErrorResponse(BaseErrorResponse):
         method: str | None = None,
     ) -> "BusinessLogicErrorResponse":
         """Create resource not found error response."""
-        # Handle case where resource and identifier are provided instead of resource_type and resource_id
+        # Handle case where resource/identifier are provided
+        # instead of resource_type/resource_id
         if resource is not None:
             resource_type = resource_type or resource
         if identifier is not None:
@@ -340,7 +351,10 @@ class BusinessLogicErrorResponse(BaseErrorResponse):
             path=path,
             method=method,
             severity=ErrorSeverity.MEDIUM,
-            user_friendly_message="A business rule was violated. Please check your request.",
+            user_friendly_message=(
+                "A business rule was violated. "
+                "Please check your request."
+            ),
             troubleshooting_hints=[
                 "Review the business rules",
                 "Modify your request accordingly",
@@ -379,7 +393,10 @@ class SystemErrorResponse(BaseErrorResponse):
             severity=ErrorSeverity.HIGH,
             path=path,
             method=method,
-            user_friendly_message="Something went wrong on our end. Please try again later.",
+            user_friendly_message=(
+                "Something went wrong on our end. "
+                "Please try again later."
+            ),
             troubleshooting_hints=[
                 "Try again in a few minutes",
                 "Contact support if the problem persists",
@@ -411,7 +428,10 @@ class SystemErrorResponse(BaseErrorResponse):
             severity=ErrorSeverity.HIGH,
             path=path,
             method=method,
-            user_friendly_message=f"The {service} service is currently unavailable. Please try again later.",
+            user_friendly_message=(
+                f"The {service} service is currently unavailable. "
+                "Please try again later."
+            ),
             troubleshooting_hints=[
                 "Try again in a few minutes",
                 "Check service status",
@@ -449,7 +469,10 @@ class ExternalServiceErrorResponse(BaseErrorResponse):
             path=path,
             method=method,
             severity=ErrorSeverity.MEDIUM,
-            user_friendly_message=f"An error occurred while communicating with {service_name}. Please try again later.",
+            user_friendly_message=(
+                f"An error occurred while communicating with {service_name}. "
+                "Please try again later."
+            ),
             troubleshooting_hints=[
                 "Try again in a few minutes",
                 "Check if {service_name} is operational",
@@ -481,9 +504,10 @@ class RateLimitErrorResponse(BaseErrorResponse):
         # Handle case where window is provided instead of reset_time
         if window is not None and reset_time is None:
             # For simplicity, we'll create a future datetime based on the window
-            from datetime import datetime, timezone, timedelta
+            from datetime import datetime, timedelta, timezone
 
-            # This is a simplified implementation - in a real scenario, you'd calculate the actual reset time
+            # Simplified implementation; in a real scenario,
+            # calculate the actual reset time.
             reset_time = datetime.now(timezone.utc) + timedelta(
                 seconds=60
             )  # Default to 1 minute
@@ -503,7 +527,10 @@ class RateLimitErrorResponse(BaseErrorResponse):
             path=path,
             method=method,
             severity=ErrorSeverity.MEDIUM,
-            user_friendly_message="You've made too many requests recently. Please wait before trying again.",
+            user_friendly_message=(
+                "You've made too many requests recently. "
+                "Please wait before trying again."
+            ),
             troubleshooting_hints=[
                 (
                     f"Wait until {reset_time.isoformat()} to retry"

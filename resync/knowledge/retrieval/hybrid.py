@@ -162,11 +162,13 @@ class QueryClassifier:
     """
 
     # LLM classification prompt
-    LLM_ROUTER_PROMPT = """You are a query classifier for a TWS/HWA workload automation system.
+    LLM_ROUTER_PROMPT = """You are a query classifier for a
+TWS/HWA workload automation system.
 Classify the user query into ONE of these categories:
 
 CATEGORIES:
-- DEPENDENCY_CHAIN: Questions about job dependencies, predecessors, what a job depends on
+- DEPENDENCY_CHAIN: Questions about job dependencies, predecessors,
+  what a job depends on
 - IMPACT_ANALYSIS: Questions about what happens if something fails, downstream effects
 - RESOURCE_CONFLICT: Questions about concurrent execution, resource sharing, conflicts
 - CRITICAL_JOBS: Questions about most important jobs, bottlenecks, critical paths
@@ -798,7 +800,8 @@ class HybridRAG:
             return [query]
 
         try:
-            prompt = f"""Generate {num_variations} different ways to ask the following question about TWS/HWA workload automation.
+            prompt = f"""Generate {num_variations} different ways to ask
+the following question about TWS/HWA workload automation.
 Each variation should capture the same intent but use different words or phrasing.
 
 Original question: {query}
@@ -974,7 +977,8 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
 
         if results.get("graph_results"):
             context_parts.append(
-                f"Knowledge Graph Results:\n{self._format_graph_results(results['graph_results'])}"
+                "Knowledge Graph Results:\n"
+                f"{self._format_graph_results(results['graph_results'])}"
             )
 
         if results.get("rag_results") and results["rag_results"].get("documents"):
@@ -1041,7 +1045,8 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 f"  - {c['name']} ({c['conflict_type']})" for c in conflicts
             ]
             return (
-                f"Resource conflicts between {results.get('job_a')} and {results.get('job_b')}:\n"
+                "Resource conflicts between "
+                f"{results.get('job_a')} and {results.get('job_b')}:\n"
                 + "\n".join(conflict_list)
             )
 
@@ -1051,7 +1056,11 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 return "No critical jobs identified."
 
             lines = [
-                f"  {i + 1}. {j['job']} (centrality: {j['centrality_score']}, risk: {j['risk_level']})"
+                (
+                    f"  {i + 1}. {j['job']} "
+                    f"(centrality: {j['centrality_score']}, "
+                    f"risk: {j['risk_level']})"
+                )
                 for i, j in enumerate(jobs[:10])
             ]
             return "Most critical jobs:\n" + "\n".join(lines)

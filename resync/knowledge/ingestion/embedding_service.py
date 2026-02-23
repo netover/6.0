@@ -152,7 +152,8 @@ class MultiProviderEmbeddingService(Embedder):
         Initialize the multi-provider embedding service.
 
         Args:
-            model: Model name (e.g., "text-embedding-3-small", "cohere/embed-english-v3.0")
+            model: Model name
+                (e.g., "text-embedding-3-small", "cohere/embed-english-v3.0")
             provider: Explicit provider selection (auto-detected if not specified)
             dimension: Embedding dimension (auto-detected from model if not specified)
             api_key: API key (falls back to environment variables)
@@ -405,7 +406,8 @@ class MultiProviderEmbeddingService(Embedder):
                     if attempt < self._retry_attempts - 1:
                         wait_time = 2**attempt  # Exponential backoff
                         logger.warning(
-                            f"Embedding attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
+                            "Embedding attempt "
+                            f"{attempt + 1} failed, retrying in {wait_time}s: {e}"
                         )
                         await asyncio.sleep(wait_time)
                     else:
