@@ -1,4 +1,5 @@
 # pylint: disable=all
+# ruff: noqa: E501
 # mypy: no-rerun
 """
 Advanced Knowledge Graph Queries for Resync v5.2.3.26
@@ -33,12 +34,14 @@ Version: 5.2.3.26
 """
 
 from __future__ import annotations
+
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, TypeVar
+
 import networkx as nx
 
 try:

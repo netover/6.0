@@ -8,14 +8,15 @@ except ModuleNotFoundError:  # pragma: no cover
 
 import httpx
 from httpx import Response
-from resync.services.tws_service import OptimizedTWSClient
+
 from resync.core.exceptions import (
     TWSAuthenticationError,
+    TWSConnectionError,
     TWSRateLimitError,
     TWSServerError,
     TWSTimeoutError,
-    TWSConnectionError,
 )
+from resync.services.tws_service import OptimizedTWSClient
 from resync.settings import settings
 
 
@@ -39,7 +40,8 @@ def isolated_settings():
 
 @pytest_asyncio.fixture
 async def tws_client(isolated_settings):
-    # Note: password is intentionally a test value for unit tests (not a real credential)
+    # Note: password is intentionally a test value
+    # for unit tests (not a real credential).
     client = OptimizedTWSClient(
         base_url="http://test-tws",
         username="test_user",

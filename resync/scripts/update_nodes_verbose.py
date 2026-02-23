@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Utility script to patch job execution history query limit."""
 
 from pathlib import Path

@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Application settings and configuration management.
 
 This module defines all application settings using Pydantic BaseSettings,
@@ -13,13 +14,14 @@ Settings are organized into logical groups:
 
 v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 """
+# ruff: noqa: E501
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
 from pathlib import Path
-import secrets
 from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr

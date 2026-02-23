@@ -23,9 +23,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
+import aiofiles
 import structlog
 import yaml
-import aiofiles
 
 logger = structlog.get_logger(__name__)
 
@@ -181,7 +181,10 @@ class ConfigManager:
             "rag.chunking_strategy": {
                 "default": "tws_optimized",
                 "restart": RestartRequirement.GRACEFUL,
-                "description": "Chunking strategy: tws_optimized, hierarchical, semantic",
+                "description": (
+                    "Chunking strategy: tws_optimized, hierarchical, "
+                    "semantic"
+                ),
             },
             "rag.chunk_size": {
                 "default": 512,
@@ -256,7 +259,8 @@ class ConfigManager:
         # Load file configurations
         await self._load_file_configs()
 
-        # DEBT: Load configurations from database (currently loaded from YAML/JSON files only)
+        # DEBT: Load configurations from database
+        # (currently loaded from YAML/JSON files only).
         # await self._load_db_configs()
 
         # Build config cache with precedence
@@ -385,7 +389,8 @@ class ConfigManager:
 
         if current and current.source == ConfigSource.ENVIRONMENT:
             raise ValueError(
-                f"Configuration '{key}' is set via environment variable and cannot be modified"
+                f"Configuration '{key}' is set via environment variable "
+                "and cannot be modified"
             )
 
         schema = self._schema.get(key, {})

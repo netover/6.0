@@ -362,7 +362,12 @@ class MockTWSClient:
         """
         await asyncio.sleep(0.1)  # Simulate network delay
 
-        return f"Mock log content for job {job_id}\nJob started successfully\nProcessing data...\nJob completed"
+        return (
+            f"Mock log content for job {job_id}\n"
+            "Job started successfully\n"
+            "Processing data...\n"
+            "Job completed"
+        )
 
     async def get_plan_details(self) -> PlanDetails:
         """

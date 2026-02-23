@@ -22,7 +22,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379
 # SECURITY: Read password from environment variable, never hardcode in production

@@ -1,4 +1,5 @@
 # pylint: disable=all
+# ruff: noqa: E501
 # mypy: no-rerun
 """
 LLM Service using OpenAI SDK for OpenAI-Compatible APIs.
@@ -33,6 +34,7 @@ Configuration (settings):
 """
 
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
