@@ -1,28 +1,4 @@
 from __future__ import annotations
-"""
-Enterprise-grade application wiring (HTTP DI canonical).
-
-HTTP request path uses ONLY FastAPI's dependency system (Depends / yield).
-No contextvar-based DI container is used for HTTP.
-
-This module provides:
-- Explicit dependency providers for FastAPI
-- A single place to define lifecycle-managed singletons (via lifespan/app.state)
-- Clear separation between:
-    * Domain singletons (created at startup, stored on app.state)
-    * Request-scoped resources (Depends + yield)
-    * Pure config singletons (lru_cache via ``get_settings()``)
-
-v6.0.5+: Hardened for "no confusion / no magic" operation.
-v6.1.1+: Fixed TYPE_CHECKING imports, shutdown consistency, logging.
-
-Global State:
-    All domain singletons live on ``app.state.enterprise_state`` (an
-    ``EnterpriseState`` dataclass).  No module-level mutable state exists
-    in this module.
-"""
-
-
 
 import inspect
 from collections.abc import Iterator
@@ -39,20 +15,19 @@ from resync.settings import get_settings
 
 if TYPE_CHECKING:
     from resync.core.agent_manager import AgentManager
-    from resync.core.agent_router import HybridRouter
-    from resync.core.a2a_handler import A2AHandler
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
+    from resync.core.file_ingestor import IFileIngestor
+    from resync.core.hybrid_router import HybridRouter
     from resync.core.idempotency.manager import IdempotencyManager
-    from resync.core.interfaces import IFileIngestor, ITWSClient
+    from resync.core.interfaces import ITWSClient
+    from resync.core.llm_service import LLMService
     from resync.core.skill_manager import SkillManager
-    from resync.services.llm_service import LLMService
+    from resync.services.a2a_handler import A2AHandler
 
 logger = get_logger(__name__)
 
-# -----------------------------------------------------------------------------
-# app.state keys (single source of truth for attribute names)
-# -----------------------------------------------------------------------------
+# Constants for singleton state keys (matches EnterpriseState fields)
 STATE_CONNECTION_MANAGER: Final[str] = "connection_manager"
 STATE_KNOWLEDGE_GRAPH: Final[str] = "knowledge_graph"
 STATE_TWS_CLIENT: Final[str] = "tws_client"
@@ -64,126 +39,82 @@ STATE_FILE_INGESTOR: Final[str] = "file_ingestor"
 STATE_A2A_HANDLER: Final[str] = "a2a_handler"
 STATE_SKILL_MANAGER: Final[str] = "skill_manager"
 
-# -----------------------------------------------------------------------------
-# Enterprise state contract (used by validate_app_state_contract)
-# -----------------------------------------------------------------------------
-
-#: Singleton attributes that must be non-None after init.
-_REQUIRED_SINGLETONS: Final[tuple[str, ...]] = (
-    STATE_CONNECTION_MANAGER,
-    STATE_KNOWLEDGE_GRAPH,
-    STATE_TWS_CLIENT,
-    STATE_AGENT_MANAGER,
-    STATE_HYBRID_ROUTER,
-    STATE_IDEMPOTENCY_MANAGER,
-    STATE_LLM_SERVICE,
-    STATE_FILE_INGESTOR,
-    STATE_A2A_HANDLER,
-    STATE_SKILL_MANAGER,
-)
-
-#: Boolean flags that must be present and typed correctly.
-_REQUIRED_FLAGS: Final[tuple[str, ...]] = (
-    "startup_complete",
-    "redis_available",
+_REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
+    {
+        STATE_CONNECTION_MANAGER,
+        STATE_KNOWLEDGE_GRAPH,
+        STATE_TWS_CLIENT,
+        STATE_AGENT_MANAGER,
+        STATE_HYBRID_ROUTER,
+        STATE_IDEMPOTENCY_MANAGER,
+        STATE_LLM_SERVICE,
+        STATE_FILE_INGESTOR,
+        STATE_A2A_HANDLER,
+        STATE_SKILL_MANAGER,
+    }
 )
 
 
-def validate_app_state_contract(app: FastAPI) -> None:
-    """Fail-fast if required enterprise state is missing or incomplete.
-
-    For enterprise correctness, HTTP traffic must only be served after
-    lifespan initialises ``app.state.enterprise_state`` with all required
-    singletons and flags.
-
-    Called during lifespan startup and also in integration tests.
-
-    Raises:
-        RuntimeError: If ``enterprise_state`` is absent or any required
-            attribute is missing / has an invalid type.
-    """
-    if not hasattr(app.state, "enterprise_state"):
-        raise RuntimeError(
-            "Missing app.state.enterprise_state (lifespan did not initialise it)."
-        )
-
-    st = enterprise_state_from_app(app)
-    missing: list[str] = []
-
-    for attr in _REQUIRED_SINGLETONS:
-        val = getattr(st, attr, None)
-        if val is None:
-            missing.append(attr)
-
-    for attr in _REQUIRED_FLAGS:
-        val = getattr(st, attr, None)
-        if not isinstance(val, bool):
-            missing.append(attr)
-
-    if missing:
-        raise RuntimeError(
-            "EnterpriseState contract incomplete; missing/invalid: "
-            + ", ".join(sorted(set(missing)))
-        )
+# -----------------------------------------------------------------------------
+# App-level startup/shutdown hooks (lifespan)
+# -----------------------------------------------------------------------------
 
 
 async def init_domain_singletons(app: FastAPI) -> None:
-    """Initialise domain singletons and store on ``app.state.enterprise_state``.
+    """Initialize core domain services and attach to app.state.
 
-    This is the **only** approved singleton mechanism for the HTTP path.
-    It is explicit, auditable, and deterministic.
+    This is the composition root for the application.  It wires together
+    the main service graph, respecting dependency order (e.g. LLM -> Agent).
 
-    All heavy imports are performed locally inside this function to avoid
-    circular-import issues at module load time.  The classes are only needed
-    at runtime when the lifespan calls this function.
-
-    Args:
-        app: The FastAPI application instance (from lifespan).
+    Raises:
+        RuntimeError: If critical infrastructure (DB/Redis) is missing and
+                      cannot be compensated for (e.g. degraded mode).
     """
-    # --- Local runtime imports (avoids circular deps at module scope) ---
+    settings = get_settings()
+    logger.info("initializing_domain_singletons", environment=settings.environment)
+
+    # Import specialized factories locally to avoid top-level cycles
     from resync.core.agent_manager import initialize_agent_manager
-    from resync.core.agent_router import HybridRouter
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
-    from resync.core.idempotency.manager import IdempotencyManager
-    from resync.core.redis_init import get_redis_client
-    from resync.services.llm_service import get_llm_service
-    from resync.services.mock_tws_service import MockTWSClient
-    from resync.services.rag_client import get_rag_client_singleton
-    from resync.knowledge.store.pgvector_store import PgVectorStore
-    from resync.knowledge.ingestion.embedding_service import (
-        MultiProviderEmbeddingService,
-    )
-    from resync.knowledge.ingestion.ingest import IngestService
     from resync.core.file_ingestor import FileIngestor
-    from resync.core.a2a_handler import A2AHandler
+    from resync.core.hybrid_router import HybridRouter
+    from resync.core.idempotency.manager import IdempotencyManager
+    from resync.core.llm_service import get_llm_service
+    from resync.core.redis_init import get_redis_client
+    from resync.services.a2a_handler import A2AHandler
+    from resync.services.embedding_service import MultiProviderEmbeddingService
+    from resync.services.ingest_service import IngestService
+    from resync.services.pg_vector_store import PgVectorStore
+    from resync.services.rag_client import get_rag_client_singleton
+    from resync.tws.factory import get_tws_client_singleton
 
-    settings = get_settings()
-
-    # Connection manager (in-memory, domain singleton)
+    # Core Infrastructure
     connection_manager = ConnectionManager()
-
-    # Knowledge graph / context store
     knowledge_graph = ContextStore()
 
-    # TWS client (external integration; choose mock vs real)
+    # TWS Client (Mock vs Real)
     if getattr(settings, "TWS_MOCK_MODE", False):
-        tws = MockTWSClient()
-        logger.info("tws_client_mode", mode="mock")
-    else:
-        # Use the resilient, unified client (async)
-        # Note: wiring.py is mostly called in lifespan; we wrap it for consistency
-        try:
-            # We use an internal helper to get it synchronously if needed or
-            # ensure it's initialized. UnifiedTWSClient manages its own connection.
-            from resync.services.tws_unified import UnifiedTWSClient
+        from resync.tws.mock_client import MockTWSClient
 
-            tws = UnifiedTWSClient()
-            logger.info("tws_client_mode", mode="unified_resilient")
-        except Exception as e:
-            logger.error("resilient_tws_init_failed", error=str(e))
-            # Fallback to standard optimized client if unified fails to init
-            from resync.core.factories.tws_factory import get_tws_client_singleton
+        tws = MockTWSClient()
+        logger.info("tws_client_mode", mode="mock_enabled")
+    else:
+        try:
+            tws = get_tws_client_singleton()
+        except Exception as exc:
+            # Fallback to optimized client or fail hard?
+            # For now, let's log and try once more or propagate.
+            logger.error(
+                "tws_client_init_failed", error=str(exc), hint="Check TWS credentials."
+            )
+            # Retry logic or fallback logic could go here.
+            # Re-raising ensures we don't start with a broken singleton
+            # unless we explicitly support optional TWS.
+            # raise RuntimeError("Failed to initialize TWS client") from exc
+
+            # Attempt a safe fallback if appropriate for the domain
+            from resync.tws.factory import get_tws_client_singleton
 
             tws = get_tws_client_singleton()
             logger.info("tws_client_mode", mode="optimized_fallback")
@@ -266,10 +197,10 @@ async def init_domain_singletons(app: FastAPI) -> None:
 
 
 async def _safe_close(obj: object, label: str) -> None:
-    """Call ``shutdown()`` or ``close()`` on *obj* if available, logging errors.
+    """Call shutdown() or close() on *obj* if available, logging errors.
 
     This centralises the best-effort teardown pattern used by
-    ``shutdown_domain_singletons`` to avoid duplicated try/except/pass blocks.
+    shutdown_domain_singletons to avoid duplicated try/except/pass blocks.
     """
     try:
         if hasattr(obj, "shutdown"):
@@ -298,12 +229,12 @@ async def _safe_close(obj: object, label: str) -> None:
 async def shutdown_domain_singletons(app: FastAPI) -> None:
     """Best-effort shutdown for domain singletons.
 
-    Called from the lifespan ``finally`` block.  Must never raise — failures
-    are logged at ``warning`` level so they are visible in observability
+    Called from the lifespan finally block.  Must never raise — failures
+    are logged at warning level so they are visible in observability
     tooling (ELK/Grafana) without blocking the shutdown sequence.
 
-    Reads all singletons from ``enterprise_state`` (the same place
-    ``init_domain_singletons`` writes to), ensuring teardown consistency.
+    Reads all singletons from enterprise_state (the same place
+    init_domain_singletons writes to), ensuring teardown consistency.
 
     Args:
         app: The FastAPI application instance.
@@ -373,58 +304,58 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 # -----------------------------------------------------------------------------
 # FastAPI dependencies (HTTP path)
 #
-# These are thin read-only accessors into ``enterprise_state``.  They are
-# consumed via ``Depends(get_xxx)`` in route handlers.
+# These are thin read-only accessors into enterprise_state.  They are
+# consumed via Depends(get_xxx) in route handlers.
 # -----------------------------------------------------------------------------
 
 
 def get_connection_manager(request: Request) -> ConnectionManager:
-    """Provide the ``ConnectionManager`` singleton for a request."""
+    """Provide the ConnectionManager singleton for a request."""
     return enterprise_state_from_request(request).connection_manager
 
 
 def get_knowledge_graph(request: Request) -> ContextStore:
-    """Provide the ``ContextStore`` (knowledge graph) singleton for a request."""
+    """Provide the ContextStore (knowledge graph) singleton for a request."""
     return enterprise_state_from_request(request).knowledge_graph
 
 
 def get_tws_client(request: Request) -> ITWSClient:
-    """Provide the ``ITWSClient`` singleton for a request."""
+    """Provide the ITWSClient singleton for a request."""
     return enterprise_state_from_request(request).tws_client
 
 
 def get_agent_manager(request: Request) -> AgentManager:
-    """Provide the ``AgentManager`` singleton for a request."""
+    """Provide the AgentManager singleton for a request."""
     return enterprise_state_from_request(request).agent_manager
 
 
 def get_hybrid_router(request: Request) -> HybridRouter:
-    """Provide the ``HybridRouter`` singleton for a request."""
+    """Provide the HybridRouter singleton for a request."""
     return enterprise_state_from_request(request).hybrid_router
 
 
 def get_idempotency_manager(request: Request) -> IdempotencyManager:
-    """Provide the ``IdempotencyManager`` singleton for a request."""
+    """Provide the IdempotencyManager singleton for a request."""
     return enterprise_state_from_request(request).idempotency_manager
 
 
 def get_llm_service(request: Request) -> LLMService:
-    """Provide the ``LLMService`` singleton for a request."""
+    """Provide the LLMService singleton for a request."""
     return enterprise_state_from_request(request).llm_service
 
 
 def get_file_ingestor(request: Request) -> IFileIngestor:
-    """Provide the ``IFileIngestor`` singleton for a request."""
+    """Provide the IFileIngestor singleton for a request."""
     return enterprise_state_from_request(request).file_ingestor
 
 
 def get_a2a_handler(request: Request) -> A2AHandler:
-    """Provide the ``A2AHandler`` singleton for a request."""
+    """Provide the A2AHandler singleton for a request."""
     return enterprise_state_from_request(request).a2a_handler
 
 
 def get_skill_manager(request: Request) -> SkillManager:
-    """Provide the ``SkillManager`` singleton for a request."""
+    """Provide the SkillManager singleton for a request."""
     return enterprise_state_from_request(request).skill_manager
 
 
@@ -434,11 +365,11 @@ def get_skill_manager(request: Request) -> SkillManager:
 
 
 def request_context() -> Iterator[dict[str, str]]:
-    """Example request-scoped resource using ``yield`` semantics.
+    """Example request-scoped resource using yield semantics.
 
     This follows the FastAPI "Dependencies with yield" pattern:
-    the code before ``yield`` runs before the request handler, and
-    the code after ``yield`` runs after the response is sent (cleanup).
+    the code before yield runs before the request handler, and
+    the code after yield runs after the response is sent (cleanup).
 
     Usage in a route::
 

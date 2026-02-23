@@ -1,11 +1,9 @@
 # apply_fixes_ast.py — P0 Fix (Python 3.12+ compatible)
 import ast
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Tuple, Any
 
 class LoggerCallFixer(ast.NodeTransformer):
     """

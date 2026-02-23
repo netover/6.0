@@ -33,7 +33,6 @@ from resync.core.exceptions import (
     LLMError,
     ToolExecutionError,
 )
-from resync.core.fastapi_di import get_agent_manager
 from resync.core.ia_auditor import analyze_and_flag_memories
 from resync.core.interfaces import IAgentManager
 from resync.core.security import SafeAgentID, sanitize_input
