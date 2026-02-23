@@ -1,10 +1,12 @@
-# monitoring_dashboard.py — API endpoint para dashboard interno de monitoramento (Redis Version)
+# monitoring_dashboard.py — API endpoint para dashboard interno
+# de monitoramento (Redis Version)
 # Substitui necessidade de Prometheus/Grafana com solução distribuída e sincronizada.
 #
 # Características:
 #   - Persistência Global em Redis (History List e Latest Hash)
 #   - Broadcast sincronizado via Redis Pub/Sub (Sincronização entre workers)
-#   - Liderança Distribuída: Apenas um worker coleta métricas por vez (Resolução de Duplicação)
+#   - Liderança Distribuída: Apenas um worker coleta métricas por vez
+#     (Resolução de Duplicação)
 #   - Alta Performance: Serialização otimizada com orjson
 
 import asyncio
@@ -13,15 +15,15 @@ import secrets
 import threading
 import time
 from contextlib import suppress
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 
-from resync.core.redis_init import get_redis_client
 from resync.api.security import decode_token, require_role
 from resync.core.metrics import runtime_metrics
+from resync.core.redis_init import get_redis_client
 
 if TYPE_CHECKING:
     import redis.asyncio as redis_async

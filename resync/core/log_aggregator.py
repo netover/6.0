@@ -17,8 +17,6 @@ This module provides comprehensive log aggregation and analysis capabilities inc
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
-import aiofiles
 import contextlib
 import json
 import os
@@ -31,9 +29,11 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
+import aiofiles
 import aiohttp
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import create_tracked_task
 
 logger = get_logger(__name__)
 
@@ -306,7 +306,8 @@ class LogAggregator:
 
         # Initialize components
         self._initialize_parsers()
-        # Note: Elasticsearch is initialized lazily in start() to avoid event loop issues
+        # Note: Elasticsearch is initialized lazily in start()
+        # to avoid event loop issues
 
     @property
     def processing_queue(self) -> asyncio.Queue:
@@ -320,7 +321,11 @@ class LogAggregator:
         standard_parsers = [
             LogParser(
                 name="apache_access",
-                pattern=r'(?P<ip>\S+) \S+ \S+ \[(?P<timestamp>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<bytes>\d+)',
+                pattern=(
+                    r'(?P<ip>\S+) \S+ \S+ \[(?P<timestamp>[^\]]+)\] "'
+                    r'(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" '
+                    r'(?P<status>\d+) (?P<bytes>\d+)'
+                ),
                 field_mappings={
                     "ip": "client_ip",
                     "timestamp": "request_time",
@@ -331,7 +336,12 @@ class LogAggregator:
             ),
             LogParser(
                 name="nginx_access",
-                pattern=r'(?P<remote_addr>\S+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<request>[^"]+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"',
+                pattern=(
+                    r'(?P<remote_addr>\S+) - (?P<remote_user>\S+) '
+                    r'\[(?P<time_local>[^\]]+)\] "'
+                    r'(?P<request>[^"]+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "'
+                    r'(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+                ),
                 field_mappings={
                     "remote_addr": "client_ip",
                     "remote_user": "user",
@@ -380,7 +390,8 @@ class LogAggregator:
 
         self._running = True
 
-        # Initialize Elasticsearch client (lazy initialization to avoid event loop issues)
+        # Initialize Elasticsearch client (lazy initialization
+        # to avoid event loop issues)
         self._initialize_elasticsearch()
 
         # Initialize Kibana if configured
@@ -606,7 +617,8 @@ class LogAggregator:
                         logger.info("Created Kibana dashboard: %s", dashboard.title)
                     else:
                         logger.warning(
-                            f"Failed to create dashboard {dashboard.title}: {response.status}"
+                            "Failed to create dashboard "
+                            f"{dashboard.title}: {response.status}"
                         )
             except Exception as e:
                 # Re-raise critical system exceptions
@@ -879,7 +891,10 @@ class LogAggregator:
         try:
             # Prepare bulk request
             bulk_data = []
-            index_name = f"{self.config.elasticsearch_index_prefix}-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+            index_name = (
+                f"{self.config.elasticsearch_index_prefix}-"
+                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+            )
 
             for log_entry in batch:
                 # Index metadata
@@ -960,7 +975,10 @@ class LogAggregator:
             ).strftime("%Y-%m-%d")
 
             # Get all indices matching pattern
-            url = f"{self.config.elasticsearch_url}/_cat/indices/{self.config.elasticsearch_index_prefix}-*?format=json"
+            url = (
+                f"{self.config.elasticsearch_url}/_cat/indices/"
+                f"{self.config.elasticsearch_index_prefix}-*?format=json"
+            )
             async with self.es_session.get(url) as response:
                 if response.status == 200:
                     indices = await response.json()

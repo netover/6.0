@@ -1,5 +1,4 @@
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import contextlib
 import logging
 from dataclasses import dataclass
@@ -10,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from resync.core.metrics import runtime_metrics
+from resync.core.task_tracker import create_tracked_task
 
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
@@ -147,7 +147,8 @@ class WebSocketPoolManager:
                         "Removing unhealthy WebSocket connection: %s", client_id
                     )
 
-                # Additional check: enforce max connection duration to prevent long-lived connections
+                # Additional check: enforce max connection duration
+                # to prevent long-lived connections
                 else:
                     try:
                         connection_duration = (
@@ -159,7 +160,9 @@ class WebSocketPoolManager:
                         if connection_duration > max_duration:
                             connections_to_remove.append(client_id)
                             logger.info(
-                                f"Removing long-lived WebSocket connection: {client_id} (duration: {connection_duration:.1f}s, max: {max_duration}s)"
+                                "Removing long-lived WebSocket connection: "
+                                f"{client_id} (duration: {connection_duration:.1f}s, "
+                                f"max: {max_duration}s)"
                             )
                     except Exception as e:
                         logger.error(
@@ -263,7 +266,8 @@ class WebSocketPoolManager:
     async def _remove_connection_safe(self, client_id: str) -> None:
         """
         Safe method to remove a connection - does NOT acquire lock.
-        Used internally to avoid deadlocks when called from methods that already hold the lock.
+        Used internally to avoid deadlocks when called
+        from methods that already hold the lock.
         """
         # Get connection info under lock, then remove and close outside
         async with self._lock:
@@ -537,7 +541,10 @@ class WebSocketPoolManager:
         # Check WebSocket state before sending (ASGI compliance)
         if conn_info.websocket.client_state != WebSocketState.CONNECTED:
             logger.warning(
-                "Client %s WebSocket is not connected during JSON broadcast (state: %s)",
+                (
+                    "Client %s WebSocket is not connected during "
+                    "JSON broadcast (state: %s)"
+                ),
                 client_id,
                 conn_info.websocket.client_state,
             )
@@ -572,7 +579,8 @@ class WebSocketPoolManager:
         except RuntimeError as e:
             if "websocket state" in str(e).lower():
                 logger.warning(
-                    f"WebSocket in wrong state during JSON broadcast to {client_id}: {e}"
+                    "WebSocket in wrong state during JSON "
+                    f"broadcast to {client_id}: {e}"
                 )
                 conn_info.mark_error()
                 return False
@@ -608,7 +616,8 @@ class WebSocketPoolManager:
             )
             if unhealthy_ratio > 0.5:  # More than 50% unhealthy connections
                 logger.warning(
-                    f"WebSocket pool unhealthy: {unhealthy_ratio:.1%} connections are unhealthy"
+                    "WebSocket pool unhealthy: "
+                    f"{unhealthy_ratio:.1%} connections are unhealthy"
                 )
                 return False
 

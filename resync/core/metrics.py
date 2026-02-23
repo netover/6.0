@@ -1,4 +1,5 @@
-# metrics.py — Runtime telemetry/metrics robusto com Prometheus e correlação real "context-aware"
+# metrics.py — Runtime telemetry/metrics robusto com Prometheus
+# e correlação real "context-aware"
 # Melhorias principais:
 #  - Singleton unificado (sem "instâncias duplas")
 #  - contextvars para correlation_id por execução (async/thread)
@@ -8,12 +9,14 @@
 #  - Uso de time.perf_counter() para durações de alta precisão
 #
 # Referências de boas práticas:
-#  - Prometheus tipos/semântica e formato de exposição: prom docs (metric types + exposition + histogram)
+#  - Prometheus tipos/semântica e formato de exposição:
+#    prom docs (metric types + exposition + histogram)
 #  - Buckets e "le" label: prom docs e otel compat
 #  - Temporização: perf_counter() (monotônico, alta resolução)
 #  - Contexto por execução: contextvars
 #
-# (Ver documentação: https://prometheus.io/docs/... e Python docs para contextvars e perf_counter)
+# (Ver documentação: https://prometheus.io/docs/...
+# e Python docs para contextvars e perf_counter)
 
 
 import logging
@@ -88,7 +91,8 @@ class MetricCounter:
 
     def set(self, value: int) -> None:
         with self._lock:
-            # Mantemos por compatibilidade, mas counters não deveriam ter 'set' arbitrário.
+            # Mantemos por compatibilidade, mas counters
+            # não deveriam ter 'set' arbitrário.
             self.value = value
 
 
@@ -352,7 +356,7 @@ class RuntimeMetrics:
     # Correlação
     # -------------------------
     def create_correlation_id(self, context: dict[str, Any] | None = None) -> str:
-        """Cria novo correlation_id e registra contexto; não altera o contextvar atual."""
+        """Cria correlation_id e registra contexto sem alterar contextvar atual."""
         cid = str(uuid.uuid4())
         with self._correlation_lock:
             self._correlation_context[cid] = {
@@ -420,7 +424,8 @@ class RuntimeMetrics:
 
         def __exit__(self, exc_type, exc_val, exc_tb):
             dur = _now_perf() - self._t0
-            # registrar duração no histogram genérico (opcionalmente reutilize um hist dedicado)
+            # registrar duração no histogram genérico
+            # (opcionalmente reutilize um hist dedicado)
             self.rm.agent_orchestration_time.observe(dur)
             cid = self.correlation_id
             if cid:
@@ -636,7 +641,7 @@ def _get_runtime_metrics() -> RuntimeMetrics:
 
 
 class _RuntimeMetricsProxy:
-    """Proxy que delega dinamicamente ao singleton verdadeiro (sem instância própria)."""
+    """Proxy que delega ao singleton verdadeiro (sem instância própria)."""
 
     def __getattr__(self, name):
         return getattr(_get_runtime_metrics(), name)

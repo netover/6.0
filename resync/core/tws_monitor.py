@@ -7,7 +7,6 @@ performance metrics collection, and alert generation for anomalies.
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import deque
@@ -19,6 +18,7 @@ import structlog
 
 from resync.core.exceptions import PerformanceError
 from resync.core.interfaces import ITWSClient
+from resync.core.task_tracker import track_task
 from resync.core.teams_integration import get_teams_integration
 
 from .shared_utils import TeamsNotification, create_job_status_notification
@@ -246,7 +246,10 @@ class TWSMonitor:
                         alert_id=f"api_error_{int(time.time())}",
                         severity="high",
                         category="api",
-                        message=f"API error rate exceeded threshold: {avg_error_rate:.2%}",
+                        message=(
+                            "API error rate exceeded threshold: "
+                            f"{avg_error_rate:.2%}"
+                        ),
                         timestamp=datetime.now(timezone.utc),
                         details={"error_rate": avg_error_rate},
                     )
@@ -293,7 +296,10 @@ class TWSMonitor:
                     alert_id=f"memory_usage_{int(time.time())}",
                     severity="high",
                     category="memory",
-                    message=f"Memory usage exceeded threshold: {latest_metrics.memory_usage_mb:.1f}MB",
+                    message=(
+                        "Memory usage exceeded threshold: "
+                        f"{latest_metrics.memory_usage_mb:.1f}MB"
+                    ),
                     timestamp=datetime.now(timezone.utc),
                     details={"memory_usage_mb": latest_metrics.memory_usage_mb},
                 )
