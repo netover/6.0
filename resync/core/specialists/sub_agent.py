@@ -1,12 +1,14 @@
+# ruff: noqa: E501
 from __future__ import annotations
 
 import asyncio
 import uuid
-import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
+
+import structlog
 
 from .parallel_executor import (
     ParallelToolExecutor,

@@ -10,11 +10,12 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-from resync.core.task_tracker import create_tracked_task
 from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
