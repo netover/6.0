@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Unified Settings Management API.
 

@@ -304,7 +304,11 @@ async def send_test_notification():
     try:
         notification = TeamsNotification(
             title="🧪 Test Notification",
-            message="This is a test notification from Resync Admin. If you can see this message, Teams integration is working correctly!",
+            message=(
+                "This is a test notification from Resync Admin. "
+                "If you can see this message, Teams integration is "
+                "working correctly!"
+            ),
             severity="info",
             additional_data={
                 "Environment": "Resync Admin",

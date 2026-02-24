@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from resync.core.database.session import get_db

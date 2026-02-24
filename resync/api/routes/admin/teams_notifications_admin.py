@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
@@ -493,7 +493,10 @@ async def send_test_notification(test_data: dict = None, db: Session = Depends(g
     if not config or not config.default_channel_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No default channel configured. Please configure a default channel first.",
+            detail=(
+                "No default channel configured. "
+                "Please configure a default channel first."
+            ),
         )
 
     # Dados do teste
