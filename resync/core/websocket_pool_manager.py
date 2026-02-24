@@ -71,16 +71,11 @@ class WebSocketPoolManager:
     def __init__(self):
         self.connections: dict[str, WebSocketConnectionInfo] = {}
         self.stats = WebSocketPoolStats()
-        self._lock: asyncio.Lock | None = None
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        self._lock: asyncio.Lock = asyncio.Lock()
         self._cleanup_task: asyncio.Task | None = None
         self._initialized = False
         self._shutdown = False
-
-    def _get_lock(self) -> asyncio.Lock:
-        """Get or create the instance lock (lazy initialization)."""
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-        return self._lock
 
     async def initialize(self) -> None:
         """Initialize the WebSocket pool manager."""
@@ -91,7 +86,7 @@ class WebSocketPoolManager:
             self._cleanup_loop(), name="cleanup_loop"
         )
 
-        async with self._get_lock():
+        async with self._lock:
             if self._initialized:
                 return
             self._initialized = True
@@ -222,7 +217,7 @@ class WebSocketPoolManager:
         is_at_capacity = False
         client_exists = False
 
-        async with self._get_lock():
+        async with self._lock:
             # Check pool size limit under lock to prevent race conditions
             if len(self.connections) >= _get_settings().WS_POOL_MAX_SIZE:
                 is_at_capacity = True
@@ -251,7 +246,7 @@ class WebSocketPoolManager:
             last_activity=current_time,
         )
 
-        async with self._get_lock():
+        async with self._lock:
             self.connections[client_id] = conn_info
             self.stats.total_connections += 1
             self.stats.active_connections = len(self.connections)

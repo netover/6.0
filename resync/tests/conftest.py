@@ -42,9 +42,13 @@ os.environ["TESTING"] = "true"
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create an event loop for the test session."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
+    """Create an event loop for the test session.
+    
+    Note: Using asyncio.new_event_loop() instead of deprecated get_event_loop_policy()
+    """
+    # P1 fix: Use new_event_loop instead of deprecated get_event_loop_policy()
+    # This is the recommended way since Python 3.10+
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 

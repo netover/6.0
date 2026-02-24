@@ -61,25 +61,24 @@ async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str
 
 
 class ConnectionManager:
-    """Manage WebSocket connections with thread-safe operations"""
+    """Manage WebSocket connections with thread-safe operations.
+
+    Security fixes applied:
+    - Eager lock initialization to prevent race conditions (P0)
+    """
 
     def __init__(self):
         self.active_connections: dict[str, set[WebSocket]] = {}
         # Map websocket -> agent_id
         self.agent_connections: dict[WebSocket, str] = {}
-        # Lock for protecting concurrent access to connection collections
-        self._lock: asyncio.Lock | None = None
-
-    def _get_lock(self) -> asyncio.Lock:
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-        return self._lock
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, agent_id: str):
         """Connect WebSocket for specific agent"""
         await websocket.accept()
 
-        async with self._get_lock():
+        async with self._lock:
             if agent_id not in self.active_connections:
                 self.active_connections[agent_id] = set()
 
@@ -94,7 +93,7 @@ class ConnectionManager:
         Args:
             websocket: The WebSocket connection to remove
         """
-        async with self._get_lock():
+        async with self._lock:
             agent_id = self.agent_connections.get(websocket)
             if agent_id and websocket in self.active_connections.get(agent_id, set()):
                 self.active_connections[agent_id].remove(websocket)
@@ -120,7 +119,7 @@ class ConnectionManager:
 
     async def broadcast_to_agent(self, message: str, agent_id: str):
         """Broadcast message to all connections for specific agent"""
-        async with self._get_lock():
+        async with self._lock:
             if agent_id not in self.active_connections:
                 return
             # Create a copy of the set to iterate safely
@@ -141,7 +140,7 @@ class ConnectionManager:
     async def broadcast_to_all(self, message: str):
         """Broadcast message to all active connections"""
         # Create a copy of all websockets to iterate safely
-        async with self._get_lock():
+        async with self._lock:
             all_websockets = []
             for agent_connections in self.active_connections.values():
                 all_websockets.extend(agent_connections)

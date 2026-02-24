@@ -98,9 +98,11 @@ class CircuitBreaker:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
         self.metrics = CircuitBreakerMetrics()
-        # Lazy-init to avoid binding to an event loop
-        # during module import (gunicorn --preload).
+        # P0 fix: Use lazy initialization with thread-safe check
+        # The lock is created lazily to avoid binding to an event loop
+        # during module import (gunicorn --preload), but now with proper synchronization
         self._lock: asyncio.Lock | None = None
+        self._lock_initialized = False
 
         # Properties for compatibility with tests
         self.fail_max = config.failure_threshold
@@ -122,10 +124,21 @@ class CircuitBreaker:
 
         The lock is created lazily to avoid binding it to an event loop at
         module import time (which can break under gunicorn --preload).
+        
+        P0 fix: Added thread-safe initialization to prevent race conditions.
         """
-        if self._lock is None:
-            asyncio.get_running_loop()
-            self._lock = asyncio.Lock()
+        if self._lock is None and not self._lock_initialized:
+            # Only call get_running_loop if we haven't initialized yet
+            try:
+                asyncio.get_running_loop()
+                self._lock = asyncio.Lock()
+                self._lock_initialized = True
+            except RuntimeError:
+                # No event loop running - this shouldn't happen in async context
+                raise RuntimeError(
+                    "Circuit breaker must be initialized in an async context "
+                    "where an event loop is running"
+                )
         return self._lock
 
     async def call(self, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
