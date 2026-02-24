@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# ruff: noqa: E501
+# pylint
 """
 Event-Driven Auto-Discovery for Knowledge Graph
 
@@ -10,13 +10,14 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-from resync.core.task_tracker import create_tracked_task
 import json
 from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 from langchain_core.prompts import PromptTemplate
+
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 

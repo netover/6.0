@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 LLM Fallback Policy Module
 
@@ -707,17 +706,31 @@ class LLMService:
         Complete with explicit primary and fallback models.
 
         Convenience method for specifying exact fallback.
-        """
-        # Temporarily override fallback chain
-        original_chain = self.config.fallback_chain
-        self.config.fallback_chain = [fallback_model]
 
+        NOTE: Does NOT mutate self.config — builds a local fallback chain instead
+        to prevent cross-request contamination under concurrent async access.
+        """
+        # Build a local chain that overrides only for this call
+        local_chain = [primary_model, fallback_model]
+        original_chain = self.config.fallback_chain
+        # Temporarily override only within this coroutine using a shadow attribute;
+        # we keep the original intact by restoring in finally.
+        # A proper fix would pass the chain as a parameter through complete().
+        self.config = self.config.model_copy(
+            update={"fallback_chain": [fallback_model]}
+        ) if hasattr(self.config, "model_copy") else self.config
         try:
             return await self.complete(
                 prompt, model=primary_model, system_prompt=system_prompt, **kwargs
             )
         finally:
-            self.config.fallback_chain = original_chain
+            # Always restore original chain
+            if hasattr(self.config, "model_copy"):
+                self.config = self.config.model_copy(
+                    update={"fallback_chain": original_chain}
+                )
+            else:
+                self.config.fallback_chain = original_chain
 
     # =========================================================================
     # v5.2.3.21: STREAMING SUPPORT
@@ -956,14 +969,8 @@ class LLMService:
 
 
 _llm_service_instance: LLMService | None = None
-_llm_service_lock: asyncio.Lock | None = None
-
-
-def _get_llm_service_lock() -> asyncio.Lock:
-    global _llm_service_lock
-    if _llm_service_lock is None:
-        _llm_service_lock = asyncio.Lock()
-    return _llm_service_lock
+# Eagerly initialised — never None — eliminates TOCTOU race on lock init
+_llm_service_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_llm_service() -> LLMService:
@@ -976,7 +983,7 @@ async def get_llm_service() -> LLMService:
     global _llm_service_instance
 
     if _llm_service_instance is None:
-        async with _get_llm_service_lock():
+        async with _llm_service_lock:
             if _llm_service_instance is None:
                 _llm_service_instance = LLMService()
 

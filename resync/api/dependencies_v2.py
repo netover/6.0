@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 FastAPI Dependencies with Concurrency Protection.
 
@@ -61,36 +60,11 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
 # ============================================================================
 # These locks prevent race conditions when multiple requests arrive
 # simultaneously during application startup (common in production restarts)
-_tws_store_lock: asyncio.Lock | None = None
-_context_store_lock: asyncio.Lock | None = None
-_metrics_store_lock: asyncio.Lock | None = None
-_feedback_store_lock: asyncio.Lock | None = None
-
-
-def _get_lock(name: str) -> asyncio.Lock:
-    """Lazy-create asyncio locks to avoid import-time loop binding."""
-    global \
-        _tws_store_lock, \
-        _context_store_lock, \
-        _metrics_store_lock, \
-        _feedback_store_lock
-    if name == "tws":
-        if _tws_store_lock is None:
-            _tws_store_lock = asyncio.Lock()
-        return _tws_store_lock
-    if name == "context":
-        if _context_store_lock is None:
-            _context_store_lock = asyncio.Lock()
-        return _context_store_lock
-    if name == "metrics":
-        if _metrics_store_lock is None:
-            _metrics_store_lock = asyncio.Lock()
-        return _metrics_store_lock
-    if name == "feedback":
-        if _feedback_store_lock is None:
-            _feedback_store_lock = asyncio.Lock()
-        return _feedback_store_lock
-    raise ValueError(f"unknown lock name: {name}")
+# Eagerly initialised — never None — eliminates TOCTOU race on first concurrent access
+_tws_store_lock: asyncio.Lock = asyncio.Lock()
+_context_store_lock: asyncio.Lock = asyncio.Lock()
+_metrics_store_lock: asyncio.Lock = asyncio.Lock()
+_feedback_store_lock: asyncio.Lock = asyncio.Lock()
 
 
 # ============================================================================
@@ -123,7 +97,7 @@ async def get_tws_store() -> TWSStore:
     """
     global _tws_store
     if _tws_store is None:
-        async with _get_lock("tws"):
+        async with _tws_store_lock:
             if _tws_store is None:
                 logger.info("Initializing TWSStore singleton...")
                 store = TWSStore()
@@ -141,7 +115,7 @@ async def get_context_store() -> ContextStore:
     """
     global _context_store
     if _context_store is None:
-        async with _get_lock("context"):
+        async with _context_store_lock:
             if _context_store is None:
                 logger.debug("Initializing ContextStore singleton...")
                 _context_store = ContextStore()
@@ -156,7 +130,7 @@ async def get_metrics_store() -> MetricsStore:
     """
     global _metrics_store
     if _metrics_store is None:
-        async with _get_lock("metrics"):
+        async with _metrics_store_lock:
             if _metrics_store is None:
                 logger.debug("Initializing MetricsStore singleton...")
                 _metrics_store = MetricsStore()
@@ -171,7 +145,7 @@ async def get_feedback_store() -> FeedbackStore:
     """
     global _feedback_store
     if _feedback_store is None:
-        async with _get_lock("feedback"):
+        async with _feedback_store_lock:
             if _feedback_store is None:
                 logger.debug("Initializing FeedbackStore singleton...")
                 _feedback_store = FeedbackStore()

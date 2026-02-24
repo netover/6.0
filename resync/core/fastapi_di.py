@@ -73,13 +73,13 @@ def get_service(name: str) -> Any:
 
 # Request-scoped providers (FastAPI injects Request automatically)
 from resync.core.wiring import (  # noqa: E402
+    get_a2a_handler,
     get_agent_manager,
     get_hybrid_router,
     get_idempotency_manager,
     get_knowledge_graph,
     get_llm_service,
     get_tws_client,
-    get_a2a_handler,
 )
 
 

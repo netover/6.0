@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Advanced Anomaly Detection with Machine Learning.
 
@@ -15,7 +14,6 @@ This module provides intelligent anomaly detection capabilities using:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import hashlib
 import time
@@ -24,6 +22,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+
+from resync.core.task_tracker import track_task
 
 try:
     from sklearn.ensemble import IsolationForest
@@ -561,9 +561,14 @@ class AnomalyDetectionEngine:
             self._processing_task = track_task(
                 self._processing_loop(), name="processing_loop"
             )
-            self._training_task = track_task(self._training_loop(), name="training_loop")
+            self._training_task = track_task(
+                self._training_loop(), name="training_loop"
+            )
 
-        logger.info("Anomaly detection engine started", method="task_group" if tg else "track_task")
+        logger.info(
+            "Anomaly detection engine started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the anomaly detection engine."""
@@ -796,7 +801,8 @@ class AnomalyDetectionEngine:
         return False
 
 
-# Global anomaly detection engine instance (lazy-initialized to avoid crash without sklearn)
+# Global anomaly detection engine instance
+# (lazy-initialized to avoid crash without sklearn)
 _anomaly_detection_engine: AnomalyDetectionEngine | None = None
 
 

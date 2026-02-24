@@ -17,7 +17,8 @@ Usage:
     pytest resync/tests/smoke_tests.py -v
 
     # Run in CI/CD
-    python -c "from resync.tests.smoke_tests import run_smoke_tests; exit(0 if run_smoke_tests() else 1)"
+    python -c "from resync.tests.smoke_tests import run_smoke_tests; "
+    "exit(0 if run_smoke_tests() else 1)"
 
 Author: Resync Team
 Version: 5.4.2
@@ -26,13 +27,13 @@ Version: 5.4.2
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import sys
 import time
+from collections.abc import Callable
 
 from resync.core.utils.async_bridge import run_sync
-import inspect
-from collections.abc import Callable
 
 # Add project root to path for standalone execution
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))

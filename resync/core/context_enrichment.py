@@ -104,12 +104,21 @@ class ContextEnricher:
 
     # Context templates
     CONTEXT_TEMPLATES = {
-        EnrichmentType.JOB_PATTERN: "(Job {job} típico: duração ~{duration}min, executa às {hour}h)",
-        EnrichmentType.FAILURE_HISTORY: "(Job {job} tem {rate:.0%} taxa de falha, erros comuns: {errors})",
+        EnrichmentType.JOB_PATTERN: (
+            "(Job {job} típico: duração ~{duration}min, "
+            "executa às {hour}h)"
+        ),
+        EnrichmentType.FAILURE_HISTORY: (
+            "(Job {job} tem {rate:.0%} taxa de falha, "
+            "erros comuns: {errors})"
+        ),
         EnrichmentType.DEPENDENCY_CONTEXT: "(Job {job} depende de: {deps})",
         EnrichmentType.RESOURCE_CONTEXT: "(Job {job} usa recursos: {resources})",
         EnrichmentType.TEMPORAL_CONTEXT: "(Contexto temporal: {context})",
-        EnrichmentType.ERROR_CONTEXT: "(Erro {code} geralmente resolvido com: {resolution})",
+        EnrichmentType.ERROR_CONTEXT: (
+            "(Erro {code} geralmente resolvido com: "
+            "{resolution})"
+        ),
     }
 
     def __init__(

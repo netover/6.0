@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """Module for security functions and input validation.
 
 v5.9.4: Critical Fixes:
@@ -11,7 +10,7 @@ v5.9.4: Critical Fixes:
 import logging
 import os
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeAlias
 
 from fastapi import Path
 
@@ -46,6 +45,16 @@ TWS_JOB_PATTERN = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 
 # TWS Workstation pattern
 TWS_WORKSTATION_PATTERN = re.compile(r"^[A-Za-z0-9_\-]{1,16}$")
+
+
+SanitizedValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | dict[str, "SanitizedValue"]
+    | list["SanitizedValue"]
+)
 
 
 class ValidationResult:
@@ -112,7 +121,9 @@ class InputSanitizer:
             # If conversion fails, return the default value
             logger = logging.getLogger(__name__)
             logger.warning(
-                f"Invalid value for environment variable {env_var_name}: {raw_value}. Using default: {default_value}"
+                "Invalid value for environment variable "
+                f"{env_var_name}: {raw_value}. "
+                f"Using default: {default_value}"
             )
             return default_value
 
@@ -180,7 +191,8 @@ class InputSanitizer:
         Args:
             text: User input string.
             max_length: Maximum length allowed for the string.
-            strip_dangerous: If True, removes dangerous chars. If False, returns empty on dangerous input.
+            strip_dangerous: If True, removes dangerous chars.
+                If False, returns empty on dangerous input.
 
         Returns:
             Sanitized string.
@@ -292,7 +304,9 @@ class InputSanitizer:
         return ""
 
     @staticmethod
-    def sanitize_dict(data: dict, max_depth: int = 3, current_depth: int = 0) -> dict:
+    def sanitize_dict(
+        data: dict[str, object], max_depth: int = 3, current_depth: int = 0
+    ) -> dict[str, "SanitizedValue"]:
         """
         Recursively sanitize a dictionary.
 
@@ -307,7 +321,7 @@ class InputSanitizer:
         if current_depth >= max_depth:
             return {}
 
-        sanitized = {}
+        sanitized: dict[str, SanitizedValue] = {}
         for key, value in data.items():
             # Sanitize key
             clean_key = InputSanitizer.sanitize_string(str(key), 100)
@@ -332,7 +346,9 @@ class InputSanitizer:
         return sanitized
 
     @staticmethod
-    def sanitize_list(data: list, max_depth: int = 3, current_depth: int = 0) -> list:
+    def sanitize_list(
+        data: list[object], max_depth: int = 3, current_depth: int = 0
+    ) -> list["SanitizedValue"]:
         """
         Recursively sanitize a list.
 
@@ -347,7 +363,7 @@ class InputSanitizer:
         if current_depth >= max_depth:
             return []
 
-        sanitized = []
+        sanitized: list[SanitizedValue] = []
         for item in data:
             if isinstance(item, str):
                 sanitized.append(InputSanitizer.sanitize_string(item))

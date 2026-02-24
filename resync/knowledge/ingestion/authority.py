@@ -1,6 +1,7 @@
 """Authority and document-type inference helpers.
 
-This module is referenced by :meth:`resync.knowledge.ingestion.ingest.IngestService.ingest_document_advanced`.
+This module is referenced by
+:meth:`resync.knowledge.ingestion.ingest.IngestService.ingest_document_advanced`.
 Earlier versions of the project shipped the ingestion pipeline without these helpers,
 causing runtime ``ImportError``.
 

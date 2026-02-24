@@ -14,8 +14,13 @@ NOTA: Métricas não instrumentadas retornam None.
 Campos com valor None devem ser exibidos como "N/A" no frontend.
 """
 
+import asyncio
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
+
+import orjson
 from fastapi import (
     APIRouter,
     Depends,
@@ -25,8 +30,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-import asyncio
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 try:
     import psutil
@@ -35,7 +39,6 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
-import logging
 from resync.api.security import decode_token
 
 logger = logging.getLogger(__name__)
@@ -175,7 +178,7 @@ class HistoricalData(BaseModel):
 class MetricsStore:
     """Armazena métricas em memória (MVP)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._startup_time = datetime.now(timezone.utc)
         self._cache_hits = 0
         self._cache_misses = 0
@@ -188,19 +191,19 @@ class MetricsStore:
         self._intent_counts: dict[str, int] = {}
         self._validation_type_counts: dict[str, int] = {}
 
-    def record_cache_hit(self):
+    def record_cache_hit(self) -> None:
         self._cache_hits += 1
 
-    def record_cache_miss(self):
+    def record_cache_miss(self) -> None:
         self._cache_misses += 1
 
-    def record_classification(self, intent: str, confidence: float):
+    def record_classification(self, intent: str, confidence: float) -> None:
         self._classifications += 1
         self._intent_counts[intent] = self._intent_counts.get(intent, 0) + 1
         if confidence < 0.7:
             self._low_confidence += 1
 
-    def record_validation(self, validation_type: str, success: bool):
+    def record_validation(self, validation_type: str, success: bool) -> None:
         self._validations += 1
         self._validation_type_counts[validation_type] = (
             self._validation_type_counts.get(validation_type, 0) + 1
@@ -208,7 +211,7 @@ class MetricsStore:
         if not success:
             self._validation_failures += 1
 
-    def record_request(self, error: bool = False):
+    def record_request(self, error: bool = False) -> None:
         self._requests += 1
         if error:
             self._errors += 1
@@ -236,6 +239,38 @@ class MetricsStore:
         )
         return dict(sorted_intents[:n])
 
+    def validation_snapshot(self) -> tuple[int, int, dict[str, int]]:
+        """Return a stable copy used by async endpoints and websockets."""
+        return (
+            self._validations,
+            self._validation_failures,
+            dict(self._validation_type_counts),
+        )
+
+
+class WebSocketRuntimeConfig(BaseModel):
+    """Runtime validated websocket polling configuration."""
+
+    interval_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
+    max_connections: int = Field(default=200, ge=1, le=5000)
+
+
+def _load_ws_runtime_config() -> WebSocketRuntimeConfig:
+    """Load and validate websocket runtime knobs from environment."""
+    raw_interval = os.getenv("METRICS_WS_INTERVAL_SECONDS", "5")
+    raw_max_connections = os.getenv("METRICS_WS_MAX_CONNECTIONS", "200")
+    try:
+        return WebSocketRuntimeConfig(
+            interval_seconds=float(raw_interval),
+            max_connections=int(raw_max_connections),
+        )
+    except (ValidationError, ValueError) as exc:
+        logger.warning("Invalid websocket runtime config, using defaults: %s", exc)
+        return WebSocketRuntimeConfig()
+
+
+WS_RUNTIME_CONFIG = _load_ws_runtime_config()
+
 
 _metrics_store = MetricsStore()
 
@@ -256,128 +291,135 @@ async def get_metrics_store_dep() -> MetricsStore:
     return _metrics_store
 
 
+async def _collect_process_metrics(
+    snapshot: dict[str, Any],
+) -> tuple[float, float, int]:
+    """Collect process/network metrics safely from async contexts."""
+    if not PSUTIL_AVAILABLE:
+        return (0.0, 0.0, 0)
+
+    sys_snap = snapshot.get("system", {})
+    memory_mb = float(sys_snap.get("memory_mb", 0.0))
+    cpu_percent = float(sys_snap.get("cpu_percent", 0.0))
+
+    if memory_mb == 0.0:
+        try:
+            process = await asyncio.to_thread(psutil.Process)
+            memory_mb = float(process.memory_info().rss / (1024 * 1024))
+            cpu_percent = float(process.cpu_percent())
+        except Exception as exc:
+            logger.warning("psutil_process_metrics_failed", extra={"error": str(exc)})
+
+    active_connections = 0
+    try:
+        connections = await asyncio.to_thread(psutil.net_connections, "inet")
+        active_connections = len(connections)
+    except Exception as exc:
+        logger.warning("psutil_net_connections_failed", extra={"error": str(exc)})
+
+    return (memory_mb, cpu_percent, active_connections)
+
+
+async def _build_dashboard_metrics(store: MetricsStore) -> DashboardMetrics:
+    """Create a dashboard snapshot shared by HTTP and websocket endpoints."""
+    from resync.core.metrics import RuntimeMetricsCollector
+    from resync.knowledge.config import CFG
+
+    collector = RuntimeMetricsCollector()
+    snapshot = collector.get_snapshot()
+    memory_mb, cpu_percent, active_connections = await _collect_process_metrics(
+        snapshot
+    )
+
+    router_cache = snapshot.get("router_cache", {})
+    router_hits = int(router_cache.get("hits", 0))
+    router_misses = int(router_cache.get("misses", 0))
+    router_total = router_hits + router_misses
+    router_hit_ratio = router_hits / router_total if router_total > 0 else 0.0
+
+    total_validations, validation_failures, validation_types = (
+        store.validation_snapshot()
+    )
+
+    return DashboardMetrics(
+        timestamp=datetime.now(timezone.utc),
+        cache=CacheMetrics(
+            hit_rate=router_hit_ratio,
+            total_entries=router_total,
+            memory_mb=memory_mb * 0.3,
+            avg_latency_ms=router_cache.get("avg_latency_ms"),
+            hits_last_hour=router_hits,
+            misses_last_hour=router_misses,
+        ),
+        router=RouterMetrics(
+            accuracy=snapshot.get("router", {}).get("accuracy"),
+            fallback_rate=snapshot.get("router", {}).get("fallback_rate", 0.0),
+            avg_classification_ms=snapshot.get("router", {}).get("avg_duration_ms"),
+            total_classifications=snapshot.get("router", {}).get("total", 0),
+            low_confidence_count=snapshot.get("router", {}).get(
+                "low_confidence_count", 0
+            ),
+            top_intents=snapshot.get("router", {}).get("top_intents", {}),
+        ),
+        reranker=RerankerMetrics(
+            enabled=bool(CFG.enable_cross_encoder),
+            model=str(CFG.cross_encoder_model),
+            avg_rerank_ms=None,
+            docs_processed=None,
+            docs_filtered=0,
+            filter_rate=0.3,
+            threshold=float(CFG.cross_encoder_threshold),
+        ),
+        validators=ValidatorMetrics(
+            total_validations=total_validations,
+            successful_validations=total_validations - validation_failures,
+            failed_validations=validation_failures,
+            avg_validation_ms=None,
+            validation_types=validation_types,
+        ),
+        warming=WarmingMetrics(
+            last_warm=None,
+            queries_warmed=0,
+            queries_skipped=0,
+            errors=0,
+            duration_seconds=0.0,
+            is_warming=False,
+        ),
+        system=SystemMetrics(
+            uptime_hours=round(snapshot.get("system", {}).get("uptime_hours", 0.0), 2),
+            requests_today=snapshot.get("system", {}).get("requests_today", 0),
+            errors_today=snapshot.get("system", {}).get("errors_today", 0),
+            active_connections=active_connections,
+            memory_usage_mb=round(memory_mb, 2),
+            cpu_usage_percent=round(cpu_percent, 2),
+        ),
+    )
+
+
 @router.get("/", response_model=DashboardMetrics)
 async def get_dashboard_metrics(
     store: MetricsStore = Depends(get_metrics_store_dep),
 ) -> DashboardMetrics:
-    """
-    Retorna todas as métricas do dashboard.
-
-    Endpoint principal para o dashboard de métricas em tempo real.
-
-    NOTA: Algumas métricas são estimativas/placeholders até instrumentação real ser implementada.
-    """
-    from resync.core.metrics import RuntimeMetricsCollector
-
-    collector = RuntimeMetricsCollector()
-    snapshot = collector.get_snapshot()
-    if not PSUTIL_AVAILABLE:
-        logger.warning("psutil not available - system metrics will use defaults")
-        memory_mb = 0.0
-        cpu_percent = 0.0
-    else:
-        sys_snap = snapshot.get("system", {})
-        memory_mb = sys_snap.get("memory_mb", 0.0)
-        cpu_percent = sys_snap.get("cpu_percent", 0.0)
-        if memory_mb == 0.0:
-            try:
-                process = psutil.Process()
-                memory_mb = process.memory_info().rss / (1024 * 1024)
-                cpu_percent = process.cpu_percent()
-            except Exception as e:
-                logger.warning("psutil_process_metrics_failed", extra={"error": str(e)})
-    router_cache = snapshot.get("router_cache", {})
-    router_hits = router_cache.get("hits", 0)
-    router_misses = router_cache.get("misses", 0)
-    router_total = router_hits + router_misses
-    router_hit_ratio = router_hits / router_total if router_total > 0 else 0.0
-    cache_metrics = CacheMetrics(
-        hit_rate=router_hit_ratio,
-        total_entries=router_total,
-        memory_mb=memory_mb * 0.3,
-        avg_latency_ms=snapshot.get("router_cache", {}).get("avg_latency_ms"),
-        hits_last_hour=router_hits,
-        misses_last_hour=router_misses,
-    )
-    router_stats = snapshot.get("router", {})
-    router_metrics = RouterMetrics(
-        accuracy=router_stats.get("accuracy"),
-        fallback_rate=router_stats.get("fallback_rate", 0.0),
-        avg_classification_ms=router_stats.get("avg_duration_ms"),
-        total_classifications=router_stats.get("total", 0),
-        low_confidence_count=router_stats.get("low_confidence_count", 0),
-        top_intents=router_stats.get("top_intents", {}),
-    )
-    from resync.knowledge.config import CFG
-
-    reranker_metrics = RerankerMetrics(
-        enabled=CFG.enable_cross_encoder,
-        model=CFG.cross_encoder_model,
-        avg_rerank_ms=None,
-        docs_processed=None,
-        docs_filtered=0,
-        filter_rate=0.3,
-        threshold=CFG.cross_encoder_threshold,
-    )
-    validator_metrics = ValidatorMetrics(
-        total_validations=store._validations,
-        successful_validations=store._validations - store._validation_failures,
-        failed_validations=store._validation_failures,
-        avg_validation_ms=None,
-        validation_types=store._validation_type_counts,
-    )
-    warming_metrics = WarmingMetrics(
-        last_warm=None,
-        queries_warmed=0,
-        queries_skipped=0,
-        errors=0,
-        duration_seconds=0.0,
-        is_warming=False,
-    )
+    """Retorna todas as métricas do dashboard em snapshot consistente."""
+    dashboard_metrics = await _build_dashboard_metrics(store)
     try:
         from resync.core.cache.cache_warmer import get_cache_warmer
 
         warmer = get_cache_warmer()
         stats = warmer.get_stats()
-        warming_metrics = WarmingMetrics(
+        dashboard_metrics.warming = WarmingMetrics(
             last_warm=datetime.fromisoformat(stats["last_warm"])
             if stats.get("last_warm")
             else None,
-            queries_warmed=stats.get("queries_cached", 0),
-            queries_skipped=stats.get("queries_skipped", 0),
-            errors=stats.get("errors", 0),
-            duration_seconds=stats.get("duration_seconds", 0.0),
-            is_warming=warmer.is_warming,
+            queries_warmed=int(stats.get("queries_cached", 0)),
+            queries_skipped=int(stats.get("queries_skipped", 0)),
+            errors=int(stats.get("errors", 0)),
+            duration_seconds=float(stats.get("duration_seconds", 0.0)),
+            is_warming=bool(warmer.is_warming),
         )
-    except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            f"Failed to get warming stats: {e}. Using defaults."
-        )
-    active_connections = 0
-    if PSUTIL_AVAILABLE:
-        try:
-            active_connections = len(psutil.net_connections(kind="inet"))
-        except Exception as e:
-            logger.warning("psutil_net_connections_failed", extra={"error": str(e)})
-    system_metrics = SystemMetrics(
-        uptime_hours=round(snapshot.get("system", {}).get("uptime_hours", 0.0), 2),
-        requests_today=snapshot.get("system", {}).get("requests_today", 0),
-        errors_today=snapshot.get("system", {}).get("errors_today", 0),
-        active_connections=active_connections,
-        memory_usage_mb=round(memory_mb, 2),
-        cpu_usage_percent=round(cpu_percent, 2),
-    )
-    return DashboardMetrics(
-        timestamp=datetime.now(timezone.utc),
-        cache=cache_metrics,
-        router=router_metrics,
-        reranker=reranker_metrics,
-        validators=validator_metrics,
-        warming=warming_metrics,
-        system=system_metrics,
-    )
+    except Exception as exc:
+        logger.warning("warming_stats_unavailable", extra={"error": str(exc)})
+    return dashboard_metrics
 
 
 @router.get("/cache", response_model=CacheMetrics)
@@ -572,176 +614,83 @@ async def metrics_health() -> dict[str, Any]:
 
 
 class ConnectionManager:
-    """Gerencia conexões WebSocket para o dashboard."""
+    """Thread-safe websocket registry with bounded connection count."""
 
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
+    def __init__(self, max_connections: int) -> None:
+        self._active_connections: set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+        self._max_connections = max_connections
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
+    async def connect(self, websocket: WebSocket) -> bool:
+        """Accept and register websocket if capacity allows."""
+        async with self._lock:
+            if len(self._active_connections) >= self._max_connections:
+                return False
+            await websocket.accept()
+            self._active_connections.add(websocket)
+            return True
 
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+    async def disconnect(self, websocket: WebSocket) -> None:
+        async with self._lock:
+            self._active_connections.discard(websocket)
 
-    async def broadcast(self, message: dict):
-        dead_connections = []
-        for connection in self.active_connections:
+    async def broadcast(self, message: dict[str, Any]) -> None:
+        """Broadcast pre-serialized payload to all live websocket peers."""
+        payload = orjson.dumps(message)
+        async with self._lock:
+            connections = list(self._active_connections)
+        stale: list[WebSocket] = []
+        for connection in connections:
             try:
-                await connection.send_json(message)
+                await connection.send_bytes(payload)
             except Exception:
-                dead_connections.append(connection)
-        # Remove dead connections after iteration to prevent memory leak
-        for dead in dead_connections:
-            if dead in self.active_connections:
-                self.active_connections.remove(dead)
+                stale.append(connection)
+        if stale:
+            async with self._lock:
+                for dead in stale:
+                    self._active_connections.discard(dead)
 
 
-manager = ConnectionManager()
+manager = ConnectionManager(max_connections=WS_RUNTIME_CONFIG.max_connections)
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """
-    WebSocket para atualizações em tempo real do dashboard.
-
-    Requires admin authentication via Authorization header.
-    """
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    """WebSocket para atualizações em tempo real com polling bounded e seguro."""
     if not _verify_ws_admin(websocket):
-        logger.warning("Metrics Dashboard WebSocket auth failed - rejecting connection")
+        logger.warning("metrics_ws_auth_failed")
         await websocket.close(
-            code=status.WS_1008_POLICY_VIOLATION, reason="Admin authentication required"
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Admin authentication required",
         )
         return
-    await manager.connect(websocket)
+
+    connected = await manager.connect(websocket)
+    if not connected:
+        await websocket.close(
+            code=status.WS_1013_TRY_AGAIN_LATER,
+            reason="Connection limit reached",
+        )
+        return
+
     try:
         while True:
-            # Use asyncio.wait to properly detect WebSocket disconnection
-            # This ensures WebSocketDisconnect is raised when client disconnects
-            receive_task = asyncio.create_task(websocket.receive_text())
+            try:
+                await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=WS_RUNTIME_CONFIG.interval_seconds,
+                )
+            except TimeoutError:
+                # expected heartbeat interval
+                pass
 
-            # Wait for either a message from client or 5 second timeout
-            done, pending = await asyncio.wait(
-                [receive_task, asyncio.create_task(asyncio.sleep(5))],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            # Cancel any pending tasks
-            for task in pending:
-                task.cancel()
-
-            # Check if we received a message (client disconnect or message)
-            if receive_task in done:
-                try:
-                    await receive_task
-                except WebSocketDisconnect:
-                    logger.info("Metrics Dashboard WebSocket client disconnected")
-                    break
-                except Exception as e:
-                    logger.warning(f"WebSocket receive error: {e}")
-                    break
-
-            # Client is still connected, send metrics
-            store = get_metrics_store()
-            from resync.core.metrics import RuntimeMetricsCollector
-
-            collector = RuntimeMetricsCollector()
-            snapshot = collector.get_snapshot()
-            if not PSUTIL_AVAILABLE:
-                memory_mb = 0.0
-                cpu_percent = 0.0
-            else:
-                sys_snap = snapshot.get("system", {})
-                memory_mb = sys_snap.get("memory_mb", 0.0)
-                cpu_percent = sys_snap.get("cpu_percent", 0.0)
-                if memory_mb == 0.0:
-                    try:
-                        process = psutil.Process()
-                        memory_mb = process.memory_info().rss / (1024 * 1024)
-                        cpu_percent = process.cpu_percent()
-                    except Exception as e:
-                        logger.warning(
-                            "psutil_process_metrics_failed", extra={"error": str(e)}
-                        )
-            router_cache = snapshot.get("router_cache", {})
-            router_hits = router_cache.get("hits", 0)
-            router_misses = router_cache.get("misses", 0)
-            router_total = router_hits + router_misses
-            router_hit_ratio = router_hits / router_total if router_total > 0 else 0.0
-            cache_metrics = CacheMetrics(
-                hit_rate=router_hit_ratio,
-                total_entries=router_total,
-                memory_mb=memory_mb * 0.3,
-                avg_latency_ms=router_cache.get("avg_latency_ms"),
-                hits_last_hour=router_hits,
-                misses_last_hour=router_misses,
-            )
-            router_stats = snapshot.get("router", {})
-            router_metrics = RouterMetrics(
-                accuracy=router_stats.get("accuracy"),
-                fallback_rate=router_stats.get("fallback_rate", 0.0),
-                avg_classification_ms=router_stats.get("avg_duration_ms"),
-                total_classifications=router_stats.get("total", 0),
-                low_confidence_count=router_stats.get("low_confidence_count", 0),
-                top_intents=router_stats.get("top_intents", {}),
-            )
-            from resync.knowledge.config import CFG
-
-            reranker_metrics = RerankerMetrics(
-                enabled=CFG.enable_cross_encoder,
-                model=CFG.cross_encoder_model,
-                avg_rerank_ms=None,
-                docs_processed=None,
-                docs_filtered=0,
-                filter_rate=0.3,
-                threshold=CFG.cross_encoder_threshold,
-            )
-            validator_metrics = ValidatorMetrics(
-                total_validations=store._validations,
-                successful_validations=store._validations - store._validation_failures,
-                failed_validations=store._validation_failures,
-                avg_validation_ms=None,
-                validation_types=store._validation_type_counts,
-            )
-            warming_metrics = WarmingMetrics(
-                last_warm=None,
-                queries_warmed=0,
-                queries_skipped=0,
-                errors=0,
-                duration_seconds=0.0,
-                is_warming=False,
-            )
-            active_connections = 0
-            if PSUTIL_AVAILABLE:
-                try:
-                    active_connections = len(psutil.net_connections(kind="inet"))
-                except Exception as e:
-                    logger.warning(
-                        "psutil_net_connections_failed", extra={"error": str(e)}
-                    )
-            system_metrics = SystemMetrics(
-                uptime_hours=round(
-                    snapshot.get("system", {}).get("uptime_hours", 0.0), 2
-                ),
-                requests_today=snapshot.get("system", {}).get("requests_today", 0),
-                errors_today=snapshot.get("system", {}).get("errors_today", 0),
-                active_connections=active_connections,
-                memory_usage_mb=round(memory_mb, 2),
-                cpu_usage_percent=round(cpu_percent, 2),
-            )
-            dashboard_metrics = DashboardMetrics(
-                timestamp=datetime.now(timezone.utc),
-                cache=cache_metrics,
-                router=router_metrics,
-                reranker=reranker_metrics,
-                validators=validator_metrics,
-                warming=warming_metrics,
-                system=system_metrics,
-            )
-            await websocket.send_json(dashboard_metrics.model_dump(mode="json"))
+            dashboard_metrics = await _build_dashboard_metrics(get_metrics_store())
+            payload = dashboard_metrics.model_dump(mode="json")
+            await websocket.send_bytes(orjson.dumps(payload))
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
+        logger.info("metrics_ws_client_disconnected")
+    except Exception as exc:
+        logger.exception("metrics_ws_unhandled_error", extra={"error": str(exc)})
+    finally:
+        await manager.disconnect(websocket)
+

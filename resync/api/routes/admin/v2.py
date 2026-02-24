@@ -16,9 +16,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
 from resync.api.routes.admin.main import verify_admin_credentials
 
 logger = logging.getLogger(__name__)
@@ -526,7 +528,10 @@ async def update_chunking_config(config: ChunkingConfig):
         return {
             "success": True,
             "config": config.model_dump(),
-            "message": "Configuration updated. Run reindex to apply to existing documents.",
+            "message": (
+                "Configuration updated. Run reindex to apply to "
+                "existing documents."
+            ),
             "restart_required": manager.requires_restart(),
         }
     except HTTPException:
@@ -569,7 +574,10 @@ async def start_reindex(request: ReindexRequest, background_tasks: BackgroundTas
     return {
         "job_id": job_id,
         "status": "pending",
-        "message": "Reindex job started. Track progress via /admin/rag/reindex/{job_id}",
+        "message": (
+            "Reindex job started. Track progress via "
+            "/admin/rag/reindex/{job_id}"
+        ),
     }
 
 

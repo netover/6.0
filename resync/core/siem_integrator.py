@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 SIEM (Security Information and Event Management) Integration System.
 
@@ -14,7 +13,6 @@ This module provides comprehensive SIEM integration capabilities including:
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import json
 import secrets
@@ -30,6 +28,7 @@ from typing import Any, Optional
 import aiohttp
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -120,7 +119,10 @@ class SIEMEvent:
 
         extension_str = " ".join(extensions)
 
-        return f"CEF:{cef_version}|{device_vendor}|{device_product}|{device_version}|{signature_id}|{name}|{severity}|{extension_str}"
+        return (
+            f"CEF:{cef_version}|{device_vendor}|{device_product}|"
+            f"{device_version}|{signature_id}|{name}|{severity}|{extension_str}"
+        )
 
     def to_leef(self) -> str:
         """Convert event to LEEF format."""
@@ -143,7 +145,10 @@ class SIEMEvent:
 
         attribute_str = "\t".join(attributes)
 
-        return f"LEEF:{leef_version}|{vendor}|{product}|{version}|{event_id}|{attribute_str}|{self.message}"
+        return (
+            f"LEEF:{leef_version}|{vendor}|{product}|{version}|"
+            f"{event_id}|{attribute_str}|{self.message}"
+        )
 
     def to_json(self) -> str:
         """Convert event to JSON format."""
@@ -355,7 +360,8 @@ class SplunkConnector(SIEMConnector):
                     self.last_event_sent = time.time()
                     return len(events)
                 logger.error(
-                    f"Splunk batch send failed: {response.status} - {await response.text()}"
+                    "Splunk batch send failed: "
+                    f"{response.status} - {await response.text()}"
                 )
                 return 0
 
@@ -584,16 +590,24 @@ class SIEMIntegrator:
             self._processor_task = tg.create_task(
                 self._event_processor(), name="event_processor"
             )
-            self._flusher_task = tg.create_task(self._batch_flusher(), name="batch_flusher")
-            self._monitor_task = tg.create_task(self._health_monitor(), name="health_monitor")
+            self._flusher_task = tg.create_task(
+                self._batch_flusher(), name="batch_flusher"
+            )
+            self._monitor_task = tg.create_task(
+                self._health_monitor(), name="health_monitor"
+            )
         else:
             self._processor_task = track_task(
                 self._event_processor(), name="event_processor"
             )
             self._flusher_task = track_task(self._batch_flusher(), name="batch_flusher")
-            self._monitor_task = track_task(self._health_monitor(), name="health_monitor")
+            self._monitor_task = track_task(
+                self._health_monitor(), name="health_monitor"
+            )
 
-        logger.info("SIEM integrator started", method="task_group" if tg else "track_task")
+        logger.info(
+            "SIEM integrator started", method="task_group" if tg else "track_task"
+        )
 
     async def stop(self) -> None:
         """Stop the SIEM integrator."""

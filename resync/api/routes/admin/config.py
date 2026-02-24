@@ -27,9 +27,11 @@ import logging
 from datetime import timezone
 from pathlib import Path
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
-from resync.api.routes.admin.main import verify_admin_credentials
+
 import aiofiles
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from resync.api.routes.admin.main import verify_admin_credentials
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(verify_admin_credentials)])

@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

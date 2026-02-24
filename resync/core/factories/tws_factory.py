@@ -30,8 +30,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from fastapi import Depends
 
 if TYPE_CHECKING:
-    from resync.settings import Settings as AppSettings
     from resync.services.tws_service import OptimizedTWSClient
+    from resync.settings import Settings as AppSettings
 
 # Thread-safe singleton instance
 _tws_client_instance: Optional["OptimizedTWSClient"] = None

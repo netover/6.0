@@ -8,6 +8,7 @@ application only starts with valid configuration.
 """
 
 import asyncio
+import inspect
 import os
 import time
 from typing import TYPE_CHECKING, Any
@@ -99,20 +100,23 @@ def validate_environment_variables() -> dict[str, str]:
                     except ValueError:
                         invalid_vars.append(f"{var_name}={value} (must be integer)")
                 elif var_name in ["REDIS_URL", "LLM_ENDPOINT"]:
-                    # Use urllib.parse to perform a more flexible URL validation. Accept any
-                    # scheme as long as it contains a scheme and either a network location or
-                    # path component. This allows for redis+sentinel:// and other extended
-                    # schemes while still rejecting malformed values. See SECURITY_CONFIGURATION_GUIDE.md
-                    # for details on acceptable URL formats.
+                    # Use urllib.parse for flexible URL validation.
+                    # Accept any scheme with scheme and netloc/path.
+                    # Supports redis+sentinel:// and other extended
+                    # schemes while still rejecting malformed values.
+                    # See SECURITY_CONFIGURATION_GUIDE.md for accepted formats.
                     from urllib.parse import urlparse
 
                     parsed = urlparse(value)
-                    # A valid URL must have a scheme and either a netloc (e.g. host:port)
-                    # or a path (for Unix socket schemes). Some schemes like redis+sentinel
-                    # include a plus in the scheme, which urlparse handles correctly.
+                    # Valid URL needs scheme and netloc (host:port)
+                    # or path (Unix sockets). redis+sentinel is valid.
+                    # urlparse handles plus signs in schemes.
                     if not parsed.scheme or not (parsed.netloc or parsed.path):
                         invalid_vars.append(
-                            f"{var_name}={value} (must be a valid URL with scheme and host or path)"
+                            (
+                                f"{var_name}={value} "
+                                "(must be a valid URL with scheme and host or path)"
+                            )
                         )
                     else:
                         validated_vars[var_name] = value
@@ -196,8 +200,10 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
                 redis_url, socket_connect_timeout=timeout, socket_timeout=timeout
             )
 
-            # Test connection
-            await client.ping()
+            # Test connection (sync or async depending on stub/runtime)
+            ping_result = client.ping()
+            if inspect.isawaitable(ping_result):
+                await ping_result
 
             # Clean up
             await client.close()
@@ -230,7 +236,10 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
             else:
                 # Final failure
                 raise DependencyUnavailableError(
-                    f"Redis unavailable after {max_retries} attempts: {type(e).__name__}",
+                    (
+                        f"Redis unavailable after {max_retries} attempts: "
+                        f"{type(e).__name__}"
+                    ),
                     "redis",
                     {
                         "attempts": max_retries,

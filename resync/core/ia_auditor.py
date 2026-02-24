@@ -254,7 +254,8 @@ async def _store_flagged_memories(flagged: list[dict[str, Any]]) -> None:
     """Stores flagged memories in audit queue for human review."""
     for mem in flagged:
         try:
-            # Use generic enqueue since enqueue_for_review is not available in AsyncAuditQueue
+            # Use generic enqueue since enqueue_for_review
+            # is not available in AsyncAuditQueue
             await audit_queue.enqueue(
                 action="review_memory",
                 payload={

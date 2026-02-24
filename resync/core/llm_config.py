@@ -11,7 +11,7 @@ Version: 6.1.2
 from pathlib import Path
 from typing import Any, Optional
 
-# Python 3.14+ baseline: stdlib tomllib is always available.
+# Python 3.11+ baseline: stdlib tomllib is always available.
 import tomllib
 
 from resync.core.structured_logger import get_logger

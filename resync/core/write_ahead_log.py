@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Write-Ahead Logging (WAL) system for cache persistence.
 
@@ -122,7 +121,7 @@ class WriteAheadLog:
         if self._file_handle is None:
             need_new_handle = True
         else:
-            # aiofiles doesn't expose the filename directly, so we'll assume we need to check
+            # aiofiles does not expose filename directly, so check
             # by tracking the current file path separately
             if not hasattr(self, "_current_file_path"):
                 self._current_file_path = self.current_log_file_path
@@ -145,7 +144,10 @@ class WriteAheadLog:
             # Open or create the log file in append mode using aiofiles
             if aiofiles is None:
                 raise RuntimeError(
-                    "aiofiles is required for async WAL operations but is not installed."
+                    (
+                        "aiofiles is required for async WAL operations "
+                        "but is not installed."
+                    )
                 )
             self._file_handle = await aiofiles.open(
                 self.current_log_file_path, mode="a", encoding="utf-8"
@@ -190,10 +192,10 @@ class WriteAheadLog:
         """
         async with self.lock:
             try:
-                # Check if we need to rotate first to ensure we're writing to the right file
+                # Check rotation first to ensure writing to the right file
                 await self._rotate_log_if_needed()
 
-                # Ensure log file is open (this will open the correct file after rotation if needed)
+                # Ensure log file is open after rotation (if needed)
                 await self._ensure_log_file_open()
 
                 # Calculate checksum for data integrity (before adding it to the entry)
@@ -210,7 +212,8 @@ class WriteAheadLog:
                 await self._file_handle.flush()  # Ensure data is written to OS buffer
 
                 # For aiofiles, sync the file handle itself
-                # Since aiofiles doesn't have a direct fsync, we'll flush and use os.fsync on the underlying fd
+                # aiofiles has no direct fsync; flush then call os.fsync
+                # on the underlying file descriptor
                 # aiofiles handles wrap a real file object in ``._file``.
                 # Try to fsync the underlying file descriptor for durability.
                 fd = None
@@ -246,7 +249,10 @@ class WriteAheadLog:
         try:
             if aiofiles is None:
                 raise RuntimeError(
-                    "aiofiles is required for async WAL operations but is not installed."
+                    (
+                        "aiofiles is required for async WAL operations "
+                        "but is not installed."
+                    )
                 )
             async with aiofiles.open(log_file_path, "r", encoding="utf-8") as f:
                 content = await f.read()
@@ -263,14 +269,16 @@ class WriteAheadLog:
                         expected_checksum = entry.calculate_checksum()
                         if entry.checksum != expected_checksum:
                             logger.warning(
-                                f"Checksum mismatch at line {line_num} in {log_file_path}"
+                                "Checksum mismatch at line "
+                                f"{line_num} in {log_file_path}"
                             )
                             continue  # Skip corrupted entry
 
                         entries.append(entry)
                     except json.JSONDecodeError as e:
                         logger.error(
-                            f"Failed to parse JSON at line {line_num} in {log_file_path}: {e}"
+                            "Failed to parse JSON at line "
+                            f"{line_num} in {log_file_path}: {e}"
                         )
                     except Exception as e:
                         logger.error(
@@ -314,11 +322,12 @@ class WriteAheadLog:
                     # Apply the operation to the cache
                     if entry.operation == WalOperationType.SET:
                         # We need to call the cache's internal set method
-                        # The cache should have a method to apply operations without logging again
+                        # Cache may expose a method to apply operations
+                        # without logging again
                         if hasattr(cache, "apply_wal_set"):
                             await cache.apply_wal_set(entry.key, entry.value, entry.ttl)
                         else:
-                            # Fallback: try to directly set with TTL if it's an AsyncTTLCache
+                            # Fallback: set directly with TTL for AsyncTTLCache
                             await cache.set(
                                 entry.key, entry.value, ttl_override=entry.ttl
                             )
@@ -328,7 +337,7 @@ class WriteAheadLog:
                         else:
                             await cache.delete(entry.key)
                     elif entry.operation == WalOperationType.EXPIRE:
-                        # For expired entries, we just need to ensure they're not in the cache
+                        # For expired entries ensure key is not in cache
                         await cache.delete(entry.key)
 
                     replayed_count += 1

@@ -5,13 +5,14 @@ through the /admin/config interface.
 """
 
 from __future__ import annotations
-# mypy: ignore-errors
 
+# mypy
 import inspect
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -21,7 +22,6 @@ from resync.core.fastapi_di import get_teams_integration, get_tws_client
 from resync.core.interfaces import ITWSClient
 from resync.core.teams_integration import TeamsIntegration
 from resync.settings import settings
-import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,7 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
     """
     try:
         from pathlib import Path
+
         from fastapi.templating import Jinja2Templates
 
         templates_dir = Path(settings.BASE_DIR) / "templates"
@@ -231,7 +232,7 @@ async def update_teams_config(
         current_config = teams_integration.config
 
         # Update configuration with provided values
-        update_fields = config_update.dict(exclude_unset=True)
+        update_fields = config_update.model_dump(exclude_unset=True)
 
         # Apply updates to in-memory configuration
         for field_name, field_value in update_fields.items():
@@ -495,7 +496,7 @@ async def update_tws_config(
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        update_fields = config_update.dict(exclude_unset=True)
+        update_fields = config_update.model_dump(exclude_unset=True)
 
         # Persist configuration to file
         config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
@@ -548,7 +549,7 @@ async def update_system_config(
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        update_fields = config_update.dict(exclude_unset=True)
+        update_fields = config_update.model_dump(exclude_unset=True)
 
         # Persist configuration to file
         config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
@@ -578,7 +579,10 @@ async def update_system_config(
         logger.error("Failed to update system configuration: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update system configuration. Check server logs for details.",
+            detail=(
+                "Failed to update system configuration. "
+                "Check server logs for details."
+            ),
         ) from e
 
 
@@ -832,7 +836,10 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
             "status": "success",
             "restored_from": backup_filename,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "note": "Application restart may be required for all changes to take effect",
+            "note": (
+                "Application restart may be required for all "
+                "changes to take effect"
+            ),
         }
 
     except HTTPException:

@@ -12,6 +12,8 @@ Removed in v5.9.3:
 - GraphNode: Graph now built on-demand from TWS API
 - GraphEdge: Graph now built on-demand from TWS API
 - GraphSnapshot: No longer needed
+
+Version: 6.0.0 - Fixed datetime lambda bug, added validations
 """
 
 from datetime import datetime, timezone
@@ -19,15 +21,19 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Float,
     Integer,
     String,
     Text,
 )
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
 
 from resync.core.database.engine import Base
+
 
 # =============================================================================
 # ENUMS (kept for type hints and ontology)
@@ -77,6 +83,14 @@ class RelationType(str, Enum):
     EXCLUSIVE_TO = "exclusive_to"  # Resource → Job (single)
 
 
+class TripletStatus(str, Enum):
+    """Status values for extracted triplets."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 # =============================================================================
 # REMAINING MODELS
 # =============================================================================
@@ -88,50 +102,93 @@ class ExtractedTriplet(Base):
 
     Allows human-in-the-loop validation of LLM extractions.
     Used by ontology-driven extraction (v5.9.2).
+
+    Constraints:
+    - confidence must be between 0.0 and 1.0
+    - reviewed_by and reviewed_at must both be NULL or both be set
+    - subject, predicate, object sanitized before storage
     """
 
     __tablename__ = "kg_extracted_triplets"
 
+    # Table-level constraints
+    __table_args__ = (
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0",
+            name="ck_confidence_range",
+        ),
+        CheckConstraint(
+            "(reviewed_by IS NULL AND reviewed_at IS NULL) OR "
+            "(reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
+            name="ck_reviewed_consistency",
+        ),
+    )
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # Triplet data
-    subject: Mapped[str] = mapped_column(String(255), nullable=False)
-    predicate: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Triplet data - sanitized via @validates decorators
+    subject: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    predicate: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     object: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Source text
+    # Source text - max 10MB
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     source_document: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Extraction metadata
     model_used: Mapped[str] = mapped_column(String(100), nullable=False)
-    confidence: Mapped[float] = mapped_column(Float, default=0.5)
+    confidence: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.5,
+    )
 
-    # Review status
-    status: Mapped[str] = mapped_column(
-        String(20),
-        default="pending",  # pending, approved, rejected
+    # Review status - uses SAEnum for type safety and DB conversion
+    status: Mapped[TripletStatus] = mapped_column(
+        SAEnum(TripletStatus, name="triplstatus"),
+        nullable=False,
+        default=TripletStatus.PENDING,
         index=True,
     )
     reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), index=True
+    # Timestamps - use server_default for database-side timestamp
+    # Pre-flush objects will have created_at = None
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
     )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, truncate_text: int = 200) -> dict[str, Any]:
+        """
+        Serialize to dictionary for API responses.
+
+        Args:
+            truncate_text: Maximum length for source_text (0 = no truncation)
+
+        Returns:
+            Dictionary representation safe for JSON serialization
+        """
+        source_text = self.source_text
+        if truncate_text > 0 and len(source_text) > truncate_text:
+            source_text = source_text[:truncate_text] + "..."
+
         return {
             "id": self.id,
             "subject": self.subject,
             "predicate": self.predicate,
             "object": self.object,
-            "confidence": self.confidence,
-            "status": self.status,
-            "source_text": self.source_text[:200] + "..."
-            if len(self.source_text) > 200
-            else self.source_text,
+            "confidence": round(self.confidence, 3),  # Limit precision
+            "status": self.status.value if isinstance(self.status, TripletStatus) else self.status,
+            "source_text": source_text,
+            "source_document": self.source_document,
+            "model_used": self.model_used,
+            "reviewed_by": self.reviewed_by,
+            "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 

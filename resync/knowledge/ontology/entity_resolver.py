@@ -14,6 +14,7 @@ Author: Resync Team
 Version: 5.9.2
 """
 
+import asyncio
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -310,33 +311,41 @@ class EntityResolver:
             # Generate embedding for query
             query_embedding = await self.embedding_service.embed(text)
 
-            # Search cached embeddings
-            best_match = None
-            best_similarity = 0.0
-
-            for cached_id, cached_embedding in self._embedding_cache.items():
-                # Only compare same entity types
-                cached_entity = self._entity_cache.get(cached_id)
-                if not cached_entity or cached_entity.get("type") != entity_type:
-                    continue
-
-                similarity = self._cosine_similarity(query_embedding, cached_embedding)
-                if (
-                    similarity > best_similarity
-                    and similarity >= self.similarity_threshold
-                ):
-                    best_similarity = similarity
-                    best_match = {
-                        "id": cached_entity["id"],
-                        "canonical_id": cached_id,
-                        "similarity": similarity,
-                    }
-
-            return best_match
+            return await asyncio.to_thread(
+                self._heavy_similarity_search,
+                query_embedding,
+                entity_type
+            )
 
         except Exception as e:
             logger.warning("embedding_search_error", error=str(e))
             return None
+
+    def _heavy_similarity_search(self, query_embedding: list[float], entity_type: str) -> dict[str, Any] | None:
+        best_match = None
+        best_similarity = 0.0
+
+        for cached_id, cached_embedding in self._embedding_cache.items():
+            # Only compare same entity types
+            cached_entity = self._entity_cache.get(cached_id)
+            if not cached_entity or cached_entity.get("type") != entity_type:
+                continue
+
+            similarity = self._cosine_similarity(query_embedding, cached_embedding)
+            if (
+                similarity > best_similarity
+                and similarity >= self.similarity_threshold
+            ):
+                best_similarity = similarity
+                best_match = {
+                    "id": cached_entity["id"],
+                    "canonical_id": cached_id,
+                    "similarity": similarity,
+                }
+
+        return best_match
+
+
 
     @staticmethod
     def _cosine_similarity(a: list[float], b: list[float]) -> float:

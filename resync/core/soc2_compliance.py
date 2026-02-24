@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Refactored SOC 2 Type II Compliance Management System using Strategy Pattern.
 
@@ -20,8 +19,8 @@ from resync.core.compliance.types import (
     SOC2ComplianceManager as BaseSOC2ComplianceManager,
 )
 from resync.core.compliance.types import SOC2TrustServiceCriteria
-from resync.core.task_tracker import track_task
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -308,7 +307,10 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
                 self._reporting_worker(), name="reporting_worker"
             )
 
-        logger.info("SOC 2 compliance manager started", method="task_group" if tg else "track_task")
+        logger.info(
+            "SOC 2 compliance manager started",
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop(self) -> None:
         """Stop the SOC 2 compliance manager."""
@@ -332,7 +334,10 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             {
                 "control_id": "SEC-001",
                 "name": "Access Control Implementation",
-                "description": "Multi-factor authentication and role-based access control",
+                "description": (
+                    "Multi-factor authentication and role-based "
+                    "access control"
+                ),
                 "category": ControlCategory.ACCESS_CONTROL,
                 "criteria": [SOC2TrustServiceCriteria.SECURITY],
                 "risk_level": "high",
@@ -355,7 +360,10 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             {
                 "control_id": "SEC-003",
                 "name": "Network Security",
-                "description": "Firewalls, intrusion detection, and secure network architecture",
+                "description": (
+                    "Firewalls, intrusion detection, and "
+                    "secure network architecture"
+                ),
                 "category": ControlCategory.SYSTEM_OPERATIONS,
                 "criteria": [SOC2TrustServiceCriteria.SECURITY],
                 "risk_level": "high",
@@ -380,7 +388,10 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             {
                 "control_id": "AVL-002",
                 "name": "Disaster Recovery",
-                "description": "Comprehensive disaster recovery and business continuity plans",
+                "description": (
+                    "Comprehensive disaster recovery and "
+                    "business continuity plans"
+                ),
                 "category": ControlCategory.BUSINESS_CONTINUITY,
                 "criteria": [SOC2TrustServiceCriteria.AVAILABILITY],
                 "risk_level": "critical",
@@ -495,7 +506,10 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             {
                 "control_id": "INC-001",
                 "name": "Incident Response Plan",
-                "description": "Comprehensive incident response and handling procedures",
+                "description": (
+                    "Comprehensive incident response and "
+                    "handling procedures"
+                ),
                 "category": ControlCategory.INCIDENT_RESPONSE,
                 "criteria": [
                     SOC2TrustServiceCriteria.SECURITY,
@@ -587,7 +601,8 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
     ) -> str:
         """Collect evidence for a control."""
         # Using MD5 for ID generation only, not for security purposes
-        evidence_id = f"evidence_{control_id}_{int(time.time())}_{hashlib.md5(content, usedforsecurity=False).hexdigest()[:8]}"
+        digest = hashlib.md5(content, usedforsecurity=False).hexdigest()[:8]
+        evidence_id = f"evidence_{control_id}_{int(time.time())}_{digest}"
 
         evidence = SOC2Evidence(
             evidence_id=evidence_id,
@@ -647,7 +662,11 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
     ) -> str:
         """Report a confidentiality incident."""
         # Using MD5 for ID generation only, not for security purposes
-        incident_id = f"incident_{int(time.time())}_{hashlib.md5(f'{data_category}{breach_type}'.encode(), usedforsecurity=False).hexdigest()[:8]}"
+        incident_digest = hashlib.md5(
+            f"{data_category}{breach_type}".encode(),
+            usedforsecurity=False,
+        ).hexdigest()[:8]
+        incident_id = f"incident_{int(time.time())}_{incident_digest}"
 
         incident = ConfidentialityIncident(
             incident_id=incident_id,
@@ -895,7 +914,8 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
                 )
 
                 logger.info(
-                    f"Compliance report generated with score: {report['overall_compliance_score']:.2f}"
+                    "Compliance report generated with score: "
+                    f"{report['overall_compliance_score']:.2f}"
                 )
 
             except asyncio.CancelledError:
@@ -921,14 +941,17 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
         ]
         if not_implemented:
             recommendations.append(
-                f"Implement the following {len(not_implemented)} controls: {', '.join(not_implemented[:5])}"
+                f"Implement the following {len(not_implemented)} controls: "
+                f"{', '.join(not_implemented[:5])}"
             )
 
         # Check availability
         avail_summary = report.get("availability_summary", {})
         if not avail_summary.get("meets_target", True):
             recommendations.append(
-                f"Availability target not met. Current: {avail_summary.get('average_availability', 0):.2f}%, Target: {self.config.target_availability_percentage}%"
+                "Availability target not met. Current: "
+                f"{avail_summary.get('average_availability', 0):.2f}%, "
+                f"Target: {self.config.target_availability_percentage}%"
             )
 
         # Check processing integrity
@@ -942,7 +965,8 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
         evidence_summary = report.get("evidence_summary", {})
         if evidence_summary.get("total_valid_evidence", 0) < len(self.controls) * 2:
             recommendations.append(
-                "Insufficient evidence collected. Ensure all controls have supporting evidence."
+                "Insufficient evidence collected. "
+                "Ensure all controls have supporting evidence."
             )
 
         return recommendations
@@ -981,7 +1005,9 @@ class _LazySOC2ComplianceManager:
 soc2_compliance_manager = _LazySOC2ComplianceManager()
 
 
-async def get_soc2_compliance_manager(tg: asyncio.TaskGroup | None = None) -> SOC2ComplianceManager:
+async def get_soc2_compliance_manager(
+    tg: asyncio.TaskGroup | None = None,
+) -> SOC2ComplianceManager:
     """
     Get the global SOC 2 compliance manager instance.
 

@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 File Ingestor implementation for RAG.
 
@@ -54,7 +53,8 @@ class FileIngestor(IFileIngestor):
             raise ValueError("Potential path traversal attack detected")
 
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop with synchronous I/O
+            # Use asyncio.to_thread to avoid blocking event loop
+            # with synchronous I/O
             def _save():
                 with open(destination, "wb") as buffer:
                     shutil.copyfileobj(file_content, buffer)

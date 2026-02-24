@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """Teams Notifications - Database Models."""
 
 from datetime import datetime, timezone

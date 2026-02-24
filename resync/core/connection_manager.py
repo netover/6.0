@@ -115,7 +115,8 @@ class ConnectionManager:
         """
         Sends a plain text message to all connected clients.
         Uses the WebSocket pool manager for enhanced broadcasting.
-        Thread-safe: iterates over a copy of connections to avoid modification during iteration.
+        Thread-safe: iterates over a copy of connections
+        to avoid modification during iteration.
         """
         # Use pool manager for enhanced broadcasting with monitoring
         if self._pool_manager and self._pool_manager.connections:
@@ -136,16 +137,18 @@ class ConnectionManager:
             connections = list(self.active_connections.values())
 
         logger.info("broadcasting_message", client_count=len(connections))
-        # HARDENING [P0]: asyncio.TaskGroup previne Head-of-Line Blocking e garante concorrência estruturada.
+        # HARDENING [P0]: asyncio.TaskGroup previne HoL blocking
+        # e garante concorrência estruturada.
         # Um cliente lento ou com erro de rede não atrasa o envio para os demais.
         tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(tg.create_task(
-                        connection.send_text(message),
-                        name=f"broadcast_text_{idx}"
-                    ))
+                    tasks.append(
+                        tg.create_task(
+                            connection.send_text(message), name=f"broadcast_text_{idx}"
+                        )
+                    )
         except* asyncio.CancelledError:
             raise
         except* Exception as eg:
@@ -156,7 +159,8 @@ class ConnectionManager:
         """
         Sends a JSON payload to all connected clients.
         Uses the WebSocket pool manager for enhanced broadcasting.
-        Thread-safe: iterates over a copy of connections to avoid modification during iteration.
+        Thread-safe: iterates over a copy of connections
+        to avoid modification during iteration.
         """
         # Use pool manager for enhanced JSON broadcasting with monitoring
         if self._pool_manager and self._pool_manager.connections:
@@ -177,15 +181,17 @@ class ConnectionManager:
             connections = list(self.active_connections.values())
 
         logger.info("Broadcasting JSON data to %d clients.", len(connections))
-        # HARDENING [P0]: TaskGroup para concorrência real e isolamento de falhas estruturado
+        # HARDENING [P0]: TaskGroup para concorrência real
+        # e isolamento de falhas estruturado
         tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(tg.create_task(
-                        connection.send_json(data),
-                        name=f"broadcast_json_{idx}"
-                    ))
+                    tasks.append(
+                        tg.create_task(
+                            connection.send_json(data), name=f"broadcast_json_{idx}"
+                        )
+                    )
         except* asyncio.CancelledError:
             raise
         except* Exception as eg:

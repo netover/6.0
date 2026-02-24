@@ -1,12 +1,9 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """Postgres-based subgraph retriever for Document KG.
 
 Returns a small connected subgraph for a set of seed node_ids or names.
 Uses a recursive CTE traversal over kg_edges.
 """
-
-
 
 import logging
 from typing import Any
@@ -59,7 +56,8 @@ class PostgresSubgraphRetriever:
             if len(rationale) > 160:
                 rationale = rationale[:160] + "..."
             lines.append(
-                f"- {e.get('source_id')} -[{e.get('relation_type')}]-> {e.get('target_id')}"
+                f"- {e.get('source_id')} -[{e.get('relation_type')}]"
+                f"-> {e.get('target_id')}"
                 f" (w={e.get('weight')})" + (f" | {rationale}" if rationale else "")
             )
         return "\n".join(lines)

@@ -476,7 +476,10 @@ class TWSQueryProcessor:
             )
 
             if not history:
-                summary = f"Nenhum histórico encontrado para o job **{job_name}** nos últimos {days} dias."
+                summary = (
+                    "Nenhum histórico encontrado para o job "
+                    f"**{job_name}** nos últimos {days} dias."
+                )
             else:
                 # Calcula estatísticas
                 total = len(history)
@@ -502,7 +505,11 @@ class TWSQueryProcessor:
                     summary += "\n**Últimas falhas:**\n"
                     failures = [h for h in history if h.get("status") == "ABEND"][:3]
                     for f in failures:
-                        summary += f"- {f.get('timestamp', 'N/A')}: {f.get('error_message', 'N/A')[:50]}\n"
+                        error_preview = f.get("error_message", "N/A")[:50]
+                        summary += (
+                            f"- {f.get('timestamp', 'N/A')}: "
+                            f"{error_preview}\n"
+                        )
 
             return QueryResult(
                 success=True,

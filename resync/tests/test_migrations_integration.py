@@ -1,8 +1,8 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 import os
 import subprocess
 import sys
+
 import pytest
 
 

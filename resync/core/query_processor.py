@@ -11,8 +11,6 @@ Features:
 - Templates de prompt otimizados por tipo de query
 """
 
-
-
 import logging
 import re
 from enum import Enum
@@ -247,7 +245,11 @@ class QueryProcessor:
 
         # Ordenar por score
         ranked.sort(
-            key=lambda x: cast(float, x["score"]) if isinstance(x.get("score"), (int, float)) else 0.0,
+            key=lambda x: (
+                cast(float, x["score"])
+                if isinstance(x.get("score"), (int, float))
+                else 0.0
+            ),
             reverse=True,
         )
 
@@ -295,7 +297,8 @@ class QueryProcessor:
         """
         # System prompt adaptado ao tipo de query
         system_prompts = {
-            QueryType.STATUS: """Você é um assistente especializado em monitoramento TWS/HWA.
+            QueryType.STATUS: """Você é um assistente especializado
+em monitoramento TWS/HWA.
 
 Quando responder sobre status:
 1. Seja objetivo e direto
@@ -304,7 +307,8 @@ Quando responder sobre status:
 4. Sugira próximos passos se houver problemas
 
 Use português brasileiro claro e profissional.""",
-            QueryType.TROUBLESHOOT: """Você é um especialista em troubleshooting TWS/HWA.
+            QueryType.TROUBLESHOOT: """Você é um especialista
+em troubleshooting TWS/HWA.
 
 Ao diagnosticar problemas:
 1. Analise o contexto histórico fornecido
@@ -366,7 +370,8 @@ Use português brasileiro.""",
 
         # User message estruturado
         if context_str:
-            user_message = f"""**Contexto de soluções e informações anteriores (rankeado por relevância):**
+            user_message = f"""**Contexto de soluções e informações anteriores
+(rankeado por relevância):**
 {context_str}
 
 **Pergunta do usuário:**

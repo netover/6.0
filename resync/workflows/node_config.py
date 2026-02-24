@@ -5,9 +5,9 @@ This module provides a unified configuration system to replace
 the dual-mode (verbose/optimized) pattern.
 """
 
+import os
 from dataclasses import dataclass
 from enum import Enum
-import os
 
 
 class LogLevel(Enum):

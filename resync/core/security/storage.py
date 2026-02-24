@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Custom storage implementations for rate limiting.
 Ensures no side effects (like threads) are created during import/initialization
@@ -7,9 +6,9 @@ in audit or strict environments.
 """
 
 try:
-    from limits.storage.memory import MemoryStorage
-
     import unittest.mock
+
+    from limits.storage.memory import MemoryStorage
 
     class SafeMemoryStorage(MemoryStorage):
         """

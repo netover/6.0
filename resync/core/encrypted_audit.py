@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Encrypted Audit Trails with Cryptographic Integrity.
 
@@ -29,10 +28,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 from cryptography.fernet import Fernet
 
 from resync.core.structured_logger import get_logger
-import aiofiles
 
 logger = get_logger(__name__)
 
@@ -284,7 +283,8 @@ class KeyManager:
 
 class EncryptedAuditTrail:
     """
-    Cryptographically secure audit trail with encrypted storage and integrity verification.
+    Cryptographically secure audit trail with encrypted storage
+    and integrity verification.
 
     Features:
     - Encrypted audit log storage
@@ -366,7 +366,9 @@ class EncryptedAuditTrail:
 
         if tg:
             # All tasks must be created within an active TaskGroup
-            self._flush_task = tg.create_task(self._flush_worker(), name="audit_flush_worker")
+            self._flush_task = tg.create_task(
+                self._flush_worker(), name="audit_flush_worker"
+            )
             self._archival_task = tg.create_task(
                 self._archival_worker(), name="audit_archival_worker"
             )
@@ -375,7 +377,10 @@ class EncryptedAuditTrail:
             )
         else:
             from resync.core.task_tracker import track_task
-            self._flush_task = track_task(self._flush_worker(), name="audit_flush_worker")
+
+            self._flush_task = track_task(
+                self._flush_worker(), name="audit_flush_worker"
+            )
             self._archival_task = track_task(
                 self._archival_worker(), name="audit_archival_worker"
             )
@@ -385,7 +390,7 @@ class EncryptedAuditTrail:
 
         logger.info(
             "Encrypted audit trail system started",
-            method="task_group" if tg else "track_task"
+            method="task_group" if tg else "track_task",
         )
 
     async def stop(self) -> None:
@@ -749,7 +754,7 @@ class EncryptedAuditTrail:
         logger.debug("Flushed %s entries to block %s", len(block.entries), block_id)
 
     def _encrypt_block(self, block: AuditLogBlock) -> None:
-        """Encrypt a block of audit entries (or store plaintext if encryption is disabled)."""
+        """Encrypt block entries (or store plaintext when encryption is disabled)."""
         # Serialize entries
         entries_data = [entry.to_dict() for entry in block.entries]
         json_data = json.dumps(entries_data, separators=(",", ":"))
@@ -830,7 +835,8 @@ class EncryptedAuditTrail:
             try:
                 # Run once a day
                 await asyncio.sleep(24 * 3600)
-                # Implementation would involve moving old .audit files to compressed .tar.gz
+                # Implementation would move old .audit files
+                # to compressed .tar.gz archives
             except asyncio.CancelledError:
                 break
             except Exception as e:

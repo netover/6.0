@@ -184,7 +184,7 @@ class TWSStatusStore:
 
 
 _instance: TWSStatusStore | None = None
-
+_init_lock: Any = None
 
 def get_tws_status_store() -> TWSStatusStore:
     """Get the singleton TWSStatusStore instance."""
@@ -195,7 +195,15 @@ def get_tws_status_store() -> TWSStatusStore:
 
 
 async def initialize_tws_status_store() -> TWSStatusStore:
-    """Initialize and return the TWSStatusStore."""
+    """Initialize and return the TWSStatusStore safely with a lock."""
+    global _init_lock
+    import asyncio
+    
+    if _init_lock is None:
+        _init_lock = asyncio.Lock()
+        
     store = get_tws_status_store()
-    await store.initialize()
+    async with _init_lock:
+        if not store._initialized:
+            await store.initialize()
     return store

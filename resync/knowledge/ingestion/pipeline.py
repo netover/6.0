@@ -16,17 +16,21 @@ Usage:
 """
 
 from __future__ import annotations
+
+import asyncio
 import hashlib
-import logging
+import structlog
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
 from resync.knowledge.interfaces import Embedder, VectorStore
+
 from .document_converter import DoclingConverter
 from .ingest import IngestService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -100,7 +104,7 @@ class DocumentIngestionPipeline:
         file_path = Path(file_path)
         source = file_path.name
         if doc_id is None:
-            doc_id = self._generate_doc_id(file_path)
+            doc_id = await self._generate_doc_id(file_path)
         t_total = time.perf_counter()
         converted = await self.converter.convert(file_path)
         if converted.status != "success":
@@ -117,13 +121,13 @@ class DocumentIngestionPipeline:
                 status="error",
                 error=converted.error or "Conversion failed",
             )
-        if not converted.markdown.strip():
+        if not converted.markdown or not converted.markdown.strip():
             return IngestionResult(
                 doc_id=doc_id,
                 source=source,
                 format=converted.format,
                 pages=converted.pages,
-                tables_extracted=len(converted.tables),
+                tables_extracted=len(converted.tables) if converted.tables else 0,
                 chunks_stored=0,
                 conversion_time_s=converted.conversion_time_s,
                 ingestion_time_s=0,
@@ -164,7 +168,7 @@ class DocumentIngestionPipeline:
         except Exception as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("ingestion_failed", extra={"doc_id": doc_id, "error": str(e)})
+            logger.error("ingestion_failed", doc_id=doc_id, error=str(e))
             return IngestionResult(
                 doc_id=doc_id,
                 source=source,
@@ -182,17 +186,15 @@ class DocumentIngestionPipeline:
         total_time = time.perf_counter() - t_total
         logger.info(
             "document_ingested",
-            extra={
-                "doc_id": doc_id,
-                "source": source,
-                "format": converted.format,
-                "pages": converted.pages,
-                "tables": len(converted.tables),
-                "chunks": chunks_stored,
-                "convert_s": f"{converted.conversion_time_s:.1f}",
-                "ingest_s": f"{ingestion_time:.1f}",
-                "total_s": f"{total_time:.1f}",
-            },
+            doc_id=doc_id,
+            source=source,
+            format=converted.format,
+            pages=converted.pages,
+            tables=len(converted.tables),
+            chunks=chunks_stored,
+            convert_s=f"{converted.conversion_time_s:.1f}",
+            ingest_s=f"{ingestion_time:.1f}",
+            total_s=f"{total_time:.1f}",
         )
         return IngestionResult(
             doc_id=doc_id,
@@ -215,7 +217,7 @@ class DocumentIngestionPipeline:
         max_concurrent: int = 2,
     ) -> list[IngestionResult]:
         """
-        Ingest multiple documents.
+        Ingest multiple documents with controlled concurrency.
 
         Args:
             file_paths: List of file paths to ingest.
@@ -226,16 +228,18 @@ class DocumentIngestionPipeline:
         Returns:
             List of IngestionResult (same order as input).
         """
-        results = []
-        for fp in file_paths:
-            result = await self.ingest_file(fp, tenant=tenant, tags=tags)
-            results.append(result)
-        return results
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _limited_ingest(fp: str | Path) -> IngestionResult:
+            async with semaphore:
+                return await self.ingest_file(fp, tenant=tenant, tags=tags)
+
+        return list(await asyncio.gather(*(_limited_ingest(fp) for fp in file_paths)))
 
     @staticmethod
-    def _generate_doc_id(file_path: Path) -> str:
+    async def _generate_doc_id(file_path: Path) -> str:
         """Generate a deterministic doc_id from file path and content hash."""
-        stat = file_path.stat()
+        stat = await asyncio.to_thread(file_path.stat)
         key = f"{file_path.name}:{stat.st_size}:{stat.st_mtime}"
         short_hash = hashlib.sha256(key.encode()).hexdigest()[:12]
         stem = file_path.stem[:40]

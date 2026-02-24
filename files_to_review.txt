@@ -1,2 +1,0 @@
-# Arquivo legado para revisão pontual. Não representa o escopo completo do projeto.
-# Use lint/testes globais para análise sistemática de toda a base.

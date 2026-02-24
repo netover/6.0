@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """
 Observability Configuration Module.
 
@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from resync.core.structured_logger import get_logger
@@ -73,8 +73,9 @@ class EvidentlyConfig:
     """Evidently configuration."""
 
     enabled: bool = field(
-        default_factory=lambda: os.getenv("EVIDENTLY_ENABLED", "false").lower()
-        == "true"
+        default_factory=lambda: (
+            os.getenv("EVIDENTLY_ENABLED", "false").lower() == "true"
+        )
     )
 
     # Reference data settings

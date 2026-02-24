@@ -26,7 +26,8 @@ PromptStyle = Literal["document", "context", "source", "mentioned"]
 
 class OpinionBasedPromptFormatter:
     """
-    Formats prompts using opinion-based/attribution techniques for better context adherence.
+    Formats prompts using opinion-based/attribution techniques
+    for better context adherence.
 
     The core insight: asking "What does the document say about X?" is more effective
     than "What is X?" because it signals to the LLM to report information rather
@@ -201,26 +202,31 @@ class OpinionBasedPromptFormatter:
         """
         if language == "pt":
             if strict_mode:
-                return f"""Você é um {agent_role} contextual. Seu papel é responder perguntas
+                return f"""Você é um {agent_role} contextual.
+Seu papel é responder perguntas
 baseando-se ESTRITAMENTE nas informações fornecidas no contexto.
 
 REGRAS CRÍTICAS:
 1. Use APENAS informações do contexto fornecido
-2. Se perguntado sobre algo que não está no contexto, diga "Esta informação não está disponível no contexto fornecido"
+2. Se perguntado sobre algo que não está no contexto, diga
+   "Esta informação não está disponível no contexto fornecido"
 3. NUNCA use seu conhecimento de treinamento para preencher lacunas
 4. Ao citar informações, referencie a fonte explicitamente
 5. Se o contexto for ambíguo, reconheça a ambiguidade
 
 Suas respostas devem ser úteis e precisas, mas a aderência ao contexto é PRIMORDIAL."""
-            return f"""Você é um {agent_role} prestativo. Priorize as informações fornecidas
+            return f"""Você é um {agent_role} prestativo.
+Priorize as informações fornecidas
 no contexto, mas pode usar conhecimento geral quando apropriado."""
         if strict_mode:
-            return f"""You are a contextual {agent_role}. Your role is to answer questions
+            return f"""You are a contextual {agent_role}.
+Your role is to answer questions
 based STRICTLY on the information provided in the context.
 
 CRITICAL RULES:
 1. ONLY use information from the provided context
-2. If asked about something not in the context, say "This information is not available in the provided context"
+2. If asked about something not in the context, say
+   "This information is not available in the provided context"
 3. Never use your training knowledge to fill gaps
 4. When citing information, reference the source explicitly
 5. If context is ambiguous, acknowledge the ambiguity

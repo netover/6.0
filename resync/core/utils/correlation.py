@@ -1,3 +1,14 @@
+from __future__ import annotations
+
+import asyncio
+import functools
+import time
+import uuid
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Any, Callable, Optional, ParamSpec, TypeVar
+
+import structlog
+
 """
 Correlation and Error Handling Utilities.
 
@@ -20,16 +31,6 @@ Usage:
         result = await self._internal_get(key)
 """
 
-
-
-import asyncio
-import functools
-import time
-import uuid
-from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, ParamSpec
-
-import structlog
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable

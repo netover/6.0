@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """LangGraph Workflow Nodes.
 
 This module implements the shared node functions used by:
@@ -328,9 +327,9 @@ async def detect_degradation(
     * failure rate increases materially (z-score on failures)
     """
     from resync.workflows.statistical_analysis import (
-        extract_runtimes_and_failures,
-        calculate_runtime_growth,
         calculate_failure_metrics,
+        calculate_runtime_growth,
+        extract_runtimes_and_failures,
         rolling_zscore,
     )
 
@@ -392,7 +391,8 @@ async def detect_degradation(
         try:
             prompt = (
                 "You are an SRE assistant for IBM Workload Scheduler (TWS/HWA). "
-                "Given summary stats, explain whether degradation is happening and why. "
+                "Given summary stats, explain whether degradation "
+                "is happening and why. "
                 f"Stats: {details}. "
                 "Return a short JSON with keys: summary, likely_causes (list)."
             )
@@ -423,12 +423,12 @@ async def correlate_metrics(
 ) -> dict[str, Any]:
     """Correlate job runtime/failures with workstation metrics."""
     from resync.workflows.statistical_analysis import (
-        extract_job_rows,
-        extract_workstation_rows,
         aggregate_by_hour,
         calculate_correlations,
-        select_best_factor,
+        extract_job_rows,
+        extract_workstation_rows,
         interpret_factor,
+        select_best_factor,
     )
 
     if not _predictive_enabled():
@@ -520,12 +520,12 @@ async def predict_timeline(
     "danger" threshold (median + 3*mad). Also computes a confidence band.
     """
     from resync.workflows.statistical_analysis import (
-        extract_runtime_series,
-        calculate_danger_threshold,
-        linear_regression,
         calculate_confidence_interval,
-        calculate_failure_probability,
         calculate_confidence_score,
+        calculate_danger_threshold,
+        calculate_failure_probability,
+        extract_runtime_series,
+        linear_regression,
     )
 
     if not _predictive_enabled():
@@ -667,8 +667,10 @@ async def generate_recommendations(
     if llm is not None:
         try:
             prompt = (
-                "You are an SRE assistant. Convert the following findings into 3 actionable steps. "
-                f"Job: {job_name}. Degradation: {degradation_type} severity={degradation_severity}. "
+                "You are an SRE assistant. Convert findings "
+                "into 3 actionable steps. "
+                f"Job: {job_name}. Degradation: {degradation_type} "
+                f"severity={degradation_severity}. "
                 f"Correlation: {correlation}. Prediction: {prediction}."
             )
             msg = await llm.ainvoke(prompt)

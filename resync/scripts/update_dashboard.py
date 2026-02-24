@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Utility script to patch websocket auth flow in monitoring_dashboard.py."""
 
 from pathlib import Path

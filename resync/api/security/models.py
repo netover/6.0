@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 from datetime import datetime
 
 from passlib.context import CryptContext

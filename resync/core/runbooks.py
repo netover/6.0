@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Incident Response Runbooks for Resync System
 

@@ -103,17 +103,37 @@ class ChaosEngineer:
                     try:
                         async with asyncio.TaskGroup() as tg:
                             tasks = [
-                                tg.create_task(self._cache_race_condition_fuzzing(), name="cache_race"),
-                                tg.create_task(self._agent_concurrent_initialization_chaos(), name="agent_chaos"),
-                                tg.create_task(self._audit_db_failure_injection(), name="audit_chaos"),
-                                tg.create_task(self._memory_pressure_simulation(), name="memory_chaos"),
-                                tg.create_task(self._network_partition_simulation(), name="network_chaos"),
-                                tg.create_task(self._component_isolation_testing(), name="isolation_chaos"),
+                                tg.create_task(
+                                    self._cache_race_condition_fuzzing(),
+                                    name="cache_race",
+                                ),
+                                tg.create_task(
+                                    self._agent_concurrent_initialization_chaos(),
+                                    name="agent_chaos",
+                                ),
+                                tg.create_task(
+                                    self._audit_db_failure_injection(),
+                                    name="audit_chaos",
+                                ),
+                                tg.create_task(
+                                    self._memory_pressure_simulation(),
+                                    name="memory_chaos",
+                                ),
+                                tg.create_task(
+                                    self._network_partition_simulation(),
+                                    name="network_chaos",
+                                ),
+                                tg.create_task(
+                                    self._component_isolation_testing(),
+                                    name="isolation_chaos",
+                                ),
                             ]
                     except* asyncio.CancelledError:
                         raise
                     except* Exception:
-                        logger.warning("chaos_tasks_partial_failure", job_name="chaos_suite")
+                        logger.warning(
+                            "chaos_tasks_partial_failure", job_name="chaos_suite"
+                        )
             except TimeoutError:
                 logger.error("chaos_suite_timeout", timeout_seconds=timeout_seconds)
                 # results will be partial, processed below
@@ -129,7 +149,9 @@ class ChaosEngineer:
                         results.append(e)
                 else:
                     # Task timed out or was cancelled
-                    results.append(TimeoutError(f"Task {t.get_name()} failed or timed out"))
+                    results.append(
+                        TimeoutError(f"Task {t.get_name()} failed or timed out")
+                    )
 
             # Process results
             successful_tests = 0
@@ -335,7 +357,8 @@ class ChaosEngineer:
                 successful_inserts = sum(1 for r in result if r is not None)
                 if successful_inserts < len(test_memories) - 10:
                     anomalies.append(
-                        f"Unexpected batch insert failures: {len(result) - successful_inserts}"
+                        "Unexpected batch insert failures: "
+                        f"{len(result) - successful_inserts}"
                     )
             except Exception as e:
                 errors += 1
@@ -352,12 +375,10 @@ class ChaosEngineer:
                 anomalies.append(f"Metrics retrieval failed: {e!s}")
 
             try:
-                loop = asyncio.get_running_loop()
-                sweep_result = await loop.run_in_executor(
-                    None,
-                    lambda: __import__(
-                        "resync.core.audit_db"
-                    ).auto_sweep_pending_audits(1, 10),
+                import importlib
+                audit_db_mod = importlib.import_module("resync.core.audit_db")
+                sweep_result = await asyncio.to_thread(
+                    audit_db_mod.auto_sweep_pending_audits, 1, 10
                 )
                 operations += sweep_result.get("total_processed", 0)
             except Exception as e:
@@ -451,7 +472,8 @@ class ChaosEngineer:
                     raise ImportError(f"Simulated network failure for {name}")
                 return original_import(name, *args, **kwargs)
 
-            # Using mock inside asyncio is tricky. We enforce it specifically around the synchronous AgentManager init.
+            # Using mock inside asyncio is tricky; enforce it
+            # around synchronous AgentManager initialization.
             with patch("builtins.__import__", side_effect=failing_import):
                 for i in range(20):
                     try:
@@ -631,7 +653,8 @@ class FuzzingEngine:
             for scenario in self.scenarios:
                 scenario_start = time.time()
                 try:
-                    # Direto no Event Loop atual (nativo async), removendo as threads bloqueantes
+                    # Direto no event loop atual (nativo async),
+                    # removendo as threads bloqueantes
                     result = await asyncio.wait_for(
                         scenario.fuzz_function(),
                         timeout=scenario.max_duration,
@@ -683,7 +706,8 @@ class FuzzingEngine:
 
             log_with_correlation(
                 logging.INFO,
-                f"Fuzzing campaign completed: {successful_scenarios}/{len(self.scenarios)} scenarios passed",
+                "Fuzzing campaign completed: "
+                f"{successful_scenarios}/{len(self.scenarios)} scenarios passed",
                 correlation_id,
             )
 
@@ -798,7 +822,8 @@ class FuzzingEngine:
             for i, ttl in enumerate(test_cases):
                 try:
                     key = f"fuzz_ttl_key_{i}"
-                    # Type ignore allowed here intentionally for fuzzing testing invalid inputs
+                    # type: ignore allowed here intentionally
+                    # for fuzzing invalid inputs
                     await cache.set(key, f"value_{i}", ttl_seconds=ttl)  # type: ignore[arg-type]
                     retrieved = await cache.get(key)
 
@@ -806,9 +831,7 @@ class FuzzingEngine:
                         results["passed"] += 1
                     else:
                         results["failed"] += 1
-                        results["errors"].append(
-                            f"TTL {ttl!r}: immediate expiration"
-                        )
+                        results["errors"].append(f"TTL {ttl!r}: immediate expiration")
 
                 except Exception as e:
                     results["failed"] += 1

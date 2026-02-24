@@ -29,12 +29,15 @@ from resync.knowledge.store.pgvector import (
 from resync.knowledge.store.pgvector_store import (
     PgVectorStore,
     get_vector_store,
+    get_vector_store_sync,
 )
 
 __all__ = [
-    # New API (recommended)
+    # New API (recommended - async)
     "PgVectorStore",
     "get_vector_store",
+    # Backward compatible sync version
+    "get_vector_store_sync",
     # Legacy API (backward compatible)
     "PgVectorService",
     "VectorDocument",

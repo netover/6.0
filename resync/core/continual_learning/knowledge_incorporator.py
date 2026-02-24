@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """
 Knowledge Incorporator - Transforma feedback aprovado em conhecimento.
 

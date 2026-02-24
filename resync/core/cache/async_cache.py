@@ -223,7 +223,9 @@ class AsyncTTLCache:
             raise ValueError("Cache key cannot be empty")
         MAX_KEY_LENGTH = 1000
         if len(str_key) > MAX_KEY_LENGTH:
-            raise ValueError(f"Cache key too long: {len(str_key)} chars (max {MAX_KEY_LENGTH})")
+            raise ValueError(
+                f"Cache key too long: {len(str_key)} chars (max {MAX_KEY_LENGTH})"
+            )
         if any(c in str_key for c in "\x00\r\n"):
             raise ValueError("Cache key cannot contain control characters")
 
@@ -294,10 +296,11 @@ class AsyncTTLCache:
         try:
             async with asyncio.TaskGroup() as tg:
                 for i in range(self.num_shards):
-                    tasks.append(tg.create_task(
-                        process_shard(i),
-                        name=f"cache_cleanup_shard_{i}"
-                    ))
+                    tasks.append(
+                        tg.create_task(
+                            process_shard(i), name=f"cache_cleanup_shard_{i}"
+                        )
+                    )
         except* asyncio.CancelledError:
             raise
         except* Exception:
@@ -305,7 +308,11 @@ class AsyncTTLCache:
             self._stats.errors += 1
             pass
 
-        results = [t.result() for t in tasks if t.done() and not t.cancelled() and t.exception() is None]
+        results = [
+            t.result()
+            for t in tasks
+            if t.done() and not t.cancelled() and t.exception() is None
+        ]
         total_removed = sum(results)
 
         if total_removed > 0:

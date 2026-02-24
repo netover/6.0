@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """
 JSON Parsing Commands using Command Pattern.
 
@@ -10,6 +10,7 @@ from LLMs, making the code more modular, testable, and maintainable.
 import json
 import logging
 from typing import Any
+
 from ..exceptions import ParsingError
 from .common_error_handlers import handle_parsing_errors
 
@@ -94,8 +95,10 @@ class JSONParseCommand:
         if self.strict and self.required_keys:
             extra_keys = [key for key in self.result if key not in self.required_keys]
             if extra_keys:
+                extra_keys_str = ", ".join(extra_keys)
                 raise ParsingError(
-                    f"JSON contains unexpected keys in strict mode: {', '.join(extra_keys)}"
+                    "JSON contains unexpected keys in strict mode: "
+                    f"{extra_keys_str}"
                 )
 
     def _validate_nesting(self) -> None:

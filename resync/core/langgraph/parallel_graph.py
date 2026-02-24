@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 LangGraph Parallel Execution Implementation.
 
@@ -42,9 +43,8 @@ Usage:
 """
 
 from __future__ import annotations
-# pylint: disable=not-callable,no-member
-# mypy: ignore-errors
 
+# pylint
 import asyncio
 import json
 import operator

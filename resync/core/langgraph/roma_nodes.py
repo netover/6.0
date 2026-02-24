@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """ROMA graph nodes built with LLMFactory and resilient parsing."""
 
 from __future__ import annotations

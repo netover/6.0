@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Application settings and configuration management.
 
 This module defines all application settings using Pydantic BaseSettings,
@@ -13,13 +14,14 @@ Settings are organized into logical groups:
 
 v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 """
+# ruff: noqa: E501
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
 from pathlib import Path
-import secrets
 from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr
@@ -1140,7 +1142,7 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # v5.4.9: Integrated from settings_legacy.py
 
-    # pylint: disable=invalid-name
+    # pylint
     @property
     def RAG_SERVICE_URL(self) -> str:
         """Legacy alias for rag_service_url."""
@@ -1433,7 +1435,7 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for protected_directories."""
         return self.protected_directories
 
-    # pylint: enable=invalid-name
+    # pylint
 
     # ============================================================================
     # ENVIRONMENT CHECKS (v5.9.3 FIX)
@@ -1458,6 +1460,17 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # DOCUMENT KNOWLEDGE GRAPH (DKG)
     # ============================================================================
+    KNOWLEDGE_DOCS_ROOT: Path = Field(
+        default_factory=lambda: Path("docs"),
+        validation_alias=AliasChoices("KNOWLEDGE_DOCS_ROOT", "APP_KNOWLEDGE_DOCS_ROOT"),
+        description=(
+            "Allowed root directory for server-side batch document ingestion. "
+            "All paths supplied to POST /knowledge/ingest/batch must resolve inside "
+            "this directory. Set via KNOWLEDGE_DOCS_ROOT env var. "
+            "Default: ./docs relative to the working directory."
+        ),
+    )
+
     KG_EXTRACTION_ENABLED: bool = Field(
         default=False,
         description="Habilitar extração de grafo de conhecimento na ingestão de documentos",
@@ -1557,6 +1570,43 @@ class Settings(BaseSettings, SettingsValidators):
         description="Minimum length for SECRET_KEY in production",
     )
 
+    smtp_enabled: bool = Field(
+        default=False,
+        description="Enable SMTP email notifications",
+    )
+    smtp_host: str = Field(
+        default="localhost",
+        description="SMTP server host",
+    )
+    smtp_port: int = Field(
+        default=587,
+        ge=1,
+        le=65535,
+        description="SMTP server port",
+    )
+    smtp_username: str | None = Field(
+        default=None,
+        description="SMTP username",
+    )
+    smtp_password: SecretStr | None = Field(
+        default=None,
+        description="SMTP password",
+        exclude=True,
+        repr=False,
+    )
+    smtp_from_email: str = Field(
+        default="noreply@resync.local",
+        description="Default sender email address",
+    )
+    smtp_use_tls: bool = Field(
+        default=True,
+        description="Use TLS for SMTP connection",
+    )
+    smtp_timeout: int = Field(
+        default=30,
+        ge=1,
+        description="SMTP connection timeout in seconds",
+    )
     # ============================================================================
     # VALIDADORES
     # ============================================================================
@@ -1668,3 +1718,7 @@ class _TeamsConfigProxy(Mapping[str, Any]):
 
 
 TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()
+
+# ============================================================================
+# NOTIFICATION (EMAIL/SMTP)
+# ============================================================================

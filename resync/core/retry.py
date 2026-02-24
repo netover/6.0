@@ -1,11 +1,10 @@
 """
 Retry helpers for robust error handling across the application.
 
-This module provides standardized retry configurations for different types of operations,
+This module provides standardized retry configurations
+for different operation types,
 ensuring consistent behavior and proper logging of retry attempts.
 """
-
-
 
 import logging
 from collections.abc import Callable

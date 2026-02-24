@@ -8,14 +8,14 @@ schedules e fluxos de execução.
 Versão: 5.4.0
 """
 
-import logging
 import re
+import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # =============================================================================
@@ -220,30 +220,29 @@ class TWSRelation:
     # NOTE: to_cypher() method removed in v5.9.3
     # Apache AGE was never implemented; graph now uses NetworkX on-demand
 
-    def to_sql(self, table_name: str = "kg_relations") -> str:
-        """Gera query SQL para inserir a relação."""
+    def to_sql(self, table_name: str = "kg_relations") -> tuple[str, list[Any]]:
+        """Gera query SQL preparada e parâmetros para inserir a relação."""
         import json
 
-        # Sanitize all inputs to prevent SQL injection
         safe_table = sanitize_sql_identifier(table_name)
-        safe_from = sanitize_sql_identifier(self.from_node)
-        safe_to = sanitize_sql_identifier(self.to_node)
-        safe_tenant = (
-            sanitize_sql_identifier(self.tenant_id) if self.tenant_id else "default"
-        )
-        safe_rel_type = sanitize_sql_identifier(self.relation_type.value)
+        tenant_val = self.tenant_id if self.tenant_id else "default"
 
-        props_json = json.dumps(self.properties)
-        # Double any single quotes in JSON to escape them properly
-        props_json_escaped = props_json.replace("'", "''")
-
-        return f"""
-        INSERT INTO {safe_table} (from_node, to_node, relation_type, properties, weight, tenant_id)
-        VALUES ('{safe_from}', '{safe_to}', '{safe_rel_type}',
-                '{props_json_escaped}'::jsonb, {float(self.weight)}, '{safe_tenant}')
+        sql = f"""
+        INSERT INTO {safe_table}
+            (from_node, to_node, relation_type, properties, weight, tenant_id)
+        VALUES ($1, $2, $3, $4::jsonb, $5, $6)
         ON CONFLICT (from_node, to_node, relation_type, tenant_id)
         DO UPDATE SET properties = EXCLUDED.properties, weight = EXCLUDED.weight
         """
+        params: list[Any] = [
+            self.from_node,
+            self.to_node,
+            self.relation_type.value,
+            json.dumps(self.properties),
+            float(self.weight),
+            tenant_val,
+        ]
+        return sql, params
 
 
 # =============================================================================
@@ -255,20 +254,21 @@ class TWSQueryPatterns:
     """Padrões de query para o Knowledge Graph TWS."""
 
     @staticmethod
-    def get_all_dependencies(job_name: str, tenant_id: str | None = None) -> str:
+    def get_all_dependencies(job_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para obter todas as dependências de um job."""
-        safe_job = sanitize_sql_identifier(job_name)
+        params: list[Any] = [job_name]
         tenant_filter = ""
         if tenant_id:
-            safe_tenant = sanitize_sql_identifier(tenant_id)
-            tenant_filter = f"AND r.tenant_id = '{safe_tenant}'"
-        return f"""
+            tenant_filter = "AND r.tenant_id = $2"
+            params.append(tenant_id)
+        
+        sql = f"""
         WITH RECURSIVE deps AS (
             SELECT from_node, to_node, relation_type, 1 as depth
             FROM kg_relations
-            WHERE to_node = '{safe_job}'
+            WHERE to_node = $1
             AND relation_type IN ('depends_on', 'follows', 'needs')
-            {tenant_filter}
+            {tenant_filter.replace('r.', '')}
 
             UNION ALL
 
@@ -283,22 +283,24 @@ class TWSQueryPatterns:
         FROM deps
         ORDER BY depth
         """
+        return sql, params
 
     @staticmethod
-    def get_impact_analysis(job_name: str, tenant_id: str | None = None) -> str:
+    def get_impact_analysis(job_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para análise de impacto (jobs downstream)."""
-        safe_job = sanitize_sql_identifier(job_name)
+        params: list[Any] = [job_name]
         tenant_filter = ""
         if tenant_id:
-            safe_tenant = sanitize_sql_identifier(tenant_id)
-            tenant_filter = f"AND r.tenant_id = '{safe_tenant}'"
-        return f"""
+            tenant_filter = "AND r.tenant_id = $2"
+            params.append(tenant_id)
+            
+        sql = f"""
         WITH RECURSIVE impact AS (
             SELECT from_node, to_node, relation_type, 1 as depth
             FROM kg_relations
-            WHERE from_node = '{safe_job}'
+            WHERE from_node = $1
             AND relation_type IN ('triggers', 'predecessor_of')
-            {tenant_filter}
+            {tenant_filter.replace('r.', '')}
 
             UNION ALL
 
@@ -312,41 +314,45 @@ class TWSQueryPatterns:
         FROM impact
         ORDER BY depth
         """
+        return sql, params
 
     @staticmethod
-    def get_resource_conflicts(resource_name: str, tenant_id: str | None = None) -> str:
+    def get_resource_conflicts(resource_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para encontrar conflitos de recursos."""
-        safe_resource = sanitize_sql_identifier(resource_name)
+        params: list[Any] = [resource_name]
         tenant_filter = ""
         if tenant_id:
-            safe_tenant = sanitize_sql_identifier(tenant_id)
-            tenant_filter = f"AND tenant_id = '{safe_tenant}'"
-        return f"""
+            tenant_filter = "AND tenant_id = $2"
+            params.append(tenant_id)
+            
+        sql = f"""
         SELECT DISTINCT r1.from_node as job1, r2.from_node as job2
         FROM kg_relations r1
         JOIN kg_relations r2 ON r1.to_node = r2.to_node
-        WHERE r1.to_node = '{safe_resource}'
+        WHERE r1.to_node = $1
         AND r1.relation_type = 'allocates'
         AND r2.relation_type = 'allocates'
         AND r1.from_node < r2.from_node
-        {tenant_filter}
+        {tenant_filter.replace('tenant_id', 'r1.tenant_id')}
         """
+        return sql, params
 
     @staticmethod
-    def get_critical_path(schedule_name: str, tenant_id: str | None = None) -> str:
+    def get_critical_path(schedule_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para encontrar o caminho crítico de um schedule."""
-        safe_schedule = sanitize_sql_identifier(schedule_name)
+        params: list[Any] = [schedule_name]
         tenant_filter = ""
         if tenant_id:
-            safe_tenant = sanitize_sql_identifier(tenant_id)
-            tenant_filter = f"AND r.tenant_id = '{safe_tenant}'"
-        return f"""
+            tenant_filter = "AND r.tenant_id = $2"
+            params.append(tenant_id)
+            
+        sql = f"""
         WITH schedule_jobs AS (
             SELECT to_node as job_name
             FROM kg_relations
-            WHERE from_node = '{safe_schedule}'
+            WHERE from_node = $1
             AND relation_type = 'contains'
-            {tenant_filter}
+            {tenant_filter.replace('r.', '')}
         ),
         job_chains AS (
             SELECT r.from_node, r.to_node,
@@ -361,18 +367,25 @@ class TWSQueryPatterns:
         FROM job_chains
         ORDER BY cumulative_duration DESC
         """
+        return sql, params
 
     @staticmethod
-    def get_jobs_by_workstation(workstation: str, tenant_id: str | None = None) -> str:
+    def get_jobs_by_workstation(workstation: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para obter jobs de uma workstation."""
-        tenant_filter = f"AND tenant_id = '{tenant_id}'" if tenant_id else ""
-        return f"""
+        params: list[Any] = [workstation]
+        tenant_filter = ""
+        if tenant_id:
+            tenant_filter = "AND tenant_id = $2"
+            params.append(tenant_id)
+            
+        sql = f"""
         SELECT from_node as job_name, properties
         FROM kg_relations
-        WHERE to_node = '{workstation}'
+        WHERE to_node = $1
         AND relation_type = 'runs_on'
         {tenant_filter}
         """
+        return sql, params
 
 
 # =============================================================================

@@ -122,9 +122,8 @@ class CacheWithStampedeProtection(Generic[T]):
             if inspect.iscoroutinefunction(loader):
                 value = await loader()
             else:
-                # Run sync function in thread pool
-                loop = asyncio.get_running_loop()
-                value = await loop.run_in_executor(None, loader)
+                # Run sync loader in thread pool (modern asyncio.to_thread idiom)
+                value = await asyncio.to_thread(loader)
 
             # Cache the value
             entry = CacheEntry(value, expiry, is_loading=False)
@@ -142,19 +141,22 @@ class CacheWithStampedeProtection(Generic[T]):
             self._cache[key] = error_entry
             raise
 
-    def invalidate(self, key: str):
-        """Invalidate a cache entry."""
+    def invalidate(self, key: str) -> None:
+        """Invalidate a cache entry.
 
-        with self._lock:  # type: ignore[attr-defined]
-            self._cache.pop(key, None)
-            self._loading.pop(key, None)
+        Note: dict .pop() is GIL-protected in CPython; no async lock needed here.
+        For other Python implementations, use an asyncio-safe approach.
+        """
+        self._cache.pop(key, None)
+        self._loading.pop(key, None)
 
-    def clear(self):
-        """Clear all cache entries."""
+    def clear(self) -> None:
+        """Clear all cache entries.
 
-        with self._lock:
-            self._cache.clear()
-            self._loading.clear()
+        Note: dict .clear() is GIL-protected in CPython; no async lock needed here.
+        """
+        self._cache.clear()
+        self._loading.clear()
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""

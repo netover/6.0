@@ -26,10 +26,21 @@ import logging
 import math
 import os
 import time
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-logger = logging.getLogger(__name__)
+from resync.core.structured_logger import get_logger
+
+logger = get_logger(__name__)
+
+def safe_sigmoid(x: float) -> float:
+    if x >= 0:
+        return 1 / (1 + math.exp(-x))
+    else:
+        exp_x = math.exp(x)
+        return exp_x / (1 + exp_x)
+
 
 
 # =============================================================================
@@ -155,7 +166,9 @@ class RerankGatingPolicy:
             if max_score > min_score:
                 scores = [(s - min_score) / (max_score - min_score) for s in scores]
             else:
-                scores = [1.0] * len(scores)
+                self._rerank_activated += 1
+                self._reasons["high_entropy"] += 1
+                return True, "uniform_scores"
 
         s1 = scores[0]
         s2 = scores[1] if len(scores) > 1 else 0.0
@@ -165,19 +178,26 @@ class RerankGatingPolicy:
             self._rerank_activated += 1
             self._reasons["low_score"] += 1
             logger.debug(
-                "Rerank activated: low top1 score ({s1:.3f} < {self.config.score_low_threshold})"
+                "rerank_activated",
+                reason="low_score",
+                top1_score=round(s1, 3),
+                threshold=self.config.score_low_threshold,
             )
             return True, "low_score"
 
         # Rule B: Small margin between top1 and top2 → ambiguity
-        margin = s1 - s2
-        if margin < self.config.margin_threshold:
-            self._rerank_activated += 1
-            self._reasons["small_margin"] += 1
-            logger.debug(
-                "Rerank activated: small margin ({margin:.3f} < {self.config.margin_threshold})"
-            )
-            return True, "small_margin"
+        if len(scores) > 1:
+            margin = s1 - s2
+            if margin < self.config.margin_threshold:
+                self._rerank_activated += 1
+                self._reasons["small_margin"] += 1
+                logger.debug(
+                    "rerank_activated",
+                    reason="small_margin",
+                    margin=round(margin, 3),
+                    threshold=self.config.margin_threshold,
+                )
+                return True, "small_margin"
 
         # Rule C: High entropy (optional, more expensive to compute)
         if self.config.enable_entropy_check and len(scores) >= 3:
@@ -186,14 +206,20 @@ class RerankGatingPolicy:
                 self._rerank_activated += 1
                 self._reasons["high_entropy"] += 1
                 logger.debug(
-                    "Rerank activated: high entropy ({entropy:.3f} > {self.config.entropy_threshold})"
+                    "rerank_activated",
+                    reason="high_entropy",
+                    entropy=round(entropy, 3),
+                    threshold=self.config.entropy_threshold,
                 )
                 return True, "high_entropy"
 
         # All checks passed → retrieval confident, skip rerank
         self._reasons["skipped"] += 1
         logger.debug(
-            "Rerank skipped: confident retrieval (top1={s1:.3f}, margin={margin:.3f})"
+            "rerank_skipped",
+            reason="confident_retrieval",
+            top1_score=round(s1, 3),
+            margin=round(s1 - s2, 3) if len(scores) > 1 else 0.0,
         )
         return False, "confident"
 
@@ -270,7 +296,7 @@ class IReranker(Protocol):
         - Runtime switching via feature flag
     """
 
-    def rerank(
+    async def rerank(
         self,
         query: str,
         candidates: list[dict[str, Any]],
@@ -317,7 +343,7 @@ class NoOpReranker:
     def __init__(self) -> None:
         self._call_count = 0
 
-    def rerank(
+    async def rerank(
         self,
         query: str,
         candidates: list[dict[str, Any]],
@@ -392,13 +418,13 @@ class CrossEncoderReranker:
         if self._model is not None:
             return self._model
 
-        if not self._available:
+        if self._available is False:
             return None
 
         try:
             from sentence_transformers import CrossEncoder
 
-            logger.info("Loading cross-encoder: %s", self.model_name)
+            logger.info("loading_cross_encoder", model=self.model_name)
             start = time.perf_counter()
 
             self._model = CrossEncoder(
@@ -406,26 +432,23 @@ class CrossEncoderReranker:
                 max_length=self.max_length,
             )
 
-            (time.perf_counter() - start) * 1000
-            logger.info("Cross-encoder loaded in {load_time:.0f}ms")
+            load_time = (time.perf_counter() - start) * 1000
+            logger.info("cross_encoder_loaded", load_time_ms=round(load_time, 1))
             self._available = True
 
             return self._model
 
         except ImportError:
-            logger.warning(
-                "sentence-transformers not installed. "
-                "Install with: pip install sentence-transformers"
-            )
+            logger.warning("sentence_transformers_not_installed")
             self._available = False
             return None
 
         except Exception as e:
-            logger.error("Failed to load cross-encoder: %s", e)
+            logger.error("failed_to_load_cross_encoder", error=str(e))
             self._available = False
             return None
 
-    def rerank(
+    async def rerank(
         self,
         query: str,
         candidates: list[dict[str, Any]],
@@ -460,10 +483,12 @@ class CrossEncoderReranker:
                 pairs.append((query, str(text)[: self.max_length]))
 
             # Get scores from cross-encoder
-            scores = model.predict(pairs)
+            scores = await asyncio.wait_for(
+                asyncio.to_thread(model.predict, pairs), timeout=10.0
+            )
 
-            # Normalize scores to [0, 1] using sigmoid
-            normalized = [1 / (1 + math.exp(-float(s))) for s in scores]
+            # Normalize scores to [0, 1] using safe_sigmoid
+            normalized = [safe_sigmoid(float(s)) for s in scores]
 
             # Attach scores and original rank
             scored_docs = []
@@ -493,14 +518,16 @@ class CrossEncoderReranker:
             self._total_latency_ms += latency
 
             logger.debug(
-                f"Cross-encoder reranked {len(candidates)} → {len(result)} docs "
-                "in {latency:.1f}ms"
+                "cross_encoder_reranked",
+                candidates=len(candidates),
+                results=len(result),
+                latency_ms=round(latency, 1),
             )
 
             return result
 
         except Exception as e:
-            logger.error("Cross-encoder reranking failed: %s", e)
+            logger.error("cross_encoder_reranking_failed", error=str(e))
             if top_k is not None:
                 return candidates[:top_k]
             return candidates
@@ -521,10 +548,10 @@ class CrossEncoderReranker:
         try:
             # Warm up with dummy prediction
             _ = model.predict([("test", "test")])
-            logger.info("Cross-encoder warmed up")
+            logger.info("cross_encoder_warmed_up")
             return True
         except Exception as e:
-            logger.warning("Cross-encoder warmup failed: %s", e)
+            logger.warning("cross_encoder_warmup_failed", error=str(e))
             return False
 
     def get_info(self) -> dict[str, Any]:
@@ -583,7 +610,7 @@ def create_reranker(
         enabled = CFG.enable_cross_encoder
 
     if not enabled:
-        logger.info("Reranker disabled by configuration → using NoOpReranker")
+        logger.info("reranker_disabled_using_noop")
         return NoOpReranker()
 
     # Create cross-encoder reranker
@@ -594,7 +621,7 @@ def create_reranker(
         threshold=threshold,
     )
 
-    logger.info("Created CrossEncoderReranker (model=%s)", reranker.model_name)
+    logger.info("created_cross_encoder_reranker", model=reranker.model_name)
     return reranker
 
 
@@ -629,11 +656,11 @@ def create_gated_reranker(
     policy = RerankGatingPolicy(config=gating_config)
 
     logger.info(
-        f"Created gated reranker: "
-        f"gating={policy.config.enabled}, "
-        f"threshold={policy.config.score_low_threshold}, "
-        f"margin={policy.config.margin_threshold}, "
-        f"max_candidates={policy.config.max_candidates}"
+        "created_gated_reranker",
+        gating=policy.config.enabled,
+        threshold=policy.config.score_low_threshold,
+        margin=policy.config.margin_threshold,
+        max_candidates=policy.config.max_candidates,
     )
 
     return reranker, policy

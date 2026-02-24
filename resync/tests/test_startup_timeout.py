@@ -1,7 +1,10 @@
-import pytest
+# ruff: noqa: E501
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi import FastAPI
+
 from resync.app_factory import ApplicationFactory
 from resync.core.exceptions import ConfigurationError
 from resync.core.startup import lifespan as app_lifespan

@@ -25,15 +25,16 @@ Usage:
 """
 
 from __future__ import annotations
-import json
-import logging
+
+import orjson
+import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class FailureSlice(str, Enum):
@@ -276,7 +277,8 @@ def detect_failure_slice(
         content = chunk.content
         lines = content.split("\n")
         for line in lines:
-            if line.strip().startswith(("-", "•", "*")) or line.strip()[0].isdigit():
+            stripped = line.strip()
+            if stripped and (stripped.startswith(("-", "•", "*")) or stripped[0].isdigit()):
                 if not any(
                     (
                         intro in content.lower()
@@ -292,8 +294,9 @@ def detect_failure_slice(
 
 def _calculate_text_overlap(text1: str, text2: str) -> float:
     """Calculate overlap ratio between two texts."""
-    words1 = set(text1.lower().split())
-    words2 = set(text2.lower().split())
+    # Cap text length to prevent unbounded memory usage on massive chunks
+    words1 = set(text1[:10000].lower().split()[:1000])
+    words2 = set(text2[:10000].lower().split()[:1000])
     if not words1 or not words2:
         return 0.0
     intersection = words1.intersection(words2)
@@ -304,37 +307,58 @@ def _calculate_text_overlap(text1: str, text2: str) -> float:
 FAILURE_SLICE_RULES: dict[FailureSlice, dict[str, Any]] = {
     FailureSlice.MISSING_EXCEPTION: {
         "current_rule": "Split at paragraph boundaries",
-        "suggested_rule": "Keep 'rule + exception' pairs together; increase overlap at 'unless', 'except', 'however'",
+        "suggested_rule": (
+            "Keep 'rule + exception' pairs together; increase overlap "
+            "at 'unless', 'except', 'however'"
+        ),
         "impact": "high",
     },
     FailureSlice.WRONG_SCOPE_VERSION: {
         "current_rule": "Index all content equally",
-        "suggested_rule": "Add metadata filtering for environment/version; boost non-deprecated content",
+        "suggested_rule": (
+            "Add metadata filtering for environment/version; "
+            "boost non-deprecated content"
+        ),
         "impact": "high",
     },
     FailureSlice.LOST_TABLE_HEADER: {
         "current_rule": "Split tables by rows",
-        "suggested_rule": "Keep header + row groups together; add header context to each row chunk",
+        "suggested_rule": (
+            "Keep header + row groups together; add header context "
+            "to each row chunk"
+        ),
         "impact": "high",
     },
     FailureSlice.REDUNDANT_OVERLAPS: {
         "current_rule": "Constant token overlap",
-        "suggested_rule": "Use structure-aware overlap at paragraph/heading boundaries only",
+        "suggested_rule": (
+            "Use structure-aware overlap at paragraph/heading "
+            "boundaries only"
+        ),
         "impact": "medium",
     },
     FailureSlice.NEEDS_CROSS_SECTION: {
         "current_rule": "Single chunk retrieval",
-        "suggested_rule": "Enable hierarchical chunking; retrieve parent context for cross-section queries",
+        "suggested_rule": (
+            "Enable hierarchical chunking; retrieve parent context "
+            "for cross-section queries"
+        ),
         "impact": "high",
     },
     FailureSlice.MISSING_PROCEDURE_STEP: {
         "current_rule": "Split procedures by token count",
-        "suggested_rule": "Keep complete procedures together; split only at step boundaries",
+        "suggested_rule": (
+            "Keep complete procedures together; "
+            "split only at step boundaries"
+        ),
         "impact": "high",
     },
     FailureSlice.CODE_WITHOUT_CONTEXT: {
         "current_rule": "Split code blocks independently",
-        "suggested_rule": "Keep code + preceding explanation together; add code summary to metadata",
+        "suggested_rule": (
+            "Keep code + preceding explanation together; "
+            "add code summary to metadata"
+        ),
         "impact": "medium",
     },
     FailureSlice.ERROR_CODE_INCOMPLETE: {
@@ -344,12 +368,18 @@ FAILURE_SLICE_RULES: dict[FailureSlice, dict[str, Any]] = {
     },
     FailureSlice.DEFINITION_TRUNCATED: {
         "current_rule": "Split at sentence boundaries",
-        "suggested_rule": "Detect definition patterns and keep complete; include examples",
+        "suggested_rule": (
+            "Detect definition patterns and keep complete; "
+            "include examples"
+        ),
         "impact": "medium",
     },
     FailureSlice.LIST_ITEM_ORPHANED: {
         "current_rule": "Split lists by items",
-        "suggested_rule": "Keep list intro + items together; add intro context to each item",
+        "suggested_rule": (
+            "Keep list intro + items together; "
+            "add intro context to each item"
+        ),
         "impact": "medium",
     },
 }
@@ -368,12 +398,17 @@ def generate_rule_suggestions(results: list[EvalResult]) -> list[RuleSuggestion]
                 failure_slice=slice_type,
                 current_rule=rule_info.get("current_rule", "Unknown"),
                 suggested_rule=rule_info.get("suggested_rule", "Review and adjust"),
-                rationale=f"Detected in {result.query_id}: {result.failure_description}",
+                rationale=(
+                    f"Detected in {result.query_id}: "
+                    f"{result.failure_description}"
+                ),
                 affected_queries=1,
                 estimated_impact=rule_info.get("impact", "medium"),
             )
         else:
             suggestions[slice_type].affected_queries += 1
+            if suggestions[slice_type].affected_queries <= 3:
+                suggestions[slice_type].rationale += f" | {result.query_id}: {result.failure_description}"
     return sorted(suggestions.values(), key=lambda s: s.affected_queries, reverse=True)
 
 
@@ -387,7 +422,12 @@ class ChunkingEvalPipeline:
         # Evaluate queries
         results = await pipeline.evaluate_queries(
             queries=[
-                {"id": "q1", "text": "What is AWS001E?", "expected": "...", "relevant_ids": ["c1", "c2"]},
+                {
+                    "id": "q1",
+                    "text": "What is AWS001E?",
+                    "expected": "...",
+                    "relevant_ids": ["c1", "c2"],
+                },
             ],
             retriever=my_retriever,
         )
@@ -496,16 +536,17 @@ class ChunkingEvalPipeline:
         Returns:
             EvalReport with aggregated results
         """
-        results: list[EvalResult] = []
-        for query in queries:
-            result = await self.evaluate_query(
+        tasks = [
+            self.evaluate_query(
                 query_id=query.get("id", ""),
                 query_text=query.get("text", ""),
                 expected_answer=query.get("expected", ""),
                 relevant_chunk_ids=query.get("relevant_ids", []),
                 retriever=retriever,
             )
-            results.append(result)
+            for query in queries
+        ]
+        results = await asyncio.gather(*tasks)
         return self._generate_report(results)
 
     def _generate_report(self, results: list[EvalResult]) -> EvalReport:
@@ -540,12 +581,24 @@ class ChunkingEvalPipeline:
         """Generate rule change suggestions from results."""
         return generate_rule_suggestions(results)
 
-    def save_report(self, report: EvalReport, path: str | Path) -> None:
-        """Save evaluation report to JSON file."""
+    async def save_report_async(self, report: EvalReport, path: str | Path) -> None:
+        """Save evaluation report to JSON file asynchronously."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(report.to_dict(), f, indent=2, ensure_ascii=False)
+        
+        def _save():
+            with open(path, "wb") as f:
+                f.write(orjson.dumps(report.to_dict(), option=orjson.OPT_INDENT_2))
+                
+        await asyncio.to_thread(_save)
+        logger.info("eval_report_saved", extra={"path": str(path)})
+
+    def save_report(self, report: EvalReport, path: str | Path) -> None:
+        """Save evaluation report to JSON file (blocking)."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(orjson.dumps(report.to_dict(), option=orjson.OPT_INDENT_2))
         logger.info("eval_report_saved", extra={"path": str(path)})
 
     def load_results(self, path: str | Path) -> list[EvalResult]:

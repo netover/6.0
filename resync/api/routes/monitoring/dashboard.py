@@ -593,10 +593,6 @@ async def _start_metrics_collector_async() -> None:
     async with _collector_lock:
         if _collector_task is None or _collector_task.done():
             _collector_task = asyncio.create_task(metrics_collector_loop())
-    if _collector_task is None or _collector_task.done():
-        try:
-            loop = asyncio.get_running_loop()
-            _collector_task = loop.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
 
 
@@ -690,12 +686,13 @@ async def monitoring_health():
 
 
 # WebSocket para atualizações em tempo real
+MAX_WS_CONNECTIONS = 200
 connected_clients: list[WebSocket] = []
 _clients_lock = asyncio.Lock()
 
 
 @router.websocket("/ws")
-async def websocket_metrics(websocket: WebSocket):
+async def websocket_metrics(websocket: WebSocket) -> None:
     """
     WebSocket para métricas em tempo real.
 
@@ -712,6 +709,13 @@ async def websocket_metrics(websocket: WebSocket):
         )
         return
 
+    async with _clients_lock:
+        if len(connected_clients) >= MAX_WS_CONNECTIONS:
+            await websocket.close(
+                code=status.WS_1013_TRY_AGAIN_LATER,
+                reason="Connection limit reached",
+            )
+            return
     await websocket.accept()
     async with _clients_lock:
         connected_clients.append(websocket)
@@ -729,7 +733,8 @@ async def websocket_metrics(websocket: WebSocket):
 
     except WebSocketDisconnect:
         async with _clients_lock:
-            connected_clients.remove(websocket)
+            if websocket in connected_clients:
+                connected_clients.remove(websocket)
     except Exception as e:
         logger.error("WebSocket error: %s", e)
         async with _clients_lock:

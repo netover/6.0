@@ -10,12 +10,11 @@ Key guarantees:
 - Optional backpressure cap avoids runaway spawning / DoS-by-tasks.
 
 Integration notes:
-- [DEPRECATED] Internal components should use `asyncio.TaskGroup` for structured concurrency.
+- [DEPRECATED] Internal components should use `asyncio.TaskGroup`
+  for structured concurrency.
 - Intended for legacy FastAPI lifespan, request, websocket handlers, etc.
 - For cross-thread scheduling, use create_tracked_task_threadsafe().
 """
-
-
 
 import asyncio
 import functools
@@ -41,7 +40,9 @@ _background_tasks: set[asyncio.Task[Any]] = set()
 MAX_BACKGROUND_TASKS: int = int(os.getenv("MAX_BACKGROUND_TASKS", "10000"))
 
 # Default shutdown timeout (seconds).
-DEFAULT_SHUTDOWN_TIMEOUT: float = float(os.getenv("TASK_TRACKER_SHUTDOWN_TIMEOUT", "5.0"))
+DEFAULT_SHUTDOWN_TIMEOUT: float = float(
+    os.getenv("TASK_TRACKER_SHUTDOWN_TIMEOUT", "5.0")
+)
 
 
 def _require_running_loop() -> asyncio.AbstractEventLoop:
@@ -54,11 +55,14 @@ def _require_running_loop() -> asyncio.AbstractEventLoop:
         raise RuntimeError(
             "create_tracked_task() must be called with a running event loop "
             "(e.g., inside FastAPI lifespan/request/websocket context). "
-            "If you are calling from another thread, use create_tracked_task_threadsafe()."
+            "If calling from another thread, use "
+            "create_tracked_task_threadsafe()."
         ) from e
 
 
-def _validate_timeout_positive(timeout: float | None, *, param_name: str = "timeout") -> None:
+def _validate_timeout_positive(
+    timeout: float | None, *, param_name: str = "timeout"
+) -> None:
     if timeout is None:
         return
     if timeout <= 0:
@@ -199,7 +203,9 @@ def create_tracked_task_threadsafe(
     def _create() -> None:
         try:
             coro = coro_factory()
-            t = create_tracked_task(coro, name=name, cancel_on_shutdown=cancel_on_shutdown)
+            t = create_tracked_task(
+                coro, name=name, cancel_on_shutdown=cancel_on_shutdown
+            )
             fut.set_result(t)
         except Exception as e:
             fut.set_exception(e)
@@ -294,7 +300,10 @@ async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[st
     if pending1:
         logger.warning(
             "background_tasks_timeout",
-            extra={"pending_count": len(pending1), "tasks": [t.get_name() for t in pending1]},
+            extra={
+                "pending_count": len(pending1),
+                "tasks": [t.get_name() for t in pending1],
+            },
         )
         # Second bounded window.
         for t in pending1:
@@ -316,8 +325,8 @@ async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[st
         "cancelled": cancelled,
         "completed": completed,
         "errors": errors,
-        "timeout": timed_out,   # backward-compatible field name
-        "timed_out": timed_out, # clearer alias
+        "timeout": timed_out,  # backward-compatible field name
+        "timed_out": timed_out,  # clearer alias
         "stuck": stuck,
     }
     logger.info("Background tasks shutdown complete", extra=stats)
@@ -349,7 +358,8 @@ async def wait_for_tasks(
 
     By default it only observes (does not cancel).
     If cancel_pending=True, it will request cancellation of pending tasks and
-    wait up to cancel_timeout (defaults to timeout if provided, else DEFAULT_SHUTDOWN_TIMEOUT).
+    wait up to cancel_timeout (defaults to timeout if provided,
+    else DEFAULT_SHUTDOWN_TIMEOUT).
 
     Returns:
         True if all tasks finished within timeout, else False.
@@ -371,8 +381,10 @@ async def wait_for_tasks(
         return False
 
     # Cancel with bounded wait (do not hang forever).
-    bounded = cancel_timeout if cancel_timeout is not None else (
-        timeout if timeout is not None else DEFAULT_SHUTDOWN_TIMEOUT
+    bounded = (
+        cancel_timeout
+        if cancel_timeout is not None
+        else (timeout if timeout is not None else DEFAULT_SHUTDOWN_TIMEOUT)
     )
 
     for t in pending:

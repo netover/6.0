@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 # __init__.py — Public API (lazy, robust, backwards-friendly)
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# ruff: noqa: E501
+# pylint
 """
 Proactive Health Monitor
 
