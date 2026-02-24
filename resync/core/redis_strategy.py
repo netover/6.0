@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Redis FAIL-FAST Strategy Module
 

@@ -1,6 +1,5 @@
 # ruff: noqa: E501
 # pylint: disable=all
-# mypy: no-rerun
 """
 Long-Term Memory System for Resync v5.2.3.26
 

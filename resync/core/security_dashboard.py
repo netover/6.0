@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Security Metrics Dashboard and Monitoring System.
 

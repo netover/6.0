@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Custom storage implementations for rate limiting.
 Ensures no side effects (like threads) are created during import/initialization

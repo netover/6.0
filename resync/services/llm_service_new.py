@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 LLM Service using OpenAI SDK for OpenAI-Compatible APIs.
 

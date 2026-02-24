@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Unified Configuration Manager Service
 

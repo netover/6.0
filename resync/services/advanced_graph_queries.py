@@ -1,6 +1,5 @@
 # pylint: disable=all
 # ruff: noqa: E501
-# mypy: no-rerun
 """
 Advanced Knowledge Graph Queries for Resync v5.2.3.26
 

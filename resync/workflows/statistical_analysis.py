@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """Statistical analysis utilities for predictive workflows.
 
 This module provides functions for correlating metrics, detecting degradation,

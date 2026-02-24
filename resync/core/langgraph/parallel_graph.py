@@ -45,7 +45,6 @@ Usage:
 from __future__ import annotations
 
 # pylint: disable=not-callable,no-member
-# mypy: no-rerun
 import asyncio
 import json
 import operator

@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 LLM Tools - Ferramentas integradas com LLM Service.
 

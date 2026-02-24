@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Encrypted Audit Trails with Cryptographic Integrity.
 

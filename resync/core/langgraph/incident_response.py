@@ -1,6 +1,5 @@
 # ruff: noqa: E501
 # pylint: disable=all
-# mypy: no-rerun
 """
 Incident Response Pipeline for Resync v6.0.0.
 

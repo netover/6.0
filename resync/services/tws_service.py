@@ -1,6 +1,5 @@
 # pylint: disable=all
 # ruff: noqa: E501
-# mypy: no-rerun
 """
 Read‑only client for interacting with the IBM TWS/HWA REST API.
 

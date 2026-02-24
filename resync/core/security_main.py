@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """Module for security functions and input validation.
 
 v5.9.4: Critical Fixes:

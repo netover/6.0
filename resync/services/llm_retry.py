@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 LLM Retry Strategy com Exponential Backoff e Multi-Provider Fallback
 

@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Log Aggregation System with ELK Stack Integration.
 

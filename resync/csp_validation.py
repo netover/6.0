@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """CSP violation report validation utilities."""
 
 import json

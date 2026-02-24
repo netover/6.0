@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Inicializador do Sistema de Monitoramento Proativo
 

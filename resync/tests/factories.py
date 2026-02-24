@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Test Data Factories - Generate test data using Polyfactory.
 

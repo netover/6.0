@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Service Orchestrator (v6.1.2) — parallel fan-out/fan-in for multiple backend services.
 

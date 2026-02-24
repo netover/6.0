@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Refactored SOC 2 Type II Compliance Management System using Strategy Pattern.
 
