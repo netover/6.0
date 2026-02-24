@@ -109,7 +109,18 @@ class KGExtractor:
                         allowed_node_types=self.allowed_node_types,
                         max_concepts=self.max_concepts_per_chunk,
                     )
-                    raw = await call_llm(c_prompt, temperature=0.0, model=self.model)
+                    # P0 Fix: Add timeout to prevent indefinite LLM hangs
+                    try:
+                        raw = await asyncio.wait_for(
+                            call_llm(c_prompt, temperature=0.0, model=self.model),
+                            timeout=30.0,  # 30s timeout for LLM response
+                        )
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            "kg_extract_concepts_timeout",
+                            doc_id=doc_id, chunk_id=chunk_id
+                        )
+                        return [], []
                     c_concepts = self._parse_concepts(raw)
                     for c in c_concepts:
                         c.properties = {**c.properties, "doc_id": doc_id, "chunk_id": chunk_id}
@@ -129,8 +140,19 @@ class KGExtractor:
                         allowed_relations=self.allowed_relations,
                         max_edges=self.max_edges_per_chunk,
                     )
-                    raw = await call_llm(e_prompt, temperature=0.0, model=self.model)
-                    c_edges = self._parse_edges(raw, doc_id=doc_id, chunk_id=chunk_id)
+                    # P0 Fix: Add timeout to prevent indefinite LLM hangs
+                    try:
+                        raw = await asyncio.wait_for(
+                            call_llm(e_prompt, temperature=0.0, model=self.model),
+                            timeout=30.0,  # 30s timeout for LLM response
+                        )
+                        c_edges = self._parse_edges(raw, doc_id=doc_id, chunk_id=chunk_id)
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            "kg_extract_edges_timeout",
+                            doc_id=doc_id, chunk_id=chunk_id
+                        )
+                        c_edges = []
                 except Exception as e:
                     logger.warning(
                         "kg_extract_edges_failed",

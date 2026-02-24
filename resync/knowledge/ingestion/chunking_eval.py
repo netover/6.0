@@ -26,7 +26,7 @@ Usage:
 
 from __future__ import annotations
 
-import json
+import orjson
 import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -536,16 +536,17 @@ class ChunkingEvalPipeline:
         Returns:
             EvalReport with aggregated results
         """
-        results: list[EvalResult] = []
-        for query in queries:
-            result = await self.evaluate_query(
+        tasks = [
+            self.evaluate_query(
                 query_id=query.get("id", ""),
                 query_text=query.get("text", ""),
                 expected_answer=query.get("expected", ""),
                 relevant_chunk_ids=query.get("relevant_ids", []),
                 retriever=retriever,
             )
-            results.append(result)
+            for query in queries
+        ]
+        results = await asyncio.gather(*tasks)
         return self._generate_report(results)
 
     def _generate_report(self, results: list[EvalResult]) -> EvalReport:
@@ -580,12 +581,24 @@ class ChunkingEvalPipeline:
         """Generate rule change suggestions from results."""
         return generate_rule_suggestions(results)
 
-    def save_report(self, report: EvalReport, path: str | Path) -> None:
-        """Save evaluation report to JSON file."""
+    async def save_report_async(self, report: EvalReport, path: str | Path) -> None:
+        """Save evaluation report to JSON file asynchronously."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(report.to_dict(), f, indent=2, ensure_ascii=False)
+        
+        def _save():
+            with open(path, "wb") as f:
+                f.write(orjson.dumps(report.to_dict(), option=orjson.OPT_INDENT_2))
+                
+        await asyncio.to_thread(_save)
+        logger.info("eval_report_saved", extra={"path": str(path)})
+
+    def save_report(self, report: EvalReport, path: str | Path) -> None:
+        """Save evaluation report to JSON file (blocking)."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(orjson.dumps(report.to_dict(), option=orjson.OPT_INDENT_2))
         logger.info("eval_report_saved", extra={"path": str(path)})
 
     def load_results(self, path: str | Path) -> list[EvalResult]:

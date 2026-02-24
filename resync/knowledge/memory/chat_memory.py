@@ -89,12 +89,14 @@ class ChatMemoryStore:
         self._session_cache: dict[str, list[ChatTurn]] = {}
         self._cache_max_size = 100
         # Separate locks prevent deadlock when both are awaited concurrently
-        self._vs_lock: asyncio.Lock = asyncio.Lock()   # vector store init
-        self._emb_lock: asyncio.Lock = asyncio.Lock()  # embedder init
+        self._vs_lock: asyncio.Lock | None = None   # vector store init
+        self._emb_lock: asyncio.Lock | None = None  # embedder init
 
     async def _get_vector_store(self):
         """Lazy load do vector store (double-checked locking)."""
         if self._vector_store is None:
+            if self._vs_lock is None:
+                self._vs_lock = asyncio.Lock()
             async with self._vs_lock:
                 if self._vector_store is None:
                     from resync.knowledge.store.pgvector_store import PgVectorStore
@@ -104,6 +106,8 @@ class ChatMemoryStore:
     async def _get_embedder(self):
         """Lazy load do embedder (double-checked locking)."""
         if self._embedder is None:
+            if self._emb_lock is None:
+                self._emb_lock = asyncio.Lock()
             async with self._emb_lock:
                 if self._embedder is None:
                     from resync.knowledge.ingestion.embedding_service import get_embedder
@@ -275,10 +279,27 @@ class ChatMemoryStore:
 
 
 _chat_memory_store: Optional[ChatMemoryStore] = None
+_global_chat_lock: Optional[asyncio.Lock] = None
+
+
+async def get_chat_memory_store_async() -> ChatMemoryStore:
+    """Get or cria singleton do ChatMemoryStore de forma assíncrona."""
+    global _chat_memory_store, _global_chat_lock
+    if _global_chat_lock is None:
+        _global_chat_lock = asyncio.Lock()
+        
+    if _chat_memory_store is None:
+        async with _global_chat_lock:
+            if _chat_memory_store is None:
+                _chat_memory_store = ChatMemoryStore()
+    return _chat_memory_store
 
 
 def get_chat_memory_store() -> ChatMemoryStore:
-    """Get or cria singleton do ChatMemoryStore."""
+    """
+    Get or cria singleton do ChatMemoryStore (Sincronamente).
+    Note: Lock will be created lazily when first async method is called.
+    """
     global _chat_memory_store
     if _chat_memory_store is None:
         _chat_memory_store = ChatMemoryStore()

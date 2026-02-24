@@ -76,20 +76,25 @@ class PgVectorStore(VectorStore):
         self._pool_min_size = pool_min_size
         self._pool_max_size = pool_max_size
         self._initialized = False
-        # Eagerly initialised — never None — eliminates TOCTOU race on pool init
-        self._pool_lock: asyncio.Lock = asyncio.Lock()
+        # Lazy initialised — avoids RuntimeError on module import or sync init
+        self._pool_lock: asyncio.Lock | None = None
 
     async def _get_pool(self) -> "asyncpg.Pool":
         """Get or create connection pool with double-checked async-safe initialisation."""
         if self._pool is None:
+            if self._pool_lock is None:
+                self._pool_lock = asyncio.Lock()
             async with self._pool_lock:
                 # Double-check after acquiring lock
                 if self._pool is None:
-                    self._pool = await asyncpg.create_pool(
-                        self._database_url,
-                        min_size=self._pool_min_size,
-                        max_size=self._pool_max_size,
-                        command_timeout=60.0,
+                    self._pool = await asyncio.wait_for(
+                        asyncpg.create_pool(
+                            self._database_url,
+                            min_size=self._pool_min_size,
+                            max_size=self._pool_max_size,
+                            command_timeout=60.0,
+                        ),
+                        timeout=65.0,
                     )
                     logger.info(
                         "pgvector_pool_created",
@@ -244,7 +249,7 @@ class PgVectorStore(VectorStore):
             LIMIT ${param_idx + 1}
         """
         params = [embedding_str, binary_str, col, *filter_params, candidates, top_k]
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             async with asyncio.timeout(timeout):
                 rows = await conn.fetch(query, *params)
         results = []
@@ -292,7 +297,7 @@ class PgVectorStore(VectorStore):
             ORDER BY embedding_half <=> $1::halfvec
             LIMIT $3
         """
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             rows = await conn.fetch(query, embedding_str, col, top_k)
         results = []
         for row in rows:
@@ -313,7 +318,7 @@ class PgVectorStore(VectorStore):
         """Count documents in collection."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             count = await conn.fetchval(
                 "SELECT COUNT(*) FROM document_embeddings WHERE collection_name = $1",
                 col,
@@ -358,7 +363,7 @@ class PgVectorStore(VectorStore):
         """Delete document by ID."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             result = await conn.execute(
                 """
                 DELETE FROM document_embeddings
@@ -367,8 +372,11 @@ class PgVectorStore(VectorStore):
                 col,
                 document_id,
             )
-        deleted = result.split()[-1]
-        return int(deleted) > 0
+        # Robust parsing of 'DELETE N'
+        import re
+        match = re.search(r"DELETE (\d+)", result)
+        deleted = int(match.group(1)) if match else 0
+        return deleted > 0
 
     async def delete_by_doc_id(
         self,
@@ -380,7 +388,7 @@ class PgVectorStore(VectorStore):
         """Delete all vectors associated with a document ID."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             result = await conn.execute(
                 """
                 DELETE FROM document_embeddings
@@ -389,8 +397,10 @@ class PgVectorStore(VectorStore):
                 col,
                 doc_id,
             )
-        deleted = result.split()[-1]
-        return int(deleted)
+        import re
+        match = re.search(r"DELETE (\d+)", result)
+        deleted = int(match.group(1)) if match else 0
+        return deleted
 
     async def exists_batch_by_sha256(
         self,
@@ -429,7 +439,7 @@ class PgVectorStore(VectorStore):
         """Get collection statistics."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             stats = await conn.fetchrow(
                 """
                 SELECT
@@ -517,17 +527,20 @@ class PgVectorStore(VectorStore):
 
 # Async-safe singleton implementation using module-level lock
 _store_instance: "PgVectorStore | None" = None
-# Eagerly initialised — never None — eliminates TOCTOU on first access race
-_store_lock: asyncio.Lock = asyncio.Lock()
+# Lazy initialised — avoids RuntimeError on module import
+_store_lock: asyncio.Lock | None = None
 
 
 async def get_vector_store() -> "PgVectorStore":
     """Get singleton vector store instance (double-checked async-safe locking)."""
-    global _store_instance
+    global _store_instance, _store_lock
 
     # Fast path — no lock needed once initialised
     if _store_instance is not None:
         return _store_instance
+
+    if _store_lock is None:
+        _store_lock = asyncio.Lock()
 
     async with _store_lock:
         # Double-check after acquiring lock

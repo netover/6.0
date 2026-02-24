@@ -23,8 +23,12 @@ from __future__ import annotations
 
 import hashlib
 import structlog
+import time
+from typing import Any
 
-from resync.knowledge.config import CFG
+from resync.knowledge.config import get_config
+
+CFG = get_config()
 from resync.knowledge.interfaces import Embedder, VectorStore
 from resync.knowledge.monitoring import embed_seconds, jobs_total, upsert_seconds
 from resync.settings import get_settings
@@ -341,7 +345,7 @@ class IngestService:
                     mv_ids: list[str] = []
                     mv_payloads: list[dict[str, Any]] = []
                     mv_all_shas = [
-                        hashlib.sha256(mvc.content.encode("utf-8")).hexdigest()
+                        hashlib.sha256(mvc.raw_content.encode("utf-8")).hexdigest()
                         for mvc in multi_view_chunks
                     ]
                     mv_existing_shas = await self.store.exists_batch_by_sha256(
@@ -350,32 +354,39 @@ class IngestService:
                     for mvc, sha_mv in zip(multi_view_chunks, mv_all_shas):
                         if sha_mv in mv_existing_shas:
                             continue
-                        mv_id = f"{mvc.chunk_id}_view_{mvc.view_type.value}"
-                        mv_ids.append(mv_id)
-                        mv_payloads.append(
-                            {
-                                "tenant": tenant,
-                                "doc_id": doc_id,
-                                "chunk_id": mv_id,
-                                "source": source,
-                                "section": mvc.metadata.section_path,
-                                "ts": ts_iso,
-                                "tags": tags or [],
-                                "neighbors": [],
-                                "graph_version": graph_version,
-                                "sha256": sha_mv,
-                                "document_title": document_title,
-                                "chunk_type": mvc.metadata.chunk_type.value,
-                                "parent_headers": mvc.metadata.parent_headers,
-                                "section_path": mvc.metadata.section_path,
-                                "view_type": mvc.view_type.value,
-                                "view_specific_content": mvc.view_specific_content,
-                                "base_chunk_id": mvc.chunk_id,
-                                "embedding_model": embedding_model or CFG.embed_model,
-                                "embedding_version": embedding_version,
-                            }
-                        )
-                        mv_texts.append(mvc.view_specific_content)
+                            
+                        # Generate a chunk for each enabled view
+                        for view_type in config.enabled_views:
+                            view_content = mvc.get_view(view_type)
+                            if not view_content:
+                                continue
+                                
+                            mv_id = f"{mvc.chunk_id}_view_{view_type.value}"
+                            mv_ids.append(mv_id)
+                            mv_payloads.append(
+                                {
+                                    "tenant": tenant,
+                                    "doc_id": doc_id,
+                                    "chunk_id": mv_id,
+                                    "source": source,
+                                    "section": mvc.metadata.get("section_path"),
+                                    "ts": ts_iso,
+                                    "tags": tags or [],
+                                    "neighbors": [],
+                                    "graph_version": graph_version,
+                                    "sha256": sha_mv,
+                                    "document_title": document_title,
+                                    "chunk_type": mvc.metadata.get("chunk_type"),
+                                    "parent_headers": mvc.metadata.get("parent_headers"),
+                                    "section_path": mvc.metadata.get("section_path"),
+                                    "view_type": view_type.value,
+                                    "view_specific_content": view_content,
+                                    "base_chunk_id": mvc.chunk_id,
+                                    "embedding_model": embedding_model or CFG.embed_model,
+                                    "embedding_version": embedding_version,
+                                }
+                            )
+                            mv_texts.append(view_content)
                     # Embed and upsert multi-view chunks
                     if mv_texts:
                         for mv_start in range(0, len(mv_texts), self.batch_size):

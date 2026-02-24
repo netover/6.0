@@ -315,16 +315,20 @@ class PgVectorService:
 # Eagerly initialised — never None — eliminates TOCTOU race on singleton init
 _pool = None
 _vector_service: PgVectorService | None = None
-_vector_service_lock: asyncio.Lock = asyncio.Lock()
+_vector_service_lock: Optional[asyncio.Lock] = None
 
 
 async def get_vector_service() -> PgVectorService:
     """Get singleton vector service instance (thread-safe double-checked locking)."""
-    global _pool, _vector_service
+    global _pool, _vector_service, _vector_service_lock
 
     # Fast path: already initialised, no lock needed
     if _vector_service is not None:
         return _vector_service
+
+    # Lazy lock initialization to avoid RuntimeError: no running event loop
+    if _vector_service_lock is None:
+        _vector_service_lock = asyncio.Lock()
 
     async with _vector_service_lock:
         # Double-check after acquiring lock to prevent redundant init
@@ -332,7 +336,6 @@ async def get_vector_service() -> PgVectorService:
             return _vector_service
 
         import os
-
         import asyncpg
 
         database_url = os.getenv("DATABASE_URL", "postgresql://localhost/resync")

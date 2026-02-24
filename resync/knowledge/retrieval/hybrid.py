@@ -150,7 +150,7 @@ ENTITY_PATTERNS = {
     ],
 }
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128)
 def _compile_patterns():
     return {
         intent: [re.compile(p, re.IGNORECASE) for p in patterns]
@@ -398,7 +398,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
 
         try:
             prompt = self.LLM_ROUTER_PROMPT.format(query=query)
-            response_text = await llm.generate(prompt)
+            response_text = await asyncio.wait_for(llm.generate(prompt), timeout=10.0)
 
             # Parse robust
             lines = response_text.strip().split("\n")
@@ -434,7 +434,11 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             try:
                 from resync.services.llm_service import get_llm_service
 
-                self._llm = await get_llm_service()
+                service = get_llm_service()
+                if asyncio.iscoroutine(service):
+                    self._llm = await asyncio.wait_for(service, timeout=30.0)
+                else:
+                    self._llm = service
             except ImportError:
                 logger.warning("llm_service_not_available")
                 return None
@@ -557,7 +561,11 @@ class HybridRAG:
             try:
                 from resync.services.llm_service import get_llm_service
 
-                self._llm = await get_llm_service()
+                service = get_llm_service()
+                if asyncio.iscoroutine(service):
+                    self._llm = await asyncio.wait_for(service, timeout=30.0)
+                else:
+                    self._llm = service
             except ImportError:
                 logger.warning("LLM service not available")
             except Exception as exc:
@@ -725,15 +733,15 @@ class HybridRAG:
         query_type = classification.graph_query_type
 
         if query_type == "dependency_chain" and jobs:
-            result = await kg.get_dependency_chain(jobs[0])
+            result = await asyncio.wait_for(kg.get_dependency_chain(jobs[0]), timeout=10.0)
             return {"type": "dependency_chain", "job": jobs[0], "chain": result}
 
         if query_type == "impact_analysis" and jobs:
-            result = await kg.get_impact_analysis(jobs[0])
+            result = await asyncio.wait_for(kg.get_impact_analysis(jobs[0]), timeout=10.0)
             return {"type": "impact_analysis", **result}
 
         if query_type == "resource_conflict" and len(jobs) >= 2:
-            result = await kg.find_resource_conflicts(jobs[0], jobs[1])
+            result = await asyncio.wait_for(kg.find_resource_conflicts(jobs[0], jobs[1]), timeout=10.0)
             return {
                 "type": "resource_conflict",
                 "job_a": jobs[0],
@@ -742,18 +750,18 @@ class HybridRAG:
             }
 
         if query_type == "critical_jobs":
-            result = await kg.get_critical_jobs()
+            result = await asyncio.wait_for(kg.get_critical_jobs(), timeout=10.0)
             return {"type": "critical_jobs", "jobs": result}
 
         if query_type == "lineage" and jobs:
-            result = await kg.get_full_lineage(jobs[0])
+            result = await asyncio.wait_for(kg.get_full_lineage(jobs[0]), timeout=10.0)
             return {"type": "lineage", **result}
 
         if query_type == "job_info" and jobs:
             # Get comprehensive job info
-            chain = await kg.get_dependency_chain(jobs[0])
-            impact = await kg.get_impact_analysis(jobs[0])
-            downstream = await kg.get_downstream_jobs(jobs[0])
+            chain = await asyncio.wait_for(kg.get_dependency_chain(jobs[0]), timeout=10.0)
+            impact = await asyncio.wait_for(kg.get_impact_analysis(jobs[0]), timeout=10.0)
+            downstream = await asyncio.wait_for(kg.get_downstream_jobs(jobs[0]), timeout=10.0)
 
             return {
                 "type": "job_info",
@@ -787,7 +795,7 @@ class HybridRAG:
                 pass
 
             # Execute semantic search
-            results = await rag.retrieve(query_text, top_k=5)
+            results = await asyncio.wait_for(rag.retrieve(query_text, top_k=5), timeout=10.0)
 
             return {
                 "type": "semantic_search",
@@ -831,7 +839,7 @@ Original question: {query}
 
 Provide ONLY the variations, one per line, without numbering or explanation."""
 
-            response = await llm.generate(prompt)
+            response = await asyncio.wait_for(llm.generate(prompt), timeout=10.0)
             variations = [
                 line.strip() for line in response.strip().split("\n") if line.strip()
             ]
@@ -943,10 +951,17 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
 
             # Step 2: Parallel search for all variations
             tasks = [rag.retrieve(q, top_k=5) for q in queries]
-            search_results = await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                search_results = await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=15.0,
+                )
+            except asyncio.TimeoutError:
+                logger.error("fusion_rag_timeout", query=query_text[:50])
+                return {"error": "Fusion RAG timeout", "documents": []}
             
             all_results = []
-            for q, results in zip(queries, search_results, strict=False):
+            for q, results in zip(queries, search_results, strict=True):
                 if isinstance(results, Exception):
                     logger.warning("fusion_search_failed", query=q[:30], error=str(results))
                 else:
@@ -1026,7 +1041,10 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
         try:
             # Generate with opinion-based prompts
             # Expected improvement: +30-50% accuracy, -60% hallucination rate
-            return await llm.generate(f"{formatted['system']}\n\n{formatted['user']}")
+            return await asyncio.wait_for(
+                llm.generate(f"{formatted['system']}\n\n{formatted['user']}"),
+                timeout=30.0,
+            )
         except Exception as e:
             logger.error("response_generation_failed", error=str(e))
             return self._format_results_as_text(results)

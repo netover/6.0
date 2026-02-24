@@ -31,7 +31,7 @@ import structlog
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ["RagConfig", "get_config"]
+__all__ = ["RagConfig", "get_config", "CFG"]
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -514,3 +514,5 @@ def get_config() -> RagConfig:
     In tests, call get_config.cache_clear() para resetar.
     """
     return RagConfig()
+
+CFG = get_config()
