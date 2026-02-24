@@ -11,7 +11,7 @@ Compatible with Python 3.14 async improvements (PEP 701, 688, 692).
 Version: 6.0.0 - Converted to async protocols
 """
 
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -198,7 +198,7 @@ class VectorStore(Protocol):
     async def get_all_documents(
         self,
         collection: str | None = None,
-        limit: int = 10000,
+        limit: int = 1000,
         *,
         offset: int = 0,
         timeout: float = 30.0,
@@ -207,6 +207,8 @@ class VectorStore(Protocol):
         Get all documents from collection (for BM25 index building).
 
         Use pagination (limit/offset) to avoid memory exhaustion.
+        ATENÇÃO: limit máximo recomendado é 10.000 para evitar OOM.
+        Use paginação com offset para datasets maiores.
 
         Args:
             collection: Target collection name (uses default if None)

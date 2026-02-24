@@ -76,7 +76,12 @@ class IngestService:
 
         For improved accuracy, use ingest_document_advanced().
         """
-        chunks = list(chunk_text(text, max_tokens=512, overlap_tokens=64))
+        import asyncio
+        
+        def _get_chunks() -> list[str]:
+            return list(chunk_text(text, max_tokens=512, overlap_tokens=64))
+            
+        chunks = await asyncio.to_thread(_get_chunks)
         if not chunks:
             return 0
         ids: list[str] = []
@@ -242,8 +247,9 @@ class IngestService:
             enable_multi_view=enable_multi_view,
         )
         chunker = AdvancedChunker(config)
-        enriched_chunks = chunker.chunk_document(
-            text, source=source, document_title=document_title, doc_id=doc_id
+        import asyncio
+        enriched_chunks = await asyncio.to_thread(
+            chunker.chunk_document, text, source=source, document_title=document_title, doc_id=doc_id
         )
         if not enriched_chunks:
             return 0
@@ -324,7 +330,9 @@ class IngestService:
         # FIX P0-004: Actually upsert multi-view chunks to vector store
         if enable_multi_view:
             try:
-                multi_view_chunks = chunker.chunk_document_multi_view(
+                import asyncio
+                multi_view_chunks = await asyncio.to_thread(
+                    chunker.chunk_document_multi_view,
                     text, source=source, document_title=document_title, doc_id=doc_id
                 )
                 if multi_view_chunks:

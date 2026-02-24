@@ -18,7 +18,7 @@ Version: 6.0.0 - Fixed datetime lambda bug, added validations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -28,6 +28,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -132,7 +133,7 @@ class ExtractedTriplet(Base):
 
     # Source text - max 10MB
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
-    source_document: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    source_document: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Extraction metadata
     model_used: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -142,22 +143,22 @@ class ExtractedTriplet(Base):
         default=0.5,
     )
 
-    # Review status - uses Enum for type safety
+    # Review status - uses SAEnum for type safety and DB conversion
     status: Mapped[TripletStatus] = mapped_column(
-        String(20),
+        SAEnum(TripletStatus, name="triplstatus"),
         nullable=False,
-        default=TripletStatus.PENDING.value,
+        default=TripletStatus.PENDING,
         index=True,
     )
-    reviewed_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Timestamps - use server_default for database-side timestamp
-    # FIXED: Was using lambda which evaluated once at class definition
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
+    # Pre-flush objects will have created_at = None
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),  # Database-side default using SQL function
+        server_default=func.now(),
         index=True,
     )
 
@@ -181,13 +182,13 @@ class ExtractedTriplet(Base):
             "predicate": self.predicate,
             "object": self.object,
             "confidence": round(self.confidence, 3),  # Limit precision
-            "status": self.status,
+            "status": self.status.value if isinstance(self.status, TripletStatus) else self.status,
             "source_text": source_text,
             "source_document": self.source_document,
             "model_used": self.model_used,
             "reviewed_by": self.reviewed_by,
             "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 

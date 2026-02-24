@@ -121,13 +121,13 @@ class DocumentIngestionPipeline:
                 status="error",
                 error=converted.error or "Conversion failed",
             )
-        if not converted.markdown.strip():
+        if not converted.markdown or not converted.markdown.strip():
             return IngestionResult(
                 doc_id=doc_id,
                 source=source,
                 format=converted.format,
                 pages=converted.pages,
-                tables_extracted=len(converted.tables),
+                tables_extracted=len(converted.tables) if converted.tables else 0,
                 chunks_stored=0,
                 conversion_time_s=converted.conversion_time_s,
                 ingestion_time_s=0,

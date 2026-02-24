@@ -16,10 +16,9 @@ For new code, use advanced_chunking module directly:
 
 from __future__ import annotations
 
-import re
+import warnings
 from collections.abc import Iterator
 
-# Import from advanced chunking
 from resync.knowledge.ingestion.advanced_chunking import (
     AdvancedChunker,
     ChunkingConfig,
@@ -28,27 +27,6 @@ from resync.knowledge.ingestion.advanced_chunking import (
     chunk_text_simple,
     count_tokens,
 )
-
-# Optional import for direct token operations
-try:
-    import tiktoken
-
-    _ENC = tiktoken.get_encoding("cl100k_base")
-    _HAS_TIKTOKEN = True
-except ImportError:
-    _HAS_TIKTOKEN = False
-    _ENC = None
-
-
-def _tokens_len(s: str) -> int:
-    """Estimate token count for a string."""
-    return count_tokens(s)
-
-
-def _split_sentences(text: str) -> list[str]:
-    """Split text into sentences based on punctuation."""
-    text = re.sub(r"\s+", " ", text).strip()
-    return re.split(r"(?<=[.!?])\s+", text) if text else []
 
 
 def chunk_text(
