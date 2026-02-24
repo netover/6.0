@@ -81,8 +81,10 @@ class ResyncVectorizer(BaseVectorizer):
 
     async def aembed(self, *args, **kwargs):
         """Async version of embed - delegated to sync for now as local model is sync."""
-        return self.embed(*args, **kwargs)
+        import asyncio
+        return await asyncio.to_thread(self.embed, *args, **kwargs)
 
     async def aembed_many(self, *args, **kwargs):
         """Async version of embed_many - delegated to sync."""
-        return self.embed_many(*args, **kwargs)
+        import asyncio
+        return await asyncio.to_thread(self.embed_many, *args, **kwargs)

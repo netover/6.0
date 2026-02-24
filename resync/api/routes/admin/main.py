@@ -232,7 +232,7 @@ async def update_teams_config(
         current_config = teams_integration.config
 
         # Update configuration with provided values
-        update_fields = config_update.dict(exclude_unset=True)
+        update_fields = config_update.model_dump(exclude_unset=True)
 
         # Apply updates to in-memory configuration
         for field_name, field_value in update_fields.items():
@@ -496,7 +496,7 @@ async def update_tws_config(
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        update_fields = config_update.dict(exclude_unset=True)
+        update_fields = config_update.model_dump(exclude_unset=True)
 
         # Persist configuration to file
         config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
@@ -549,7 +549,7 @@ async def update_system_config(
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        update_fields = config_update.dict(exclude_unset=True)
+        update_fields = config_update.model_dump(exclude_unset=True)
 
         # Persist configuration to file
         config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE

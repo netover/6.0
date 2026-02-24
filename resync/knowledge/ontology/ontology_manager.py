@@ -16,6 +16,7 @@ Author: Resync Team
 Version: 5.9.2
 """
 
+import asyncio
 import re
 from dataclasses import dataclass, field
 from enum import Enum
@@ -242,11 +243,8 @@ class OntologyManager:
 
     def __init__(self, ontology_path: str | Path | None = None):
         """
-        Initialize OntologyManager.
-
-        Args:
-            ontology_path: Path to ontology YAML file.
-                          Defaults to tws_schema.yaml in same directory.
+        Initialize OntologyManager synchronously (Warning: blocking I/O).
+        Use `create_async` in production async contexts.
         """
         if ontology_path is None:
             ontology_path = Path(__file__).parent / "tws_schema.yaml"
@@ -261,11 +259,32 @@ class OntologyManager:
         self._compile_patterns()
 
         logger.info(
-            "ontology_manager_initialized",
+            "ontology_manager_initialized_sync",
             ontology=self.ontology.metadata.name if self.ontology else "none",
-            version=self.ontology.metadata.version if self.ontology else "none",
-            entity_types=len(self.ontology.entity_types) if self.ontology else 0,
         )
+
+    @classmethod
+    async def create_async(cls, ontology_path: str | Path | None = None) -> "OntologyManager":
+        """
+        Asynchronously creates an OntologyManager instance without blocking the event loop.
+        """
+        instance = cls.__new__(cls)
+        instance.ontology_path = Path(ontology_path) if ontology_path else Path(__file__).parent / "tws_schema.yaml"
+        instance.ontology = None
+        instance._alias_map = {}
+        instance._compiled_patterns = {}
+
+        await asyncio.to_thread(instance._load_ontology)
+        instance._build_alias_map()
+        instance._compile_patterns()
+
+        logger.info(
+            "ontology_manager_initialized_async",
+            ontology=instance.ontology.metadata.name if instance.ontology else "none",
+            version=instance.ontology.metadata.version if instance.ontology else "none",
+            entity_types=len(instance.ontology.entity_types) if instance.ontology else 0,
+        )
+        return instance
 
     def _load_ontology(self):
         """Load ontology from YAML file."""

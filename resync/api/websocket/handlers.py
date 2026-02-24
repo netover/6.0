@@ -108,18 +108,17 @@ class ConnectionManager:
             loop = asyncio.get_running_loop()
             loop.create_task(self.disconnect_async(websocket))
         except RuntimeError:
-            # No running loop - we're in sync context, do best-effort cleanup
-            # This is not thread-safe but better than nothing for sync contexts
-            agent_id = self.agent_connections.get(websocket)
-            if agent_id and websocket in self.active_connections.get(agent_id, set()):
-                self.active_connections[agent_id].discard(websocket)
-                if not self.active_connections[agent_id]:
-                    del self.active_connections[agent_id]
+            # We are in sync context with no loop. Avoid raw set mutations across threads
+            # Just push the cleanup to a background thread with its own loop to do it safely
+            import threading
 
-            if websocket in self.agent_connections:
-                del self.agent_connections[websocket]
-
-            logger.info("WebSocket disconnected from agent %s (sync context)", agent_id)
+            def _safe_cleanup():
+                new_loop = asyncio.new_event_loop()
+                new_loop.run_until_complete(self.disconnect_async(websocket))
+                new_loop.close()
+                
+            threading.Thread(target=_safe_cleanup, daemon=True).start()
+            logger.info("WebSocket disconnected from agent (deferred to thread)")
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send message to specific WebSocket connection"""
@@ -236,7 +235,8 @@ async def websocket_handler(
 
     # Update Langfuse context with secure user ID
     hashed_user = hash_user_id(user_id)
-    langfuse_context.update_current_trace(user_id=hashed_user)
+    if LANGFUSE_AVAILABLE and langfuse_context is not None:
+        langfuse_context.update_current_trace(user_id=hashed_user)
 
     await manager.connect(websocket, agent_id)
 

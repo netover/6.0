@@ -205,7 +205,11 @@ def get_redis_client(
     config = get_redis_config()
     url = config.get_url(db)
 
-    return from_url(
+    # Check cache to avoid creating a new pool for every request
+    if db in _connection_pools:
+        return _connection_pools[db]
+
+    client = from_url(
         url,
         decode_responses=decode_responses,
         max_connections=config.pool_max_connections,
@@ -214,6 +218,8 @@ def get_redis_client(
         retry_on_timeout=config.retry_on_timeout,
         health_check_interval=config.health_check_interval,
     )
+    _connection_pools[db] = client
+    return client
 
 
 async def check_redis_stack_available() -> dict[str, bool | str]:

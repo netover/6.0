@@ -11,6 +11,7 @@ Autor: Resync Team
 Versão: 1.0.0
 """
 
+import asyncio
 import hashlib
 import os
 from dataclasses import dataclass, field
@@ -78,21 +79,26 @@ class ChatMemoryStore:
         self._anonymizer = DataAnonymizer(GDPRComplianceConfig())
         self._session_cache: dict[str, list[ChatTurn]] = {}
         self._cache_max_size = 100
+        self._init_lock = asyncio.Lock()
 
     async def _get_vector_store(self):
         """Lazy load do vector store."""
         if self._vector_store is None:
-            from resync.knowledge.store.pgvector_store import PgVectorStore
-
-            self._vector_store = PgVectorStore()
+            async with self._init_lock:
+                if self._vector_store is None:
+                    from resync.knowledge.store.pgvector_store import PgVectorStore
+        
+                    self._vector_store = PgVectorStore()
         return self._vector_store
 
     async def _get_embedder(self):
         """Lazy load do embedder."""
         if self._embedder is None:
-            from resync.knowledge.ingestion.embedding_service import get_embedder
-
-            self._embedder = get_embedder()
+            async with self._init_lock:
+                if self._embedder is None:
+                    from resync.knowledge.ingestion.embedding_service import get_embedder
+        
+                    self._embedder = get_embedder()
         return self._embedder
 
     async def add_turn(self, turn: ChatTurn) -> bool:
@@ -124,7 +130,7 @@ class ChatMemoryStore:
             turn_id = self._generate_turn_id(turn)
 
             embedder = await self._get_embedder()
-            vector = embedder.embed(safe_content)
+            vector = await embedder.embed(safe_content, timeout=10.0)
 
             vector_store = await self._get_vector_store()
 
@@ -142,6 +148,7 @@ class ChatMemoryStore:
                     }
                 ],
                 collection=CHAT_MEMORY_COLLECTION,
+                timeout=15.0,
             )
 
             self._update_cache(turn)
@@ -167,7 +174,7 @@ class ChatMemoryStore:
         """
         try:
             embedder = await self._get_embedder()
-            vector = embedder.embed(query)
+            vector = await embedder.embed(query, timeout=5.0)
 
             vector_store = await self._get_vector_store()
 
@@ -210,11 +217,28 @@ class ChatMemoryStore:
 
     async def cleanup_expired(self) -> int:
         """
-        Task agendada para deletar registros expirados.
+        Deleta registros expirados do banco de dados.
         """
         try:
             logger.info("chat_memory_cleanup_triggered", ttl_days=self._ttl_days)
-            return 0
+            vector_store = await self._get_vector_store()
+            pool = await vector_store._get_pool()
+            
+            async with pool.acquire() as conn:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                result = await conn.execute(
+                    """
+                    DELETE FROM document_embeddings 
+                    WHERE collection_name = $1 
+                    AND metadata ? 'expires_at'
+                    AND metadata->>'expires_at' < $2
+                    """,
+                    CHAT_MEMORY_COLLECTION,
+                    now_iso
+                )
+                deleted = int(result.split()[-1])
+                logger.info("chat_memory_cleanup_finished", deleted_count=deleted)
+                return deleted
 
         except Exception as e:
             logger.error("chat_memory_cleanup_failed", error=str(e))

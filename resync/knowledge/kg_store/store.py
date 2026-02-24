@@ -14,7 +14,7 @@ This module uses asyncpg (already used in resync.knowledge.store).
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 import uuid
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -22,7 +22,7 @@ from typing import Any, Iterable
 from resync.knowledge.config import CFG
 from resync.knowledge.kg_store.ddl import DDL_STATEMENTS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 try:
     import asyncpg
 
@@ -94,8 +94,9 @@ class PostgresGraphStore:
             return
         pool = await self._get_pool()
         async with pool.acquire() as conn:
-            for stmt in DDL_STATEMENTS:
-                await conn.execute(stmt)
+            async with asyncio.timeout(30.0):
+                for stmt in DDL_STATEMENTS:
+                    await conn.execute(stmt)
         self._schema_ensured = True
 
     async def close(self) -> None:
@@ -117,32 +118,33 @@ class PostgresGraphStore:
             return 0
         pool = await self._get_pool()
         async with pool.acquire() as conn:
-            await conn.executemany(
-                """
-                INSERT INTO kg_nodes (
-                    tenant, graph_version, node_id, node_type, name, aliases, properties
-                )
-                VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)
-                ON CONFLICT (tenant, graph_version, node_id)
-                DO UPDATE SET
-                    node_type = EXCLUDED.node_type,
-                    name = EXCLUDED.name,
-                    aliases = EXCLUDED.aliases,
-                    properties = EXCLUDED.properties
-                """,
-                [
-                    (
-                        tenant,
-                        graph_version,
-                        n.node_id,
-                        n.node_type,
-                        n.name,
-                        asyncpg.types.Json(n.aliases or []),
-                        asyncpg.types.Json(n.properties or {}),
+            async with asyncio.timeout(30.0):
+                await conn.executemany(
+                    """
+                    INSERT INTO kg_nodes (
+                        tenant, graph_version, node_id, node_type, name, aliases, properties
                     )
-                    for n in nodes_list
-                ],
-            )
+                    VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)
+                    ON CONFLICT (tenant, graph_version, node_id)
+                    DO UPDATE SET
+                        node_type = EXCLUDED.node_type,
+                        name = EXCLUDED.name,
+                        aliases = EXCLUDED.aliases,
+                        properties = EXCLUDED.properties
+                    """,
+                    [
+                        (
+                            tenant,
+                            graph_version,
+                            n.node_id,
+                            n.node_type,
+                            n.name,
+                            asyncpg.types.Json(n.aliases or []),
+                            asyncpg.types.Json(n.properties or {}),
+                        )
+                        for n in nodes_list
+                    ],
+                )
             return len(nodes_list)
 
     async def insert_edges(
@@ -154,28 +156,29 @@ class PostgresGraphStore:
             return 0
         pool = await self._get_pool()
         async with pool.acquire() as conn:
-            await conn.executemany(
-                """
-                INSERT INTO kg_edges (
-                    tenant, graph_version, edge_id, source_id, target_id,
-                    relation_type, weight, evidence
-                )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
-                """,
-                [
-                    (
-                        tenant,
-                        graph_version,
-                        e.edge_id or str(uuid.uuid4()),
-                        e.source_id,
-                        e.target_id,
-                        e.relation_type,
-                        float(e.weight),
-                        asyncpg.types.Json(e.evidence or {}),
+            async with asyncio.timeout(30.0):
+                await conn.executemany(
+                    """
+                    INSERT INTO kg_edges (
+                        tenant, graph_version, edge_id, source_id, target_id,
+                        relation_type, weight, evidence
                     )
-                    for e in edges_list
-                ],
-            )
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+                    """,
+                    [
+                        (
+                            tenant,
+                            graph_version,
+                            e.edge_id or str(uuid.uuid4()),
+                            e.source_id,
+                            e.target_id,
+                            e.relation_type,
+                            float(e.weight),
+                            asyncpg.types.Json(e.evidence or {}),
+                        )
+                        for e in edges_list
+                    ],
+                )
             return len(edges_list)
 
     async def upsert_from_extraction(

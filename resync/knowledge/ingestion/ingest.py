@@ -46,9 +46,18 @@ class IngestService:
     v5.4.2: Added advanced chunking with structure awareness
     """
 
-    def __init__(self, embedder: Embedder, store: VectorStore, batch_size: int = 128):
+    def __init__(
+        self, 
+        embedder: Embedder, 
+        store: VectorStore, 
+        kg_extractor: Any | None = None,
+        kg_store: Any | None = None,
+        batch_size: int = 128
+    ):
         self.embedder = embedder
         self.store = store
+        self.kg_extractor = kg_extractor
+        self.kg_store = kg_store
         self.batch_size = batch_size
 
     async def ingest_document(
@@ -73,13 +82,14 @@ class IngestService:
         ids: list[str] = []
         payloads: list[dict[str, Any]] = []
         texts_for_embed: list[str] = []
-        for i, ck in enumerate(chunks):
-            ck_norm = ck.strip()
-            sha = hashlib.sha256(ck_norm.encode("utf-8")).hexdigest()
-            exists = await self.store.exists_by_sha256(
-                sha, collection=CFG.collection_read
-            )
-            if exists:
+        # FIX N+1: batch SHA-256 dedup — one DB call instead of N
+        normalized = [ck.strip() for ck in chunks]
+        shas = [hashlib.sha256(t.encode("utf-8")).hexdigest() for t in normalized]
+        existing_shas = await self.store.exists_batch_by_sha256(
+            shas, collection=CFG.collection_read
+        )
+        for i, (ck_norm, sha) in enumerate(zip(normalized, shas)):
+            if sha in existing_shas:
                 continue
             chunk_id = f"{doc_id}#c{i:06d}"
             ids.append(chunk_id)
@@ -243,12 +253,14 @@ class IngestService:
         ids: list[str] = []
         payloads: list[dict[str, Any]] = []
         texts_for_embed: list[str] = []
+        # FIX N+1: batch SHA-256 dedup — one DB call instead of N
+        all_shas = [chunk.sha256 for chunk in enriched_chunks]
+        existing_shas = await self.store.exists_batch_by_sha256(
+            all_shas, collection=CFG.collection_read
+        )
         for i, chunk in enumerate(enriched_chunks):
             sha = chunk.sha256
-            exists = await self.store.exists_by_sha256(
-                sha, collection=CFG.collection_read
-            )
-            if exists:
+            if sha in existing_shas:
                 continue
             chunk_id = f"{doc_id}#c{i:06d}"
             ids.append(chunk_id)
@@ -316,19 +328,19 @@ class IngestService:
                     text, source=source, document_title=document_title, doc_id=doc_id
                 )
                 if multi_view_chunks:
-                    # Prepare multi-view data for embedding
+                    # FIX N+1: batch SHA-256 dedup for multi-view chunks — one DB call
                     mv_texts: list[str] = []
                     mv_ids: list[str] = []
                     mv_payloads: list[dict[str, Any]] = []
-                    for mvc in multi_view_chunks:
-                        # Check deduplication for each view
-                        sha_mv = hashlib.sha256(
-                            mvc.content.encode("utf-8")
-                        ).hexdigest()
-                        exists_mv = await self.store.exists_by_sha256(
-                            sha_mv, collection=CFG.collection_read
-                        )
-                        if exists_mv:
+                    mv_all_shas = [
+                        hashlib.sha256(mvc.content.encode("utf-8")).hexdigest()
+                        for mvc in multi_view_chunks
+                    ]
+                    mv_existing_shas = await self.store.exists_batch_by_sha256(
+                        mv_all_shas, collection=CFG.collection_read
+                    )
+                    for mvc, sha_mv in zip(multi_view_chunks, mv_all_shas):
+                        if sha_mv in mv_existing_shas:
                             continue
                         mv_id = f"{mvc.chunk_id}_view_{mvc.view_type.value}"
                         mv_ids.append(mv_id)
@@ -395,11 +407,7 @@ class IngestService:
             from resync.settings import get_settings
 
             _s = get_settings()
-            if _s.KG_EXTRACTION_ENABLED:
-                from resync.knowledge.kg_extraction import KGExtractor
-                from resync.knowledge.kg_store.store import PostgresGraphStore
-
-                extractor = KGExtractor()
+            if _s.KG_EXTRACTION_ENABLED and self.kg_extractor and self.kg_store:
                 chunk_payloads = [
                     {
                         "chunk_id": ids[i] if i < len(ids) else f"{doc_id}#c{i:06d}",
@@ -409,15 +417,14 @@ class IngestService:
                     }
                     for i in range(len(texts_for_embed))
                 ]
-                extraction = await extractor.extract(
+                extraction = await self.kg_extractor.extract(
                     doc_id=doc_id,
                     chunks=chunk_payloads,
                     tenant=tenant,
                     graph_version=graph_version,
                 )
                 if extraction and (extraction.concepts or extraction.edges):
-                    store = PostgresGraphStore()
-                    await store.upsert_from_extraction(
+                    await self.kg_store.upsert_from_extraction(
                         tenant=tenant,
                         graph_version=graph_version,
                         doc_id=doc_id,

@@ -388,7 +388,7 @@ async def update_config(config_data: ConfigUpdate, db: Session = Depends(get_db)
         config = TeamsNotificationConfig()
         db.add(config)
 
-    for field, value in config_data.dict(exclude_unset=True).items():
+    for field, value in config_data.model_dump(exclude_unset=True).items():
         setattr(config, field, value)
 
     config.updated_at = datetime.now(timezone.utc)

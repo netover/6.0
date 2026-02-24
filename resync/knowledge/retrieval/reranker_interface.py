@@ -26,6 +26,7 @@ import logging
 import math
 import os
 import time
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
@@ -155,7 +156,9 @@ class RerankGatingPolicy:
             if max_score > min_score:
                 scores = [(s - min_score) / (max_score - min_score) for s in scores]
             else:
-                scores = [1.0] * len(scores)
+                self._rerank_activated += 1
+                self._reasons["high_entropy"] += 1
+                return True, "uniform_scores"
 
         s1 = scores[0]
         s2 = scores[1] if len(scores) > 1 else 0.0
@@ -173,17 +176,18 @@ class RerankGatingPolicy:
             return True, "low_score"
 
         # Rule B: Small margin between top1 and top2 → ambiguity
-        margin = s1 - s2
-        if margin < self.config.margin_threshold:
-            self._rerank_activated += 1
-            self._reasons["small_margin"] += 1
-            logger.debug(
-                (
-                    "Rerank activated: small margin "
-                    f"({margin:.3f} < {self.config.margin_threshold})"
+        if len(scores) > 1:
+            margin = s1 - s2
+            if margin < self.config.margin_threshold:
+                self._rerank_activated += 1
+                self._reasons["small_margin"] += 1
+                logger.debug(
+                    (
+                        "Rerank activated: small margin "
+                        f"({margin:.3f} < {self.config.margin_threshold})"
+                    )
                 )
-            )
-            return True, "small_margin"
+                return True, "small_margin"
 
         # Rule C: High entropy (optional, more expensive to compute)
         if self.config.enable_entropy_check and len(scores) >= 3:
@@ -279,7 +283,7 @@ class IReranker(Protocol):
         - Runtime switching via feature flag
     """
 
-    def rerank(
+    async def rerank(
         self,
         query: str,
         candidates: list[dict[str, Any]],
@@ -401,7 +405,7 @@ class CrossEncoderReranker:
         if self._model is not None:
             return self._model
 
-        if not self._available:
+        if self._available is False:
             return None
 
         try:
@@ -434,7 +438,7 @@ class CrossEncoderReranker:
             self._available = False
             return None
 
-    def rerank(
+    async def rerank(
         self,
         query: str,
         candidates: list[dict[str, Any]],
@@ -469,10 +473,17 @@ class CrossEncoderReranker:
                 pairs.append((query, str(text)[: self.max_length]))
 
             # Get scores from cross-encoder
-            scores = model.predict(pairs)
+            scores = await asyncio.to_thread(model.predict, pairs)
 
-            # Normalize scores to [0, 1] using sigmoid
-            normalized = [1 / (1 + math.exp(-float(s))) for s in scores]
+            def safe_sigmoid(x: float) -> float:
+                if x >= 0:
+                    return 1 / (1 + math.exp(-x))
+                else:
+                    exp_x = math.exp(x)
+                    return exp_x / (1 + exp_x)
+
+            # Normalize scores to [0, 1] using safe_sigmoid
+            normalized = [safe_sigmoid(float(s)) for s in scores]
 
             # Attach scores and original rank
             scored_docs = []

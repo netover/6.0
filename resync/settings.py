@@ -1460,6 +1460,17 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # DOCUMENT KNOWLEDGE GRAPH (DKG)
     # ============================================================================
+    KNOWLEDGE_DOCS_ROOT: Path = Field(
+        default_factory=lambda: Path("docs"),
+        validation_alias=AliasChoices("KNOWLEDGE_DOCS_ROOT", "APP_KNOWLEDGE_DOCS_ROOT"),
+        description=(
+            "Allowed root directory for server-side batch document ingestion. "
+            "All paths supplied to POST /knowledge/ingest/batch must resolve inside "
+            "this directory. Set via KNOWLEDGE_DOCS_ROOT env var. "
+            "Default: ./docs relative to the working directory."
+        ),
+    )
+
     KG_EXTRACTION_ENABLED: bool = Field(
         default=False,
         description="Habilitar extração de grafo de conhecimento na ingestão de documentos",

@@ -208,8 +208,35 @@ async def ingest_batch(request: BatchIngestRequest):
     succeeded = 0
     failed = 0
 
+    # Security: resolve the allowed docs root to prevent path traversal.
+    # Every requested path must be inside KNOWLEDGE_DOCS_ROOT.
+    from resync.settings import get_settings as _get_settings
+    _docs_root = Path(_get_settings().KNOWLEDGE_DOCS_ROOT).resolve()
+
+
     for fp in request.file_paths:
-        path = Path(fp)
+        path = Path(fp).resolve()
+        # Security: guard against path traversal — reject paths outside docs root
+        if not str(path).startswith(str(_docs_root)):
+            results.append(
+                IngestResponse(
+                    status="error",
+                    doc_id="",
+                    source=fp,
+                    format="",
+                    error=(
+                        f"Path traversal denied: '{fp}' is outside "
+                        f"the allowed docs root '{_docs_root}'"
+                    ),
+                )
+            )
+            logger.warning(
+                "path_traversal_denied",
+                extra={"requested": fp, "docs_root": str(_docs_root)},
+            )
+            failed += 1
+            continue
+
         if not path.exists():
             results.append(
                 IngestResponse(

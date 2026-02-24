@@ -17,7 +17,6 @@ Version: 6.0.0 - Fixed concurrency issues, added ef_search support
 """
 
 import asyncio
-import threading
 from typing import TYPE_CHECKING, Any
 
 from resync.knowledge.config import CFG
@@ -77,12 +76,12 @@ class PgVectorStore(VectorStore):
         self._pool_min_size = pool_min_size
         self._pool_max_size = pool_max_size
         self._initialized = False
-        self._lock = threading.Lock()
+        self._pool_lock = asyncio.Lock()
 
     async def _get_pool(self) -> "asyncpg.Pool":
-        """Get or create connection pool with thread-safe initialization."""
+        """Get or create connection pool with async-safe initialization."""
         if self._pool is None:
-            async with self._lock:
+            async with self._pool_lock:
                 # Double-check after acquiring lock
                 if self._pool is None:
                     self._pool = await asyncpg.create_pool(
@@ -138,23 +137,24 @@ class PgVectorStore(VectorStore):
                 (col, doc_id, chunk_id, content, embedding_str, metadata, sha256)
             )
         async with pool.acquire() as conn:
-            await conn.executemany(
-                """
-                INSERT INTO document_embeddings (
-                    collection_name, document_id, chunk_id,
-                    content, embedding, metadata, sha256
+            async with asyncio.timeout(timeout):
+                await conn.executemany(
+                    """
+                    INSERT INTO document_embeddings (
+                        collection_name, document_id, chunk_id,
+                        content, embedding, metadata, sha256
+                    )
+                    VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb, $7)
+                    ON CONFLICT (collection_name, document_id, chunk_id)
+                    DO UPDATE SET
+                        content = EXCLUDED.content,
+                        embedding = EXCLUDED.embedding,
+                        metadata = EXCLUDED.metadata,
+                        sha256 = EXCLUDED.sha256,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    records,
                 )
-                VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb, $7)
-                ON CONFLICT (collection_name, document_id, chunk_id)
-                DO UPDATE SET
-                    content = EXCLUDED.content,
-                    embedding = EXCLUDED.embedding,
-                    metadata = EXCLUDED.metadata,
-                    sha256 = EXCLUDED.sha256,
-                    updated_at = CURRENT_TIMESTAMP
-                """,
-                records,
-            )
         logger.debug("batch_upserted", extra={"collection": col, "count": len(ids)})
 
     async def query(
@@ -238,7 +238,8 @@ class PgVectorStore(VectorStore):
         """
         params = [embedding_str, binary_str, col, *filter_params, candidates, top_k]
         async with pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
+            async with asyncio.timeout(timeout):
+                rows = await conn.fetch(query, *params)
         results = []
         for row in rows:
             payload = dict(row["metadata"]) if row["metadata"] else {}
@@ -362,6 +363,51 @@ class PgVectorStore(VectorStore):
         deleted = result.split()[-1]
         return int(deleted) > 0
 
+    async def delete_by_doc_id(
+        self,
+        doc_id: str,
+        collection: str | None = None,
+        *,
+        timeout: float = 30.0,
+    ) -> int:
+        """Delete all vectors associated with a document ID."""
+        col = collection or self._collection_default
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute(
+                """
+                DELETE FROM document_embeddings
+                WHERE collection_name = $1 AND document_id = $2
+                """,
+                col,
+                doc_id,
+            )
+        deleted = result.split()[-1]
+        return int(deleted)
+
+    async def exists_batch_by_sha256(
+        self,
+        sha256_list: list[str],
+        collection: str | None = None,
+        *,
+        timeout: float = 10.0,
+    ) -> set[str]:
+        """Batch check which SHA256 hashes exist in collection."""
+        if not sha256_list:
+            return set()
+        col = collection or self._collection_default
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT sha256 FROM document_embeddings
+                WHERE collection_name = $1 AND sha256 = ANY($2::text[])
+                """,
+                col,
+                sha256_list,
+            )
+        return {row["sha256"] for row in rows}
+
     async def delete_collection(self, collection: str) -> int:
         """Delete entire collection."""
         pool = await self._get_pool()
@@ -462,17 +508,34 @@ class PgVectorStore(VectorStore):
         return documents
 
 
-# Thread-safe singleton implementation
+# Async-safe singleton implementation using module-level lock
 _store_instance: "PgVectorStore | None" = None
-_store_lock = threading.Lock()
+_store_lock: asyncio.Lock | None = None
 
 
-def get_vector_store() -> "PgVectorStore":
-    """Get singleton vector store instance with thread-safe initialization."""
+async def get_vector_store() -> "PgVectorStore":
+    """Get singleton vector store instance with async-safe initialization."""
+    global _store_instance, _store_lock
+    
+    if _store_lock is None:
+        _store_lock = asyncio.Lock()
+    
+    if _store_instance is None:
+        async with _store_lock:
+            # Double-check after acquiring lock
+            if _store_instance is None:
+                _store_instance = PgVectorStore()
+    return _store_instance
+
+
+# Backward-compatible sync version (for non-async contexts)
+def get_vector_store_sync() -> "PgVectorStore":
+    """Synchronous version for backward compatibility."""
     global _store_instance
     if _store_instance is None:
-        with _store_lock:
-            # Double-check after acquiring lock
+        import threading
+        lock = threading.Lock()
+        with lock:
             if _store_instance is None:
                 _store_instance = PgVectorStore()
     return _store_instance

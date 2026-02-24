@@ -9,10 +9,9 @@ By default, extraction is gated by env var KG_EXTRACTION_ENABLED.
 
 from __future__ import annotations
 
-# mypy
 import json
-import logging
 import re
+import structlog
 from typing import Any, Iterable
 
 from pydantic import ValidationError
@@ -23,7 +22,7 @@ from .normalizer import dedup_concepts, dedup_edges
 from .prompts import build_concepts_prompt, build_edges_prompt
 from .schemas import Concept, Edge, Evidence, ExtractionResult
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class KGExtractor:

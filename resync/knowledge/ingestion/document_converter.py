@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import multiprocessing
 import os
+import structlog
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -32,7 +32,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SupportedFormat(str, Enum):

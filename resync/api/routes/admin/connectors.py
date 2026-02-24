@@ -221,7 +221,7 @@ async def update_connector(connector_id: str, update: ConnectorUpdate):
 
     connector = _connectors[connector_id]
 
-    for field, value in update.dict(exclude_unset=True).items():
+    for field, value in update.model_dump(exclude_unset=True).items():
         if field == "config" and value:
             connector["config"].update(value)
         else:

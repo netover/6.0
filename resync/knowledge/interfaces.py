@@ -223,6 +223,52 @@ class VectorStore(Protocol):
         """
         ...
 
+    async def delete_by_doc_id(
+        self,
+        doc_id: str,
+        collection: str | None = None,
+        *,
+        timeout: float = 30.0,
+    ) -> int:
+        """
+        Delete all vectors associated with a document ID.
+
+        Args:
+            doc_id: Document ID to delete
+            collection: Target collection (uses default if None)
+            timeout: Maximum time for deletion (seconds)
+
+        Returns:
+            Number of vectors deleted
+
+        Raises:
+            asyncio.TimeoutError: If deletion exceeds timeout
+            asyncpg.PostgresError: On database errors
+        """
+        ...
+
+    async def exists_batch_by_sha256(
+        self,
+        sha256_list: Sequence[str],
+        collection: str | None = None,
+        *,
+        timeout: float = 10.0,
+    ) -> set[str]:
+        """
+        Batch check which SHA256 hashes exist in collection.
+
+        More efficient than N individual exists_by_sha256 calls.
+
+        Args:
+            sha256_list: List of SHA256 hashes to check
+            collection: Target collection (uses default if None)
+            timeout: Maximum time for batch check (seconds)
+
+        Returns:
+            Set of SHA256 hashes that exist in the collection
+        """
+        ...
+
 
 @runtime_checkable
 class Retriever(Protocol):

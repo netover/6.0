@@ -17,13 +17,13 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
+import structlog
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass

@@ -4,12 +4,12 @@ RAG Feedback Store - PostgreSQL Implementation.
 Provides feedback storage for RAG microservice using PostgreSQL.
 """
 
-import logging
+import structlog
 
 from resync.core.database.models import Feedback
 from resync.core.database.repositories import FeedbackStore as PGFeedbackStore
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Feedback type constants for compatibility
 FEEDBACK_POSITIVE = "positive"

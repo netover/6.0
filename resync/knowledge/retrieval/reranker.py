@@ -16,17 +16,26 @@ This two-stage approach balances speed and accuracy:
 - Stage 2: Cross-encoder rerank (~50ms for 20 docs)
 """
 
-import logging
+import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
 
 from resync.knowledge.config import CFG
-
-logger = logging.getLogger(__name__)
+from resync.core.circuit_breaker_registry import (
+    CircuitBreakers,
+    circuit_protected,
+)
 
 # Global model instance (singleton, lazy loaded)
-_cross_encoder_model: Any = None
+_cross_encoder_model: "CrossEncoder | None" = None
 _cross_encoder_available: bool | None = None
 
 
@@ -63,7 +72,7 @@ def is_cross_encoder_available() -> bool:
     return _cross_encoder_available
 
 
-def get_cross_encoder() -> Any:
+def get_cross_encoder() -> "CrossEncoder | None":
     """
     Get singleton cross-encoder model instance.
 
@@ -113,7 +122,7 @@ def preload_cross_encoder() -> bool:
     if model is None:
         return False
 
-    # Warm up with a dummy prediction
+    # Warm up with a dummy prediction (blocking call - acceptable for startup)
     try:
         _ = model.predict([("test query", "test document")])
         logger.info("RAG cross-encoder model warmed up")
@@ -123,7 +132,8 @@ def preload_cross_encoder() -> bool:
         return False
 
 
-def rerank_documents(
+@circuit_protected(CircuitBreakers.RAG_RETRIEVAL)
+async def rerank_documents(
     query: str,
     documents: list[dict[str, Any]],
     top_k: int | None = None,
@@ -172,8 +182,10 @@ def rerank_documents(
             else:
                 pairs.append((query, ""))
 
-        # Get cross-encoder scores
-        scores = model.predict(pairs)
+        # Get cross-encoder scores (blocking call wrapped in run_in_executor)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        scores = await loop.run_in_executor(None, model.predict, pairs)
 
         # Normalize scores to 0-1 using sigmoid
         normalized_scores = [1 / (1 + math.exp(-s)) for s in scores]

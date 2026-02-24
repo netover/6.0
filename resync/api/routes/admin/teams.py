@@ -184,7 +184,7 @@ async def update_teams_config(update: TeamsConfigUpdate):
     if update.rate_limit_enabled is not None:
         config.rate_limit_enabled = update.rate_limit_enabled
 
-    logger.info("teams_config_updated", updates=update.dict(exclude_unset=True))
+    logger.info("teams_config_updated", updates=update.model_dump(exclude_unset=True))
 
     return TeamsConfigResponse(
         enabled=config.enabled,

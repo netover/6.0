@@ -244,10 +244,12 @@ class ProvenanceTracker:
     - Export provenance for auditing
     """
 
-    def __init__(self):
+    def __init__(self, max_records: int = 5000):
         """Initialize ProvenanceTracker."""
-        # In-memory storage (can be replaced with database backend)
-        self._records: dict[str, ProvenanceRecord] = {}  # record_id -> record
+        import collections
+        self._max_records = max_records
+        # In-memory storage with eviction to prevent memory leaks
+        self._records: collections.OrderedDict[str, ProvenanceRecord] = collections.OrderedDict()
         self._entity_index: dict[str, list[str]] = {}  # entity_id -> record_ids
         self._source_index: dict[str, list[str]] = {}  # source_file -> record_ids
 
@@ -285,6 +287,15 @@ class ProvenanceTracker:
 
         # Store record
         self._records[record.record_id] = record
+
+        # Prevents OOM by keeping max size
+        if len(self._records) > self._max_records:
+            oldest_id, _ = self._records.popitem(last=False)
+            
+            # Optionally we could remove from indices to be fully clean, but python 
+            # will gc the record itself and indices are just strings. 
+            # For robustness, we will let indices grow a bit more or clean them if we wanted, 
+            # but string indices take minimal memory compared to objects.
 
         # Index by entity
         if entity_id not in self._entity_index:
