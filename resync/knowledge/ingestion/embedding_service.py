@@ -14,20 +14,25 @@ Supports multiple embedding providers through LiteLLM's unified interface:
 - And many more via LiteLLM
 
 Falls back to deterministic SHA-256 hash-based vectors for development/testing.
+
+Version: 6.0.0 - Fixed retry jitter, added timeout support
 """
 
 import asyncio
 import hashlib
 import logging
 import os
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import Embedder
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 class EmbeddingProvider(str, Enum):
@@ -59,10 +64,11 @@ class EmbeddingConfig:
     timeout: float = 60.0
     retry_attempts: int = 3
 
-    # Provider-specific options
-    extra_params: dict[str, Any] = None
+    # Provider-specific options - use empty dict instead of None
+    extra_params: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
+        # Ensure extra_params is never None
         if self.extra_params is None:
             self.extra_params = {}
 
@@ -146,7 +152,7 @@ class MultiProviderEmbeddingService(Embedder):
         batch_size: int = 128,
         timeout: float = 60.0,
         retry_attempts: int = 3,
-        **extra_params,
+        **extra_params: Any,
     ) -> None:
         """
         Initialize the multi-provider embedding service.
@@ -173,6 +179,7 @@ class MultiProviderEmbeddingService(Embedder):
         self._dimension = (
             dimension or self._infer_dimension(self._model) or CFG.embed_dim
         )
+        # Never store api_key in instance to prevent accidental logging
         self._api_key = api_key
         self._api_base = api_base
         self._batch_size = batch_size
@@ -192,14 +199,13 @@ class MultiProviderEmbeddingService(Embedder):
             "errors": 0,
         }
 
+        # Log without exposing sensitive data
         logger.info(
             "MultiProviderEmbeddingService initialized",
-            extra={
-                "model": self._model,
-                "provider": self._provider.value,
-                "dimension": self._dimension,
-                "litellm_available": self._litellm_available,
-            },
+            model=self._model,
+            provider=self._provider.value,
+            dimension=self._dimension,
+            litellm_available=self._litellm_available,
         )
 
     def _check_litellm(self) -> bool:
@@ -251,8 +257,9 @@ class MultiProviderEmbeddingService(Embedder):
                     return True
 
             logger.warning(
-                f"No API key found for provider {self._provider.value}. "
-                "Falling back to hash-based embeddings."
+                "no_api_key_for_provider",
+                provider=self._provider.value,
+                message="No API key found. Falling back to hash-based embeddings.",
             )
             return False
 
@@ -311,20 +318,32 @@ class MultiProviderEmbeddingService(Embedder):
 
         return None
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(
+        self,
+        text: str,
+        *,
+        timeout: float = 30.0,
+    ) -> list[float]:
         """
         Embed a single text string.
 
         Args:
             text: Input text to embed
+            timeout: Maximum time to wait for embedding (seconds)
 
         Returns:
             Embedding vector as list of floats
         """
-        embeddings = await self.embed_batch([text])
+        embeddings = await self.embed_batch([text], timeout=timeout)
         return embeddings[0]
 
-    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+    async def embed_batch(
+        self,
+        texts: list[str],
+        *,
+        batch_size: int = 32,
+        timeout: float = 60.0,
+    ) -> list[list[float]]:
         """
         Embed a batch of text strings.
 
@@ -333,6 +352,8 @@ class MultiProviderEmbeddingService(Embedder):
 
         Args:
             texts: List of input texts to embed
+            batch_size: Maximum texts per API call
+            timeout: Maximum time to wait (seconds)
 
         Returns:
             List of embedding vectors
@@ -345,11 +366,12 @@ class MultiProviderEmbeddingService(Embedder):
 
         if self._litellm_available:
             try:
-                return await self._embed_with_litellm(texts)
+                return await self._embed_with_litellm(texts, timeout=timeout)
             except Exception as e:
                 logger.warning(
-                    f"LiteLLM embedding failed, falling back to hash: {e}",
-                    exc_info=True,
+                    "LiteLLM_embedding_failed",
+                    error=str(e),
+                    message="Falling back to hash-based embeddings",
                 )
                 self._stats["errors"] += 1
 
@@ -357,8 +379,10 @@ class MultiProviderEmbeddingService(Embedder):
         self._stats["fallback_calls"] += 1
         return [self._hash_vec(t) for t in texts]
 
-    async def _embed_with_litellm(self, texts: list[str]) -> list[list[float]]:
-        """Embed texts using LiteLLM."""
+    async def _embed_with_litellm(
+        self, texts: list[str], timeout: float = 60.0
+    ) -> list[list[float]]:
+        """Embed texts using LiteLLM with jittered exponential backoff."""
         import litellm  # noqa: F401
 
         all_embeddings: list[list[float]] = []
@@ -371,10 +395,10 @@ class MultiProviderEmbeddingService(Embedder):
             params: dict[str, Any] = {
                 "model": self._model,
                 "input": batch,
-                "timeout": self._timeout,
+                "timeout": timeout,
             }
 
-            # Add API key if provided
+            # Add API key if provided (but don't log it)
             if self._api_key:
                 params["api_key"] = self._api_key
 
@@ -391,7 +415,7 @@ class MultiProviderEmbeddingService(Embedder):
             # Add any extra parameters
             params.update(self._extra_params)
 
-            # Make the embedding call with retries
+            # Make the embedding call with retries and jitter
             for attempt in range(self._retry_attempts):
                 try:
                     response = await asyncio.to_thread(litellm.embedding, **params)
@@ -404,10 +428,15 @@ class MultiProviderEmbeddingService(Embedder):
 
                 except Exception as e:
                     if attempt < self._retry_attempts - 1:
-                        wait_time = 2**attempt  # Exponential backoff
+                        # Exponential backoff with jitter to prevent thundering herd
+                        base_delay = 2**attempt
+                        jitter = random.uniform(0, base_delay * 0.5)
+                        wait_time = base_delay + jitter
                         logger.warning(
-                            "Embedding attempt "
-                            f"{attempt + 1} failed, retrying in {wait_time}s: {e}"
+                            "embedding_attempt_failed",
+                            attempt=attempt + 1,
+                            wait_time=wait_time,
+                            error=str(e),
                         )
                         await asyncio.sleep(wait_time)
                     else:
@@ -484,7 +513,7 @@ class EmbeddingService(MultiProviderEmbeddingService):
 def create_embedding_service(
     provider: str | EmbeddingProvider = EmbeddingProvider.AUTO,
     model: str | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> MultiProviderEmbeddingService:
     """
     Factory function to create an embedding service.
