@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import json
+import xml.etree.ElementTree as ET
 from datetime import date
 from pathlib import Path
-
-import xml.etree.ElementTree as ET
 
 RAMP_FILE = Path("config/quality/coverage_ramp.json")
 COVERAGE_XML = Path("coverage.xml")
