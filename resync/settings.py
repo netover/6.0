@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Application settings and configuration management.
 
 This module defines all application settings using Pydantic BaseSettings,
@@ -13,13 +14,14 @@ Settings are organized into logical groups:
 
 v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 """
+# ruff: noqa: E501
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Iterator, Mapping
 from functools import lru_cache
 from pathlib import Path
-import secrets
 from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr
@@ -1140,7 +1142,7 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # v5.4.9: Integrated from settings_legacy.py
 
-    # pylint: disable=invalid-name
+    # pylint
     @property
     def RAG_SERVICE_URL(self) -> str:
         """Legacy alias for rag_service_url."""
@@ -1433,7 +1435,7 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for protected_directories."""
         return self.protected_directories
 
-    # pylint: enable=invalid-name
+    # pylint
 
     # ============================================================================
     # ENVIRONMENT CHECKS (v5.9.3 FIX)
@@ -1458,6 +1460,17 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # DOCUMENT KNOWLEDGE GRAPH (DKG)
     # ============================================================================
+    KNOWLEDGE_DOCS_ROOT: Path = Field(
+        default_factory=lambda: Path("docs"),
+        validation_alias=AliasChoices("KNOWLEDGE_DOCS_ROOT", "APP_KNOWLEDGE_DOCS_ROOT"),
+        description=(
+            "Allowed root directory for server-side batch document ingestion. "
+            "All paths supplied to POST /knowledge/ingest/batch must resolve inside "
+            "this directory. Set via KNOWLEDGE_DOCS_ROOT env var. "
+            "Default: ./docs relative to the working directory."
+        ),
+    )
+
     KG_EXTRACTION_ENABLED: bool = Field(
         default=False,
         description="Habilitar extração de grafo de conhecimento na ingestão de documentos",

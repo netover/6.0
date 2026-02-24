@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 TWS API Cache - Near Real-Time Strategy v5.9.3
 
@@ -23,17 +22,18 @@ Usage:
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
+import copy
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import copy
 from enum import Enum
 from functools import wraps
 from typing import Any
 
 import structlog
+
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
@@ -58,7 +58,8 @@ DEFAULT_TTLS: dict[CacheCategory, int] = {
 }
 
 # Stale-While-Revalidate windows (seconds after expiry to serve stale + refresh)
-# If data is expired but within stale window, return stale data and refresh in background
+# If data is expired but within stale window, return stale data
+# and refresh in background.
 DEFAULT_STALE_WINDOWS: dict[CacheCategory, int] = {
     CacheCategory.JOB_STATUS: 30,  # Serve stale for 30s after 10s TTL expires
     CacheCategory.JOB_LOGS: 60,  # Serve stale for 60s after 30s TTL expires
@@ -94,7 +95,10 @@ class CacheEntry:
 
     @property
     def should_refresh(self) -> bool:
-        """Check if entry should trigger background refresh (expired but stale-servable)."""
+        """Check if entry should trigger background refresh.
+
+        Entry is expired but still stale-servable.
+        """
         return self.is_expired and self.is_stale
 
     @property
@@ -225,7 +229,8 @@ class TWSAPICache:
         Get value from cache with SWR support.
 
         Returns:
-            Tuple of (value, is_cached, age_seconds, is_stale) or None if not found/expired beyond stale window
+            Tuple of (value, is_cached, age_seconds, is_stale)
+            or None if not found/expired beyond stale window
         """
         entry = self._cache.get(key)
 
@@ -286,7 +291,8 @@ class TWSAPICache:
 
         Stale-While-Revalidate behavior:
         - If fresh: return immediately
-        - If stale (expired but within stale window): return stale data + trigger background refresh
+        - If stale (expired but within stale window):
+          return stale data + trigger background refresh
         - If missing/expired beyond stale: wait for fetch
 
         Uses locking for request coalescing - if multiple requests come in
@@ -326,7 +332,8 @@ class TWSAPICache:
                 result = self.get(key, category)
                 if result is not None:
                     value, is_cached, age_seconds, is_stale = result
-                    # No background refresh here - the first request already triggered it
+                    # No background refresh here;
+                    # the first request already triggered it.
                     return value, is_cached, age_seconds
 
                 # Fetch fresh data

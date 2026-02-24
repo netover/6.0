@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 from __future__ import annotations
 
 import pytest

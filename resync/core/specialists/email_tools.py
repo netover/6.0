@@ -1,7 +1,9 @@
+# ruff: noqa: E501
 from __future__ import annotations
 
 from typing import Any
-from resync.core.specialists.tools import tool, ToolPermission
+
+from resync.core.specialists.tools import ToolPermission, tool
 from resync.services.notification.email_service import get_email_service
 
 

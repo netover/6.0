@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Final
 
 from fastapi import FastAPI, Request
+
 from resync.core.structured_logger import get_logger
 from resync.core.types.app_state import (
     EnterpriseState,
@@ -90,6 +91,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.core.agent_manager import initialize_agent_manager
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
+    from resync.core.factories.tws_factory import get_tws_client_singleton
     from resync.core.file_ingestor import FileIngestor
     from resync.core.hybrid_router import HybridRouter
     from resync.core.idempotency.manager import IdempotencyManager
@@ -100,7 +102,6 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.services.ingest_service import IngestService
     from resync.services.pg_vector_store import PgVectorStore
     from resync.services.rag_client import get_rag_client_singleton
-    from resync.core.factories.tws_factory import get_tws_client_singleton
 
     # Core Infrastructure
     connection_manager = ConnectionManager()
@@ -155,7 +156,8 @@ async def init_domain_singletons(app: FastAPI) -> None:
         redis_available = True
     except RuntimeError:
         # Redis not available — use degraded manager that fails fast.
-        # Endpoints requiring idempotency will return HTTP 503 (correct for degraded mode).
+        # Endpoints requiring idempotency return HTTP 503
+        # (correct for degraded mode).
         logger.warning(
             "idempotency_manager_degraded_mode",
             hint="Redis unavailable. Idempotent endpoints will return 503.",

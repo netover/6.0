@@ -6,7 +6,6 @@ para chamadas paralelas e melhor performance.
 """
 
 from __future__ import annotations
-# mypy: no-rerun
 
 import logging
 from typing import Annotated, Any

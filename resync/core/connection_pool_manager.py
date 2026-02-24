@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Advanced Connection Pool Manager with Smart Pooling Integration.
 

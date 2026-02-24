@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Tests for v6.1 Golden Path: Planner, Orchestrator, Verification, Critique.
 
 Covers:

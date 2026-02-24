@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Template Loader for LangGraph Synthesis Templates.
 

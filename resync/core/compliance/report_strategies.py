@@ -1,10 +1,11 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Compliance Report Generation Strategies.
 
-This module implements the Strategy pattern for generating different parts of the SOC 2 compliance report.
-Each strategy is responsible for a specific component of the report, making the code more modular,
+This module implements the Strategy pattern for generating different parts
+of the SOC 2 compliance report.
+Each strategy is responsible for a specific component of the report,
+making the code more modular,
 testable, and maintainable.
 """
 
@@ -210,7 +211,9 @@ class CriteriaScoresStrategy(ReportStrategy):
     ) -> dict[str, Any]:
         """Calculate criteria scores with enhanced error handling."""
         try:
-            criteria_compliance = defaultdict(lambda: {"total": 0, "compliant": 0})
+            criteria_compliance: dict[Any, dict[str, int]] = defaultdict(
+                lambda: {"total": 0, "compliant": 0}
+            )
 
             for control in manager.controls.values():
                 for criterion in control.criteria:
@@ -270,7 +273,7 @@ class OverallComplianceStrategy(ReportStrategy):
     """
 
     def _execute_strategy(self, manager: Any, context: dict[str, Any]) -> float:
-        """Calculate weighted average overall compliance score with enhanced error handling."""
+        """Calculate weighted average compliance score with robust error handling."""
         try:
             # Get criteria scores from context if available, otherwise calculate
             criteria_scores = context.get("criteria_scores")
@@ -341,7 +344,7 @@ class ControlStatusSummaryStrategy(ReportStrategy):
     ) -> dict[str, int]:
         """Generate summary of control status counts with enhanced error handling."""
         try:
-            status_counts = defaultdict(int)
+            status_counts: dict[str, int] = defaultdict(int)
 
             for control in manager.controls.values():
                 status_counts[control.status.value] += 1
@@ -379,7 +382,7 @@ class EvidenceSummaryStrategy(ReportStrategy):
     ) -> dict[str, Any]:
         """Generate summary of valid evidence with enhanced error handling."""
         try:
-            evidence_counts = defaultdict(int)
+            evidence_counts: dict[str, int] = defaultdict(int)
 
             for evidence in manager.evidence.values():
                 if evidence.is_valid():
@@ -496,7 +499,7 @@ class ProcessingIntegritySummaryStrategy(ReportStrategy):
     def _execute_strategy(
         self, manager: Any, context: dict[str, Any]
     ) -> dict[str, Any]:
-        """Generate summary of processing integrity metrics with enhanced error handling."""
+        """Generate processing integrity metric summary with robust error handling."""
         try:
             if not manager.processing_checks:
                 logger.warning("No processing integrity checks found")
@@ -565,9 +568,9 @@ class ConfidentialityIncidentsSummaryStrategy(ReportStrategy):
     def _execute_strategy(
         self, manager: Any, context: dict[str, Any]
     ) -> dict[str, Any]:
-        """Generate summary of confidentiality incidents with enhanced error handling."""
+        """Generate confidentiality incident summary with robust error handling."""
         try:
-            incident_counts = defaultdict(int)
+            incident_counts: dict[str, int] = defaultdict(int)
             for incident in manager.confidentiality_incidents:
                 key = getattr(incident.severity, "value", incident.severity)
                 incident_counts[key] += 1
@@ -616,10 +619,11 @@ class RecommendationsStrategy(ReportStrategy):
     def _execute_strategy(
         self, manager: Any, context: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """Generate recommendations based on compliance report with enhanced error handling."""
+        """Generate recommendations from compliance reports
+        with robust error handling."""
         try:
             # Get report from context or create basic structure
-            report = context.get("report")
+            report: dict[str, Any] | None = context.get("report")
             if report is None:
                 logger.warning(
                     "No report provided in context, generating basic recommendations"
@@ -678,7 +682,7 @@ class ReportGenerator:
         }
 
     def generate_report(self, manager: Any) -> dict[str, Any]:
-        """Generate a complete compliance report using all strategies with enhanced error handling."""
+        """Generate a complete compliance report with robust error handling."""
         try:
             # Validate manager before proceeding
             if not isinstance(manager, ComplianceManagerProtocol):
@@ -689,16 +693,16 @@ class ReportGenerator:
             # Get timestamps safely
             get_ts = getattr(manager, "get_current_timestamp", None)
             generated_at = (
-                get_ts() if callable(get_ts) else manager._get_current_timestamp()
+                get_ts() if callable(get_ts) else manager.get_current_timestamp()
             )
             get_start = getattr(manager, "get_period_start", None)
             period_start = (
-                get_start() if callable(get_start) else manager._get_period_start()
+                get_start() if callable(get_start) else manager.get_period_start()
             )
             get_end = getattr(manager, "get_period_end", None)
-            period_end = get_end() if callable(get_end) else manager._get_period_end()
+            period_end = get_end() if callable(get_end) else manager.get_period_end()
 
-            report = {
+            report: dict[str, Any] = {
                 "generated_at": generated_at,
                 "period_start": period_start,
                 "period_end": period_end,

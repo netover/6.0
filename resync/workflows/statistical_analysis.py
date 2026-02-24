@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """Statistical analysis utilities for predictive workflows.
 
 This module provides functions for correlating metrics, detecting degradation,
@@ -183,7 +182,8 @@ def interpret_factor(factor_key: str | None) -> tuple[str | None, list[str]]:
             ["active_jobs"],
         ),
         "failures": (
-            "Failures correlate with increased runtime (possible retries/resource issues)",
+            "Failures correlate with increased runtime "
+            "(possible retries/resource issues)",
             ["failures"],
         ),
     }

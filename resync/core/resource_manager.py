@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Resource Management Utilities for Phase 2 Performance Optimizations.
 
@@ -263,7 +262,8 @@ class ResourcePool[T]:
         async with self._lock:
             if len(self.active_resources) >= self.max_resources:
                 raise RuntimeError(
-                    f"Resource pool exhausted: {len(self.active_resources)}/{self.max_resources}"
+                    "Resource pool exhausted: "
+                    f"{len(self.active_resources)}/{self.max_resources}"
                 )
 
             self._resource_counter += 1
@@ -345,7 +345,8 @@ class ResourcePool[T]:
                 if lifetime > max_lifetime_seconds:
                     leaks.append(info)
                     logger.warning(
-                        f"Potential resource leak: {info.resource_id} ({info.resource_type}), "
+                        "Potential resource leak: "
+                        f"{info.resource_id} ({info.resource_type}), "
                         f"lifetime: {lifetime:.2f}s"
                     )
             return leaks

@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Hot-Reload Configuration System.
 
@@ -33,6 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
 import aiofiles
 
 try:
@@ -41,7 +41,8 @@ try:
 
     WATCHDOG_AVAILABLE = True
 except Exception:  # pragma: no cover
-    # Allow this module to be imported without watchdog; hot-reload watching will be disabled.
+    # Allow import without watchdog;
+    # hot-reload watching will be disabled.
     FileModifiedEvent = object  # type: ignore[assignment]
 
     class FileSystemEventHandler:  # type: ignore[misc]
@@ -118,7 +119,8 @@ class ConfigManager:
         self._observer: Observer | None = None
         self._watching = False
 
-        # Lock for thread safety (lazy-initialized to avoid event loop issues at import time)
+        # Lock for thread safety (lazy-initialized)
+        # to avoid event-loop issues at import time
         self._lock: asyncio.Lock | None = None
 
     @property

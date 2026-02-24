@@ -3,12 +3,12 @@ Distributed Tracing System with OpenTelemetry and Jaeger.
 """
 
 from __future__ import annotations
-# pylint: disable=no-member
-# mypy: no-rerun
 
-import inspect
 import contextlib
 import functools
+
+# pylint
+import inspect
 import time
 from collections.abc import Callable
 from contextvars import ContextVar
@@ -129,7 +129,12 @@ class IntelligentSampler(Sampler):
         self._decisions: dict[str, SamplingResult] = {}
 
     def get_description(self) -> str:
-        return f"IntelligentSampler(base_rate={self.base_sample_rate}, max_rate={self.max_sample_rate})"
+        return (
+            "IntelligentSampler("
+            f"base_rate={self.base_sample_rate}, "
+            f"max_rate={self.max_sample_rate}"
+            ")"
+        )
 
     def should_sample(
         self,
@@ -308,7 +313,8 @@ class DistributedTracingManager:
                 method_name = operation_name or f"{func.__name__}"
                 class_name = args[0].__class__.__name__ if args else "unknown"
                 span_name = f"{class_name}.{method_name}"
-                # FIX: trace_context already records exception, removed redundant recording
+                # FIX: trace_context already records exception;
+                # redundant recording removed
                 with self.trace_context(
                     span_name, operation_type="method_call", is_async=True
                 ) as span:
@@ -321,7 +327,8 @@ class DistributedTracingManager:
                 method_name = operation_name or f"{func.__name__}"
                 class_name = args[0].__class__.__name__ if args else "unknown"
                 span_name = f"{class_name}.{method_name}"
-                # FIX: trace_context already records exception, removed redundant recording
+                # FIX: trace_context already records exception;
+                # redundant recording removed
                 with self.trace_context(
                     span_name, operation_type="method_call", is_async=False
                 ) as span:

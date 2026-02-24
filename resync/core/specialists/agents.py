@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# ruff: noqa: E501
+# pylint
 """
 TWS Specialist Agents Implementation (v5.2.3.24 - Agno-Free).
 

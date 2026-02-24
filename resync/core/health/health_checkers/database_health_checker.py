@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Database Health Checker
 
@@ -46,7 +45,8 @@ class DatabaseHealthChecker(BaseHealthChecker):
         start_time = time.time()
 
         try:
-            # Use pool manager from pools.pool_manager (connection_manager does not define this)
+                        # Use pool manager from pools.pool_manager; connection_manager
+            # does not define this API.
             from resync.core.pools.pool_manager import get_connection_pool_manager
 
             pool_manager = get_connection_pool_manager()
@@ -115,10 +115,18 @@ class DatabaseHealthChecker(BaseHealthChecker):
             threshold_percent = self.config.database_connection_threshold_percent
             if connection_usage_percent > threshold_percent:
                 status = HealthStatus.DEGRADED
-                message = "Database connection pool near capacity: {active_connections}/{total_connections} ({connection_usage_percent:.1f}%)"
+                message = (
+                    "Database connection pool near capacity: "
+                    f"{active_connections}/{total_connections} "
+                    f"({connection_usage_percent:.1f}%)"
+                )
             else:
                 status = HealthStatus.HEALTHY
-                message = "Database connection pool healthy: {active_connections}/{total_connections} ({connection_usage_percent:.1f}%)"
+                message = (
+                    "Database connection pool healthy: "
+                    f"{active_connections}/{total_connections} "
+                    f"({connection_usage_percent:.1f}%)"
+                )
 
             # Use real database pool statistics
             pool_metadata = {
@@ -177,5 +185,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
         return {
             "timeout_seconds": self.config.timeout_seconds,
             "retry_attempts": 3,
-            "connection_threshold_percent": self.config.database_connection_threshold_percent,
+            "connection_threshold_percent": (
+                self.config.database_connection_threshold_percent
+            ),
         }

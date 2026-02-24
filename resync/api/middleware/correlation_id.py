@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """Correlation ID middleware.
 
 Adds a stable request correlation identifier for the lifetime of an HTTP request.
@@ -105,12 +105,16 @@ class CorrelationIdMiddleware:
                 if auth_header.startswith("Bearer "):
                     token = auth_header[7:]
                     try:
-                        # Decode without verification first just to get 'sub' for logging/tracing
-                        # We don't rely on this for auth (middleware does that), just for tracing context
+                        # Decode without verification first to get 'sub' for
+                        # logging/tracing
+                        # We do not rely on this for auth (middleware does
+                        # that), only for tracing context.
                         import jwt
 
-                        # Decode unverified to avoid dependency on secret keys/settings here
-                        # This is safe because we only use it for tracing attribution, not access control
+                        # Decode unverified to avoid dependency on secret
+                        # keys/settings here.
+                        # Safe because used only for tracing attribution, not
+                        # access control.
                         payload = jwt.decode(token, options={"verify_signature": False})
                         if "sub" in payload:
                             user_id = str(payload["sub"])

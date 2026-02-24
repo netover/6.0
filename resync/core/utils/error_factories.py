@@ -2,7 +2,8 @@
 Error Response Factories using Factory Pattern.
 
 This module implements the Factory pattern for creating standardized error responses
-based on different exception types, making the code more modular, testable, and maintainable.
+based on different exception types, making the code more modular,
+testable, and maintainable.
 """
 
 from fastapi import Request
@@ -67,7 +68,7 @@ class ErrorFactory:
         request: Request | None = None,
         correlation_id: str | None = None,
     ) -> BaseErrorResponse:
-        """Factory method to create appropriate error response based on exception type."""
+        """Create an error response based on exception type."""
         error_response_builder_cls = _get_error_response_builder()
         builder = error_response_builder_cls()
 

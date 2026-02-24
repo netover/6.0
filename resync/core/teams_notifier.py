@@ -3,7 +3,7 @@
 import asyncio
 import fnmatch
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 import structlog
@@ -488,12 +488,19 @@ class TeamsNotificationManager:
                             },
                             {
                                 "type": "TextBlock",
-                                "text": f"Este é um teste de notificação para o canal **{channel.name}**.",
+                                "text": (
+                                "Este é um teste de notificação para o canal "
+                                f"**{channel.name}**."
+                            ),
                                 "wrap": True,
                             },
                             {
                                 "type": "TextBlock",
-                                "text": f"⏰ {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
+                                "text": (
+                                "⏰ "
+                                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d ')}"
+                                f"{datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+                            ),
                                 "size": "small",
                                 "isSubtle": True,
                             },

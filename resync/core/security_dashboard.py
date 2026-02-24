@@ -1,9 +1,9 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Security Metrics Dashboard and Monitoring System.
 
-This module provides comprehensive security monitoring and dashboard capabilities including:
+This module provides comprehensive security monitoring
+and dashboard capabilities including:
 - Real-time security metrics collection and aggregation
 - Interactive dashboards with customizable widgets
 - Automated report generation and compliance tracking
@@ -14,7 +14,6 @@ This module provides comprehensive security monitoring and dashboard capabilitie
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import defaultdict, deque
@@ -24,6 +23,7 @@ from enum import Enum
 from typing import Any
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -486,12 +486,12 @@ class MetricCollector:
 
     def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of all metrics."""
-        summary = {
+        summary: dict[str, Any] = {
             "total_metrics": len(self.metrics),
             "by_category": defaultdict(int),
             "by_status": defaultdict(int),
             "alerts_active": 0,
-            "last_updated": 0,
+            "last_updated": 0.0,
         }
 
         for metric in self.metrics.values():
@@ -588,7 +588,10 @@ class AlertManager:
                     "threshold": rule.threshold,
                     "condition": rule.condition,
                     "timestamp": time.time(),
-                    "description": f"{rule.description} - Current value: {metric.current_value}",
+                    "description": (
+                        f"{rule.description} - "
+                        f"Current value: {metric.current_value}"
+                    ),
                 }
 
                 # Mark rule as triggered
@@ -692,10 +695,15 @@ class ReportGenerator:
         # This would integrate with the actual metric collectors
         # For now, provide sample content
 
+        period_end_str = datetime.fromtimestamp(
+            report.period_end, tz=timezone.utc
+        ).strftime("%Y-%m-%d")
         report.executive_summary = f"""
-        Security Report for {report.report_type} period ending {datetime.fromtimestamp(report.period_end, tz=timezone.utc).strftime("%Y-%m-%d")}.
+        Security Report for {report.report_type} period ending
+        {period_end_str}.
 
-        This report provides an overview of security metrics, incidents, and compliance status for the reporting period.
+        This report provides an overview of security metrics,
+        incidents, and compliance status for the reporting period.
         """
 
         report.findings = [
@@ -703,7 +711,10 @@ class ReportGenerator:
                 "severity": "medium",
                 "category": "threat_detection",
                 "title": "Increased Anomalous Activity",
-                "description": "Detected 15% increase in anomalous user behavior patterns",
+                "description": (
+                    "Detected 15% increase in anomalous "
+                    "user behavior patterns"
+                ),
                 "recommendation": "Review user behavior monitoring rules",
             },
             {
@@ -918,7 +929,7 @@ class SecurityDashboard:
         }
 
         for widget in visible_widgets:
-            widget_data = {
+            widget_data: dict[str, Any] = {
                 "widget_id": widget.widget_id,
                 "title": widget.title,
                 "type": widget.widget_type,
@@ -951,9 +962,13 @@ class SecurityDashboard:
         time_range: str = "24h",
     ) -> dict[str, Any]:
         """Get metrics data for API consumption."""
+        metrics: list[SecurityMetric]
         if metric_ids:
-            metrics = [self.metric_collector.get_metric(mid) for mid in metric_ids]
-            metrics = [m for m in metrics if m is not None]
+            metrics = [
+                metric
+                for metric_id in metric_ids
+                if (metric := self.metric_collector.get_metric(metric_id)) is not None
+            ]
         elif category:
             metrics = self.metric_collector.get_metrics_by_category(category)
         else:
@@ -1154,7 +1169,7 @@ class _LazySecurityDashboard:
     __slots__ = ("_instance",)
 
     def __init__(self) -> None:
-        self._instance = None
+        self._instance: SecurityDashboard | None = None
 
     def get_instance(self) -> SecurityDashboard:
         if self._instance is None:

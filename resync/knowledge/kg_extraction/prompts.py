@@ -19,7 +19,8 @@ def build_concepts_prompt(
     max_concepts: int = 10,
 ) -> str:
     allowed = ", ".join(allowed_node_types) if allowed_node_types else "Concept"
-    return f"""You are extracting a small set of key concepts from a technical document chunk.
+    return f"""You are extracting a small set of key concepts
+from a technical document chunk.
 
 Return ONLY valid JSON with this schema:
 {{
@@ -48,12 +49,15 @@ def build_edges_prompt(
 ) -> str:
     rels = ", ".join(allowed_relations) if allowed_relations else "RELATED_TO"
     concepts_list = ", ".join(concepts[:50])
-    return f"""You are extracting directed relationships between concepts mentioned in a technical text chunk.
+    return f"""You are extracting directed relationships between concepts
+mentioned in a technical text chunk.
 
 Return ONLY valid JSON with this schema:
 {{
   "edges": [
-    {{"source": string, "target": string, "relation_type": string, "weight": number, "evidence": {{"rationale": string, "confidence": number}} }}
+    {{"source": string, "target": string, "relation_type": string,
+      "weight": number, "evidence": {{"rationale": string,
+      "confidence": number}} }}
   ]
 }}
 

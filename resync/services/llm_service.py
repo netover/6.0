@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# ruff: noqa: E501
 """
 LLM Service using OpenAI SDK for OpenAI-Compatible APIs.
 
@@ -33,6 +33,7 @@ Configuration (settings):
 """
 
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -960,9 +961,14 @@ class LLMService:
 
     async def aclose(self) -> None:
         """Close underlying HTTP resources of the OpenAI client."""
-        if hasattr(self.client, "close"):
+        import inspect
+
+        if hasattr(self.client, "aclose"):
+            # AsyncOpenAI >= 1.x exposes aclose() directly
+            await self.client.aclose()
+        elif hasattr(self.client, "close"):
             close_result = self.client.close()
-            if asyncio.iscoroutine(close_result):
+            if inspect.isawaitable(close_result):
                 await close_result
 
     async def close(self) -> None:

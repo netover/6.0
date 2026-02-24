@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Optimized Response Classes for FastAPI - Production Performance
 

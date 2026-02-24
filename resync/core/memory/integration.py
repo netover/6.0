@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Memory Integration for LangGraph Agent v5.2.3.26
 

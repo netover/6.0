@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Hybrid Retriever for Resync v5.2.3.24
 
@@ -17,34 +17,38 @@ v5.2.3.24: Added query classification cache and performance metrics.
 """
 
 from __future__ import annotations
+
+import asyncio
 import gzip
 import hashlib
 import json
-import logging
 import math
 import os
 import re
 import time
-import asyncio
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+from resync.knowledge.interfaces import Embedder, Retriever, VectorStore
+
 try:
     from filelock import FileLock, Timeout
-
     FILELOCK_AVAILABLE = True
 except ImportError:
     FILELOCK_AVAILABLE = False
+
 from .reranker_interface import (
     IReranker,
     RerankGatingConfig,
     RerankGatingPolicy,
     create_reranker,
 )
-
-logger = logging.getLogger(__name__)
 INDEX_STORAGE_PATH = os.environ.get(
     "BM25_INDEX_PATH", os.path.join("data", "bm25_index.bin.gz")
 )
@@ -285,7 +289,9 @@ class BM25Index:
                     seen_terms.add(term)
         self.avg_doc_length = total_length / len(documents) if documents else 0.0
         logger.info(
-            f"BM25 index built with field boosting: {len(documents)} docs, {len(self.inverted_index)} unique terms, avg_length={{self.avg_doc_length:.1f}}"
+            "BM25 index built with field boosting: "
+            f"{len(documents)} docs, {len(self.inverted_index)} unique terms, "
+            f"avg_length={self.avg_doc_length:.1f}"
         )
 
     def _extract_error_codes(self, text: str) -> list[str]:
@@ -461,30 +467,6 @@ class BM25Index:
                 extra={"error": str(e), "error_type": type(e).__name__, "path": path},
             )
             return cls()
-
-
-class Embedder(Protocol):
-    """Protocol for embedding text into vectors."""
-
-    def embed(self, text: str) -> list[float]: ...
-
-
-class VectorStore(Protocol):
-    """Protocol for vector storage."""
-
-    def query(
-        self,
-        vector: list[float],
-        top_k: int,
-        collection: str | None = None,
-        filters: dict[str, Any] | None = None,
-        ef_search: int | None = None,
-        with_vectors: bool = False,
-    ) -> list[dict[str, Any]]: ...
-
-    def get_all_documents(
-        self, collection: str | None = None, limit: int = 10000
-    ) -> list[dict[str, Any]]: ...
 
 
 class QueryType(str, Enum):
@@ -768,7 +750,9 @@ class HybridRetriever:
         if self._classification_cache:
             self._classification_cache.put(query, result)
         logger.debug(
-            f"Query classified as {query_type.value}: {query[:50]}... (weights: v={weights[0]:.1f}, b={weights[1]:.1f})"
+            "Query classified as "
+            f"{query_type.value}: {query[:50]}... "
+            f"(weights: v={weights[0]:.1f}, b={weights[1]:.1f})"
         )
         return result
 
@@ -807,7 +791,8 @@ class HybridRetriever:
                     b=self.config.bm25_b,
                     field_boosts=self.config.field_boosts,
                 )
-                self.bm25_index.build_index(documents)
+                import asyncio
+                await asyncio.to_thread(self.bm25_index.build_index, documents)
                 self._index_built = True
                 self._pending_save_task = asyncio.create_task(
                     self._save_index_async(index_path)
@@ -891,21 +876,23 @@ class HybridRetriever:
         top_k: int,
         collection: str | None = None,
         filters: dict[str, Any] | None = None,
+        timeout: float = 10.0,
     ) -> list[dict[str, Any]]:
         """Perform vector-based semantic search."""
         try:
-            vec = self.embedder.embed(query)
+            vec = await self.embedder.embed(query, timeout=timeout)
             from resync.knowledge.config import CFG
 
             ef = CFG.ef_search_base + int(math.log2(max(10, top_k)) * 8)
             ef = min(ef, CFG.ef_search_max)
-            return self.store.query(
+            return await self.store.query(
                 vector=vec,
                 top_k=top_k,
                 collection=collection,
                 filters=filters,
                 ef_search=ef,
                 with_vectors=False,
+                timeout=timeout,
             )
         except Exception as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -922,7 +909,8 @@ class HybridRetriever:
         if not self.bm25_index or not self.bm25_index.documents:
             return []
         try:
-            results = self.bm25_index.search(query, top_k)
+            import asyncio
+            results = await asyncio.to_thread(self.bm25_index.search, query, top_k)
             hits = []
             for doc_idx, score in results:
                 doc = self.bm25_index.documents[doc_idx].copy()
@@ -940,92 +928,90 @@ class HybridRetriever:
         filters: dict[str, Any] | None = None,
         collection: str | None = None,
         enable_reranking: bool | None = None,
+        timeout: float = 30.0,
     ) -> list[dict[str, Any]]:
         """
         Retrieve documents using hybrid search.
-
-        Combines vector search (semantic) and BM25 (keyword) with optional
-        cross-encoder reranking.
-
-        v5.2.3.22: Now uses dynamic weight adjustment based on query type.
-        v5.2.3.24: Added performance metrics tracking.
-
-        Args:
-            query: Search query
-            top_k: Number of results to return
-            filters: Optional metadata filters for vector search
-            collection: Vector store collection name
-            enable_reranking: Override config reranking setting (None = use config)
-
-        Returns:
-            List of relevant documents
         """
-        classification = self._classify_query(query)
-        vector_weight = classification.vector_weight
-        bm25_weight = classification.bm25_weight
-        candidate_k = top_k * self.config.candidate_multiplier
-        async with asyncio.TaskGroup() as tg:
-            v_task = tg.create_task(
-                self._vector_search(query, candidate_k, collection, filters)
-            )
-            b_task = tg.create_task(self._bm25_search(query, candidate_k, collection))
-        vector_results = v_task.result()
-        bm25_results = b_task.result()
-        logger.debug(
-            f"Hybrid search: vector={len(vector_results)}, bm25={len(bm25_results)}, weights=(v:{{vector_weight:.1f}}, b:{{bm25_weight:.1f}}), type={classification.query_type.value}"
-        )
-        if not vector_results and (not bm25_results):
-            return []
-        if not vector_results:
-            results = bm25_results[:top_k]
-        elif not bm25_results:
-            results = vector_results[:top_k]
-        else:
-            results = self._reciprocal_rank_fusion(
-                [vector_results, bm25_results], [vector_weight, bm25_weight]
-            )
-        do_rerank = (
-            enable_reranking
-            if enable_reranking is not None
-            else self.config.enable_reranking
-        )
-        if do_rerank and len(results) > 1:
-            scores = [
-                doc.get("rrf_score", 0)
-                or doc.get("score", 0)
-                or doc.get("vector_score", 0)
-                for doc in results
-            ]
-            should_rerank, reason = self._gating_policy.should_rerank(scores)
-            if should_rerank:
-                # Save reference to original results before reranking
-                original_results = results
-                pool = results[: self._gating_policy.config.max_candidates]
-                final_k = min(top_k, self.config.rerank_top_k)
-                results = self._reranker.rerank(query, pool, top_k=final_k)
-                if len(results) < top_k:
-                    # Get IDs of documents that were already returned by reranker
-                    seen_ids = {doc.get("id") for doc in results}
-                    # Get remaining candidates from original pool that weren't reranked
-                    remaining = [
-                        doc
-                        for doc in original_results[
-                            self._gating_policy.config.max_candidates :
-                        ]
-                        if doc.get("id") not in seen_ids
-                    ]
-                    results.extend(remaining[: top_k - len(results)])
+        try:
+            async with asyncio.timeout(timeout):
+                classification = self._classify_query(query)
+                vector_weight = classification.vector_weight
+                bm25_weight = classification.bm25_weight
+                candidate_k = top_k * self.config.candidate_multiplier
+                async with asyncio.TaskGroup() as tg:
+                    v_task = tg.create_task(
+                        self._vector_search(
+                            query, candidate_k, collection, filters, timeout=timeout / 2
+                        )
+                    )
+                    b_task = tg.create_task(
+                        self._bm25_search(query, candidate_k, collection)
+                    )
+                vector_results = v_task.result()
+                bm25_results = b_task.result()
                 logger.debug(
-                    "Gated rerank activated: reason=%s, candidates=%s",
-                    reason,
-                    len(pool),
+                    "Hybrid search: "
+                    f"vector={len(vector_results)}, bm25={len(bm25_results)}, "
+                    f"weights=(v:{vector_weight:.1f}, b:{bm25_weight:.1f}), "
+                    f"type={classification.query_type.value}"
                 )
-            else:
-                results = results[:top_k]
-                logger.debug("Gated rerank skipped: reason=%s", reason)
-        else:
-            results = results[:top_k]
-        return results
+                if not vector_results and (not bm25_results):
+                    return []
+                if not vector_results:
+                    results = bm25_results[:top_k]
+                elif not bm25_results:
+                    results = vector_results[:top_k]
+                else:
+                    results = self._reciprocal_rank_fusion(
+                        [vector_results, bm25_results], [vector_weight, bm25_weight]
+                    )
+                do_rerank = (
+                    enable_reranking
+                    if enable_reranking is not None
+                    else self.config.enable_reranking
+                )
+                if do_rerank and len(results) > 1:
+                    scores = [
+                        doc.get("rrf_score", 0)
+                        or doc.get("score", 0)
+                        or doc.get("vector_score", 0)
+                        for doc in results
+                    ]
+                    should_rerank, reason = self._gating_policy.should_rerank(scores)
+                    if should_rerank:
+                        original_results = results
+                        pool = results[: self._gating_policy.config.max_candidates]
+                        final_k = min(top_k, self.config.rerank_top_k)
+                        # Ensure rerank is awaited if it's async (which it is now)
+                        results = await self._reranker.rerank(query, pool, top_k=final_k)
+                        if len(results) < top_k:
+                            seen_ids = {doc.get("id") for doc in results}
+                            remaining = [
+                                doc
+                                for doc in original_results[
+                                    self._gating_policy.config.max_candidates :
+                                ]
+                                if doc.get("id") not in seen_ids
+                            ]
+                            results.extend(remaining[: top_k - len(results)])
+                        logger.debug(
+                            "Gated rerank activated: reason=%s, candidates=%s",
+                            reason,
+                            len(pool),
+                        )
+                    else:
+                        results = results[:top_k]
+                        logger.debug("Gated rerank skipped: reason=%s", reason)
+                else:
+                    results = results[:top_k]
+                return results
+        except asyncio.TimeoutError:
+            logger.warning("Retrieval timeout", query=query[:50])
+            return []
+        except Exception as e:
+            logger.error("Retrieval failed", error=str(e))
+            return []
 
 
 __all__ = ["BM25Index", "HybridRetriever", "HybridRetrieverConfig"]

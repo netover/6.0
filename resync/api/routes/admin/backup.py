@@ -407,7 +407,10 @@ async def create_schedule(request: CreateScheduleRequest):
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid backup type: {request.backup_type}. Use: database, config, or full",
+            detail=(
+                f"Invalid backup type: {request.backup_type}. "
+                "Use: database, config, or full"
+            ),
         ) from None
 
     schedule = service.create_schedule(
@@ -521,8 +524,8 @@ async def create_rag_index_backup(request: CreateBackupRequest):
     Create a backup of the RAG BM25 index.
     """
     from resync.knowledge.retrieval.hybrid_retriever import (
-        BM25Index,
         INDEX_STORAGE_PATH,
+        BM25Index,
     )
 
     service = get_backup_service()

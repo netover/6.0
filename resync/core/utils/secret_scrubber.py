@@ -1,7 +1,8 @@
 """
 Secret Scrubbing Utilities
 
-Automatically masks sensitive information in logs, preventing accidental credential leakage.
+Automatically masks sensitive information in logs, preventing
+accidental credential leakage.
 
 Usage:
     from resync.core.utils.secret_scrubber import scrub_secrets, SecretScrubber

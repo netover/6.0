@@ -37,7 +37,7 @@ from .schemas import (
 )
 
 # TWS tool definitions (migrated from tool_definitions/)
-from .tws import TWSToolReadOnly, TWSStatusTool, TWSTroubleshootingTool  # noqa: F401
+from .tws import TWSStatusTool, TWSToolReadOnly, TWSTroubleshootingTool  # noqa: F401
 
 __all__ = [
     # Job schemas

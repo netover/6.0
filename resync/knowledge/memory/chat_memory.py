@@ -11,6 +11,7 @@ Autor: Resync Team
 Versão: 1.0.0
 """
 
+import asyncio
 import hashlib
 import os
 from dataclasses import dataclass, field
@@ -23,7 +24,16 @@ from resync.core.structured_logger import get_logger
 logger = get_logger(__name__)
 
 
-CHAT_MEMORY_TTL_DAYS = int(os.environ.get("CHAT_MEMORY_TTL_DAYS", "30"))
+def _safe_int(env_key: str, default: int) -> int:
+    val = os.environ.get(env_key)
+    if not val or not val.strip():
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+CHAT_MEMORY_TTL_DAYS = _safe_int("CHAT_MEMORY_TTL_DAYS", 30)
 CHAT_MEMORY_COLLECTION = "chat_history"
 
 
@@ -78,21 +88,30 @@ class ChatMemoryStore:
         self._anonymizer = DataAnonymizer(GDPRComplianceConfig())
         self._session_cache: dict[str, list[ChatTurn]] = {}
         self._cache_max_size = 100
+        # Separate locks prevent deadlock when both are awaited concurrently
+        self._vs_lock: asyncio.Lock | None = None   # vector store init
+        self._emb_lock: asyncio.Lock | None = None  # embedder init
 
     async def _get_vector_store(self):
-        """Lazy load do vector store."""
+        """Lazy load do vector store (double-checked locking)."""
         if self._vector_store is None:
-            from resync.knowledge.store.pgvector_store import PgVectorStore
-
-            self._vector_store = PgVectorStore()
+            if self._vs_lock is None:
+                self._vs_lock = asyncio.Lock()
+            async with self._vs_lock:
+                if self._vector_store is None:
+                    from resync.knowledge.store.pgvector_store import PgVectorStore
+                    self._vector_store = PgVectorStore()
         return self._vector_store
 
     async def _get_embedder(self):
-        """Lazy load do embedder."""
+        """Lazy load do embedder (double-checked locking)."""
         if self._embedder is None:
-            from resync.knowledge.ingestion.embedding_service import get_embedder
-
-            self._embedder = get_embedder()
+            if self._emb_lock is None:
+                self._emb_lock = asyncio.Lock()
+            async with self._emb_lock:
+                if self._embedder is None:
+                    from resync.knowledge.ingestion.embedding_service import get_embedder
+                    self._embedder = get_embedder()
         return self._embedder
 
     async def add_turn(self, turn: ChatTurn) -> bool:
@@ -118,13 +137,11 @@ class ChatMemoryStore:
                     session_id=turn.session_id[:8],
                 )
 
-            turn.expires_at = datetime.now(timezone.utc) + timedelta(
-                days=self._ttl_days
-            )
+            expires_at = datetime.now(timezone.utc) + timedelta(days=self._ttl_days)
             turn_id = self._generate_turn_id(turn)
 
             embedder = await self._get_embedder()
-            vector = embedder.embed(safe_content)
+            vector = await embedder.embed(safe_content, timeout=10.0)
 
             vector_store = await self._get_vector_store()
 
@@ -137,11 +154,12 @@ class ChatMemoryStore:
                         "session_id": turn.session_id,
                         "user_id": turn.user_id,
                         "role": turn.role,
-                        "expires_at": turn.expires_at.isoformat(),
+                        "expires_at": expires_at.isoformat(),
                         "metadata": turn.metadata or {},
                     }
                 ],
                 collection=CHAT_MEMORY_COLLECTION,
+                timeout=15.0,
             )
 
             self._update_cache(turn)
@@ -167,7 +185,7 @@ class ChatMemoryStore:
         """
         try:
             embedder = await self._get_embedder()
-            vector = embedder.embed(query)
+            vector = await embedder.embed(query, timeout=5.0)
 
             vector_store = await self._get_vector_store()
 
@@ -210,11 +228,29 @@ class ChatMemoryStore:
 
     async def cleanup_expired(self) -> int:
         """
-        Task agendada para deletar registros expirados.
+        Deleta registros expirados do banco de dados.
         """
         try:
             logger.info("chat_memory_cleanup_triggered", ttl_days=self._ttl_days)
-            return 0
+            vector_store = await self._get_vector_store()
+            pool = await vector_store._get_pool()
+            
+            async with pool.acquire(timeout=5.0) as conn:
+                async with asyncio.timeout(120.0):
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    result = await conn.execute(
+                        """
+                        DELETE FROM document_embeddings 
+                        WHERE collection_name = $1 
+                        AND metadata ? 'expires_at'
+                        AND metadata->>'expires_at' < $2
+                        """,
+                        CHAT_MEMORY_COLLECTION,
+                        now_iso
+                    )
+                    deleted = int(result.split()[-1])
+                    logger.info("chat_memory_cleanup_finished", deleted_count=deleted)
+                    return deleted
 
         except Exception as e:
             logger.error("chat_memory_cleanup_failed", error=str(e))
@@ -243,10 +279,27 @@ class ChatMemoryStore:
 
 
 _chat_memory_store: Optional[ChatMemoryStore] = None
+_global_chat_lock: Optional[asyncio.Lock] = None
+
+
+async def get_chat_memory_store_async() -> ChatMemoryStore:
+    """Get or cria singleton do ChatMemoryStore de forma assíncrona."""
+    global _chat_memory_store, _global_chat_lock
+    if _global_chat_lock is None:
+        _global_chat_lock = asyncio.Lock()
+        
+    if _chat_memory_store is None:
+        async with _global_chat_lock:
+            if _chat_memory_store is None:
+                _chat_memory_store = ChatMemoryStore()
+    return _chat_memory_store
 
 
 def get_chat_memory_store() -> ChatMemoryStore:
-    """Get or cria singleton do ChatMemoryStore."""
+    """
+    Get or cria singleton do ChatMemoryStore (Sincronamente).
+    Note: Lock will be created lazily when first async method is called.
+    """
     global _chat_memory_store
     if _chat_memory_store is None:
         _chat_memory_store = ChatMemoryStore()

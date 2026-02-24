@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Feedback-Aware Retriever for Continual Learning RAG.
 
@@ -104,10 +104,12 @@ class FeedbackAwareRetriever(Retriever):
     async def retrieve(
         self,
         query: str,
+        *,
         top_k: int = 10,
         filters: dict[str, Any] | None = None,
         apply_feedback: bool = True,
         user_id: str | None = None,
+        timeout: float = 30.0,
     ) -> list[dict[str, Any]]:
         """
         Retrieve documents with feedback-based reranking.
@@ -172,7 +174,9 @@ class FeedbackAwareRetriever(Retriever):
         Apply feedback-based score adjustments.
 
         Scoring formula:
-        final_score = base_score * (1 + clamp(feedback_weight * feedback_score, min, max))
+        final_score = base_score * (
+            1 + clamp(feedback_weight * feedback_score, min, max)
+        )
         """
         # Get document IDs
         doc_ids = [hit.get("id", hit.get("doc_id", "")) for hit in hits]
@@ -304,8 +308,6 @@ class FeedbackAwareRetriever(Retriever):
         Returns:
             Number of feedback records created
         """
-        await self.embedder.embed(query)
-
         feedback_pairs = []
         for i, doc_id in enumerate(shown_doc_ids):
             if doc_id == selected_doc_id:

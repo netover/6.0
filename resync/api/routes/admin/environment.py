@@ -18,11 +18,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
+import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from resync.api.routes.admin.main import verify_admin_credentials
-import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -649,7 +649,8 @@ async def update_environment_variable(
         "variable": variable_name,
         "message": f"Variable {variable_name} updated successfully",
         "restart_required": restart_required,
-        "restart_message": "Please restart the application for this change to take effect"
+        "restart_message": ("Please restart the application for this "
+        "change to take effect")
         if restart_required
         else None,
     }
@@ -830,7 +831,11 @@ async def export_environment():
 
     return {
         "content": "\n".join(lines),
-        "filename": f"resync_config_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.env",
+        "filename": (
+            "resync_config_"
+            f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            ".env"
+        ),
     }
 
 

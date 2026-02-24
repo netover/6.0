@@ -6,7 +6,6 @@ health monitors and providing a unified interface for health monitoring events.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any
@@ -14,6 +13,7 @@ from typing import Any
 import structlog
 
 from resync.core.health.health_models import ComponentHealth, HealthStatus
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 

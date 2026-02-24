@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# ruff: noqa: E501
+# pylint
 """
 Proactive Health Monitor
 

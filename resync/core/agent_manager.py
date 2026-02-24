@@ -16,21 +16,23 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import structlog
 import yaml
-import aiofiles
+from cachetools import LRUCache
 from pydantic import BaseModel, Field
 
 from resync.core.exceptions import AgentError
 from resync.core.metrics import runtime_metrics
 from resync.core.utils.async_bridge import run_sync
+from resync.models.a2a import AgentCapabilities, AgentCard, AgentContact
 from resync.models.agents import AgentConfig, AgentType
-from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
 from resync.settings import settings
 from resync.tools.definitions.tws import (
     tws_status_tool,
     tws_troubleshooting_tool,
 )
+
 from .global_utils import get_environment_tags, get_global_correlation_id
 
 agent_logger = structlog.get_logger("resync.agent_manager")
@@ -88,7 +90,8 @@ class Agent:
 
             system_prompt = (
                 f"You are {self.name}.\n"
-                f"{full_instructions}\n\n"  # Use full_instructions em vez de self.instructions
+                f"{full_instructions}\n\n"
+                # Use full_instructions em vez de self.instructions
                 f"Available tools: "
                 f"{', '.join(str(t) for t in self.tools) if self.tools else 'None'}\n\n"
                 "Respond in Portuguese (Brazilian) unless the user writes in English."
@@ -121,28 +124,34 @@ class Agent:
     def _fallback_response(self, message: str) -> str:
         """Provide a keyword-based fallback when the LLM is unavailable."""
         try:
-            msg = message.lower()
-
-            if "job" in msg and ("abend" in msg or "erro" in msg):
+            from opentelemetry import trace
+            tracer = trace.get_tracer(__name__)
+            with tracer.start_as_current_span(
+                "agent_llm_fallback", 
+                attributes={"agent.name": self.name, "fallback_triggered": True}
+            ):
+                msg = message.lower()
+    
+                if "job" in msg and ("abend" in msg or "erro" in msg):
+                    return (
+                        "Jobs em estado ABEND encontrados. Recomendo investigar "
+                        "o log do job e verificar dependências."
+                    )
+                if "status" in msg or "workstation" in msg:
+                    return (
+                        "Para verificar o status, use o comando 'conman' ou "
+                        "consulte a interface web do TWS."
+                    )
+                if "tws" in msg:
+                    return (
+                        f"Como {self.name}, posso ajudar com questões "
+                        "relacionadas ao TWS. O que você precisa?"
+                    )
                 return (
-                    "Jobs em estado ABEND encontrados. Recomendo investigar "
-                    "o log do job e verificar dependências."
+                    f"Entendi sua mensagem. Como {self.name}, estou aqui para "
+                    "ajudar com operações TWS. "
+                    "(Nota: LLM temporariamente indisponível)"
                 )
-            if "status" in msg or "workstation" in msg:
-                return (
-                    "Para verificar o status, use o comando 'conman' ou "
-                    "consulte a interface web do TWS."
-                )
-            if "tws" in msg:
-                return (
-                    f"Como {self.name}, posso ajudar com questões "
-                    "relacionadas ao TWS. O que você precisa?"
-                )
-            return (
-                f"Entendi sua mensagem. Como {self.name}, estou aqui para "
-                "ajudar com operações TWS. "
-                "(Nota: LLM temporariamente indisponível)"
-            )
         except Exception as e:
             agent_logger.error("fallback_response_error", error=str(e), agent=self.name)
             return (
@@ -713,15 +722,17 @@ class UnifiedAgent:
 
         self._manager = agent_manager or get_agent_manager()
         self._router = create_router(self._manager, skill_manager=skill_manager)
-        # Per-conversation history: {conversation_id: [messages]}
-        self._histories: dict[str, list[dict[str, str]]] = {}
+        # Per-conversation history with an LRU cache to prevent OOM
+        self._histories: LRUCache[str, list[dict[str, str]]] = LRUCache(maxsize=1000)
         logger.info(
             "unified_agent_initialized",
             skill_manager_enabled=skill_manager is not None,
         )
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
-        return self._histories.setdefault(conversation_id, [])
+        if conversation_id not in self._histories:
+            self._histories[conversation_id] = []
+        return self._histories[conversation_id]
 
     async def chat(
         self,

@@ -42,7 +42,8 @@ try:
     )
 
 except ImportError:  # pragma: no cover
-    # Optional tool system deps (e.g., structlog) may not be installed in minimal/test environments.
+    # Optional tool system deps (e.g., structlog) may not
+    # be installed in minimal/test environments.
     pass
 
 __all__ = [

@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Continual Learning Orchestrator - Integrates all learning components.
 

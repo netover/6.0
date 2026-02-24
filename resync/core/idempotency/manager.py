@@ -1,8 +1,9 @@
+# ruff: noqa: E501
 """
 Gerenciador principal de idempotency refatorado.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from redis.asyncio import Redis

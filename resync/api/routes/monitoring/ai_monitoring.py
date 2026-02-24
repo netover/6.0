@@ -374,7 +374,9 @@ def _get_monitoring_service():
     "/config",
     response_model=AIConfigResponse,
     summary="Get AI Configuration",
-    description="Retrieve current configuration for specialist agents and AI monitoring.",
+    description=(
+        "Retrieve current configuration for specialist agents and AI monitoring."
+    ),
 )
 async def get_ai_config() -> dict[str, Any]:
     """Get current AI configuration."""
@@ -527,7 +529,10 @@ async def toggle_specialist(
     return {
         "specialist": specialist_type,
         "enabled": enabled,
-        "message": f"Specialist {specialist_type} {'enabled' if enabled else 'disabled'}",
+        "message": (
+            f"Specialist {specialist_type} "
+            f"{'enabled' if enabled else 'disabled'}"
+        ),
     }
 
 

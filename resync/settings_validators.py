@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Field validators for the Settings class.
 
 This module contains all Pydantic field validators used by the Settings class

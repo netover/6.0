@@ -1,9 +1,9 @@
-# pylint: disable=not-callable
+# pylint
 """Teams Webhook Administration API."""
 
+import re
 from datetime import datetime, timezone
 from importlib.util import find_spec
-import re
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -33,7 +33,10 @@ else:
 if not EMAIL_VALIDATOR_AVAILABLE:
     logger.warning(
         "teams_webhook_email_validator_fallback_active",
-        detail="Using regex fallback validator; install email-validator for stricter validation",
+        detail=(
+            "Using regex fallback validator; install "
+            "email-validator for stricter validation"
+        ),
     )
 router = APIRouter(
     prefix="/admin/teams-webhook",

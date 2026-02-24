@@ -6,13 +6,15 @@ to prevent race conditions during concurrent memory processing.
 """
 
 import re
-import structlog
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, cast
+
+import structlog
 from redis.asyncio import Redis as AsyncRedis
 from redis.exceptions import RedisError
+
 from resync.core.exceptions import AuditError, DatabaseError
 from resync.settings import settings
 
@@ -48,7 +50,8 @@ class DistributedAuditLock:
         Initialize the distributed audit lock.
 
         Args:
-            redis_url: Redis connection URL. Defaults to environment variable or localhost.
+            redis_url: Redis connection URL.
+                Defaults to environment variable or localhost.
         """
         self.redis_url: str = str(
             redis_url
@@ -67,7 +70,13 @@ class DistributedAuditLock:
         """Initialize Redis connection."""
         if self.client is None:
             self.client = AsyncRedis.from_url(self.redis_url)
-            lua_script = '\n            if redis.call("get", KEYS[1]) == ARGV[1] then\n                return redis.call("del", KEYS[1])\n            else\n                return 0\n            end\n            '
+            lua_script = (
+                '\n            if redis.call("get", KEYS[1]) == ARGV[1] then\n'
+                '                return redis.call("del", KEYS[1])\n'
+                '            else\n'
+                '                return 0\n'
+                '            end\n            '
+            )
             self.release_script_sha = await self.client.script_load(lua_script)
             await self.client.ping()
             logger.info("DistributedAuditLock connected to Redis")
@@ -270,7 +279,13 @@ class AuditLockContext:
                 )
             else:
                 logger.warning("Using eval fallback - script not loaded")
-                lua_script = '\n                if redis.call("get", KEYS[1]) == ARGV[1] then\n                    return redis.call("del", KEYS[1])\n                else\n                    return 0\n                end\n                '
+                lua_script = (
+                    '\n                if redis.call("get", KEYS[1]) == ARGV[1] then\n'
+                    '                    return redis.call("del", KEYS[1])\n'
+                    '                else\n'
+                    '                    return 0\n'
+                    '                end\n                '
+                )
                 result = await self.client.eval(
                     lua_script, 1, self.lock_key, self.lock_value
                 )
@@ -280,7 +295,8 @@ class AuditLockContext:
                 current_value = await self.client.get(self.lock_key)
                 if current_value is not None:
                     logger.warning(
-                        f"Failed to release audit lock: {self.lock_key} (not owned by this instance)"
+                        "Failed to release audit lock: "
+                        f"{self.lock_key} (not owned by this instance)"
                     )
                 else:
                     logger.debug(

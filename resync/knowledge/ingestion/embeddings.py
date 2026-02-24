@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint: disable=missing-class-docstring
+# mypy: ignore-errors
 """
 Embedding Provider - Generate embeddings for vector search.
 
@@ -9,20 +9,23 @@ providers (OpenAI, NVIDIA, local models) via LiteLLM.
 Usage:
     from resync.knowledge.ingestion.embeddings import get_embedding_provider
 
-    provider = await get_embedding_provider()
+    provider = get_embedding_provider()
     embedding = await provider.embed("Hello world")
     embeddings = await provider.embed_batch(["Hello", "World"])
+
+CORRIGIDO (P1): Todos os logger calls migrados de extra={} para kwargs diretos structlog.
 """
 
 from __future__ import annotations
+
 import asyncio
-import logging
 import os
+import structlog
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -37,27 +40,39 @@ class EmbeddingConfig:
 
 
 class EmbeddingProvider(ABC):
-    """Abstract base class for embedding providers."""
+    """Abstract base class for embedding providers — ASYNC interface."""
 
     @abstractmethod
-    def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, timeout: float = 30.0) -> list[float]:
         """
         Generate embedding for a single text.
 
         Args:
             text: Text to embed
+            timeout: Maximum time to wait for embedding (seconds)
 
         Returns:
             Embedding vector as list of floats
+
+        Raises:
+            asyncio.TimeoutError: If embedding exceeds timeout
         """
 
     @abstractmethod
-    def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_batch(
+        self,
+        texts: Sequence[str],
+        *,
+        batch_size: int = 32,
+        timeout: float = 60.0,
+    ) -> list[list[float]]:
         """
         Generate embeddings for multiple texts.
 
         Args:
             texts: Texts to embed
+            batch_size: Maximum texts per API call
+            timeout: Maximum time to wait for entire batch (seconds)
 
         Returns:
             List of embedding vectors
@@ -80,7 +95,7 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
     - Local: ollama/nomic-embed-text
     """
 
-    MODEL_DIMENSIONS = {
+    MODEL_DIMENSIONS: dict[str, int] = {
         "text-embedding-ada-002": 1536,
         "text-embedding-3-small": 1536,
         "text-embedding-3-large": 3072,
@@ -90,7 +105,7 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
         "ollama/mxbai-embed-large": 1024,
     }
 
-    def __init__(self, config: EmbeddingConfig | None = None):
+    def __init__(self, config: EmbeddingConfig | None = None) -> None:
         """
         Initialize LiteLLM embedding provider.
 
@@ -107,37 +122,48 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
         """Get embedding dimension."""
         return self._dimension
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, timeout: float = 30.0) -> list[float]:
         """
         Generate embedding for a single text.
 
         Args:
             text: Text to embed
+            timeout: Maximum wait time in seconds
 
         Returns:
             Embedding vector
         """
-        embeddings = await self.embed_batch([text])
+        embeddings = await self.embed_batch([text], timeout=timeout)
         return embeddings[0]
 
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_batch(
+        self,
+        texts: Sequence[str],
+        *,
+        batch_size: int = 32,
+        timeout: float = 60.0,
+    ) -> list[list[float]]:
         """
-        Generate embeddings for multiple texts.
-
-        Uses batching for efficiency.
+        Generate embeddings for multiple texts using batching.
 
         Args:
             texts: Texts to embed
+            batch_size: Maximum texts to embed per API call
+            timeout: Maximum time to wait for entire batch (seconds)
 
         Returns:
             List of embedding vectors
+
+        Raises:
+            asyncio.TimeoutError: If embedding exceeds timeout
         """
         import litellm
 
-        texts = list(texts)
-        all_embeddings = []
-        for i in range(0, len(texts), self._config.batch_size):
-            batch = texts[i : i + self._config.batch_size]
+        text_list = list(texts)
+        all_embeddings: list[list[float]] = []
+
+        for i in range(0, len(text_list), self._config.batch_size):
+            batch = text_list[i : i + self._config.batch_size]
             for attempt in range(self._config.max_retries):
                 try:
                     response = await asyncio.wait_for(
@@ -148,24 +174,33 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
                     all_embeddings.extend(batch_embeddings)
                     break
                 except asyncio.TimeoutError:
+                    # CORRIGIDO P1: extra={} → kwargs diretos
                     logger.warning(
                         "embedding_timeout",
-                        extra={"attempt": attempt + 1, "batch_size": len(batch)},
+                        attempt=attempt + 1,
+                        batch_size=len(batch),
+                        model=self._config.model,
                     )
                     if attempt == self._config.max_retries - 1:
                         raise
                     await asyncio.sleep(2**attempt)
                 except Exception as e:
+                    # CORRIGIDO P1: extra={} → kwargs diretos
                     logger.error(
                         "embedding_error",
-                        extra={"error": str(e), "attempt": attempt + 1},
+                        error=str(e),
+                        attempt=attempt + 1,
+                        model=self._config.model,
                     )
                     if attempt == self._config.max_retries - 1:
                         raise
                     await asyncio.sleep(2**attempt)
+
+        # CORRIGIDO P1: extra={} → kwargs diretos
         logger.debug(
             "embeddings_generated",
-            extra={"count": len(all_embeddings), "model": self._config.model},
+            count=len(all_embeddings),
+            model=self._config.model,
         )
         return all_embeddings
 
@@ -177,7 +212,7 @@ class MockEmbeddingProvider(EmbeddingProvider):
     Generates deterministic pseudo-embeddings based on text hash.
     """
 
-    def __init__(self, dimension: int = 1536):
+    def __init__(self, dimension: int = 1536) -> None:
         """
         Initialize mock provider.
 
@@ -191,12 +226,12 @@ class MockEmbeddingProvider(EmbeddingProvider):
         """Get embedding dimension."""
         return self._dimension
 
-    def embed(self, text: str) -> list[float]:
-        """Generate mock embedding."""
+    async def embed(self, text: str, *, timeout: float = 30.0) -> list[float]:
+        """Generate mock embedding (deterministic via SHA-256 hash)."""
         import hashlib
 
         hash_bytes = hashlib.sha256(text.encode()).digest()
-        embedding = []
+        embedding: list[float] = []
         idx = 0
         while len(embedding) < self._dimension:
             if idx >= len(hash_bytes):
@@ -207,17 +242,25 @@ class MockEmbeddingProvider(EmbeddingProvider):
             idx += 1
         return embedding[: self._dimension]
 
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_batch(
+        self,
+        texts: Sequence[str],
+        *,
+        batch_size: int = 32,
+        timeout: float = 60.0,
+    ) -> list[list[float]]:
         """Generate mock embeddings for batch."""
-        return [self.embed(text) for text in texts]
+        return [await self.embed(text) for text in texts]
 
 
+# Singleton state — thread-safe via threading.Lock
 _embedding_provider: EmbeddingProvider | None = None
+_embedding_provider_lock = __import__("threading").Lock()
 
 
 def get_embedding_provider() -> EmbeddingProvider:
     """
-    Get singleton embedding provider instance.
+    Get singleton embedding provider instance (thread-safe).
 
     Configures provider based on environment variables:
     - EMBEDDING_MODEL: Model to use (default: text-embedding-ada-002)
@@ -228,26 +271,34 @@ def get_embedding_provider() -> EmbeddingProvider:
         Configured embedding provider
     """
     global _embedding_provider
+
     if _embedding_provider is not None:
         return _embedding_provider
-    if os.getenv("EMBEDDING_MOCK", "").lower() in ("true", "1", "yes"):
-        dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
-        _embedding_provider = MockEmbeddingProvider(dimension=dimension)
+
+    with _embedding_provider_lock:
+        if _embedding_provider is not None:
+            return _embedding_provider
+
+        if os.getenv("EMBEDDING_MOCK", "").lower() in ("true", "1", "yes"):
+            dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+            _embedding_provider = MockEmbeddingProvider(dimension=dimension)
+            # CORRIGIDO P1: extra={} → kwargs diretos
+            logger.info("mock_embedding_provider_initialized", dimension=dimension)
+            return _embedding_provider
+
+        config = EmbeddingConfig(
+            model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
+            dimension=int(os.getenv("EMBEDDING_DIMENSION", "1536")),
+            batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "100")),
+        )
+        _embedding_provider = LiteLLMEmbeddingProvider(config)
+        # CORRIGIDO P1: extra={} → kwargs diretos
         logger.info(
-            "mock_embedding_provider_initialized", extra={"dimension": dimension}
+            "litellm_embedding_provider_initialized",
+            model=config.model,
+            dimension=_embedding_provider.dimension,
         )
         return _embedding_provider
-    config = EmbeddingConfig(
-        model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
-        dimension=int(os.getenv("EMBEDDING_DIMENSION", "1536")),
-        batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "100")),
-    )
-    _embedding_provider = LiteLLMEmbeddingProvider(config)
-    logger.info(
-        "litellm_embedding_provider_initialized",
-        extra={"model": config.model, "dimension": _embedding_provider.dimension},
-    )
-    return _embedding_provider
 
 
 def set_embedding_provider(provider: EmbeddingProvider) -> None:

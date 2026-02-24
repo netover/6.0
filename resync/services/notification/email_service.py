@@ -8,18 +8,18 @@ from __future__ import annotations
 
 import asyncio
 import smtplib
+from email import encoders
 from email.message import EmailMessage
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from resync.settings import get_settings
 from resync.core.structured_logger import get_logger
+from resync.settings import get_settings
 
 logger = get_logger(__name__)
 
@@ -103,8 +103,8 @@ class EmailService:
 
                 try:
                     part = MIMEBase("application", "octet-stream")
-                    with open(path, "rb") as attachment:
-                        part.set_payload(attachment.read())
+                    payload = await asyncio.to_thread(path.read_bytes)
+                    part.set_payload(payload)
                     encoders.encode_base64(part)
                     part.add_header(
                         "Content-Disposition",

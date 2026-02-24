@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Circuit Breaker Registry
 
@@ -520,7 +519,10 @@ def multi_circuit_protected(
     Example:
         @multi_circuit_protected(
             primary=CircuitBreakers.LLM_OPENAI,
-            fallback_circuits=[CircuitBreakers.LLM_ANTHROPIC, CircuitBreakers.LLM_OPENROUTER]
+            fallback_circuits=[
+                CircuitBreakers.LLM_ANTHROPIC,
+                CircuitBreakers.LLM_OPENROUTER,
+            ]
         )
         async def call_llm(prompt):
             return await llm.complete(prompt)

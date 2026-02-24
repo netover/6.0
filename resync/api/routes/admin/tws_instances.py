@@ -182,7 +182,7 @@ async def update_tws_instance(instance_id: str, update: TWSInstanceUpdate):
     """Update a TWS instance."""
     manager = _get_manager()
 
-    updates = update.dict(exclude_unset=True)
+    updates = update.model_dump(exclude_unset=True)
     instance = manager.update_instance(instance_id, updates)
 
     if not instance:

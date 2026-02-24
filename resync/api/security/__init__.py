@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Security module for JWT authentication.
 
@@ -19,6 +18,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+
 from resync.api.security.models import (
     LoginRequest,
     OAuthToken,
@@ -321,7 +321,9 @@ def require_any_role(*roles: str):
 
     Usage:
         @app.get("/staff-only")
-        async def staff_route(user: dict = Depends(require_any_role("admin", "operator"))):
+        async def staff_route(
+            user: dict = Depends(require_any_role("admin", "operator"))
+        ):
             return {"staff": user["sub"]}
     """
 

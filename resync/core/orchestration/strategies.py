@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Orchestration Strategies
 
@@ -9,7 +10,6 @@ from abc import ABC, abstractmethod
 from typing import List, Set
 
 from resync.core.orchestration.schemas import StepConfig, WorkflowConfig
-
 
 logger = logging.getLogger(__name__)
 

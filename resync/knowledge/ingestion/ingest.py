@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Idempotent document ingestion service for RAG systems.
 
@@ -20,16 +20,22 @@ Integrates Prometheus metrics for observability.
 """
 
 from __future__ import annotations
+
 import hashlib
-import logging
+import structlog
 import time
 from typing import Any
-from resync.knowledge.config import CFG
+
+from resync.knowledge.config import get_config
+
+CFG = get_config()
 from resync.knowledge.interfaces import Embedder, VectorStore
 from resync.knowledge.monitoring import embed_seconds, jobs_total, upsert_seconds
+from resync.settings import get_settings
+
 from .chunking import chunk_text
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class IngestService:
@@ -43,10 +49,20 @@ class IngestService:
     v5.4.2: Added advanced chunking with structure awareness
     """
 
-    def __init__(self, embedder: Embedder, store: VectorStore, batch_size: int = 128):
+    def __init__(
+        self, 
+        embedder: Embedder, 
+        store: VectorStore, 
+        kg_extractor: Any | None = None,
+        kg_store: Any | None = None,
+        batch_size: int = 128
+    ):
         self.embedder = embedder
         self.store = store
+        self.kg_extractor = kg_extractor
+        self.kg_store = kg_store
         self.batch_size = batch_size
+        self._settings = get_settings()
 
     async def ingest_document(
         self,
@@ -64,21 +80,27 @@ class IngestService:
 
         For improved accuracy, use ingest_document_advanced().
         """
-        chunks = list(chunk_text(text, max_tokens=512, overlap_tokens=64))
+        import asyncio
+        
+        def _get_chunks() -> list[str]:
+            return list(chunk_text(text, max_tokens=512, overlap_tokens=64))
+            
+        chunks = await asyncio.to_thread(_get_chunks)
         if not chunks:
             return 0
         ids: list[str] = []
         payloads: list[dict[str, Any]] = []
         texts_for_embed: list[str] = []
-        for i, ck in enumerate(chunks):
-            ck_norm = ck.strip()
-            sha = hashlib.sha256(ck_norm.encode("utf-8")).hexdigest()
-            exists = await self.store.exists_by_sha256(
-                sha, collection=CFG.collection_read
-            )
-            if exists:
+        # FIX N+1: batch SHA-256 dedup — one DB call instead of N
+        normalized = [ck.strip() for ck in chunks]
+        shas = [hashlib.sha256(t.encode("utf-8")).hexdigest() for t in normalized]
+        existing_shas = await self.store.exists_batch_by_sha256(
+            shas, collection=CFG.collection_read
+        )
+        for i, (ck_norm, sha) in enumerate(zip(normalized, shas)):
+            if sha in existing_shas:
                 continue
-            chunk_id = "{doc_id}#c{i:06d}"
+            chunk_id = f"{doc_id}#c{i:06d}"
             ids.append(chunk_id)
             payloads.append(
                 {
@@ -96,28 +118,31 @@ class IngestService:
             )
             texts_for_embed.append(ck_norm)
         if not ids:
-            logger.info("No new chunks to ingest (dedup hit) doc_id=%s", doc_id)
+            logger.info("no_new_chunks_dedup_hit", doc_id=doc_id)
             return 0
         total_upsert = 0
         t0 = time.perf_counter()
         for start in range(0, len(texts_for_embed), self.batch_size):
             batch_texts = texts_for_embed[start : start + self.batch_size]
-            with embed_seconds.time():
-                vecs = await self.embedder.embed_batch(batch_texts)
-            with upsert_seconds.time():
-                await self.store.upsert_batch(
-                    ids=ids[start : start + self.batch_size],
-                    vectors=vecs,
-                    payloads=payloads[start : start + self.batch_size],
-                    collection=CFG.collection_write,
-                )
+            # FIX P1-005: Use perf_counter for accurate async timing
+            t_embed = time.perf_counter()
+            vecs = await self.embedder.embed_batch(batch_texts)
+            embed_seconds.observe(time.perf_counter() - t_embed)
+            t_upsert = time.perf_counter()
+            await self.store.upsert_batch(
+                ids=ids[start : start + self.batch_size],
+                vectors=vecs,
+                payloads=payloads[start : start + self.batch_size],
+                collection=CFG.collection_write,
+            )
+            upsert_seconds.observe(time.perf_counter() - t_upsert)
             total_upsert += len(batch_texts)
         jobs_total.labels(status="ingested").inc()
         logger.info(
-            "Ingested %s chunks for doc_id=%s in %.2fs",
-            total_upsert,
-            doc_id,
-            time.perf_counter() - t0,
+            "document_ingested_basic",
+            chunks=total_upsert,
+            doc_id=doc_id,
+            elapsed_seconds=time.perf_counter() - t0,
         )
         return total_upsert
 
@@ -176,8 +201,10 @@ class IngestService:
             max_tokens: Maximum tokens per chunk
             overlap_tokens: Token overlap
             use_contextual_content: Whether to use contextualized content for embedding
-            doc_type: Document type for authority scoring (policy, manual, kb, blog, forum)
-            source_tier: Source credibility tier (verified, official, curated, community, generated)
+            doc_type: Document type for authority scoring
+                (policy, manual, kb, blog, forum)
+            source_tier: Source credibility tier
+                (verified, official, curated, community, generated)
             authority_tier: Authority level 1-5 (lower = more authoritative)
             is_deprecated: Whether this document is deprecated
             platform: Target platform (ios, android, mobile, web, desktop, all)
@@ -224,8 +251,9 @@ class IngestService:
             enable_multi_view=enable_multi_view,
         )
         chunker = AdvancedChunker(config)
-        enriched_chunks = chunker.chunk_document(
-            text, source=source, document_title=document_title, doc_id=doc_id
+        import asyncio
+        enriched_chunks = await asyncio.to_thread(
+            chunker.chunk_document, text, source=source, document_title=document_title, doc_id=doc_id
         )
         if not enriched_chunks:
             return 0
@@ -235,12 +263,14 @@ class IngestService:
         ids: list[str] = []
         payloads: list[dict[str, Any]] = []
         texts_for_embed: list[str] = []
+        # FIX N+1: batch SHA-256 dedup — one DB call instead of N
+        all_shas = [hashlib.sha256(chunk.content.encode("utf-8")).hexdigest() for chunk in enriched_chunks]
+        existing_shas = await self.store.exists_batch_by_sha256(
+            all_shas, collection=CFG.collection_read
+        )
         for i, chunk in enumerate(enriched_chunks):
-            sha = chunk.sha256
-            exists = await self.store.exists_by_sha256(
-                sha, collection=CFG.collection_read
-            )
-            if exists:
+            sha = all_shas[i]
+            if sha in existing_shas:
                 continue
             chunk_id = f"{doc_id}#c{i:06d}"
             ids.append(chunk_id)
@@ -282,42 +312,117 @@ class IngestService:
             else:
                 texts_for_embed.append(chunk.content)
         if not ids:
-            logger.info("No new chunks to ingest (dedup hit) doc_id=%s", doc_id)
+            logger.info("no_new_chunks_dedup_hit", doc_id=doc_id)
             return 0
         total_upsert = 0
         t0 = time.perf_counter()
         for start in range(0, len(texts_for_embed), self.batch_size):
             batch_texts = texts_for_embed[start : start + self.batch_size]
-            with embed_seconds.time():
-                vecs = await self.embedder.embed_batch(batch_texts)
-            with upsert_seconds.time():
-                await self.store.upsert_batch(
-                    ids=ids[start : start + self.batch_size],
-                    vectors=vecs,
-                    payloads=payloads[start : start + self.batch_size],
-                    collection=CFG.collection_write,
-                )
+            # FIX P1-005: Use perf_counter for accurate async timing
+            t_embed = time.perf_counter()
+            vecs = await self.embedder.embed_batch(batch_texts)
+            embed_seconds.observe(time.perf_counter() - t_embed)
+            t_upsert = time.perf_counter()
+            await self.store.upsert_batch(
+                ids=ids[start : start + self.batch_size],
+                vectors=vecs,
+                payloads=payloads[start : start + self.batch_size],
+                collection=CFG.collection_write,
+            )
+            upsert_seconds.observe(time.perf_counter() - t_upsert)
             total_upsert += len(batch_texts)
+        # FIX P0-004: Actually upsert multi-view chunks to vector store
         if enable_multi_view:
             try:
-                multi_view_chunks = chunker.chunk_document_multi_view(
+                import asyncio
+                multi_view_chunks = await asyncio.to_thread(
+                    chunker.chunk_document_multi_view,
                     text, source=source, document_title=document_title, doc_id=doc_id
                 )
-                logger.info(
-                    "multi_view_generated",
-                    extra={"doc_id": doc_id, "views_generated": len(multi_view_chunks)},
-                )
+                if multi_view_chunks:
+                    # FIX N+1: batch SHA-256 dedup for multi-view chunks — one DB call
+                    mv_texts: list[str] = []
+                    mv_ids: list[str] = []
+                    mv_payloads: list[dict[str, Any]] = []
+                    mv_all_shas = [
+                        hashlib.sha256(mvc.raw_content.encode("utf-8")).hexdigest()
+                        for mvc in multi_view_chunks
+                    ]
+                    mv_existing_shas = await self.store.exists_batch_by_sha256(
+                        mv_all_shas, collection=CFG.collection_read
+                    )
+                    for mvc, sha_mv in zip(multi_view_chunks, mv_all_shas):
+                        if sha_mv in mv_existing_shas:
+                            continue
+                            
+                        # Generate a chunk for each enabled view
+                        for view_type in config.enabled_views:
+                            view_content = mvc.get_view(view_type)
+                            if not view_content:
+                                continue
+                                
+                            mv_id = f"{mvc.chunk_id}_view_{view_type.value}"
+                            mv_ids.append(mv_id)
+                            mv_payloads.append(
+                                {
+                                    "tenant": tenant,
+                                    "doc_id": doc_id,
+                                    "chunk_id": mv_id,
+                                    "source": source,
+                                    "section": mvc.metadata.get("section_path"),
+                                    "ts": ts_iso,
+                                    "tags": tags or [],
+                                    "neighbors": [],
+                                    "graph_version": graph_version,
+                                    "sha256": sha_mv,
+                                    "document_title": document_title,
+                                    "chunk_type": mvc.metadata.get("chunk_type"),
+                                    "parent_headers": mvc.metadata.get("parent_headers"),
+                                    "section_path": mvc.metadata.get("section_path"),
+                                    "view_type": view_type.value,
+                                    "view_specific_content": view_content,
+                                    "base_chunk_id": mvc.chunk_id,
+                                    "embedding_model": embedding_model or CFG.embed_model,
+                                    "embedding_version": embedding_version,
+                                }
+                            )
+                            mv_texts.append(view_content)
+                    # Embed and upsert multi-view chunks
+                    if mv_texts:
+                        for mv_start in range(0, len(mv_texts), self.batch_size):
+                            mv_batch_texts = mv_texts[mv_start : mv_start + self.batch_size]
+                            t_mv_embed = time.perf_counter()
+                            mv_vecs = await self.embedder.embed_batch(mv_batch_texts)
+                            embed_seconds.observe(time.perf_counter() - t_mv_embed)
+                            t_mv_upsert = time.perf_counter()
+                            await self.store.upsert_batch(
+                                ids=mv_ids[mv_start : mv_start + self.batch_size],
+                                vectors=mv_vecs,
+                                payloads=mv_payloads[mv_start : mv_start + self.batch_size],
+                                collection=CFG.collection_write,
+                            )
+                            upsert_seconds.observe(time.perf_counter() - t_mv_upsert)
+                        logger.info(
+                            "multi_view_upserted",
+                            doc_id=doc_id,
+                            views_generated=len(multi_view_chunks),
+                            views_upserted=len(mv_texts),
+                        )
+                    else:
+                        logger.info(
+                            "multi_view_skipped_all_duplicates",
+                            doc_id=doc_id,
+                            views_total=len(multi_view_chunks)
+                        )
+                else:
+                    logger.info(
+                        "multi_view_no_chunks",
+                        doc_id=doc_id
+                    )
             except Exception as mv_e:
-                logger.warning("multi_view_indexing_failed", extra={"error": str(mv_e)})
+                logger.warning("multi_view_indexing_failed", error=str(mv_e))
         try:
-            from resync.settings import get_settings
-
-            _s = get_settings()
-            if _s.KG_EXTRACTION_ENABLED:
-                from resync.knowledge.kg_extraction import KGExtractor
-                from resync.knowledge.kg_store.store import PostgresGraphStore
-
-                extractor = KGExtractor()
+            if self._settings.KG_EXTRACTION_ENABLED and self.kg_extractor and self.kg_store:
                 chunk_payloads = [
                     {
                         "chunk_id": ids[i] if i < len(ids) else f"{doc_id}#c{i:06d}",
@@ -327,15 +432,14 @@ class IngestService:
                     }
                     for i in range(len(texts_for_embed))
                 ]
-                extraction = await extractor.extract(
+                extraction = await self.kg_extractor.extract(
                     doc_id=doc_id,
                     chunks=chunk_payloads,
                     tenant=tenant,
                     graph_version=graph_version,
                 )
                 if extraction and (extraction.concepts or extraction.edges):
-                    store = PostgresGraphStore()
-                    await store.upsert_from_extraction(
+                    await self.kg_store.upsert_from_extraction(
                         tenant=tenant,
                         graph_version=graph_version,
                         doc_id=doc_id,
@@ -343,14 +447,12 @@ class IngestService:
                     )
                     logger.info(
                         "document_kg_extracted",
-                        extra={
-                            "doc_id": doc_id,
-                            "concepts": len(extraction.concepts),
-                            "edges": len(extraction.edges),
-                        },
+                        doc_id=doc_id,
+                        concepts=len(extraction.concepts),
+                        edges=len(extraction.edges),
                     )
         except Exception as _kg_e:
-            logger.warning("document_kg_extraction_failed", extra={"error": str(_kg_e)})
+            logger.warning("document_kg_extraction_failed", error=str(_kg_e))
         chunk_types = {}
         error_code_count = 0
         for chunk in enriched_chunks:
@@ -359,14 +461,14 @@ class IngestService:
             error_code_count += len(chunk.metadata.error_codes)
         jobs_total.labels(status="ingested").inc()
         logger.info(
-            "Advanced ingest: %s chunks for doc_id=%s in %.2fs (strategy=%s, overlap=%s, types=%s, error_codes=%s)",
-            total_upsert,
-            doc_id,
-            time.perf_counter() - t0,
-            chunking_strategy,
-            overlap_strategy,
-            chunk_types,
-            error_code_count,
+            "document_ingested_advanced",
+            chunks=total_upsert,
+            doc_id=doc_id,
+            elapsed_seconds=time.perf_counter() - t0,
+            strategy=chunking_strategy,
+            overlap_strategy=overlap_strategy,
+            chunk_types=chunk_types,
+            error_code_count=error_code_count,
         )
         return total_upsert
 
@@ -400,9 +502,9 @@ class IngestService:
         """
         try:
             await self.store.delete_by_doc_id(doc_id, collection=CFG.collection_write)
-            logger.info("Deleted existing chunks for doc_id=%s", doc_id)
+            logger.info("deleted_existing_chunks", doc_id=doc_id)
         except Exception as e:
-            logger.warning("Could not delete existing chunks: %s", e)
+            logger.warning("could_not_delete_existing_chunks", error=str(e))
         if use_advanced:
             return await self.ingest_document_advanced(
                 tenant=tenant,

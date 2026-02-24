@@ -1,11 +1,11 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """Validation middleware for automatic request validation."""
 
+import inspect
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from fastapi import HTTPException, Request, Response
@@ -15,6 +15,16 @@ from pydantic import BaseModel, ValidationError
 from .common import ValidationErrorResponse, ValidationSeverity
 
 logger = structlog.get_logger(__name__)
+
+ValidatorResult = dict[str, Any]
+ValidatorFn = Callable[
+    [dict[str, Any], Request],
+    ValidatorResult | Awaitable[ValidatorResult],
+]
+ErrorHandlerFn = Callable[
+    [Request, ValidationErrorResponse],
+    JSONResponse | Awaitable[JSONResponse],
+]
 
 
 class ValidationMiddleware:
@@ -26,8 +36,8 @@ class ValidationMiddleware:
         strict_mode: bool = True,
         sanitize_input: bool = True,
         enable_logging: bool = True,
-        custom_validators: dict[str, Callable] | None = None,
-        error_handler: Callable | None = None,
+        custom_validators: dict[str, ValidatorFn] | None = None,
+        error_handler: ErrorHandlerFn | None = None,
     ):
         """
         Initialize validation middleware.
@@ -188,7 +198,7 @@ class ValidationMiddleware:
         if request.method in ["POST", "PUT", "PATCH"]:
             return await self._validate_body_data(request, validation_model)
         if request.method in ["GET", "DELETE"]:
-            return self._validate_query_params(request, validation_model)
+            return await self._validate_query_params(request, validation_model)
         return None
 
     async def _validate_body_data(
@@ -220,8 +230,7 @@ class ValidationMiddleware:
                 data = dict(form_data)
             elif "multipart/form-data" in content_type:
                 form_data = await request.form()
-                files = await request.files()
-                data = {**dict(form_data), "files": files}
+                data = dict(form_data)
             else:
                 # Try to parse as JSON by default
                 try:
@@ -230,7 +239,7 @@ class ValidationMiddleware:
                     return None
 
             # Apply custom validators if any
-            data = self._apply_custom_validators(data, request)
+            data = await self._apply_custom_validators(data, request)
 
             # Validate with Pydantic model
             validated_model = validation_model(**data)
@@ -238,7 +247,9 @@ class ValidationMiddleware:
             return validated_model.model_dump()
 
         except json.JSONDecodeError as e:
-            raise ValidationError.from_exception_data("body", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "body", cast(Any, [str(e)])
+            ) from e
         except ValidationError:
             raise
         except Exception as e:
@@ -246,9 +257,11 @@ class ValidationMiddleware:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("body_validation_error", error=str(e), exc_info=True)
-            raise ValidationError.from_exception_data("body", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "body", cast(Any, [str(e)])
+            ) from e
 
-    def _validate_query_params(
+    async def _validate_query_params(
         self, request: Request, validation_model: type[BaseModel]
     ) -> dict[str, Any] | None:
         """
@@ -269,7 +282,7 @@ class ValidationMiddleware:
                 return None
 
             # Convert parameter values
-            converted_params = {}
+            converted_params: dict[str, str | list[str]] = {}
             for key, value in query_params.items():
                 # Handle list parameters
                 if key.endswith("[]"):
@@ -281,7 +294,9 @@ class ValidationMiddleware:
                     converted_params[key] = value
 
             # Apply custom validators if any
-            converted_params = self._apply_custom_validators(converted_params, request)
+            converted_params = await self._apply_custom_validators(
+                converted_params, request
+            )
 
             # Validate with Pydantic model
             validated_model = validation_model(**converted_params)
@@ -297,9 +312,11 @@ class ValidationMiddleware:
             logger.error(
                 "query_parameter_validation_error", error=str(e), exc_info=True
             )
-            raise ValidationError.from_exception_data("query_params", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "query_params", cast(Any, [str(e)])
+            ) from e
 
-    def _apply_custom_validators(
+    async def _apply_custom_validators(
         self, data: dict[str, Any], request: Request
     ) -> dict[str, Any]:
         """
@@ -315,7 +332,11 @@ class ValidationMiddleware:
         # Apply custom validators based on the endpoint
         for validator_name, validator_func in self.custom_validators.items():
             try:
-                data = validator_func(data, request)
+                result = validator_func(data, request)
+                if inspect.isawaitable(result):
+                    data = await result
+                else:
+                    data = result
             except Exception as e:
                 logger.warning(
                     "custom_validator_failed",
@@ -389,7 +410,10 @@ class ValidationMiddleware:
         # Use custom error handler if provided
         if self.error_handler:
             try:
-                return await self.error_handler(request, error_response)
+                handler_result = self.error_handler(request, error_response)
+                if inspect.isawaitable(handler_result):
+                    return await handler_result
+                return cast(JSONResponse, handler_result)
             except Exception as e:
                 logger.error("Custom error handler failed: %s", str(e), exc_info=True)
 
@@ -435,8 +459,8 @@ class ValidationConfig:
         strict_mode: bool = True,
         sanitize_input: bool = True,
         enable_logging: bool = True,
-        custom_validators: dict[str, Callable] | None = None,
-        error_handler: Callable | None = None,
+        custom_validators: dict[str, ValidatorFn] | None = None,
+        error_handler: ErrorHandlerFn | None = None,
         skip_paths: list[str] | None = None,
         rate_limit_validation: bool = False,
         max_validation_errors: int = 50,
@@ -487,7 +511,9 @@ def create_validation_middleware(config: ValidationConfig) -> ValidationMiddlewa
 
 
 # Common validation utilities
-def validate_json_body(request: Request, model: type[BaseModel]) -> dict[str, Any]:
+async def validate_json_body(
+    request: Request, model: type[BaseModel]
+) -> dict[str, Any]:
     """
     Validate JSON request body against a Pydantic model.
 
@@ -502,7 +528,7 @@ def validate_json_body(request: Request, model: type[BaseModel]) -> dict[str, An
         ValidationError: If validation fails
     """
     try:
-        body = request.body()
+        body = await request.body()
         data = (
             json.loads(body.decode("utf-8"))
             if isinstance(body, bytes)
@@ -512,7 +538,9 @@ def validate_json_body(request: Request, model: type[BaseModel]) -> dict[str, An
         validated_model = model(**data)
         return validated_model.model_dump()
     except json.JSONDecodeError as e:
-        raise ValidationError.from_exception_data("body", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "body", cast(Any, [str(e)])
+            ) from e
     except ValidationError:
         raise
 
@@ -534,7 +562,7 @@ def validate_query_params(request: Request, model: type[BaseModel]) -> dict[str,
     query_params = dict(request.query_params)
 
     # Convert parameter values
-    converted_params = {}
+    converted_params: dict[str, str | list[str]] = {}
     for key, value in query_params.items():
         if key.endswith("[]"):
             key = key[:-2]

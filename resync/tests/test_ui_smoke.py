@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +55,8 @@ def _root() -> Path:
     """Return the resync package directory containing templates/ and static/."""
     # templates and static are inside the resync package, not at project root
     # test file: resync/tests/test_ui_smoke.py
-    # parents[0] = resync/tests, parents[1] = resync (package root with templates/static)
+    # parents[0] = resync/tests, parents[1] = resync
+    # (package root with templates/static).
     root = Path(__file__).resolve().parents[1]
     templates_dir = root / "templates"
     static_dir = root / "static"
@@ -157,9 +158,10 @@ def test_admin_ui_renders_and_serves_css() -> None:
 
     pytest.importorskip("sqlalchemy")
 
-    from resync.app_factory import ApplicationFactory
     import cProfile
     import pstats
+
+    from resync.app_factory import ApplicationFactory
 
     profiler = cProfile.Profile()
     profiler.enable()

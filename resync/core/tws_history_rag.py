@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 TWS RAG Integration - Ingestão de Status para Consultas Históricas
 
@@ -337,16 +337,17 @@ class TWSHistoryRAG:
             # Prepara contexto para o LLM
             context_text = self._format_context_for_llm(context)
 
-            prompt = f"""Você é um assistente especializado em HCL Workload Automation (TWS).
-Com base nos dados históricos fornecidos, responda à pergunta do usuário de forma clara e objetiva.
-
-DADOS HISTÓRICOS:
-{context_text}
-
-PERGUNTA DO USUÁRIO:
-{question}
-
-RESPOSTA:"""
+            prompt = (
+                "Você é um assistente especializado em HCL Workload Automation "
+                "(TWS).\n"
+                "Com base nos dados históricos fornecidos, responda à pergunta "
+                "do usuário de forma clara e objetiva.\n\n"
+                "DADOS HISTÓRICOS:\n"
+                f"{context_text}\n\n"
+                "PERGUNTA DO USUÁRIO:\n"
+                f"{question}\n\n"
+                "RESPOSTA:"
+            )
 
             # Chama LLM
             return await self.llm_client.generate(prompt)
@@ -499,7 +500,10 @@ Use para responder perguntas sobre:
             "properties": {
                 "question": {
                     "type": "string",
-                    "description": "Pergunta em linguagem natural sobre o histórico do TWS",
+                    "description": (
+                        "Pergunta em linguagem natural sobre o histórico "
+                        "do TWS"
+                    ),
                 },
             },
             "required": ["question"],
@@ -594,8 +598,9 @@ async def search_historical_incidents(
     # Fallback: Search in database
     if not results:
         try:
-            from resync.core.database.engine import get_db_session
             from sqlalchemy import text
+
+            from resync.core.database.engine import get_db_session
 
             async with get_db_session() as session:
                 sql = text("""
@@ -656,8 +661,9 @@ async def log_incident_resolution(
     become searchable for future similar issues.
     """
     try:
-        from resync.core.audit_db import log_audit_event
         from datetime import timezone
+
+        from resync.core.audit_db import log_audit_event
 
         await log_audit_event(
             action="incident_resolved",

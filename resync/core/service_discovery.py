@@ -1,16 +1,17 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Service Discovery Manager — v7.2-prod (Resync) — atualizado (v7.1 + hardening)
 
 Objetivos de produção:
-- Lifecycle determinístico (start/stop corretos + cancelamento de tasks + aclose em httpx).
+- Lifecycle determinístico (start/stop corretos + cancelamento
+  de tasks + aclose em httpx).
 - Reuso de httpx.AsyncClient (pooling) com httpx.Limits.
 - Prometheus com baixa cardinalidade por padrão; métricas por instância opcionais.
 - OpenTelemetry: spans apenas em operações request-like; workers só logs/métricas.
 - Least Connections seguro: borrow_instance como async context manager garante release.
 - Circuit breaker mínimo: open_until por instância e filtragem no LB.
-- GARBAGE COLLECTION: remove estado e séries por instância quando instâncias somem do backend.
+- GARBAGE COLLECTION: remove estado e séries por instância
+  quando instâncias somem do backend.
 """
 
 from __future__ import annotations
@@ -30,12 +31,10 @@ from typing import Any, Callable, Coroutine
 import httpx
 import orjson
 import structlog
-from antidote import inject, injectable
+from antidote import inject, injectable  # type: ignore[import-not-found]
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
-from prometheus_client import Counter, Gauge, Histogram, REGISTRY
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from pydantic.networks import AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from resync.core.task_tracker import track_task
@@ -44,11 +43,82 @@ logger = structlog.get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
 # =============================================================================
-# Prometheus helpers (safe on reload/dev)
+# Prometheus helpers (optional - graceful fallback if not installed)
 # =============================================================================
+# IMPORTANT: This project uses its own internal metrics system instead of Prometheus.
+# See resync/core/metrics.py and resync/api/routes/monitoring/dashboard.py
+#
+# The internal system provides:
+#   - Rolling 2-hour window metrics (~1.4 MB RAM)
+#   - Prometheus-compatible format export (generate_prometheus_metrics())
+#   - Built-in dashboard UI at /api/monitoring
+#   - Real-time WebSocket updates at /api/monitoring/ws
+#
+# This optional prometheus_client integration is kept only for backwards compatibility
+# with external monitoring systems that may scrape /metrics endpoints.
+# DO NOT add new prometheus_client dependencies - use the internal metrics system instead.
+# =============================================================================
+
+# Prometheus client availability flag
+PROMETHEUS_AVAILABLE = False
+Counter = None
+Gauge = None
+Histogram = None
+REGISTRY = None
+
+try:
+    from prometheus_client import REGISTRY as _REGISTRY, Counter as _Counter, Gauge as _Gauge, Histogram as _Histogram
+    PROMETHEUS_AVAILABLE = True
+    Counter = _Counter
+    Gauge = _Gauge
+    Histogram = _Histogram
+    REGISTRY = _REGISTRY
+except ImportError:
+    # Graceful fallback - prometheus_client is optional
+    # Metrics will be no-op if not available
+    logger.warning("prometheus_client not installed. Service Discovery metrics will be disabled.")
+
+# =============================================================================
+# Safe metric helpers (check if metrics are available before use)
+# =============================================================================
+
+def _inc_counter(counter, **labels) -> None:
+    """Safely increment a counter, no-op if not available."""
+    if counter is not None:
+        counter.labels(**labels).inc()
+
+
+def _set_gauge(gauge, value: float, **labels) -> None:
+    """Safely set a gauge, no-op if not available."""
+    if gauge is not None:
+        gauge.labels(**labels).set(value)
+
+
+def _dec_gauge(gauge, **labels) -> None:
+    """Safely decrement a gauge, no-op if not available."""
+    if gauge is not None:
+        gauge.labels(**labels).dec()
+
+
+def _observe_histogram(histogram, value: float, **labels) -> None:
+    """Safely observe a histogram, no-op if not available."""
+    if histogram is not None:
+        histogram.labels(**labels).observe(value)
+
+
+def _remove_gauge(gauge, *label_values) -> None:
+    """Safely remove a gauge metric, no-op if not available."""
+    if gauge is not None:
+        try:
+            gauge.remove(*label_values)
+        except (KeyError, ValueError):
+            pass  # Metric may not exist yet
 
 
 def _get_or_create_metric(factory, name: str, *args, **kwargs):
+    """Create metric with fallback for missing prometheus_client."""
+    if not PROMETHEUS_AVAILABLE or factory is None:
+        return None
     try:
         return factory(name, *args, **kwargs)
     except ValueError:
@@ -59,105 +129,138 @@ def _get_or_create_metric(factory, name: str, *args, **kwargs):
         return existing
 
 
-# Low-cardinality metrics (recommended for production)
-_prom_registrations = _get_or_create_metric(
-    Counter,
-    "sdm_registrations_total",
-    "Total de registros de serviço bem-sucedidos",
-    ["backend", "service_name"],
-)
-_prom_deregistrations = _get_or_create_metric(
-    Counter,
-    "sdm_deregistrations_total",
-    "Total de deregistros de serviço bem-sucedidos",
-    ["backend", "service_name"],
-)
-_prom_discoveries = _get_or_create_metric(
-    Counter,
-    "sdm_discoveries_total",
-    "Total de descobertas (cache hit/miss)",
-    ["service_name", "source"],  # cache|backend
-)
-_prom_instances_discovered = _get_or_create_metric(
-    Counter,
-    "sdm_instances_discovered_total",
-    "Total de instâncias retornadas pelos backends",
-    ["service_name"],
-)
-_prom_health_checks = _get_or_create_metric(
-    Counter,
-    "sdm_health_checks_total",
-    "Total de health checks executados",
-    ["service_name", "result"],  # healthy|unhealthy|skipped|error
-)
-_prom_health_check_duration = _get_or_create_metric(
-    Histogram,
-    "sdm_health_check_duration_seconds",
-    "Duração de health checks por serviço",
-    ["service_name"],
-    buckets=[0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
-)
-_prom_lb_decisions = _get_or_create_metric(
-    Counter,
-    "sdm_lb_decisions_total",
-    "Total de decisões de load balancing",
-    ["service_name", "strategy"],
-)
-_prom_errors = _get_or_create_metric(
-    Counter,
-    "sdm_errors_total",
-    "Erros por tipo",
-    ["error_type"],
-)
+# Lazy-initialized metrics (created on first use)
+_prom_registrations = None
+_prom_deregistrations = None
+_prom_discoveries = None
+_prom_instances_discovered = None
+_prom_health_checks = None
+_prom_health_check_duration = None
+_prom_lb_decisions = None
+_prom_errors = None
+_prom_active_services = None
+_prom_total_instances = None
+_prom_service_instances = None
+_prom_service_healthy_instances = None
+_prom_service_active_connections = None
+_prom_service_circuit_open = None
+_prom_instance_active_connections = None
+_prom_instance_circuit_open = None
 
-_prom_active_services = _get_or_create_metric(
-    Gauge,
-    "sdm_active_services",
-    "Quantidade de serviços registrados no manager",
-)
-_prom_total_instances = _get_or_create_metric(
-    Gauge,
-    "sdm_total_instances",
-    "Total de instâncias no cache (todos os serviços)",
-)
-_prom_service_instances = _get_or_create_metric(
-    Gauge,
-    "sdm_service_instances",
-    "Instâncias no cache por serviço",
-    ["service_name"],
-)
-_prom_service_healthy_instances = _get_or_create_metric(
-    Gauge,
-    "sdm_service_healthy_instances",
-    "Instâncias saudáveis por serviço (considerando circuit breaker)",
-    ["service_name"],
-)
-_prom_service_active_connections = _get_or_create_metric(
-    Gauge,
-    "sdm_service_active_connections",
-    "Conexões ativas agregadas por serviço",
-    ["service_name"],
-)
-_prom_service_circuit_open = _get_or_create_metric(
-    Gauge,
-    "sdm_service_circuit_open_instances",
-    "Quantidade de instâncias com circuit breaker aberto por serviço",
-    ["service_name"],
-)
 
-# Optional per-instance metrics (HIGH cardinality) – disabled by default
-_prom_instance_active_connections = _get_or_create_metric(
-    Gauge,
-    "sdm_instance_active_connections",
-    "Conexões ativas por instância (alta cardinalidade)",
-    ["instance_id"],
-)
-_prom_instance_circuit_open = _get_or_create_metric(
-    Gauge,
-    "sdm_instance_circuit_open",
-    "Circuit breaker aberto por instância (alta cardinalidade)",
-    ["instance_id"],
-)
+def _init_prometheus_metrics() -> None:
+    """Initialize Prometheus metrics lazily (only when prometheus_client is available)."""
+    global _prom_registrations, _prom_deregistrations, _prom_discoveries
+    global _prom_instances_discovered, _prom_health_checks, _prom_health_check_duration
+    global _prom_lb_decisions, _prom_errors, _prom_active_services, _prom_total_instances
+    global _prom_service_instances, _prom_service_healthy_instances
+    global _prom_service_active_connections, _prom_service_circuit_open
+    global _prom_instance_active_connections, _prom_instance_circuit_open
+
+    if not PROMETHEUS_AVAILABLE:
+        return
+
+    # Low-cardinality metrics (recommended for production)
+    _prom_registrations = _get_or_create_metric(
+        Counter,
+        "sdm_registrations_total",
+        "Total de registros de serviço bem-sucedidos",
+        ["backend", "service_name"],
+    )
+    _prom_deregistrations = _get_or_create_metric(
+        Counter,
+        "sdm_deregistrations_total",
+        "Total de deregistros de serviço bem-sucedidos",
+        ["backend", "service_name"],
+    )
+    _prom_discoveries = _get_or_create_metric(
+        Counter,
+        "sdm_discoveries_total",
+        "Total de descobertas (cache hit/miss)",
+        ["service_name", "source"],  # cache|backend
+    )
+    _prom_instances_discovered = _get_or_create_metric(
+        Counter,
+        "sdm_instances_discovered_total",
+        "Total de instâncias retornadas pelos backends",
+        ["service_name"],
+    )
+    _prom_health_checks = _get_or_create_metric(
+        Counter,
+        "sdm_health_checks_total",
+        "Total de health checks executados",
+        ["service_name", "result"],  # healthy|unhealthy|skipped|error
+    )
+    _prom_health_check_duration = _get_or_create_metric(
+        Histogram,
+        "sdm_health_check_duration_seconds",
+        "Duração de health checks por serviço",
+        ["service_name"],
+        buckets=[0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
+    )
+    _prom_lb_decisions = _get_or_create_metric(
+        Counter,
+        "sdm_lb_decisions_total",
+        "Total de decisões de load balancing",
+        ["service_name", "strategy"],
+    )
+    _prom_errors = _get_or_create_metric(
+        Counter,
+        "sdm_errors_total",
+        "Erros por tipo",
+        ["error_type"],
+    )
+
+    _prom_active_services = _get_or_create_metric(
+        Gauge,
+        "sdm_active_services",
+        "Quantidade de serviços registrados no manager",
+    )
+    _prom_total_instances = _get_or_create_metric(
+        Gauge,
+        "sdm_total_instances",
+        "Total de instâncias no cache (todos os serviços)",
+    )
+    _prom_service_instances = _get_or_create_metric(
+        Gauge,
+        "sdm_service_instances",
+        "Instâncias no cache por serviço",
+        ["service_name"],
+    )
+    _prom_service_healthy_instances = _get_or_create_metric(
+        Gauge,
+        "sdm_service_healthy_instances",
+        "Instâncias saudáveis por serviço (considerando circuit breaker)",
+        ["service_name"],
+    )
+    _prom_service_active_connections = _get_or_create_metric(
+        Gauge,
+        "sdm_service_active_connections",
+        "Conexões ativas agregadas por serviço",
+        ["service_name"],
+    )
+    _prom_service_circuit_open = _get_or_create_metric(
+        Gauge,
+        "sdm_service_circuit_open_instances",
+        "Quantidade de instâncias com circuit breaker aberto por serviço",
+        ["service_name"],
+    )
+
+    # Optional per-instance metrics (HIGH cardinality) – disabled by default
+    _prom_instance_active_connections = _get_or_create_metric(
+        Gauge,
+        "sdm_instance_active_connections",
+        "Conexões ativas por instância (alta cardinalidade)",
+        ["instance_id"],
+    )
+    _prom_instance_circuit_open = _get_or_create_metric(
+        Gauge,
+        "sdm_instance_circuit_open",
+        "Circuit breaker aberto por instância (alta cardinalidade)",
+        ["instance_id"],
+    )
+
+    logger.info("Prometheus metrics initialized for Service Discovery Manager")
 
 # =============================================================================
 # Enums
@@ -202,7 +305,7 @@ class ServiceDiscoveryConfig(BaseSettings):
     default_backend: DiscoveryBackend = DiscoveryBackend.CONSUL
 
     # Consul
-    consul_url: AnyUrl = "http://localhost:8500"
+    consul_url: str = "http://localhost:8500"
     consul_acl_token: str = ""
 
     # Kubernetes (optional)
@@ -248,7 +351,8 @@ class ServiceDiscoveryConfig(BaseSettings):
 
 
 def _make_limits(cfg: ServiceDiscoveryConfig) -> httpx.Limits:
-    # httpx.Limits controls connection pool sizing (max_connections, keepalive, expiry). :contentReference[oaicite:3]{index=3}
+    # httpx.Limits controls connection pool sizing
+    # (max_connections, keepalive, expiry).
     return httpx.Limits(
         max_connections=cfg.http_max_connections,
         max_keepalive_connections=cfg.http_max_keepalive,
@@ -677,6 +781,11 @@ class KubernetesBackend(DiscoveryBackendInterface):
 @injectable
 class ServiceDiscoveryManager:
     def __init__(self, config: ServiceDiscoveryConfig | None = None) -> None:
+        # Initialize Prometheus metrics lazily on first instance creation
+        global _prom_registrations
+        if _prom_registrations is None and PROMETHEUS_AVAILABLE:
+            _init_prometheus_metrics()
+
         self.config = config or ServiceDiscoveryConfig()
 
         self.services: dict[str, ServiceDefinition] = {}
@@ -864,19 +973,20 @@ class ServiceDiscoveryManager:
 
                 self.services[service_def.service_name] = service_def
                 self.local_instances[service_def.service_name] = instance
-                _prom_active_services.set(len(self.services))
+                _set_gauge(_prom_active_services, len(self.services))
 
                 backend = self._get_backend(service_def)
                 if not backend:
-                    _prom_errors.labels(error_type="no_backend").inc()
+                    _inc_counter(_prom_errors, error_type="no_backend")
                     span.set_status(Status(StatusCode.ERROR, "no_backend"))
                     return ""
 
                 if await backend.register_service(service_def, instance):
-                    _prom_registrations.labels(
+                    _inc_counter(
+                        _prom_registrations,
                         backend=service_def.discovery_backend.value,
                         service_name=service_def.service_name,
-                    ).inc()
+                    )
                     span.set_status(Status(StatusCode.OK))
                     logger.info(
                         "service_registered",
@@ -885,13 +995,13 @@ class ServiceDiscoveryManager:
                     )
                     return instance.instance_id
 
-                _prom_errors.labels(error_type="registration_failed").inc()
+                _inc_counter(_prom_errors, error_type="registration_failed")
                 span.set_status(Status(StatusCode.ERROR, "registration_failed"))
                 return ""
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                _prom_errors.labels(error_type="registration_exception").inc()
+                _inc_counter(_prom_errors, error_type="registration_exception")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "registration_exception",
@@ -912,16 +1022,18 @@ class ServiceDiscoveryManager:
 
             backend = self._get_backend(sd)
             if not backend:
-                _prom_errors.labels(error_type="no_backend").inc()
+                _inc_counter(_prom_errors, error_type="no_backend")
                 span.set_status(Status(StatusCode.ERROR, "no_backend"))
                 return False
 
             try:
                 if await backend.deregister_service(service_name, instance_id):
                     self.local_instances.pop(service_name, None)
-                    _prom_deregistrations.labels(
-                        backend=sd.discovery_backend.value, service_name=service_name
-                    ).inc()
+                    _inc_counter(
+                        _prom_deregistrations,
+                        backend=sd.discovery_backend.value,
+                        service_name=service_name,
+                    )
                     span.set_status(Status(StatusCode.OK))
                     logger.info(
                         "service_deregistered",
@@ -930,13 +1042,13 @@ class ServiceDiscoveryManager:
                     )
                     return True
 
-                _prom_errors.labels(error_type="deregistration_failed").inc()
+                _inc_counter(_prom_errors, error_type="deregistration_failed")
                 span.set_status(Status(StatusCode.ERROR, "deregistration_failed"))
                 return False
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                _prom_errors.labels(error_type="deregistration_exception").inc()
+                _inc_counter(_prom_errors, error_type="deregistration_exception")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "deregistration_exception", service=service_name, error=str(e)
@@ -952,7 +1064,8 @@ class ServiceDiscoveryManager:
         Remove estado por instância (previne leak lógico em churn).
         E remove séries Prometheus se enable_instance_metrics=True.
 
-        Prometheus client libs recomendam remove() com a mesma assinatura de labels(). :contentReference[oaicite:4]{index=4}
+        Prometheus client libs recomendam remove() com
+        a mesma assinatura de labels().
         """
         for dead_id in dead_ids:
             self._conn_counts_by_instance.pop(dead_id, None)
@@ -968,7 +1081,8 @@ class ServiceDiscoveryManager:
 
     async def get_service_instances(self, service_name: str) -> list[ServiceInstance]:
         """
-        Retorna instâncias (cache local) e faz GC de instâncias mortas ao atualizar do backend.
+        Retorna instâncias (cache local) e faz GC
+        de instâncias mortas ao atualizar do backend.
         """
         now = time.monotonic()
         age = now - self._discovery_cache_time.get(service_name, 0.0)
@@ -1126,7 +1240,8 @@ class ServiceDiscoveryManager:
         self, service_name: str, strategy: LoadBalancingStrategy | None = None
     ):
         """
-        Context Manager obrigatório para Least Connections correto (incrementa/decrementa com segurança).
+        Context manager obrigatório para least-connections
+        correto (incrementa/decrementa com segurança).
         """
         inst = await self.discover_service(service_name, strategy)
         if inst is not None:
@@ -1313,8 +1428,11 @@ class ServiceDiscoveryManager:
                             if not due:
                                 continue
 
+                            service_def = sd
+
                             async def _hc(
-                                i: ServiceInstance = inst, d: ServiceDefinition = sd
+                                i: ServiceInstance = inst,
+                                d: ServiceDefinition = service_def,
                             ) -> None:
                                 await self._perform_health_check(i, d)
 

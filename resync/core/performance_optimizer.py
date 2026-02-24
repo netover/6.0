@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Performance Optimization Module for Phase 2 Enhancements (v6.1.2).
 """
@@ -150,24 +149,28 @@ class CachePerformanceMonitor:
 
         if metrics.hit_rate < 0.5:
             recommendations.append(
-                f"Low hit rate ({metrics.hit_rate:.1%}). Consider increasing TTL or cache size."
+                f"Low hit rate ({metrics.hit_rate:.1%}). "
+                "Consider increasing TTL or cache size."
             )
 
         if metrics.total_sets > 0:
             eviction_rate = metrics.total_evictions / metrics.total_sets
             if eviction_rate > 0.3:
                 recommendations.append(
-                    f"High eviction rate ({eviction_rate:.1%}). Consider increasing cache size."
+                    f"High eviction rate ({eviction_rate:.1%}). "
+                    "Consider increasing cache size."
                 )
 
         if metrics.memory_usage_mb > 80:
             recommendations.append(
-                f"High memory usage ({metrics.memory_usage_mb:.1f}MB). Consider reducing cache size or TTL."
+                f"High memory usage ({metrics.memory_usage_mb:.1f}MB). "
+                "Consider reducing cache size or TTL."
             )
 
         if metrics.average_access_time_ms > 10:
             recommendations.append(
-                f"Slow cache access ({metrics.average_access_time_ms:.2f}ms). Consider reducing shard contention."
+                f"Slow cache access ({metrics.average_access_time_ms:.2f}ms). "
+                "Consider reducing shard contention."
             )
 
         if not recommendations:
@@ -263,7 +266,8 @@ class ConnectionPoolOptimizer:
 
         if current_metrics.average_wait_time_ms > 100:
             recommendations.append(
-                f"High connection wait time ({current_metrics.average_wait_time_ms:.1f}ms). "
+                "High connection wait time "
+                f"({current_metrics.average_wait_time_ms:.1f}ms). "
                 "Consider increasing pool size or optimizing queries."
             )
 
@@ -436,7 +440,9 @@ class PerformanceOptimizationService:
                 "metrics": {
                     "hit_rate": f"{metrics.hit_rate:.1%}",
                     "miss_rate": f"{metrics.miss_rate:.1%}",
-                    "efficiency_score": f"{metrics.calculate_efficiency_score():.1f}/100",
+                    "efficiency_score": (
+                        f"{metrics.calculate_efficiency_score():.1f}/100"
+                    ),
                     "current_size": metrics.current_size,
                     "memory_usage_mb": f"{metrics.memory_usage_mb:.2f}",
                 },

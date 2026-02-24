@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# ruff: noqa: E501
+# pylint
 """
 TWS Monitor Health Checker
 
@@ -10,8 +10,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-import structlog
 import httpx
+import structlog
 
 from resync.core.health.health_models import (
     ComponentHealth,

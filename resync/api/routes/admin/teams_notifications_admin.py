@@ -1,12 +1,12 @@
-# mypy: no-rerun
-# pylint: disable=not-callable
+# mypy
+# pylint
 """Admin API para gerenciar notificações do Teams."""
 
 from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
@@ -388,7 +388,7 @@ async def update_config(config_data: ConfigUpdate, db: Session = Depends(get_db)
         config = TeamsNotificationConfig()
         db.add(config)
 
-    for field, value in config_data.dict(exclude_unset=True).items():
+    for field, value in config_data.model_dump(exclude_unset=True).items():
         setattr(config, field, value)
 
     config.updated_at = datetime.now(timezone.utc)
@@ -493,7 +493,10 @@ async def send_test_notification(test_data: dict = None, db: Session = Depends(g
     if not config or not config.default_channel_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No default channel configured. Please configure a default channel first.",
+            detail=(
+                "No default channel configured. "
+                "Please configure a default channel first."
+            ),
         )
 
     # Dados do teste

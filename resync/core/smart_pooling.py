@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Smart Connection Pooling System.
 
@@ -11,7 +10,6 @@ This module provides intelligent connection pooling with:
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import time
 from collections import deque
 from collections.abc import AsyncGenerator
@@ -21,6 +19,7 @@ from typing import Any
 
 from resync.core.resilience_singletons import adaptive_tws_api_breaker
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import create_tracked_task
 
 logger = get_logger(__name__)
 
@@ -283,7 +282,8 @@ class SmartConnectionPool:
         self._connection_counter += 1
 
         try:
-            # In real implementation, this would create actual database/redis/http connections
+            # In real implementation this would create
+            # actual database/redis/http connections
             # For now, simulate connection creation
             connection = f"mock_connection_{connection_id}"
 

@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Inicializador do Sistema de Monitoramento Proativo
 
@@ -17,12 +16,13 @@ Versão: 5.2
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import contextlib
 from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 

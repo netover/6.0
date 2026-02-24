@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Health History Manager
 
@@ -8,7 +7,6 @@ including storage, cleanup, and retrieval of health check history data.
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -20,6 +18,7 @@ from resync.core.health.health_models import (
     HealthStatus,
     HealthStatusHistory,
 )
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
@@ -107,7 +106,8 @@ class HealthHistoryManager:
         changes = {}
 
         # For now, record all current statuses as changes
-        # In a more sophisticated implementation, this would compare with previous states
+        # In a more sophisticated implementation, this would compare
+        # with previous states.
         for name, component in components.items():
             changes[name] = component.status
 
@@ -172,7 +172,8 @@ class HealthHistoryManager:
             # Estimate memory usage of health history
             history_size = len(self.health_history)
             if history_size > 0:
-                # Estimate: each entry ~2KB (accounting for metadata and component changes)
+                # Estimate: each entry ~2KB (accounting for metadata
+                # and component changes).
                 estimated_size_bytes = history_size * 2048
                 self._memory_usage_mb = estimated_size_bytes / (1024 * 1024)
 

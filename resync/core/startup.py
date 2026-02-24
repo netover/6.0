@@ -628,7 +628,10 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         reason_code="startup_budget_exhausted"
                         if now >= deadline
                         else "task_failed",
-                        detail=f"Budget exhausted or task failed during {key.upper()} check",
+                        detail=(
+                            "Budget exhausted or task failed during "
+                            f"{key.upper()} check"
+                        ),
                         duration_ms=elapsed_ms,
                     )
                 )
@@ -659,7 +662,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
 
 
 def enforce_startup_policy(result: dict[str, Any]) -> None:
-    """Fail the current process if strict startup is enabled and overall health failed."""
+    """Fail process when strict startup is enabled and health check failed."""
 
     if result.get("strict") and not result.get("overall_health"):
         # NOTE: Raising SystemExit ensures a non-zero exit code.
@@ -801,7 +804,8 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
 
                 yield  # Application runs here, bg_tasks are active
 
-        # When lifespan exits, bg_tasks (TaskGroup) will automatically cancel and wait for tasks.
+        # When lifespan exits, TaskGroup auto-cancels
+        # and waits for background tasks.
 
     except TimeoutError:
         logger.critical(
@@ -998,7 +1002,8 @@ async def _init_security_dashboard(app: "FastAPI", bg_tasks: asyncio.TaskGroup) 
             from resync.core.security_dashboard import get_security_dashboard
 
             _dashboard = await get_security_dashboard(tg=bg_tasks)
-            # dashboard is automatically started via get_security_dashboard and its lazy init
+            # dashboard starts automatically via
+            # get_security_dashboard lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1028,7 +1033,8 @@ async def _init_service_discovery(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -
             from resync.core.service_discovery import get_service_discovery_manager
 
             _manager = get_service_discovery_manager(tg=bg_tasks)
-            # manager is automatically started via get_service_discovery_manager and its lazy init
+            # manager starts automatically via
+            # get_service_discovery_manager lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise

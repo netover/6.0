@@ -12,12 +12,14 @@ PEP\xa0563 and PEP\xa0649 for details.
 """
 
 import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+
+from resync.api.dependencies_v2 import get_current_user
 from resync.core.exceptions import FileProcessingError
 from resync.core.fastapi_di import get_file_ingestor
 from resync.core.interfaces import IFileIngestor
 from resync.models.validation import DocumentUpload
-from resync.api.dependencies_v2 import get_current_user
 from resync.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -44,7 +46,10 @@ async def upload_document(
         if len(contents) > settings.max_file_size:
             raise HTTPException(
                 status_code=400,
-                detail=f"File too large. Maximum size is {settings.max_file_size / (1024 * 1024):.1f}MB.",
+                detail=(
+                    "File too large. Maximum size is "
+                    f"{settings.max_file_size / (1024 * 1024):.1f}MB."
+                ),
             )
         await file.seek(0)
         try:

@@ -16,9 +16,8 @@ Versão: 5.2
 """
 
 import asyncio
-import inspect
-from resync.core.task_tracker import track_task
 import contextlib
+import inspect
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -27,6 +26,8 @@ from enum import Enum
 from typing import Any
 
 import structlog
+
+from resync.core.task_tracker import track_task
 
 logger = structlog.get_logger(__name__)
 
@@ -557,7 +558,10 @@ class TWSBackgroundPoller:
                             EventType.JOB_STARTED,
                             AlertSeverity.INFO,
                             job.job_name,
-                            f"Job {job.job_name} iniciado na workstation {job.workstation}",
+                            (
+                                f"Job {job.job_name} iniciado na "
+                                f"workstation {job.workstation}"
+                            ),
                             {"job": job.to_dict()},
                             current_state=job.status,
                         )
@@ -586,7 +590,10 @@ class TWSBackgroundPoller:
                                 EventType.JOB_ABEND,
                                 AlertSeverity.ERROR,
                                 job.job_name,
-                                f"Job {job.job_name} falhou com erro: {job.error_message or 'N/A'}",
+                                (
+                                f"Job {job.job_name} falhou com erro: "
+                                f"{job.error_message or 'N/A'}"
+                            ),
                                 {"job": job.to_dict(), "return_code": job.return_code},
                                 previous_state=prev_job.status,
                                 current_state=job.status,
@@ -607,7 +614,10 @@ class TWSBackgroundPoller:
                             EventType.JOB_STUCK,
                             AlertSeverity.WARNING,
                             job.job_name,
-                            f"Job {job.job_name} em execução há {job.duration_seconds / 60:.1f} minutos",
+                            (
+                                f"Job {job.job_name} em execução há "
+                                f"{job.duration_seconds / 60:.1f} minutos"
+                            ),
                             {"job": job.to_dict()},
                             current_state=job.status,
                         )

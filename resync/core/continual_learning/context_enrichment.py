@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Context Enrichment - Enriquece queries RAG com contexto aprendido.
 

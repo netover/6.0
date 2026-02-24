@@ -1,5 +1,4 @@
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import contextlib
 import logging
 from dataclasses import dataclass
@@ -10,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from resync.core.metrics import runtime_metrics
+from resync.core.task_tracker import create_tracked_task
 
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
@@ -71,10 +71,16 @@ class WebSocketPoolManager:
     def __init__(self):
         self.connections: dict[str, WebSocketConnectionInfo] = {}
         self.stats = WebSocketPoolStats()
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
         self._cleanup_task: asyncio.Task | None = None
         self._initialized = False
         self._shutdown = False
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Get or create the instance lock (lazy initialization)."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def initialize(self) -> None:
         """Initialize the WebSocket pool manager."""
@@ -85,7 +91,7 @@ class WebSocketPoolManager:
             self._cleanup_loop(), name="cleanup_loop"
         )
 
-        async with self._lock:
+        async with self._get_lock():
             if self._initialized:
                 return
             self._initialized = True
@@ -147,7 +153,8 @@ class WebSocketPoolManager:
                         "Removing unhealthy WebSocket connection: %s", client_id
                     )
 
-                # Additional check: enforce max connection duration to prevent long-lived connections
+                # Additional check: enforce max connection duration
+                # to prevent long-lived connections
                 else:
                     try:
                         connection_duration = (
@@ -159,7 +166,9 @@ class WebSocketPoolManager:
                         if connection_duration > max_duration:
                             connections_to_remove.append(client_id)
                             logger.info(
-                                f"Removing long-lived WebSocket connection: {client_id} (duration: {connection_duration:.1f}s, max: {max_duration}s)"
+                                "Removing long-lived WebSocket connection: "
+                                f"{client_id} (duration: {connection_duration:.1f}s, "
+                                f"max: {max_duration}s)"
                             )
                     except Exception as e:
                         logger.error(
@@ -210,17 +219,30 @@ class WebSocketPoolManager:
         if self._shutdown:
             raise RuntimeError("WebSocket pool manager is shutdown")
 
-        # Check pool size limit
-        if len(self.connections) >= _get_settings().WS_POOL_MAX_SIZE:
+        is_at_capacity = False
+        client_exists = False
+
+        async with self._get_lock():
+            # Check pool size limit under lock to prevent race conditions
+            if len(self.connections) >= _get_settings().WS_POOL_MAX_SIZE:
+                is_at_capacity = True
+                self.stats.connection_errors += 1
+            elif client_id in self.connections:
+                client_exists = True
+
+        if is_at_capacity:
             logger.warning(
                 "WebSocket pool at capacity. Rejecting connection for %s", client_id
             )
             await websocket.close(code=1013, reason="Server at capacity")
-            self.stats.connection_errors += 1
             return
 
-        await websocket.accept()
+        if client_exists:
+            logger.warning("Client %s already connected. Replacing connection.", client_id)
+            await self._remove_connection_safe(client_id)
 
+        # Accept network connection outside of lock
+        await websocket.accept()
         current_time = datetime.now(timezone.utc)
         conn_info = WebSocketConnectionInfo(
             client_id=client_id,
@@ -229,7 +251,7 @@ class WebSocketPoolManager:
             last_activity=current_time,
         )
 
-        async with self._lock:
+        async with self._get_lock():
             self.connections[client_id] = conn_info
             self.stats.total_connections += 1
             self.stats.active_connections = len(self.connections)
@@ -263,7 +285,8 @@ class WebSocketPoolManager:
     async def _remove_connection_safe(self, client_id: str) -> None:
         """
         Safe method to remove a connection - does NOT acquire lock.
-        Used internally to avoid deadlocks when called from methods that already hold the lock.
+        Used internally to avoid deadlocks when called
+        from methods that already hold the lock.
         """
         # Get connection info under lock, then remove and close outside
         async with self._lock:
@@ -537,7 +560,10 @@ class WebSocketPoolManager:
         # Check WebSocket state before sending (ASGI compliance)
         if conn_info.websocket.client_state != WebSocketState.CONNECTED:
             logger.warning(
-                "Client %s WebSocket is not connected during JSON broadcast (state: %s)",
+                (
+                    "Client %s WebSocket is not connected during "
+                    "JSON broadcast (state: %s)"
+                ),
                 client_id,
                 conn_info.websocket.client_state,
             )
@@ -572,7 +598,8 @@ class WebSocketPoolManager:
         except RuntimeError as e:
             if "websocket state" in str(e).lower():
                 logger.warning(
-                    f"WebSocket in wrong state during JSON broadcast to {client_id}: {e}"
+                    "WebSocket in wrong state during JSON "
+                    f"broadcast to {client_id}: {e}"
                 )
                 conn_info.mark_error()
                 return False
@@ -608,7 +635,8 @@ class WebSocketPoolManager:
             )
             if unhealthy_ratio > 0.5:  # More than 50% unhealthy connections
                 logger.warning(
-                    f"WebSocket pool unhealthy: {unhealthy_ratio:.1%} connections are unhealthy"
+                    "WebSocket pool unhealthy: "
+                    f"{unhealthy_ratio:.1%} connections are unhealthy"
                 )
                 return False
 
@@ -639,15 +667,21 @@ class WebSocketPoolManager:
 
 # Global WebSocket pool manager instance
 _websocket_pool_manager: WebSocketPoolManager | None = None
+_global_lock: asyncio.Lock | None = None
 
 
 async def get_websocket_pool_manager() -> WebSocketPoolManager:
     """Get the global WebSocket pool manager instance."""
-    global _websocket_pool_manager
+    global _websocket_pool_manager, _global_lock
+
+    if _global_lock is None:
+        _global_lock = asyncio.Lock()
 
     if _websocket_pool_manager is None:
-        _websocket_pool_manager = WebSocketPoolManager()
-        await _websocket_pool_manager.initialize()
+        async with _global_lock:
+            if _websocket_pool_manager is None:
+                _websocket_pool_manager = WebSocketPoolManager()
+                await _websocket_pool_manager.initialize()
 
     return _websocket_pool_manager
 

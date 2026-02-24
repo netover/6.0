@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Union
 import bcrypt

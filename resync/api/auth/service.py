@@ -1,12 +1,11 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Authentication service with database support.
 """
 
 import logging
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .models import (
     Token,

@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, TypedDict
 
 import numpy as np
@@ -38,7 +38,7 @@ try:
 except ImportError:
     POSTGRES_SAVER_AVAILABLE = False
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 logger = structlog.get_logger(__name__)
 
@@ -215,7 +215,10 @@ async def generate_report_node(state: CapacityForecastState) -> CapacityForecast
     if state["saturation_points"]:
         report_content += "CRITICAL WARNINGS:\n"
         for point in state["saturation_points"]:
-            report_content += f"- {point['metric']} will reach {point['value']:.1f}% on {point['date']}\n"
+            report_content += (
+                f"- {point['metric']} will reach "
+                f"{point['value']:.1f}% on {point['date']}\n"
+            )
     else:
         report_content += "No saturation predicted in the next period.\n"
 

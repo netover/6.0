@@ -45,29 +45,64 @@ from resync.core.langgraph.agent_graph import (
     AgentState,
     FallbackGraph,
     Intent,
+    action_handler_node,
+    clarification_node,
     create_router_graph,
     create_tws_agent_graph,
-    stream_agent_response,
+    general_handler_node,
+    hallucination_check_node,
+    query_handler_node,
     # Individual nodes
     router_node,
-    clarification_node,
     status_handler_node,
-    troubleshoot_handler_node,
-    query_handler_node,
-    action_handler_node,
-    general_handler_node,
+    stream_agent_response,
     synthesizer_node,
-    hallucination_check_node,
+    troubleshoot_handler_node,
 )
 
 # Checkpointer (native PostgreSQL)
 from resync.core.langgraph.checkpointer import (
+    NATIVE_CHECKPOINTER_AVAILABLE,
     PostgresCheckpointer,
     checkpointer_context,
     close_checkpointer,
     get_checkpointer,
     get_memory_store,
-    NATIVE_CHECKPOINTER_AVAILABLE,
+)
+
+# Legacy: Diagnostic Graph (now use subgraphs)
+from resync.core.langgraph.diagnostic_graph import (
+    DiagnosticConfig,
+    DiagnosticPhase,
+    DiagnosticState,
+    create_diagnostic_graph,
+    diagnose_problem,
+)
+
+# Hallucination Grader
+from resync.core.langgraph.hallucination_grader import (
+    GradeAnswer,
+    GradeDecision,
+    GradeHallucinations,
+    HallucinationGrader,
+    HallucinationGradeResult,
+    get_hallucination_grader,
+    get_hallucination_route,
+    grade_hallucination,
+    is_response_grounded,
+)
+
+# v6.0.0: Incident Response Pipeline
+from resync.core.langgraph.incident_response import (
+    IncidentAnalysis,
+    IncidentState,
+    OutputChannel,
+    Severity,
+    create_incident_response_graph,
+    get_incident_graph,
+    handle_incident,
+    integrate_with_anomaly_detector,
+    integrate_with_chat,
 )
 
 # Pydantic Models for Structured Output
@@ -82,6 +117,15 @@ from resync.core.langgraph.models import (
     RouterOutput,
     SymptomAnalysis,
     SynthesisInput,
+)
+
+# Legacy: Nodes
+from resync.core.langgraph.nodes import (
+    HumanApprovalNode,
+    LLMNode,
+    RouterNode,
+    ToolNode,
+    ValidationNode,
 )
 
 # Subgraphs
@@ -108,50 +152,6 @@ from resync.core.langgraph.templates import (
     get_template_string,
     reload_templates,
     render_template,
-)
-
-# Hallucination Grader
-from resync.core.langgraph.hallucination_grader import (
-    GradeAnswer,
-    GradeDecision,
-    GradeHallucinations,
-    HallucinationGradeResult,
-    HallucinationGrader,
-    get_hallucination_grader,
-    get_hallucination_route,
-    grade_hallucination,
-    is_response_grounded,
-)
-
-# Legacy: Diagnostic Graph (now use subgraphs)
-from resync.core.langgraph.diagnostic_graph import (
-    DiagnosticConfig,
-    DiagnosticPhase,
-    DiagnosticState,
-    create_diagnostic_graph,
-    diagnose_problem,
-)
-
-# Legacy: Nodes
-from resync.core.langgraph.nodes import (
-    HumanApprovalNode,
-    LLMNode,
-    RouterNode,
-    ToolNode,
-    ValidationNode,
-)
-
-# v6.0.0: Incident Response Pipeline
-from resync.core.langgraph.incident_response import (
-    IncidentState,
-    IncidentAnalysis,
-    Severity,
-    OutputChannel,
-    create_incident_response_graph,
-    get_incident_graph,
-    handle_incident,
-    integrate_with_anomaly_detector,
-    integrate_with_chat,
 )
 
 

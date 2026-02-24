@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Hallucination Grader - Validates LLM responses are grounded in retrieved documents.
 

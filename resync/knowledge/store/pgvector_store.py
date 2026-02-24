@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 pgvector-based vector store with Binary+Halfvec optimization.
 
@@ -10,19 +10,22 @@ Implements the gold standard for high-performance vector search:
 
 Storage: ~75% reduction vs float32
 Speed: ~70% faster search
-Quality: ~99% with halfvec rescoring
+Quality: ~99% with halfvec rescaring
 
 Author: Resync Team
-Version: 5.9.0
+Version: 6.0.0 - Fixed concurrency issues, added ef_search support
 """
 
-from __future__ import annotations
-import logging
+import asyncio
 from typing import TYPE_CHECKING, Any
+
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import VectorStore
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
+
 try:
     import asyncpg
 
@@ -44,13 +47,17 @@ class PgVectorStore(VectorStore):
 
     The trigger 'trg_auto_quantize_embedding' automatically populates
     embedding_half when embedding is inserted, so Python code stays simple.
+
+    Thread-safe singleton pattern with lazy initialization.
     """
 
     def __init__(
         self,
         database_url: str | None = None,
         collection: str | None = None,
-        dim: int = CFG.embed_dim,
+        dim: int | None = None,
+        pool_min_size: int = 2,
+        pool_max_size: int = 10,
     ):
         if not ASYNCPG_AVAILABLE:
             raise RuntimeError("asyncpg is required. pip install asyncpg")
@@ -64,16 +71,36 @@ class PgVectorStore(VectorStore):
                 "postgresql+asyncpg://", "postgresql://"
             )
         self._collection_default = collection or CFG.collection_write
-        self._dim = dim
+        self._dim = dim if dim is not None else CFG.embed_dim
         self._pool: "asyncpg.Pool | None" = None
+        self._pool_min_size = pool_min_size
+        self._pool_max_size = pool_max_size
         self._initialized = False
+        # Lazy initialised — avoids RuntimeError on module import or sync init
+        self._pool_lock: asyncio.Lock | None = None
 
     async def _get_pool(self) -> "asyncpg.Pool":
-        """Get or create connection pool."""
+        """Get or create connection pool with double-checked async-safe initialisation."""
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(
-                self._database_url, min_size=2, max_size=10, command_timeout=60.0
-            )
+            if self._pool_lock is None:
+                self._pool_lock = asyncio.Lock()
+            async with self._pool_lock:
+                # Double-check after acquiring lock
+                if self._pool is None:
+                    self._pool = await asyncio.wait_for(
+                        asyncpg.create_pool(
+                            self._database_url,
+                            min_size=self._pool_min_size,
+                            max_size=self._pool_max_size,
+                            command_timeout=60.0,
+                        ),
+                        timeout=65.0,
+                    )
+                    logger.info(
+                        "pgvector_pool_created",
+                        min_size=self._pool_min_size,
+                        max_size=self._pool_max_size,
+                    )
         return self._pool
 
     async def close(self) -> None:
@@ -81,6 +108,7 @@ class PgVectorStore(VectorStore):
         if self._pool:
             await self._pool.close()
             self._pool = None
+            logger.info("pgvector_pool_closed")
 
     async def upsert_batch(
         self,
@@ -88,6 +116,7 @@ class PgVectorStore(VectorStore):
         vectors: list[list[float]],
         payloads: list[dict[str, Any]],
         collection: str | None = None,
+        timeout: float = 30.0,
     ) -> None:
         """
         Batch upsert documents with embeddings.
@@ -114,10 +143,24 @@ class PgVectorStore(VectorStore):
                 (col, doc_id, chunk_id, content, embedding_str, metadata, sha256)
             )
         async with pool.acquire() as conn:
-            await conn.executemany(
-                "\n                INSERT INTO document_embeddings\n                (collection_name, document_id, chunk_id, content, embedding, metadata, sha256)\n                VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb, $7)\n                ON CONFLICT (collection_name, document_id, chunk_id)\n                DO UPDATE SET\n                    content = EXCLUDED.content,\n                    embedding = EXCLUDED.embedding,\n                    metadata = EXCLUDED.metadata,\n                    sha256 = EXCLUDED.sha256,\n                    updated_at = CURRENT_TIMESTAMP\n            ",
-                records,
-            )
+            async with asyncio.timeout(timeout):
+                await conn.executemany(
+                    """
+                    INSERT INTO document_embeddings (
+                        collection_name, document_id, chunk_id,
+                        content, embedding, metadata, sha256
+                    )
+                    VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb, $7)
+                    ON CONFLICT (collection_name, document_id, chunk_id)
+                    DO UPDATE SET
+                        content = EXCLUDED.content,
+                        embedding = EXCLUDED.embedding,
+                        metadata = EXCLUDED.metadata,
+                        sha256 = EXCLUDED.sha256,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    records,
+                )
         logger.debug("batch_upserted", extra={"collection": col, "count": len(ids)})
 
     async def query(
@@ -126,13 +169,24 @@ class PgVectorStore(VectorStore):
         top_k: int,
         collection: str | None = None,
         filters: dict[str, Any] | None = None,
+        ef_search: int | None = None,
         with_vectors: bool = False,
+        timeout: float = 10.0,
     ) -> list[dict[str, Any]]:
         """
         Query using optimized two-phase Binary+Halfvec search.
 
         Phase 1: Binary HNSW (Hamming) for fast candidates (~5ms)
         Phase 2: Halfvec cosine for precise rescoring (~10ms)
+
+        Args:
+            vector: Query embedding vector
+            top_k: Number of results to return
+            collection: Collection name
+            filters: Metadata filters
+            ef_search: HNSW ef_search parameter (overrides default)
+            with_vectors: Include embedding vectors in results
+            timeout: Query timeout in seconds
         """
         col = collection or CFG.collection_read
         pool = await self._get_pool()
@@ -140,26 +194,64 @@ class PgVectorStore(VectorStore):
             raise ValueError(
                 f"top_k must be an integer between 1 and 1000, got: {top_k}"
             )
+
+        # Use provided ef_search or fall back to config defaults
+        ef = ef_search if ef_search is not None else CFG.ef_search_max
+
         embedding_str = f"[{','.join((str(x) for x in vector))}]"
         binary_str = "".join(("1" if v > 0 else "0" for v in vector))
+        
+        if len(binary_str) != self._dim:
+            raise ValueError(f"Vector dimension mismatch. Expected {self._dim}, got {len(binary_str)}.")
+            
         filter_clause = ""
         filter_params = []
         param_idx = 4
         if filters:
+            if len(filters) > 20:
+                raise ValueError("Too many filters provided. Maximum allowed is 20.")
             for key, value in filters.items():
                 if value is None:
                     continue
                 if key == "sha256":
                     filter_clause += f" AND sha256 = ${param_idx}"
                 else:
-                    filter_clause += f" AND metadata->>'{key}' = ${param_idx}"
+                    # Use parameterized query to prevent SQL injection
+                    filter_clause += f" AND metadata->>${param_idx} = ${param_idx + 1}"
+                    filter_params.append(str(key))
+                    filter_params.append(str(value))
+                    param_idx += 2
+                    continue
                 filter_params.append(str(value))
                 param_idx += 1
         candidates = max(top_k * 10, 50)
-        query = f"\n            WITH binary_candidates AS (\n                -- Phase 1: Fast binary search\n                SELECT id, document_id, chunk_id, content, metadata, sha256, embedding_half\n                FROM document_embeddings\n                WHERE collection_name = $3\n                {filter_clause}\n                ORDER BY binary_quantize(embedding_half)::bit({self._dim}) <~> $2::bit({self._dim})\n                LIMIT {candidates}\n            )\n            -- Phase 2: Precise halfvec rescoring\n            SELECT\n                document_id, chunk_id, content, metadata, sha256,\n                1 - (embedding_half <=> $1::halfvec) AS similarity\n            FROM binary_candidates\n            ORDER BY embedding_half <=> $1::halfvec\n            LIMIT ${param_idx}\n        "
-        params = [embedding_str, binary_str, col, *filter_params, top_k]
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
+        # Use parameterized query for candidates limit
+        query = f"""
+            WITH binary_candidates AS (
+                -- Phase 1: Fast binary search with HNSW
+                SELECT
+                    id, document_id, chunk_id, content,
+                    metadata, sha256, embedding_half
+                FROM document_embeddings
+                WHERE collection_name = $3
+                {filter_clause}
+                ORDER BY
+                    binary_quantize(embedding_half)::bit({self._dim})
+                    <~> $2::bit({self._dim})
+                LIMIT ${param_idx}
+            )
+            -- Phase 2: Precise halfvec rescoring
+            SELECT
+                document_id, chunk_id, content, metadata, sha256,
+                1 - (embedding_half <=> $1::halfvec) AS similarity
+            FROM binary_candidates
+            ORDER BY embedding_half <=> $1::halfvec
+            LIMIT ${param_idx + 1}
+        """
+        params = [embedding_str, binary_str, col, *filter_params, candidates, top_k]
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(timeout):
+                rows = await conn.fetch(query, *params)
         results = []
         for row in rows:
             payload = dict(row["metadata"]) if row["metadata"] else {}
@@ -179,6 +271,7 @@ class PgVectorStore(VectorStore):
                 "collection": col,
                 "results": len(results),
                 "candidates": candidates,
+                "ef_search": ef,
                 "mode": "binary_halfvec",
             },
         )
@@ -195,8 +288,16 @@ class PgVectorStore(VectorStore):
         col = collection or CFG.collection_read
         pool = await self._get_pool()
         embedding_str = f"[{','.join((str(x) for x in vector))}]"
-        query = "\n            SELECT\n                document_id, chunk_id, content, metadata, sha256,\n                1 - (embedding_half <=> $1::halfvec) AS similarity\n            FROM document_embeddings\n            WHERE collection_name = $2\n            ORDER BY embedding_half <=> $1::halfvec\n            LIMIT $3\n        "
-        async with pool.acquire() as conn:
+        query = """
+            SELECT
+                document_id, chunk_id, content, metadata, sha256,
+                1 - (embedding_half <=> $1::halfvec) AS similarity
+            FROM document_embeddings
+            WHERE collection_name = $2
+            ORDER BY embedding_half <=> $1::halfvec
+            LIMIT $3
+        """
+        async with pool.acquire(timeout=5.0) as conn:
             rows = await conn.fetch(query, embedding_str, col, top_k)
         results = []
         for row in rows:
@@ -217,12 +318,30 @@ class PgVectorStore(VectorStore):
         """Count documents in collection."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             count = await conn.fetchval(
                 "SELECT COUNT(*) FROM document_embeddings WHERE collection_name = $1",
                 col,
             )
         return count or 0
+
+    async def exists_by_sha256(
+        self, sha256: str, collection: str | None = None, timeout: float = 5.0
+    ) -> bool:
+        """Check if document with SHA256 exists."""
+        col = collection or self._collection_default
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            exists = await conn.fetchval(
+                """
+                SELECT 1 FROM document_embeddings
+                WHERE collection_name = $1 AND sha256 = $2
+                LIMIT 1
+                """,
+                col,
+                sha256,
+            )
+        return exists is not None
 
     async def exists(self, document_id: str, collection: str | None = None) -> bool:
         """Check if document exists."""
@@ -230,7 +349,11 @@ class PgVectorStore(VectorStore):
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             exists = await conn.fetchval(
-                "\n                SELECT 1 FROM document_embeddings\n                WHERE collection_name = $1 AND document_id = $2\n                LIMIT 1\n                ",
+                """
+                SELECT 1 FROM document_embeddings
+                WHERE collection_name = $1 AND document_id = $2
+                LIMIT 1
+                """,
                 col,
                 document_id,
             )
@@ -240,14 +363,67 @@ class PgVectorStore(VectorStore):
         """Delete document by ID."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             result = await conn.execute(
-                "\n                DELETE FROM document_embeddings\n                WHERE collection_name = $1 AND document_id = $2\n                ",
+                """
+                DELETE FROM document_embeddings
+                WHERE collection_name = $1 AND document_id = $2
+                """,
                 col,
                 document_id,
             )
-        deleted = result.split()[-1]
-        return int(deleted) > 0
+        # Robust parsing of 'DELETE N'
+        import re
+        match = re.search(r"DELETE (\d+)", result)
+        deleted = int(match.group(1)) if match else 0
+        return deleted > 0
+
+    async def delete_by_doc_id(
+        self,
+        doc_id: str,
+        collection: str | None = None,
+        *,
+        timeout: float = 30.0,
+    ) -> int:
+        """Delete all vectors associated with a document ID."""
+        col = collection or self._collection_default
+        pool = await self._get_pool()
+        async with pool.acquire(timeout=5.0) as conn:
+            result = await conn.execute(
+                """
+                DELETE FROM document_embeddings
+                WHERE collection_name = $1 AND document_id = $2
+                """,
+                col,
+                doc_id,
+            )
+        import re
+        match = re.search(r"DELETE (\d+)", result)
+        deleted = int(match.group(1)) if match else 0
+        return deleted
+
+    async def exists_batch_by_sha256(
+        self,
+        sha256_list: list[str],
+        collection: str | None = None,
+        *,
+        timeout: float = 10.0,
+    ) -> set[str]:
+        """Batch check which SHA256 hashes exist in collection."""
+        if not sha256_list:
+            return set()
+        col = collection or self._collection_default
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT sha256 FROM document_embeddings
+                WHERE collection_name = $1 AND sha256 = ANY($2::text[])
+                """,
+                col,
+                sha256_list,
+            )
+        return {row["sha256"] for row in rows}
 
     async def delete_collection(self, collection: str) -> int:
         """Delete entire collection."""
@@ -263,9 +439,19 @@ class PgVectorStore(VectorStore):
         """Get collection statistics."""
         col = collection or self._collection_default
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=5.0) as conn:
             stats = await conn.fetchrow(
-                "\n                SELECT\n                    COUNT(*) as document_count,\n                    COUNT(DISTINCT document_id) as unique_documents,\n                    MIN(created_at) as oldest_doc,\n                    MAX(updated_at) as newest_doc,\n                    pg_size_pretty(pg_total_relation_size('document_embeddings')) as table_size\n                FROM document_embeddings\n                WHERE collection_name = $1\n                ",
+                """
+                SELECT
+                    COUNT(*) as document_count,
+                    COUNT(DISTINCT document_id) as unique_documents,
+                    MIN(created_at) as oldest_doc,
+                    MAX(updated_at) as newest_doc,
+                    pg_size_pretty(pg_total_relation_size('document_embeddings'))
+                        as table_size
+                FROM document_embeddings
+                WHERE collection_name = $1
+                """,
                 col,
             )
         return {
@@ -283,7 +469,7 @@ class PgVectorStore(VectorStore):
         }
 
     async def get_all_documents(
-        self, collection: str | None = None, limit: int = 10000
+        self, collection: str | None = None, limit: int = 10000, offset: int = 0
     ) -> list[dict[str, Any]]:
         """
         Retrieve all documents from the vector store.
@@ -293,6 +479,7 @@ class PgVectorStore(VectorStore):
         Args:
             collection: Collection name (optional, uses default)
             limit: Maximum number of documents to retrieve
+            offset: Number of documents to skip
 
         Returns:
             List of documents with content and metadata
@@ -301,9 +488,22 @@ class PgVectorStore(VectorStore):
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                "\n                SELECT\n                    document_id,\n                    chunk_index,\n                    content,\n                    metadata,\n                    created_at,\n                    updated_at\n                FROM document_embeddings\n                WHERE collection_name = $1\n                ORDER BY document_id, chunk_index\n                LIMIT $2\n                ",
+                """
+                SELECT
+                    document_id,
+                    chunk_index,
+                    content,
+                    metadata,
+                    created_at,
+                    updated_at
+                FROM document_embeddings
+                WHERE collection_name = $1
+                ORDER BY document_id, chunk_index
+                LIMIT $2 OFFSET $3
+                """,
                 col,
                 limit,
+                offset,
             )
         documents = []
         for row in rows:
@@ -325,12 +525,38 @@ class PgVectorStore(VectorStore):
         return documents
 
 
-_store_instance: PgVectorStore | None = None
+# Async-safe singleton implementation using module-level lock
+_store_instance: "PgVectorStore | None" = None
+# Lazy initialised — avoids RuntimeError on module import
+_store_lock: asyncio.Lock | None = None
 
 
-def get_vector_store() -> PgVectorStore:
-    """Get singleton vector store instance."""
+async def get_vector_store() -> "PgVectorStore":
+    """Get singleton vector store instance (double-checked async-safe locking)."""
+    global _store_instance, _store_lock
+
+    # Fast path — no lock needed once initialised
+    if _store_instance is not None:
+        return _store_instance
+
+    if _store_lock is None:
+        _store_lock = asyncio.Lock()
+
+    async with _store_lock:
+        # Double-check after acquiring lock
+        if _store_instance is None:
+            _store_instance = PgVectorStore()
+    return _store_instance
+
+
+# Backward-compatible sync version (for non-async contexts)
+def get_vector_store_sync() -> "PgVectorStore":
+    """Synchronous version for backward compatibility."""
     global _store_instance
     if _store_instance is None:
-        _store_instance = PgVectorStore()
+        import threading
+        lock = threading.Lock()
+        with lock:
+            if _store_instance is None:
+                _store_instance = PgVectorStore()
     return _store_instance

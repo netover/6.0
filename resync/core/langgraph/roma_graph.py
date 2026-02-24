@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """ROMA orchestration graph using LangGraph StateGraph."""
 
 from __future__ import annotations

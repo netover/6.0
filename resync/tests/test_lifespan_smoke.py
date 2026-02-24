@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from resync.app_factory import create_app
 from resync.core.types.app_state import enterprise_state_from_app
 
-
 if importlib.util.find_spec("sqlalchemy") is None:
     pytest.skip("sqlalchemy not installed in this environment", allow_module_level=True)
 
@@ -54,7 +53,8 @@ def test_lifespan_initializes_app_state_singletons() -> None:
             "results": [],
         }
 
-        # create_app handles DI configuration; mocking _register_routers avoids slow setup
+        # create_app handles DI configuration; mocking
+        # _register_routers avoids slow setup.
         app = create_app()
         assert not getattr(
             getattr(app.state, "enterprise_state", None), "startup_complete", False

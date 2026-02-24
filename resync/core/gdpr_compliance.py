@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 GDPR Compliance Management System.
 
@@ -14,7 +13,6 @@ This module provides comprehensive GDPR compliance capabilities including:
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task, track_task
 import base64
 import contextlib
 import hashlib
@@ -31,6 +29,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import create_tracked_task, track_task
 
 logger = get_logger(__name__)
 
@@ -293,7 +292,10 @@ class GDPRDataEncryptor:
         encryption_secret = os.environ.get(
             "GDPR_ENCRYPTION_SECRET", "gdpr_default_secret_change_me"
         )
-        key_data = f"gdpr_encryption_key_{encryption_secret}_{self.config.encryption_key_rotation_days}"
+        key_data = (
+            "gdpr_encryption_key_"
+            f"{encryption_secret}_{self.config.encryption_key_rotation_days}"
+        )
         encryption_salt = os.environ.get(
             "GDPR_ENCRYPTION_SALT", "gdpr_compliance_salt_2024"
         ).encode()

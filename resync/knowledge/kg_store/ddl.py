@@ -26,8 +26,14 @@ DDL_STATEMENTS: list[str] = [
         PRIMARY KEY (tenant, graph_version, node_id)
     );
     """,
-    "CREATE INDEX IF NOT EXISTS kg_nodes_name_trgm_idx ON kg_nodes USING GIN (name gin_trgm_ops);",
-    "CREATE INDEX IF NOT EXISTS kg_nodes_type_idx ON kg_nodes (tenant, graph_version, node_type);",
+    (
+        "CREATE INDEX IF NOT EXISTS kg_nodes_name_trgm_idx ON kg_nodes "
+        "USING GIN (name gin_trgm_ops);"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS kg_nodes_type_idx ON kg_nodes "
+        "(tenant, graph_version, node_type);"
+    ),
     # Edges
     """
     CREATE TABLE IF NOT EXISTS kg_edges (
@@ -43,8 +49,20 @@ DDL_STATEMENTS: list[str] = [
         PRIMARY KEY (tenant, graph_version, edge_id)
     );
     """,
-    "CREATE INDEX IF NOT EXISTS kg_edges_source_idx ON kg_edges (tenant, graph_version, source_id);",
-    "CREATE INDEX IF NOT EXISTS kg_edges_target_idx ON kg_edges (tenant, graph_version, target_id);",
-    "CREATE INDEX IF NOT EXISTS kg_edges_relation_idx ON kg_edges (tenant, graph_version, relation_type);",
-    "CREATE INDEX IF NOT EXISTS kg_edges_evidence_gin_idx ON kg_edges USING GIN (evidence);",
+    (
+        "CREATE INDEX IF NOT EXISTS kg_edges_source_idx ON kg_edges "
+        "(tenant, graph_version, source_id);"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS kg_edges_target_idx ON kg_edges "
+        "(tenant, graph_version, target_id);"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS kg_edges_relation_idx ON kg_edges "
+        "(tenant, graph_version, relation_type);"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS kg_edges_evidence_gin_idx ON kg_edges "
+        "USING GIN (evidence);"
+    ),
 ]

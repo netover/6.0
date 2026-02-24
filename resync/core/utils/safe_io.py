@@ -31,8 +31,8 @@ def safe_write_file(
     path = Path(filepath)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create a temporary file in the same directory to ensure it's on the same filesystem
-    # for an atomic rename operation.
+    # Create a temporary file in the same directory to ensure
+    # it is on the same filesystem for an atomic rename operation.
     fd, temp_path_str = tempfile.mkstemp(
         dir=path.parent,
         prefix=f".{path.name}.tmp-",

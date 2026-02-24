@@ -1,11 +1,10 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 WebSocket handlers for FastAPI
 """
 
 import asyncio
-import json
+import orjson
 
 from fastapi import WebSocket, WebSocketDisconnect, status
 
@@ -69,13 +68,18 @@ class ConnectionManager:
         # Map websocket -> agent_id
         self.agent_connections: dict[WebSocket, str] = {}
         # Lock for protecting concurrent access to connection collections
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def connect(self, websocket: WebSocket, agent_id: str):
         """Connect WebSocket for specific agent"""
         await websocket.accept()
 
-        async with self._lock:
+        async with self._get_lock():
             if agent_id not in self.active_connections:
                 self.active_connections[agent_id] = set()
 
@@ -84,9 +88,13 @@ class ConnectionManager:
 
         logger.info("WebSocket connected for agent %s", agent_id)
 
-    async def disconnect_async(self, websocket: WebSocket):
-        """Disconnect WebSocket - async version with proper locking."""
-        async with self._lock:
+    async def disconnect(self, websocket: WebSocket):
+        """Disconnect WebSocket - async version (replaces sync wrapper).
+        
+        Args:
+            websocket: The WebSocket connection to remove
+        """
+        async with self._get_lock():
             agent_id = self.agent_connections.get(websocket)
             if agent_id and websocket in self.active_connections.get(agent_id, set()):
                 self.active_connections[agent_id].remove(websocket)
@@ -96,31 +104,8 @@ class ConnectionManager:
             if websocket in self.agent_connections:
                 del self.agent_connections[websocket]
 
-        logger.info("WebSocket disconnected from agent %s", agent_id)
-
-    def disconnect(self, websocket: WebSocket):
-        """Disconnect WebSocket - sync wrapper for backward compatibility.
-
-        Note: This method attempts to handle disconnection from synchronous contexts.
-        For proper async handling, use disconnect_async() instead.
-        """
-        try:
-            # Use ensure_future instead of create_task to prevent garbage collection
-            loop = asyncio.get_running_loop()
-            loop.create_task(self.disconnect_async(websocket))
-        except RuntimeError:
-            # No running loop - we're in sync context, do best-effort cleanup
-            # This is not thread-safe but better than nothing for sync contexts
-            agent_id = self.agent_connections.get(websocket)
-            if agent_id and websocket in self.active_connections.get(agent_id, set()):
-                self.active_connections[agent_id].discard(websocket)
-                if not self.active_connections[agent_id]:
-                    del self.active_connections[agent_id]
-
-            if websocket in self.agent_connections:
-                del self.agent_connections[websocket]
-
-            logger.info("WebSocket disconnected from agent %s (sync context)", agent_id)
+        if agent_id:
+            logger.info("WebSocket disconnected from agent %s", agent_id)
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send message to specific WebSocket connection"""
@@ -131,11 +116,11 @@ class ConnectionManager:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("Failed to send message to WebSocket: %s", e)
-            await self.disconnect_async(websocket)
+            await self.disconnect(websocket)
 
     async def broadcast_to_agent(self, message: str, agent_id: str):
         """Broadcast message to all connections for specific agent"""
-        async with self._lock:
+        async with self._get_lock():
             if agent_id not in self.active_connections:
                 return
             # Create a copy of the set to iterate safely
@@ -151,12 +136,12 @@ class ConnectionManager:
 
         # Clean up disconnected websockets
         for websocket in disconnected:
-            await self.disconnect_async(websocket)
+            await self.disconnect(websocket)
 
     async def broadcast_to_all(self, message: str):
         """Broadcast message to all active connections"""
         # Create a copy of all websockets to iterate safely
-        async with self._lock:
+        async with self._get_lock():
             all_websockets = []
             for agent_connections in self.active_connections.values():
                 all_websockets.extend(agent_connections)
@@ -171,7 +156,7 @@ class ConnectionManager:
 
         # Clean up disconnected websockets
         for websocket in disconnected:
-            await self.disconnect_async(websocket)
+            await self.disconnect(websocket)
 
 
 # Global connection manager instance
@@ -237,7 +222,8 @@ async def websocket_handler(
 
     # Update Langfuse context with secure user ID
     hashed_user = hash_user_id(user_id)
-    langfuse_context.update_current_trace(user_id=hashed_user)
+    if LANGFUSE_AVAILABLE and langfuse_context is not None:
+        langfuse_context.update_current_trace(user_id=hashed_user)
 
     await manager.connect(websocket, agent_id)
 
@@ -250,10 +236,10 @@ async def websocket_handler(
             try:
                 # Try to parse as JSON first
                 try:
-                    message_data = json.loads(data)
+                    message_data = orjson.loads(data)
                     message_type = message_data.get("type", "message")
                     is_json = True
-                except json.JSONDecodeError:
+                except orjson.JSONDecodeError:
                     # If not JSON, treat as plain text message
                     message_data = {"content": data, "type": "message"}
                     message_type = "message"
@@ -270,7 +256,7 @@ async def websocket_handler(
                         "agent_id": agent_id,
                         "is_final": False,
                     }
-                    await manager.send_personal_message(json.dumps(response), websocket)
+                    await manager.send_personal_message(orjson.dumps(response).decode("utf-8"), websocket)
 
                     # Generate AI response
                     ai_response = await _generate_llm_response(agent_id, content)
@@ -283,7 +269,7 @@ async def websocket_handler(
                         "is_final": True,
                     }
                     await manager.send_personal_message(
-                        json.dumps(final_response), websocket
+                        orjson.dumps(final_response).decode("utf-8"), websocket
                     )
 
                 elif message_type == "heartbeat":
@@ -294,7 +280,7 @@ async def websocket_handler(
                         "agent_id": agent_id,
                     }
                     await manager.send_personal_message(
-                        json.dumps(error_response), websocket
+                        orjson.dumps(error_response).decode("utf-8"), websocket
                     )
 
             except Exception as e:
@@ -305,13 +291,13 @@ async def websocket_handler(
                     "agent_id": agent_id,
                 }
                 await manager.send_personal_message(
-                    json.dumps(error_response), websocket
+                    orjson.dumps(error_response).decode("utf-8"), websocket
                 )
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
         logger.info("WebSocket disconnected for agent %s", agent_id)
 
     except Exception as e:
         logger.error("Unexpected WebSocket error for agent %s: %s", agent_id, e)
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)

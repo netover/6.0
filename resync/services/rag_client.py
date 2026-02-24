@@ -116,7 +116,8 @@ class RAGServiceClient:
             follow_redirects=True,
         )
 
-        # Circuit breaker: count only transient classes (network + transient upstream errors).
+        # Circuit breaker: count only transient classes
+        # (network + transient upstream errors).
         self.cbm = CircuitBreakerManager()
         self.cbm.register(
             "rag_service",

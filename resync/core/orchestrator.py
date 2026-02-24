@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 Service Orchestrator (v6.1.2) — parallel fan-out/fan-in for multiple backend services.
 
@@ -20,12 +19,38 @@ import asyncio
 import random
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol
 
 from resync.core.structured_logger import get_logger
 
-if TYPE_CHECKING:
-    from resync.core.interfaces import IKnowledgeGraph, ITWSClient
+
+class AsyncKnowledgeGraphProtocol(Protocol):
+    """Protocol for async KG calls used by the orchestrator."""
+
+    async def get_relevant_context(self, user_query: str) -> str:
+        """Return context for a given query."""
+
+
+class AsyncTWSClientProtocol(Protocol):
+    """Protocol for async TWS calls used by the orchestrator."""
+
+    async def get_job_status(self, job_name: str) -> dict[str, Any]:
+        """Return status information for one job."""
+
+    async def get_job_logs(self, job_name: str, lines: int = 100) -> str:
+        """Return recent logs for one job."""
+
+    async def get_job_dependencies(self, job_name: str) -> list[dict[str, Any]]:
+        """Return dependency graph for one job."""
+
+    async def get_engine_info(self) -> dict[str, Any]:
+        """Return TWS engine metadata/health state."""
+
+    async def get_critical_path_status(self) -> list[dict[str, Any]]:
+        """Return critical path status list."""
+
+    async def query_jobs(self, status: str, hours: int) -> list[dict[str, Any]]:
+        """Query jobs by status and time window."""
 
 logger = get_logger(__name__)
 
@@ -126,14 +151,14 @@ class ServiceOrchestrator:
 
     def __init__(
         self,
-        tws_client: "ITWSClient",
-        knowledge_graph: "IKnowledgeGraph",
+        tws_client: AsyncTWSClientProtocol,
+        knowledge_graph: AsyncKnowledgeGraphProtocol,
         max_retries: int = _DEFAULT_MAX_RETRIES,
         timeout_seconds: int = _DEFAULT_TIMEOUT_SECONDS,
         per_call_timeout: float = _DEFAULT_PER_CALL_TIMEOUT,
     ) -> None:
-        self.tws = tws_client
-        self.kg = knowledge_graph
+        self.tws: AsyncTWSClientProtocol = tws_client
+        self.kg: AsyncKnowledgeGraphProtocol = knowledge_graph
         self.max_retries = max_retries
         self.timeout = timeout_seconds
         self.per_call_timeout = per_call_timeout
@@ -199,7 +224,9 @@ class ServiceOrchestrator:
                 await asyncio.sleep(delay + jitter)
 
         # Unreachable, but satisfies the type checker.
-        raise last_exc  # type: ignore[misc]
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("retry loop exited without a result or captured exception")
 
     # -----------------------------------------------------------------
     # Public orchestration methods
@@ -231,32 +258,34 @@ class ServiceOrchestrator:
         result = OrchestrationResult()
 
         # Build task map (insertion-order stable in Python 3.7+)
+        async def _status_call() -> dict[str, Any]:
+            return await self.tws.get_job_status(job_name)
+
+        async def _context_call() -> str:
+            return await self.kg.get_relevant_context(f"job failure {job_name}")
+
+        async def _history_call() -> list[dict[str, Any]]:
+            return await self._fetch_historical_failures(job_name)
+
         tasks: dict[str, Coroutine[Any, Any, Any]] = {
-            "status": self._call_with_retry(
-                "tws_job_status",
-                lambda jn=job_name: self.tws.get_job_status(jn),
-            ),
-            "context": self._call_with_retry(
-                "kg_context",
-                lambda jn=job_name: self.kg.get_relevant_context(f"job failure {jn}"),
-            ),
-            "history": self._call_with_retry(
-                "historical_failures",
-                lambda jn=job_name: self._fetch_historical_failures(jn),
-            ),
+            "status": self._call_with_retry("tws_job_status", _status_call),
+            "context": self._call_with_retry("kg_context", _context_call),
+            "history": self._call_with_retry("historical_failures", _history_call),
         }
 
         if include_logs:
-            tasks["logs"] = self._call_with_retry(
-                "tws_job_logs",
-                lambda jn=job_name: self.tws.get_job_logs(jn, lines=_DEFAULT_LOG_LINES),
-            )
+
+            async def _logs_call() -> str:
+                return await self.tws.get_job_logs(job_name, lines=_DEFAULT_LOG_LINES)
+
+            tasks["logs"] = self._call_with_retry("tws_job_logs", _logs_call)
 
         if include_dependencies:
-            tasks["deps"] = self._call_with_retry(
-                "tws_job_deps",
-                lambda jn=job_name: self.tws.get_job_dependencies(jn),
-            )
+
+            async def _deps_call() -> list[dict[str, Any]]:
+                return await self.tws.get_job_dependencies(job_name)
+
+            tasks["deps"] = self._call_with_retry("tws_job_deps", _deps_call)
 
         result.attempted_tasks = len(tasks)
 
@@ -312,22 +341,25 @@ class ServiceOrchestrator:
             Dict with ``status`` (HEALTHY / DEGRADED / ERROR) and ``details``
             per component.
         """
+        async def _engine_call() -> dict[str, Any]:
+            return await self.tws.get_engine_info()
+
+        async def _critical_jobs_call() -> list[dict[str, Any]]:
+            return await self.tws.get_critical_path_status()
+
+        async def _failed_jobs_call() -> list[dict[str, Any]]:
+            return await self.tws.query_jobs(
+                status="ABEND", hours=_FAILED_JOBS_HOURS_WINDOW
+            )
+
         tasks: dict[str, Coroutine[Any, Any, Any]] = {
-            "engine": self._call_with_retry(
-                "engine_status",
-                lambda: self.tws.get_engine_info(),
-            ),
+            "engine": self._call_with_retry("engine_status", _engine_call),
             "critical_jobs": self._call_with_retry(
                 "critical_jobs",
-                lambda: self.tws.get_critical_path_status(),
+                _critical_jobs_call,
                 retries=0,  # fast-fail for non-essential
             ),
-            "failed_jobs": self._call_with_retry(
-                "failed_jobs",
-                lambda: self.tws.query_jobs(
-                    status="ABEND", hours=_FAILED_JOBS_HOURS_WINDOW
-                ),
-            ),
+            "failed_jobs": self._call_with_retry("failed_jobs", _failed_jobs_call),
         }
 
         task_objs: dict[str, asyncio.Task] = {}

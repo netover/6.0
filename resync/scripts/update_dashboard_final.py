@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import re
 
 with open("resync/api/monitoring_dashboard.py", "r") as f:

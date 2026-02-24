@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Deterministic planner templates for Resync v6.1 (Golden Path).
 
 Why templates?

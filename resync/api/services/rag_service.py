@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """
 RAG Integration Service - Connects FastAPI routes to RAG microservice.
 

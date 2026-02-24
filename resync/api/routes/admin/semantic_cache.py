@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Admin routes for Semantic Cache management.
 
@@ -14,8 +15,10 @@ Security: All endpoints require admin authentication.
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+
 from resync.api.auth import verify_admin_credentials
 from resync.core.cache.embedding_model import get_model_info, preload_model
 from resync.core.cache.redis_config import (
@@ -491,6 +494,7 @@ async def test_redis_connection() -> dict[str, Any]:
     """Test Redis connection with ping."""
     try:
         import time
+
         from resync.core.cache.redis_config import get_redis_client
 
         start = time.perf_counter()

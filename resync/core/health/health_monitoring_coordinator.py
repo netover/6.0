@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Health Monitoring Coordinator
 
@@ -6,12 +7,12 @@ for the health check service, including monitoring loops and service lifecycle m
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import contextlib
 
 import structlog
 
 from resync.core.health.health_models import HealthCheckConfig
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 

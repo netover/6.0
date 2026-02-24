@@ -1,5 +1,3 @@
-# pylint: disable=all
-# mypy: no-rerun
 """
 PgVector Service - PostgreSQL Vector Similarity Search.
 
@@ -14,10 +12,13 @@ Version: 5.9.0
 
 from __future__ import annotations
 
-import structlog
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+import asyncio
+import re
+
+import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -116,39 +117,43 @@ class PgVectorService:
             return 0
 
         collection = collection or self._default_collection
-        count = 0
 
-        async with self._pool.acquire() as conn:
-            for doc in documents:
-                if doc.embedding is None:
-                    logger.warning(
-                        "document_missing_embedding", document_id=doc.document_id
-                    )
-                    continue
+        valid_docs = [d for d in documents if d.embedding is not None]
+        if not valid_docs:
+            return 0
 
-                embedding_str = f"[{','.join(str(x) for x in doc.embedding)}]"
-
-                await conn.execute(
-                    """
-                    INSERT INTO document_embeddings
-                    (collection_name, document_id, chunk_id, content, embedding, metadata)
-                    VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb)
-                    ON CONFLICT (collection_name, document_id, chunk_id)
-                    DO UPDATE SET
-                        content = EXCLUDED.content,
-                        embedding = EXCLUDED.embedding,
-                        metadata = EXCLUDED.metadata,
-                        updated_at = CURRENT_TIMESTAMP
-                """,
+        async with self._pool.acquire(timeout=10.0) as conn:
+            rows = [
+                (
                     collection,
                     doc.document_id,
                     doc.chunk_id,
                     doc.content,
-                    embedding_str,
+                    f"[{','.join(str(x) for x in doc.embedding)}]",
                     doc.metadata,
                 )
-                count += 1
+                for doc in valid_docs
+            ]
 
+            await conn.executemany(
+                """
+                INSERT INTO document_embeddings
+                (
+                    collection_name, document_id, chunk_id,
+                    content, embedding, metadata
+                )
+                VALUES ($1, $2, $3, $4, $5::vector, $6::jsonb)
+                ON CONFLICT (collection_name, document_id, chunk_id)
+                DO UPDATE SET
+                    content = EXCLUDED.content,
+                    embedding = EXCLUDED.embedding,
+                    metadata = EXCLUDED.metadata,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                rows
+            )
+
+        count = len(valid_docs)
         logger.debug("upserted", collection=collection, count=count)
         return count
 
@@ -171,17 +176,26 @@ class PgVectorService:
 
         # Build filter clause
         filter_clause = ""
-        params: list[str | int] = [embedding_str, binary_str, collection]
+        params: list[Any] = [embedding_str, binary_str, collection]
         param_idx = 4
+
+        def sanitize_jsonb_key(key: str) -> str:
+            if not re.match(r'^[a-zA-Z0-9_]+$', key):
+                raise ValueError(f"Invalid metadata key: {key}")
+            return key
 
         if filter_metadata:
             for key, value in filter_metadata.items():
-                filter_clause += f" AND metadata->>'{key}' = ${param_idx}"
+                safe_key = sanitize_jsonb_key(key)
+                filter_clause += f" AND metadata->>'{safe_key}' = ${param_idx}"
                 params.append(str(value))
                 param_idx += 1
 
         # Calculate candidates
         candidates = max(limit * 10, 50)
+        params.append(candidates)
+        candidates_param_idx = param_idx
+        param_idx += 1
 
         # Threshold clause - validate numeric value to prevent SQL injection
         threshold_clause = ""
@@ -192,9 +206,12 @@ class PgVectorService:
                 or score_threshold > 1
             ):
                 raise ValueError(
-                    f"score_threshold must be a number between 0 and 1, got: {score_threshold}"
+                    "score_threshold must be a number between 0 and 1, "
+                    f"got: {score_threshold}"
                 )
-            threshold_clause = f"WHERE similarity >= {float(score_threshold)}"
+            threshold_clause = f"WHERE similarity >= ${param_idx}"
+            params.append(float(score_threshold))
+            param_idx += 1
 
         query = f"""
             WITH binary_candidates AS (
@@ -202,8 +219,10 @@ class PgVectorService:
                 FROM document_embeddings
                 WHERE collection_name = $3
                 {filter_clause}
-                ORDER BY binary_quantize(embedding_half)::bit({self._embedding_dimension}) <~> $2::bit({self._embedding_dimension})
-                LIMIT {candidates}
+                ORDER BY
+                    binary_quantize(embedding_half)::bit({self._embedding_dimension})
+                    <~> $2::bit({self._embedding_dimension})
+                LIMIT ${candidates_param_idx}
             ),
             rescored AS (
                 SELECT
@@ -219,7 +238,7 @@ class PgVectorService:
         """
         params.append(limit)  # int is valid for LIMIT in asyncpg
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             rows = await conn.fetch(query, *params)
 
         results = []
@@ -251,7 +270,7 @@ class PgVectorService:
         """Delete document."""
         collection = collection or self._default_collection
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             result = await conn.execute(
                 """
                 DELETE FROM document_embeddings
@@ -270,7 +289,7 @@ class PgVectorService:
         """Get collection statistics."""
         collection = collection or self._default_collection
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             stats = await conn.fetchrow(
                 """
                 SELECT
@@ -293,30 +312,56 @@ class PgVectorService:
 # Singleton accessor
 # =============================================================================
 
+# Eagerly initialised — never None — eliminates TOCTOU race on singleton init
 _pool = None
 _vector_service: PgVectorService | None = None
+_vector_service_lock: Optional[asyncio.Lock] = None
 
 
 async def get_vector_service() -> PgVectorService:
-    """Get singleton vector service instance."""
-    global _pool, _vector_service
+    """Get singleton vector service instance (thread-safe double-checked locking)."""
+    global _pool, _vector_service, _vector_service_lock
 
+    # Fast path: already initialised, no lock needed
     if _vector_service is not None:
         return _vector_service
 
-    import os
+    # Lazy lock initialization to avoid RuntimeError: no running event loop
+    if _vector_service_lock is None:
+        _vector_service_lock = asyncio.Lock()
 
-    import asyncpg
+    async with _vector_service_lock:
+        # Double-check after acquiring lock to prevent redundant init
+        if _vector_service is not None:
+            return _vector_service
 
-    database_url = os.getenv("DATABASE_URL", "postgresql://localhost/resync")
-    if database_url.startswith("postgresql+asyncpg://"):
-        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+        import os
+        import asyncpg
 
-    _pool = await asyncpg.create_pool(
-        database_url,
-        min_size=2,
-        max_size=10,
-    )
+        database_url = os.getenv("DATABASE_URL", "postgresql://localhost/resync")
+        if database_url.startswith("postgresql+asyncpg://"):
+            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
 
-    _vector_service = await PgVectorService.create(_pool)
-    return _vector_service
+        _pool = await asyncio.wait_for(
+            asyncpg.create_pool(
+                database_url,
+                min_size=2,
+                max_size=10,
+                command_timeout=30,  # prevents silent deadlocks on slow PG
+            ),
+            timeout=35.0,
+        )
+
+        _vector_service = await PgVectorService.create(_pool)
+        return _vector_service
+
+
+async def close_vector_service() -> None:
+    """Close singleton vector service instance and pool connection."""
+    global _pool, _vector_service
+
+    async with _vector_service_lock:
+        if _pool is not None:
+            await _pool.close()
+            _pool = None
+        _vector_service = None

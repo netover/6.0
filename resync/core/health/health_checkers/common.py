@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import structlog
 
-from dataclasses import dataclass
 from resync.core.health.health_models import (
     ComponentHealth,
     ComponentType,

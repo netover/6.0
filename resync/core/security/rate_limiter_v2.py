@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# ruff: noqa: E501
+# pylint
 """
 Rate Limiting Middleware - Enhanced rate limiting with slowapi.
 
@@ -31,8 +31,8 @@ Usage:
         ...
 """
 
-import os
 import ipaddress
+import os
 import warnings as _warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -220,12 +220,15 @@ def get_api_key(request: "Request") -> str:
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
-    from slowapi.util import get_remote_address as slowapi_get_remote_address  # noqa: F401
+    from slowapi.util import (
+        get_remote_address as slowapi_get_remote_address,  # noqa: F401
+    )
 
     # Create limiter instance
     # Create limiter instance using SafeMemoryStorage to prevent import-time threads
     try:
         from limits.storage import registry
+
         from .storage import SafeMemoryStorage
 
         if SafeMemoryStorage:

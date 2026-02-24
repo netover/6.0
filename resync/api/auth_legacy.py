@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """Authentication and authorization API endpoints.
 
 This module provides JWT-based authentication endpoints and utilities,
@@ -14,13 +13,13 @@ import asyncio
 import hashlib
 import hmac
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from resync.core.jwt_utils import JWTError, decode_token, create_token
+from resync.core.jwt_utils import JWTError, create_token, decode_token
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 
@@ -78,7 +77,8 @@ class SecureAuthenticator:
         self._failed_attempts: dict[str, list[datetime]] = {}
         self._lockout_duration = timedelta(minutes=15)
         self._max_attempts = 5
-        # Lazy-init to avoid event-loop binding during module import (gunicorn --preload).
+        # Lazy-init to avoid event-loop binding during module import
+        # (gunicorn --preload).
         self._lockout_lock: asyncio.Lock | None = None
 
     def _get_lockout_lock(self) -> asyncio.Lock:
@@ -213,7 +213,8 @@ class SecureAuthenticator:
             attempt_count = len(self._failed_attempts[ip])
             if attempt_count >= self._max_attempts - 1:
                 logger.warning(
-                    f"IP approaching lockout: {attempt_count}/{self._max_attempts} attempts",
+                    f"IP approaching lockout: {attempt_count}/"
+                    f"{self._max_attempts} attempts",
                     extra={"ip": ip},
                 )
 

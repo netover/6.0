@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """Teams Webhook database models."""
 
 from datetime import datetime, timezone

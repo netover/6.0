@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """Document GraphRAG context builder.
 
 This component transforms:

@@ -9,7 +9,7 @@ Endpoints:
 """
 
 from __future__ import annotations
-# mypy: no-rerun
+# mypy
 
 from typing import Annotated
 

@@ -1,5 +1,4 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 """Common validation models and utilities for enhanced input validation."""
 
 import html

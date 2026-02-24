@@ -1,8 +1,8 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
 import os
 import subprocess
 import sys
+
 import pytest
 
 

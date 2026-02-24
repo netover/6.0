@@ -6,7 +6,7 @@ Provides metrics storage using PostgreSQL.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 

@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Token-aware text chunking utility for RAG systems.
 
@@ -16,10 +16,9 @@ For new code, use advanced_chunking module directly:
 
 from __future__ import annotations
 
-import re
+import warnings
 from collections.abc import Iterator
 
-# Import from advanced chunking
 from resync.knowledge.ingestion.advanced_chunking import (
     AdvancedChunker,
     ChunkingConfig,
@@ -29,33 +28,13 @@ from resync.knowledge.ingestion.advanced_chunking import (
     count_tokens,
 )
 
-# Optional import for direct token operations
-try:
-    import tiktoken
-
-    _ENC = tiktoken.get_encoding("cl100k_base")
-    _HAS_TIKTOKEN = True
-except ImportError:
-    _HAS_TIKTOKEN = False
-    _ENC = None
-
-
-def _tokens_len(s: str) -> int:
-    """Estimate token count for a string."""
-    return count_tokens(s)
-
-
-def _split_sentences(text: str) -> list[str]:
-    """Split text into sentences based on punctuation."""
-    text = re.sub(r"\s+", " ", text).strip()
-    return re.split(r"(?<=[.!?])\s+", text) if text else []
-
 
 def chunk_text(
     text: str, max_tokens: int = 512, overlap_tokens: int = 64
 ) -> Iterator[str]:
     """
-    Chunk text in a token-aware way, respecting sentence boundaries and applying overlap.
+    Chunk text in a token-aware way, respecting sentence boundaries
+    and applying overlap.
 
     v5.4.2: Now uses AdvancedChunker with recursive strategy for improved quality.
 

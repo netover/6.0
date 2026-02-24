@@ -86,7 +86,10 @@ async def test_smtp_config(
     success = await service.send_email(
         to_email=request.recipient,
         subject="Resync SMTP Test",
-        body="This is a test email from your Resync monitoring system. If you see this, SMTP is working correctly.",
+        body=(
+            "This is a test email from your Resync monitoring system. "
+            "If you see this, SMTP is working correctly."
+        ),
         is_html=False,
     )
 

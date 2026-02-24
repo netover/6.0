@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# ruff: noqa: E501
+# pylint
 """
 PostgreSQL Checkpointer for LangGraph v6.0.0.
 
