@@ -791,7 +791,8 @@ class HybridRetriever:
                     b=self.config.bm25_b,
                     field_boosts=self.config.field_boosts,
                 )
-                self.bm25_index.build_index(documents)
+                import asyncio
+                await asyncio.to_thread(self.bm25_index.build_index, documents)
                 self._index_built = True
                 self._pending_save_task = asyncio.create_task(
                     self._save_index_async(index_path)
@@ -908,7 +909,8 @@ class HybridRetriever:
         if not self.bm25_index or not self.bm25_index.documents:
             return []
         try:
-            results = self.bm25_index.search(query, top_k)
+            import asyncio
+            results = await asyncio.to_thread(self.bm25_index.search, query, top_k)
             hits = []
             for doc_idx, score in results:
                 doc = self.bm25_index.documents[doc_idx].copy()

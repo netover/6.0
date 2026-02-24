@@ -1,6 +1,16 @@
 # metrics.py — Runtime telemetry/metrics robusto com Prometheus
 # e correlação real "context-aware"
-# Melhorias principais:
+#
+# IMPORTANTE: Este projeto usa sistema interno de métricas em vez de Prometheus.
+# O formato de exportação Prometheus é compatível apenas para scraping externo.
+#
+# Sistema interno proporciona:
+#   - Rolling window de 2 horas em memória (~1.4 MB)
+#   - Formato de exportação compatível com Prometheus
+#   - Dashboard UI integrado em /api/monitoring
+#   - Atualizações em tempo real via WebSocket em /api/monitoring/ws
+#
+# Referencias de boas praticas:
 #  - Singleton unificado (sem "instâncias duplas")
 #  - contextvars para correlation_id por execução (async/thread)
 #  - MetricCounter/Gauge thread-safe

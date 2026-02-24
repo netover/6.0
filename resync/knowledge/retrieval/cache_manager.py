@@ -105,7 +105,7 @@ class KGCacheManager:
         self._ttl_seconds: int = 300  # 5 minutes default
         self._last_refresh: datetime | None = None
         self._refresh_task: asyncio.Task | None = None
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
         self._stats = CacheStats()
         self._on_refresh_callbacks: list[Callable[[], Awaitable[None]]] = []
 
@@ -185,6 +185,9 @@ class KGCacheManager:
             self._stats.hit_count += 1
             return False
 
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+
         async with self._lock:
             # Double-check after acquiring lock
             if not force and not self.is_stale():
@@ -222,6 +225,9 @@ class KGCacheManager:
         """
         Invalidate the cache, forcing next access to refresh.
         """
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            
         async with self._lock:
             self._last_refresh = None
             self._stats.record_invalidation()

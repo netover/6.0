@@ -76,10 +76,12 @@ class PgVectorStore(VectorStore):
         self._pool_min_size = pool_min_size
         self._pool_max_size = pool_max_size
         self._initialized = False
-        self._pool_lock = asyncio.Lock()
+        self._pool_lock: asyncio.Lock | None = None
 
     async def _get_pool(self) -> "asyncpg.Pool":
         """Get or create connection pool with async-safe initialization."""
+        if self._pool_lock is None:
+            self._pool_lock = asyncio.Lock()
         if self._pool is None:
             async with self._pool_lock:
                 # Double-check after acquiring lock

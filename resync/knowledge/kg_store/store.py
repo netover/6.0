@@ -55,7 +55,7 @@ class PostgresGraphStore:
     """Async Postgres store for nodes/edges with shared connection pool."""
 
     _pool: asyncpg.Pool | None = None
-    _pool_lock = asyncio.Lock()
+    _pool_lock: asyncio.Lock | None = None
 
     def __init__(self, database_url: str | None = None):
         if not ASYNCPG_AVAILABLE:
@@ -81,6 +81,8 @@ class PostgresGraphStore:
 
     async def _get_pool(self) -> asyncpg.Pool:
         """Get or create a shared connection pool."""
+        if PostgresGraphStore._pool_lock is None:
+            PostgresGraphStore._pool_lock = asyncio.Lock()
         async with PostgresGraphStore._pool_lock:
             if self._pool_is_closed(PostgresGraphStore._pool):
                 PostgresGraphStore._pool = await asyncpg.create_pool(

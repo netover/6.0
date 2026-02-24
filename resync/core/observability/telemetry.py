@@ -364,7 +364,20 @@ def inject_trace_context(
 
 
 # =============================================================================
-# Prometheus Metrics
+# Prometheus Metrics (OPTIONAL - for external scraping compatibility only)
+# =============================================================================
+# NOTE: This project uses its own internal metrics system instead of Prometheus.
+# See resync/core/metrics.py and resync/api/routes/monitoring/dashboard.py
+#
+# The internal system provides:
+#   - Rolling 2-hour window metrics (~1.4 MB RAM)
+#   - Prometheus-compatible format export (generate_prometheus_metrics())
+#   - Built-in dashboard UI at /api/monitoring
+#   - Real-time WebSocket updates at /api/monitoring/ws
+#
+# This optional prometheus_fastapi_instrumentator is only for backwards compatibility
+# with external monitoring systems that may scrape /metrics endpoints.
+# Prefer using the internal metrics system for new code.
 # =============================================================================
 
 

@@ -314,12 +314,15 @@ class PgVectorService:
 
 _pool = None
 _vector_service: PgVectorService | None = None
-_vector_service_lock = asyncio.Lock()
+_vector_service_lock: asyncio.Lock | None = None
 
 
 async def get_vector_service() -> PgVectorService:
     """Get singleton vector service instance."""
-    global _pool, _vector_service
+    global _pool, _vector_service, _vector_service_lock
+
+    if _vector_service_lock is None:
+        _vector_service_lock = asyncio.Lock()
 
     async with _vector_service_lock:
         if _vector_service is not None:
@@ -345,7 +348,11 @@ async def get_vector_service() -> PgVectorService:
 
 async def close_vector_service() -> None:
     """Close singleton vector service instance and pool connection."""
-    global _pool, _vector_service
+    global _pool, _vector_service, _vector_service_lock
+    
+    if _vector_service_lock is None:
+        return
+        
     async with _vector_service_lock:
         if _pool is not None:
             await _pool.close()

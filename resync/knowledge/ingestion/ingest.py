@@ -22,17 +22,16 @@ Integrates Prometheus metrics for observability.
 from __future__ import annotations
 
 import hashlib
-import logging
-import time
-from typing import Any
+import structlog
 
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import Embedder, VectorStore
 from resync.knowledge.monitoring import embed_seconds, jobs_total, upsert_seconds
+from resync.settings import get_settings
 
 from .chunking import chunk_text
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class IngestService:
@@ -59,6 +58,7 @@ class IngestService:
         self.kg_extractor = kg_extractor
         self.kg_store = kg_store
         self.batch_size = batch_size
+        self._settings = get_settings()
 
     async def ingest_document(
         self,
@@ -260,12 +260,12 @@ class IngestService:
         payloads: list[dict[str, Any]] = []
         texts_for_embed: list[str] = []
         # FIX N+1: batch SHA-256 dedup — one DB call instead of N
-        all_shas = [chunk.sha256 for chunk in enriched_chunks]
+        all_shas = [hashlib.sha256(chunk.content.encode("utf-8")).hexdigest() for chunk in enriched_chunks]
         existing_shas = await self.store.exists_batch_by_sha256(
             all_shas, collection=CFG.collection_read
         )
         for i, chunk in enumerate(enriched_chunks):
-            sha = chunk.sha256
+            sha = all_shas[i]
             if sha in existing_shas:
                 continue
             chunk_id = f"{doc_id}#c{i:06d}"
@@ -378,44 +378,40 @@ class IngestService:
                         mv_texts.append(mvc.view_specific_content)
                     # Embed and upsert multi-view chunks
                     if mv_texts:
-                        for start in range(0, len(mv_texts), self.batch_size):
-                            mv_batch_texts = mv_texts[start : start + self.batch_size]
+                        for mv_start in range(0, len(mv_texts), self.batch_size):
+                            mv_batch_texts = mv_texts[mv_start : mv_start + self.batch_size]
                             t_mv_embed = time.perf_counter()
                             mv_vecs = await self.embedder.embed_batch(mv_batch_texts)
                             embed_seconds.observe(time.perf_counter() - t_mv_embed)
                             t_mv_upsert = time.perf_counter()
                             await self.store.upsert_batch(
-                                ids=mv_ids[start : start + self.batch_size],
+                                ids=mv_ids[mv_start : mv_start + self.batch_size],
                                 vectors=mv_vecs,
-                                payloads=mv_payloads[start : start + self.batch_size],
+                                payloads=mv_payloads[mv_start : mv_start + self.batch_size],
                                 collection=CFG.collection_write,
                             )
                             upsert_seconds.observe(time.perf_counter() - t_mv_upsert)
                         logger.info(
                             "multi_view_upserted",
-                            extra={
-                                "doc_id": doc_id,
-                                "views_generated": len(multi_view_chunks),
-                                "views_upserted": len(mv_texts),
-                            },
+                            doc_id=doc_id,
+                            views_generated=len(multi_view_chunks),
+                            views_upserted=len(mv_texts),
                         )
                     else:
                         logger.info(
                             "multi_view_skipped_all_duplicates",
-                            extra={"doc_id": doc_id, "views_total": len(multi_view_chunks)},
+                            doc_id=doc_id,
+                            views_total=len(multi_view_chunks)
                         )
                 else:
                     logger.info(
                         "multi_view_no_chunks",
-                        extra={"doc_id": doc_id},
+                        doc_id=doc_id
                     )
             except Exception as mv_e:
-                logger.warning("multi_view_indexing_failed", extra={"error": str(mv_e)})
+                logger.warning("multi_view_indexing_failed", error=str(mv_e))
         try:
-            from resync.settings import get_settings
-
-            _s = get_settings()
-            if _s.KG_EXTRACTION_ENABLED and self.kg_extractor and self.kg_store:
+            if self._settings.KG_EXTRACTION_ENABLED and self.kg_extractor and self.kg_store:
                 chunk_payloads = [
                     {
                         "chunk_id": ids[i] if i < len(ids) else f"{doc_id}#c{i:06d}",
@@ -440,14 +436,12 @@ class IngestService:
                     )
                     logger.info(
                         "document_kg_extracted",
-                        extra={
-                            "doc_id": doc_id,
-                            "concepts": len(extraction.concepts),
-                            "edges": len(extraction.edges),
-                        },
+                        doc_id=doc_id,
+                        concepts=len(extraction.concepts),
+                        edges=len(extraction.edges),
                     )
         except Exception as _kg_e:
-            logger.warning("document_kg_extraction_failed", extra={"error": str(_kg_e)})
+            logger.warning("document_kg_extraction_failed", error=str(_kg_e))
         chunk_types = {}
         error_code_count = 0
         for chunk in enriched_chunks:

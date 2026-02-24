@@ -79,11 +79,13 @@ class ChatMemoryStore:
         self._anonymizer = DataAnonymizer(GDPRComplianceConfig())
         self._session_cache: dict[str, list[ChatTurn]] = {}
         self._cache_max_size = 100
-        self._init_lock = asyncio.Lock()
+        self._init_lock: asyncio.Lock | None = None
 
     async def _get_vector_store(self):
         """Lazy load do vector store."""
         if self._vector_store is None:
+            if self._init_lock is None:
+                self._init_lock = asyncio.Lock()
             async with self._init_lock:
                 if self._vector_store is None:
                     from resync.knowledge.store.pgvector_store import PgVectorStore
@@ -94,6 +96,8 @@ class ChatMemoryStore:
     async def _get_embedder(self):
         """Lazy load do embedder."""
         if self._embedder is None:
+            if self._init_lock is None:
+                self._init_lock = asyncio.Lock()
             async with self._init_lock:
                 if self._embedder is None:
                     from resync.knowledge.ingestion.embedding_service import get_embedder

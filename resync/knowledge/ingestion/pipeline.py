@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import logging
+import structlog
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -30,7 +30,7 @@ from resync.knowledge.interfaces import Embedder, VectorStore
 from .document_converter import DoclingConverter
 from .ingest import IngestService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -168,7 +168,7 @@ class DocumentIngestionPipeline:
         except Exception as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
-            logger.error("ingestion_failed", extra={"doc_id": doc_id, "error": str(e)})
+            logger.error("ingestion_failed", doc_id=doc_id, error=str(e))
             return IngestionResult(
                 doc_id=doc_id,
                 source=source,
@@ -186,17 +186,15 @@ class DocumentIngestionPipeline:
         total_time = time.perf_counter() - t_total
         logger.info(
             "document_ingested",
-            extra={
-                "doc_id": doc_id,
-                "source": source,
-                "format": converted.format,
-                "pages": converted.pages,
-                "tables": len(converted.tables),
-                "chunks": chunks_stored,
-                "convert_s": f"{converted.conversion_time_s:.1f}",
-                "ingest_s": f"{ingestion_time:.1f}",
-                "total_s": f"{total_time:.1f}",
-            },
+            doc_id=doc_id,
+            source=source,
+            format=converted.format,
+            pages=converted.pages,
+            tables=len(converted.tables),
+            chunks=chunks_stored,
+            convert_s=f"{converted.conversion_time_s:.1f}",
+            ingest_s=f"{ingestion_time:.1f}",
+            total_s=f"{total_time:.1f}",
         )
         return IngestionResult(
             doc_id=doc_id,

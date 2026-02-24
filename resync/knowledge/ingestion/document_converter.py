@@ -265,11 +265,11 @@ class DoclingConverter:
                 error=f"Unsupported format: {file_path.suffix}",
             )
         if fmt == SupportedFormat.TXT:
-            data = _plaintext_fallback(str(file_path))
+            data = await asyncio.to_thread(_plaintext_fallback, str(file_path))
             return self._build_result(data, str(file_path), fmt.value)
         t0 = time.perf_counter()
         logger.info(
-            "docling_convert_start", extra={"file": str(file_path), "format": fmt.value}
+            "docling_convert_start", file=str(file_path), format=fmt.value
         )
         data = await self._run_in_subprocess(str(file_path))
         elapsed = time.perf_counter() - t0
@@ -278,21 +278,17 @@ class DoclingConverter:
         if result.status == "success":
             logger.info(
                 "docling_convert_done",
-                extra={
-                    "file": file_path.name,
-                    "pages": result.pages,
-                    "tables": len(result.tables),
-                    "time_s": f"{elapsed:.1f}",
-                },
+                file=file_path.name,
+                pages=result.pages,
+                tables=len(result.tables),
+                time_s=f"{elapsed:.1f}",
             )
         else:
             logger.warning(
                 "docling_convert_failed",
-                extra={
-                    "file": file_path.name,
-                    "error": result.error,
-                    "time_s": f"{elapsed:.1f}",
-                },
+                file=file_path.name,
+                error=result.error,
+                time_s=f"{elapsed:.1f}",
             )
         return result
 
@@ -362,7 +358,8 @@ class DoclingConverter:
         if proc.exitcode != 0:
             logger.warning(
                 "docling_subprocess_crashed",
-                extra={"exitcode": proc.exitcode, "file": file_path},
+                exitcode=proc.exitcode,
+                file=file_path,
             )
             return _plaintext_fallback(file_path)
         try:

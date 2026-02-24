@@ -20,7 +20,6 @@ Version: 6.0.0 - Fixed retry jitter, added timeout support
 
 import asyncio
 import hashlib
-import logging
 import os
 import random
 from dataclasses import dataclass, field
@@ -274,13 +273,13 @@ class MultiProviderEmbeddingService(Embedder):
         for prefix, provider in self.PROVIDER_PREFIXES.items():
             if model_lower.startswith(prefix.lower()):
                 logger.debug(
-                    "Auto-detected provider %s from model %s", provider.value, model
+                    "auto_detected_provider", provider=provider.value, model=model
                 )
                 return provider
 
         # Default to OpenAI for unknown models
         logger.debug(
-            "Could not detect provider for model %s, defaulting to OpenAI", model
+            "provider_detection_failed", model=model, default="openai"
         )
         return EmbeddingProvider.OPENAI
 
