@@ -16,11 +16,11 @@ v6.0 REFACTORING:
 from __future__ import annotations
 
 import asyncio
-import time
-from datetime import datetime, timezone
-from resync.core.task_tracker import create_tracked_task
+import inspect
 import logging
+import time
 import weakref
+from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -36,6 +36,7 @@ from resync.core.exceptions import (
 from resync.core.ia_auditor import analyze_and_flag_memories
 from resync.core.interfaces import IAgentManager
 from resync.core.security import SafeAgentID, sanitize_input
+from resync.core.task_tracker import create_tracked_task
 from resync.core.types.app_state import enterprise_state_from_app
 
 # --- Logging Setup ---
@@ -157,7 +158,8 @@ async def _handle_agent_interaction(
     agent_id_str = str(agent_id)
 
     # Send user's message back to UI for display
-    # Per WebSocketMessage model: type, sender, message, agent_id, session_id, timestamp, metadata
+    # Per WebSocketMessage model:
+    # type, sender, message, agent_id, session_id, timestamp, metadata
     await websocket.send_json(
         {
             "type": "message",
@@ -278,8 +280,9 @@ async def _setup_websocket_session(
     st = enterprise_state_from_app(websocket.app)
     agent_manager: IAgentManager = st.agent_manager
 
-    # Get agent synchronously from the manager
-    agent = agent_manager.get_agent(agent_id)
+    # Get agent from the manager (supports sync or async implementations).
+    maybe_agent = agent_manager.get_agent(agent_id)
+    agent = await maybe_agent if inspect.isawaitable(maybe_agent) else maybe_agent
     agent_id_str = str(agent_id)
     session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
 
@@ -356,7 +359,8 @@ async def websocket_endpoint(
             return
     except Exception:
         logger.warning(
-            "WebSocket auth check failed, allowing connection (auth service unavailable)"
+            "WebSocket auth check failed, allowing connection "
+            "(auth service unavailable)"
         )
 
     try:

@@ -1,8 +1,9 @@
 # pylint: disable=all
 """Validation middleware for automatic request validation."""
 
+import inspect
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -15,6 +16,16 @@ from .common import ValidationErrorResponse, ValidationSeverity
 
 logger = structlog.get_logger(__name__)
 
+ValidatorResult = dict[str, Any]
+ValidatorFn = Callable[
+    [dict[str, Any], Request],
+    ValidatorResult | Awaitable[ValidatorResult],
+]
+ErrorHandlerFn = Callable[
+    [Request, ValidationErrorResponse],
+    JSONResponse | Awaitable[JSONResponse],
+]
+
 
 class ValidationMiddleware:
     """Middleware for automatic request validation using Pydantic models."""
@@ -25,8 +36,8 @@ class ValidationMiddleware:
         strict_mode: bool = True,
         sanitize_input: bool = True,
         enable_logging: bool = True,
-        custom_validators: dict[str, Callable] | None = None,
-        error_handler: Callable | None = None,
+        custom_validators: dict[str, ValidatorFn] | None = None,
+        error_handler: ErrorHandlerFn | None = None,
     ):
         """
         Initialize validation middleware.
@@ -187,7 +198,7 @@ class ValidationMiddleware:
         if request.method in ["POST", "PUT", "PATCH"]:
             return await self._validate_body_data(request, validation_model)
         if request.method in ["GET", "DELETE"]:
-            return self._validate_query_params(request, validation_model)
+            return await self._validate_query_params(request, validation_model)
         return None
 
     async def _validate_body_data(
@@ -228,7 +239,7 @@ class ValidationMiddleware:
                     return None
 
             # Apply custom validators if any
-            data = self._apply_custom_validators(data, request)
+            data = await self._apply_custom_validators(data, request)
 
             # Validate with Pydantic model
             validated_model = validation_model(**data)
@@ -250,7 +261,7 @@ class ValidationMiddleware:
                 "body", cast(Any, [str(e)])
             ) from e
 
-    def _validate_query_params(
+    async def _validate_query_params(
         self, request: Request, validation_model: type[BaseModel]
     ) -> dict[str, Any] | None:
         """
@@ -283,7 +294,9 @@ class ValidationMiddleware:
                     converted_params[key] = value
 
             # Apply custom validators if any
-            converted_params = self._apply_custom_validators(converted_params, request)
+            converted_params = await self._apply_custom_validators(
+                converted_params, request
+            )
 
             # Validate with Pydantic model
             validated_model = validation_model(**converted_params)
@@ -303,7 +316,7 @@ class ValidationMiddleware:
                 "query_params", cast(Any, [str(e)])
             ) from e
 
-    def _apply_custom_validators(
+    async def _apply_custom_validators(
         self, data: dict[str, Any], request: Request
     ) -> dict[str, Any]:
         """
@@ -319,7 +332,11 @@ class ValidationMiddleware:
         # Apply custom validators based on the endpoint
         for validator_name, validator_func in self.custom_validators.items():
             try:
-                data = validator_func(data, request)
+                result = validator_func(data, request)
+                if inspect.isawaitable(result):
+                    data = await result
+                else:
+                    data = result
             except Exception as e:
                 logger.warning(
                     "custom_validator_failed",
@@ -393,7 +410,10 @@ class ValidationMiddleware:
         # Use custom error handler if provided
         if self.error_handler:
             try:
-                return await self.error_handler(request, error_response)
+                handler_result = self.error_handler(request, error_response)
+                if inspect.isawaitable(handler_result):
+                    return await handler_result
+                return cast(JSONResponse, handler_result)
             except Exception as e:
                 logger.error("Custom error handler failed: %s", str(e), exc_info=True)
 
@@ -439,8 +459,8 @@ class ValidationConfig:
         strict_mode: bool = True,
         sanitize_input: bool = True,
         enable_logging: bool = True,
-        custom_validators: dict[str, Callable] | None = None,
-        error_handler: Callable | None = None,
+        custom_validators: dict[str, ValidatorFn] | None = None,
+        error_handler: ErrorHandlerFn | None = None,
         skip_paths: list[str] | None = None,
         rate_limit_validation: bool = False,
         max_validation_errors: int = 50,
