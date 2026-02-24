@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Health History Manager
 

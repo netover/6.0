@@ -1142,7 +1142,7 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # v5.4.9: Integrated from settings_legacy.py
 
-    # pylint: disable=invalid-name
+    # pylint
     @property
     def RAG_SERVICE_URL(self) -> str:
         """Legacy alias for rag_service_url."""
@@ -1435,7 +1435,7 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for protected_directories."""
         return self.protected_directories
 
-    # pylint: enable=invalid-name
+    # pylint
 
     # ============================================================================
     # ENVIRONMENT CHECKS (v5.9.3 FIX)

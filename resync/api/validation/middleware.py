@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Validation middleware for automatic request validation."""
 
 import inspect

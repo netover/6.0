@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 File Ingestor implementation for RAG.
 

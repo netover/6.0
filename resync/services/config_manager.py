@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Unified Configuration Manager Service
 

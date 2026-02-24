@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 from re import match
 
 from passlib.context import CryptContext

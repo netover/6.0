@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 System status routes for FastAPI
 """

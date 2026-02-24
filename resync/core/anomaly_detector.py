@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Advanced Anomaly Detection with Machine Learning.
 

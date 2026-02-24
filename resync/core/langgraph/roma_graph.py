@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """ROMA orchestration graph using LangGraph StateGraph."""
 
 from __future__ import annotations

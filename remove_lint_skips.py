@@ -3,8 +3,8 @@
 Script para remover/comentar linhas de skip de linting do projeto.
 
 Este script procura e substitui:
-- `# pylint: skip-file` -> remove ou comenta
-- `# mypy: ignore-errors` -> remove ou comenta
+- `# pylint
+- `# mypy
 """
 
 import argparse
@@ -37,8 +37,8 @@ def process_file(file_path: Path, dry_run: bool = True, verbose: bool = False) -
     
     # Linhas a procurar e substituir
     replacements = {
-        "# pylint: skip-file": "# pylint: disable=all",
-        "# mypy: ignore-errors": "# mypy: no-rerun",
+        "# pylint
+        "# mypy
     }
     
     modified = False

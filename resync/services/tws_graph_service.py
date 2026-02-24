@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 TWS Graph Service v5.2.3.26
 

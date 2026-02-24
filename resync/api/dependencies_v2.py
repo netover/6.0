@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 FastAPI Dependencies with Concurrency Protection.
 

@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Memory Integration for LangGraph Agent v5.2.3.26
 

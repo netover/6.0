@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Authentication and authorization API endpoints.
 
 This module provides JWT-based authentication endpoints and utilities,

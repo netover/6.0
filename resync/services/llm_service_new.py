@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 LLM Service using OpenAI SDK for OpenAI-Compatible APIs.
 
@@ -212,7 +212,7 @@ class LLMService:
                     "request_id": getattr(exc, "request_id", None),
                 },
             ) from exc
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:  # pylint
             # Re-raise critical system exceptions and programming errors
             if isinstance(
                 exc,

@@ -1,5 +1,5 @@
 # ruff: noqa: E501
-# pylint: disable=all
+# pylint
 """
 WebSocket Pool Health Checker
 

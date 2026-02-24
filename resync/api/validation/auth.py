@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Authentication and authorization validation models."""
 
 from enum import Enum

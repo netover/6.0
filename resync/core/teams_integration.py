@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Microsoft Teams integration for Resync.
 
 This module provides integration with Microsoft Teams for notifications,

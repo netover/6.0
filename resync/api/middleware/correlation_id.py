@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """Correlation ID middleware.
 
 Adds a stable request correlation identifier for the lifetime of an HTTP request.

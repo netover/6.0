@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Smart Connection Pooling System.
 

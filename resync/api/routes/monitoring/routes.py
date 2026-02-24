@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 API Routes para Monitoramento Proativo em Tempo Real
 

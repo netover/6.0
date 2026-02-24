@@ -39,7 +39,7 @@ class CacheHierarchyConfig:
         self.cache_key_prefix = key_prefix
 
     # --- Legacy UPPERCASE aliases (read-only) ---
-    # pylint: disable=invalid-name
+    # pylint
     @property
     def L1_MAX_SIZE(self) -> int:
         """Legacy alias for l1_max_size."""
@@ -70,4 +70,4 @@ class CacheHierarchyConfig:
         """Legacy alias for cache_key_prefix."""
         return self.cache_key_prefix
 
-    # pylint: enable=invalid-name
+    # pylint

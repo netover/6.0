@@ -1,5 +1,5 @@
 # ruff: noqa: E501
-# pylint: disable=all
+# pylint
 """
 TWS Specialist Agents Implementation (v5.2.3.24 - Agno-Free).
 

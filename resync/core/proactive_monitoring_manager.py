@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Inicializador do Sistema de Monitoramento Proativo
 

@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 LLM Tools - Ferramentas integradas com LLM Service.
 

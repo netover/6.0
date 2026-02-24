@@ -1,6 +1,6 @@
 # ruff: noqa: E501
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 HTTP connection pool implementation for the Resync project.
 Separated to follow Single Responsibility Principle.

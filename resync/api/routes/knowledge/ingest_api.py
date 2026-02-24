@@ -11,8 +11,8 @@ Routes:
 """
 
 from __future__ import annotations
-# pylint: disable=no-name-in-module
-# mypy: no-rerun
+# pylint
+# mypy
 
 import logging
 import shutil

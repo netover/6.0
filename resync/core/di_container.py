@@ -288,7 +288,7 @@ class _LazyContainerProxy:
     """
 
     def _get(self) -> "DIContainer":
-        global _container_singleton  # pylint: disable=global-statement
+        global _container_singleton  # pylint
         if _container_singleton is None:
             _container_singleton = DIContainer()
         return _container_singleton

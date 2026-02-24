@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """PostgreSQL-backed Document Knowledge Graph (DKG) store.
 
 Design goals:

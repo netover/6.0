@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """Teams Notifications - Database Models."""
 
 from datetime import datetime, timezone

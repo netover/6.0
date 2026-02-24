@@ -1,5 +1,5 @@
-# mypy: no-rerun
-# pylint: disable=not-callable
+# mypy
+# pylint
 """Admin API para gerenciar notificações do Teams."""
 
 from datetime import datetime, timezone

@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Redis FAIL-FAST Strategy Module
 

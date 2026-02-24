@@ -14,7 +14,7 @@ Endpoints:
 """
 
 from __future__ import annotations
-# mypy: no-rerun
+# mypy
 
 import logging
 from typing import Annotated, Any

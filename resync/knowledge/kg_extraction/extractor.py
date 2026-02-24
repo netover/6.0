@@ -9,7 +9,7 @@ By default, extraction is gated by env var KG_EXTRACTION_ENABLED.
 
 from __future__ import annotations
 
-# mypy: no-rerun
+# mypy
 import json
 import logging
 import re

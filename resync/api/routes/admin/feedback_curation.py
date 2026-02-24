@@ -1,5 +1,5 @@
-# mypy: no-rerun
-# pylint: disable=not-callable
+# mypy
+# pylint
 """
 Admin Feedback Curation API - Endpoints para curadoria de feedback.
 

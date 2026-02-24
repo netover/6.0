@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """CSP violation report validation utilities."""
 
 import json

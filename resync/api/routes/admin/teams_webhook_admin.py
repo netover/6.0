@@ -1,4 +1,4 @@
-# pylint: disable=not-callable
+# pylint
 """Teams Webhook Administration API."""
 
 import re

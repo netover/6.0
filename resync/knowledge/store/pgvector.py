@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 PgVector Service - PostgreSQL Vector Similarity Search.
 

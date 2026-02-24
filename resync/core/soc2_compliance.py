@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Refactored SOC 2 Type II Compliance Management System using Strategy Pattern.
 

@@ -44,7 +44,7 @@ def _get_active_sessions_lock() -> asyncio.Lock:
     This avoids creating asyncio primitives at import time, which can break
     under pre-fork servers (e.g., gunicorn --preload).
     """
-    global _active_sessions_lock, _active_sessions_lock_loop  # pylint: disable=W0603
+    global _active_sessions_lock, _active_sessions_lock_loop  # pylint
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:

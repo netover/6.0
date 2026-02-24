@@ -1,5 +1,5 @@
 # ruff: noqa: E501
-# pylint: disable=all
+# pylint
 """
 PostgreSQL Checkpointer for LangGraph v6.0.0.
 

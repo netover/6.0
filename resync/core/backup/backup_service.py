@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Backup Service for PostgreSQL and System Configuration.
 

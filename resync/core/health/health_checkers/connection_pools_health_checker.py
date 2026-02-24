@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Connection Pools Health Checker
 

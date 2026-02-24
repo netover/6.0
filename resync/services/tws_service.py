@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 # ruff: noqa: E501
 """
 Read‑only client for interacting with the IBM TWS/HWA REST API.

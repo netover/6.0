@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Authentication service with database support.
 """

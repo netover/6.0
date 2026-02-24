@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Test Data Factories - Generate test data using Polyfactory.
 

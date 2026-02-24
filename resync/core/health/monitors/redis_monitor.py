@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Redis Health Monitor
 

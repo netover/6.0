@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Skill Manager - Carrega e gerencia skills do sistema Resync.
 

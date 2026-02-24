@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Document GraphRAG context builder.
 
 This component transforms:

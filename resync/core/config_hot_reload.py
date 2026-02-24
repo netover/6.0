@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Hot-Reload Configuration System.
 

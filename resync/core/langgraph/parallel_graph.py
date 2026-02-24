@@ -44,7 +44,7 @@ Usage:
 
 from __future__ import annotations
 
-# pylint: disable=not-callable,no-member
+# pylint
 import asyncio
 import json
 import operator

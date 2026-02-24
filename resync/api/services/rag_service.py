@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 RAG Integration Service - Connects FastAPI routes to RAG microservice.
 

@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Continual Learning Metrics Collector.
 

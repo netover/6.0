@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Security Metrics Dashboard and Monitoring System.
 

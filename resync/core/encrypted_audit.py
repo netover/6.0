@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Encrypted Audit Trails with Cryptographic Integrity.
 

@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Knowledge Incorporator - Transforma feedback aprovado em conhecimento.
 

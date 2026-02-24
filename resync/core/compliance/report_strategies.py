@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Compliance Report Generation Strategies.
 

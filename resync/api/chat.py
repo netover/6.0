@@ -91,7 +91,7 @@ async def send_error_message(
         logger.debug("Failed to send error message, WebSocket runtime error: %s", exc)
     except ConnectionError as exc:
         logger.debug("Failed to send error message, connection error: %s", exc)
-    except Exception as _e:  # pylint: disable=broad-exception-caught
+    except Exception as _e:  # pylint
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -116,10 +116,10 @@ async def run_auditor_safely() -> None:
         logger.error("IA Auditor encountered a database error.", exc_info=True)
     except AuditError:
         logger.error("IA Auditor encountered an audit-specific error.", exc_info=True)
-    except asyncio.CancelledError:  # pylint: disable=try-except-raise
+    except asyncio.CancelledError:  # pylint
         # Propagate task cancellation correctly
         raise
-    except Exception as _e:  # pylint: disable=broad-exception-caught
+    except Exception as _e:  # pylint
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -391,7 +391,7 @@ async def websocket_endpoint(
             agent_id_str,
             session_id,
         )
-    except Exception as _e:  # pylint: disable=broad-exception-caught
+    except Exception as _e:  # pylint
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

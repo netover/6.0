@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 TWS RAG Integration - Ingestão de Status para Consultas Históricas
 

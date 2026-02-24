@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """Resync API middleware package.
 
 This module intentionally keeps imports lightweight.

@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Embedding-Based Intent Router.
 

@@ -1,4 +1,4 @@
-# mypy: no-rerun
+# mypy
 """
 Proactive Monitoring System Integration
 

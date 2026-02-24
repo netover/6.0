@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Hybrid RAG - Knowledge Graph + Vector Search Query Router.
 

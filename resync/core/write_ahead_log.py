@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Write-Ahead Logging (WAL) system for cache persistence.
 

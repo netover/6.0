@@ -1,4 +1,4 @@
-# mypy: no-rerun
+# mypy
 """
 Admin User Management Routes.
 

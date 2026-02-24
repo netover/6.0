@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 OpenTelemetry Configuration - Distributed tracing and metrics.
 

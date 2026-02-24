@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Test Configuration and Fixtures.
 

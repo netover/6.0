@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Log Aggregation System with ELK Stack Integration.
 

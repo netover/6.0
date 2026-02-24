@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Template Loader for LangGraph Synthesis Templates.
 

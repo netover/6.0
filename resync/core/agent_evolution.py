@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Supervised Agent Evolution System for TWS/HWA
 

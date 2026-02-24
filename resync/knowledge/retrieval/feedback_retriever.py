@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Feedback-Aware Retriever for Continual Learning RAG.
 

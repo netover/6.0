@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 import os
 import subprocess
 import sys

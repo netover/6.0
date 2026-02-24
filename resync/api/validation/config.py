@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Validation configuration for the resync application."""
 
 import re

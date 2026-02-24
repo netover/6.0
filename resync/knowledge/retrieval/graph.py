@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 TWS Knowledge Graph v5.9.3 - Simplified Wrapper
 

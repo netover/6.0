@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 # ruff: noqa: E501
 """
 Advanced Knowledge Graph Queries for Resync v5.2.3.26

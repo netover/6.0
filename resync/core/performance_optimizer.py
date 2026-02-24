@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Performance Optimization Module for Phase 2 Enhancements (v6.1.2).
 """

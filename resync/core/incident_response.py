@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 Automated Incident Response System.
 

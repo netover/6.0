@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 from datetime import datetime
 
 from passlib.context import CryptContext

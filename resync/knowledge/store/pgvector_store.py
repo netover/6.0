@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 pgvector-based vector store with Binary+Halfvec optimization.
 

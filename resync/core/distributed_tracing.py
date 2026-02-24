@@ -7,7 +7,7 @@ from __future__ import annotations
 import contextlib
 import functools
 
-# pylint: disable=no-member
+# pylint
 import inspect
 import time
 from collections.abc import Callable

@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 SIEM (Security Information and Event Management) Integration System.
 

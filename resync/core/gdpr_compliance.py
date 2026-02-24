@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """
 GDPR Compliance Management System.
 

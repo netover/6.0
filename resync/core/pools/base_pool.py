@@ -1,5 +1,5 @@
-# pylint: disable=all
-# mypy: no-rerun
+# pylint
+# mypy
 """
 Connection pool base classes and configuration for the Resync project.
 Separated to follow Single Responsibility Principle.

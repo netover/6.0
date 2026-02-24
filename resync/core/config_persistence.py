@@ -1,4 +1,4 @@
-# pylint: disable=all
+# pylint
 """Configuration Persistence Manager for Resync.
 
 This module handles persistent storage of configuration changes,

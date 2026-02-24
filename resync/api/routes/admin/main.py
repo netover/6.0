@@ -6,7 +6,7 @@ through the /admin/config interface.
 
 from __future__ import annotations
 
-# mypy: no-rerun
+# mypy
 import inspect
 import logging
 from datetime import datetime, timezone
