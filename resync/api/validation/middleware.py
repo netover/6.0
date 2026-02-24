@@ -4,7 +4,7 @@
 import json
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from fastapi import HTTPException, Request, Response
@@ -219,8 +219,7 @@ class ValidationMiddleware:
                 data = dict(form_data)
             elif "multipart/form-data" in content_type:
                 form_data = await request.form()
-                files = await request.files()
-                data = {**dict(form_data), "files": files}
+                data = dict(form_data)
             else:
                 # Try to parse as JSON by default
                 try:
@@ -237,7 +236,9 @@ class ValidationMiddleware:
             return validated_model.model_dump()
 
         except json.JSONDecodeError as e:
-            raise ValidationError.from_exception_data("body", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "body", cast(Any, [str(e)])
+            ) from e
         except ValidationError:
             raise
         except Exception as e:
@@ -245,7 +246,9 @@ class ValidationMiddleware:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("body_validation_error", error=str(e), exc_info=True)
-            raise ValidationError.from_exception_data("body", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "body", cast(Any, [str(e)])
+            ) from e
 
     def _validate_query_params(
         self, request: Request, validation_model: type[BaseModel]
@@ -268,7 +271,7 @@ class ValidationMiddleware:
                 return None
 
             # Convert parameter values
-            converted_params = {}
+            converted_params: dict[str, str | list[str]] = {}
             for key, value in query_params.items():
                 # Handle list parameters
                 if key.endswith("[]"):
@@ -296,7 +299,9 @@ class ValidationMiddleware:
             logger.error(
                 "query_parameter_validation_error", error=str(e), exc_info=True
             )
-            raise ValidationError.from_exception_data("query_params", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "query_params", cast(Any, [str(e)])
+            ) from e
 
     def _apply_custom_validators(
         self, data: dict[str, Any], request: Request
@@ -486,7 +491,9 @@ def create_validation_middleware(config: ValidationConfig) -> ValidationMiddlewa
 
 
 # Common validation utilities
-def validate_json_body(request: Request, model: type[BaseModel]) -> dict[str, Any]:
+async def validate_json_body(
+    request: Request, model: type[BaseModel]
+) -> dict[str, Any]:
     """
     Validate JSON request body against a Pydantic model.
 
@@ -501,7 +508,7 @@ def validate_json_body(request: Request, model: type[BaseModel]) -> dict[str, An
         ValidationError: If validation fails
     """
     try:
-        body = request.body()
+        body = await request.body()
         data = (
             json.loads(body.decode("utf-8"))
             if isinstance(body, bytes)
@@ -511,7 +518,9 @@ def validate_json_body(request: Request, model: type[BaseModel]) -> dict[str, An
         validated_model = model(**data)
         return validated_model.model_dump()
     except json.JSONDecodeError as e:
-        raise ValidationError.from_exception_data("body", [str(e)]) from e
+            raise ValidationError.from_exception_data(
+                "body", cast(Any, [str(e)])
+            ) from e
     except ValidationError:
         raise
 
@@ -533,7 +542,7 @@ def validate_query_params(request: Request, model: type[BaseModel]) -> dict[str,
     query_params = dict(request.query_params)
 
     # Convert parameter values
-    converted_params = {}
+    converted_params: dict[str, str | list[str]] = {}
     for key, value in query_params.items():
         if key.endswith("[]"):
             key = key[:-2]
