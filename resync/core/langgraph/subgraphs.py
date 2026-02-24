@@ -38,8 +38,7 @@ logger = get_logger(__name__)
 # LangGraph imports
 try:
     from langgraph.graph import END, StateGraph
-    from langgraph.types import Send
-    from langgraph.types import interrupt
+    from langgraph.types import Send, interrupt
 
     LANGGRAPH_AVAILABLE = True
     LANGGRAPH_03_FEATURES = True

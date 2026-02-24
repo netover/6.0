@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 # pylint: disable=all
 # mypy: no-rerun
 """
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from resync.core.database.repositories.orchestration_config_repo import (
     OrchestrationConfigRepository,
@@ -24,7 +25,7 @@ from resync.core.database.repositories.orchestration_execution_repo import (
 )
 from resync.core.orchestration.agent_adapter import AgentAdapter
 from resync.core.orchestration.events import EventType, OrchestrationEvent, event_bus
-from resync.core.orchestration.schemas import WorkflowConfig, StepConfig
+from resync.core.orchestration.schemas import StepConfig, WorkflowConfig
 from resync.core.orchestration.strategies import StrategyFactory
 
 logger = logging.getLogger(__name__)

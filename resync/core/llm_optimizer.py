@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 TWS-optimized LLM integration with prompt caching and model routing.
 """

@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Orchestration Event Bus
 
@@ -14,7 +15,6 @@ from typing import Any, Callable
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-
 
 logger = logging.getLogger(__name__)
 

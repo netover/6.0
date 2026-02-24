@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Autonomous Diagnostic Resolution Graph for Resync v5.4.0
 
@@ -38,9 +39,9 @@ Graph Architecture:
 """
 
 from __future__ import annotations
+
 # pylint: disable=no-name-in-module
 # mypy: no-rerun
-
 import logging
 from dataclasses import dataclass
 from enum import Enum
