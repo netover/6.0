@@ -503,7 +503,7 @@ class IncidentResponder:
 
     async def execute_response(self, incident: Incident) -> list[dict[str, Any]]:
         """Execute automated response actions for incident."""
-        executed_actions = []
+        executed_actions: list[dict[str, Any]] = []
 
         if not self.config.enable_automated_response:
             return executed_actions
@@ -1005,19 +1005,23 @@ class IncidentResponseEngine:
         # Calculate metrics
         contained_incidents = [i for i in self.incident_history if i.contained_at]
         avg_containment_time = (
-            sum(i.contained_at - i.detected_at for i in contained_incidents)
+            sum(
+                (i.contained_at - i.detected_at)
+                for i in contained_incidents
+                if i.contained_at is not None
+            )
             / len(contained_incidents)
             if contained_incidents
-            else 0
+            else 0.0
         )
 
-        severity_distribution = {}
+        severity_distribution: dict[str, int] = {}
         for incident in self.incident_history + list(self.active_incidents.values()):
             severity_distribution[incident.severity.value] = (
                 severity_distribution.get(incident.severity.value, 0) + 1
             )
 
-        category_distribution = {}
+        category_distribution: dict[str, int] = {}
         for incident in self.incident_history + list(self.active_incidents.values()):
             category_distribution[incident.category.value] = (
                 category_distribution.get(incident.category.value, 0) + 1

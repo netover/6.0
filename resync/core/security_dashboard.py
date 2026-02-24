@@ -487,12 +487,12 @@ class MetricCollector:
 
     def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of all metrics."""
-        summary = {
+        summary: dict[str, Any] = {
             "total_metrics": len(self.metrics),
             "by_category": defaultdict(int),
             "by_status": defaultdict(int),
             "alerts_active": 0,
-            "last_updated": 0,
+            "last_updated": 0.0,
         }
 
         for metric in self.metrics.values():
@@ -930,7 +930,7 @@ class SecurityDashboard:
         }
 
         for widget in visible_widgets:
-            widget_data = {
+            widget_data: dict[str, Any] = {
                 "widget_id": widget.widget_id,
                 "title": widget.title,
                 "type": widget.widget_type,
@@ -963,9 +963,13 @@ class SecurityDashboard:
         time_range: str = "24h",
     ) -> dict[str, Any]:
         """Get metrics data for API consumption."""
+        metrics: list[SecurityMetric]
         if metric_ids:
-            metrics = [self.metric_collector.get_metric(mid) for mid in metric_ids]
-            metrics = [m for m in metrics if m is not None]
+            metrics = [
+                metric
+                for metric_id in metric_ids
+                if (metric := self.metric_collector.get_metric(metric_id)) is not None
+            ]
         elif category:
             metrics = self.metric_collector.get_metrics_by_category(category)
         else:
@@ -1166,7 +1170,7 @@ class _LazySecurityDashboard:
     __slots__ = ("_instance",)
 
     def __init__(self) -> None:
-        self._instance = None
+        self._instance: SecurityDashboard | None = None
 
     def get_instance(self) -> SecurityDashboard:
         if self._instance is None:
