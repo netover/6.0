@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """Microsoft Teams integration for Resync.
 
 This module provides integration with Microsoft Teams for notifications,

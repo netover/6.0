@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Write-Ahead Logging (WAL) system for cache persistence.
 

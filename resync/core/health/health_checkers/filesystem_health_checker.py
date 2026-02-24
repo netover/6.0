@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 File System Health Checker
 

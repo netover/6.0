@@ -1,6 +1,5 @@
 # ruff: noqa: E501
 # pylint: disable=all
-# mypy: no-rerun
 """
 TWS Monitor Health Checker
 

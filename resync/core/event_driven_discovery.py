@@ -1,6 +1,5 @@
 # ruff: noqa: E501
 # pylint: disable=all
-# mypy: no-rerun
 """
 Event-Driven Auto-Discovery for Knowledge Graph
 

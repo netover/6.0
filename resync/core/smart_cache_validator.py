@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Smart Cache Validator - Event-Driven Cache Validation
 

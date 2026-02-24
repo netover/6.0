@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 SIEM (Security Information and Event Management) Integration System.
 

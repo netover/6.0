@@ -8,7 +8,6 @@ import contextlib
 import functools
 
 # pylint: disable=no-member
-# mypy: no-rerun
 import inspect
 import time
 from collections.abc import Callable

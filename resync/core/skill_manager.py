@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Skill Manager - Carrega e gerencia skills do sistema Resync.
 

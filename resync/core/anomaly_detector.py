@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Advanced Anomaly Detection with Machine Learning.
 

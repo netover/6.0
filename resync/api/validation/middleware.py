@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """Validation middleware for automatic request validation."""
 
 import json

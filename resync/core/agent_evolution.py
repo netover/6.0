@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Supervised Agent Evolution System for TWS/HWA
 

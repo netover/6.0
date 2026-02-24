@@ -1,4 +1,3 @@
-# mypy: no-rerun
 """
 Admin API - API Key Management
 

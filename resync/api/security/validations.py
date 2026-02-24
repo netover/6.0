@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 from re import match
 
 from passlib.context import CryptContext

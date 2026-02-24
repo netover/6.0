@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """Authentication and authorization validation models."""
 
 from enum import Enum

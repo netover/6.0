@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """TWS monitoring and alerting system.
 
 This module provides real-time monitoring of the TWS environment,

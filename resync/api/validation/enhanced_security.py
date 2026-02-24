@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """Enhanced security validation with async context managers and improved type hints."""
 
 from __future__ import annotations
@@ -303,7 +302,10 @@ class EnhancedSecurityValidator:
             if len(truncated_password) < 10:
                 return InputValidationResult(
                     is_valid=False,
-                    error_message="Password must be at least 10 characters long for medium security",
+                    error_message=(
+                        "Password must be at least 10 characters long "
+                        "for medium security"
+                    ),
                     threat_detected=ThreatType.BRUTE_FORCE,
                     security_context=context,
                 )
@@ -320,7 +322,10 @@ class EnhancedSecurityValidator:
                 return InputValidationResult(
                     is_valid=False,
                     error_message=(
-                        "Password must contain uppercase, lowercase, digit, and special character"
+                        (
+                            "Password must contain uppercase, lowercase, digit, "
+                            "and special character"
+                        )
                     ),
                     threat_detected=ThreatType.BRUTE_FORCE,
                     security_context=context,
@@ -343,7 +348,10 @@ class EnhancedSecurityValidator:
         if truncated_password.lower() in weak_passwords:
             return InputValidationResult(
                 is_valid=False,
-                error_message="Password is too common, please choose a stronger password",
+                error_message=(
+                    "Password is too common, please choose a stronger "
+                    "password"
+                ),
                 threat_detected=ThreatType.BRUTE_FORCE,
                 security_context=context,
             )
@@ -615,7 +623,10 @@ class EnhancedSecurityValidator:
         if len(input_data) > max_length:
             return InputValidationResult(
                 is_valid=False,
-                error_message=f"Input exceeds maximum length of {max_length} characters",
+                error_message=(
+                    f"Input exceeds maximum length of {max_length} "
+                    "characters"
+                ),
                 security_context=context,
             )
 
@@ -728,7 +739,8 @@ class EnhancedSecurityValidator:
         Args:
             event: Security event to log
         """
-        # In production, this would send to a security information and event management (SIEM) system
+        # In production, this would send to a security information and
+        # event management (SIEM) system
         # Convert enums to their values for logging
         event_data = {
             "event_type": (

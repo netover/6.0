@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Unified Configuration API
 
@@ -344,7 +343,10 @@ async def restore_config_backup(filename: str):
         if not match:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid backup file nomenclature format. Expected: {config_name}_{timestamp}.toml.bak",
+                detail=(
+                    "Invalid backup file nomenclature format. "
+                    "Expected: {config_name}_{timestamp}.toml.bak"
+                ),
             )
         config_name = match.group(1)
 
@@ -360,7 +362,10 @@ async def restore_config_backup(filename: str):
         # Create backup of current before restoring
         current_backup = (
             backup_dir
-            / f"{config_name}_before_restore_{int(datetime.now(timezone.utc).timestamp())}.toml.bak"
+            / (
+            f"{config_name}_before_restore_"
+            f"{int(datetime.now(timezone.utc).timestamp())}.toml.bak"
+        )
         )
         shutil.copy2(config_file, current_backup)
 

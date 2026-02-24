@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 GraphRAG Admin Endpoints
 
@@ -215,7 +214,9 @@ async def get_discovery_config():
         "cache": {"ttl_days": DiscoveryConfig.DISCOVERY_CACHE_DAYS},
         "triggers": {
             "discover_on_new_error": DiscoveryConfig.DISCOVER_ON_NEW_ERROR,
-            "discover_on_recurring_failure": DiscoveryConfig.DISCOVER_ON_RECURRING_FAILURE,
+            "discover_on_recurring_failure": (
+                DiscoveryConfig.DISCOVER_ON_RECURRING_FAILURE
+            ),
             "min_failures_to_trigger": DiscoveryConfig.MIN_FAILURES_TO_TRIGGER,
         },
         "validation": {
@@ -351,7 +352,10 @@ async def update_config(request: ConfigUpdateRequest):
         return {
             "status": "success",
             "updated_fields": updated,
-            "message": "Configuration updated and saved to file (persists across restarts)",
+            "message": (
+                "Configuration updated and saved to file "
+                "(persists across restarts)"
+            ),
         }
 
     except Exception as e:

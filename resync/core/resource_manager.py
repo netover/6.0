@@ -1,5 +1,4 @@
 # pylint: disable=all
-# mypy: no-rerun
 """
 Resource Management Utilities for Phase 2 Performance Optimizations.
 
