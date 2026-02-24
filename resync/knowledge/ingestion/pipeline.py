@@ -17,6 +17,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -103,7 +104,7 @@ class DocumentIngestionPipeline:
         file_path = Path(file_path)
         source = file_path.name
         if doc_id is None:
-            doc_id = self._generate_doc_id(file_path)
+            doc_id = await self._generate_doc_id(file_path)
         t_total = time.perf_counter()
         converted = await self.converter.convert(file_path)
         if converted.status != "success":
@@ -218,7 +219,7 @@ class DocumentIngestionPipeline:
         max_concurrent: int = 2,
     ) -> list[IngestionResult]:
         """
-        Ingest multiple documents.
+        Ingest multiple documents with controlled concurrency.
 
         Args:
             file_paths: List of file paths to ingest.
@@ -229,16 +230,18 @@ class DocumentIngestionPipeline:
         Returns:
             List of IngestionResult (same order as input).
         """
-        results = []
-        for fp in file_paths:
-            result = await self.ingest_file(fp, tenant=tenant, tags=tags)
-            results.append(result)
-        return results
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _limited_ingest(fp: str | Path) -> IngestionResult:
+            async with semaphore:
+                return await self.ingest_file(fp, tenant=tenant, tags=tags)
+
+        return list(await asyncio.gather(*(_limited_ingest(fp) for fp in file_paths)))
 
     @staticmethod
-    def _generate_doc_id(file_path: Path) -> str:
+    async def _generate_doc_id(file_path: Path) -> str:
         """Generate a deterministic doc_id from file path and content hash."""
-        stat = file_path.stat()
+        stat = await asyncio.to_thread(file_path.stat)
         key = f"{file_path.name}:{stat.st_size}:{stat.st_mtime}"
         short_hash = hashlib.sha256(key.encode()).hexdigest()[:12]
         stem = file_path.stem[:40]

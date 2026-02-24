@@ -766,8 +766,8 @@ class SemanticChunker:
         if start < len(sentences):
             remaining = " ".join(sentences[start:])
             if chunks and count_tokens(remaining) < min_tokens:
-                # Merge with last chunk
-                chunks[-1].content = chunks[-1].content + " " + remaining
+                # Merge with last chunk (strings, not EnrichedChunk objects)
+                chunks[-1] = chunks[-1] + " " + remaining
             else:
                 chunks.append(remaining)
 

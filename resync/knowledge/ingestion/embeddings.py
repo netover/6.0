@@ -38,10 +38,10 @@ class EmbeddingConfig:
 
 
 class EmbeddingProvider(ABC):
-    """Abstract base class for embedding providers."""
+    """Abstract base class for embedding providers - ASYNC interface."""
 
     @abstractmethod
-    def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str) -> list[float]:
         """
         Generate embedding for a single text.
 
@@ -53,7 +53,7 @@ class EmbeddingProvider(ABC):
         """
 
     @abstractmethod
-    def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple texts.
 
@@ -192,7 +192,7 @@ class MockEmbeddingProvider(EmbeddingProvider):
         """Get embedding dimension."""
         return self._dimension
 
-    def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str) -> list[float]:
         """Generate mock embedding."""
         import hashlib
 
@@ -210,15 +210,16 @@ class MockEmbeddingProvider(EmbeddingProvider):
 
     async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
         """Generate mock embeddings for batch."""
-        return [self.embed(text) for text in texts]
+        return [await self.embed(text) for text in texts]
 
 
 _embedding_provider: EmbeddingProvider | None = None
+_embedding_provider_lock = __import__("threading").Lock()
 
 
 def get_embedding_provider() -> EmbeddingProvider:
     """
-    Get singleton embedding provider instance.
+    Get singleton embedding provider instance (thread-safe).
 
     Configures provider based on environment variables:
     - EMBEDDING_MODEL: Model to use (default: text-embedding-ada-002)
@@ -231,24 +232,27 @@ def get_embedding_provider() -> EmbeddingProvider:
     global _embedding_provider
     if _embedding_provider is not None:
         return _embedding_provider
-    if os.getenv("EMBEDDING_MOCK", "").lower() in ("true", "1", "yes"):
-        dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
-        _embedding_provider = MockEmbeddingProvider(dimension=dimension)
+    with _embedding_provider_lock:
+        if _embedding_provider is not None:
+            return _embedding_provider
+        if os.getenv("EMBEDDING_MOCK", "").lower() in ("true", "1", "yes"):
+            dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+            _embedding_provider = MockEmbeddingProvider(dimension=dimension)
+            logger.info(
+                "mock_embedding_provider_initialized", extra={"dimension": dimension}
+            )
+            return _embedding_provider
+        config = EmbeddingConfig(
+            model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
+            dimension=int(os.getenv("EMBEDDING_DIMENSION", "1536")),
+            batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "100")),
+        )
+        _embedding_provider = LiteLLMEmbeddingProvider(config)
         logger.info(
-            "mock_embedding_provider_initialized", extra={"dimension": dimension}
+            "litellm_embedding_provider_initialized",
+            extra={"model": config.model, "dimension": _embedding_provider.dimension},
         )
         return _embedding_provider
-    config = EmbeddingConfig(
-        model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
-        dimension=int(os.getenv("EMBEDDING_DIMENSION", "1536")),
-        batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "100")),
-    )
-    _embedding_provider = LiteLLMEmbeddingProvider(config)
-    logger.info(
-        "litellm_embedding_provider_initialized",
-        extra={"model": config.model, "dimension": _embedding_provider.dimension},
-    )
-    return _embedding_provider
 
 
 def set_embedding_provider(provider: EmbeddingProvider) -> None:

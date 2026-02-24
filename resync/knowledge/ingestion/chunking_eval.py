@@ -277,7 +277,8 @@ def detect_failure_slice(
         content = chunk.content
         lines = content.split("\n")
         for line in lines:
-            if line.strip().startswith(("-", "•", "*")) or line.strip()[0].isdigit():
+            stripped = line.strip()
+            if stripped and (stripped.startswith(("-", "•", "*")) or stripped[0].isdigit()):
                 if not any(
                     (
                         intro in content.lower()

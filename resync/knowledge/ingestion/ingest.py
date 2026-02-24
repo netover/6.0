@@ -81,7 +81,7 @@ class IngestService:
             )
             if exists:
                 continue
-            chunk_id = "{doc_id}#c{i:06d}"
+            chunk_id = f"{doc_id}#c{i:06d}"
             ids.append(chunk_id)
             payloads.append(
                 {
@@ -105,15 +105,18 @@ class IngestService:
         t0 = time.perf_counter()
         for start in range(0, len(texts_for_embed), self.batch_size):
             batch_texts = texts_for_embed[start : start + self.batch_size]
-            with embed_seconds.time():
-                vecs = await self.embedder.embed_batch(batch_texts)
-            with upsert_seconds.time():
-                await self.store.upsert_batch(
-                    ids=ids[start : start + self.batch_size],
-                    vectors=vecs,
-                    payloads=payloads[start : start + self.batch_size],
-                    collection=CFG.collection_write,
-                )
+            # FIX P1-005: Use perf_counter for accurate async timing
+            t_embed = time.perf_counter()
+            vecs = await self.embedder.embed_batch(batch_texts)
+            embed_seconds.observe(time.perf_counter() - t_embed)
+            t_upsert = time.perf_counter()
+            await self.store.upsert_batch(
+                ids=ids[start : start + self.batch_size],
+                vectors=vecs,
+                payloads=payloads[start : start + self.batch_size],
+                collection=CFG.collection_write,
+            )
+            upsert_seconds.observe(time.perf_counter() - t_upsert)
             total_upsert += len(batch_texts)
         jobs_total.labels(status="ingested").inc()
         logger.info(
@@ -293,25 +296,99 @@ class IngestService:
         t0 = time.perf_counter()
         for start in range(0, len(texts_for_embed), self.batch_size):
             batch_texts = texts_for_embed[start : start + self.batch_size]
-            with embed_seconds.time():
-                vecs = await self.embedder.embed_batch(batch_texts)
-            with upsert_seconds.time():
-                await self.store.upsert_batch(
-                    ids=ids[start : start + self.batch_size],
-                    vectors=vecs,
-                    payloads=payloads[start : start + self.batch_size],
-                    collection=CFG.collection_write,
-                )
+            # FIX P1-005: Use perf_counter for accurate async timing
+            t_embed = time.perf_counter()
+            vecs = await self.embedder.embed_batch(batch_texts)
+            embed_seconds.observe(time.perf_counter() - t_embed)
+            t_upsert = time.perf_counter()
+            await self.store.upsert_batch(
+                ids=ids[start : start + self.batch_size],
+                vectors=vecs,
+                payloads=payloads[start : start + self.batch_size],
+                collection=CFG.collection_write,
+            )
+            upsert_seconds.observe(time.perf_counter() - t_upsert)
             total_upsert += len(batch_texts)
+        # FIX P0-004: Actually upsert multi-view chunks to vector store
         if enable_multi_view:
             try:
                 multi_view_chunks = chunker.chunk_document_multi_view(
                     text, source=source, document_title=document_title, doc_id=doc_id
                 )
-                logger.info(
-                    "multi_view_generated",
-                    extra={"doc_id": doc_id, "views_generated": len(multi_view_chunks)},
-                )
+                if multi_view_chunks:
+                    # Prepare multi-view data for embedding
+                    mv_texts: list[str] = []
+                    mv_ids: list[str] = []
+                    mv_payloads: list[dict[str, Any]] = []
+                    for mvc in multi_view_chunks:
+                        # Check deduplication for each view
+                        sha_mv = hashlib.sha256(
+                            mvc.content.encode("utf-8")
+                        ).hexdigest()
+                        exists_mv = await self.store.exists_by_sha256(
+                            sha_mv, collection=CFG.collection_read
+                        )
+                        if exists_mv:
+                            continue
+                        mv_id = f"{mvc.chunk_id}_view_{mvc.view_type.value}"
+                        mv_ids.append(mv_id)
+                        mv_payloads.append(
+                            {
+                                "tenant": tenant,
+                                "doc_id": doc_id,
+                                "chunk_id": mv_id,
+                                "source": source,
+                                "section": mvc.metadata.section_path,
+                                "ts": ts_iso,
+                                "tags": tags or [],
+                                "neighbors": [],
+                                "graph_version": graph_version,
+                                "sha256": sha_mv,
+                                "document_title": document_title,
+                                "chunk_type": mvc.metadata.chunk_type.value,
+                                "parent_headers": mvc.metadata.parent_headers,
+                                "section_path": mvc.metadata.section_path,
+                                "view_type": mvc.view_type.value,
+                                "view_specific_content": mvc.view_specific_content,
+                                "base_chunk_id": mvc.chunk_id,
+                                "embedding_model": embedding_model or CFG.embed_model,
+                                "embedding_version": embedding_version,
+                            }
+                        )
+                        mv_texts.append(mvc.view_specific_content)
+                    # Embed and upsert multi-view chunks
+                    if mv_texts:
+                        for start in range(0, len(mv_texts), self.batch_size):
+                            mv_batch_texts = mv_texts[start : start + self.batch_size]
+                            t_mv_embed = time.perf_counter()
+                            mv_vecs = await self.embedder.embed_batch(mv_batch_texts)
+                            embed_seconds.observe(time.perf_counter() - t_mv_embed)
+                            t_mv_upsert = time.perf_counter()
+                            await self.store.upsert_batch(
+                                ids=mv_ids[start : start + self.batch_size],
+                                vectors=mv_vecs,
+                                payloads=mv_payloads[start : start + self.batch_size],
+                                collection=CFG.collection_write,
+                            )
+                            upsert_seconds.observe(time.perf_counter() - t_mv_upsert)
+                        logger.info(
+                            "multi_view_upserted",
+                            extra={
+                                "doc_id": doc_id,
+                                "views_generated": len(multi_view_chunks),
+                                "views_upserted": len(mv_texts),
+                            },
+                        )
+                    else:
+                        logger.info(
+                            "multi_view_skipped_all_duplicates",
+                            extra={"doc_id": doc_id, "views_total": len(multi_view_chunks)},
+                        )
+                else:
+                    logger.info(
+                        "multi_view_no_chunks",
+                        extra={"doc_id": doc_id},
+                    )
             except Exception as mv_e:
                 logger.warning("multi_view_indexing_failed", extra={"error": str(mv_e)})
         try:
