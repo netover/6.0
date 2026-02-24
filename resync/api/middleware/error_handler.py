@@ -63,7 +63,9 @@ class GlobalExceptionHandlerMiddleware(BaseHTTPMiddleware):
                 exc_info=True,
                 extra={"error": str(exc), "correlation_id": correlation_id},
             )
-            response = await self._handle_generic_exception(request, exc, correlation_id)
+            response = await self._handle_generic_exception(
+                request, exc, correlation_id
+            )
             self._dispatch_log_error_metrics(
                 exc.__class__.__name__, time.time() - start_time
             )

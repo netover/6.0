@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """Document GraphRAG context builder.
 
 This component transforms:

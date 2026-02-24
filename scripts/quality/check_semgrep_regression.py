@@ -24,13 +24,16 @@ def main() -> int:
 
     if not baseline_set:
         print(
-            "Semgrep baseline is empty; skipping regression gate. Run update_semgrep_baseline.py to initialize."
+            "Semgrep baseline is empty; skipping regression gate. "
+            "Run update_semgrep_baseline.py to initialize."
         )
         return 0
 
     new_findings = sorted(current_set - baseline_set)
     print(
-        f"baseline={len(baseline_set)} current={len(current_set)} new={len(new_findings)}"
+        "baseline="
+        f"{len(baseline_set)} current={len(current_set)} "
+        f"new={len(new_findings)}"
     )
     if new_findings:
         print("Semgrep regression detected:")

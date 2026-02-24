@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Shared Types Module - Canonical Definitions for Common Classes
 

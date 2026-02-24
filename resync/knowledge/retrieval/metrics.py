@@ -398,8 +398,12 @@ class RegressionGate:
                 regression = (baseline_val - current_val) / baseline_val
                 if regression > threshold:
                     failures.append(
-                        f"{metric_name}: {current_val:.4f} vs baseline {baseline_val:.4f} "
-                        f"(-{regression * 100:.1f}%, threshold: -{threshold * 100:.0f}%)"
+                        (
+                            f"{metric_name}: {current_val:.4f} "
+                            f"vs baseline {baseline_val:.4f} "
+                            f"(-{regression * 100:.1f}%, "
+                            f"threshold: -{threshold * 100:.0f}%)"
+                        )
                     )
 
         # Check latency (lower is better)
@@ -410,8 +414,12 @@ class RegressionGate:
             latency_increase = (current_latency - baseline_latency) / baseline_latency
             if latency_increase > self.thresholds.p95_latency:
                 failures.append(
-                    f"p95_latency_ms: {current_latency:.1f}ms vs baseline {baseline_latency:.1f}ms "
-                    f"(+{latency_increase * 100:.1f}%, threshold: +{self.thresholds.p95_latency * 100:.0f}%)"
+                    (
+                        f"p95_latency_ms: {current_latency:.1f}ms "
+                        f"vs baseline {baseline_latency:.1f}ms "
+                        f"(+{latency_increase * 100:.1f}%, "
+                        f"threshold: +{self.thresholds.p95_latency * 100:.0f}%)"
+                    )
                 )
 
         return len(failures) == 0, failures
@@ -447,7 +455,10 @@ class RegressionGate:
                 change = current_val - baseline_val
                 change_str = f"+{change:.1f}ms" if change >= 0 else f"{change:.1f}ms"
                 lines.append(
-                    f"  {display_name}: {current_val:.1f}ms (baseline: {baseline_val:.1f}ms, {change_str})"
+                    (
+                        f"  {display_name}: {current_val:.1f}ms "
+                        f"(baseline: {baseline_val:.1f}ms, {change_str})"
+                    )
                 )
             else:
                 change_pct = (
@@ -459,7 +470,10 @@ class RegressionGate:
                     f"+{change_pct:.1f}%" if change_pct >= 0 else f"{change_pct:.1f}%"
                 )
                 lines.append(
-                    f"  {display_name}: {current_val:.4f} (baseline: {baseline_val:.4f}, {change_str})"
+                    (
+                        f"  {display_name}: {current_val:.4f} "
+                        f"(baseline: {baseline_val:.4f}, {change_str})"
+                    )
                 )
 
         if failures:

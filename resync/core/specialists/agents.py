@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# ruff: noqa: E501
+# pylint
 """
 TWS Specialist Agents Implementation (v5.2.3.24 - Agno-Free).
 

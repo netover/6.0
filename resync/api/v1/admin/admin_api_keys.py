@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 Admin API - API Key Management
 
@@ -17,7 +16,7 @@ Version: 1.0.0
 """
 
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status

@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Memory Usage Tracker
 
@@ -8,7 +7,6 @@ functionality for health checks and system monitoring.
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import gc
 from datetime import datetime, timedelta, timezone
@@ -16,6 +14,8 @@ from typing import Any
 
 import psutil
 import structlog
+
+from resync.core.task_tracker import track_task
 
 logger = structlog.get_logger(__name__)
 
@@ -99,7 +99,8 @@ class MemoryUsageTracker:
             Dictionary with current memory usage data
         """
         try:
-            # Delegate to the synchronous version to avoid nested event-loop execution from sync contexts.
+            # Delegate to the synchronous version to avoid nested
+            # event-loop execution from sync contexts.
             memory_data = self.record_memory_usage_sync()
             # Check for memory issues asynchronously
             self._check_memory_alerts(memory_data)

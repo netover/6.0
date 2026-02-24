@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """PostgreSQL-backed Document Knowledge Graph (DKG) store.
 
 Design goals:
@@ -12,15 +12,17 @@ This module uses asyncpg (already used in resync.knowledge.store).
 """
 
 from __future__ import annotations
+
 import asyncio
-import logging
+import structlog
 import uuid
 from dataclasses import dataclass
 from typing import Any, Iterable
+
 from resync.knowledge.config import CFG
 from resync.knowledge.kg_store.ddl import DDL_STATEMENTS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 try:
     import asyncpg
 
@@ -53,7 +55,7 @@ class PostgresGraphStore:
     """Async Postgres store for nodes/edges with shared connection pool."""
 
     _pool: asyncpg.Pool | None = None
-    _pool_lock = asyncio.Lock()
+    _pool_lock: asyncio.Lock | None = None
 
     def __init__(self, database_url: str | None = None):
         if not ASYNCPG_AVAILABLE:
@@ -64,7 +66,6 @@ class PostgresGraphStore:
                 "postgresql+asyncpg://", "postgresql://"
             )
         self._schema_ensured = False
-
 
     @staticmethod
     def _pool_is_closed(pool: asyncpg.Pool | None) -> bool:
@@ -80,10 +81,16 @@ class PostgresGraphStore:
 
     async def _get_pool(self) -> asyncpg.Pool:
         """Get or create a shared connection pool."""
+        if PostgresGraphStore._pool_lock is None:
+            PostgresGraphStore._pool_lock = asyncio.Lock()
+            
         async with PostgresGraphStore._pool_lock:
             if self._pool_is_closed(PostgresGraphStore._pool):
-                PostgresGraphStore._pool = await asyncpg.create_pool(
-                    self._database_url, min_size=2, max_size=10, command_timeout=30
+                PostgresGraphStore._pool = await asyncio.wait_for(
+                    asyncpg.create_pool(
+                        self._database_url, min_size=2, max_size=10, command_timeout=30
+                    ),
+                    timeout=35.0
                 )
             return PostgresGraphStore._pool
 
@@ -92,9 +99,10 @@ class PostgresGraphStore:
         if self._schema_ensured:
             return
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
-            for stmt in DDL_STATEMENTS:
-                await conn.execute(stmt)
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(30.0):
+                for stmt in DDL_STATEMENTS:
+                    await conn.execute(stmt)
         self._schema_ensured = True
 
     async def close(self) -> None:
@@ -115,22 +123,34 @@ class PostgresGraphStore:
         if not nodes_list:
             return 0
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
-            await conn.executemany(
-                "\n                INSERT INTO kg_nodes (tenant, graph_version, node_id, node_type, name, aliases, properties)\n                VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)\n                ON CONFLICT (tenant, graph_version, node_id)\n                DO UPDATE SET\n                    node_type = EXCLUDED.node_type,\n                    name = EXCLUDED.name,\n                    aliases = EXCLUDED.aliases,\n                    properties = EXCLUDED.properties\n                ",
-                [
-                    (
-                        tenant,
-                        graph_version,
-                        n.node_id,
-                        n.node_type,
-                        n.name,
-                        asyncpg.types.Json(n.aliases or []),
-                        asyncpg.types.Json(n.properties or {}),
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(30.0):
+                await conn.executemany(
+                    """
+                    INSERT INTO kg_nodes (
+                        tenant, graph_version, node_id, node_type, name, aliases, properties
                     )
-                    for n in nodes_list
-                ],
-            )
+                    VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)
+                    ON CONFLICT (tenant, graph_version, node_id)
+                    DO UPDATE SET
+                        node_type = EXCLUDED.node_type,
+                        name = EXCLUDED.name,
+                        aliases = EXCLUDED.aliases,
+                        properties = EXCLUDED.properties
+                    """,
+                    [
+                        (
+                            tenant,
+                            graph_version,
+                            n.node_id,
+                            n.node_type,
+                            n.name,
+                            asyncpg.types.Json(n.aliases or []),
+                            asyncpg.types.Json(n.properties or {}),
+                        )
+                        for n in nodes_list
+                    ],
+                )
             return len(nodes_list)
 
     async def insert_edges(
@@ -141,23 +161,30 @@ class PostgresGraphStore:
         if not edges_list:
             return 0
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
-            await conn.executemany(
-                "\n                INSERT INTO kg_edges (tenant, graph_version, edge_id, source_id, target_id, relation_type, weight, evidence)\n                VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)\n                ",
-                [
-                    (
-                        tenant,
-                        graph_version,
-                        e.edge_id or str(uuid.uuid4()),
-                        e.source_id,
-                        e.target_id,
-                        e.relation_type,
-                        float(e.weight),
-                        asyncpg.types.Json(e.evidence or {}),
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(30.0):
+                await conn.executemany(
+                    """
+                    INSERT INTO kg_edges (
+                        tenant, graph_version, edge_id, source_id, target_id,
+                        relation_type, weight, evidence
                     )
-                    for e in edges_list
-                ],
-            )
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+                    """,
+                    [
+                        (
+                            tenant,
+                            graph_version,
+                            e.edge_id or str(uuid.uuid4()),
+                            e.source_id,
+                            e.target_id,
+                            e.relation_type,
+                            float(e.weight),
+                            asyncpg.types.Json(e.evidence or {}),
+                        )
+                        for e in edges_list
+                    ],
+                )
             return len(edges_list)
 
     async def upsert_from_extraction(
@@ -197,45 +224,54 @@ class PostgresGraphStore:
         )
         logger.info(
             "kg_extraction_persisted",
-            extra={"doc_id": doc_id, "nodes": n_nodes, "edges": n_edges},
+            doc_id=doc_id, nodes=n_nodes, edges=n_edges,
         )
         return {"nodes": n_nodes, "edges": n_edges}
 
-    async def stats(self, *, tenant: str, graph_version: int) -> dict[str, Any]:
+    async def stats(self, *, tenant: str, graph_version: int, timeout: float = 15.0) -> dict[str, Any]:
         await self.ensure_schema()
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
-            nodes = await conn.fetchval(
-                "SELECT COUNT(*) FROM kg_nodes WHERE tenant=$1 AND graph_version=$2",
-                tenant,
-                graph_version,
-            )
-            edges = await conn.fetchval(
-                "SELECT COUNT(*) FROM kg_edges WHERE tenant=$1 AND graph_version=$2",
-                tenant,
-                graph_version,
-            )
-            return {
-                "tenant": tenant,
-                "graph_version": graph_version,
-                "nodes": int(nodes),
-                "edges": int(edges),
-            }
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(timeout):
+                nodes = await conn.fetchval(
+                    "SELECT COUNT(*) FROM kg_nodes WHERE tenant=$1 AND graph_version=$2",
+                    tenant,
+                    graph_version,
+                )
+                edges = await conn.fetchval(
+                    "SELECT COUNT(*) FROM kg_edges WHERE tenant=$1 AND graph_version=$2",
+                    tenant,
+                    graph_version,
+                )
+                return {
+                    "tenant": tenant,
+                    "graph_version": graph_version,
+                    "nodes": int(nodes),
+                    "edges": int(edges),
+                }
 
     async def find_nodes_by_name(
-        self, *, tenant: str, graph_version: int, query: str, limit: int = 10
+        self, *, tenant: str, graph_version: int, query: str, limit: int = 10, timeout: float = 15.0
     ) -> list[dict[str, Any]]:
         """Fuzzy search nodes by name (requires pg_trgm)."""
         await self.ensure_schema()
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "\n                SELECT node_id, node_type, name, aliases, properties\n                FROM kg_nodes\n                WHERE tenant=$1 AND graph_version=$2\n                  AND name % $3\n                ORDER BY similarity(name, $3) DESC\n                LIMIT $4\n                ",
-                tenant,
-                graph_version,
-                query,
-                limit,
-            )
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(timeout):
+                rows = await conn.fetch(
+                    """
+                    SELECT node_id, node_type, name, aliases, properties
+                    FROM kg_nodes
+                    WHERE tenant=$1 AND graph_version=$2
+                      AND name % $3
+                    ORDER BY similarity(name, $3) DESC
+                    LIMIT $4
+                    """,
+                    tenant,
+                    graph_version,
+                    query,
+                    limit,
+                )
             return [
                 {
                     "node_id": r["node_id"],
@@ -256,50 +292,92 @@ class PostgresGraphStore:
         depth: int = 2,
         max_edges: int = 200,
         doc_id: str | None = None,
+        timeout: float = 30.0,
     ) -> dict[str, Any]:
         """Return a subgraph around seed nodes using recursive CTE."""
         await self.ensure_schema()
         if not seed_node_ids:
             return {"nodes": [], "edges": []}
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
-            params: list[Any] = [tenant, graph_version, seed_node_ids, depth]
-            doc_filter = ""
-            if doc_id:
-                doc_filter = "AND (evidence->>'doc_id') = $5"
-                params.append(doc_id)
-            rows = await conn.fetch(
-                f"\n                WITH RECURSIVE walk AS (\n                    SELECT\n                        e.source_id,\n                        e.target_id,\n                        e.relation_type,\n                        e.weight,\n                        e.evidence,\n                        1 AS lvl,\n                        ARRAY[e.source_id, e.target_id] AS path\n                    FROM kg_edges e\n                    WHERE e.tenant=$1 AND e.graph_version=$2\n                      AND (e.source_id = ANY($3) OR e.target_id = ANY($3))\n                      {doc_filter}\n\n                    UNION ALL\n\n                    SELECT\n                        e.source_id,\n                        e.target_id,\n                        e.relation_type,\n                        e.weight,\n                        e.evidence,\n                        w.lvl + 1 AS lvl,\n                        w.path || ARRAY[e.source_id, e.target_id] AS path\n                    FROM kg_edges e\n                    JOIN walk w\n                      ON (e.source_id = w.target_id OR e.target_id = w.target_id)\n                    WHERE e.tenant=$1 AND e.graph_version=$2\n                      AND w.lvl < $4\n                      AND NOT (e.target_id = ANY(w.path))\n                      {doc_filter}\n                )\n                SELECT source_id, target_id, relation_type, weight, evidence\n                FROM walk\n                LIMIT {int(max_edges)}\n                ",
+        async with pool.acquire(timeout=5.0) as conn:
+            async with asyncio.timeout(timeout):
+                params: list[Any] = [tenant, graph_version, seed_node_ids, depth]
+                doc_filter = ""
+                if doc_id:
+                    doc_filter = "AND (evidence->>'doc_id') = $5"
+                    params.append(doc_id)
+                rows = await conn.fetch(
+                f"""
+                WITH RECURSIVE walk AS (
+                    SELECT
+                        e.source_id,
+                        e.target_id,
+                        e.relation_type,
+                        e.weight,
+                        e.evidence,
+                        1 AS lvl,
+                        ARRAY[e.source_id, e.target_id] AS path
+                    FROM kg_edges e
+                    WHERE e.tenant=$1 AND e.graph_version=$2
+                      AND (e.source_id = ANY($3) OR e.target_id = ANY($3))
+                      {doc_filter}
+
+                    UNION ALL
+
+                    SELECT
+                        e.source_id,
+                        e.target_id,
+                        e.relation_type,
+                        e.weight,
+                        e.evidence,
+                        w.lvl + 1 AS lvl,
+                        w.path || ARRAY[e.source_id, e.target_id] AS path
+                    FROM kg_edges e
+                    JOIN walk w
+                      ON (e.source_id = w.target_id OR e.target_id = w.target_id)
+                    WHERE e.tenant=$1 AND e.graph_version=$2
+                      AND w.lvl < $4
+                      AND NOT (e.target_id = ANY(w.path))
+                      {doc_filter}
+                )
+                SELECT source_id, target_id, relation_type, weight, evidence
+                FROM walk
+                LIMIT {int(max_edges)}
+                """,
                 *params,
             )
-            edges = [
-                {
-                    "source_id": r["source_id"],
-                    "target_id": r["target_id"],
-                    "relation_type": r["relation_type"],
-                    "weight": float(r["weight"]),
-                    "evidence": r["evidence"],
-                }
-                for r in rows
-            ]
-            node_ids = set(seed_node_ids)
-            for e in edges:
-                node_ids.add(e["source_id"])
-                node_ids.add(e["target_id"])
-            node_rows = await conn.fetch(
-                "\n                SELECT node_id, node_type, name, aliases, properties\n                FROM kg_nodes\n                WHERE tenant=$1 AND graph_version=$2 AND node_id = ANY($3)\n                ",
-                tenant,
-                graph_version,
-                list(node_ids),
-            )
-            nodes = [
-                {
-                    "node_id": n["node_id"],
-                    "node_type": n["node_type"],
-                    "name": n["name"],
-                    "aliases": n["aliases"],
-                    "properties": n["properties"],
-                }
-                for n in node_rows
-            ]
-            return {"nodes": nodes, "edges": edges}
+                edges = [
+                    {
+                        "source_id": r["source_id"],
+                        "target_id": r["target_id"],
+                        "relation_type": r["relation_type"],
+                        "weight": float(r["weight"]),
+                        "evidence": r["evidence"],
+                    }
+                    for r in rows
+                ]
+                node_ids = set(seed_node_ids)
+                for e in edges:
+                    node_ids.add(e["source_id"])
+                    node_ids.add(e["target_id"])
+                node_rows = await conn.fetch(
+                    """
+                    SELECT node_id, node_type, name, aliases, properties
+                    FROM kg_nodes
+                    WHERE tenant=$1 AND graph_version=$2 AND node_id = ANY($3)
+                    """,
+                    tenant,
+                    graph_version,
+                    list(node_ids),
+                )
+                nodes = [
+                    {
+                        "node_id": n["node_id"],
+                        "node_type": n["node_type"],
+                        "name": n["name"],
+                        "aliases": n["aliases"],
+                        "properties": n["properties"],
+                    }
+                    for n in node_rows
+                ]
+                return {"nodes": nodes, "edges": edges}

@@ -8,9 +8,10 @@ Run this migration to set up a fresh PostgreSQL database.
 import logging
 
 from sqlalchemy import text
-from resync.core.utils.async_bridge import run_sync
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+from resync.core.utils.async_bridge import run_sync
 
 from .engine import get_engine
 from .models import Base, get_all_models

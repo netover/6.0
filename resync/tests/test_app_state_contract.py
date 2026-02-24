@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
 import pytest
+from fastapi import FastAPI
 
 from resync.core.wiring import validate_app_state_contract
 

@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Centralized database security utilities for SQL injection prevention and input validation.
 

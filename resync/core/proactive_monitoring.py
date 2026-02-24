@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """
 Proactive Monitoring System
 
@@ -12,8 +12,8 @@ from typing import Any
 
 import structlog
 
-from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
 from resync.core.connection_pool_manager import get_advanced_connection_pool_manager
+from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -72,7 +72,10 @@ class ProactiveMonitoringSystem:
                     {
                         "type": "high_pool_utilization",
                         "severity": "high",
-                        "message": f"Connection pool utilization at {pool_health['utilization']:.1%}",
+                        "message": (
+                            "Connection pool utilization at "
+                            f"{pool_health['utilization']:.1%}"
+                        ),
                         "recommendation": "Consider scaling up connection pool",
                     }
                 )
@@ -82,7 +85,10 @@ class ProactiveMonitoringSystem:
                     {
                         "type": "high_error_rate",
                         "severity": "critical",
-                        "message": f"Connection pool error rate at {pool_health['error_rate']:.1%}",
+                        "message": (
+                            "Connection pool error rate at "
+                            f"{pool_health['error_rate']:.1%}"
+                        ),
                         "recommendation": "Investigate connection stability",
                     }
                 )
@@ -188,7 +194,9 @@ class ProactiveMonitoringSystem:
             for name, breaker in breakers.items():
                 if breaker:
                     try:
-                        stats = breaker.get_stats() if hasattr(breaker, "get_stats") else {}
+                        stats = (
+                            breaker.get_stats() if hasattr(breaker, "get_stats") else {}
+                        )
                         results[name] = {
                             "state": stats.get("state", "unknown"),
                             "failures": stats.get("failures", 0),

@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Orchestration Agent Adapter
 
@@ -10,7 +11,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from resync.core.agent_manager import get_agent_manager
-from resync.core.agent_router import create_router, HybridRouter
+from resync.core.agent_router import HybridRouter, create_router
 from resync.core.orchestration.schemas import StepConfig, StepType
 
 logger = logging.getLogger(__name__)

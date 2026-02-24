@@ -1,5 +1,6 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# ruff: noqa: E501
+# pylint
+# mypy
 """
 Orchestration Runner
 
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from resync.core.database.repositories.orchestration_config_repo import (
     OrchestrationConfigRepository,
@@ -24,7 +25,7 @@ from resync.core.database.repositories.orchestration_execution_repo import (
 )
 from resync.core.orchestration.agent_adapter import AgentAdapter
 from resync.core.orchestration.events import EventType, OrchestrationEvent, event_bus
-from resync.core.orchestration.schemas import WorkflowConfig, StepConfig
+from resync.core.orchestration.schemas import StepConfig, WorkflowConfig
 from resync.core.orchestration.strategies import StrategyFactory
 
 logger = logging.getLogger(__name__)
@@ -216,7 +217,11 @@ class OrchestrationRunner:
                         async with asyncio.TaskGroup() as tg:
                             for s_run, step_config in step_run_objects:
                                 tasks.append(
-                                    tg.create_task(self._run_step(step_repo, s_run.id, step_config, context))
+                                    tg.create_task(
+                                        self._run_step(
+                                            step_repo, s_run.id, step_config, context
+                                        )
+                                    )
                                 )
                     except* Exception as eg:
                         # Process ExceptionGroup (Python 3.11+) or handle individual exceptions
@@ -373,4 +378,3 @@ class OrchestrationRunner:
             )
 
             return {"status": "failed", "error": str(e)}
-

@@ -210,8 +210,10 @@ class DIContainer:
             # No scope active - this is a programming error.
             # We fail-fast to avoid non-deterministic behavior.
             raise RuntimeError(
-                f"Scoped service {interface.__name__} requested outside an active scope. "
-                "Use 'async with container.create_scope()' in non-HTTP execution contexts."
+                f"Scoped service {interface.__name__} "
+                "requested outside an active scope. "
+                "Use 'async with container.create_scope()' in "
+                "non-HTTP execution contexts."
             )
 
         # Check if already in scope
@@ -286,7 +288,7 @@ class _LazyContainerProxy:
     """
 
     def _get(self) -> "DIContainer":
-        global _container_singleton  # pylint: disable=global-statement
+        global _container_singleton  # pylint
         if _container_singleton is None:
             _container_singleton = DIContainer()
         return _container_singleton

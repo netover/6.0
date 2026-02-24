@@ -17,8 +17,6 @@ Design goals
 The public entrypoint here is :func:`run_startup_checks`.
 """
 
-
-
 import asyncio
 import os
 import time
@@ -562,29 +560,35 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         tasks["tws"] = tg.create_task(
                             _check_tws(
                                 settings_obj,
-                                critical=getattr(settings_obj, "require_tws_at_boot", False),
+                                critical=getattr(
+                                    settings_obj, "require_tws_at_boot", False
+                                ),
                                 deadline=deadline,
                                 policy=policy,
                             ),
-                            name="tws_check"
+                            name="tws_check",
                         )
                         tasks["llm"] = tg.create_task(
                             _check_llm(
                                 settings_obj,
-                                critical=getattr(settings_obj, "require_llm_at_boot", False),
+                                critical=getattr(
+                                    settings_obj, "require_llm_at_boot", False
+                                ),
                                 deadline=deadline,
                                 policy=policy,
                             ),
-                            name="llm_check"
+                            name="llm_check",
                         )
                         tasks["rag"] = tg.create_task(
                             _check_rag(
                                 settings_obj,
-                                critical=getattr(settings_obj, "require_rag_at_boot", False),
+                                critical=getattr(
+                                    settings_obj, "require_rag_at_boot", False
+                                ),
                                 deadline=deadline,
                                 policy=policy,
                             ),
-                            name="rag_check"
+                            name="rag_check",
                         )
                 except* asyncio.CancelledError:
                     raise
@@ -607,7 +611,12 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
             ("rag_service", "rag"),
         ]:
             task = tasks.get(key)
-            if task and task.done() and not task.cancelled() and task.exception() is None:
+            if (
+                task
+                and task.done()
+                and not task.cancelled()
+                and task.exception() is None
+            ):
                 results.append(task.result())
             else:
                 is_critical = getattr(settings_obj, f"require_{key}_at_boot", False)
@@ -616,8 +625,13 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         name=name,
                         status="fail" if is_critical else "skipped",
                         critical=is_critical,
-                        reason_code="startup_budget_exhausted" if now >= deadline else "task_failed",
-                        detail=f"Budget exhausted or task failed during {key.upper()} check",
+                        reason_code="startup_budget_exhausted"
+                        if now >= deadline
+                        else "task_failed",
+                        detail=(
+                            "Budget exhausted or task failed during "
+                            f"{key.upper()} check"
+                        ),
                         duration_ms=elapsed_ms,
                     )
                 )
@@ -648,7 +662,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
 
 
 def enforce_startup_policy(result: dict[str, Any]) -> None:
-    """Fail the current process if strict startup is enabled and overall health failed."""
+    """Fail process when strict startup is enabled and health check failed."""
 
     if result.get("strict") and not result.get("overall_health"):
         # NOTE: Raising SystemExit ensures a non-zero exit code.
@@ -658,7 +672,7 @@ def enforce_startup_policy(result: dict[str, Any]) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
     """Manage application lifecycle with proper startup and shutdown.
 
     Consolidates logic previously in ApplicationFactory for better separation
@@ -713,6 +727,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
             # Record startup time for admin dashboard uptime display
             from resync.core.startup_time import set_startup_time
+
             set_startup_time()
 
             async with asyncio.TaskGroup() as bg_tasks:
@@ -731,34 +746,57 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 optional_results: list[Exception] = []
                 try:
                     async with asyncio.timeout(optional_timeout):
-                        # Scoped TG for initialization; some of these might spawn background tasks in bg_tasks
+                        # Scoped TG for init; some might spawn bg tasks
                         try:
                             async with asyncio.TaskGroup() as init_tg:
-                                init_tg.create_task(_init_proactive_monitoring(app, bg_tasks))
+                                init_tg.create_task(
+                                    _init_proactive_monitoring(app, bg_tasks)
+                                )
                                 init_tg.create_task(_init_metrics_collector(app))
                                 init_tg.create_task(_init_cache_warmup(app))
                                 init_tg.create_task(_init_graphrag(app))
                                 init_tg.create_task(_init_config_system(app))
-                                init_tg.create_task(_init_enterprise_systems(app, bg_tasks))
-                                init_tg.create_task(_init_health_monitoring(app, bg_tasks))
-                                init_tg.create_task(_init_backup_scheduler(app, bg_tasks))
-                                init_tg.create_task(_init_security_dashboard(app, bg_tasks))
+                                init_tg.create_task(
+                                    _init_enterprise_systems(app, bg_tasks)
+                                )
+                                init_tg.create_task(
+                                    _init_health_monitoring(app, bg_tasks)
+                                )
+                                init_tg.create_task(
+                                    _init_backup_scheduler(app, bg_tasks)
+                                )
+                                init_tg.create_task(
+                                    _init_security_dashboard(app, bg_tasks)
+                                )
                                 init_tg.create_task(_init_event_bus(app, bg_tasks))
-                                init_tg.create_task(_init_service_discovery(app, bg_tasks))
+                                init_tg.create_task(
+                                    _init_service_discovery(app, bg_tasks)
+                                )
                         except* asyncio.CancelledError:
                             raise
                         except* Exception:
                             # Log and continue; these are optional
-                            get_logger("resync.startup").warning("optional_services_init_partial_failure")
+                            get_logger("resync.startup").warning(
+                                "optional_services_init_partial_failure"
+                            )
                 except TimeoutError:
-                    get_logger("resync.startup").warning("optional_services_init_timeout")
+                    get_logger("resync.startup").warning(
+                        "optional_services_init_timeout"
+                    )
                 except Exception as e:
                     optional_results.append(e)
 
                 # Re-raise critical programming errors
                 for res in optional_results:
-                    if isinstance(res, (TypeError, KeyError, AttributeError, IndexError, NameError)):
-                        logger.critical("critical_startup_programming_error", error=str(res), type=type(res).__name__)
+                    if isinstance(
+                        res,
+                        (TypeError, KeyError, AttributeError, IndexError, NameError),
+                    ):
+                        logger.critical(
+                            "critical_startup_programming_error",
+                            error=str(res),
+                            type=type(res).__name__,
+                        )
                         raise res
 
                 logger.info("application_startup_completed")
@@ -766,13 +804,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
                 yield  # Application runs here, bg_tasks are active
 
-        # When lifespan exits, bg_tasks (TaskGroup) will automatically cancel and wait for tasks.
+        # When lifespan exits, TaskGroup auto-cancels
+        # and waits for background tasks.
 
     except TimeoutError:
         logger.critical(
             "application_startup_timeout",
             timeout_seconds=startup_timeout,
-            hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB connectivity and network firewalls.",
+            hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB/networking.",
             troubleshooting={
                 "redis": "Verify REDIS_URL and Redis server status.",
                 "database": "Check DATABASE_URL and PostgreSQL availability.",
@@ -793,7 +832,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 # --- Helper methods for optional services (moved from ApplicationFactory) ---
 
 
-async def _init_proactive_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup | None = None) -> None:
+async def _init_proactive_monitoring(
+    app: "FastAPI", bg_tasks: asyncio.TaskGroup | None = None
+) -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -812,7 +853,7 @@ async def _init_proactive_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup |
         )
 
 
-async def _init_metrics_collector(app: FastAPI) -> None:
+async def _init_metrics_collector(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -824,12 +865,15 @@ async def _init_metrics_collector(app: FastAPI) -> None:
             bg_tasks = getattr(app.state, "bg_tasks", None)
             if bg_tasks:
                 monitoring_dashboard._collector_task = bg_tasks.create_task(
-                    monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
+                    monitoring_dashboard.metrics_collector_loop(),
+                    name="metrics-collector",
                 )
             else:
                 from resync.core.task_tracker import create_tracked_task
+
                 monitoring_dashboard._collector_task = await create_tracked_task(
-                    monitoring_dashboard.metrics_collector_loop(), name="metrics-collector"
+                    monitoring_dashboard.metrics_collector_loop(),
+                    name="metrics-collector",
                 )
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -839,7 +883,7 @@ async def _init_metrics_collector(app: FastAPI) -> None:
         )
 
 
-async def _init_cache_warmup(app: FastAPI) -> None:
+async def _init_cache_warmup(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -854,7 +898,7 @@ async def _init_cache_warmup(app: FastAPI) -> None:
         get_logger("resync.startup").warning("cache_warming_failed", error=str(exc))
 
 
-async def _init_graphrag(app: FastAPI) -> None:
+async def _init_graphrag(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(15):
             # Wait for core singletons to be ready
@@ -870,6 +914,7 @@ async def _init_graphrag(app: FastAPI) -> None:
             from resync.knowledge.retrieval.graph import get_knowledge_graph
             from resync.services.llm_service import get_llm_service
             from resync.services.tws_service import get_tws_client
+
             initialize_graphrag(
                 llm_service=await get_llm_service(),
                 knowledge_graph=get_knowledge_graph(),
@@ -885,7 +930,7 @@ async def _init_graphrag(app: FastAPI) -> None:
         )
 
 
-async def _init_config_system(app: FastAPI) -> None:
+async def _init_config_system(app: "FastAPI") -> None:
     try:
         async with asyncio.timeout(10):
             # Wait for core singletons to be ready
@@ -902,63 +947,77 @@ async def _init_config_system(app: FastAPI) -> None:
         )
 
 
-async def _init_enterprise_systems(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_enterprise_systems(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(15):
             await app.state.singletons_ready_event.wait()
             from resync.core.enterprise.manager import get_enterprise_manager
-            manager = get_enterprise_manager()
+
+            manager = await get_enterprise_manager()
             await manager.initialize(tg=bg_tasks)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("enterprise_systems_init_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "enterprise_systems_init_failed", error=str(exc)
+        )
 
 
-async def _init_health_monitoring(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_health_monitoring(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
             from resync.core.health import get_unified_health_service
-            service = get_unified_health_service()
+
+            service = await get_unified_health_service()
             service.start_monitoring(tg=bg_tasks)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("health_monitoring_init_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "health_monitoring_init_failed", error=str(exc)
+        )
 
 
-async def _init_backup_scheduler(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_backup_scheduler(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
             from resync.core.backup.backup_service import get_backup_service
+
             service = get_backup_service()
             service.start_scheduler(tg=bg_tasks)
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("backup_scheduler_init_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "backup_scheduler_init_failed", error=str(exc)
+        )
 
 
-async def _init_security_dashboard(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_security_dashboard(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
             from resync.core.security_dashboard import get_security_dashboard
-            _dashboard = get_security_dashboard(tg=bg_tasks)
-            # dashboard is automatically started via get_security_dashboard and its lazy init
+
+            _dashboard = await get_security_dashboard(tg=bg_tasks)
+            # dashboard starts automatically via
+            # get_security_dashboard lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("security_dashboard_init_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "security_dashboard_init_failed", error=str(exc)
+        )
 
 
-async def _init_event_bus(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_event_bus(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(10):
             await app.state.singletons_ready_event.wait()
             from resync.core.event_bus import get_event_bus
+
             bus = get_event_bus()
             bus.start(tg=bg_tasks)
     except Exception as exc:
@@ -967,20 +1026,24 @@ async def _init_event_bus(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
         get_logger("resync.startup").warning("event_bus_init_failed", error=str(exc))
 
 
-async def _init_service_discovery(app: FastAPI, bg_tasks: asyncio.TaskGroup) -> None:
+async def _init_service_discovery(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
         async with asyncio.timeout(15):
             await app.state.singletons_ready_event.wait()
             from resync.core.service_discovery import get_service_discovery_manager
+
             _manager = get_service_discovery_manager(tg=bg_tasks)
-            # manager is automatically started via get_service_discovery_manager and its lazy init
+            # manager starts automatically via
+            # get_service_discovery_manager lazy init
     except Exception as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        get_logger("resync.startup").warning("service_discovery_init_failed", error=str(exc))
+        get_logger("resync.startup").warning(
+            "service_discovery_init_failed", error=str(exc)
+        )
 
 
-async def _shutdown_services(app: FastAPI) -> None:
+async def _shutdown_services(app: "FastAPI") -> None:
     """Shutdown services in correct order with individual timeouts.
 
     Order:

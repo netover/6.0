@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """CSP violation report validation utilities."""
 
 import json

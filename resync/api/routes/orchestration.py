@@ -3,7 +3,16 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.api.dependencies_v2 import get_database
@@ -21,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orchestration", tags=["Orchestration"])
 
+
 # Dependency for Runner
 def get_runner(request: Request):
     """Get OrchestrationRunner instance with structured concurrency."""
@@ -28,12 +38,11 @@ def get_runner(request: Request):
     if not bg_tasks:
         # Fallback to local TaskGroup if not in lifespan (though less ideal for long-running)
         # However, for API requests, we should expect lifespan to be active.
-        logger.warning("bg_tasks_not_found_in_app_state", hint="Check lifespan initialization")
+        logger.warning(
+            "bg_tasks_not_found_in_app_state", hint="Check lifespan initialization"
+        )
 
-    return OrchestrationRunner(
-        session_factory=get_db_session,
-        tg=bg_tasks
-    )
+    return OrchestrationRunner(session_factory=get_db_session, tg=bg_tasks)
 
 
 # --- Config Endpoints ---

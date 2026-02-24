@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 LLM Service using OpenAI SDK for OpenAI-Compatible APIs.
 
@@ -35,9 +34,8 @@ Configuration (settings):
 from __future__ import annotations
 
 import asyncio
-import os
-
 import logging
+import os
 from typing import Any
 
 from resync.core.exceptions import (
@@ -139,7 +137,8 @@ class LLMService:
                 api_key=api_key,
                 base_url=base_url,
                 timeout=float(getattr(settings, "llm_timeout", 20.0) or 20.0),
-                # Disable SDK retries: we apply consistent, observable retries ourselves.
+                # Disable SDK retries: we apply consistent,
+                # observable retries ourselves.
                 max_retries=0,
             )
             logger.info("LLM service initialized with model: %s", self.model)
@@ -169,7 +168,8 @@ class LLMService:
                 )
             )
 
-            # Circuit breaker: trips on repeated transient failures; prevents thundering herds.
+            # Circuit breaker: trips on repeated transient failures;
+            # prevents thundering herds.
             self._cb = CircuitBreaker(
                 CircuitBreakerConfig(
                     failure_threshold=int(os.getenv("LLM_CB_FAILURE_THRESHOLD", "5")),
@@ -212,7 +212,7 @@ class LLMService:
                     "request_id": getattr(exc, "request_id", None),
                 },
             ) from exc
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:  # pylint
             # Re-raise critical system exceptions and programming errors
             if isinstance(
                 exc,

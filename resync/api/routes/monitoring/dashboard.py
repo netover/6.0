@@ -593,23 +593,23 @@ async def _start_metrics_collector_async() -> None:
     async with _collector_lock:
         if _collector_task is None or _collector_task.done():
             _collector_task = asyncio.create_task(metrics_collector_loop())
-    if _collector_task is None or _collector_task.done():
-        try:
-            loop = asyncio.get_running_loop()
-            _collector_task = loop.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
 
 
 def start_metrics_collector():
     """Inicia o coletor de métricas em background."""
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_start_metrics_collector_async())
-    except RuntimeError:
-        # Não há event loop rodando ainda
-        logger.warning("Event loop não disponível, collector será iniciado depois")
-    except Exception as e:
-        logger.error("Unexpected error starting metrics collector: %s", e)
+    global _collector_task
+
+    if _collector_task is None or _collector_task.done():
+        if _collector_task and _collector_task.exception():
+            logger.error("Collector task anterior falhou: %s", _collector_task.exception())
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_start_metrics_collector_async())
+        except RuntimeError:
+            logger.warning("Event loop não disponível, collector será iniciado depois")
+        except Exception as e:
+            logger.error("Unexpected error starting metrics collector: %s", e)
 
 
 def stop_metrics_collector():
@@ -686,12 +686,13 @@ async def monitoring_health():
 
 
 # WebSocket para atualizações em tempo real
+MAX_WS_CONNECTIONS = 200
 connected_clients: list[WebSocket] = []
 _clients_lock = asyncio.Lock()
 
 
 @router.websocket("/ws")
-async def websocket_metrics(websocket: WebSocket):
+async def websocket_metrics(websocket: WebSocket) -> None:
     """
     WebSocket para métricas em tempo real.
 
@@ -708,6 +709,13 @@ async def websocket_metrics(websocket: WebSocket):
         )
         return
 
+    async with _clients_lock:
+        if len(connected_clients) >= MAX_WS_CONNECTIONS:
+            await websocket.close(
+                code=status.WS_1013_TRY_AGAIN_LATER,
+                reason="Connection limit reached",
+            )
+            return
     await websocket.accept()
     async with _clients_lock:
         connected_clients.append(websocket)
@@ -725,7 +733,8 @@ async def websocket_metrics(websocket: WebSocket):
 
     except WebSocketDisconnect:
         async with _clients_lock:
-            connected_clients.remove(websocket)
+            if websocket in connected_clients:
+                connected_clients.remove(websocket)
     except Exception as e:
         logger.error("WebSocket error: %s", e)
         async with _clients_lock:

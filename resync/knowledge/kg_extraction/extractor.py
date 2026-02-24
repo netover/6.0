@@ -8,22 +8,22 @@ By default, extraction is gated by env var KG_EXTRACTION_ENABLED.
 """
 
 from __future__ import annotations
-# mypy: ignore-errors
 
+import asyncio
 import json
-import logging
 import re
+import structlog
 from typing import Any, Iterable
 
 from pydantic import ValidationError
 
 from resync.core.utils.llm import call_llm
 
+from .normalizer import dedup_concepts, dedup_edges
 from .prompts import build_concepts_prompt, build_edges_prompt
 from .schemas import Concept, Edge, Evidence, ExtractionResult
-from .normalizer import dedup_concepts, dedup_edges
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class KGExtractor:
@@ -89,58 +89,87 @@ class KGExtractor:
 
         all_concepts: list[Concept] = []
         all_edges: list[Edge] = []
+        
+        semaphore = asyncio.Semaphore(10)
 
-        for ch in chunks:
+        async def _extract_chunk(ch: dict[str, Any]) -> tuple[list[Concept], list[Edge]]:
             text = (ch.get("content") or "").strip()
             if not text:
-                continue
-
+                return [], []
+                
             chunk_id = ch.get("chunk_id")
+            c_concepts: list[Concept] = []
+            c_edges: list[Edge] = []
+            
+            async with semaphore:
+                # 1) concepts
+                try:
+                    c_prompt = build_concepts_prompt(
+                        text,
+                        allowed_node_types=self.allowed_node_types,
+                        max_concepts=self.max_concepts_per_chunk,
+                    )
+                    # P0 Fix: Add timeout to prevent indefinite LLM hangs
+                    try:
+                        raw = await asyncio.wait_for(
+                            call_llm(c_prompt, temperature=0.0, model=self.model),
+                            timeout=30.0,  # 30s timeout for LLM response
+                        )
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            "kg_extract_concepts_timeout",
+                            doc_id=doc_id, chunk_id=chunk_id
+                        )
+                        return [], []
+                    c_concepts = self._parse_concepts(raw)
+                    for c in c_concepts:
+                        c.properties = {**c.properties, "doc_id": doc_id, "chunk_id": chunk_id}
+                except Exception as e:
+                    logger.warning(
+                        "kg_extract_concepts_failed",
+                        error=str(e), doc_id=doc_id, chunk_id=chunk_id
+                    )
+                    return [], []
 
-            # 1) concepts
-            try:
-                c_prompt = build_concepts_prompt(
-                    text,
-                    allowed_node_types=self.allowed_node_types,
-                    max_concepts=self.max_concepts_per_chunk,
-                )
-                raw = await call_llm(c_prompt, temperature=0.0, model=self.model)
-                concepts = self._parse_concepts(raw)
-            except Exception as e:
-                logger.warning(
-                    "kg_extract_concepts_failed",
-                    extra={"error": str(e), "doc_id": doc_id, "chunk_id": chunk_id},
-                )
-                concepts = []
+                # 2) edges
+                try:
+                    names = [c.name for c in c_concepts][: self.max_concepts_per_chunk]
+                    e_prompt = build_edges_prompt(
+                        text,
+                        concepts=names,
+                        allowed_relations=self.allowed_relations,
+                        max_edges=self.max_edges_per_chunk,
+                    )
+                    # P0 Fix: Add timeout to prevent indefinite LLM hangs
+                    try:
+                        raw = await asyncio.wait_for(
+                            call_llm(e_prompt, temperature=0.0, model=self.model),
+                            timeout=30.0,  # 30s timeout for LLM response
+                        )
+                        c_edges = self._parse_edges(raw, doc_id=doc_id, chunk_id=chunk_id)
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            "kg_extract_edges_timeout",
+                            doc_id=doc_id, chunk_id=chunk_id
+                        )
+                        c_edges = []
+                except Exception as e:
+                    logger.warning(
+                        "kg_extract_edges_failed",
+                        error=str(e), doc_id=doc_id, chunk_id=chunk_id
+                    )
 
-            # attach provenance
-            for c in concepts:
-                c.properties = {**c.properties, "doc_id": doc_id, "chunk_id": chunk_id}
-            all_concepts.extend(concepts)
+                # 3) fallback edges
+                if not c_edges and len(c_concepts) >= 2:
+                    c_edges = self._cooc_edges(c_concepts, doc_id=doc_id, chunk_id=chunk_id)
 
-            # 2) edges
-            try:
-                names = [c.name for c in concepts][: self.max_concepts_per_chunk]
-                e_prompt = build_edges_prompt(
-                    text,
-                    concepts=names,
-                    allowed_relations=self.allowed_relations,
-                    max_edges=self.max_edges_per_chunk,
-                )
-                raw = await call_llm(e_prompt, temperature=0.0, model=self.model)
-                edges = self._parse_edges(raw, doc_id=doc_id, chunk_id=chunk_id)
-            except Exception as e:
-                logger.warning(
-                    "kg_extract_edges_failed",
-                    extra={"error": str(e), "doc_id": doc_id, "chunk_id": chunk_id},
-                )
-                edges = []
+                return c_concepts, c_edges
 
-            # 3) fallback edges by co-occurrence (weak)
-            if not edges and len(concepts) >= 2:
-                edges = self._cooc_edges(concepts, doc_id=doc_id, chunk_id=chunk_id)
-
-            all_edges.extend(edges)
+        results = await asyncio.gather(*(_extract_chunk(ch) for ch in chunks))
+        
+        for concepts_part, edges_part in results:
+            all_concepts.extend(concepts_part)
+            all_edges.extend(edges_part)
 
         # Normalize/dedup
         all_concepts = dedup_concepts(all_concepts)
@@ -158,7 +187,11 @@ class KGExtractor:
         return s.strip()
 
     def _parse_concepts(self, raw: str) -> list[Concept]:
-        data = json.loads(self._strip_json_fences(raw))
+        try:
+            data = json.loads(self._strip_json_fences(raw))
+        except json.JSONDecodeError as exc:
+            logger.warning("kg_parse_concepts_json_error", error=str(exc))
+            return []
         items = data.get("concepts", []) if isinstance(data, dict) else []
         out: list[Concept] = []
         for it in items:
@@ -171,7 +204,11 @@ class KGExtractor:
     def _parse_edges(
         self, raw: str, *, doc_id: str, chunk_id: str | None
     ) -> list[Edge]:
-        data = json.loads(self._strip_json_fences(raw))
+        try:
+            data = json.loads(self._strip_json_fences(raw))
+        except json.JSONDecodeError as exc:
+            logger.warning("kg_parse_edges_json_error", error=str(exc))
+            return []
         items = data.get("edges", []) if isinstance(data, dict) else []
         out: list[Edge] = []
         for it in items:

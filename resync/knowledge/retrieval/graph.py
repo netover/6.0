@@ -15,6 +15,7 @@ Usage:
 """
 
 from typing import Any
+import asyncio
 
 import structlog
 
@@ -88,7 +89,7 @@ class KnowledgeGraphWrapper:
         **properties,
     ):
         """DEPRECATED: No-op. Graph built on-demand from TWS API."""
-        await self._service.add_node(node_id, str(node_type), name, **properties)
+        self._service.add_node(node_id, str(node_type), name, **properties)
 
     async def add_edge(
         self,
@@ -98,9 +99,9 @@ class KnowledgeGraphWrapper:
         **properties,
     ):
         """DEPRECATED: No-op. Graph built on-demand from TWS API."""
-        await self._service.add_edge(source, target, str(relation_type), **properties)
+        self._service.add_edge(source, target, str(relation_type), **properties)
 
-    def add_job(
+    async def add_job(
         self,
         job_id: str,
         dependencies: list[str] | None = None,
@@ -113,10 +114,10 @@ class KnowledgeGraphWrapper:
     # UTILITY METHODS
     # =========================================================================
 
-    def initialize(self):
+    async def initialize(self) -> None:
         """Initialize (no-op in v5.9.3)."""
 
-    def reload(self):
+    async def reload(self) -> None:
         """Reload graph (clears cache)."""
         self._service.clear_cache()
 
@@ -138,14 +139,16 @@ class KnowledgeGraphWrapper:
 # =============================================================================
 
 _wrapper: KnowledgeGraphWrapper | None = None
+_wrapper_lock = asyncio.Lock()
 
 
-def get_knowledge_graph() -> KnowledgeGraphWrapper:
+async def get_knowledge_graph() -> KnowledgeGraphWrapper:
     """Get the knowledge graph wrapper (singleton)."""
     global _wrapper
-    if _wrapper is None:
-        _wrapper = KnowledgeGraphWrapper()
-    return _wrapper
+    async with _wrapper_lock:
+        if _wrapper is None:
+            _wrapper = KnowledgeGraphWrapper()
+        return _wrapper
 
 
 # Aliases
@@ -155,7 +158,7 @@ get_graph_service = get_graph_service  # Re-export
 
 async def initialize_knowledge_graph() -> KnowledgeGraphWrapper:
     """Initialize and return the knowledge graph."""
-    kg = get_knowledge_graph()
+    kg = await get_knowledge_graph()
     kg.initialize()
     return kg
 

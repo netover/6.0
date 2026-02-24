@@ -26,14 +26,14 @@ Usage:
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from resync.core.structured_logger import get_logger
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -105,7 +105,8 @@ class KGCacheManager:
         self._ttl_seconds: int = 300  # 5 minutes default
         self._last_refresh: datetime | None = None
         self._refresh_task: asyncio.Task | None = None
-        self._lock = asyncio.Lock()
+        # Lazy initialised — avoids RuntimeError on module import or sync init
+        self._lock: asyncio.Lock | None = None
         self._stats = CacheStats()
         self._on_refresh_callbacks: list[Callable[[], Awaitable[None]]] = []
 
@@ -185,6 +186,9 @@ class KGCacheManager:
             self._stats.hit_count += 1
             return False
 
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+
         async with self._lock:
             # Double-check after acquiring lock
             if not force and not self.is_stale():
@@ -222,6 +226,8 @@ class KGCacheManager:
         """
         Invalidate the cache, forcing next access to refresh.
         """
+        if self._lock is None:
+            self._lock = asyncio.Lock()
         async with self._lock:
             self._last_refresh = None
             self._stats.record_invalidation()
@@ -316,7 +322,7 @@ async def start_cache_refresh_task(
         # Import here to avoid circular import
         from resync.knowledge.retrieval.graph import get_knowledge_graph
 
-        kg = get_knowledge_graph()
+        kg = await get_knowledge_graph()
         cache.register_refresh_callback(kg.reload)
 
     cache.start_background_refresh()

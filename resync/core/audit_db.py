@@ -8,10 +8,11 @@ Replaces the original SQLite implementation.
 import asyncio
 import logging
 from datetime import datetime
-from resync.core.task_tracker import track_task
-from resync.core.utils.async_bridge import run_sync
+
 from resync.core.database.models import AuditEntry
 from resync.core.database.repositories import AuditEntryRepository
+from resync.core.task_tracker import track_task
+from resync.core.utils.async_bridge import run_sync
 
 logger = logging.getLogger(__name__)
 __all__ = [
@@ -70,7 +71,8 @@ class AuditDB:
             return [self.to_record_dict(entry) for entry in records]
         else:
             raise RuntimeError(
-                "get_records() cannot be used inside an active event loop; use get_recent_actions()"
+                "get_records() cannot be used inside an active "
+                "event loop; use get_recent_actions()"
             )
 
     async def log_action(
@@ -138,7 +140,8 @@ class AuditDB:
             return run_sync(_count())
         else:
             raise RuntimeError(
-                "get_record_count() cannot be used inside an active event loop; use await get_record_count_async() instead"
+                "get_record_count() cannot be used inside an active "
+                "event loop; use await get_record_count_async() instead"
             )
 
     async def search_incidents(

@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """TWS monitoring and alerting system.
 
 This module provides real-time monitoring of the TWS environment,
@@ -7,7 +6,6 @@ performance metrics collection, and alert generation for anomalies.
 """
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import time
 from collections import deque
@@ -19,6 +17,7 @@ import structlog
 
 from resync.core.exceptions import PerformanceError
 from resync.core.interfaces import ITWSClient
+from resync.core.task_tracker import track_task
 from resync.core.teams_integration import get_teams_integration
 
 from .shared_utils import TeamsNotification, create_job_status_notification
@@ -118,7 +117,9 @@ class TWSMonitor:
             self._monitoring_task = track_task(
                 self._monitoring_loop(), name="monitoring_loop"
             )
-        logger.info("tws_monitoring_started", method="task_group" if tg else "track_task")
+        logger.info(
+            "tws_monitoring_started", method="task_group" if tg else "track_task"
+        )
 
     async def stop_monitoring(self) -> None:
         """Stop continuous monitoring."""
@@ -244,7 +245,10 @@ class TWSMonitor:
                         alert_id=f"api_error_{int(time.time())}",
                         severity="high",
                         category="api",
-                        message=f"API error rate exceeded threshold: {avg_error_rate:.2%}",
+                        message=(
+                            "API error rate exceeded threshold: "
+                            f"{avg_error_rate:.2%}"
+                        ),
                         timestamp=datetime.now(timezone.utc),
                         details={"error_rate": avg_error_rate},
                     )
@@ -291,7 +295,10 @@ class TWSMonitor:
                     alert_id=f"memory_usage_{int(time.time())}",
                     severity="high",
                     category="memory",
-                    message=f"Memory usage exceeded threshold: {latest_metrics.memory_usage_mb:.1f}MB",
+                    message=(
+                        "Memory usage exceeded threshold: "
+                        f"{latest_metrics.memory_usage_mb:.1f}MB"
+                    ),
                     timestamp=datetime.now(timezone.utc),
                     details={"memory_usage_mb": latest_metrics.memory_usage_mb},
                 )
@@ -512,7 +519,9 @@ class TWSMonitor:
 _tws_monitor: TWSMonitor | None = None
 
 
-async def get_tws_monitor(tws_client: ITWSClient, tg: asyncio.TaskGroup | None = None) -> TWSMonitor:
+async def get_tws_monitor(
+    tws_client: ITWSClient, tg: asyncio.TaskGroup | None = None
+) -> TWSMonitor:
     """Get global TWS monitor instance.
 
     Args:

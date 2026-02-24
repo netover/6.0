@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """
 Advanced Chunking System for Resync RAG.
 
@@ -25,14 +25,14 @@ Version: 5.4.2
 from __future__ import annotations
 
 import hashlib
-import logging
 import re
+import structlog
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # =============================================================================
 # OPTIONAL IMPORTS
@@ -347,7 +347,8 @@ class ChunkingConfig:
     overlap_tokens: int = 75  # 15% overlap
 
     # === v6.0: Structure-Aware Overlap (Decision #3) ===
-    # Overlap strategy: "constant" (traditional), "structure" (at boundaries only), "none"
+    # Overlap strategy:
+    # "constant" (traditional), "structure" (at boundaries only), "none"
     overlap_strategy: OverlapStrategy = OverlapStrategy.STRUCTURE
 
     # Semantic chunking
@@ -494,15 +495,24 @@ def parse_markdown_structure(text: str) -> list[MarkdownSection]:
             content_buffer.append(line)
             continue
 
-        # Check for header
-        header_match = re.match(r"^(#{1,6})\s+(.+)$", line)
-
+        header_match = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
         if header_match:
             # Save previous section
             if current_section:
                 current_section.content = "\n".join(content_buffer).strip()
                 current_section.end_line = i - 1
                 sections.append(current_section)
+            elif "".join(content_buffer).strip():
+                # Content before the first header
+                sections.append(
+                    MarkdownSection(
+                        level=0,
+                        title="",
+                        content="\n".join(content_buffer).strip(),
+                        start_line=0,
+                        end_line=i - 1,
+                    )
+                )
 
             # Start new section
             level = len(header_match.group(1))
@@ -523,7 +533,7 @@ def parse_markdown_structure(text: str) -> list[MarkdownSection]:
         current_section.content = "\n".join(content_buffer).strip()
         current_section.end_line = len(lines) - 1
         sections.append(current_section)
-    elif content_buffer:
+    elif "".join(content_buffer).strip():
         # Content without headers
         sections.append(
             MarkdownSection(
@@ -721,9 +731,19 @@ class SemanticChunker:
                 "Install with: pip install sentence-transformers"
             )
 
-        self.model = SentenceTransformer(model_name)
+        self.model_name = model_name
+        self._model = None
+        self._lock = asyncio.Lock()
         self.threshold_percentile = threshold_percentile
         self.buffer_size = buffer_size
+
+    async def _get_model(self):
+        if self._model is None:
+            async with self._lock:
+                if self._model is None:
+                    import asyncio
+                    self._model = await asyncio.to_thread(SentenceTransformer, self.model_name)
+        return self._model
 
     def chunk(self, text: str, min_tokens: int = 50) -> list[str]:
         """
@@ -742,7 +762,7 @@ class SemanticChunker:
             return [text] if text.strip() else []
 
         # Embed sentences with buffer context
-        embeddings = self._embed_with_buffer(sentences)
+        embeddings = self._embed_with_buffer_sync(sentences)
 
         # Calculate distances between consecutive embeddings
         distances = self._calculate_distances(embeddings)
@@ -765,15 +785,15 @@ class SemanticChunker:
         if start < len(sentences):
             remaining = " ".join(sentences[start:])
             if chunks and count_tokens(remaining) < min_tokens:
-                # Merge with last chunk
-                chunks[-1].content = chunks[-1].content + " " + remaining
+                # Merge with last chunk (strings, not EnrichedChunk objects)
+                chunks[-1] = chunks[-1] + " " + remaining
             else:
                 chunks.append(remaining)
 
         return chunks
 
-    def _embed_with_buffer(self, sentences: list[str]) -> list:
-        """Embed sentences with surrounding context buffer."""
+    def _embed_with_buffer_sync(self, sentences: list[str]) -> list:
+        """Embed sentences with surrounding context buffer (sync fallback)."""
         combined = []
 
         for i in range(len(sentences)):
@@ -782,7 +802,23 @@ class SemanticChunker:
             combined_text = " ".join(sentences[start:end])
             combined.append(combined_text)
 
-        return self.model.encode(combined)
+        if self._model is None:
+            self._model = SentenceTransformer(self.model_name)
+        return self._model.encode(combined)
+
+    async def _embed_with_buffer_async(self, sentences: list[str]) -> list:
+        """Embed sentences with surrounding context buffer via threadpool."""
+        combined = []
+
+        for i in range(len(sentences)):
+            start = max(0, i - self.buffer_size)
+            end = min(len(sentences), i + self.buffer_size + 1)
+            combined_text = " ".join(sentences[start:end])
+            combined.append(combined_text)
+
+        model = await self._get_model()
+        import asyncio
+        return await asyncio.to_thread(model.encode, combined)
 
     def _calculate_distances(self, embeddings) -> list[float]:
         """Calculate cosine distances between consecutive embeddings."""
@@ -1110,15 +1146,24 @@ class AdvancedChunker:
     @property
     def semantic_chunker(self) -> SemanticChunker | None:
         """Lazy load semantic chunker."""
-        if self._semantic_chunker is None and _HAS_SENTENCE_TRANSFORMERS:
+        if self.config.strategy != ChunkingStrategy.SEMANTIC and not (
+            self.config.strategy == ChunkingStrategy.TWS_OPTIMIZED
+            and _HAS_SENTENCE_TRANSFORMERS
+        ):
+            return None
+
+        if self._semantic_chunker is None:
             try:
+                import asyncio
                 self._semantic_chunker = SemanticChunker(
                     model_name=self.config.embedding_model,
                     threshold_percentile=self.config.semantic_threshold_percentile,
                     buffer_size=self.config.semantic_buffer_size,
                 )
-            except Exception as e:
-                logger.warning("Failed to initialize semantic chunker: %s", e)
+            except ImportError:
+                logger.warning("sentence-transformers not available")
+                self._semantic_chunker = None
+
         return self._semantic_chunker
 
     def chunk_document(
@@ -1225,6 +1270,7 @@ class AdvancedChunker:
 
         # Step 1: Parse markdown structure
         sections = parse_markdown_structure(text)
+        sections = build_section_hierarchy(sections)
 
         if not sections:
             # Fallback to recursive
@@ -1664,28 +1710,30 @@ class AdvancedChunker:
         """Structure-aware chunking without TWS optimizations."""
         chunks: list[EnrichedChunk] = []
         sections = parse_markdown_structure(text)
+        sections = build_section_hierarchy(sections)
+
+        def _process_section_flat(sec: MarkdownSection, path: list[str]):
+            curr_path = path + ([sec.title] if sec.title else [])
+            section_path = " > ".join(curr_path)
+            if sec.content:
+                chunk_type = self._detect_chunk_type(sec.content)
+                if count_tokens(sec.content) <= self.config.max_tokens:
+                    chunks.append(
+                        self._create_chunk(
+                            sec.content, source, document_title, section_path, chunk_type
+                        )
+                    )
+                else:
+                    chunks.extend(
+                        self._chunk_content(
+                            sec.content, source, document_title, section_path, chunk_type
+                        )
+                    )
+            for child in sec.children:
+                _process_section_flat(child, curr_path)
 
         for section in sections:
-            section_path = section.title or ""
-            content = section.content
-
-            if not content:
-                continue
-
-            chunk_type = self._detect_chunk_type(content)
-
-            if count_tokens(content) <= self.config.max_tokens:
-                chunks.append(
-                    self._create_chunk(
-                        content, source, document_title, section_path, chunk_type
-                    )
-                )
-            else:
-                chunks.extend(
-                    self._chunk_content(
-                        content, source, document_title, section_path, chunk_type
-                    )
-                )
+            _process_section_flat(section, [])
 
         return chunks
 

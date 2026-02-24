@@ -7,13 +7,14 @@ plus admin-only reload capability.
 v6.0 - Part of Skills Orchestration refactoring.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from typing import List, Optional
 
-from resync.core.wiring import get_skill_manager
-from resync.core.skill_manager import SkillManager
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+
 from resync.api.dependencies_v2 import get_logger
+from resync.core.skill_manager import SkillManager
+from resync.core.wiring import get_skill_manager
 
 router = APIRouter(prefix="/skills", tags=["Admin - Skills"])
 

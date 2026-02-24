@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Hot-Reload Configuration System.
 
@@ -33,6 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
 import aiofiles
 
 try:
@@ -41,7 +41,8 @@ try:
 
     WATCHDOG_AVAILABLE = True
 except Exception:  # pragma: no cover
-    # Allow this module to be imported without watchdog; hot-reload watching will be disabled.
+    # Allow import without watchdog;
+    # hot-reload watching will be disabled.
     FileModifiedEvent = object  # type: ignore[assignment]
 
     class FileSystemEventHandler:  # type: ignore[misc]
@@ -80,13 +81,15 @@ class ConfigFileHandler(FileSystemEventHandler):
             except RuntimeError:
                 # No loop running in this thread (expected for watchdog thread)
                 pass
-            
+
             if loop and loop.is_running():
                 loop.call_soon_threadsafe(
                     lambda: asyncio.create_task(self.callback(event.src_path))
                 )
             else:
-                logger.warning("config_file_modified_but_no_loop_active", path=event.src_path)
+                logger.warning(
+                    "config_file_modified_but_no_loop_active", path=event.src_path
+                )
 
 
 class ConfigManager:
@@ -116,7 +119,8 @@ class ConfigManager:
         self._observer: Observer | None = None
         self._watching = False
 
-        # Lock for thread safety (lazy-initialized to avoid event loop issues at import time)
+        # Lock for thread safety (lazy-initialized)
+        # to avoid event-loop issues at import time
         self._lock: asyncio.Lock | None = None
 
     @property
@@ -128,7 +132,7 @@ class ConfigManager:
 
     async def start(self, tg: asyncio.TaskGroup | None = None):
         """Start the configuration manager.
-        
+
         Args:
             tg: Optional TaskGroup for background tasks (currently unused by observer)
         """
@@ -290,7 +294,9 @@ class ConfigManager:
                 if inspect.iscoroutinefunction(callback):
                     await callback(change)
                 else:
-                    await asyncio.to_thread(callback, change)
+                    result = await asyncio.to_thread(callback, change)
+                    if inspect.isawaitable(result):
+                        await result
             except Exception as e:
                 logger.error("Error notifying subscriber: %s", e)
 

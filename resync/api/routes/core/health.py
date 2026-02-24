@@ -10,9 +10,9 @@ from pydantic import BaseModel
 from resync.core.health import (
     ComponentType,
     HealthStatus,
-    get_unified_health_service,
     get_status_color,
     get_status_description,
+    get_unified_health_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,8 @@ async def get_health_summary(
     Get overall system health summary with status indicators.
 
     Args:
-        auto_enable: Whether to auto-enable system components if validation is successful
+        auto_enable: Whether to auto-enable system components if
+            validation is successful
 
     Returns:
         HealthSummaryResponse: Overall system health status with color-coded indicators
@@ -116,9 +117,11 @@ async def get_health_summary(
         health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
-        # If auto_enable is true and health is good, attempt to enable any disabled components
+        # If auto_enable is true and health is good, attempt to
+        # enable any disabled components.
         if auto_enable and health_result.overall_status != HealthStatus.UNHEALTHY:
-            # In a real implementation, this would enable components that might be disabled
+            # In a real implementation, this would enable components
+            # that might be disabled.
             logger.info("Health check successful with auto_enable: %s", auto_enable)
 
         # Add auto_enable information to the response
@@ -181,7 +184,8 @@ async def get_core_health() -> CoreHealthResponse:
             if name in CORE_COMPONENTS
         }
 
-        # Calculate core status (more strict - any unhealthy core component = unhealthy overall)
+        # Calculate core status (more strict): any unhealthy core
+        # component means unhealthy overall.
         core_status = HealthStatus.HEALTHY
         for component in core_components.values():
             if component.status == HealthStatus.UNHEALTHY:
@@ -585,7 +589,10 @@ async def get_redis_health() -> dict[str, Any]:
             "idempotency_safe": False,
             "error": str(e),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "warning": "Redis health check failed - system cannot guarantee idempotency",
+            "warning": (
+                "Redis health check failed - system cannot "
+                "guarantee idempotency"
+            ),
         }
 
 

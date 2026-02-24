@@ -1,8 +1,9 @@
 """
 LLM Call Factories using Factory Pattern.
 
-This module implements the Factory pattern for creating LLM calls with different providers
-and configurations, making the code more modular, testable, and maintainable.
+This module implements the Factory pattern for creating LLM calls
+with different providers and configurations, making the code more
+modular, testable, and maintainable.
 """
 
 import asyncio
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class LLMFactory:
-    """Factory class for creating LLM calls with different providers and configurations."""
+    """Factory class for creating provider-specific LLM calls."""
 
     @staticmethod
     async def call_llm(
@@ -62,7 +63,10 @@ class LLMFactory:
             logger.warning(
                 "LiteLLM not available or no models configured, using mock response"
             )
-            return "LLM service is currently unavailable. This is a mock response for development purposes."
+            return (
+                "LLM service is currently unavailable. "
+                "This is a mock response for development purposes."
+            )
 
         # Use LiteLLM's acompletion for enhanced functionality with timeout
         try:

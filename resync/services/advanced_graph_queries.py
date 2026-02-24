@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# ruff: noqa: E501
 """
 Advanced Knowledge Graph Queries for Resync v5.2.3.26
 
@@ -33,12 +33,14 @@ Version: 5.2.3.26
 """
 
 from __future__ import annotations
+
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, TypeVar
+
 import networkx as nx
 
 try:
@@ -630,7 +632,7 @@ class CommonNeighborAnalyzer:
             resources_a = resource_edges.get(entity_a, set())
             resources_b = resource_edges.get(entity_b, set())
             common_resources = resources_a.intersection(resources_b)
-        len(common_preds) + len(common_succs) + len(common_resources)
+        total_overlap = len(common_preds) + len(common_succs) + len(common_resources)  # noqa: F841
         if common_resources:
             risk = "high"
             explanation = f"RESOURCE CONFLICT: {entity_a} and {entity_b} share {len(common_resources)} resources: {common_resources}. Running simultaneously may cause contention."

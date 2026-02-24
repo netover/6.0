@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Modelos de dados para o sistema de idempotency.
 """

@@ -13,7 +13,6 @@ This manager coordinates:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -21,6 +20,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import structlog
+
+from resync.core.task_tracker import track_task
 
 if TYPE_CHECKING:
     from resync.core.anomaly_detector import AnomalyDetectionEngine
@@ -383,7 +384,9 @@ class EnterpriseManager:
         # Register runbook execution callback
         logger.info("Connected Incident Response to Runbooks")
 
-    async def _start_background_tasks(self, tg: asyncio.TaskGroup | None = None) -> None:
+    async def _start_background_tasks(
+        self, tg: asyncio.TaskGroup | None = None
+    ) -> None:
         """Start background monitoring tasks.
 
         Args:
@@ -404,11 +407,13 @@ class EnterpriseManager:
         # Auto-recovery monitoring
         if self._auto_recovery and self._incident_response:
             if tg:
-                task = tg.create_task(self._auto_recovery_loop(), name="auto_recovery_loop")
+                task = tg.create_task(
+                    self._auto_recovery_loop(), name="auto_recovery_loop"
+                )
             else:
                 task = track_task(self._auto_recovery_loop(), name="auto_recovery_loop")
             self._tasks.append(task)
-            
+
         # Start component background tasks
         if self._incident_response:
             await self._incident_response.start(tg=tg)
@@ -588,7 +593,9 @@ class EnterpriseManager:
 _enterprise_manager: EnterpriseManager | None = None
 
 
-async def get_enterprise_manager(tg: asyncio.TaskGroup | None = None) -> EnterpriseManager:
+async def get_enterprise_manager(
+    tg: asyncio.TaskGroup | None = None,
+) -> EnterpriseManager:
     """Get or create the enterprise manager instance.
 
     Args:

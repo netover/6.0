@@ -36,8 +36,10 @@ sys.path.insert(0, str(BASE_DIR))
 
 # Load .env explicitly before importing settings to avoid reading env vars
 # before dotenv has had a chance to populate them
+# This must be done before any other resync imports that read settings
 load_dotenv(BASE_DIR / ".env")
 
+# Now import after dotenv is loaded
 from resync.app_factory import create_app  # noqa: E402
 
 app = create_app()
@@ -45,7 +47,8 @@ app = create_app()
 
 def main() -> None:
     """Run a local development server."""
-
+    # Import uvicorn here to avoid loading it in production ASGI path
+    # where it's not needed
     import uvicorn
 
     from resync.settings import settings

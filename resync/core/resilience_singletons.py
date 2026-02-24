@@ -9,8 +9,6 @@ Usage::
     from resync.core.resilience_singletons import adaptive_tws_api_breaker
 """
 
-
-
 from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
 
 # --- TWS API circuit breaker (tolerant, 60 s recovery) ---

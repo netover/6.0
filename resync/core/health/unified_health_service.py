@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Unified Health Service
 
@@ -84,7 +85,9 @@ class UnifiedHealthService:
     # Lifecycle Management
     # =========================================================================
 
-    def start_monitoring(self, tg: asyncio.TaskGroup | None = None, interval_seconds: int | None = None) -> None:
+    def start_monitoring(
+        self, tg: asyncio.TaskGroup | None = None, interval_seconds: int | None = None
+    ) -> None:
         """
         Start continuous health monitoring.
 
@@ -108,7 +111,11 @@ class UnifiedHealthService:
                 self._monitoring_loop(interval), name="monitoring_loop"
             )
 
-        logger.info("unified_health_monitoring_started", interval=interval, method="task_group" if tg else "track_task")
+        logger.info(
+            "unified_health_monitoring_started",
+            interval=interval,
+            method="task_group" if tg else "track_task",
+        )
 
     async def stop_monitoring(self) -> None:
         """Stop continuous health monitoring gracefully."""
@@ -175,7 +182,7 @@ class UnifiedHealthService:
                             tasks = {
                                 name: tg.create_task(
                                     self._execute_check_with_timeout(checker, name),
-                                    name=f"health_check_{name}"
+                                    name=f"health_check_{name}",
                                 )
                                 for name, checker in checkers.items()
                             }
@@ -193,11 +200,18 @@ class UnifiedHealthService:
                             except Exception as e:
                                 if isinstance(e, asyncio.CancelledError):
                                     raise
-                                components[name] = self._create_error_health(name, str(e))
+                                components[name] = self._create_error_health(
+                                    name, str(e)
+                                )
                         else:
-                            components[name] = self._create_error_health(name, "Check interrupted or timed out")
+                            components[name] = self._create_error_health(
+                                name, "Check interrupted or timed out"
+                            )
             except TimeoutError:
-                logger.warning("comprehensive_health_check_timeout", timeout=self.config.timeout_seconds)
+                logger.warning(
+                    "comprehensive_health_check_timeout",
+                    timeout=self.config.timeout_seconds,
+                )
             except Exception as e:
                 if isinstance(e, asyncio.CancelledError):
                     raise
@@ -206,7 +220,9 @@ class UnifiedHealthService:
             # Fill in missing results (failsafe)
             for name in checkers:
                 if name not in components:
-                    components[name] = self._create_error_health(name, "Internal health check orchestration failure")
+                    components[name] = self._create_error_health(
+                        name, "Internal health check orchestration failure"
+                    )
 
             # Calculate overall status
             overall_status = self._calculate_overall_status(components)

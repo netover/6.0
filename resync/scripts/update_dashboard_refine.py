@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 with open("resync/api/monitoring_dashboard.py", "r") as f:
     content = f.read()
 

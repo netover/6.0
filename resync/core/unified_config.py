@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Unified Configuration Manager with Hot Reload
 
@@ -32,8 +31,9 @@ except ImportError:
     FileSystemEventHandler = object
     Observer = None
 
-from resync.core.config_persistence import ConfigPersistenceManager
 import aiofiles
+
+from resync.core.config_persistence import ConfigPersistenceManager
 
 logger = structlog.get_logger(__name__)
 
@@ -255,7 +255,9 @@ class UnifiedConfigManager:
                 if inspect.iscoroutinefunction(callback):
                     await callback(event)
                 else:
-                    await asyncio.to_thread(callback, event)
+                    result = await asyncio.to_thread(callback, event)
+                    if inspect.isawaitable(result):
+                        await result
             except Exception as e:
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 

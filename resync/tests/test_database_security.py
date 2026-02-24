@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Comprehensive SQL Injection Security Test Suite
 

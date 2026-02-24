@@ -5,8 +5,9 @@ Tests the query expansion and Reciprocal Rank Fusion (RRF) logic
 added to the HybridRAG system.
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from resync.knowledge.retrieval.hybrid import HybridRAG
 
@@ -16,7 +17,11 @@ def mock_llm():
     """Mock LLM service for query expansion."""
     llm = AsyncMock()
     llm.generate = AsyncMock(
-        return_value="variação 1 da pergunta\nvariação 2 da pergunta\nvariação 3 da pergunta"
+        return_value=(
+            "variação 1 da pergunta\n"
+            "variação 2 da pergunta\n"
+            "variação 3 da pergunta"
+        )
     )
     return llm
 

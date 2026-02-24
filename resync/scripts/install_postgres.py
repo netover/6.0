@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 """
 PostgreSQL Setup Script for Resync v6.2.0
 

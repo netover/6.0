@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 from re import match
 
 from passlib.context import CryptContext

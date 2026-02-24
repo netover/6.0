@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """Resync API middleware package.
 
 This module intentionally keeps imports lightweight.

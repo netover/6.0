@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 Agent Evolution API
 
@@ -20,19 +19,18 @@ Version: 5.9.9
 from datetime import datetime, timezone
 from pathlib import Path
 
+import aiofiles
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from resync.api.routes.core.auth import verify_admin_credentials
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
+from resync.api.routes.core.auth import verify_admin_credentials
 from resync.core.agent_evolution import (
     AgentFeedbackCollector,
     FeedbackType,
     ImprovementSuggestion,
     SandboxTester,
 )
-from pydantic import ConfigDict
-import aiofiles
 
 logger = structlog.get_logger(__name__)
 
@@ -276,8 +274,14 @@ async def list_improvements(status: str | None = None):
                 "agent_name": "job_analyst",
                 "pattern_id": "pattern_...",
                 "current_prompt": "You are a job analyst...",
-                "proposed_prompt": "You are a TWS/HWA job analyst. IMPORTANT: PAYROLL jobs depend on TIMEKEEPING...",
-                "rationale": "Pattern detected: PAYROLL jobs missing TIMEKEEPING dependency. Seen 5 times.",
+                "proposed_prompt": (
+                    "You are a TWS/HWA job analyst. IMPORTANT: PAYROLL jobs "
+                    "depend on TIMEKEEPING..."
+                ),
+                "rationale": (
+                    "Pattern detected: PAYROLL jobs missing TIMEKEEPING "
+                    "dependency. Seen 5 times."
+                ),
                 "estimated_impact": "+17% accuracy (estimated)",
                 "status": "pending",
                 "created_at": "2024-12-25T12:00:00"
@@ -432,7 +436,8 @@ async def approve_improvement(
                 status_code=400, detail="Must test in sandbox before approving"
             )
 
-        # Deploy integration: update agent prompt, enable monitoring, setup auto-rollback
+        # Deploy integration: update agent prompt, enable monitoring,
+        # and set up auto-rollback
         # - Update agent prompt
         # - Enable monitoring
         # - Setup auto-rollback

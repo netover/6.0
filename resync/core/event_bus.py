@@ -45,6 +45,7 @@ logger = structlog.get_logger(__name__)
 # PROTOCOL — desacoplamento do FastAPI/Starlette para testes
 # =============================================================================
 
+
 @runtime_checkable
 class WebSocketProtocol(Protocol):
     """
@@ -59,16 +60,15 @@ class WebSocketProtocol(Protocol):
             async def close(self, code: int = 1000) -> None: ...
     """
 
-    async def send_text(self, data: str) -> None:
-        ...
+    async def send_text(self, data: str) -> None: ...
 
-    async def close(self, code: int = 1000) -> None:
-        ...
+    async def close(self, code: int = 1000) -> None: ...
 
 
 # =============================================================================
 # CONFIGURAÇÃO — Pydantic v2, imutável e validada na instanciação
 # =============================================================================
+
 
 class EventBusConfig(BaseModel):
     """
@@ -90,6 +90,7 @@ class EventBusConfig(BaseModel):
 # TIPOS DE ASSINATURA
 # =============================================================================
 
+
 class SubscriptionType(str, Enum):
     """Tipos de assinatura para filtro de eventos."""
 
@@ -104,17 +105,18 @@ class SubscriptionType(str, Enum):
 # Ordem importa: "critical" é avaliado antes de "system", que é avaliado
 # antes de "job" — corrige o bug onde "system_job_error" caía em JOBS.
 _SUBSCRIPTION_PRIORITY: list[tuple[str, SubscriptionType]] = [
-    ("critical",    SubscriptionType.CRITICAL),
-    ("system",      SubscriptionType.SYSTEM),
-    ("job",         SubscriptionType.JOBS),
+    ("critical", SubscriptionType.CRITICAL),
+    ("system", SubscriptionType.SYSTEM),
+    ("job", SubscriptionType.JOBS),
     ("workstation", SubscriptionType.WORKSTATIONS),
-    ("ws_",         SubscriptionType.WORKSTATIONS),
+    ("ws_", SubscriptionType.WORKSTATIONS),
 ]
 
 
 # =============================================================================
 # DATACLASSES — slots=True para eficiência de memória por conexão
 # =============================================================================
+
 
 @dataclass(slots=True)
 class Subscriber:
@@ -142,6 +144,7 @@ class WebSocketClient:
 # =============================================================================
 # EVENT BUS
 # =============================================================================
+
 
 class EventBus:
     """
@@ -216,7 +219,8 @@ class EventBus:
             asyncio.get_running_loop()
         except RuntimeError:
             raise RuntimeError(
-                "EventBus.start() deve ser chamado dentro de um contexto assíncrono ativo. "
+                "EventBus.start() deve ser chamado em contexto "
+                "assíncrono ativo. "
                 "Garanta que start() seja chamado em um lifespan ou handler async."
             )
 
@@ -371,8 +375,11 @@ class EventBus:
 
         # Filtra histórico pelo tipo de assinatura do cliente
         recent = [
-            e for e in list(self._event_history)[-count:]
-            if self._should_deliver(e.get("event_type", ""), client_ref.subscription_types)
+            e
+            for e in list(self._event_history)[-count:]
+            if self._should_deliver(
+                e.get("event_type", ""), client_ref.subscription_types
+            )
         ]
 
         if not recent:
@@ -596,7 +603,8 @@ class EventBus:
             if isinstance(r, str):
                 disconnected.append(r)
             elif isinstance(r, Exception):
-                # Exceção grave que escapou do _send (ex: CancelledError durante shutdown)
+                # Exceção grave que escapou do _send
+                # (ex: CancelledError durante shutdown)
                 logger.debug("severe_broadcast_exception", error=str(r))
 
         for client_id in disconnected:
@@ -647,16 +655,14 @@ class EventBus:
         count: int = 50,
     ) -> list[dict[str, Any]]:
         """Retorna eventos de um tipo específico."""
-        return [
-            e for e in self._event_history
-            if e.get("event_type") == event_type
-        ][-count:]
+        return [e for e in self._event_history if e.get("event_type") == event_type][
+            -count:
+        ]
 
     def get_critical_events(self, count: int = 20) -> list[dict[str, Any]]:
         """Retorna eventos com severity critical ou error."""
         return [
-            e for e in self._event_history
-            if e.get("severity") in ("critical", "error")
+            e for e in self._event_history if e.get("severity") in ("critical", "error")
         ][-count:]
 
     def get_metrics(self) -> dict[str, Any]:
@@ -755,7 +761,8 @@ def get_event_bus() -> EventBus:
     if _event_bus_instance is None:
         raise RuntimeError(
             "EventBus não inicializado. "
-            "Chame init_event_bus() no lifespan da aplicação antes de usar get_event_bus()."
+            "Chame init_event_bus() no lifespan da aplicação "
+            "antes de usar get_event_bus()."
         )
     return _event_bus_instance
 

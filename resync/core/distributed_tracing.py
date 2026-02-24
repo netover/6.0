@@ -3,12 +3,12 @@ Distributed Tracing System with OpenTelemetry and Jaeger.
 """
 
 from __future__ import annotations
-# pylint: disable=no-member
-# mypy: ignore-errors
 
-import inspect
 import contextlib
 import functools
+
+# pylint
+import inspect
 import time
 from collections.abc import Callable
 from contextvars import ContextVar
@@ -25,7 +25,6 @@ try:
         Sampler,
         SamplingResult,
     )
-    from opentelemetry.trace import SpanKind, Status, StatusCode  # type: ignore
 except ImportError:
     trace = None  # type: ignore
     TracerProvider = object  # type: ignore
@@ -63,21 +62,29 @@ except ImportError:
 
 try:
     from opentelemetry.exporter.jaeger import JaegerExporter
+
     JAEGER_AVAILABLE = True
 except ImportError:
     JAEGER_AVAILABLE = False
+
     class JaegerExporter:
-        def __init__(self, **kwargs): pass
-        def shutdown(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
+        def shutdown(self, **kwargs):
+            pass
 
 
 try:
     from opentelemetry.sdk.trace.export import ConsoleSpanProcessor
+
     CONSOLE_AVAILABLE = True
 except ImportError:
     CONSOLE_AVAILABLE = False
+
     class ConsoleSpanProcessor:
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
 
 
 from resync.core.structured_logger import get_logger
@@ -85,12 +92,22 @@ from resync.core.structured_logger import get_logger
 
 class _NoOpSpan:
     """Fallback span used when OpenTelemetry is disabled or uninitialized."""
-    def get_span_context(self): return self
+
+    def get_span_context(self):
+        return self
+
     @property
-    def is_valid(self): return False
-    def set_attribute(self, *args, **kwargs): return None
-    def record_exception(self, *args, **kwargs): return None
-    def set_status(self, *args, **kwargs): return None
+    def is_valid(self):
+        return False
+
+    def set_attribute(self, *args, **kwargs):
+        return None
+
+    def record_exception(self, *args, **kwargs):
+        return None
+
+    def set_status(self, *args, **kwargs):
+        return None
 
 
 logger = get_logger(__name__)
@@ -101,6 +118,7 @@ current_span_id: ContextVar[str | None] = ContextVar("current_span_id", default=
 
 class IntelligentSampler(Sampler):
     """Adaptive sampling strategy."""
+
     def __init__(self, base_sample_rate: float = 0.1, max_sample_rate: float = 1.0):
         self.base_sample_rate = base_sample_rate
         self.max_sample_rate = max_sample_rate
@@ -111,19 +129,37 @@ class IntelligentSampler(Sampler):
         self._decisions: dict[str, SamplingResult] = {}
 
     def get_description(self) -> str:
-        return f"IntelligentSampler(base_rate={self.base_sample_rate}, max_rate={self.max_sample_rate})"
+        return (
+            "IntelligentSampler("
+            f"base_rate={self.base_sample_rate}, "
+            f"max_rate={self.max_sample_rate}"
+            ")"
+        )
 
-    def should_sample(self, parent_context, trace_id, name, kind=None, attributes=None, links=None, trace_state=None):
+    def should_sample(
+        self,
+        parent_context,
+        trace_id,
+        name,
+        kind=None,
+        attributes=None,
+        links=None,
+        trace_state=None,
+    ):
         if parent_context and parent_context.trace_flags.sampled:
             return SamplingResult(Decision.RECORD_AND_SAMPLE)
 
         if attributes:
-            error_code = attributes.get("http.status_code", attributes.get("status_code"))
+            error_code = attributes.get(
+                "http.status_code", attributes.get("status_code")
+            )
             if error_code and str(error_code).startswith(("4", "5")):
                 return SamplingResult(Decision.RECORD_AND_SAMPLE)
 
         current_rate = self._calculate_adaptive_rate()
-        should_sample = (trace_id % int(1 / current_rate)) == 0 if current_rate > 0 else False
+        should_sample = (
+            (trace_id % int(1 / current_rate)) == 0 if current_rate > 0 else False
+        )
 
         if should_sample:
             return SamplingResult(Decision.RECORD_AND_SAMPLE)
@@ -134,7 +170,10 @@ class IntelligentSampler(Sampler):
             return self.base_sample_rate
         error_rate = self.error_count / self.total_requests
         if error_rate > self.error_threshold:
-            return min(self.max_sample_rate, self.base_sample_rate * (error_rate / self.error_threshold))
+            return min(
+                self.max_sample_rate,
+                self.base_sample_rate * (error_rate / self.error_threshold),
+            )
         return self.base_sample_rate
 
 
@@ -142,7 +181,9 @@ class IntelligentSampler(Sampler):
 class TraceConfiguration:
     jaeger_endpoint: str = "http://localhost:14268/api/traces"
     jaeger_service_name: str = "hwa-new"
-    jaeger_tags: dict[str, str] = field(default_factory=lambda: {"service.version": "1.0.0"})
+    jaeger_tags: dict[str, str] = field(
+        default_factory=lambda: {"service.version": "1.0.0"}
+    )
     sampling_rate: float = 0.1
     adaptive_sampling: bool = True
     max_sampling_rate: float = 1.0
@@ -179,9 +220,12 @@ class DistributedTracingManager:
     def _initialize_tracing(self) -> None:
         self.tracer_provider = TracerProvider()
         if self.config.adaptive_sampling:
-            sampler = IntelligentSampler(self.config.sampling_rate, self.config.max_sampling_rate)
+            sampler = IntelligentSampler(
+                self.config.sampling_rate, self.config.max_sampling_rate
+            )
         else:
             from opentelemetry.sdk.trace.sampling import TraceIdRatioBasedSampler
+
             sampler = TraceIdRatioBasedSampler(self.config.sampling_rate)
         self.tracer_provider.sampler = sampler
 
@@ -238,7 +282,9 @@ class DistributedTracingManager:
             yield _NoOpSpan()
             return
 
-        with self.tracer.start_as_current_span(operation_name, attributes=attributes) as span:
+        with self.tracer.start_as_current_span(
+            operation_name, attributes=attributes
+        ) as span:
             if span.get_span_context().is_valid:
                 trace_id = format(span.get_span_context().trace_id, "032x")
                 span_id = format(span.get_span_context().span_id, "016x")
@@ -260,14 +306,18 @@ class DistributedTracingManager:
 
     def trace_method(self, operation_name: str | None = None):
         """Decorator for tracing method calls."""
+
         def decorator(func: Callable):
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 method_name = operation_name or f"{func.__name__}"
                 class_name = args[0].__class__.__name__ if args else "unknown"
                 span_name = f"{class_name}.{method_name}"
-                # FIX: trace_context already records exception, removed redundant recording
-                with self.trace_context(span_name, operation_type="method_call", is_async=True) as span:
+                # FIX: trace_context already records exception;
+                # redundant recording removed
+                with self.trace_context(
+                    span_name, operation_type="method_call", is_async=True
+                ) as span:
                     result = await func(*args, **kwargs)
                     span.set_attribute("result.success", True)
                     return result
@@ -277,13 +327,17 @@ class DistributedTracingManager:
                 method_name = operation_name or f"{func.__name__}"
                 class_name = args[0].__class__.__name__ if args else "unknown"
                 span_name = f"{class_name}.{method_name}"
-                # FIX: trace_context already records exception, removed redundant recording
-                with self.trace_context(span_name, operation_type="method_call", is_async=False) as span:
+                # FIX: trace_context already records exception;
+                # redundant recording removed
+                with self.trace_context(
+                    span_name, operation_type="method_call", is_async=False
+                ) as span:
                     result = func(*args, **kwargs)
                     span.set_attribute("result.success", True)
                     return result
 
             return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
+
         return decorator
 
     def create_child_span(self, parent_span: trace.Span, name: str, **attributes):
@@ -339,17 +393,22 @@ def record_exception(exception: Exception) -> None:
 def traced(operation_name: str, **attributes):
     def decorator(func):
         if inspect.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 manager = await get_distributed_tracing_manager()
                 with manager.trace_context(operation_name, **attributes):
                     return await func(*args, **kwargs)
+
             return async_wrapper
+
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
             # FIX: Use _get_tracing_manager() to avoid AttributeError
             manager = _get_tracing_manager()
             with manager.trace_context(operation_name, **attributes):
                 return func(*args, **kwargs)
+
         return sync_wrapper
+
     return decorator

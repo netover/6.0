@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 LLM Tools - Ferramentas integradas com LLM Service.
 
@@ -225,7 +224,9 @@ async def get_system_health() -> dict[str, Any]:
             engine_details: dict[str, Any] | str = str(engine_info)
         else:
             engine_status = "HEALTHY"
-            engine_details = engine_info if isinstance(engine_info, dict) else {"value": engine_info}
+            engine_details = (
+                engine_info if isinstance(engine_info, dict) else {"value": engine_info}
+            )
 
         failed_count = len(failed_jobs) if isinstance(failed_jobs, list) else 0
 
@@ -266,8 +267,12 @@ async def get_job_dependencies(job_name: str) -> dict[str, Any]:
         client: Any = get_tws_client()
         jobs = await client.get_jobs(q=job_name, limit=1)
         first_job = jobs[0] if jobs else {}
-        predecessors = first_job.get("predecessors", []) if isinstance(first_job, dict) else []
-        successors = first_job.get("successors", []) if isinstance(first_job, dict) else []
+        predecessors = (
+            first_job.get("predecessors", []) if isinstance(first_job, dict) else []
+        )
+        successors = (
+            first_job.get("successors", []) if isinstance(first_job, dict) else []
+        )
 
         return {
             "job_name": job_name,

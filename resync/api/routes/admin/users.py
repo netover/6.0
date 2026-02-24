@@ -1,4 +1,4 @@
-# mypy: ignore-errors
+# mypy
 """
 Admin User Management Routes.
 
@@ -163,7 +163,7 @@ async def update_user(user_id: str, user_update: UserUpdate):
 
     user = _users[user_id]
 
-    for field, value in user_update.dict(exclude_unset=True).items():
+    for field, value in user_update.model_dump(exclude_unset=True).items():
         user[field] = value
 
     logger.info("User updated: %s", user["username"])

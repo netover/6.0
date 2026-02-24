@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Inicializador do Sistema de Monitoramento Proativo
 
@@ -17,12 +16,13 @@ Versão: 5.2
 """
 
 import asyncio
-from resync.core.task_tracker import create_tracked_task
 import contextlib
 from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+
+from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
@@ -173,7 +173,9 @@ class ProactiveMonitoringManager:
             )
 
         self._running = True
-        logger.info("proactive_monitoring_started", method="task_group" if tg else "track_task")
+        logger.info(
+            "proactive_monitoring_started", method="task_group" if tg else "track_task"
+        )
 
     async def stop(self) -> None:
         """Para o sistema de monitoramento."""

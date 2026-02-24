@@ -10,14 +10,14 @@ import json
 import math
 import os
 import sys
-
-from resync.core.utils.async_bridge import run_sync
 import time
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from collections.abc import Iterator
 from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
+
+from resync.core.utils.async_bridge import run_sync
 
 
 def _require(condition: bool, message: str) -> None:
@@ -70,11 +70,11 @@ async def test_dashboard_redis_integration() -> None:
     """Validate Redis persistence and pub/sub broadcast paths."""
     with _patched_import_mocks():
         from resync.api.monitoring_dashboard import (
-            DashboardMetricsStore,
-            MetricSample,
             REDIS_CH_BROADCAST,
             REDIS_KEY_LATEST,
             REDIS_KEY_START_TIME,
+            DashboardMetricsStore,
+            MetricSample,
             collect_metrics_sample,
             get_ws_manager,
         )
@@ -177,7 +177,8 @@ async def test_workflows_history() -> None:
     )
 
     print("Running test_workflows_history...")
-    # Fix: define history if needed for other mocks, but here it was just a result variable
+    # Fix: define history for mocks if needed; here it is only
+    # used as a result variable.
     now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     rows = [
         {

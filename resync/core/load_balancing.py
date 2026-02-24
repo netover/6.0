@@ -11,14 +11,14 @@ Classes:
 
 Exemplo de uso:
     from resync.core.load_balancing import LoadBalancer, LoadBalancingStrategy
-    
+
     # Seleção simples
     selected = LoadBalancer.select(candidates, LoadBalancingStrategy.ROUND_ROBIN)
-    
+
     # Seleção com contagem de conexões (para LEAST_CONNECTIONS)
     selected = LoadBalancer.with_connections(
-        candidates, 
-        conn_counts, 
+        candidates,
+        conn_counts,
         LoadBalancingStrategy.LEAST_CONNECTIONS
     )
 """
@@ -36,7 +36,7 @@ T = TypeVar("T")
 class LoadBalancingStrategy(str, Enum):
     """
     Estratégias de load balancing disponíveis.
-    
+
     Attributes:
         ROUND_ROBIN: Rotação cíclica simples
         RANDOM: Seleção aleatória
@@ -55,20 +55,20 @@ class LoadBalancingStrategy(str, Enum):
 class LoadBalancer(Generic[T]):
     """
     Implementação genérica de load balancer.
-    
+
     Esta classe fornece métodos estáticos para seleção de instâncias
     usando diferentes estratégias de load balancing.
-    
+
     Attributes:
         _last_index: Índice da última seleção (para ROUND_ROBIN)
-        
+
     Example:
         # Seleção básica
         instance = LoadBalancer.select(
             [instance1, instance2, instance3],
             LoadBalancingStrategy.ROUND_ROBIN
         )
-        
+
         # Seleção com métricas de conexão
         conn_counts = {"inst1": 10, "inst2": 5, "inst3": 20}
         instance = LoadBalancer.with_connections(
@@ -89,11 +89,11 @@ class LoadBalancer(Generic[T]):
     ) -> T | None:
         """
         Seleciona uma instância usando a estratégia especificada.
-        
+
         Args:
             candidates: Lista de candidatos para seleção
             strategy: Estratégia de load balancing
-            
+
         Returns:
             Instância selecionada ou None se a lista estiver vazia
         """
@@ -126,12 +126,12 @@ class LoadBalancer(Generic[T]):
     ) -> T | None:
         """
         Seleciona uma instância considerando contagem de conexões.
-        
+
         Args:
             candidates: Lista de candidatos
             conn_counts: Dicionário mapeando ID da instância para contagem de conexões
             strategy: Estratégia de load balancing
-            
+
         Returns:
             Instância selecionada ou None
         """
@@ -167,7 +167,7 @@ class LoadBalancer(Generic[T]):
     def _weighted_random(cls, candidates: Sequence[T]) -> T:
         """
         Seleciona uma instância aleatoriamente baseada em pesos.
-        
+
         Espera que os candidatos tenham um atributo 'weight'.
         """
         # Extract weights, default to 1 if not present
@@ -204,7 +204,7 @@ class LoadBalancer(Generic[T]):
     ) -> T | None:
         """
         Seleciona a instância com menos conexões ativas.
-        
+
         Args:
             candidates: Lista de candidatos (devem ter instance_id)
             conn_counts: Mapeamento de instance_id -> contagem de conexões
@@ -237,7 +237,7 @@ class LoadBalancer(Generic[T]):
     def _latency_based(cls, candidates: Sequence[T]) -> T | None:
         """
         Seleciona a instância com menor latência.
-        
+
         Espera que os candidatos tenham um atributo 'response_time_avg'.
         """
         best_candidate: T | None = None
@@ -270,7 +270,7 @@ class LoadBalancer(Generic[T]):
     def reset_state(cls, strategy: LoadBalancingStrategy | None = None) -> None:
         """
         Reset the load balancer state.
-        
+
         Args:
             strategy: Specific strategy to reset, or None to reset all
         """

@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Backup Service for PostgreSQL and System Configuration.
 
@@ -27,7 +26,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 import hashlib
 import json
@@ -35,14 +33,16 @@ import os
 import subprocess
 import zipfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
+import aiofiles
+
 from resync.core.database.config import get_database_config
 from resync.core.structured_logger import get_logger
-import aiofiles
+from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
@@ -857,7 +857,7 @@ class BackupService:
 
     def start_scheduler(self, tg: asyncio.TaskGroup | None = None) -> None:
         """Start the backup scheduler.
-        
+
         Args:
             tg: Optional TaskGroup to run the scheduler in
         """
@@ -865,11 +865,17 @@ class BackupService:
             return
 
         if tg:
-            self._scheduler_task = tg.create_task(self._run_scheduler(), name="run_scheduler")
+            self._scheduler_task = tg.create_task(
+                self._run_scheduler(), name="run_scheduler"
+            )
         else:
-            self._scheduler_task = track_task(self._run_scheduler(), name="run_scheduler")
-            
-        logger.info("backup_scheduler_started", method="task_group" if tg else "track_task")
+            self._scheduler_task = track_task(
+                self._run_scheduler(), name="run_scheduler"
+            )
+
+        logger.info(
+            "backup_scheduler_started", method="task_group" if tg else "track_task"
+        )
 
     async def stop_scheduler(self) -> None:
         """Stop the backup scheduler."""

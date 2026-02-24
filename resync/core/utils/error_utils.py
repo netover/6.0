@@ -316,7 +316,8 @@ def get_error_status_code(error_category: ErrorCategory) -> int:
         ErrorCategory.VALIDATION: status.HTTP_400_BAD_REQUEST,
         ErrorCategory.AUTHENTICATION: status.HTTP_401_UNAUTHORIZED,
         ErrorCategory.AUTHORIZATION: status.HTTP_403_FORBIDDEN,
-        ErrorCategory.BUSINESS_LOGIC: status.HTTP_404_NOT_FOUND,  # Changed from 400 to 404 for resource not found
+        # Changed from 400 to 404 for resource-not-found business logic errors.
+        ErrorCategory.BUSINESS_LOGIC: status.HTTP_404_NOT_FOUND,
         ErrorCategory.SYSTEM: status.HTTP_500_INTERNAL_SERVER_ERROR,
         ErrorCategory.EXTERNAL_SERVICE: status.HTTP_503_SERVICE_UNAVAILABLE,
         ErrorCategory.RATE_LIMIT: status.HTTP_429_TOO_MANY_REQUESTS,
@@ -501,7 +502,7 @@ def create_error_response_from_exception(
     request: Request | None = None,
     correlation_id: str | None = None,
 ) -> BaseErrorResponse:
-    """Create standardized error response from any exception with security considerations."""
+    """Create a standardized error response with security considerations."""
     # Lazy import to avoid circular dependency
     from .error_factories import ErrorFactory
 

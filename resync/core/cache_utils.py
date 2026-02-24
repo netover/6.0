@@ -127,7 +127,9 @@ class EnhancedCacheManager:
         self.stats.last_warmup = datetime.now(timezone.utc)
 
         logger.info(
-            f"Cache warming complete: {successes}/{len(warmers_to_use)} successful, {failures} failed"
+            "Cache warming complete: "
+            f"{successes}/{len(warmers_to_use)} successful, "
+            f"{failures} failed"
         )
 
     async def _warm_single_key(self, key: str, fetcher: Callable):
@@ -195,7 +197,8 @@ class EnhancedCacheManager:
             self.stats.invalidations += 1
 
             logger.info(
-                f"Cache invalidation complete: {deleted_count} keys deleted for pattern {pattern}"
+                "Cache invalidation complete: "
+                f"{deleted_count} keys deleted for pattern {pattern}"
             )
 
         except Exception as e:

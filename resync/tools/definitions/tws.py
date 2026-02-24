@@ -20,8 +20,7 @@ PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
 class TWSStatusClientProtocol(Protocol):
     """Subset of the TWS client contract required by tool definitions."""
 
-    async def get_system_status(self) -> Any:
-        ...
+    async def get_system_status(self) -> Any: ...
 
 
 class TWSToolReadOnly(BaseModel):
@@ -52,7 +51,9 @@ class TWSStatusTool(TWSToolReadOnly):
 
         try:
             logger.info("TWSStatusTool: Fetching system status.")
-            typed_client = client if isinstance(client, TWSStatusClientProtocol) else None
+            typed_client = (
+                client if isinstance(client, TWSStatusClientProtocol) else None
+            )
             if typed_client is None:
                 raise ToolExecutionError("Invalid TWS client implementation injected.")
             status = await typed_client.get_system_status()
@@ -107,7 +108,9 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
 
         try:
             logger.info("TWSTroubleshootingTool: Fetching system status for analysis.")
-            typed_client = client if isinstance(client, TWSStatusClientProtocol) else None
+            typed_client = (
+                client if isinstance(client, TWSStatusClientProtocol) else None
+            )
             if typed_client is None:
                 raise ToolExecutionError("Invalid TWS client implementation injected.")
             status = await typed_client.get_system_status()

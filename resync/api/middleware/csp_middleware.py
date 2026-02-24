@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# mypy
 """Content Security Policy (CSP) middleware for FastAPI."""
 
 import base64

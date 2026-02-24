@@ -176,7 +176,8 @@ class LLMCostMonitor:
         # Alert if approaching budget
         if daily_cost > self.budget_limit * 0.8:
             logger.warning(
-                f"Daily LLM cost approaching budget: ${daily_cost:.2f}/${self.budget_limit:.2f}"
+                "Daily LLM cost approaching budget: "
+                f"${daily_cost:.2f}/${self.budget_limit:.2f}"
             )
 
         # Alert if over budget

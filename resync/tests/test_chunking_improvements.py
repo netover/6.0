@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 Tests for v6.0 RAG Chunking Improvements.
 
@@ -22,25 +23,24 @@ from resync.knowledge.ingestion.advanced_chunking import (
     MultiViewChunk,
     OverlapStrategy,
     chunk_document,
-    generate_stable_id,
-    generate_snippet_preview,
-    get_structure_aware_overlap,
     create_multi_view_chunk,
     generate_entities_view,
     generate_faq_view,
+    generate_snippet_preview,
+    generate_stable_id,
+    get_structure_aware_overlap,
 )
 from resync.knowledge.ingestion.chunking_eval import (
     ChunkingEvalPipeline,
     EvalReport,
     EvalResult,
-    FailureSlice,
     FailureSeverity,
+    FailureSlice,
     RetrievedChunk,
+    create_eval_query,
     detect_failure_slice,
     generate_rule_suggestions,
-    create_eval_query,
 )
-
 
 # =============================================================================
 # FIXTURES

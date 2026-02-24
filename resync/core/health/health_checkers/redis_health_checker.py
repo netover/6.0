@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Redis Health Checker
 
@@ -59,9 +58,10 @@ class RedisHealthChecker(BaseHealthChecker):
                 )
 
             # Test actual Redis connectivity
-            from resync.core.redis_init import get_redis_client
             from redis.exceptions import RedisError
             from redis.exceptions import TimeoutError as RedisTimeoutError
+
+            from resync.core.redis_init import get_redis_client
 
             try:
                 # Use shared connection pool (prevents connection churn)

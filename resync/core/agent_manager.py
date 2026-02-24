@@ -10,26 +10,29 @@ v6.1.2 — Removed singleton anti-pattern, fixed DI, per-session history,
 from __future__ import annotations
 
 import asyncio
+import inspect
 import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import structlog
 import yaml
-import aiofiles
+from cachetools import LRUCache
 from pydantic import BaseModel, Field
 
 from resync.core.exceptions import AgentError
 from resync.core.metrics import runtime_metrics
 from resync.core.utils.async_bridge import run_sync
+from resync.models.a2a import AgentCapabilities, AgentCard, AgentContact
 from resync.models.agents import AgentConfig, AgentType
-from resync.models.a2a import AgentCard, AgentCapabilities, AgentContact
 from resync.settings import settings
 from resync.tools.definitions.tws import (
     tws_status_tool,
     tws_troubleshooting_tool,
 )
+
 from .global_utils import get_environment_tags, get_global_correlation_id
 
 agent_logger = structlog.get_logger("resync.agent_manager")
@@ -87,7 +90,8 @@ class Agent:
 
             system_prompt = (
                 f"You are {self.name}.\n"
-                f"{full_instructions}\n\n"  # Use full_instructions em vez de self.instructions
+                f"{full_instructions}\n\n"
+                # Use full_instructions em vez de self.instructions
                 f"Available tools: "
                 f"{', '.join(str(t) for t in self.tools) if self.tools else 'None'}\n\n"
                 "Respond in Portuguese (Brazilian) unless the user writes in English."
@@ -108,6 +112,8 @@ class Agent:
 
             return response.choices[0].message.content
 
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
@@ -118,28 +124,34 @@ class Agent:
     def _fallback_response(self, message: str) -> str:
         """Provide a keyword-based fallback when the LLM is unavailable."""
         try:
-            msg = message.lower()
-
-            if "job" in msg and ("abend" in msg or "erro" in msg):
+            from opentelemetry import trace
+            tracer = trace.get_tracer(__name__)
+            with tracer.start_as_current_span(
+                "agent_llm_fallback", 
+                attributes={"agent.name": self.name, "fallback_triggered": True}
+            ):
+                msg = message.lower()
+    
+                if "job" in msg and ("abend" in msg or "erro" in msg):
+                    return (
+                        "Jobs em estado ABEND encontrados. Recomendo investigar "
+                        "o log do job e verificar dependências."
+                    )
+                if "status" in msg or "workstation" in msg:
+                    return (
+                        "Para verificar o status, use o comando 'conman' ou "
+                        "consulte a interface web do TWS."
+                    )
+                if "tws" in msg:
+                    return (
+                        f"Como {self.name}, posso ajudar com questões "
+                        "relacionadas ao TWS. O que você precisa?"
+                    )
                 return (
-                    "Jobs em estado ABEND encontrados. Recomendo investigar "
-                    "o log do job e verificar dependências."
+                    f"Entendi sua mensagem. Como {self.name}, estou aqui para "
+                    "ajudar com operações TWS. "
+                    "(Nota: LLM temporariamente indisponível)"
                 )
-            if "status" in msg or "workstation" in msg:
-                return (
-                    "Para verificar o status, use o comando 'conman' ou "
-                    "consulte a interface web do TWS."
-                )
-            if "tws" in msg:
-                return (
-                    f"Como {self.name}, posso ajudar com questões "
-                    "relacionadas ao TWS. O que você precisa?"
-                )
-            return (
-                f"Entendi sua mensagem. Como {self.name}, estou aqui para "
-                "ajudar com operações TWS. "
-                "(Nota: LLM temporariamente indisponível)"
-            )
         except Exception as e:
             agent_logger.error("fallback_response_error", error=str(e), agent=self.name)
             return (
@@ -148,7 +160,12 @@ class Agent:
 
     def run(self, message: str) -> str:
         """Synchronous wrapper around :meth:`arun`."""
-        return run_sync(self.arun(message))
+        coro = self.arun(message)
+        try:
+            return run_sync(coro)
+        except RuntimeError:
+            coro.close()
+            raise
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the agent for API responses."""
@@ -196,8 +213,8 @@ def _discover_tools() -> dict[str, Any]:
 class AgentManager:
     """Manages agent lifecycle: creation, caching, configuration, and tools.
 
-    **Not a singleton.**  Create via :func:`initialize_agent_manager` (called
-    by the app lifespan in ``wiring.py``) and retrieve with
+    Cached module-level instance. Create via :func:`initialize_agent_manager`
+    (called by the app lifespan in ``wiring.py``) and retrieve with
     :func:`get_agent_manager`.
 
     Args:
@@ -268,11 +285,8 @@ class AgentManager:
             self.tools: dict[str, Any] = _discover_tools()
             self._tws_client_factory = tws_client_factory
             self.tws_client: Any = None
-
-            # Lazy-created async primitives (must not be created at import
-            # time when there is no running event loop).
-            self._tws_init_lock: asyncio.Lock | None = None
-            self._agent_creation_lock: asyncio.Lock | None = None
+            self._tws_locks: dict[int, asyncio.Lock] = {}
+            self._agent_locks: dict[int, asyncio.Lock] = {}
 
             runtime_metrics.record_health_check("agent_manager", "healthy")
             logger.info(
@@ -301,24 +315,22 @@ class AgentManager:
     # -----------------------------------------------------------------
 
     def _get_tws_lock(self) -> asyncio.Lock:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if self._tws_init_lock is None or (loop and self._tws_init_lock._loop != loop):
-            self._tws_init_lock = asyncio.Lock()
-        return self._tws_init_lock
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        lock = self._tws_locks.get(loop_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._tws_locks[loop_id] = lock
+        return lock
 
     def _get_agent_lock(self) -> asyncio.Lock:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if self._agent_creation_lock is None or (loop and self._agent_creation_lock._loop != loop):
-            self._agent_creation_lock = asyncio.Lock()
-        return self._agent_creation_lock
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        lock = self._agent_locks.get(loop_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._agent_locks[loop_id] = lock
+        return lock
 
     # -----------------------------------------------------------------
     # YAML configuration loader
@@ -354,7 +366,7 @@ class AgentManager:
         try:
             async with aiofiles.open(config_file, encoding="utf-8") as fh:
                 content = await fh.read()
-                config_data = yaml.safe_load(content)
+                config_data = await asyncio.to_thread(yaml.safe_load, content)
 
             if not config_data or "agents" not in config_data:
                 logger.error(
@@ -440,6 +452,8 @@ class AgentManager:
                 file=str(config_file),
                 error=str(exc),
             )
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             logger.error(
                 "agent_config_load_error",
@@ -559,7 +573,10 @@ class AgentManager:
                 return
 
             try:
-                self.tws_client = self._tws_client_factory()
+                if inspect.iscoroutinefunction(self._tws_client_factory):
+                    self.tws_client = await self._tws_client_factory()
+                else:
+                    self.tws_client = await asyncio.to_thread(self._tws_client_factory)
                 logger.info(
                     "tws_client_initialized",
                     client_type=type(self.tws_client).__name__,
@@ -705,15 +722,17 @@ class UnifiedAgent:
 
         self._manager = agent_manager or get_agent_manager()
         self._router = create_router(self._manager, skill_manager=skill_manager)
-        # Per-conversation history: {conversation_id: [messages]}
-        self._histories: dict[str, list[dict[str, str]]] = {}
+        # Per-conversation history with an LRU cache to prevent OOM
+        self._histories: LRUCache[str, list[dict[str, str]]] = LRUCache(maxsize=1000)
         logger.info(
             "unified_agent_initialized",
             skill_manager_enabled=skill_manager is not None,
         )
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
-        return self._histories.setdefault(conversation_id, [])
+        if conversation_id not in self._histories:
+            self._histories[conversation_id] = []
+        return self._histories[conversation_id]
 
     async def chat(
         self,

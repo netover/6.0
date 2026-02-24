@@ -110,7 +110,8 @@ def check_required_vars() -> tuple[bool, list[str]]:
                 val = os.getenv(var_name)
                 if val and val.upper() in ["", "CHANGE_ME", "YOUR_KEY_HERE", "TODO"]:
                     errors.append(
-                        f"[ERROR] {var_name}: Contains placeholder value '{val}' - must be set for production"
+                        f"[ERROR] {var_name}: Contains placeholder value '{val}' "
+                        "- must be set for production"
                     )
                     break
             else:
@@ -123,7 +124,8 @@ def check_required_vars() -> tuple[bool, list[str]]:
             # Check for placeholder values
             if value.upper() in ["CHANGE_ME", "YOUR_KEY_HERE", "TODO"]:
                 errors.append(
-                    f"[ERROR] {found_var}: Contains placeholder value '{value}' - must be set for production"
+                    f"[ERROR] {found_var}: Contains placeholder value '{value}' "
+                    "- must be set for production"
                 )
 
     return len(errors) == 0, errors

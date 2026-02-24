@@ -1,5 +1,4 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
 """
 Auto-Recovery System
 
@@ -58,7 +57,8 @@ class AutoRecovery:
                     # Check if it's been long enough to attempt reset
                     last_failure = cb_status.get("last_failure")
                     if last_failure and (time.time() - last_failure) > 300:  # 5 minutes
-                        # In real implementation, this would trigger circuit breaker reset
+                        # In real implementation this would
+                        # trigger circuit-breaker reset
                         actions.append(
                             {
                                 "action": "circuit_breaker_reset_candidate",

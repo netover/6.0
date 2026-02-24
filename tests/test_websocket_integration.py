@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import WebSocketDisconnect
+
+import pytest
+from fastapi import FastAPI, WebSocketDisconnect
 from fastapi.testclient import TestClient
 
 from resync.app_factory import ApplicationFactory
@@ -8,7 +9,7 @@ from resync.core.types.app_state import EnterpriseState
 
 
 @pytest.fixture
-def app():
+def app() -> FastAPI:
     factory = ApplicationFactory()
     app = factory.create_application()
 
@@ -65,7 +66,7 @@ def app():
     return app
 
 
-def test_websocket_chat_flow(app):
+def test_websocket_chat_flow(app: FastAPI) -> None:
     client = TestClient(app)
 
     # Mock authentication service to always verify
@@ -99,7 +100,7 @@ def test_websocket_chat_flow(app):
             assert "correlation_id" in agent_msg
 
 
-def test_websocket_auth_failure(app):
+def test_websocket_auth_failure(app: FastAPI) -> None:
     client = TestClient(app)
 
     # Mock authentication service to fail
@@ -110,7 +111,7 @@ def test_websocket_auth_failure(app):
         assert excinfo.value.code == 1008
 
 
-def test_websocket_invalid_agent(app):
+def test_websocket_invalid_agent(app: FastAPI) -> None:
     client = TestClient(app)
 
     # Mock agent manager to return None (agent not found)

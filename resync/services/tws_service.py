@@ -1,5 +1,5 @@
-# pylint: skip-file
-# mypy: ignore-errors
+# pylint
+# ruff: noqa: E501
 """
 Read‑only client for interacting with the IBM TWS/HWA REST API.
 
@@ -20,23 +20,23 @@ Cache injects _fetched_at for UI transparency.
 
 import asyncio
 import random
-import time
 import re
+import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
 import structlog
-from email.utils import parsedate_to_datetime
 
 from resync.core.exceptions import (
+    ResourceNotFoundError,
     TWSAuthenticationError,
     TWSBadRequestError,
     TWSConnectionError,
     TWSRateLimitError,
     TWSServerError,
     TWSTimeoutError,
-    ResourceNotFoundError,
 )
 from resync.core.metrics_compat import Counter, Histogram
 from resync.services.tws_cache import (
@@ -58,7 +58,9 @@ def _ensure_httpx_instrumented() -> None:
     if _HTTPX_OTEL_INSTRUMENTED:
         return
     try:
-        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
+        from opentelemetry.instrumentation.httpx import (
+            HTTPXClientInstrumentor,  # type: ignore
+        )
     except ImportError:
         _HTTPX_OTEL_INSTRUMENTED = (
             True  # do not retry every instantiation if package is absent

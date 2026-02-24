@@ -184,7 +184,7 @@ async def update_teams_config(update: TeamsConfigUpdate):
     if update.rate_limit_enabled is not None:
         config.rate_limit_enabled = update.rate_limit_enabled
 
-    logger.info("teams_config_updated", updates=update.dict(exclude_unset=True))
+    logger.info("teams_config_updated", updates=update.model_dump(exclude_unset=True))
 
     return TeamsConfigResponse(
         enabled=config.enabled,
@@ -304,7 +304,11 @@ async def send_test_notification():
     try:
         notification = TeamsNotification(
             title="🧪 Test Notification",
-            message="This is a test notification from Resync Admin. If you can see this message, Teams integration is working correctly!",
+            message=(
+                "This is a test notification from Resync Admin. "
+                "If you can see this message, Teams integration is "
+                "working correctly!"
+            ),
             severity="info",
             additional_data={
                 "Environment": "Resync Admin",

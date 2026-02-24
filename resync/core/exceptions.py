@@ -1,6 +1,7 @@
 """Módulo para exceções customizadas da aplicação Resync.
 
-Este módulo implementa uma hierarquia completa de exceções seguindo as melhores práticas:
+Este módulo implementa hierarquia completa de exceções
+seguindo as melhores práticas:
 - Códigos de erro padronizados
 - Status HTTP semânticos
 - Suporte a correlation IDs

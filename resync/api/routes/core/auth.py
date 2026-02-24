@@ -1,11 +1,19 @@
-# pylint: skip-file
-# mypy: ignore-errors
 """Authentication and authorization API endpoints.
 
 This module provides JWT-based authentication endpoints and utilities,
 including token generation, validation, and user session management.
 It implements secure authentication flows with proper error handling
 and integrates with the application's security middleware.
+
+Security Features:
+- IP spoofing protection
+- Redis Lua injection prevention
+- CSRF protection via SameSite cookies
+- JWT token leakage prevention
+- Constant-time authentication
+- Account enumeration prevention
+- HKDF key derivation for password hashing
+- Thread-safe singleton pattern
 """
 
 from __future__ import annotations
@@ -14,14 +22,21 @@ import asyncio
 import hashlib
 import hmac
 import secrets
+import threading
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from resync.api.core import security as jwt_security
+from resync.api.routes.core.ip_utils import (
+    get_trusted_client_ip,
+    sanitize_ip_for_redis_key,
+)
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.redis_init import get_redis_client
 from resync.core.structured_logger import get_logger
@@ -39,6 +54,18 @@ bearer_scheme = HTTPBearer(auto_error=False)
 # Secret key for JWT tokens
 # NOTE: Resolved lazily at runtime to avoid unsafe fallbacks in production.
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Generic error message to prevent account enumeration (CWE-204)
+GENERIC_AUTH_ERROR = "Invalid credentials"
+
+# HKDF for key derivation (CWE-916)
+try:
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+    HKDF_AVAILABLE = True
+except ImportError:
+    HKDF_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # JWT secret key resolution
@@ -119,12 +146,48 @@ def get_jwt_secret_key() -> str:
 
 
 class SecureAuthenticator:
-    """Authenticator resistant to timing attacks."""
+    """Authenticator resistant to timing attacks with secure key derivation."""
 
     def __init__(self) -> None:
         self._lockout_duration_seconds = 15 * 60  # 15 minutes
         self._max_attempts = 5
         self._redis_prefix = "resync:auth:lockout"
+
+        # HKDF-derived auth key (CWE-916)
+        self._auth_key: bytes | None = None
+        self._auth_key_lock = threading.Lock()
+
+    def _get_auth_key(self) -> bytes:
+        """Get derived authentication key (cached).
+
+        Security:
+            - Derived from JWT secret using HKDF
+            - Separate from JWT signing key
+            - 256-bit entropy
+        """
+        if self._auth_key is not None:
+            return self._auth_key
+
+        with self._auth_key_lock:
+            if self._auth_key is not None:
+                return self._auth_key
+
+            jwt_secret = _get_configured_secret_key() or get_jwt_secret_key()
+
+            if HKDF_AVAILABLE:
+                # HKDF key derivation (CWE-916)
+                hkdf = HKDF(
+                    algorithm=hashes.SHA256(),
+                    length=32,  # 256 bits
+                    salt=b"resync-auth-credential-hashing-v1",
+                    info=b"credential-verification",
+                )
+                self._auth_key = hkdf.derive(jwt_secret.encode("utf-8"))
+            else:
+                # Fallback: use JWT secret directly (less secure)
+                self._auth_key = jwt_secret.encode("utf-8")
+
+            return self._auth_key
 
     async def verify_credentials(
         self, username: str, password: str, request_ip: str
@@ -136,30 +199,34 @@ class SecureAuthenticator:
         - Account lockout
         - Audit logging
         """
-        # Atomically check lockout and prepare to record attempt
-        # Note: We check first with success=True to see if locked, then record actual result
+        # Fail-closed: check configuration first (TASK-012)
+        if not settings.admin_username or not settings.admin_password:
+            logger.critical("admin_credentials_not_configured")
+            if getattr(settings, "is_production", False):
+                return False, "Authentication unavailable"
+            return False, GENERIC_AUTH_ERROR
+
+        # Atomically check lockout and prepare to record attempt (TASK-010)
+        # Sanitize IP to prevent Lua injection (TASK-004)
+        sanitized_ip = sanitize_ip_for_redis_key(request_ip)
         is_locked, remaining, _ = await self._check_and_record_attempt(
-            request_ip, success=True
+            sanitized_ip, success=True
         )
+
         if is_locked:
+            # Use constant delay (TASK-007)
+            await asyncio.sleep(0.050)
+
+            # Use generic error message to prevent account enumeration (TASK-008)
             logger.warning(
-                "Authentication attempt from locked out IP",
+                "auth_locked",
                 extra={"ip": request_ip, "lockout_remaining_minutes": remaining},
             )
-            # Artificial delay to maintain constant-time-ish appearance
-            await asyncio.sleep(0.5)
-            return (
-                False,
-                f"Too many failed attempts. Try again in {remaining} minutes",
-            )
+            return False, GENERIC_AUTH_ERROR
 
         # Always hash both provided and expected values to maintain constant time
         provided_username_hash = self._hash_credential(username)
         provided_password_hash = self._hash_credential(password)
-
-        if not settings.admin_username or not settings.admin_password:
-            logger.error("admin_credentials_not_configured")
-            return False
 
         expected_username_hash = self._hash_credential(settings.admin_username)
         expected_password_hash = self._hash_credential(
@@ -178,34 +245,35 @@ class SecureAuthenticator:
         # Combine results without short-circuiting
         credentials_valid = username_valid and password_valid
 
-        # Artificial delay to prevent timing analysis
-        await asyncio.sleep(secrets.randbelow(100) / 1000)  # 0-100ms random delay
+        # Record failed attempt atomically with sanitized IP
+        await self._check_and_record_attempt(sanitized_ip, success=credentials_valid)
+
+        # Constant-time delay (TASK-007)
+        await asyncio.sleep(0.050)
 
         if not credentials_valid:
-            # Record failed attempt atomically (already checked lockout above)
-            await self._check_and_record_attempt(request_ip, success=False)
-
             logger.warning(
-                "Failed authentication attempt",
+                "auth_failed",
                 extra={
                     "ip": request_ip,
-                    "username_provided": username[:3] + "***",  # Partial for logs
+                    "username_prefix": username[:3] + "***",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
-            return False, "Invalid credentials"
+            # Use generic error message (TASK-008)
+            return False, GENERIC_AUTH_ERROR
 
-        # Success - clear failed attempts (distributed)
+        # Success - clear failed attempts (distributed) with sanitized IP
         try:
             redis = get_redis_client()
-            await redis.delete(f"{self._redis_prefix}:{request_ip}")
+            await redis.delete(f"{self._redis_prefix}:{sanitized_ip}")
         except Exception:
             # Non-fatal: if Redis is down, we just can't clear the lockout
             pass
 
         logger.info(
-            "Successful authentication",
+            "auth_success",
             extra={
                 "ip": request_ip,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -215,11 +283,14 @@ class SecureAuthenticator:
         return True, None
 
     def _hash_credential(self, credential: str) -> bytes:
-        """Hash credential for constant-time comparison."""
-        # Use HMAC with secret key to prevent rainbow table attacks
-        secret = _get_configured_secret_key() or get_jwt_secret_key()
-        secret_key = secret.encode("utf-8")
-        return hmac.new(secret_key, credential.encode("utf-8"), hashlib.sha256).digest()
+        """Hash credential with derived key for constant-time comparison.
+
+        Security (CWE-916):
+            - Uses HKDF-derived key instead of JWT secret directly
+            - HMAC-SHA256 for rainbow table resistance
+        """
+        auth_key = self._get_auth_key()
+        return hmac.new(auth_key, credential.encode("utf-8"), hashlib.sha256).digest()
 
     async def _check_lockout_state(self, ip: str) -> tuple[bool, int]:
         """Check if IP is locked out and return remaining time."""
@@ -262,7 +333,7 @@ class SecureAuthenticator:
         Redis Lua script that executes atomically.
 
         Args:
-            ip: Client IP address
+            ip: Client IP address (should be sanitized via sanitize_ip_for_redis_key)
             success: Whether the authentication succeeded
 
         Returns:
@@ -270,6 +341,7 @@ class SecureAuthenticator:
         """
         try:
             redis = get_redis_client()
+            # Use sanitized IP for Redis key (TASK-004)
             key = f"{self._redis_prefix}:{ip}"
             now = time.time()
             cutoff = now - self._lockout_duration_seconds
@@ -283,13 +355,13 @@ class SecureAuthenticator:
             local max_attempts = tonumber(ARGV[3])
             local lockout_duration = tonumber(ARGV[4])
             local success = ARGV[5] == 'true'
-            
+
             -- Remove old attempts
             redis.call('ZREMRANGEBYSCORE', key, 0, cutoff)
-            
+
             -- Count recent attempts
             local count = redis.call('ZCARD', key)
-            
+
             -- Check if locked
             local is_locked = 0
             local remaining = 0
@@ -302,14 +374,14 @@ class SecureAuthenticator:
                     is_locked = 1
                 end
             end
-            
+
             -- Record failed attempt (only if not success)
             if not success and is_locked == 0 then
                 redis.call('ZADD', key, now, tostring(now))
                 redis.call('EXPIRE', key, lockout_duration * 2)
                 count = count + 1
             end
-            
+
             return {is_locked, remaining, count}
             """
 
@@ -342,25 +414,39 @@ class SecureAuthenticator:
             return False, 0, 0
 
 
-# Global authenticator singleton (lazy init; avoids import-time asyncio.Lock binding)
-_authenticator: "SecureAuthenticator | None" = None
-_authenticator_init_lock: "asyncio.Lock | None" = None
+# Global authenticator singleton (lazy init; thread-safe)
+# Using threading.Lock for thread-safety across event loops (TASK-013)
+_authenticator: SecureAuthenticator | None = None
+_authenticator_init_lock: threading.Lock | None = None
 
 
-async def get_authenticator() -> "SecureAuthenticator":
-    """Return a lazily-initialized SecureAuthenticator.
+def _get_authenticator_lock() -> threading.Lock:
+    """Get or create the authenticator initialization lock."""
+    global _authenticator_init_lock
+    if _authenticator_init_lock is None:
+        _authenticator_init_lock = threading.Lock()
+    return _authenticator_init_lock
 
-    IMPORTANT: SecureAuthenticator creates an asyncio.Lock in __init__. Creating it at
-    module import time can break gunicorn --preload/multi-loop scenarios.
+
+async def get_authenticator() -> SecureAuthenticator:
+    """Return a lazily-initialized SecureAuthenticator (thread-safe).
+
+    Uses threading.Lock instead of asyncio.Lock for thread-safety
+    across multiple event loops (gunicorn --preload scenario).
     """
-    global _authenticator, _authenticator_init_lock
+    global _authenticator
+
+    # Fast path: already initialized
     if _authenticator is not None:
         return _authenticator
-    if _authenticator_init_lock is None:
-        _authenticator_init_lock = asyncio.Lock()
-    async with _authenticator_init_lock:
+
+    # Slow path: thread-safe initialization
+    lock = _get_authenticator_lock()
+    with lock:
+        # Double-check (another thread may have initialized)
         if _authenticator is None:
             _authenticator = SecureAuthenticator()
+
     return _authenticator
 
 
@@ -368,29 +454,74 @@ def verify_admin_credentials(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> str | None:
+    """Verify admin credentials for protected endpoints using JWT tokens.
+
+    Security (TASK-006):
+        - Specific JWT exception handling (no token in traceback)
+        - Constant-time delay to prevent timing attacks
+        - Generic error messages to prevent enumeration
     """
-    Verify admin credentials for protected endpoints using JWT tokens.
-    """
+    # Track if we have a token for logging
+    has_token = False
+
     try:
         # 1) Try Authorization header (Bearer)
-        token = (
-            credentials.credentials
-            if (credentials and credentials.credentials)
-            else None
-        )
+        token: str | None = None
+        if credentials and credentials.credentials:
+            token = credentials.credentials
+            has_token = True
 
         # 2) Fallback: HttpOnly cookie "access_token"
         if not token:
             token = request.cookies.get("access_token")
-            if not token:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Credentials not provided",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            if token:
+                has_token = True
 
-        # Decode & validate JWT using centralized security utility
-        payload = jwt_security.decode_access_token(token)
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Credentials not provided",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Decode & validate JWT - specific exception handling (TASK-006)
+        try:
+            # Import JWT exceptions for specific handling
+            from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+
+            payload = jwt_security.decode_access_token(token)
+
+        except ExpiredSignatureError:
+            # Log without token
+            logger.info(
+                "token_expired",
+                extra={
+                    "token_prefix": token[:8] + "..." if token else "None",
+                    "ip": request.client.host if request.client else "unknown",
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        except InvalidTokenError as e:
+            # Log error type only (no token in message)
+            logger.warning(
+                "token_invalid",
+                extra={
+                    "error_type": type(e).__name__,
+                    "has_token": has_token,
+                    "ip": request.client.host if request.client else "unknown",
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -398,7 +529,7 @@ def verify_admin_credentials(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        username: str = payload.get("sub")
+        username: str | None = payload.get("sub")
         if username is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -413,17 +544,35 @@ def verify_admin_credentials(
         if username != admin_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid admin credentials",
+                detail="Could not validate credentials",  # Generic (TASK-008)
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
         return username
-    except Exception:
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        # Generic handler - no sensitive data in error
+        logger.error(
+            "auth_unexpected_error",
+            extra={
+                "error_type": type(e).__name__,
+                "has_token": has_token,
+                "ip": request.client.host if request.client else "unknown",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    finally:
+        # Constant-time delay (TASK-007) - always execute
+        import time
+
+        time.sleep(0.050)
 
 
 def create_access_token(
@@ -484,20 +633,21 @@ class LoginResponse(BaseModel):
     token: TokenResponse | None = None
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login")
 @rate_limit_auth
-async def login(request: Request, login_data: LoginRequest) -> LoginResponse:
+async def login(request: Request, login_data: LoginRequest) -> Response:
     """
-    Authenticate user and return JWT token.
+    Authenticate user and return JWT token with secure cookie (CSRF protected).
 
     Args:
         request: FastAPI request object
         login_data: Login credentials
 
     Returns:
-        LoginResponse with JWT token if successful
+        Response with JWT token in HttpOnly cookie (TASK-005)
     """
-    client_ip = request.client.host if request.client else "unknown"
+    # Use trusted client IP (TASK-003)
+    client_ip = get_trusted_client_ip(request)
 
     is_valid, error_message = await (await get_authenticator()).verify_credentials(
         login_data.username, login_data.password, client_ip
@@ -510,7 +660,7 @@ async def login(request: Request, login_data: LoginRequest) -> LoginResponse:
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_message or "Invalid credentials",
+            detail=error_message or GENERIC_AUTH_ERROR,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -524,28 +674,59 @@ async def login(request: Request, login_data: LoginRequest) -> LoginResponse:
         "login_successful", extra={"ip": client_ip, "username": login_data.username}
     )
 
-    return LoginResponse(
+    # Return JSON response with SameSite cookie (CSRF protection - TASK-005)
+    response_data = LoginResponse(
         success=True,
         message="Login successful",
         token=TokenResponse(access_token=access_token),
     )
 
+    response = JSONResponse(content=response_data.model_dump())
+
+    # Set secure cookie with CSRF protection
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Prevents XSS
+        secure=getattr(settings, "is_production", False),  # HTTPS only in production
+        samesite="strict",  # CSRF protection
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+
+    return response
+
 
 @router.post("/logout")
-async def logout(request: Request) -> dict[str, Any]:
+async def logout(request: Request) -> Response:
     """
-    Logout user (invalidate token).
+    Logout user (invalidate token) and clear secure cookie.
 
     Note: For stateless JWT, this is primarily for client-side token cleanup.
     Server-side token blacklisting would require additional infrastructure.
 
     Returns:
-        Success message
+        Success message with cookie cleared
     """
-    client_ip = request.client.host if request.client else "unknown"
+    # Use trusted client IP (TASK-003)
+    client_ip = get_trusted_client_ip(request)
     logger.info("logout_requested", extra={"ip": client_ip})
 
-    return {"success": True, "message": "Logout successful. Please discard your token."}
+    response = JSONResponse(
+        content={
+            "success": True,
+            "message": "Logout successful. Please discard your token.",
+        }
+    )
+
+    # Clear cookie with SameSite (must match set_cookie)
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        samesite="strict",
+    )
+
+    return response
 
 
 @router.get("/verify")

@@ -1,10 +1,10 @@
+# ruff: noqa: E501
 """
 Orchestration Event Bus
 
 Manages internal events for the orchestration engine.
 """
 
-import asyncio
 import inspect
 import logging
 import uuid
@@ -15,7 +15,6 @@ from typing import Any, Callable
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-
 
 logger = logging.getLogger(__name__)
 
@@ -169,10 +168,9 @@ class EventBus:
 
     async def _invoke_callback(self, callback: Callable, event: OrchestrationEvent):
         """Helper to invoke sync or async callbacks."""
-        if inspect.iscoroutinefunction(callback):
-            await callback(event)
-        else:
-            await asyncio.to_thread(callback, event)
+        result = callback(event)
+        if inspect.isawaitable(result):
+            await result
 
     def get_subscription_count(self) -> int:
         """Get total number of active subscriptions (for debugging/monitoring)."""

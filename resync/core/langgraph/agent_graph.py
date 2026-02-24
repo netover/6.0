@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """
 LangGraph Agent Graph Implementation v6.1.0 (Golden Path).
 
@@ -1115,8 +1116,8 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
         enriched_context: dict[str, Any] = {"job_name": job_name} if job_name else {}
 
         try:
-            from resync.core.orchestrator import ServiceOrchestrator
             from resync.core.factories import get_tws_client_singleton
+            from resync.core.orchestrator import ServiceOrchestrator
 
             tws = get_tws_client_singleton()
             kg = _get_knowledge_graph_or_stub()
@@ -1164,8 +1165,8 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
 
         # Try using the Incident Response Pipeline (v6.0.0)
         from resync.core.langgraph.incident_response import (
-            handle_incident,
             OutputChannel,
+            handle_incident,
         )
 
         result = await handle_incident(

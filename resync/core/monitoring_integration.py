@@ -1,4 +1,4 @@
-# mypy: ignore-errors
+# mypy
 """
 Proactive Monitoring System Integration
 
@@ -311,7 +311,10 @@ def _create_mock_tws_client() -> Any:
 
                 job = {
                     "id": f"job_{i}",
-                    "name": f"JOB_{random.choice(['BATCH', 'REPORT', 'BACKUP', 'SYNC'])}_{i:04d}",
+                    "name": (
+                        f"JOB_{random.choice(['BATCH', 'REPORT', 'BACKUP', 'SYNC'])}"
+                        f"_{i:04d}"
+                    ),
                     "jobStream": f"STREAM_{random.randint(1, 5)}",
                     "workstation": f"WS{random.randint(1, 5):03d}",
                     "status": job_status,
