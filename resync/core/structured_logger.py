@@ -1,3 +1,16 @@
+"""Sistema de logging estruturado usando structlog.
+
+Este módulo configura logging estruturado em formato JSON para facilitar
+análise automatizada, agregação e monitoramento de logs.
+
+Características:
+- Logs em formato JSON
+- Correlation ID automático
+- Contexto enriquecido
+- Níveis de log configuráveis por ambiente
+- Integração com sistemas de agregação (ELK, Loki, etc.)
+"""
+
 from __future__ import annotations
 
 import logging

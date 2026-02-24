@@ -1,5 +1,32 @@
+"""
+Custom tools for each specialist agent to interact with TWS data,
+logs, graphs, and documentation.
+
+v5.4.2 Enhancements (PR-8 to PR-12):
+- PR-8: Parallel tool execution (read-only tools run concurrently)
+- PR-9: Observable ToolRunStatus for reactive UI
+- PR-10: Sub-agent pattern with read-only restrictions
+- PR-11: Undo/rollback support for stateful operations
+- PR-12: Risk-based classification for approvals
+
+v5.4.1 Enhancements (PR-1):
+- Input/output schema validation
+- Role-based permissions (allowlist)
+- Tracing/logging per call
+- Read-only vs write classification
+- Tool catalog registry
+
+Author: Resync Team
+Version: 5.4.2
+"""
+
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
+import functools
+import time
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum

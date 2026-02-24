@@ -281,8 +281,10 @@ async def _setup_websocket_session(
     agent_manager: IAgentManager = st.agent_manager
 
     # Get agent from the manager (supports sync or async implementations).
+    # This is the merged version that handles both sync and async agent managers.
     maybe_agent = agent_manager.get_agent(agent_id)
     agent = await maybe_agent if inspect.isawaitable(maybe_agent) else maybe_agent
+
     agent_id_str = str(agent_id)
     session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
 
@@ -358,6 +360,7 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="Authentication required")
             return
     except Exception:
+        # Combined log message from both branches
         logger.warning(
             "WebSocket auth check failed, allowing connection "
             "(auth service unavailable)"
@@ -391,7 +394,7 @@ async def websocket_endpoint(
             agent_id_str,
             session_id,
         )
-    except Exception as _e:  # pylint
+    except Exception as _e:  # pylint: disable=broad-exception-caught
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

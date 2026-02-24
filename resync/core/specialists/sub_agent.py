@@ -1,4 +1,23 @@
-# ruff: noqa: E501
+"""
+Sub-Agent Pattern for Resync.
+
+PR-10: Implements specialized sub-agents with restrictions:
+- Only read-only tools available
+- Cannot spawn recursive sub-agents
+- Stateless invocations
+- Isolated execution context
+
+Based on Claude Code's AgentTool pattern.
+
+Use cases:
+- Parallel search across multiple jobs/logs
+- Concurrent analysis of different workstations
+- Distributed document retrieval
+
+Author: Resync Team
+Version: 5.4.2
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -275,7 +294,10 @@ class SubAgent:
             try:
                 if not task.cancelled():
                     results.append(task.result())
-            except Exception as e:
+            except (asyncio.CancelledError, Exception) as e:
+                # We don't have the specific agent here easily without mapping,
+                # but we can return a generic failure if the task itself died.
+                # In most cases, agent.execute() handles its own exceptions.
                 logger.error("sub_agent_task_failed", error=str(e))
                 # Create a failed result for this agent
                 results.append(
