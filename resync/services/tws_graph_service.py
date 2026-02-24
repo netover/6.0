@@ -548,7 +548,7 @@ class TwsGraphService:
 
         return set(nx.descendants(graph, job_id))
 
-    def get_critical_jobs_async(self, top_n: int = 10) -> list[dict[str, Any]]:
+    async def get_critical_jobs_async(self, top_n: int = 10) -> list[dict[str, Any]]:
         """
         Get critical jobs (async convenience method).
 

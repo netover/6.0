@@ -114,7 +114,7 @@ class IngestService:
             )
             texts_for_embed.append(ck_norm)
         if not ids:
-            logger.info("No new chunks to ingest (dedup hit) doc_id=%s", doc_id)
+            logger.info("no_new_chunks_dedup_hit", doc_id=doc_id)
             return 0
         total_upsert = 0
         t0 = time.perf_counter()
@@ -135,10 +135,10 @@ class IngestService:
             total_upsert += len(batch_texts)
         jobs_total.labels(status="ingested").inc()
         logger.info(
-            "Ingested %s chunks for doc_id=%s in %.2fs",
-            total_upsert,
-            doc_id,
-            time.perf_counter() - t0,
+            "document_ingested_basic",
+            chunks=total_upsert,
+            doc_id=doc_id,
+            elapsed_seconds=time.perf_counter() - t0,
         )
         return total_upsert
 
@@ -308,7 +308,7 @@ class IngestService:
             else:
                 texts_for_embed.append(chunk.content)
         if not ids:
-            logger.info("No new chunks to ingest (dedup hit) doc_id=%s", doc_id)
+            logger.info("no_new_chunks_dedup_hit", doc_id=doc_id)
             return 0
         total_upsert = 0
         t0 = time.perf_counter()
@@ -450,17 +450,14 @@ class IngestService:
             error_code_count += len(chunk.metadata.error_codes)
         jobs_total.labels(status="ingested").inc()
         logger.info(
-            (
-                "Advanced ingest: %s chunks for doc_id=%s in %.2fs "
-                "(strategy=%s, overlap=%s, types=%s, error_codes=%s)"
-            ),
-            total_upsert,
-            doc_id,
-            time.perf_counter() - t0,
-            chunking_strategy,
-            overlap_strategy,
-            chunk_types,
-            error_code_count,
+            "document_ingested_advanced",
+            chunks=total_upsert,
+            doc_id=doc_id,
+            elapsed_seconds=time.perf_counter() - t0,
+            strategy=chunking_strategy,
+            overlap_strategy=overlap_strategy,
+            chunk_types=chunk_types,
+            error_code_count=error_code_count,
         )
         return total_upsert
 
@@ -494,9 +491,9 @@ class IngestService:
         """
         try:
             await self.store.delete_by_doc_id(doc_id, collection=CFG.collection_write)
-            logger.info("Deleted existing chunks for doc_id=%s", doc_id)
+            logger.info("deleted_existing_chunks", doc_id=doc_id)
         except Exception as e:
-            logger.warning("Could not delete existing chunks: %s", e)
+            logger.warning("could_not_delete_existing_chunks", error=str(e))
         if use_advanced:
             return await self.ingest_document_advanced(
                 tenant=tenant,

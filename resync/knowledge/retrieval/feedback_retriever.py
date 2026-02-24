@@ -104,10 +104,12 @@ class FeedbackAwareRetriever(Retriever):
     async def retrieve(
         self,
         query: str,
+        *,
         top_k: int = 10,
         filters: dict[str, Any] | None = None,
         apply_feedback: bool = True,
         user_id: str | None = None,
+        timeout: float = 30.0,
     ) -> list[dict[str, Any]]:
         """
         Retrieve documents with feedback-based reranking.
@@ -306,8 +308,6 @@ class FeedbackAwareRetriever(Retriever):
         Returns:
             Number of feedback records created
         """
-        await self.embedder.embed(query)
-
         feedback_pairs = []
         for i, doc_id in enumerate(shown_doc_ids):
             if doc_id == selected_doc_id:

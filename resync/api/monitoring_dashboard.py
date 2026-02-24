@@ -10,6 +10,7 @@
 #   - Alta Performance: Serialização otimizada com orjson
 
 import asyncio
+import inspect
 import logging
 import secrets
 import threading
@@ -630,7 +631,7 @@ class WebSocketManager:
         if close_fn is not None:
             try:
                 maybe_awaitable = close_fn()
-                if asyncio.iscoroutine(maybe_awaitable):
+                if inspect.isawaitable(maybe_awaitable):
                     await maybe_awaitable
             except Exception as e:
                 logger.warning("PubSub close failed: %s", e)

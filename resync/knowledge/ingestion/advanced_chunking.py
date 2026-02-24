@@ -495,13 +495,14 @@ def parse_markdown_structure(text: str) -> list[MarkdownSection]:
             content_buffer.append(line)
             continue
 
+        header_match = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
         if header_match:
             # Save previous section
             if current_section:
                 current_section.content = "\n".join(content_buffer).strip()
                 current_section.end_line = i - 1
                 sections.append(current_section)
-            elif content_buffer:
+            elif "".join(content_buffer).strip():
                 # Content before the first header
                 sections.append(
                     MarkdownSection(
@@ -532,7 +533,7 @@ def parse_markdown_structure(text: str) -> list[MarkdownSection]:
         current_section.content = "\n".join(content_buffer).strip()
         current_section.end_line = len(lines) - 1
         sections.append(current_section)
-    elif content_buffer:
+    elif "".join(content_buffer).strip():
         # Content without headers
         sections.append(
             MarkdownSection(
@@ -761,10 +762,6 @@ class SemanticChunker:
             return [text] if text.strip() else []
 
         # Embed sentences with buffer context
-        import asyncio
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            raise RuntimeError("chunk must be called synchronously, use chunk_async for async context")
         embeddings = self._embed_with_buffer_sync(sentences)
 
         # Calculate distances between consecutive embeddings
@@ -810,7 +807,7 @@ class SemanticChunker:
         return self._model.encode(combined)
 
     async def _embed_with_buffer_async(self, sentences: list[str]) -> list:
-        """Embed sentences with surrounding context buffer."""
+        """Embed sentences with surrounding context buffer via threadpool."""
         combined = []
 
         for i in range(len(sentences)):

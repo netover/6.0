@@ -434,8 +434,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             try:
                 from resync.services.llm_service import get_llm_service
 
-                service = get_llm_service()
-                self._llm = await service if asyncio.iscoroutine(service) else service
+                self._llm = await get_llm_service()
             except ImportError:
                 logger.warning("llm_service_not_available")
                 return None
@@ -537,7 +536,7 @@ class HybridRAG:
     async def _get_kg(self):
         """Get knowledge graph (lazy load)."""
         if self._kg is None:
-            self._kg = get_knowledge_graph()
+            self._kg = await get_knowledge_graph()
             await self._kg.initialize()
         return self._kg
 
@@ -558,8 +557,7 @@ class HybridRAG:
             try:
                 from resync.services.llm_service import get_llm_service
 
-                service = get_llm_service()
-                self._llm = await service if asyncio.iscoroutine(service) else service
+                self._llm = await get_llm_service()
             except ImportError:
                 logger.warning("LLM service not available")
             except Exception as exc:

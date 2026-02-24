@@ -417,7 +417,10 @@ class MultiProviderEmbeddingService(Embedder):
             # Make the embedding call with retries and jitter
             for attempt in range(self._retry_attempts):
                 try:
-                    response = await asyncio.to_thread(litellm.embedding, **params)
+                    response = await asyncio.wait_for(
+                        asyncio.to_thread(litellm.embedding, **params),
+                        timeout=timeout + 2.0
+                    )
 
                     # Extract embeddings from response
                     batch_embeddings = [item["embedding"] for item in response.data]

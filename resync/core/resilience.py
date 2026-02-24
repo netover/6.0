@@ -48,7 +48,6 @@ class CircuitBreakerState(Enum):
     HALF_OPEN = "half_open"  # Testando recuperação
 
 
-@dataclass
 @dataclass(frozen=True)
 class CircuitBreakerConfig:
     """Configuração do Circuit Breaker.
@@ -271,7 +270,6 @@ class CircuitBreaker:
         }
 
 
-@dataclass
 @dataclass(frozen=True)
 class RetryConfig:
     """Configuração para retry com backoff.

@@ -55,7 +55,7 @@ class PgVectorStore(VectorStore):
         self,
         database_url: str | None = None,
         collection: str | None = None,
-        dim: int = CFG.embed_dim,
+        dim: int | None = None,
         pool_min_size: int = 2,
         pool_max_size: int = 10,
     ):
@@ -71,17 +71,16 @@ class PgVectorStore(VectorStore):
                 "postgresql+asyncpg://", "postgresql://"
             )
         self._collection_default = collection or CFG.collection_write
-        self._dim = dim
+        self._dim = dim if dim is not None else CFG.embed_dim
         self._pool: "asyncpg.Pool | None" = None
         self._pool_min_size = pool_min_size
         self._pool_max_size = pool_max_size
         self._initialized = False
-        self._pool_lock: asyncio.Lock | None = None
+        # Eagerly initialised — never None — eliminates TOCTOU race on pool init
+        self._pool_lock: asyncio.Lock = asyncio.Lock()
 
     async def _get_pool(self) -> "asyncpg.Pool":
-        """Get or create connection pool with async-safe initialization."""
-        if self._pool_lock is None:
-            self._pool_lock = asyncio.Lock()
+        """Get or create connection pool with double-checked async-safe initialisation."""
         if self._pool is None:
             async with self._pool_lock:
                 # Double-check after acquiring lock
@@ -196,10 +195,16 @@ class PgVectorStore(VectorStore):
 
         embedding_str = f"[{','.join((str(x) for x in vector))}]"
         binary_str = "".join(("1" if v > 0 else "0" for v in vector))
+        
+        if len(binary_str) != self._dim:
+            raise ValueError(f"Vector dimension mismatch. Expected {self._dim}, got {len(binary_str)}.")
+            
         filter_clause = ""
         filter_params = []
         param_idx = 4
         if filters:
+            if len(filters) > 20:
+                raise ValueError("Too many filters provided. Maximum allowed is 20.")
             for key, value in filters.items():
                 if value is None:
                     continue
@@ -512,21 +517,22 @@ class PgVectorStore(VectorStore):
 
 # Async-safe singleton implementation using module-level lock
 _store_instance: "PgVectorStore | None" = None
-_store_lock: asyncio.Lock | None = None
+# Eagerly initialised — never None — eliminates TOCTOU on first access race
+_store_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_vector_store() -> "PgVectorStore":
-    """Get singleton vector store instance with async-safe initialization."""
-    global _store_instance, _store_lock
-    
-    if _store_lock is None:
-        _store_lock = asyncio.Lock()
-    
-    if _store_instance is None:
-        async with _store_lock:
-            # Double-check after acquiring lock
-            if _store_instance is None:
-                _store_instance = PgVectorStore()
+    """Get singleton vector store instance (double-checked async-safe locking)."""
+    global _store_instance
+
+    # Fast path — no lock needed once initialised
+    if _store_instance is not None:
+        return _store_instance
+
+    async with _store_lock:
+        # Double-check after acquiring lock
+        if _store_instance is None:
+            _store_instance = PgVectorStore()
     return _store_instance
 
 

@@ -375,12 +375,10 @@ class ChaosEngineer:
                 anomalies.append(f"Metrics retrieval failed: {e!s}")
 
             try:
-                loop = asyncio.get_running_loop()
-                sweep_result = await loop.run_in_executor(
-                    None,
-                    lambda: __import__(
-                        "resync.core.audit_db"
-                    ).auto_sweep_pending_audits(1, 10),
+                import importlib
+                audit_db_mod = importlib.import_module("resync.core.audit_db")
+                sweep_result = await asyncio.to_thread(
+                    audit_db_mod.auto_sweep_pending_audits, 1, 10
                 )
                 operations += sweep_result.get("total_processed", 0)
             except Exception as e:

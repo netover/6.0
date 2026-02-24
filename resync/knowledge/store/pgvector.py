@@ -122,7 +122,7 @@ class PgVectorService:
         if not valid_docs:
             return 0
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             rows = [
                 (
                     collection,
@@ -238,7 +238,7 @@ class PgVectorService:
         """
         params.append(limit)  # int is valid for LIMIT in asyncpg
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             rows = await conn.fetch(query, *params)
 
         results = []
@@ -270,7 +270,7 @@ class PgVectorService:
         """Delete document."""
         collection = collection or self._default_collection
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             result = await conn.execute(
                 """
                 DELETE FROM document_embeddings
@@ -289,7 +289,7 @@ class PgVectorService:
         """Get collection statistics."""
         collection = collection or self._default_collection
 
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=10.0) as conn:
             stats = await conn.fetchrow(
                 """
                 SELECT
@@ -312,19 +312,22 @@ class PgVectorService:
 # Singleton accessor
 # =============================================================================
 
+# Eagerly initialised — never None — eliminates TOCTOU race on singleton init
 _pool = None
 _vector_service: PgVectorService | None = None
-_vector_service_lock: asyncio.Lock | None = None
+_vector_service_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_vector_service() -> PgVectorService:
-    """Get singleton vector service instance."""
-    global _pool, _vector_service, _vector_service_lock
+    """Get singleton vector service instance (thread-safe double-checked locking)."""
+    global _pool, _vector_service
 
-    if _vector_service_lock is None:
-        _vector_service_lock = asyncio.Lock()
+    # Fast path: already initialised, no lock needed
+    if _vector_service is not None:
+        return _vector_service
 
     async with _vector_service_lock:
+        # Double-check after acquiring lock to prevent redundant init
         if _vector_service is not None:
             return _vector_service
 
@@ -336,10 +339,14 @@ async def get_vector_service() -> PgVectorService:
         if database_url.startswith("postgresql+asyncpg://"):
             database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
 
-        _pool = await asyncpg.create_pool(
-            database_url,
-            min_size=2,
-            max_size=10,
+        _pool = await asyncio.wait_for(
+            asyncpg.create_pool(
+                database_url,
+                min_size=2,
+                max_size=10,
+                command_timeout=30,  # prevents silent deadlocks on slow PG
+            ),
+            timeout=35.0,
         )
 
         _vector_service = await PgVectorService.create(_pool)
@@ -348,11 +355,8 @@ async def get_vector_service() -> PgVectorService:
 
 async def close_vector_service() -> None:
     """Close singleton vector service instance and pool connection."""
-    global _pool, _vector_service, _vector_service_lock
-    
-    if _vector_service_lock is None:
-        return
-        
+    global _pool, _vector_service
+
     async with _vector_service_lock:
         if _pool is not None:
             await _pool.close()

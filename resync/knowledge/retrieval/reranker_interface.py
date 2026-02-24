@@ -330,7 +330,7 @@ class NoOpReranker:
     def __init__(self) -> None:
         self._call_count = 0
 
-    def rerank(
+    async def rerank(
         self,
         query: str,
         candidates: list[dict[str, Any]],

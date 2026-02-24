@@ -9,7 +9,7 @@ providers (OpenAI, NVIDIA, local models) via LiteLLM.
 Usage:
     from resync.knowledge.ingestion.embeddings import get_embedding_provider
 
-    provider = await get_embedding_provider()
+    provider = get_embedding_provider()
     embedding = await provider.embed("Hello world")
     embeddings = await provider.embed_batch(["Hello", "World"])
 """

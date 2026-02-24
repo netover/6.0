@@ -89,7 +89,7 @@ class KnowledgeGraphWrapper:
         **properties,
     ):
         """DEPRECATED: No-op. Graph built on-demand from TWS API."""
-        await self._service.add_node(node_id, str(node_type), name, **properties)
+        self._service.add_node(node_id, str(node_type), name, **properties)
 
     async def add_edge(
         self,
@@ -99,7 +99,7 @@ class KnowledgeGraphWrapper:
         **properties,
     ):
         """DEPRECATED: No-op. Graph built on-demand from TWS API."""
-        await self._service.add_edge(source, target, str(relation_type), **properties)
+        self._service.add_edge(source, target, str(relation_type), **properties)
 
     async def add_job(
         self,
@@ -114,10 +114,10 @@ class KnowledgeGraphWrapper:
     # UTILITY METHODS
     # =========================================================================
 
-    def initialize(self):
+    async def initialize(self) -> None:
         """Initialize (no-op in v5.9.3)."""
 
-    def reload(self):
+    async def reload(self) -> None:
         """Reload graph (clears cache)."""
         self._service.clear_cache()
 

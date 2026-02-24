@@ -294,8 +294,9 @@ def detect_failure_slice(
 
 def _calculate_text_overlap(text1: str, text2: str) -> float:
     """Calculate overlap ratio between two texts."""
-    words1 = set(text1.lower().split())
-    words2 = set(text2.lower().split())
+    # Cap text length to prevent unbounded memory usage on massive chunks
+    words1 = set(text1[:10000].lower().split()[:1000])
+    words2 = set(text2[:10000].lower().split()[:1000])
     if not words1 or not words2:
         return 0.0
     intersection = words1.intersection(words2)
@@ -406,6 +407,8 @@ def generate_rule_suggestions(results: list[EvalResult]) -> list[RuleSuggestion]
             )
         else:
             suggestions[slice_type].affected_queries += 1
+            if suggestions[slice_type].affected_queries <= 3:
+                suggestions[slice_type].rationale += f" | {result.query_id}: {result.failure_description}"
     return sorted(suggestions.values(), key=lambda s: s.affected_queries, reverse=True)
 
 

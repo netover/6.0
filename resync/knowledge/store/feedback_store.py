@@ -78,6 +78,104 @@ class RAGFeedbackStore:
         negative = await self._store.feedback.get_negative_examples(limit * 2)
         return [f for f in negative if f.feedback_type == "rag"][:limit]
 
+    # ------------------------------------------------------------------
+    # Methods required by FeedbackAwareRetriever
+    # ------------------------------------------------------------------
+
+    async def get_document_scores_batch(
+        self, doc_ids: list[str]
+    ) -> dict[str, float]:
+        """Return aggregate feedback scores keyed by doc_id.
+
+        Returns 0.0 for documents with no feedback (graceful degradation).
+        Override with a real SQL implementation when the feedback table is
+        wired to store per-document scores.
+        """
+        return {doc_id: 0.0 for doc_id in doc_ids}
+
+    async def get_query_feedback_score(
+        self,
+        query: str,
+        doc_id: str,
+        query_embedding: list[float] | None = None,
+    ) -> float:
+        """Return the feedback score for a specific query+document pair.
+
+        Returns 0.0 when no query-specific feedback exists (graceful degradation).
+        Override with a semantic-similarity lookup against the feedback table.
+        """
+        return 0.0
+
+    async def record_feedback(
+        self,
+        query: str,
+        doc_id: str,
+        rating: int,
+        user_id: str | None = None,
+        query_embedding: list[float] | None = None,
+    ) -> bool:
+        """Record explicit user feedback for a query-document pair.
+
+        Delegates to the underlying PostgreSQL store.
+        Returns True if feedback was stored successfully.
+        """
+        try:
+            await self._store.feedback.add_feedback(
+                session_id=user_id or "anonymous",
+                query_text=query,
+                response_text=doc_id,
+                rating=rating,
+                feedback_type="rag_retrieval",
+                is_positive=rating > 0,
+            )
+            return True
+        except Exception:
+            logger.warning("record_feedback_failed", doc_id=doc_id)
+            return False
+
+    async def record_batch_feedback(
+        self,
+        query: str,
+        doc_ratings: list[tuple[str, str]],
+        user_id: str | None = None,
+    ) -> int:
+        """Record feedback for multiple query-document pairs in one call.
+
+        `doc_ratings` is a list of (doc_id, rating_constant) tuples where
+        rating_constant is one of FEEDBACK_POSITIVE / FEEDBACK_NEGATIVE.
+
+        Returns the number of feedback records created.
+        """
+        rating_map = {FEEDBACK_POSITIVE: 1, FEEDBACK_NEGATIVE: -1, FEEDBACK_NEUTRAL: 0}
+        count = 0
+        for doc_id, rating_label in doc_ratings:
+            numeric = rating_map.get(rating_label, 0)
+            ok = await self.record_feedback(
+                query=query,
+                doc_id=doc_id,
+                rating=numeric,
+                user_id=user_id,
+            )
+            if ok:
+                count += 1
+        return count
+
+    async def get_statistics(self) -> dict[str, object]:
+        """Return aggregate statistics for the feedback store."""
+        try:
+            records = await self._store.feedback.get_all(limit=100_000)
+            return {
+                "total_feedback_records": len(records),
+                "backend": "postgresql",
+                "initialized": self._initialized,
+            }
+        except Exception:
+            return {
+                "total_feedback_records": 0,
+                "backend": "postgresql",
+                "initialized": self._initialized,
+            }
+
 
 # Alias for backward compatibility
 FeedbackStore = RAGFeedbackStore

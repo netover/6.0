@@ -182,28 +182,27 @@ async def rerank_documents(
             else:
                 pairs.append((query, ""))
 
-        # Get cross-encoder scores (blocking call wrapped in run_in_executor)
+        # Get cross-encoder scores (blocking call wrapped in to_thread)
         import asyncio
-        loop = asyncio.get_event_loop()
-        scores = await loop.run_in_executor(None, model.predict, pairs)
+        scores = await asyncio.to_thread(model.predict, pairs)
 
         # Normalize scores to 0-1 using sigmoid
         normalized_scores = [1 / (1 + math.exp(-s)) for s in scores]
 
-        # Attach scores to documents
-        scored_docs = list(zip(documents, normalized_scores, strict=False))
+        # Attach scores and original index to documents
+        scored_docs = list(zip(documents, normalized_scores, range(1, len(documents) + 1), strict=False))
 
         # Sort by score (descending)
         scored_docs.sort(key=lambda x: x[1], reverse=True)
 
         # Filter by threshold and take top_k
         filtered_docs = []
-        for doc, score in scored_docs:
+        for doc, score, original_rank in scored_docs:
             if score >= threshold:
                 # Add rerank score to document
                 doc_with_score = dict(doc)
                 doc_with_score["rerank_score"] = round(score, 4)
-                doc_with_score["original_rank"] = documents.index(doc) + 1
+                doc_with_score["original_rank"] = original_rank
                 filtered_docs.append(doc_with_score)
 
                 if len(filtered_docs) >= top_k:

@@ -53,3 +53,25 @@ try:
 except Exception as _exc:  # noqa: BLE001
     # Em testes sem Prometheus registry, não quebrar o import
     logger.warning("prometheus_metrics_init_failed", error=str(_exc))
+    
+    # Criando proxies/dummies nativos para não explodir em "NameError"
+    class DummyContextManager:
+        def __enter__(self): pass
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        
+    class DummyHistogram:
+        def time(self): return DummyContextManager()
+        def observe(self, *args): pass
+        
+    class DummyMetric:
+        def inc(self, *args, **kwargs): pass
+        def set(self, *args, **kwargs): pass
+        def labels(self, *args, **kwargs): return self
+        
+    embed_seconds = DummyHistogram()
+    upsert_seconds = DummyHistogram()
+    query_seconds = DummyHistogram()
+    rerank_seconds = DummyHistogram()
+    jobs_total = DummyMetric()
+    collection_vectors = DummyMetric()
+    cache_hits_total = DummyMetric()

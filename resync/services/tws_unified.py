@@ -359,23 +359,14 @@ class UnifiedTWSClient:
 
 
 _tws_client_instance: UnifiedTWSClient | None = None
-_tws_client_lock: asyncio.Lock | None = None
-_tws_client_lock_loop: asyncio.AbstractEventLoop | None = None
-
-
-def _get_tws_client_lock() -> asyncio.Lock:
-    global _tws_client_lock, _tws_client_lock_loop
-    loop = asyncio.get_running_loop()
-    if _tws_client_lock is None or _tws_client_lock_loop is not loop:
-        _tws_client_lock = asyncio.Lock()
-        _tws_client_lock_loop = loop
-    return _tws_client_lock
+# Eagerly initialised — never None — eliminates TOCTOU race on first concurrent access
+_tws_client_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_tws_client() -> UnifiedTWSClient:
     global _tws_client_instance
     if _tws_client_instance is None:
-        async with _get_tws_client_lock():
+        async with _tws_client_lock:
             if _tws_client_instance is None:
                 client = UnifiedTWSClient()
                 await client.connect()
@@ -385,7 +376,7 @@ async def get_tws_client() -> UnifiedTWSClient:
 
 async def reset_tws_client() -> None:
     global _tws_client_instance
-    async with _get_tws_client_lock():
+    async with _tws_client_lock:
         if _tws_client_instance is not None:
             await _tws_client_instance.disconnect()
             _tws_client_instance = None
@@ -458,7 +449,7 @@ class MockTWSClient(UnifiedTWSClient):
 
 async def use_mock_tws_client(responses: dict[str, Any] | None = None) -> None:
     global _tws_client_instance
-    async with _get_tws_client_lock():
+    async with _tws_client_lock:
         _tws_client_instance = MockTWSClient(responses)
 
 

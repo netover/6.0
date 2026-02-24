@@ -24,7 +24,16 @@ from resync.core.structured_logger import get_logger
 logger = get_logger(__name__)
 
 
-CHAT_MEMORY_TTL_DAYS = int(os.environ.get("CHAT_MEMORY_TTL_DAYS", "30"))
+def _safe_int(env_key: str, default: int) -> int:
+    val = os.environ.get(env_key)
+    if not val or not val.strip():
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+CHAT_MEMORY_TTL_DAYS = _safe_int("CHAT_MEMORY_TTL_DAYS", 30)
 CHAT_MEMORY_COLLECTION = "chat_history"
 
 
@@ -79,29 +88,25 @@ class ChatMemoryStore:
         self._anonymizer = DataAnonymizer(GDPRComplianceConfig())
         self._session_cache: dict[str, list[ChatTurn]] = {}
         self._cache_max_size = 100
-        self._init_lock: asyncio.Lock | None = None
+        # Separate locks prevent deadlock when both are awaited concurrently
+        self._vs_lock: asyncio.Lock = asyncio.Lock()   # vector store init
+        self._emb_lock: asyncio.Lock = asyncio.Lock()  # embedder init
 
     async def _get_vector_store(self):
-        """Lazy load do vector store."""
+        """Lazy load do vector store (double-checked locking)."""
         if self._vector_store is None:
-            if self._init_lock is None:
-                self._init_lock = asyncio.Lock()
-            async with self._init_lock:
+            async with self._vs_lock:
                 if self._vector_store is None:
                     from resync.knowledge.store.pgvector_store import PgVectorStore
-        
                     self._vector_store = PgVectorStore()
         return self._vector_store
 
     async def _get_embedder(self):
-        """Lazy load do embedder."""
+        """Lazy load do embedder (double-checked locking)."""
         if self._embedder is None:
-            if self._init_lock is None:
-                self._init_lock = asyncio.Lock()
-            async with self._init_lock:
+            async with self._emb_lock:
                 if self._embedder is None:
                     from resync.knowledge.ingestion.embedding_service import get_embedder
-        
                     self._embedder = get_embedder()
         return self._embedder
 
@@ -128,9 +133,7 @@ class ChatMemoryStore:
                     session_id=turn.session_id[:8],
                 )
 
-            turn.expires_at = datetime.now(timezone.utc) + timedelta(
-                days=self._ttl_days
-            )
+            expires_at = datetime.now(timezone.utc) + timedelta(days=self._ttl_days)
             turn_id = self._generate_turn_id(turn)
 
             embedder = await self._get_embedder()
@@ -147,7 +150,7 @@ class ChatMemoryStore:
                         "session_id": turn.session_id,
                         "user_id": turn.user_id,
                         "role": turn.role,
-                        "expires_at": turn.expires_at.isoformat(),
+                        "expires_at": expires_at.isoformat(),
                         "metadata": turn.metadata or {},
                     }
                 ],
@@ -228,21 +231,22 @@ class ChatMemoryStore:
             vector_store = await self._get_vector_store()
             pool = await vector_store._get_pool()
             
-            async with pool.acquire() as conn:
-                now_iso = datetime.now(timezone.utc).isoformat()
-                result = await conn.execute(
-                    """
-                    DELETE FROM document_embeddings 
-                    WHERE collection_name = $1 
-                    AND metadata ? 'expires_at'
-                    AND metadata->>'expires_at' < $2
-                    """,
-                    CHAT_MEMORY_COLLECTION,
-                    now_iso
-                )
-                deleted = int(result.split()[-1])
-                logger.info("chat_memory_cleanup_finished", deleted_count=deleted)
-                return deleted
+            async with pool.acquire(timeout=5.0) as conn:
+                async with asyncio.timeout(120.0):
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    result = await conn.execute(
+                        """
+                        DELETE FROM document_embeddings 
+                        WHERE collection_name = $1 
+                        AND metadata ? 'expires_at'
+                        AND metadata->>'expires_at' < $2
+                        """,
+                        CHAT_MEMORY_COLLECTION,
+                        now_iso
+                    )
+                    deleted = int(result.split()[-1])
+                    logger.info("chat_memory_cleanup_finished", deleted_count=deleted)
+                    return deleted
 
         except Exception as e:
             logger.error("chat_memory_cleanup_failed", error=str(e))
