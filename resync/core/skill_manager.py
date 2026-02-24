@@ -15,14 +15,15 @@ v2.1 - Adicionado:
 - build_skill_context_async para caminho hot
 """
 
+import asyncio
 import os
 import warnings
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
 import structlog
+import yaml
 
 # Async file IO (optional, graceful fallback)
 try:
@@ -335,9 +336,11 @@ class SkillManager:
                 async with aiofiles.open(skill_file, "r", encoding="utf-8") as f:
                     content = await f.read()
             else:
-                # Fallback to sync (still works, just blocks)
-                with open(skill_file, "r", encoding="utf-8") as f:
-                    content = f.read()
+                # Fallback to threaded sync read to avoid blocking the event loop.
+                content = await asyncio.to_thread(
+                    skill_file.read_text,
+                    encoding="utf-8",
+                )
         except Exception as e:
             logger.error("skill_read_error_async", skill=skill_name, error=str(e))
             return None

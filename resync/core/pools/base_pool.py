@@ -147,7 +147,7 @@ class ConnectionPool(ABC, Generic[T]):
             self.stats = updated_stats
 
     def get_stats_copy(self) -> dict:
-        """Return a mutable copy of the current stats for safe access in tests or external use."""
+        """Return a mutable copy of current stats for tests/external use."""
         return dataclasses.asdict(self.stats)
 
     async def health_check(self) -> bool:

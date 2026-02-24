@@ -7,9 +7,9 @@ in audit or strict environments.
 """
 
 try:
-    from limits.storage.memory import MemoryStorage
-
     import unittest.mock
+
+    from limits.storage.memory import MemoryStorage
 
     class SafeMemoryStorage(MemoryStorage):
         """

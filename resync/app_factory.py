@@ -18,9 +18,10 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.responses import HTMLResponse, RedirectResponse
-from starlette.staticfiles import FileResponse, StaticFiles as StarletteStaticFiles
+from starlette.staticfiles import FileResponse
+from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 
-from resync.core.structured_logger import get_logger, configure_structured_logging
+from resync.core.structured_logger import configure_structured_logging, get_logger
 from resync.settings import settings
 
 if TYPE_CHECKING:
@@ -186,7 +187,8 @@ class ApplicationFactory:
             max_sz = settings.redis_pool_max_size
             min_sz = settings.redis_pool_min_size
             raise ValueError(
-                f"redis_pool_max_size ({max_sz}) must be >= redis_pool_min_size ({min_sz})"
+                "redis_pool_max_size "
+                f"({max_sz}) must be >= redis_pool_min_size ({min_sz})"
             )
 
         # Production-specific validations
@@ -434,8 +436,8 @@ class ApplicationFactory:
 
         # Additional routers from main_improved
         try:
-            from resync.api.routes.endpoints import router as api_router
             from resync.api.routes.core.health import config_router
+            from resync.api.routes.endpoints import router as api_router
             from resync.api.routes.rag.upload import router as rag_upload_router
 
             self.app.include_router(api_router, prefix="/api")
@@ -532,6 +534,9 @@ class ApplicationFactory:
             from resync.api.routes.admin.feedback_curation import (
                 router as feedback_curation_router,
             )
+            from resync.api.routes.admin.notification_admin import (
+                router as notification_admin_router,
+            )
             from resync.api.routes.admin.rag_reranker import (
                 router as rag_reranker_router,
             )
@@ -541,15 +546,13 @@ class ApplicationFactory:
             from resync.api.routes.admin.settings_manager import (
                 router as settings_manager_router,
             )
+            from resync.api.routes.admin.skills import router as skills_router
             from resync.api.routes.admin.teams import router as teams_router
-            from resync.api.routes.admin.teams_webhook_admin import (
-                router as teams_webhook_admin_router,
-            )
-            from resync.api.routes.admin.notification_admin import (
-                router as notification_admin_router,
-            )
             from resync.api.routes.admin.teams_notifications_admin import (
                 router as teams_notifications_admin_router,
+            )
+            from resync.api.routes.admin.teams_webhook_admin import (
+                router as teams_webhook_admin_router,
             )
             from resync.api.routes.admin.threshold_tuning import (
                 router as threshold_tuning_router,
@@ -559,16 +562,12 @@ class ApplicationFactory:
             )
             from resync.api.routes.admin.users import router as admin_users_router
             from resync.api.routes.admin.v2 import router as admin_v2_router
-            from resync.api.routes.admin.skills import router as skills_router
-
-            # API Key Management
-            from resync.api.v1.admin import admin_api_keys_router
-
-            # Teams webhook public endpoint
-            from resync.api.routes.teams_webhook import router as teams_webhook_router
 
             # Other routes (migrated from fastapi_app)
             from resync.api.routes.core.status import router as status_router
+            from resync.api.routes.knowledge.ingest_api import (
+                router as knowledge_ingest_router,
+            )
             from resync.api.routes.monitoring.admin_monitoring import (
                 router as admin_monitoring_router,
             )
@@ -586,9 +585,12 @@ class ApplicationFactory:
 
             # learning_router removed in v5.9.3 (drift/eval features unused)
             from resync.api.routes.rag.query import router as rag_query_router
-            from resync.api.routes.knowledge.ingest_api import (
-                router as knowledge_ingest_router,
-            )
+
+            # Teams webhook public endpoint
+            from resync.api.routes.teams_webhook import router as teams_webhook_router
+
+            # API Key Management
+            from resync.api.v1.admin import admin_api_keys_router
 
             # Register unified admin routes
             unified_admin_routers = [
@@ -716,7 +718,8 @@ class ApplicationFactory:
             """Serve the revision page."""
             return self._render_template("revisao.html", request)
 
-        # CSP violation report endpoint (with rate limiting to prevent DoS from browser extensions)
+        # CSP violation report endpoint with rate limiting to prevent
+        # DoS from browser extensions.
         from resync.core.security.rate_limiter_v2 import rate_limit
 
         @self.app.post("/csp-violation-report", include_in_schema=False)

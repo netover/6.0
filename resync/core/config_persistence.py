@@ -164,7 +164,8 @@ class ConfigPersistenceManager:
             temp_file.replace(self.config_file)
 
             logger.info(
-                f"Configuration saved successfully: section={section}, keys={list(data.keys())}"
+                "Configuration saved successfully: "
+                f"section={section}, keys={list(data.keys())}"
             )
 
             # Clean old backups
