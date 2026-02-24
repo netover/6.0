@@ -33,17 +33,19 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from redis import Redis as SyncRedis
-from resync.settings import Settings as AppSettings
 from functools import lru_cache
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import Depends
+from redis import Redis as SyncRedis
+
+from resync.settings import Settings as AppSettings
 
 if TYPE_CHECKING:
-    from resync.settings import Settings as AppSettings
     from redis import Redis as SyncRedis
     from redis.asyncio import Redis as AsyncRedis
+
+    from resync.settings import Settings as AppSettings
 
 # Thread-safe singleton instances
 _async_redis_instance: Optional["AsyncRedis"] = None
@@ -118,7 +120,7 @@ def _create_async_redis(settings: "AppSettings") -> "AsyncRedis":
     Returns:
         AsyncRedis: Configured async Redis client
     """
-    from redis.asyncio import Redis, ConnectionPool
+    from redis.asyncio import ConnectionPool, Redis
 
     redis_url = _get_redis_url(settings)
     max_connections = getattr(settings, "redis_max_connections", 50)
@@ -146,7 +148,7 @@ def _create_sync_redis(settings: "AppSettings") -> "SyncRedis":
     Returns:
         SyncRedis: Configured sync Redis client
     """
-    from redis import Redis, ConnectionPool
+    from redis import ConnectionPool, Redis
 
     redis_url = _get_redis_url(settings)
     max_connections = getattr(settings, "redis_max_connections", 50)

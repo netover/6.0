@@ -13,7 +13,6 @@ This manager coordinates:
 from __future__ import annotations
 
 import asyncio
-from resync.core.task_tracker import track_task
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -21,6 +20,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import structlog
+
+from resync.core.task_tracker import track_task
 
 if TYPE_CHECKING:
     from resync.core.anomaly_detector import AnomalyDetectionEngine
