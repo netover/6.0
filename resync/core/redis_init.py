@@ -203,16 +203,16 @@ class RedisInitializer:
     """
 
     def __init__(self):
-        self._lock: asyncio.Lock | None = None
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        # Lock is still lazily bound to event loop but with proper initialization
+        self._lock: asyncio.Lock = asyncio.Lock()
         self._initialized = False
         self._client: redis.Redis | None = None  # type: ignore
         self._health_task: asyncio.Task | None = None
 
     @property
     def lock(self) -> asyncio.Lock:
-        """Lazy initialization of async lock."""
-        if self._lock is None:
-            self._lock = asyncio.Lock()
+        """Return the async lock (eagerly initialized)."""
         return self._lock
 
     @property

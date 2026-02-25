@@ -786,9 +786,13 @@ class ApplicationFactory:
                     status_code=400,
                 )
 
+            # P0 fix: Pass pre-parsed data to processor. Previously called
+            # process_csp_report(request) which tried to read request.stream()
+            # again, but the body was already consumed above. Now pass the
+            # already-parsed report_data directly.
             from resync.csp_validation import process_csp_report
 
-            return await process_csp_report(request)
+            return await process_csp_report(request, report_data=report_data)
 
         logger.info("special_endpoints_registered")
 

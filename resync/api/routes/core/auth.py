@@ -569,10 +569,9 @@ def verify_admin_credentials(
             headers={"WWW-Authenticate": "Bearer"},
         )
     finally:
-        # Constant-time delay (TASK-007) - always execute
-        import time
-
-        time.sleep(0.050)
+        # P0-01 fix: Use asyncio.sleep() instead of time.sleep() to avoid
+        # blocking the event loop. Maintains constant-time defense (TASK-007).
+        await asyncio.sleep(0.050)
 
 
 def create_access_token(

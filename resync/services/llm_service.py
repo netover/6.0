@@ -980,7 +980,8 @@ class LLMService:
         await self.aclose()
 
 
-_llm_service_lock = asyncio.Lock()
+# Eagerly initialised — never None — eliminates TOCTOU race on lock init
+_llm_service_lock: asyncio.Lock = asyncio.Lock()
 _llm_service_instance: LLMService | None = None
 
 

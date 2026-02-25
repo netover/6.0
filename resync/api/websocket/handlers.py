@@ -4,6 +4,7 @@ WebSocket handlers for FastAPI
 """
 
 import asyncio
+import time
 import orjson
 
 from fastapi import WebSocket, WebSocketDisconnect, status
@@ -61,25 +62,24 @@ async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str
 
 
 class ConnectionManager:
-    """Manage WebSocket connections with thread-safe operations"""
+    """Manage WebSocket connections with thread-safe operations.
+
+    Security fixes applied:
+    - Eager lock initialization to prevent race conditions (P0)
+    """
 
     def __init__(self):
         self.active_connections: dict[str, set[WebSocket]] = {}
         # Map websocket -> agent_id
         self.agent_connections: dict[WebSocket, str] = {}
-        # Lock for protecting concurrent access to connection collections
-        self._lock: asyncio.Lock | None = None
-
-    def _get_lock(self) -> asyncio.Lock:
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-        return self._lock
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, agent_id: str):
         """Connect WebSocket for specific agent"""
         await websocket.accept()
 
-        async with self._get_lock():
+        async with self._lock:
             if agent_id not in self.active_connections:
                 self.active_connections[agent_id] = set()
 
@@ -94,7 +94,7 @@ class ConnectionManager:
         Args:
             websocket: The WebSocket connection to remove
         """
-        async with self._get_lock():
+        async with self._lock:
             agent_id = self.agent_connections.get(websocket)
             if agent_id and websocket in self.active_connections.get(agent_id, set()):
                 self.active_connections[agent_id].remove(websocket)
@@ -120,7 +120,7 @@ class ConnectionManager:
 
     async def broadcast_to_agent(self, message: str, agent_id: str):
         """Broadcast message to all connections for specific agent"""
-        async with self._get_lock():
+        async with self._lock:
             if agent_id not in self.active_connections:
                 return
             # Create a copy of the set to iterate safely
@@ -141,7 +141,7 @@ class ConnectionManager:
     async def broadcast_to_all(self, message: str):
         """Broadcast message to all active connections"""
         # Create a copy of all websockets to iterate safely
-        async with self._get_lock():
+        async with self._lock:
             all_websockets = []
             for agent_connections in self.active_connections.values():
                 all_websockets.extend(agent_connections)
@@ -187,8 +187,10 @@ async def _generate_llm_response(agent_id: str, content: str) -> str:
         )
     except Exception as e:
         logger.error("Error generating AI response: %s", e)
+        # P1 fix: Do NOT reflect raw user content in the fallback response.
+        # If rendered by a frontend without escaping, this enables XSS.
         return (
-            f"Olá! Recebi sua mensagem: '{content}'. "
+            "Olá! Recebi sua mensagem. "
             "O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?"
         )
 
@@ -231,7 +233,12 @@ async def websocket_handler(
         while True:
             # Receive message from client
             data = await websocket.receive_text()
-            logger.info("Received message from agent %s: %s", agent_id, data)
+            # P1 fix: truncate logged data to prevent log injection & flooding
+            logger.info(
+                "Received message from agent %s: %s",
+                agent_id,
+                data[:200] if len(data) > 200 else data,
+            )
 
             try:
                 # Try to parse as JSON first
@@ -252,7 +259,9 @@ async def websocket_handler(
                     # Send initial streaming response
                     response = {
                         "type": "stream",
-                        "message": f"Processando: {content}",
+                        # Do NOT echo raw user content — reflected XSS risk if
+                        # the frontend renders this without HTML escaping.
+                        "message": "Processando sua mensagem...",
                         "agent_id": agent_id,
                         "is_final": False,
                     }
@@ -273,6 +282,17 @@ async def websocket_handler(
                     )
 
                 elif message_type == "heartbeat":
+                    # P1 fix: Respond to heartbeat with pong instead of error
+                    pong_response = {
+                        "type": "heartbeat_ack",
+                        "agent_id": agent_id,
+                        "timestamp": time.time(),
+                    }
+                    await manager.send_personal_message(
+                        orjson.dumps(pong_response).decode("utf-8"), websocket
+                    )
+
+                else:
                     # Unknown JSON message type
                     error_response = {
                         "type": "error",
@@ -295,9 +315,13 @@ async def websocket_handler(
                 )
 
     except WebSocketDisconnect:
-        await manager.disconnect(websocket)
         logger.info("WebSocket disconnected for agent %s", agent_id)
-
+    except asyncio.CancelledError:
+        # P0-06 fix: Must re-raise CancelledError for proper shutdown
+        logger.info("WebSocket cancelled for agent %s", agent_id)
+        raise
     except Exception as e:
         logger.error("Unexpected WebSocket error for agent %s: %s", agent_id, e)
+    finally:
+        # P1 fix: Guaranteed cleanup on all exit paths
         await manager.disconnect(websocket)

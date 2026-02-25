@@ -82,7 +82,11 @@ class TWSMonitor:
         # Keep ~36h of history at 30s interval (4320 records)
         # Using deque for O(1) appends and automatic pruning of old records
         self.metrics_history: deque[PerformanceMetrics] = deque(maxlen=4320)
-        self.alerts: list[Alert] = []
+        # Bounded deque prevents OOM from repeated threshold breaches.
+        # 1 000 entries is ample for any monitoring dashboard view.
+        self.alerts: deque[Alert] = deque(maxlen=1_000)
+        # Minimum seconds between alerts of the same category (suppresses storms).
+        self._alert_suppression_seconds: int = 300
         self.alert_check_interval = 30  # seconds
         self._is_monitoring = False
         self._monitoring_task: asyncio.Task | None = None
@@ -161,8 +165,8 @@ class TWSMonitor:
             # Collect LLM metrics
             llm_metrics = self._measure_llm_usage()
 
-            # Collect memory metrics
-            memory_usage = self._measure_memory_usage()
+            # Collect memory metrics (async — runs psutil on thread pool)
+            memory_usage = await self._measure_memory_usage()
 
             # Create metrics record
             metrics = PerformanceMetrics(
@@ -218,12 +222,31 @@ class TWSMonitor:
         # For now, we'll return simulated values
         return {"calls": 10, "tokens": 1000, "cost": 0.02}
 
-    def _measure_memory_usage(self) -> float:
-        """Measure memory usage."""
+    async def _measure_memory_usage(self) -> float:
+        """Measure memory usage without blocking the event loop.
+
+        psutil.Process().memory_info() is a blocking syscall — it is executed
+        on the thread pool via asyncio.to_thread to avoid event-loop starvation.
+        """
         import psutil
 
-        process = psutil.Process()
-        return process.memory_info().rss / (1024 * 1024)  # MB
+        def _blocking_measure() -> float:
+            return psutil.Process().memory_info().rss / (1024 * 1024)  # MB
+
+        return await asyncio.to_thread(_blocking_measure)
+
+    def _should_emit_alert(self, category: str) -> bool:
+        """Return True only if no recent unresolved alert exists for this category.
+
+        Prevents duplicate alerts from filling the bounded deque during sustained
+        threshold breaches (e.g. high memory every 30 s for hours).
+        """
+        now = datetime.now(timezone.utc)
+        for alert in reversed(self.alerts):
+            if alert.category == category and not alert.resolved:
+                age_seconds = (now - alert.timestamp).total_seconds()
+                return age_seconds > self._alert_suppression_seconds
+        return True
 
     async def _check_alerts(self) -> None:
         """Check for alert conditions."""
@@ -304,14 +327,22 @@ class TWSMonitor:
                 )
             )
 
-        # Add new alerts
+        # Add new alerts — skip duplicates within the suppression window to prevent
+        # deque exhaustion from sustained threshold breaches (e.g. high memory for hours).
         for alert in alerts_to_add:
-            self.alerts.append(alert)
-            logger.warning("new_alert_generated", message=alert.message)
+            if self._should_emit_alert(alert.category):
+                self.alerts.append(alert)
+                logger.warning("new_alert_generated", message=alert.message)
 
-            # Send Teams notification for critical alerts
-            if alert.severity in ["critical", "high"]:
-                await self._send_teams_notification(alert)
+                # Send Teams notification for critical alerts
+                if alert.severity in ["critical", "high"]:
+                    await self._send_teams_notification(alert)
+            else:
+                logger.debug(
+                    "alert_suppressed_within_window",
+                    category=alert.category,
+                    suppression_seconds=self._alert_suppression_seconds,
+                )
 
     async def _send_teams_notification(self, alert: Alert) -> None:
         """Send alert notification to Microsoft Teams.

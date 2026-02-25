@@ -681,6 +681,64 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
     logger = get_logger("resync.lifespan")
     logger.info("application_startup_initiated")
 
+    # -------------------------------------------------------------------------
+    # Sentry SDK — initialize early so all subsequent exceptions are captured.
+    # -------------------------------------------------------------------------
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.asyncio import AsyncioIntegration
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        settings_for_sentry = get_settings()
+        sentry_dsn_secret = getattr(settings_for_sentry, "sentry_dsn", None)
+        sentry_dsn = (
+            sentry_dsn_secret.get_secret_value()
+            if sentry_dsn_secret is not None
+            else None
+        )
+        if sentry_dsn:
+            sentry_sdk.init(
+                dsn=sentry_dsn,
+                integrations=[
+                    StarletteIntegration(transaction_style="endpoint"),
+                    FastApiIntegration(transaction_style="endpoint"),
+                    AsyncioIntegration(),
+                ],
+                traces_sample_rate=getattr(
+                    settings_for_sentry, "sentry_traces_sample_rate", 0.1
+                ),
+                profiles_sample_rate=getattr(
+                    settings_for_sentry, "sentry_profiles_sample_rate", 0.0
+                ),
+                environment=getattr(
+                    settings_for_sentry, "environment", "development"
+                ).value
+                if hasattr(
+                    getattr(settings_for_sentry, "environment", ""), "value"
+                )
+                else str(getattr(settings_for_sentry, "environment", "development")),
+                release=getattr(settings_for_sentry, "project_version", "unknown"),
+                send_default_pii=False,  # Never send PII to Sentry
+            )
+            logger.info(
+                "sentry_initialized",
+                # Log only the host portion of the DSN to avoid leaking the secret key.
+                dsn_host=sentry_dsn.split("@")[-1].split("/")[0]
+                if "@" in sentry_dsn
+                else "configured",
+            )
+        else:
+            logger.info("sentry_disabled_no_dsn_configured")
+    except ImportError:
+        logger.info(
+            "sentry_sdk_not_installed",
+            hint="Install sentry-sdk[fastapi] to enable error tracking.",
+        )
+    except Exception as _sentry_err:
+        # Sentry init failure must NEVER crash the application.
+        logger.warning("sentry_init_failed", error=str(_sentry_err))
+
     # Initialize readiness event for optional parallel services
     app.state.singletons_ready_event = asyncio.Event()
 

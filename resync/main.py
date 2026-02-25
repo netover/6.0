@@ -63,6 +63,7 @@ def main() -> None:
         port=port,
         log_level=log_level,
         reload=os.getenv("RELOAD", "false").lower() in {"1", "true", "yes", "on"},
+        loop="uvloop",  # P2-05 fix: Use uvloop for 2-4x async performance
     )
 
 

@@ -68,6 +68,19 @@ class CircuitBreakerConfig:
     exclude_exceptions: tuple[type[BaseException], ...] = ()
     name: str = "default"
 
+    def __post_init__(self) -> None:
+        """Validate configuration values at construction time."""
+        if self.failure_threshold < 1:
+            raise ValueError(
+                f"CircuitBreakerConfig.failure_threshold must be >= 1, "
+                f"got {self.failure_threshold!r}"
+            )
+        if self.recovery_timeout < 1:
+            raise ValueError(
+                f"CircuitBreakerConfig.recovery_timeout must be >= 1 second, "
+                f"got {self.recovery_timeout!r}"
+            )
+
 
 @dataclass
 class CircuitBreakerMetrics:
@@ -98,9 +111,11 @@ class CircuitBreaker:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
         self.metrics = CircuitBreakerMetrics()
-        # Lazy-init to avoid binding to an event loop
-        # during module import (gunicorn --preload).
-        self._lock: asyncio.Lock | None = None
+        # Python 3.10+ asyncio.Lock is NOT bound to any event loop at creation time,
+        # so eager initialisation is safe even under gunicorn --preload.
+        # This eliminates the lazy-init race where two concurrent coroutines could
+        # both see self._lock is None and each create a separate lock object.
+        self._lock: asyncio.Lock = asyncio.Lock()
 
         # Properties for compatibility with tests
         self.fail_max = config.failure_threshold
@@ -118,14 +133,7 @@ class CircuitBreaker:
         )
 
     def _get_lock(self) -> asyncio.Lock:
-        """Return the internal asyncio lock.
-
-        The lock is created lazily to avoid binding it to an event loop at
-        module import time (which can break under gunicorn --preload).
-        """
-        if self._lock is None:
-            asyncio.get_running_loop()
-            self._lock = asyncio.Lock()
+        """Return the internal asyncio lock (always eagerly initialised)."""
         return self._lock
 
     async def call(self, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:

@@ -782,9 +782,8 @@ class TWSBackgroundPoller:
                 if inspect.iscoroutinefunction(handler):
                     await handler(event)
                 else:
-                    result = await asyncio.to_thread(handler, event)
-                    if inspect.isawaitable(result):
-                        await result
+                    # P1 fix: Run sync handler in thread pool and await the result
+                    await asyncio.to_thread(handler, event)
             except Exception as e:
                 logger.error(
                     "event_handler_error",
@@ -799,9 +798,8 @@ class TWSBackgroundPoller:
                 if inspect.iscoroutinefunction(handler):
                     await handler(snapshot)
                 else:
-                    result = await asyncio.to_thread(handler, snapshot)
-                    if inspect.isawaitable(result):
-                        await result
+                    # P1 fix: Run sync handler in thread pool and await the result
+                    await asyncio.to_thread(handler, snapshot)
             except Exception as e:
                 logger.error("snapshot_handler_error", error=str(e))
 

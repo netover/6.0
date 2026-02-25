@@ -1,3 +1,4 @@
+import hashlib
 import hmac
 import secrets
 
@@ -73,7 +74,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     def _generate_csrf_token(self) -> str:
         """Generate cryptographically secure CSRF token."""
         random_bytes = secrets.token_bytes(32)
-        signature = hmac.new(self.secret_key, random_bytes, digestmod="sha256").digest()
+        signature = hmac.new(self.secret_key, random_bytes, digestmod=hashlib.sha256).digest()
 
         return (random_bytes + signature).hex()
 
@@ -105,7 +106,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         signature_part = cookie_bytes[32:]
 
         expected_signature = hmac.new(
-            self.secret_key, random_part, digestmod="sha256"
+            self.secret_key, random_part, digestmod=hashlib.sha256
         ).digest()
 
         return secrets.compare_digest(signature_part, expected_signature)

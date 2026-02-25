@@ -61,17 +61,23 @@ except ImportError:
     TraceContextPropagator = None
 
 try:
-    from opentelemetry.exporter.jaeger import JaegerExporter
+    # opentelemetry-exporter-jaeger was deprecated and removed from OTel Python ≥ 1.20.
+    # Modern deployments should use the OTLP exporter and configure a Jaeger/Tempo
+    # collector that accepts OTLP over gRPC or HTTP.
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-    JAEGER_AVAILABLE = True
+    JAEGER_AVAILABLE = True  # Keep name for backward compat; exporter is now OTLP-based.
+    JaegerExporter = OTLPSpanExporter  # type: ignore[assignment, misc]
 except ImportError:
     JAEGER_AVAILABLE = False
 
-    class JaegerExporter:
-        def __init__(self, **kwargs):
+    class JaegerExporter:  # type: ignore[no-redef]
+        """Stub when opentelemetry-exporter-otlp-proto-grpc is not installed."""
+
+        def __init__(self, **kwargs: object) -> None:
             pass
 
-        def shutdown(self, **kwargs):
+        def shutdown(self, **kwargs: object) -> None:
             pass
 
 

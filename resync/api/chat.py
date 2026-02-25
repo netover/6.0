@@ -351,7 +351,7 @@ async def websocket_endpoint(
 
     Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
     """
-    # Verify token before accepting connection
+    # Verify token before accepting connection - FAIL CLOSED
     try:
         from resync.api.auth.service import get_auth_service
 
@@ -360,11 +360,14 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="Authentication required")
             return
     except Exception:
-        # Combined log message from both branches
+        # P0 fix: FAIL CLOSED — deny connection when auth service is unavailable.
+        # Previous code fell through and allowed unauthenticated connections.
         logger.warning(
-            "WebSocket auth check failed, allowing connection "
+            "WebSocket auth check failed - rejecting connection "
             "(auth service unavailable)"
         )
+        await websocket.close(code=1008, reason="Authentication service unavailable")
+        return
 
     try:
         agent, session_id = await _setup_websocket_session(websocket, agent_id)

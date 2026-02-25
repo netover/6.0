@@ -360,12 +360,18 @@ def csp_report_context(request: "Request") -> "Request":
         pass
 
 
-async def process_csp_report(request: "Request") -> dict[str, Any]:
+async def process_csp_report(
+    request: "Request",
+    *,
+    report_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Process a CSP violation report with enhanced validation and security.
 
     Args:
         request: The incoming request containing CSP report data
+        report_data: Pre-parsed report data (avoids double body consumption
+                     when the caller has already streamed the request body).
 
     Returns:
         Dict[str, Any]: Processing result
@@ -374,14 +380,19 @@ async def process_csp_report(request: "Request") -> dict[str, Any]:
         CSPValidationError: If the report is invalid
     """
     try:
-        body = await request.body()
+        if report_data is not None:
+            # Use pre-parsed data (body was already consumed upstream)
+            body = json.dumps(report_data).encode("utf-8")
+        else:
+            body = await request.body()
 
         # Enhanced CSP report validation
         if not validate_csp_report(body):
             raise CSPValidationError("Invalid CSP report format")
 
         # Parse and sanitize the report
-        report_data = json.loads(body.decode("utf-8"))
+        if report_data is None:
+            report_data = json.loads(body.decode("utf-8"))
         sanitized_data = sanitize_csp_report(report_data)
 
         return {"status": "processed", "report": sanitized_data}

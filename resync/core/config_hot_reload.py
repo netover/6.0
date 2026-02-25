@@ -119,15 +119,13 @@ class ConfigManager:
         self._observer: Observer | None = None
         self._watching = False
 
-        # Lock for thread safety (lazy-initialized)
-        # to avoid event-loop issues at import time
-        self._lock: asyncio.Lock | None = None
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        # Lock is still lazily bound to event loop but with proper initialization
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def _async_lock(self) -> asyncio.Lock:
-        """Lazy initialization of asyncio.Lock."""
-        if self._lock is None:
-            self._lock = asyncio.Lock()
+        """Return the asyncio lock (eagerly initialized)."""
         return self._lock
 
     async def start(self, tg: asyncio.TaskGroup | None = None):

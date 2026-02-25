@@ -457,9 +457,7 @@ class SecureQueryBuilder:
             # Reject anything that contains subqueries, string literals, or
             # dangerous SQL keywords.  This is defence-in-depth on top of the
             # ORM layer — callers should ALWAYS pass params separately.
-            import re as _re
-
-            _SAFE_WHERE = _re.compile(r"^[\w.:=<>!%\s,\(\)]+$", _re.ASCII)
+            _SAFE_WHERE = re.compile(r"^[\w.:=<>!%\s,\(\)]+$", re.ASCII)
             if not _SAFE_WHERE.match(where_clause):
                 raise DatabaseSecurityError(
                     "WHERE clause contains disallowed characters. "

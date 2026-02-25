@@ -124,7 +124,12 @@ class SemanticCache:
             OrderedDict()
         )
         self._memory_lock = asyncio.Lock()
+        # Explicit bool (not None) — avoids implicit None-falsy handling in conditionals.
+        self._redis_stack_available: bool = False
         self._last_redis_check = 0.0
+        # Prevents concurrent coroutines from all racing through _try_restore_redis
+        # simultaneously when _memory_only is True (e.g. after a Redis outage).
+        self._restore_lock = asyncio.Lock()
 
     async def initialize(self) -> bool:
         """Initialize connection and verify index/stack availability."""
@@ -181,12 +186,21 @@ class SemanticCache:
         self._redis_stack_available = False
 
     async def _try_restore_redis(self) -> None:
+        """Attempt to restore Redis connectivity after a fallback to memory-only mode.
+
+        Guarded by _restore_lock so concurrent cache lookups during an outage
+        don't all race to ping Redis simultaneously (thundering-herd prevention).
+        """
         if not self._memory_only:
             return
-        now = time.monotonic()
-        if now - self._last_redis_check < 5.0:
-            return
-        self._last_redis_check = now
+        async with self._restore_lock:
+            # Re-check after acquiring lock — another coroutine may have restored already.
+            if not self._memory_only:
+                return
+            now = time.monotonic()
+            if now - self._last_redis_check < 5.0:
+                return
+            self._last_redis_check = now
         try:
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             await client.ping()
@@ -194,7 +208,7 @@ class SemanticCache:
             return
         try:
             stack_info = await check_redis_stack_available()
-            self._redis_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
+            self._redis_stack_available = bool(stack_info.get("search", False))
         except Exception:
             self._redis_stack_available = False
         self._memory_only = not REDISVL_AVAILABLE
@@ -306,9 +320,13 @@ class SemanticCache:
 
         start_time = time.perf_counter()
         try:
-            # Generate embedding vector (use user-scoped cache key for embedding)
+            # Generate embedding vector (use user-scoped cache key for embedding).
+            # vectorizer.embed() calls model.encode() which is CPU-intensive ML
+            # inference — must run on thread pool to avoid blocking the event loop.
             cache_key_text = self._build_cache_key(query, user_id)
-            embedding = self.vectorizer.embed(cache_key_text)
+            embedding: list[float] = await asyncio.to_thread(
+                self.vectorizer.embed, cache_key_text
+            )
 
             if self._memory_only:
                 await self._try_restore_redis()
@@ -508,7 +526,8 @@ class SemanticCache:
         query_hash = self._hash_query(cache_key_text)
         embedding: list[float] = []
         try:
-            embedding = self.vectorizer.embed(cache_key_text)
+            # CPU-intensive ML inference — run on thread pool to avoid blocking event loop.
+            embedding = await asyncio.to_thread(self.vectorizer.embed, cache_key_text)
 
             if self._memory_only:
                 await self._try_restore_redis()
@@ -784,8 +803,11 @@ class SemanticCache:
         try:
             # Generate embedding for the query with user scoping
             # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+            # CPU-intensive ML inference — run on thread pool to avoid blocking event loop.
             cache_key_text = self._build_cache_key(query_text, user_id)
-            embedding = self.vectorizer.embed(cache_key_text)
+            embedding: list[float] = await asyncio.to_thread(
+                self.vectorizer.embed, cache_key_text
+            )
 
             if self._memory_only:
                 await self._try_restore_redis()

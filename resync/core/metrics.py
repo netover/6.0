@@ -34,6 +34,7 @@ import threading
 import time
 import uuid
 from bisect import bisect_right
+from collections import deque
 from collections.abc import Iterable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -167,7 +168,9 @@ class MetricHistogram:
         b = sorted(set(float(x) for x in boundaries))
         self.boundaries: list[float] = b
         self.counts: list[int] = [0] * (len(b) + 1)  # +Inf
-        self.samples: list[float] = []
+        # deque with maxlen evicts the oldest sample automatically in O(1).
+        # list.pop(0) was O(n) — a performance bottleneck under high throughput.
+        self.samples: deque[float] = deque(maxlen=int(max_samples))
         self.max_samples = int(max_samples)
         self._sum: float = 0.0
         self._count: int = 0
@@ -190,9 +193,8 @@ class MetricHistogram:
             idx = bisect_right(self.boundaries, value)
             self.counts[idx] += 1
             # amostra p/ depuração/quantis simples
+            # deque(maxlen=...) auto-evicts oldest sample in O(1) — no manual pop needed.
             self.samples.append(value)
-            if len(self.samples) > self.max_samples:
-                self.samples.pop(0)
 
     # Acesso rápido
     @property

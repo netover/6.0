@@ -857,6 +857,29 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
+    # OBSERVABILITY — Sentry SDK
+    # Set SENTRY_DSN (or APP_SENTRY_DSN) to enable error tracking.
+    # ============================================================================
+    sentry_dsn: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SENTRY_DSN", "APP_SENTRY_DSN"),
+        description="Sentry DSN for error tracking (optional). Leave unset to disable.",
+        repr=False,
+    )
+    sentry_traces_sample_rate: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of transactions to send to Sentry for performance monitoring.",
+    )
+    sentry_profiles_sample_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of sampled transactions to profile (requires traces_sample_rate > 0).",
+    )
+
+    # ============================================================================
     # RATE LIMITING (v5.3.22 - Production-hardened defaults)
     # ============================================================================
     rate_limit_public_per_minute: int = Field(default=60, ge=1)
@@ -1629,11 +1652,21 @@ class Settings(BaseSettings, SettingsValidators):
 # -----------------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Factory para obter settings (útil para dependency injection)."""
+    """Factory para obter settings (útil para dependency injection).
+    
+    NOTE: lru_cache means settings are immutable after first access.
+    Use clear_settings_cache() to force reload (e.g., in tests).
+    """
     settings = Settings()
     if settings.secret_key is None:
         env = settings.environment
         if env != Environment.PRODUCTION:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "SECRET_KEY not set — auto-generating random key. "
+                "All existing JWTs will be invalidated on process restart. "
+                "Set SECRET_KEY env var for persistence."
+            )
             settings.secret_key = SecretStr(secrets.token_urlsafe(32))
     return settings
 

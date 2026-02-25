@@ -118,7 +118,7 @@ async def execute_workflow(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Execution start failed: {e}", exc_info=True)
+        logger.error("Execution start failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -227,7 +227,7 @@ async def websocket_execute(
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error("WebSocket error: %s", e)
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except Exception:
