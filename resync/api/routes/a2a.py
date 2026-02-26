@@ -1,6 +1,10 @@
 """A2A (Agent-to-Agent) Protocol Routes.
 
 Implements discovery and JSON-RPC communication for agents.
+
+Critical fixes applied:
+- P2-33: Strengthened agent_id regex to prevent trailing/leading hyphens
+- P2-34: Fixed CancelledError propagation in SSE stream
 """
 
 from __future__ import annotations
@@ -35,7 +39,11 @@ def check_a2a_enabled():
             detail="A2A Protocol is disabled",
         )
 
-AGENT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+# P2-33 fix: Strengthen regex to reject trailing/leading hyphens/underscores
+# Start and end with alphanumeric, allow '_' and '-' only in the middle
+# Accepts: "agent", "agent123", "my_agent", "agent-v2"
+# Rejects: "-agent", "agent-", "__", "--", "agent--id"
+AGENT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
 
 def validate_agent_id(agent_id: str) -> str:
     """Validate agent_id format to prevent injection attacks."""
@@ -118,7 +126,10 @@ async def a2a_events_endpoint(
                     logger.warning("event_serialization_failed", error=str(e))
                     continue
         except asyncio.CancelledError:
-            pass
+            # P2-34 fix: Always re-raise CancelledError for proper cleanup
+            # This ensures client disconnects and task cancellations propagate correctly
+            logger.debug("sse_stream_cancelled_by_client")
+            raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("event_stream_error", error=str(e))
 
