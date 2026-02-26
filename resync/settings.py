@@ -18,9 +18,10 @@ v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 
 from __future__ import annotations
 
-import secrets
+import logging  # [P3-07 FIX] Module-level import (no longer needed in function)
+import threading  # [P1-07 FIX] For thread-safe singleton
 from collections.abc import Iterator, Mapping
-from functools import lru_cache
+from functools import cached_property  # [P2-07 FIX] For computed properties
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -1361,9 +1362,14 @@ class Settings(BaseSettings, SettingsValidators):
         env = self.environment
         return 400 if env == Environment.PRODUCTION else 0
 
-    @property
+    # [P2-07 FIX] Use cached_property for computed values that don't change
+    @cached_property
     def AGENT_CONFIG_PATH(self) -> Path:
-        """Legacy alias computed from base_dir."""
+        """Legacy alias computed from base_dir.
+        
+        [P2-07 FIX] Cached to avoid Path computation on every access.
+        Thread-safe: cached_property uses instance dict, protected by GIL.
+        """
         return self.base_dir / "config" / "agents.json"
 
     @property
@@ -1396,11 +1402,13 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for agent_model_name."""
         return self.agent_model_name
 
-    @property
+    # [P2-07 FIX] Use cached_property for computed values that don't change
+    @cached_property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
         """Legacy alias exposing cache hierarchy configuration object.
 
-        Converted to @property for thread safety (lightweight object creation).
+        [P2-07 FIX] Cached to avoid reconstructing the same object on every access.
+        Thread-safe: cached_property uses instance dict, protected by GIL.
         """
         return CacheHierarchyConfig(
             l1_max_size=self.cache_hierarchy_l1_max_size,
@@ -1688,12 +1696,24 @@ class Settings(BaseSettings, SettingsValidators):
     # Validators are now imported from settings_validators.py
 
     def __repr__(self) -> str:
-        """Representation that excludes sensitive fields from the output."""
+        """Representation that excludes sensitive fields from the output.
+        
+        [P0-08 FIX] Respects both field_info.exclude AND field_info.repr to prevent
+        SecretStr leakage in logs/traces. SecretStr fields are masked as '**********'.
+        """
         fields: dict[str, Any] = {}
         for name, field_info in self.__class__.model_fields.items():
-            if field_info.exclude:
+            # [P0-08 FIX] Check BOTH exclude and repr flags
+            if field_info.exclude or (hasattr(field_info, 'repr') and not field_info.repr):
                 continue
-            fields[name] = getattr(self, name, None)
+            
+            value = getattr(self, name, None)
+            
+            # [P0-08 FIX] Mask SecretStr values
+            if isinstance(value, SecretStr):
+                fields[name] = "SecretStr('**********')"
+            else:
+                fields[name] = value
 
         parts = [f"{name}={value!r}" for name, value in fields.items()]
         return f"{self.__class__.__name__}({', '.join(parts)})"
@@ -1701,32 +1721,60 @@ class Settings(BaseSettings, SettingsValidators):
 # -----------------------------------------------------------------------------
 # Instância global (lazy) + helpers
 # -----------------------------------------------------------------------------
-@lru_cache(maxsize=1)
+# [P1-07 FIX] Thread-safe singleton with explicit lock
+_settings_instance: Settings | None = None
+_settings_lock = threading.Lock()
+
 def get_settings() -> Settings:
     """Factory para obter settings (útil para dependency injection).
     
-    NOTE: lru_cache means settings are immutable after first access.
-    Use clear_settings_cache() to force reload (e.g., in tests).
+    [P1-07 FIX] Thread-safe lazy singleton without lru_cache complexity.
+    Uses double-checked locking pattern for optimal performance.
+    
+    [P0-07 FIX] SECRET_KEY auto-generation removed. Pydantic validators
+    enforce SECRET_KEY presence in production. For dev/test, users MUST
+    set SECRET_KEY explicitly via environment variable to ensure
+    deterministic behavior.
+    
+    Returns:
+        Settings: Immutable settings singleton instance
+        
+    Note:
+        Use clear_settings_cache() to force reload (e.g., in tests)
     """
-    settings = Settings()
-    if settings.secret_key is None:
-        env = settings.environment
-        if env != Environment.PRODUCTION:
-            import logging as _log
-            _log.getLogger(__name__).warning(
-                "SECRET_KEY not set — auto-generating random key. "
-                "All existing JWTs will be invalidated on process restart. "
-                "Set SECRET_KEY env var for persistence."
-            )
-            settings.secret_key = SecretStr(secrets.token_urlsafe(32))
-    return settings
+    global _settings_instance
+    
+    # Fast path: instance already created (99% of calls)
+    if _settings_instance is not None:
+        return _settings_instance
+    
+    # Slow path: acquire lock for thread-safe initialization
+    with _settings_lock:
+        # Double-check: another thread may have created it while we waited
+        if _settings_instance is not None:
+            return _settings_instance
+        
+        # [P0-07 FIX] No automatic SECRET_KEY generation
+        # Pydantic validators handle production enforcement
+        _settings_instance = Settings()
+        return _settings_instance
 
 def clear_settings_cache() -> None:
-    """Clear the cached settings instance (useful for testing)."""
-    get_settings.cache_clear()
+    """Clear the cached settings instance (useful for testing).
+    
+    [P1-07 FIX] Thread-safe cache clearing.
+    """
+    global _settings_instance
+    with _settings_lock:
+        _settings_instance = None
 
 class _SettingsProxy:
-    """Proxy de conveniência para manter compatibilidade."""
+    """[P1-09 FIX] Read-only proxy to Settings singleton.
+    
+    Enforces immutability of settings after initialization. Tests that need to
+    modify settings should use clear_settings_cache() + environment variables,
+    not direct mutation.
+    """
 
     __slots__ = ()
 
@@ -1734,10 +1782,16 @@ class _SettingsProxy:
         return getattr(get_settings(), name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        """Allow setting attributes on the underlying Settings instance.
-        This enables tests and runtime code to modify configuration values.
+        """[P1-09 FIX] Settings are immutable after construction.
+        
+        Raises:
+            AttributeError: Always (settings cannot be modified after init)
         """
-        setattr(get_settings(), name, value)
+        raise AttributeError(
+            f"Cannot set attribute '{name}' on immutable Settings. "
+            "To modify settings in tests, use clear_settings_cache() and set "
+            "environment variables before calling get_settings()."
+        )
 
     def __repr__(self) -> str:
         return repr(get_settings())
