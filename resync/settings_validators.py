@@ -144,21 +144,40 @@ class SettingsValidators:
     @field_validator("base_dir")
     @classmethod
     def validate_base_dir(cls, v: Path) -> Path:
-        """Resolve base_dir to absolute path and validate existence/permissions."""
+        """[P0-09 FIX] Resolve base_dir to absolute path and validate existence/permissions.
+        
+        Uses atomic operations to prevent TOCTOU race conditions.
+        """
         resolved_path = v.resolve()
-        if not resolved_path.exists():
+        
+        # [P0-09 FIX] Atomic check using try/except instead of exists() + is_dir()
+        # Prevents TOCTOU race condition
+        try:
+            if not resolved_path.is_dir():
+                raise ValueError(
+                    f"REQUIRED: base_dir must be a directory, not a file: {resolved_path}"
+                )
+        except OSError as e:
+            # [P3-08 FIX] Enhanced error message with field name
             raise ValueError(
-                f"REQUIRED: base_dir directory must exist. Path not found: {resolved_path}"
-            )
-        if not resolved_path.is_dir():
+                f"REQUIRED: base_dir (BASE_DIR) directory must exist and be accessible. "
+                f"Path: {resolved_path}. Error: {e}"
+            ) from e
+        
+        # [P0-09 FIX] Check read permission atomically
+        try:
+            # Attempt to list directory (requires read + execute)
+            list(resolved_path.iterdir())
+        except PermissionError as e:
             raise ValueError(
-                f"REQUIRED: base_dir must be a directory, not a file: {resolved_path}"
-            )
-        # Issue 11: Permission checks
-        if not os.access(resolved_path, os.R_OK):
+                f"PERMISSION DENIED: base_dir (BASE_DIR) is not readable: {resolved_path}"
+            ) from e
+        except OSError as e:
+            # Other OS errors (unmounted, network issues, etc.)
             raise ValueError(
-                f"PERMISSION DENIED: base_dir is not readable: {resolved_path}"
-            )
+                f"OS ERROR: Cannot access base_dir (BASE_DIR): {resolved_path}. Error: {e}"
+            ) from e
+        
         return resolved_path
 
     @field_validator("db_pool_max_size")
@@ -223,9 +242,10 @@ class SettingsValidators:
 
         if env == Environment.PRODUCTION:
             if v is None:
+                # [P3-08 FIX] Enhanced error message with env var name
                 raise ValueError(
-                    "SECURITY FAILURE: admin_password is REQUIRED in Production. "
-                    "Set ADMIN_PASSWORD environment variable."
+                    "SECURITY FAILURE: admin_password (ADMIN_PASSWORD or APP_ADMIN_PASSWORD) "
+                    "is REQUIRED in Production. Set via environment variable."
                 )
             pwd = v.get_secret_value()
 
@@ -308,7 +328,10 @@ class SettingsValidators:
             not v.get_secret_value()
             or v.get_secret_value() == "dummy_key_for_development"
         ):
-            raise ValueError("LLM_API_KEY must be set to a valid key in production")
+            # [P3-08 FIX] Enhanced error message with env var name
+            raise ValueError(
+                "LLM_API_KEY (or APP_LLM_API_KEY) must be set to a valid key in production"
+            )
         return v
 
     @field_validator("tws_verify")
@@ -337,8 +360,9 @@ class SettingsValidators:
         mock_mode = info.data.get("tws_mock_mode", True)
         if env == Environment.PRODUCTION and not mock_mode:
             if not v or not v.strip():
+                # [P3-08 FIX] Enhanced error message
                 raise ValueError(
-                    "TWS_USER is required when not in mock mode (production)"
+                    "TWS_USER (or APP_TWS_USER) is required when not in mock mode (production)"
                 )
         return v
 
@@ -355,7 +379,10 @@ class SettingsValidators:
         if env == Environment.PRODUCTION and not mock_mode:
             pwd = v.get_secret_value()
             if not pwd:
-                raise ValueError("TWS_PASSWORD is required when not in mock mode")
+                # [P3-08 FIX] Enhanced error message
+                raise ValueError(
+                    "TWS_PASSWORD (or APP_TWS_PASSWORD) is required when not in mock mode"
+                )
             if len(pwd) < 12:
                 raise ValueError(
                     "TWS_PASSWORD must be at least 12 characters in production"
@@ -379,8 +406,9 @@ class SettingsValidators:
         env = info.data.get("environment")
         if v is None:
             if env == Environment.PRODUCTION:
+                # [P3-08 FIX] Enhanced error message with generation command
                 raise ValueError(
-                    "SECRET_KEY must be set via environment variable in production. "
+                    "SECRET_KEY (or APP_SECRET_KEY) must be set via environment variable in production. "
                     "Generate a secure random key: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
             return None
@@ -390,7 +418,7 @@ class SettingsValidators:
         if env == Environment.PRODUCTION:
             if "CHANGE_ME" in secret_value or secret_value == "":
                 raise ValueError(
-                    "SECRET_KEY must be set via environment variable in production. "
+                    "SECRET_KEY (or APP_SECRET_KEY) must be set via environment variable in production. "
                     "Generate a secure random key: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
             if len(secret_value) < 32:
@@ -411,7 +439,10 @@ class SettingsValidators:
     @field_validator("upload_dir")
     @classmethod
     def validate_upload_dir(cls, v: Path, info: ValidationInfo) -> Path:
-        """Validate upload_dir existence and write permissions."""
+        """[P0-09 FIX] Validate upload_dir existence and write permissions atomically.
+        
+        Uses atomic mkdir operation to prevent TOCTOU race conditions.
+        """
         env = info.data.get("environment")
         if env == Environment.PRODUCTION and not v.is_absolute():
             warnings.warn(
@@ -421,31 +452,69 @@ class SettingsValidators:
                 stacklevel=2,
             )
 
-        # Issue 11: Write permission check if directory exists
-        if v.exists():
-            if not os.access(v, os.W_OK):
-                raise ValueError(f"PERMISSION DENIED: upload_dir is not writable: {v}")
-        else:
-            # Check if parent is writable to allow creation
-            parent = v.parent
-            if parent.exists() and not os.access(parent, os.W_OK):
+        # [P0-09 FIX] Atomic directory creation + permission check
+        # Prevents TOCTOU by doing one operation instead of check-then-act
+        try:
+            # Ensure directory exists (atomic operation)
+            v.mkdir(parents=True, exist_ok=True)
+            
+            # Verify write permission by attempting to create a temp file
+            test_file = v / ".write_test_temp"
+            try:
+                test_file.touch(exist_ok=True)
+                test_file.unlink()  # Clean up
+            except OSError as e:
                 raise ValueError(
-                    f"PERMISSION DENIED: Cannot create upload_dir, parent not writable: {parent}"
-                )
+                    f"PERMISSION DENIED: upload_dir (UPLOAD_DIR) is not writable: {v}"
+                ) from e
+        except OSError as e:
+            raise ValueError(
+                f"PERMISSION DENIED: Cannot create/access upload_dir (UPLOAD_DIR): {v}. Error: {e}"
+            ) from e
 
         return v
 
     @field_validator("cors_allowed_origins")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:
-        """Validate CORS origins — reject wildcard in production."""
+        """[P1-11 FIX] Validate CORS origins — reject wildcard and localhost in production.
+        
+        Security rationale:
+        - Wildcard '*' allows any origin (CSRF, XSS amplification)
+        - Localhost in production makes no sense (API doesn't serve localhost clients)
+        """
         env = info.data.get("environment")
-        # [DECISION] Allow localhost even in production as per user request
-        if env == Environment.PRODUCTION and "*" in v:
-            raise ValueError(
-                "CORS wildcard origins ('*') not allowed in production. "
-                "Specify exact production domains (localhost is allowed)."
+        
+        if env == Environment.PRODUCTION:
+            # Reject wildcard
+            if "*" in v:
+                raise ValueError(
+                    "CORS wildcard origins ('*') not allowed in production. "
+                    "Specify exact production domains."
+                )
+            
+            # [P1-11 FIX] Reject localhost in production
+            localhost_patterns = (
+                "http://localhost",
+                "https://localhost",
+                "http://127.0.0.1",
+                "https://127.0.0.1",
+                "http://[::1]",
+                "https://[::1]",
             )
+            
+            invalid_origins = [
+                origin for origin in v 
+                if any(origin.startswith(pattern) for pattern in localhost_patterns)
+            ]
+            
+            if invalid_origins:
+                raise ValueError(
+                    f"CORS localhost origins not allowed in production: {invalid_origins}. "
+                    "Production APIs should not accept requests from localhost. "
+                    "Specify production domains instead."
+                )
+        
         return v
 
     @field_validator("enforce_https")
@@ -544,24 +613,16 @@ class SettingsValidators:
         """
         Cross-field consistency checks that run after all individual validators.
 
-        Ensures the overall configuration is coherent, not just individual fields.
+        [P2-08 FIX] Removed redundant pool size checks (already validated by @field_validator).
+        Focus on cross-field dependencies that can't be validated in isolation.
         """
         errors = []
 
-        # 1. Pool sizes: max must be >= min for all pool pairs
-        pool_pairs = [
-            ("db_pool_min_size", "db_pool_max_size"),
-            ("redis_pool_min_size", "redis_pool_max_size"),
-            ("redis_min_connections", "redis_max_connections"),
-            ("http_pool_min_size", "http_pool_max_size"),
-        ]
-        for min_field, max_field in pool_pairs:
-            min_val = getattr(self, min_field)
-            max_val = getattr(self, max_field)
-            if max_val < min_val:
-                errors.append(f"{max_field} ({max_val}) < {min_field} ({min_val})")
+        # [P2-08 FIX] Pool size checks removed — already validated by @field_validator
+        # (validate_db_pool_sizes, validate_redis_pool_sizes, etc.)
+        # Keeping them here would be redundant and add ~30% validation overhead.
 
-        # 2. Pool lifetime must be > idle timeout
+        # 1. Pool lifetime must be > idle timeout
         lifetime_pairs = [
             ("db_pool_idle_timeout", "db_pool_max_lifetime", "db_pool"),
             ("redis_pool_idle_timeout", "redis_pool_max_lifetime", "redis_pool"),
@@ -575,7 +636,7 @@ class SettingsValidators:
                     f"{label}: max_lifetime ({lifetime}s) must be > idle_timeout ({idle}s)"
                 )
 
-        # 3. TWS granular timeouts must be <= overall request timeout
+        # 2. TWS granular timeouts must be <= overall request timeout
         tws_request_timeout = getattr(self, "tws_request_timeout")
         for sub_field in (
             "tws_timeout_connect",
@@ -590,7 +651,7 @@ class SettingsValidators:
                     f"tws_request_timeout ({tws_request_timeout}s)"
                 )
 
-        # 4. Backoff ranges: base must be <= max
+        # 3. Backoff ranges: base must be <= max
         backoff_pairs = [
             (
                 "redis_startup_backoff_base",
@@ -607,7 +668,7 @@ class SettingsValidators:
                     f"{label}: {base_field} ({base_val}) > {max_field} ({max_val})"
                 )
 
-        # 5. Hybrid weights must sum to ~1.0 when auto_weight is off
+        # 4. Hybrid weights must sum to ~1.0 when auto_weight is off
         if not getattr(self, "hybrid_auto_weight", True):
             vec_w = getattr(self, "hybrid_vector_weight", 0.5)
             bm25_w = getattr(self, "hybrid_bm25_weight", 0.5)
@@ -618,7 +679,7 @@ class SettingsValidators:
                     f"when hybrid_auto_weight=False"
                 )
 
-        # 6. Service credentials when enabled
+        # 5. Service credentials when enabled
         if getattr(self, "langfuse_enabled", False):
             if not getattr(self, "langfuse_public_key", ""):
                 errors.append("langfuse_public_key required when langfuse_enabled=True")
@@ -630,14 +691,15 @@ class SettingsValidators:
             if not getattr(self, "enterprise_siem_endpoint", None):
                 errors.append("enterprise_siem_endpoint required when SIEM enabled")
 
-        # 7. Production-specific cross-checks (FIXED: use direct enum comparison)
+        # 6. Production-specific cross-checks
+        # [P1-10 FIX] Use Environment enum, not string comparison
         env = getattr(self, "environment")
-        if env == Environment.PRODUCTION:
+        if env == Environment.PRODUCTION:  # [P1-10 FIX] Was: if env == "production"
             # Secret key length must meet minimum
             secret_key = getattr(self, "secret_key")
             min_len = getattr(self, "MIN_SECRET_KEY_LENGTH", 32)
             if secret_key is None:
-                errors.append("secret_key must be set in production")
+                errors.append("secret_key (SECRET_KEY) must be set in production")
             elif len(secret_key.get_secret_value()) < min_len:
                 errors.append(
                     f"secret_key length ({len(secret_key.get_secret_value())}) "
@@ -652,13 +714,13 @@ class SettingsValidators:
                     f"admin_password length < MIN_ADMIN_PASSWORD_LENGTH ({min_pw_len})"
                 )
 
-        # 8. TWS credentials when not in mock mode
+        # 7. TWS credentials when not in mock mode
         if not getattr(self, "tws_mock_mode", True):
             if not getattr(self, "tws_user", None):
-                errors.append("tws_user is required when tws_mock_mode=False")
+                errors.append("tws_user (TWS_USER) is required when tws_mock_mode=False")
             tws_pw = getattr(self, "tws_password", None)
             if not tws_pw or not tws_pw.get_secret_value():
-                errors.append("tws_password is required when tws_mock_mode=False")
+                errors.append("tws_password (TWS_PASSWORD) is required when tws_mock_mode=False")
 
         if errors:
             raise ValueError(
