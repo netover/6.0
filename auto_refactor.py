@@ -1,48 +1,99 @@
-import os
-import subprocess
-import zipfile
+"""
+auto_refactor.py — Run analysis tools and package results.
 
-def run_tool(command):
+WARNING: subprocess calls without timeout can hang CI indefinitely.
+This module provides tooling for code analysis and packaging.
+"""
+
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+_SUBPROCESS_TIMEOUT = 300  # 5 minutes max per tool
+
+
+def run_tool(command: list[str]) -> str:
+    """
+    Run an external command and return combined stdout+stderr.
+
+    Args:
+        command: Command and arguments as list.
+
+    Returns:
+        Combined stdout and stderr output.
+    """
     print(f"Running: {' '.join(command)}")
-    result = subprocess.run(command, capture_output=True, text=True)
+   (
+        command,
+ result = subprocess.run        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,  # P1-01: prevent CI hang
+    )
     return result.stdout + "\n" + result.stderr
 
-def run_ruff_fix(target_dir):
+
+def run_ruff_fix(target_dir: str) -> None:
+    """
+    Apply ruff safe fixes and format to target directory.
+
+    Args:
+        target_dir: Directory to apply fixes.
+    """
     print("Running Ruff safe fixes...")
     subprocess.run(
         ["python", "-m", "ruff", "check", "--fix", target_dir],
         capture_output=True,
         text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     print("Running Ruff format...")
     subprocess.run(
-        ["python", "-m", "ruff", "format", target_dir], capture_output=True, text=True
+        ["python", "-m", "ruff", "format", target_dir],
+        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
 
-def create_zip(source_dir, zip_filename):
+
+def create_zip(source_dir: str, zip_filename: str) -> None:
+    """
+    Package root .py files and allowed dirs into a zip.
+
+    Args:
+        source_dir: Source directory to package.
+        zip_filename: Output zip file path.
+    """
     print(f"Creating zip file {zip_filename}...")
     allowed_dirs = ["resync", "tests"]
+    root = Path(source_dir)
+
     with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
         # Add root .py files
-        for f in os.listdir(source_dir):
-            if os.path.isfile(f) and f.endswith(".py"):
-                zipf.write(f, f)
+        for f in root.iterdir():
+            if f.is_file() and f.suffix == ".py":
+                zipf.write(f, f.name)
 
-        # Add allowed directories
+        # Add allowed directories - P1-03: use Path consistently
         for d in allowed_dirs:
-            if os.path.isdir(d):
-                for root, dirs, files in os.walk(d):
-                    # exclude __pycache__
-                    if "__pycache__" in root:
+            dir_path = root / d
+            if dir_path.is_dir():
+                for file_path in dir_path.rglob("*"):
+                    if "__pycache__" in file_path.parts:
                         continue
-                    for file in files:
-                        if file.endswith(".pyc"):
-                            continue
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, start=source_dir)
-                        zipf.write(file_path, arcname)
+                    if file_path.suffix == ".pyc" or not file_path.is_file():
+                        continue
+                    arcname = file_path.relative_to(root)
+                    zipf.write(file_path, arcname)
 
-def main():
+
+def main() -> int:  # P1-02: return exit code
+    """
+    Main entry point for the auto-refactor script.
+
+    Returns:
+        Exit code (0 for success).
+    """
     target_dir = "resync"
     report_file = "analysis_report.txt"
     zip_file = "resync_fixed.zip"
@@ -78,5 +129,8 @@ def main():
     print(f"Project zipped to {zip_file}")
     print("Done!")
 
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

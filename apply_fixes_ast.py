@@ -201,8 +201,9 @@ def fix_file_ast(file_path: str, *, apply: bool = False) -> int:
 
     except RuntimeError:
         raise  # Let caller see write failures
-    except Exception as exc:
-        # Log parse/transform errors without swallowing them silently
+    except (SyntaxError, ValueError, OSError) as exc:
+        # P1-05: Log parse/transform errors without swallowing them silently
+        # These are recoverable errors - report and continue
         print(f"Error processing {file_path}: {exc}", file=sys.stderr)
         return 0
 

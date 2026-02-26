@@ -31,7 +31,7 @@ def process_file(path: Path, *, dry_run: bool, verbose: bool) -> bool | None:
     """
     try:
         original = path.read_text(encoding="utf-8")
-    except Exception as exc:  # noqa: BLE001
+    except OSError as exc:  # P2-04: specific exception instead of generic Exception
         if verbose:
             print(f"⚠️  Could not read {path}: {exc}")
         return None

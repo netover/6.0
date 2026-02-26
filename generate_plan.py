@@ -35,7 +35,7 @@ def _parse_global_mypy_line(line: str) -> tuple[str, str] | None:
     if "error:" not in line:
         return None
 
-    parts = line.split(":")
+    parts = line.split(":", maxsplit=3)  # P2-07: safe for messages with ":"
 
     # Need at least: filepath:line:col:severity (4+ parts)
     if len(parts) < 4:

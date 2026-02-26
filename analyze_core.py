@@ -26,7 +26,7 @@ def _parse_mypy_line(line: str, prefix: str = "resync/core/") -> str | None:
     if "error:" not in line:
         return None
 
-    parts = line.split(":")
+    parts = line.split(":", maxsplit=3)  # P2-06: safe for messages with ":"
 
     # Need at least: filepath:line:col:severity (4+ parts)
     if len(parts) < 4:

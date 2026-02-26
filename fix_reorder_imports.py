@@ -99,14 +99,11 @@ def reorder_python_file(filename: str) -> None:
                 code.append(line)
         else:
             docstring.append(line)
-            # Check for closing triple-quote (must be at end of stripped line)
+            # P2-05: Check for closing triple-quote (must be at end of stripped line)
             if stripped.endswith(docstring_char):
-                # Guard: the opening line itself doesn't double-close
-                if stripped != docstring_char:
-                    in_docstring = False
-                elif len(stripped) == len(docstring_char):
-                    # Line is JUST the triple-quote: it IS the closing delimiter
-                    in_docstring = False
+                # Line contains the closing delimiter - exit docstring mode
+                # This handles both single-line docstrings and multi-line ones
+                in_docstring = False
 
     final_lines = future_imports + docstring + imports + code
 
