@@ -2,6 +2,9 @@
 Performance Monitoring API Endpoints.
 
 Provides REST API endpoints for monitoring and optimizing system performance.
+
+Critical fixes applied:
+- P1-24: Fixed f-string interpolation in cache metrics (lines 82-89)
 """
 
 import logging
@@ -75,17 +78,18 @@ async def get_cache_metrics() -> dict[str, Any]:
         cache_metrics = {}
         for cache_name, monitor in performance_service.cache_monitors.items():
             metrics = await monitor.get_current_metrics()
+            # P1-24 fix: Added 'f' prefix to format strings for proper interpolation
             cache_metrics[cache_name] = {
-                "hit_rate": "{metrics.hit_rate:.2%}",
-                "miss_rate": "{metrics.miss_rate:.2%}",
-                "eviction_rate": "{metrics.eviction_rate:.2%}",
-                "efficiency_score": "{metrics.calculate_efficiency_score():.1f}/100",
+                "hit_rate": f"{metrics.hit_rate:.2%}",
+                "miss_rate": f"{metrics.miss_rate:.2%}",
+                "eviction_rate": f"{metrics.eviction_rate:.2%}",
+                "efficiency_score": f"{metrics.calculate_efficiency_score():.1f}/100",
                 "total_hits": metrics.total_hits,
                 "total_misses": metrics.total_misses,
                 "total_evictions": metrics.total_evictions,
                 "current_size": metrics.current_size,
-                "memory_usage_mb": "{metrics.memory_usage_mb:.2f}",
-                "average_access_time_ms": "{metrics.average_access_time_ms:.2f}",
+                "memory_usage_mb": f"{metrics.memory_usage_mb:.2f}",
+                "average_access_time_ms": f"{metrics.average_access_time_ms:.2f}",
             }
 
         return JSONResponse(
@@ -306,7 +310,7 @@ async def get_performance_health() -> dict[str, Any]:
                 "pool_health": pool_health,
                 "pool_issues": pool_issues,
                 "resource_health": resource_health,
-                "resource_utilization": "{resource_stats['utilization']:.1f}%",
+                "resource_utilization": f"{resource_stats['utilization']:.1f}%",
             },
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
