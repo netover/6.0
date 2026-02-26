@@ -50,36 +50,17 @@ def _get_settings() -> "Settings":
 
 
 # =============================================================================
-# MODULE CONSTANTS (configurable via settings / admin UI where noted)
+# MODULE CONSTANTS (production security limits)
 # =============================================================================
-
-#: Default max-age for static file Cache-Control header (seconds).
-#: Overridden at runtime by ``settings.static_cache_max_age``.
-_DEFAULT_STATIC_CACHE_MAX_AGE = 86400  # 1 day
-
-#: Number of hex chars from SHA-256 kept for ETag values.
-#: 16 hex chars = 64-bit collision space — sufficient for cache validation.
-#: Configurable via ``settings.ETAG_HASH_LENGTH``.
-_DEFAULT_ETAG_HASH_LENGTH = 16
-
-#: Jinja2 template bytecode cache size (number of templates).
-#: Configurable via ``settings.JINJA2_TEMPLATE_CACHE_SIZE`` (computed property).
-_DEFAULT_TEMPLATE_CACHE_SIZE = 400
-
-#: Timeout for cancelling background tasks during shutdown (seconds).
-#: Configurable via ``settings.SHUTDOWN_TASK_CANCEL_TIMEOUT``.
-_DEFAULT_TASK_CANCEL_TIMEOUT = 5.0
-
-#: Minimum admin password length in production.
-_DEFAULT_MIN_PASSWORD_LENGTH = 8
-
-#: Minimum SECRET_KEY length in production.
-_DEFAULT_MIN_SECRET_KEY_LENGTH = 32
+# [P2-05 FIX] All other configuration values centralized in resync.settings.Settings
+# Use self.settings.<field_name> instead of module-level _DEFAULT_* constants.
 
 #: Maximum CSP report payload size (bytes) - prevents DoS via large payloads.
+#: Hard-coded security limit (intentionally not configurable via settings).
 _MAX_CSP_PAYLOAD_SIZE = 4096
 
 #: Minimum CSP nonce length for production (hex characters).
+#: Hard-coded security requirement (intentionally not configurable via settings).
 _MIN_CSP_NONCE_LENGTH = 16
 
 # Configure app factory logger
@@ -114,16 +95,11 @@ class CachedStaticFiles(StarletteStaticFiles):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize static files handler and cache settings."""
         super().__init__(**kwargs)
-        # [P3-03] Cache settings resolution at construction time.
-        # Pydantic v2 BaseSettings already caches internally, but this avoids
-        # function call + import resolution overhead on every static file request.
+        # [P2-05 FIX] Direct access to Settings fields eliminates duplicate defaults.
+        # All fields are guaranteed to exist with validated defaults from Pydantic.
         settings = _get_settings()
-        self._cache_max_age = getattr(
-            settings, "static_cache_max_age", _DEFAULT_STATIC_CACHE_MAX_AGE
-        )
-        self._etag_hash_length = getattr(
-            settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
-        )
+        self._cache_max_age = settings.static_cache_max_age
+        self._etag_hash_length = settings.ETAG_HASH_LENGTH
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """Return response with cache-friendly headers."""
@@ -251,12 +227,9 @@ class ApplicationFactory:
 
         # Production-specific validations
         if self.settings.is_production:
-            min_pw_len = getattr(
-                self.settings, "MIN_ADMIN_PASSWORD_LENGTH", _DEFAULT_MIN_PASSWORD_LENGTH
-            )
-            min_sk_len = getattr(
-                self.settings, "MIN_SECRET_KEY_LENGTH", _DEFAULT_MIN_SECRET_KEY_LENGTH
-            )
+            # [P2-05 FIX] Direct field access - Pydantic ensures defaults exist
+            min_pw_len = self.settings.MIN_ADMIN_PASSWORD_LENGTH
+            min_sk_len = self.settings.MIN_SECRET_KEY_LENGTH
 
             # Admin credentials
             admin_pw = (
@@ -323,6 +296,7 @@ class ApplicationFactory:
             return
 
         # Create Jinja2 environment with security settings
+        # [P2-05 FIX] JINJA2_TEMPLATE_CACHE_SIZE is a computed @property in Settings
         self.template_env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
             autoescape=select_autoescape(
@@ -331,9 +305,7 @@ class ApplicationFactory:
                 default=True,
             ),
             auto_reload=self.settings.is_development,
-            cache_size=getattr(
-                self.settings, "JINJA2_TEMPLATE_CACHE_SIZE", _DEFAULT_TEMPLATE_CACHE_SIZE
-            )
+            cache_size=self.settings.JINJA2_TEMPLATE_CACHE_SIZE
             if self.settings.is_production
             else 0,
             enable_async=True,
