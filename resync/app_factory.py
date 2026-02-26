@@ -357,6 +357,13 @@ class ApplicationFactory:
             from resync.core.security.rate_limiter_v2 import setup_rate_limiting
 
             setup_rate_limiting(self.app)
+
+            # Set up slowapi for unified_config_api endpoints
+            from slowapi.middleware import SlowAPIMiddleware
+            from resync.api.unified_config_api import limiter
+            
+            self.app.state.limiter = limiter
+            self.app.add_middleware(SlowAPIMiddleware)
         except BaseException as e:
             # Rate limiting must not silently fail open in production.
             # Use BaseException to catch ALL errors including KeyboardInterrupt
@@ -408,8 +415,11 @@ class ApplicationFactory:
     def _configure_exception_handlers(self) -> None:
         """Register global exception handlers."""
         from resync.api.exception_handlers import register_exception_handlers
+        from slowapi import _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
 
         register_exception_handlers(self.app)
+        self.app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
         logger.info("exception_handlers_registered")
 
     def _setup_dependency_injection(self) -> None:

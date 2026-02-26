@@ -7,10 +7,11 @@ para chamadas paralelas e melhor performance.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 
 from resync.core.orchestrator import ServiceOrchestrator
@@ -38,28 +39,43 @@ async def get_tws_client() -> OptimizedTWSClient:
 
     return get_tws_client_singleton()
 
+_orchestrator_instance = None
+
 async def get_orchestrator(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
 ) -> ServiceOrchestrator:
     """Get Service Orchestrator instance."""
-    return ServiceOrchestrator(
-        tws_client=tws_client,  # type: ignore[arg-type]
-        knowledge_graph=knowledge_graph,
-        max_retries=2,
-        timeout_seconds=10,
-    )
+    global _orchestrator_instance
+    if _orchestrator_instance is None:
+        _orchestrator_instance = ServiceOrchestrator(
+            tws_client=tws_client,  # type: ignore[arg-type]
+            knowledge_graph=knowledge_graph,
+            max_retries=2,
+            timeout_seconds=10,
+        )
+    return _orchestrator_instance
 
 # =============================================================================
 # ENHANCED ENDPOINTS
 # =============================================================================
+
+JOB_NAME_PATTERN = r"^[A-Z0-9_\-]{1,64}$"
 
 @enhanced_router.get(
     "/jobs/{job_name}/investigate",
     responses={500: {"description": "Internal Server Error"}},
 )
 async def investigate_job(
-    job_name: str,
+    job_name: Annotated[
+        str,
+        Path(
+            min_length=1,
+            max_length=64,
+            pattern=JOB_NAME_PATTERN,
+            description="TWS job name (uppercase alphanumeric + _ -)",
+        ),
+    ],
     orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
     include_logs: bool = Query(default=True, description="Include job logs"),
     include_deps: bool = Query(default=True, description="Include dependencies"),
@@ -242,8 +258,6 @@ async def get_job_summary(
     """
     try:
         # Buscar informações em paralelo
-        import asyncio
-
         status_task = None
         context_task = None
 

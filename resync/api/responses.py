@@ -88,7 +88,6 @@ class ORJSONResponse(JSONResponse):
             option=(
                 orjson.OPT_NON_STR_KEYS
                 | orjson.OPT_SERIALIZE_NUMPY
-                | orjson.OPT_PASSTHROUGH_DATETIME
             ),
         )
 
@@ -159,9 +158,6 @@ def get_optimized_response_class() -> type[JSONResponse]:
     # MsgSpec only handles msgspec.Struct types, not Pydantic BaseModel
     if ORJSON_AVAILABLE:
         return ORJSONResponse
-    if MSGSPEC_AVAILABLE:
-        # MsgSpec is available but not prioritized - warn developers to use explicitly
-        return MsgSpecJSONResponse
     return JSONResponse
 
 # Export optimized response class as default

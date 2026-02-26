@@ -1,4 +1,3 @@
-# pylint
 """
 GraphRAG Admin Endpoints
 
@@ -132,11 +131,12 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
         }
 
         if request.force:
-            # Bypass filters - directly call _discover_and_store
-            create_tracked_task(
-                graphrag.discovery_service._discover_and_store(
-                    request.job_name, event_details
-                )
+            # Bypass filters - directly call trigger_discovery and keep reference
+            task = create_tracked_task(
+                graphrag.discovery_service.trigger_discovery(
+                    request.job_name, event_details, force=True
+                ),
+                name=f"forced_discovery_{request.job_name}",
             )
 
             return {

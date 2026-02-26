@@ -426,7 +426,7 @@ class DashboardMetricsStore:
                 return self._empty_response("initializing")
 
             data = _safe_json_loads(raw, "latest")
-            if not data:
+            if not isinstance(data, dict):
                 return self._empty_response("data_error")
 
             alerts_raw = await redis.lrange(REDIS_KEY_ALERTS, 0, 4)
@@ -534,11 +534,21 @@ class DashboardMetricsStore:
 class WebSocketManager:
     """Gerencia conexões WebSocket locais e sincroniza via Redis Pub/Sub."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._clients: set[WebSocket] = set()
-        self._lock = asyncio.Lock()
-        self._sync_task: asyncio.Task | None = None
-        self._stop_event = asyncio.Event()
+        self._lock: asyncio.Lock | None = None
+        self._stop_event: asyncio.Event | None = None
+        self._sync_task: asyncio.Task[None] | None = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
+
+    def _get_stop_event(self) -> asyncio.Event:
+        if self._stop_event is None:
+            self._stop_event = asyncio.Event()
+        return self._stop_event
 
     async def start_sync(self) -> bool:
         """Inicia o listener de Pub/Sub.
@@ -546,13 +556,13 @@ class WebSocketManager:
         Returns:
             True if started successfully, False if already stopped or already running.
         """
-        if self._stop_event.is_set():
+        if self._get_stop_event().is_set():
             logger.debug(
                 "start_sync called but stop_event is set - call restart() to reset"
             )
             return False
         if self._sync_task is None or self._sync_task.done():
-            self._stop_event.clear()
+            self._get_stop_event().clear()
             # FIX P1-04: Use create_tracked_task so this task is registered in the
             # global task registry and properly cancelled during graceful shutdown.
             # Previously asyncio.create_task() left an orphan loop after app stop.
@@ -569,12 +579,12 @@ class WebSocketManager:
         Returns:
             True if restarted successfully.
         """
-        self._stop_event.clear()
+        self._get_stop_event().clear()
         return await self.start_sync()
 
     async def stop(self) -> None:
         """Para o manager."""
-        self._stop_event.set()
+        self._get_stop_event().set()
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -583,7 +593,7 @@ class WebSocketManager:
 
     async def connect(self, websocket: WebSocket) -> bool:
         """Conecta um WebSocket."""
-        async with self._lock:
+        async with self._get_lock():
             if len(self._clients) >= MAX_WS_CONNECTIONS:
                 logger.warning(
                     "Limite de conexões WebSocket atingido: %d", MAX_WS_CONNECTIONS
@@ -594,7 +604,7 @@ class WebSocketManager:
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Desconecta um WebSocket."""
-        async with self._lock:
+        async with self._get_lock():
             self._clients.discard(websocket)
 
     async def _subscribe_to_broadcast(self):
@@ -637,14 +647,14 @@ class WebSocketManager:
         """Listener do Redis Pub/Sub para broadcast."""
         backoff = 1.0
         max_backoff = 60.0
-        while not self._stop_event.is_set():
+        while not self._get_stop_event().is_set():
             pubsub = None
             try:
                 pubsub = await self._subscribe_to_broadcast()
                 backoff = 1.0
                 logger.info("WebSocketManager sincronizado com Redis Pub/Sub")
                 async for message in pubsub.listen():
-                    if self._stop_event.is_set():
+                    if self._get_stop_event().is_set():
                         break
                     await self._handle_pubsub_message(message)
             except asyncio.CancelledError:
@@ -652,7 +662,7 @@ class WebSocketManager:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.exception("Pub/Sub desconectado; tentando reconectar")
-                if not self._stop_event.is_set():
+                if not self._get_stop_event().is_set():
                     jitter = _jitter_seconds(backoff)
                     await asyncio.sleep(backoff + jitter)
                     backoff = min(backoff * 2, max_backoff)
@@ -665,7 +675,7 @@ class WebSocketManager:
 
     async def _local_broadcast(self, message_str: str) -> None:
         """Envia mensagem para todos os clientes locais."""
-        async with self._lock:
+        async with self._get_lock():
             clients = list(self._clients)
 
         async def _safe_send(ws: WebSocket):
@@ -754,7 +764,7 @@ async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
     redis = _get_redis()
 
-    lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=15)
+    lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=SAMPLE_INTERVAL_SECONDS - 1)
     if not await lock.acquire(blocking=False):
         return  # Outro worker já está coletando
 

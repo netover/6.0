@@ -49,7 +49,8 @@ async def base_app_exception_handler(
     """
     # Logar exceção
     logger.error(
-        f"Application exception: {exc.message}",
+        "application_exception",
+        message=exc.message,
         error_code=exc.error_code.value,
         status_code=exc.status_code,
         correlation_id=exc.correlation_id,
@@ -101,7 +102,8 @@ async def resync_exception_handler(
 
     # Logar exceção
     logger.error(
-        f"Resync exception: {exc.message}",
+        "resync_exception",
+        message=exc.message,
         error_code=exc.error_code,
         severity=exc.severity,
         correlation_id=correlation_id,
@@ -110,18 +112,15 @@ async def resync_exception_handler(
         exc_info=exc.original_exception is not None,
     )
 
-    # Mapear severity para status code
-    status_mapping = {
-        "low": 400,
-        "LOW": 400,
-        "medium": 404,
-        "MEDIUM": 404,
-        "high": 422,
-        "HIGH": 422,
-        "critical": 500,
-        "CRITICAL": 500,
-    }
-    status_code = status_mapping.get(exc.severity, 500)
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None:
+        severity_map = {
+            "low": 400,
+            "medium": 400,
+            "high": 500,
+            "critical": 500,
+        }
+        status_code = severity_map.get(exc.severity.lower() if exc.severity else "", 500)
 
     # Criar problem detail
     problem = create_problem_detail(
@@ -278,7 +277,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
     # Logar exceção com stack trace
     logger.critical(
-        f"Unhandled exception: {str(exc)}",
+        "unhandled_exception",
+        exception_msg=str(exc),
         correlation_id=correlation_id,
         path=request.url.path,
         method=request.method,
@@ -286,9 +286,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         exc_info=True,
     )
 
+    import os
+    include_details = os.getenv("ENVIRONMENT", "development") != "production"
+    details = (
+        {"exception_type": type(exc).__name__, "exception_message": str(exc)}
+        if include_details
+        else {"exception_type": type(exc).__name__}
+    )
+
     internal = InternalError(
         message="An unexpected error occurred",
-        details={"exception_type": type(exc).__name__, "exception_message": str(exc)},
+        details=details,
         correlation_id=correlation_id,
         original_exception=exc,
     )
