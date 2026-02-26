@@ -1,13 +1,13 @@
-"""
-Audit Queue - PostgreSQL Implementation.
+"""Audit Queue - PostgreSQL Implementation.
 
 Provides audit queue functionality using PostgreSQL.
 Replaces the original SQLite implementation.
 """
 
+import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable
 
 from resync.core.database.models import AuditQueueItem
 from resync.core.database.repositories import AuditQueueRepository
@@ -15,6 +15,7 @@ from resync.core.database.repositories import AuditQueueRepository
 logger = logging.getLogger(__name__)
 
 __all__ = ["AuditQueue", "AsyncAuditQueue", "IAuditQueue", "get_audit_queue"]
+
 
 class AuditQueue:
     """Audit Queue - PostgreSQL Backend."""
@@ -67,14 +68,15 @@ class AuditQueue:
 
     async def cleanup_processed_audits(self, days: int = 7) -> int:
         """Clean up old processed items."""
-        from datetime import timedelta
-
+        if days < 1 or days > 365:
+            raise ValueError("days must be between 1 and 365")
+        
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return await self._repo.delete_many(
             {"status": "completed", "completed_at": {"$lt": cutoff}}
         )
 
-    async def process_next(self, processor_fn) -> bool:
+    async def process_next(self, processor_fn: Callable) -> bool:
         """Process next item in queue."""
         items = await self.get_pending(limit=1)
         if not items:
@@ -87,24 +89,33 @@ class AuditQueue:
             await processor_fn(item.action, item.payload)
             await self.mark_completed(item.id)
             return True
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (ValueError, KeyError, AttributeError, TimeoutError, ConnectionError) as e:
             await self.mark_failed(item.id, str(e))
             return False
 
-_instance: AuditQueue | None = None
 
-def get_audit_queue() -> AuditQueue:
-    """Get the singleton AuditQueue instance."""
+_instance: AuditQueue | None = None
+_instance_lock = asyncio.Lock()
+
+
+async def get_audit_queue() -> AuditQueue:
+    """Get the singleton AuditQueue instance (thread-safe)."""
     global _instance
+    
     if _instance is None:
-        _instance = AuditQueue()
+        async with _instance_lock:
+            if _instance is None:
+                _instance = AuditQueue()
+                await asyncio.to_thread(_instance.initialize)
+    
     return _instance
+
 
 async def initialize_audit_queue() -> AuditQueue:
     """Initialize and return the AuditQueue."""
-    queue = get_audit_queue()
-    queue.initialize()
+    queue = await get_audit_queue()
     return queue
+
 
 # Aliases for backward compatibility
 AsyncAuditQueue = AuditQueue
