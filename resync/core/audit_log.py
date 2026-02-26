@@ -1,10 +1,10 @@
-"""
-Audit Log - PostgreSQL Implementation.
+"""Audit Log - PostgreSQL Implementation.
 
 Provides audit logging functionality using PostgreSQL.
 This is a thin wrapper around AuditDB for backward compatibility.
 """
 
+import asyncio
 import logging
 
 from resync.core.audit_db import AuditDB, log_audit_action
@@ -20,9 +20,9 @@ __all__ = [
     "AuditEntry",
 ]
 
+
 class AuditLog:
-    """
-    Audit Log - PostgreSQL Backend.
+    """Audit Log - PostgreSQL Backend.
 
     This is an alias for AuditDB to maintain backward compatibility.
     """
@@ -33,15 +33,11 @@ class AuditLog:
 
     async def initialize(self) -> None:
         """Initialize the audit log."""
-        # AuditDB.initialize() is synchronous.
-        # Keep this method async for backward compatibility, but do not
-        # await a non-coroutine.
-        self._db.initialize()
+        await asyncio.to_thread(self._db.initialize)
 
     async def close(self) -> None:
         """Close the audit log."""
-        # AuditDB.close() is synchronous.
-        self._db.close()
+        await asyncio.to_thread(self._db.close)
 
     async def log(self, action: str, **kwargs) -> AuditEntry:
         """Log an audit action."""
@@ -59,14 +55,23 @@ class AuditLog:
         """Search audit entries."""
         return await self._db.search_actions(**kwargs)
 
-_instance: AuditLog | None = None
 
-def get_audit_log() -> AuditLog:
-    """Get the singleton AuditLog instance."""
+_instance: AuditLog | None = None
+_instance_lock = asyncio.Lock()
+
+
+async def get_audit_log() -> AuditLog:
+    """Get the singleton AuditLog instance (thread-safe)."""
     global _instance
+    
     if _instance is None:
-        _instance = AuditLog()
+        async with _instance_lock:
+            if _instance is None:
+                _instance = AuditLog()
+                await _instance.initialize()
+    
     return _instance
+
 
 # Alias for backward compatibility
 get_audit_log_manager = get_audit_log
