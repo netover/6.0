@@ -582,12 +582,13 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                 except* asyncio.CancelledError:
                     raise
                 except* Exception as exc_group:
-                    # Results will be extracted from tasks below;
-                    # log so unexpected errors are observable
-                    logger.warning(
-                        "startup_check_task_group_error",
-                        errors=[str(e) for e in exc_group.exceptions],
-                    )
+                    for exc in exc_group.exceptions:
+                        logger.warning(
+                            "startup_check_task_group_error",
+                            error=str(exc),
+                            type=type(exc).__name__,
+                            exc_info=exc,
+                        )
         except TimeoutError:
             # Startup checks exceeded total time budget — logged below
             logger.warning("startup_checks_total_timeout")
@@ -823,11 +824,14 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                                 )
                         except* asyncio.CancelledError:
                             raise
-                        except* Exception:
-                            # Log and continue; these are optional
-                            get_logger("resync.startup").warning(
-                                "optional_services_init_partial_failure"
-                            )
+                        except* Exception as exc_group:
+                            for exc in exc_group.exceptions:
+                                get_logger("resync.startup").warning(
+                                    "optional_service_init_failed",
+                                    error=str(exc),
+                                    type=type(exc).__name__,
+                                    exc_info=exc,
+                                )
                 except TimeoutError:
                     get_logger("resync.startup").warning(
                         "optional_services_init_timeout"

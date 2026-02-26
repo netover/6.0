@@ -205,7 +205,7 @@ class OrchestrationRunner:
                             step_index=idx,
                             step_id=step.id,
                             step_name=step.name,
-                            dependencies_json=[d.dict() for d in step.dependencies],
+                            dependencies_json=[d.model_dump() for d in step.dependencies],
                         )
                         step_run_objects.append((s_run, step))
 

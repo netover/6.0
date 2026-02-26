@@ -24,14 +24,16 @@ References:
 from __future__ import annotations
 
 import asyncio
+import functools
 import os
+import re
 import time
 from collections import deque
 from dataclasses import dataclass
 
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 # -----------------------------
 # Configuration (env-driven)
@@ -40,7 +42,7 @@ from starlette.responses import JSONResponse, Response
 def _env_int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, str(default)).strip())
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+    except ValueError:
         return default
 
 RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
@@ -117,50 +119,70 @@ class SlidingWindowLimiter:
 # Module-global limiter (per worker process)
 _LIMITER = SlidingWindowLimiter()
 
+
 def _client_ip(request: Request) -> str:
-    # No load balancer; do NOT trust X-Forwarded-For by default.
+    """Extract client IP from Starlette Request (for decorators)."""
     if request.client and request.client.host:
         return request.client.host
     return "unknown"
 
+
+def _client_ip_from_scope(scope: Scope) -> str:
+    """Extract client IP from ASGI scope (for middleware)."""
+    client = scope.get("client")
+    if client and client[0]:
+        return client[0]
+    return "unknown"
+
+
 def _choose_http_limit(path: str) -> Limit:
-    # Auth endpoints stricter
     if path.startswith("/api/v1/auth") or path.startswith("/auth"):
         return Limit(AUTH_LIMIT_REQUESTS, AUTH_LIMIT_WINDOW_SECONDS)
     return Limit(API_LIMIT_REQUESTS, API_LIMIT_WINDOW_SECONDS)
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """HTTP rate limiting middleware."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+class RateLimitMiddleware:
+    """Pure ASGI rate limiting middleware - no body buffering."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         if not RATE_LIMIT_ENABLED:
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        path = request.url.path
+        path = scope.get("path", "")
 
-        # Bypass health/metrics etc.
         if BYPASS_PREFIXES and path.startswith(BYPASS_PREFIXES):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        ip = _client_ip(request)
+        client_ip = _client_ip_from_scope(scope)
         limit = _choose_http_limit(path)
         bucket = "auth" if limit.requests == AUTH_LIMIT_REQUESTS and limit.window_seconds == AUTH_LIMIT_WINDOW_SECONDS else "api"
-        key = f"ip:{ip}:{bucket}"
+        key = f"ip:{client_ip}:{bucket}"
 
         allowed, retry_after = await _LIMITER.allow(key, limit)
-        if allowed:
-            return await call_next(request)
+        if not allowed:
+            headers = [
+                (b"retry-after", str(retry_after).encode()),
+                (b"x-ratelimit-limit", str(limit.requests).encode()),
+                (b"x-ratelimit-window", str(limit.window_seconds).encode()),
+            ]
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded", "retry_after_seconds": retry_after},
+                headers=dict(headers),
+            )
+            await response(scope, receive, send)
+            return
 
-        headers = {
-            "Retry-After": str(retry_after),
-            "X-RateLimit-Limit": str(limit.requests),
-            "X-RateLimit-Window": str(limit.window_seconds),
-        }
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Rate limit exceeded", "retry_after_seconds": retry_after},
-            headers=headers,
-        )
+        await self.app(scope, receive, send)
 
 async def ws_allow_connect(client_ip: str) -> tuple[bool, int]:
     """Rate limit for websocket connect attempts."""
@@ -182,8 +204,6 @@ def setup_rate_limiting(app) -> None:
 # rate_limit decorator — wraps endpoints with per-route sliding-window limiting
 # Usage: @rate_limit("30/minute")
 # =============================================================================
-import functools
-import re as _re
 
 def rate_limit(limit_str: str):
     """Decorator: apply a sliding-window rate limit to an endpoint.
@@ -200,7 +220,7 @@ def rate_limit(limit_str: str):
     _window_map = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
 
     def _parse(s: str) -> Limit:
-        m = _re.match(r"(\d+)\s*/\s*(\w+)", s.strip())
+        m = re.match(r"(\d+)\s*/\s*(\w+)", s.strip())
         if not m:
             raise ValueError(f"Invalid rate limit spec: {s!r}. Use 'N/unit' (e.g. '30/minute')")
         count = int(m.group(1))

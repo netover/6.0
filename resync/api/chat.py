@@ -19,7 +19,6 @@ import asyncio
 import inspect
 import logging
 import time
-import weakref
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -35,7 +34,7 @@ from resync.core.exceptions import (
 )
 from resync.core.ia_auditor import analyze_and_flag_memories
 from resync.core.interfaces import IAgentManager
-from resync.core.security import SafeAgentID, sanitize_input
+from resync.core.security import SafeAgentID, sanitize_input, validate_input
 from resync.core.task_tracker import create_tracked_task
 from resync.core.types.app_state import enterprise_state_from_app
 
@@ -46,7 +45,7 @@ logger = logging.getLogger(__name__)
 chat_router = APIRouter()
 
 # Optional: track background tasks for observability (non-blocking)
-_bg_tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
+_bg_tasks: set[asyncio.Task[Any]] = set()
 
 class SupportsAgentMeta(Protocol):
     """Minimal contract used by this module for agent-like objects."""
@@ -81,21 +80,10 @@ async def send_error_message(
                 "metadata": {},
             }
         )
-    except WebSocketDisconnect:
-        logger.debug("Failed to send error message, WebSocket disconnected.")
-    except RuntimeError as exc:
-        # This typically happens when the WebSocket is already closed
-        logger.debug("Failed to send error message, WebSocket runtime error: %s", exc)
-    except ConnectionError as exc:
-        logger.debug("Failed to send error message, connection error: %s", exc)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:  # pylint
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
-        # Last resort to prevent the application from crashing if sending fails.
-        logger.warning(
-            "Failed to send error message due to an unexpected error.", exc_info=True
-        )
+    except (WebSocketDisconnect, RuntimeError, ConnectionError) as exc:
+        logger.debug("Failed to send error message: %s", exc)
+    except (TypeError, KeyError, AttributeError, IndexError):
+        raise
 
 async def run_auditor_safely() -> None:
     """
@@ -252,6 +240,7 @@ async def _handle_agent_interaction(
             run_auditor_safely(), name="run_auditor_safely"
         )
         _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Error in agent interaction: %s", e, exc_info=True)
@@ -342,10 +331,7 @@ async def websocket_endpoint(
 
     Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
     """
-    # Accept first to follow report guidance (some ASGI servers also allow close-before-accept to deny with 403).
-    await websocket.accept()
-
-    # Verify token after accepting connection - FAIL CLOSED
+    # Verify token before accepting connection - FAIL CLOSED
     try:
         from resync.api.auth.service import get_auth_service
 
@@ -354,14 +340,14 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="Authentication required")
             return
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-        # P0 fix: FAIL CLOSED — deny connection when auth service is unavailable.
-        # Previous code fell through and allowed unauthenticated connections.
         logger.warning(
             "WebSocket auth check failed - rejecting connection "
             "(auth service unavailable)"
         )
         await websocket.close(code=1008, reason="Authentication service unavailable")
         return
+
+    await websocket.accept()
 
     try:
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
@@ -423,17 +409,12 @@ async def _validate_input(
         )
         return {"is_valid": False}
 
-    # Additional validation: check for potential injection attempts
-    if "<script>" in raw_data or "javascript:" in raw_data.lower():
-        logger.warning(
-            "Potential injection attempt detected from agent '%s': %s...",
-            agent_id,
-            raw_data[:100],
-        )
+    result = validate_input(raw_data, max_length=10000)
+    if not result.is_valid:
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(
-            websocket, "Conteúdo não permitido detectado.", agent_id_str, session_id
+            websocket, "Conteúdo inválido.", agent_id_str, session_id
         )
         return {"is_valid": False}
 

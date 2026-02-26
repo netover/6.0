@@ -1,20 +1,24 @@
 # pylint
 # mypy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Union
+from typing import Any
 import bcrypt
 import logging
 import uuid
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
 from pydantic import ValidationError
+
+from resync.core.jwt_utils import JWTError, create_token, decode_token
 from resync.settings import get_settings
 
-settings = get_settings()
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
-ALGORITHM = settings.jwt_algorithm
+
+
+def _get_algorithm() -> str:
+    """Lazy accessor — avoids module-level settings cache."""
+    return get_settings().jwt_algorithm
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Check if the provided plain text password matches the cryptographic hash."""
@@ -22,8 +26,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         if isinstance(hashed_password, str):
             hashed_password = hashed_password.encode("utf-8")
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-        logger.exception("password_verification_failed")
+    except (ValueError, TypeError) as exc:
+        logger.warning("password_verification_failed", exc_info=exc)
         return False
 
 def get_password_hash(password: str) -> str:
@@ -33,46 +37,44 @@ def get_password_hash(password: str) -> str:
     return hashed.decode("utf-8")
 
 def create_access_token(
-    subject: Union[str, Any], expires_delta: timedelta | None = None
+    subject: Any, expires_delta: timedelta | None = None
 ) -> str:
-    """
-    Generate a new JWT access token signed with the application's secret key.
+    """Generate a JWT access token with iss/aud claims."""
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
 
-    Args:
-        subject: The unique identifier for the token (usually username or user_id)
-        expires_delta: Optional custom expiration time window
-
-    Returns:
-        A signed JWT string
-    """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
-    # Convert expire to Unix timestamp for JWT standard compliance
-    to_encode = {"exp": int(expire.timestamp()), "sub": str(subject), "iat": int(datetime.now(timezone.utc).timestamp()), "jti": uuid.uuid4().hex}
-    encoded_jwt = jwt.encode(
-        to_encode, settings.secret_key.get_secret_value(), algorithm=ALGORITHM
+        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
+
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "exp": int(expire.timestamp()),
+        "iat": int(now.timestamp()),
+        "jti": uuid.uuid4().hex,
+        "iss": settings.project_name,
+        "aud": settings.environment.value,
+    }
+    return create_token(
+        payload,
+        secret_key=settings.secret_key,
+        algorithm=_get_algorithm(),
+        expires_in=None,
     )
-    return encoded_jwt
 
 def decode_access_token(token: str) -> dict | None:
-    """
-    Validate and decode a JWT access token.
-
-    Returns:
-        The decoded payload dictionary if valid, otherwise None.
-    """
+    """Validate and decode a JWT access token."""
+    settings = get_settings()
     try:
-        payload = jwt.decode(
+        payload = decode_token(
             token,
-            settings.secret_key.get_secret_value(),
-            algorithms=[ALGORITHM],
-            options={"leeway": int(getattr(settings, "jwt_leeway_seconds", 0))},
+            secret_key=settings.secret_key,
+            algorithms=[_get_algorithm()],
+            options={
+                "leeway": int(getattr(settings, "jwt_leeway_seconds", 0)),
+            },
         )
-
         return payload
     except (JWTError, ValidationError):
         return None

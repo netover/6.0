@@ -1,4 +1,3 @@
-# pylint
 """
 FastAPI Dependencies with Concurrency Protection.
 
@@ -48,20 +47,46 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         username = verify_admin_credentials(request)
         if username:
             return {"username": username, "authenticated": True}
-    except HTTPException:
-        pass
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            raise
     return None
 
 # ============================================================================
 # Concurrency Locks for Thread-Safe Initialization
 # ============================================================================
-# These locks prevent race conditions when multiple requests arrive
-# simultaneously during application startup (common in production restarts)
-# Eagerly initialised — never None — eliminates TOCTOU race on first concurrent access
-_tws_store_lock: asyncio.Lock = asyncio.Lock()
-_context_store_lock: asyncio.Lock = asyncio.Lock()
-_metrics_store_lock: asyncio.Lock = asyncio.Lock()
-_feedback_store_lock: asyncio.Lock = asyncio.Lock()
+_tws_store_lock: asyncio.Lock | None = None
+_context_store_lock: asyncio.Lock | None = None
+_metrics_store_lock: asyncio.Lock | None = None
+_feedback_store_lock: asyncio.Lock | None = None
+
+def _get_tws_store_lock() -> asyncio.Lock:
+    global _tws_store_lock
+    if _tws_store_lock is None:
+        asyncio.get_running_loop()
+        _tws_store_lock = asyncio.Lock()
+    return _tws_store_lock
+
+def _get_context_store_lock() -> asyncio.Lock:
+    global _context_store_lock
+    if _context_store_lock is None:
+        asyncio.get_running_loop()
+        _context_store_lock = asyncio.Lock()
+    return _context_store_lock
+
+def _get_metrics_store_lock() -> asyncio.Lock:
+    global _metrics_store_lock
+    if _metrics_store_lock is None:
+        asyncio.get_running_loop()
+        _metrics_store_lock = asyncio.Lock()
+    return _metrics_store_lock
+
+def _get_feedback_store_lock() -> asyncio.Lock:
+    global _feedback_store_lock
+    if _feedback_store_lock is None:
+        asyncio.get_running_loop()
+        _feedback_store_lock = asyncio.Lock()
+    return _feedback_store_lock
 
 # ============================================================================
 # Store Singletons
@@ -91,7 +116,7 @@ async def get_tws_store() -> TWSStore:
     """
     global _tws_store
     if _tws_store is None:
-        async with _tws_store_lock:
+        async with _get_tws_store_lock():
             if _tws_store is None:
                 logger.info("Initializing TWSStore singleton...")
                 store = TWSStore()
@@ -108,7 +133,7 @@ async def get_context_store() -> ContextStore:
     """
     global _context_store
     if _context_store is None:
-        async with _context_store_lock:
+        async with _get_context_store_lock():
             if _context_store is None:
                 logger.debug("Initializing ContextStore singleton...")
                 _context_store = ContextStore()
@@ -122,7 +147,7 @@ async def get_metrics_store() -> MetricsStore:
     """
     global _metrics_store
     if _metrics_store is None:
-        async with _metrics_store_lock:
+        async with _get_metrics_store_lock():
             if _metrics_store is None:
                 logger.debug("Initializing MetricsStore singleton...")
                 _metrics_store = MetricsStore()
@@ -136,7 +161,7 @@ async def get_feedback_store() -> FeedbackStore:
     """
     global _feedback_store
     if _feedback_store is None:
-        async with _feedback_store_lock:
+        async with _get_feedback_store_lock():
             if _feedback_store is None:
                 logger.debug("Initializing FeedbackStore singleton...")
                 _feedback_store = FeedbackStore()

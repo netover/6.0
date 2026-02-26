@@ -182,7 +182,7 @@ class OrchestrationExecution(Base):
     callback_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
-    config: Mapped["OrchestrationConfig" | None] = relationship(
+    config: Mapped[OrchestrationConfig | None] = relationship(
         "OrchestrationConfig", back_populates="executions"
     )
     step_runs: Mapped[list["OrchestrationStepRun"]] = relationship(

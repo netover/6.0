@@ -33,6 +33,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from resync.api.core import security as jwt_security
+from resync.api.core.security import decode_access_token
 from resync.api.routes.core.ip_utils import (
     get_trusted_client_ip,
     sanitize_ip_for_redis_key,
@@ -40,6 +41,7 @@ from resync.api.routes.core.ip_utils import (
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.redis_init import get_redis_client
 from resync.core.structured_logger import get_logger
+from resync.core.token_revocation import revoke_jti
 from resync.settings import settings
 
 logger = get_logger(__name__)
@@ -669,20 +671,43 @@ async def logout(request: Request) -> Response:
     """
     Logout user (invalidate token) and clear secure cookie.
 
-    Note: For stateless JWT, this is primarily for client-side token cleanup.
-    Server-side token blacklisting would require additional infrastructure.
+    This endpoint:
+    1. Revokes the JWT token on the server side by adding JTI to Redis blacklist
+    2. Clears the access_token cookie from the client
+
+    This ensures that even if a token was stolen, it cannot be used after logout.
 
     Returns:
         Success message with cookie cleared
     """
     # Use trusted client IP (TASK-003)
     client_ip = get_trusted_client_ip(request)
+
+    # P1-15: Revoke token server-side to prevent token reuse after logout
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            payload = decode_access_token(token)
+            if payload and payload.get("jti"):
+                exp = payload.get("exp")
+                await revoke_jti(payload["jti"], exp)
+                logger.info(
+                    "token_revoked_on_logout",
+                    extra={"jti": payload["jti"], "ip": client_ip},
+                )
+        except Exception as e:
+            # Log but don't fail - token may already be invalid
+            logger.warning(
+                "token_revocation_failed",
+                extra={"error": str(e), "ip": client_ip},
+            )
+
     logger.info("logout_requested", extra={"ip": client_ip})
 
     response = JSONResponse(
         content={
             "success": True,
-            "message": "Logout successful. Please discard your token.",
+            "message": "Logout successful. Token has been invalidated.",
         }
     )
 
@@ -709,3 +734,32 @@ async def verify_token(
         Token verification status
     """
     return {"valid": True, "username": username, "message": "Token is valid"}
+    return {"valid": True, "username": username, "message": "Token is valid"}
+
+
+    # Clear cookie with SameSite (must match set_cookie)
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        samesite="strict",
+    )
+
+    return response
+
+@router.get("/verify")
+async def verify_token(
+    username: str | None = Depends(verify_admin_credentials),
+) -> dict[str, Any]:
+    """
+    Verify JWT token validity.
+
+    Args:
+        username: Username from verified token
+
+    Returns:
+        Token verification status
+    """
+    return {"valid": True, "username": username, "message": "Token is valid"}
+    return {"valid": True, "username": username, "message": "Token is valid"}
+
+

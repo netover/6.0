@@ -118,7 +118,7 @@ class TWSJobStatus(Base):
 
     # Relationships
     # lazy="raise" força erro se acessar sem eager loading (previne N+1 queries)
-    snapshot: Mapped["TWSSnapshot" | None] = relationship(
+    snapshot: Mapped[TWSSnapshot | None] = relationship(
         back_populates="job_statuses",
         lazy="raise",  # Força uso de joinedload() para prevenir N+1
     )

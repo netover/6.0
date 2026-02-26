@@ -22,8 +22,9 @@ Design constraints:
 from __future__ import annotations
 
 import re
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
@@ -34,12 +35,42 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
+
 @dataclass(slots=True)
 class CORSMetrics:
-    total_requests: int = 0
-    preflight_requests: int = 0
-    allowed_origins: int = 0
-    denied_origins: int = 0
+    """Thread/task-safe CORS metrics using a lock."""
+
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _total_requests: int = 0
+    _preflight_requests: int = 0
+    _allowed_origins: int = 0
+    _denied_origins: int = 0
+
+    def inc_total(self) -> None:
+        with self._lock:
+            self._total_requests += 1
+
+    def inc_preflight(self) -> None:
+        with self._lock:
+            self._preflight_requests += 1
+
+    def inc_allowed(self) -> None:
+        with self._lock:
+            self._allowed_origins += 1
+
+    def inc_denied(self) -> None:
+        with self._lock:
+            self._denied_origins += 1
+
+    @property
+    def snapshot(self) -> dict[str, int]:
+        with self._lock:
+            return {
+                "total_requests": self._total_requests,
+                "preflight_requests": self._preflight_requests,
+                "allowed_origins": self._allowed_origins,
+                "denied_origins": self._denied_origins,
+            }
 
 class LoggingCORSMiddleware:
     """CORS middleware with security logging, delegating to CORSMiddleware."""
@@ -95,7 +126,7 @@ class LoggingCORSMiddleware:
             await self._cors_app(scope, receive, send)
             return
 
-        self.metrics.total_requests += 1
+        self.metrics.inc_total()
 
         headers = Headers(scope=scope)
         origin = headers.get("origin")
@@ -105,14 +136,14 @@ class LoggingCORSMiddleware:
             and headers.get("access-control-request-method") is not None
         )
         if is_preflight:
-            self.metrics.preflight_requests += 1
+            self.metrics.inc_preflight()
 
         if origin:
             allowed = self._is_origin_allowed(origin)
             if allowed:
-                self.metrics.allowed_origins += 1
+                self.metrics.inc_allowed()
             else:
-                self.metrics.denied_origins += 1
+                self.metrics.inc_denied()
                 if self._log_violations:
                     logger.warning(
                         "cors_violation",

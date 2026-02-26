@@ -16,8 +16,14 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
+
+import asyncio
+import json
+import os
+import tempfile
 
 import aiofiles
 import structlog
@@ -50,7 +56,7 @@ class SubmitFeedbackRequest(BaseModel):
 
     agent_name: str  # e.g., "job_analyst"
     task: str  # e.g., "analyze_job:PAYROLL_NIGHTLY"
-    output: dict  # Agent's output
+    output: dict[str, Any]  # Agent's output
     feedback_type: str  # "thumbs_up" | "thumbs_down"
     comment: str | None = None
     job_name: str | None = None
@@ -211,9 +217,6 @@ async def get_patterns(agent_name: str):
         ]
     """
     try:
-        import json
-        from pathlib import Path
-
         pattern_dir = Path("data/agent_patterns")
         patterns = []
 
@@ -278,8 +281,6 @@ async def list_improvements(status: str | None = None):
         ]
     """
     try:
-        import json
-
         improvements_dir = AGENT_IMPROVEMENTS_DIR
         improvements = []
 
@@ -523,10 +524,6 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
         }
     """
     try:
-        import json
-        from datetime import datetime, timedelta
-        from pathlib import Path
-
         cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
         feedback_dir = Path("data/agent_feedback")
@@ -592,9 +589,6 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
 
 async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     """Load suggestion from disk."""
-    import json
-    from pathlib import Path
-
     safe_id = Path(suggestion_id).name
     if (
         not safe_id
@@ -616,11 +610,31 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return None
 
-async def _save_suggestion(suggestion: ImprovementSuggestion):
+async def _save_suggestion(suggestion: ImprovementSuggestion) -> None:
     """Save suggestion to disk."""
     if not AGENT_IMPROVEMENTS_DIR.exists():
         AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
     file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion.id}.json"
-    async with aiofiles.open(file_path, "w") as f:
-        await f.write(suggestion.model_dump_json(indent=2))
+    content = suggestion.model_dump_json(indent=2)
+    await asyncio.to_thread(_atomic_write_text, file_path, content)
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+            suffix=".tmp",
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        tmp_path.replace(path)
+    except OSError:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise

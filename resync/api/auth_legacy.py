@@ -1,4 +1,3 @@
-# pylint
 """Authentication and authorization API endpoints.
 
 This module provides JWT-based authentication endpoints and utilities,
@@ -36,8 +35,6 @@ def _get_secret_key() -> str:
     """Get secret key from settings, fail fast if not configured in production."""
     import os
 
-    from resync.settings import settings
-
     # Try to get secret_key (lowercase - correct attribute name)
     secret = getattr(settings, "secret_key", None)
 
@@ -63,7 +60,6 @@ def _get_secret_key() -> str:
     )
     return "dev_fallback_secret_key_NOT_FOR_PRODUCTION"
 
-SECRET_KEY = _get_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -174,11 +170,7 @@ class SecureAuthenticator:
         to avoid boot-time crashes when admin password is not configured.
         """
         # Use HMAC with secret key to prevent rainbow table attacks
-        raw_secret = getattr(settings, "secret_key", SECRET_KEY)
-        if hasattr(raw_secret, "get_secret_value"):
-            secret_key = raw_secret.get_secret_value().encode("utf-8")
-        else:
-            secret_key = str(raw_secret).encode("utf-8")
+        secret_key = _get_secret_key().encode("utf-8")
 
         if credential is None:
             c = ""
@@ -270,7 +262,7 @@ def verify_admin_credentials(
                 )
 
         # Decode & validate JWT
-        payload = decode_token(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_token(token, _get_secret_key(), algorithms=[ALGORITHM])
         username: str = payload.get("sub")
 
         if username is None:
@@ -314,7 +306,9 @@ def create_access_token(
         )
 
     to_encode.update({"exp": expire})
-    return create_token(to_encode, SECRET_KEY, algorithm=ALGORITHM, expires_in=None)
+    return create_token(
+        to_encode, _get_secret_key(), algorithm=ALGORITHM, expires_in=None
+    )
 
 async def authenticate_admin(username: str, password: str) -> bool:
     """

@@ -4,6 +4,9 @@ Este módulo fornece funções de dependência para injeção em endpoints,
 incluindo gerenciamento de idempotência, autenticação, e obtenção de IDs de contexto.
 """
 
+import uuid
+from typing import Any
+
 from fastapi import Depends, Header, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -81,8 +84,6 @@ async def require_idempotency_key(
 
     # BUG FIX: Use native uuid.UUID() module instead of fragile regex
     # This accepts any valid UUID (v1, v4, v7, etc.) instead of just v4
-    import uuid
-
     try:
         uuid_obj = uuid.UUID(x_idempotency_key)
     except ValueError as e:
@@ -123,8 +124,6 @@ async def get_correlation_id(
         return ctx_id
 
     # Gerar novo
-    import uuid
-
     return str(uuid.uuid4())
 
 # ============================================================================
@@ -135,7 +134,7 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Obtém usuário atual a partir do token JWT.
 
     Args:
@@ -180,8 +179,8 @@ async def get_current_user(
         ) from e
 
 async def require_authentication(
-    user: dict | None = Depends(get_current_user),
-) -> dict:
+    user: dict[str, Any] | None = Depends(get_current_user),
+) -> dict[str, Any]:
     """Garante que um usuário esteja autenticado.
 
     Args:

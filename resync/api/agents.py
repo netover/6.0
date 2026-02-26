@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 
 from resync.core.exceptions import (
     NotFoundError,
@@ -13,11 +14,19 @@ agents_router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@agents_router.get("/all")
+class AgentSummary(BaseModel):
+    id: str
+    name: str
+    role: str
+    goal: str
+    model: str
+    tools: list[Any]
+
+@agents_router.get("/all", response_model=list[AgentSummary])
 async def list_all_agents(
     request: Request,
     agent_manager: Any = Depends(get_agent_manager),
-) -> list[dict[str, Any]]:
+) -> list[AgentSummary]:
     """
     Lists the configuration of all available agents.
 

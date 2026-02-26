@@ -384,7 +384,7 @@ class BackupService:
                         raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
 
             # Get file info
-            stat = os.stat(filepath)
+            stat = await asyncio.to_thread(os.stat, filepath)
             backup.size_bytes = stat.st_size
             backup.size_human = _human_size(stat.st_size)
             backup.checksum_sha256 = _calculate_sha256(str(filepath))
@@ -577,7 +577,7 @@ class BackupService:
                 zf.writestr("MANIFEST.json", json.dumps(manifest, indent=2))
 
             # Get file info
-            stat = os.stat(filepath)
+            stat = await asyncio.to_thread(os.stat, filepath)
             backup.size_bytes = stat.st_size
             backup.size_human = _human_size(stat.st_size)
             backup.checksum_sha256 = _calculate_sha256(str(filepath))

@@ -7,7 +7,7 @@ _LAZY_API_EXPORTS: dict[str, tuple[str, str]] = {
 }
 _LOADED: dict[str, Any] = {}
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name == "monitoring_dashboard":
         import importlib
         return importlib.import_module("resync.api.monitoring_dashboard")
@@ -18,22 +18,3 @@ def __getattr__(name: str):
             _LOADED[name] = getattr(module, attr)
         return _LOADED[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
-
-# =============================================================================
-# v5.8.0: Application factory compatibility layer
-# =============================================================================
-
-def create_app():
-    """
-    Create and configure the FastAPI application.
-
-    v5.8.0: Unified API entry point.
-
-    Usage:
-        from resync.api import create_app
-        app = create_app()
-    """
-    from resync.app_factory import ApplicationFactory
-
-    factory = ApplicationFactory()
-    return factory.create_app()
