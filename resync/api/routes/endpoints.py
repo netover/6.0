@@ -1,14 +1,16 @@
-"""
-FastAPI router exposing read‑only TWS endpoints.
+"""FastAPI router exposing read‑only TWS endpoints.
 
 This module defines a set of GET routes under the `/tws` prefix for retrieving
 information from the TWS engine, model and current plan. All routes depend on
 an authenticated operator role by default.
+
+Critical fixes applied:
+- P2-39: Added depth validation to prevent DoS via deep graph traversal
 """
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from resync.api.security import require_role
 from resync.core.factories import get_tws_client as get_client
@@ -191,7 +193,16 @@ async def get_current_plan_job_predecessors(
     depth: int | None = Query(None, ge=1, le=5),
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
-    """Return the predecessors of a job in the current plan."""
+    """Return the predecessors of a job in the current plan.
+    
+    P2-39 fix: Validates depth parameter to prevent DoS.
+    """
+    # P2-39 fix: Runtime validation in addition to Query constraints
+    if depth is not None and (depth < 1 or depth > 5):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Depth must be between 1 and 5 to prevent performance issues",
+        )
     return await client.get_current_plan_job_predecessors(job_id, depth)
 
 @router.get(
@@ -203,7 +214,16 @@ async def get_current_plan_job_successors(
     depth: int | None = Query(None, ge=1, le=5),
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
-    """Return the successors of a job in the current plan."""
+    """Return the successors of a job in the current plan.
+    
+    P2-39 fix: Validates depth parameter to prevent DoS.
+    """
+    # P2-39 fix: Runtime validation in addition to Query constraints
+    if depth is not None and (depth < 1 or depth > 5):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Depth must be between 1 and 5 to prevent performance issues",
+        )
     return await client.get_current_plan_job_successors(job_id, depth)
 
 @router.get(
@@ -271,7 +291,16 @@ async def get_current_plan_jobstream_predecessors(
     depth: int | None = Query(None, ge=1, le=5),
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
-    """Return the predecessors of a job stream in the current plan."""
+    """Return the predecessors of a job stream in the current plan.
+    
+    P2-39 fix: Validates depth parameter to prevent DoS.
+    """
+    # P2-39 fix: Runtime validation in addition to Query constraints
+    if depth is not None and (depth < 1 or depth > 5):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Depth must be between 1 and 5 to prevent performance issues",
+        )
     return await client.get_current_plan_jobstream_predecessors(jobstream_id, depth)
 
 @router.get(
@@ -283,7 +312,16 @@ async def get_current_plan_jobstream_successors(
     depth: int | None = Query(None, ge=1, le=5),
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
-    """Return the successors of a job stream in the current plan."""
+    """Return the successors of a job stream in the current plan.
+    
+    P2-39 fix: Validates depth parameter to prevent DoS.
+    """
+    # P2-39 fix: Runtime validation in addition to Query constraints
+    if depth is not None and (depth < 1 or depth > 5):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Depth must be between 1 and 5 to prevent performance issues",
+        )
     return await client.get_current_plan_jobstream_successors(jobstream_id, depth)
 
 @router.get(
