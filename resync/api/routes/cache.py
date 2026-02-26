@@ -7,6 +7,8 @@ It supports both memory and Redis-based caching with detailed metrics.
 Critical fixes applied:
 - P0-14: Thread-safe redis_manager initialization with asyncio.Lock
 - P2-35: Removed password from authentication failure logs
+- P1-25: Async get_redis_connection with asyncio.to_thread
+- P2-37: Async RedisCacheManager methods to prevent event loop blocking
 """
 
 from __future__ import annotations
@@ -118,44 +120,50 @@ class ConnectionPoolValidator:
         )
         return True
 
-def get_redis_connection() -> Redis | None:
+async def get_redis_connection() -> Redis | None:
     """
     Get a Redis connection using connection pooling and validation.
+    
+    P1-25 fix: Offloads blocking Redis I/O to thread pool.
 
     Returns:
         Redis connection object or None if connection fails
     """
-    try:
-        redis_client = Redis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-            retry_on_timeout=True,
-        )
-        # Test the connection
-        redis_client.ping()
-        logger.info("Successfully connected to Redis")
-        return redis_client
-    except (ConnectionError, TimeoutError) as e:
-        logger.error("Failed to connect to Redis: %s", e)
-        return None
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
-        logger.error("Unexpected error when connecting to Redis: %s", e)
-        return None
+    def _sync_connect() -> Redis | None:
+        """Synchronous Redis connection logic."""
+        try:
+            redis_client = Redis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+            )
+            # Test the connection
+            redis_client.ping()
+            logger.info("Successfully connected to Redis")
+            return redis_client
+        except (ConnectionError, TimeoutError) as e:
+            logger.error("Failed to connect to Redis: %s", e)
+            return None
+        except (OSError, ValueError, RuntimeError) as e:
+            logger.error("Unexpected error when connecting to Redis: %s", e)
+            return None
+    
+    # P1-25 fix: Run blocking Redis operations in thread pool
+    return await asyncio.to_thread(_sync_connect)
 
 class RedisCacheManager:
     """
     Enhanced Redis cache manager with optimized caching strategies.
+    
+    P2-37 fix: All methods are async to prevent event loop blocking.
     """
 
     def __init__(self, redis_client: Redis):
         self.redis_client = redis_client
 
-    def get(self, key: str) -> str | None:
+    async def get(self, key: str) -> str | None:
         """
         Retrieve a value from Redis cache.
 
@@ -165,21 +173,22 @@ class RedisCacheManager:
         Returns:
             Cached value or None if not found
         """
-        try:
-            value = self.redis_client.get(key)
-            if value is not None:
-                logger.debug("Cache hit for key: %s", key)
-            else:
-                logger.debug("Cache miss for key: %s", key)
-            return value
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Error retrieving from cache: %s", e)
-            return None
+        def _sync_get():
+            try:
+                value = self.redis_client.get(key)
+                if value is not None:
+                    logger.debug("Cache hit for key: %s", key)
+                else:
+                    logger.debug("Cache miss for key: %s", key)
+                return value
+            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+                logger.error("Error retrieving from cache: %s", e)
+                return None
+        
+        # P2-37 fix: Offload to thread pool
+        return await asyncio.to_thread(_sync_get)
 
-    def set(self, key: str, value: str, expire: int = 3600) -> bool:
+    async def set(self, key: str, value: str, expire: int = 3600) -> bool:
         """
         Set a value in Redis cache.
 
@@ -191,18 +200,19 @@ class RedisCacheManager:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            self.redis_client.setex(key, expire, value)
-            logger.debug("Set cache key: %s with expire: %s", key, expire)
-            return True
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Error setting cache: %s", e)
-            return False
+        def _sync_set():
+            try:
+                self.redis_client.setex(key, expire, value)
+                logger.debug("Set cache key: %s with expire: %s", key, expire)
+                return True
+            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+                logger.error("Error setting cache: %s", e)
+                return False
+        
+        # P2-37 fix: Offload to thread pool
+        return await asyncio.to_thread(_sync_set)
 
-    def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> bool:
         """
         Delete a key from Redis cache.
 
@@ -212,18 +222,19 @@ class RedisCacheManager:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            deleted = self.redis_client.delete(key)
-            logger.debug("Deleted cache key: %s, count: %s", key, deleted)
-            return bool(deleted)
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Error deleting cache: %s", e)
-            return False
+        def _sync_delete():
+            try:
+                deleted = self.redis_client.delete(key)
+                logger.debug("Deleted cache key: %s, count: %s", key, deleted)
+                return bool(deleted)
+            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+                logger.error("Error deleting cache: %s", e)
+                return False
+        
+        # P2-37 fix: Offload to thread pool
+        return await asyncio.to_thread(_sync_delete)
 
-    def clear_pattern(self, pattern: str) -> int:
+    async def clear_pattern(self, pattern: str) -> int:
         """
         Delete multiple keys matching a pattern.
 
@@ -233,56 +244,57 @@ class RedisCacheManager:
         Returns:
             Number of keys deleted
         """
-        try:
-            # Use SCAN to avoid blocking Redis in production
-            # Optimization: Batch delete operations to reduce network round-trips
-            keys_to_delete: list[str] = []
-            total_deleted = 0
-            batch_size = getattr(settings, "REDIS_DELETE_BATCH_SIZE", 1000)
+        def _sync_clear_pattern():
+            try:
+                # Use SCAN to avoid blocking Redis in production
+                keys_to_delete: list[str] = []
+                total_deleted = 0
+                batch_size = getattr(settings, "REDIS_DELETE_BATCH_SIZE", 1000)
 
-            for key in self.redis_client.scan_iter(match=pattern, count=batch_size):
-                # Ensure keys are strings (scan_iter might yield bytes)
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
+                for key in self.redis_client.scan_iter(match=pattern, count=batch_size):
+                    # Ensure keys are strings (scan_iter might yield bytes)
+                    if isinstance(key, bytes):
+                        key = key.decode("utf-8")
 
-                keys_to_delete.append(key)
-                if len(keys_to_delete) >= batch_size:
-                    # redis.delete returns the number of keys removed
+                    keys_to_delete.append(key)
+                    if len(keys_to_delete) >= batch_size:
+                        total_deleted += self.redis_client.delete(*keys_to_delete)
+                        keys_to_delete = []
+
+                # Delete any remaining keys
+                if keys_to_delete:
                     total_deleted += self.redis_client.delete(*keys_to_delete)
-                    keys_to_delete = []
 
-            # Delete any remaining keys
-            if keys_to_delete:
-                total_deleted += self.redis_client.delete(*keys_to_delete)
+                logger.debug("Cleared %s keys matching pattern: %s", total_deleted, pattern)
+                return total_deleted
+            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+                logger.error("Error clearing pattern: %s", e)
+                return 0
+        
+        # P2-37 fix: Offload to thread pool
+        return await asyncio.to_thread(_sync_clear_pattern)
 
-            logger.debug("Cleared %s keys matching pattern: %s", total_deleted, pattern)
-            return total_deleted
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Error clearing pattern: %s", e)
-            return 0
-
-    def get_cache_stats(self) -> CacheStats:
+    async def get_cache_stats(self) -> CacheStats:
         """
         Get cache statistics.
 
         Returns:
             CacheStats object with statistics
         """
-        info = self.redis_client.info()
-        keyspace = info.get("Keyspace", {})  # {'db0': {'keys': 123, ...}}
-        hits = int(info.get("keyspace_hits", 0))
-        misses = int(info.get("keyspace_misses", 0))
-        total = hits + misses
-        hit_rate = (hits / total) if total > 0 else 0.0
-        size = sum(int(db_info.get("keys", 0)) for db_info in keyspace.values())
-
-        return CacheStats(hits=hits, misses=misses, hit_rate=hit_rate, size=size)
+        def _sync_get_stats():
+            info = self.redis_client.info()
+            keyspace = info.get("Keyspace", {})
+            hits = int(info.get("keyspace_hits", 0))
+            misses = int(info.get("keyspace_misses", 0))
+            total = hits + misses
+            hit_rate = (hits / total) if total > 0 else 0.0
+            size = sum(int(db_info.get("keys", 0)) for db_info in keyspace.values())
+            return CacheStats(hits=hits, misses=misses, hit_rate=hit_rate, size=size)
+        
+        # P2-37 fix: Offload to thread pool
+        return await asyncio.to_thread(_sync_get_stats)
 
 # P0-14 fix: Thread-safe initialization with asyncio.Lock
-# Prevents race condition when multiple requests initialize redis_manager concurrently
 redis_manager: RedisCacheManager | None = None
 _redis_manager_lock = asyncio.Lock()
 
@@ -306,7 +318,7 @@ async def _get_or_create_redis_manager() -> RedisCacheManager | None:
         if redis_manager is not None:
             return redis_manager
         
-        redis_client = get_redis_connection()
+        redis_client = await get_redis_connection()
         if redis_client:
             redis_manager = RedisCacheManager(redis_client)
             logger.info("redis_manager_initialized_successfully")
@@ -322,7 +334,6 @@ def validate_connection_pool() -> bool:
     Returns:
         True if validation passes, False otherwise
     """
-    # Use settings from the application configuration
     try:
         min_conn = settings.redis_min_connections
         max_conn = settings.redis_max_connections
@@ -353,11 +364,9 @@ async def verify_admin_credentials(
         HTTPException: Lança um erro 401 Unauthorized se as credenciais
                        forem inválidas.
     """
-    # Busca as credenciais de administrador a partir das configurações da aplicação.
     admin_user = settings.ADMIN_USERNAME
     admin_pass = settings.ADMIN_PASSWORD
 
-    # Garante que as credenciais de administrador estão configuradas no servidor.
     if not admin_user or not admin_pass:
         logger.error("Admin credentials not configured on the server")
         raise HTTPException(
@@ -370,11 +379,9 @@ async def verify_admin_credentials(
 
     if not (correct_username and correct_password):
         # P2-35 fix: Only log username, never password
-        # Prevents accidental password leakage in log aggregation systems
         logger.warning(
             "failed_admin_authentication_attempt",
             username=creds.username,
-            # REMOVED: password field to prevent leakage
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -391,7 +398,7 @@ async def verify_admin_credentials(
 )
 async def invalidate_tws_cache(
     request: Request,
-    scope: str = "system",  # 'system', 'jobs', 'workstations'
+    scope: str = "system",
     tws_client: ITWSClient = tws_client_dependency,
     creds: HTTPBasicCredentials = security_dependency,
 ) -> CacheInvalidationResponse:
@@ -404,17 +411,14 @@ async def invalidate_tws_cache(
     - **scope='workstations'**: Invalidates only the workstation list cache.
     """
     try:
-        # Verify admin credentials
         await verify_admin_credentials(creds)
 
-        # Log the cache invalidation request for security auditing
         logger.info(
             "Cache invalidation requested by user '%s' with scope '%s'",
             creds.username,
             scope,
         )
 
-        # P0-14 fix: Use thread-safe initialization
         manager = await _get_or_create_redis_manager()
         if manager is None:
             logger.warning(
@@ -422,9 +426,8 @@ async def invalidate_tws_cache(
             )
 
         if scope == "system":
-            # Use Redis manager to clear all TWS-related keys if available
             if manager:
-                manager.clear_pattern("tws:*")
+                await manager.clear_pattern("tws:*")
 
             await tws_client.invalidate_system_cache()
             logger.info("Full TWS system cache invalidated successfully")
@@ -432,9 +435,8 @@ async def invalidate_tws_cache(
                 status="success", detail="Full TWS system cache invalidated."
             )
         if scope == "jobs":
-            # Use Redis manager to clear job-related keys if available
             if manager:
-                manager.clear_pattern("tws:jobs:*")
+                await manager.clear_pattern("tws:jobs:*")
 
             await tws_client.invalidate_all_jobs()
             logger.info("All jobs list cache invalidated successfully")
@@ -442,9 +444,8 @@ async def invalidate_tws_cache(
                 status="success", detail="All jobs list cache invalidated."
             )
         if scope == "workstations":
-            # Use Redis manager to clear workstation-related keys if available
             if manager:
-                manager.clear_pattern("tws:workstations:*")
+                await manager.clear_pattern("tws:workstations:*")
 
             await tws_client.invalidate_all_workstations()
             logger.info("All workstations list cache invalidated successfully")
@@ -457,12 +458,8 @@ async def invalidate_tws_cache(
             detail=f"Invalid scope '{scope}'. Must be 'system', 'jobs', or 'workstations'.",
         )
     except HTTPException:
-        # Re-raise HTTP exceptions as-is
         raise
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+    except Exception as e:
         logger.error("Error during cache invalidation: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -476,10 +473,8 @@ async def get_cache_stats(
     """
     Get cache statistics including hit rate, size, etc.
     """
-    # Verify admin credentials
     await verify_admin_credentials(creds)
 
-    # P0-14 fix: Use thread-safe initialization
     manager = await _get_or_create_redis_manager()
     if manager is None:
         logger.error("Could not connect to Redis for stats")
@@ -488,8 +483,7 @@ async def get_cache_stats(
             detail="Could not connect to Redis for cache statistics.",
         )
 
-    # Get and return cache stats
-    stats = manager.get_cache_stats()
+    stats = await manager.get_cache_stats()
     logger.info(
         f"Cache stats retrieved: hits={stats.hits}, misses={stats.misses}, "
         f"hit_rate={stats.hit_rate:.2%}, size={stats.size}"
@@ -517,7 +511,5 @@ def get_database_connection(
         logger.error("Connection pool validation failed")
         return None
 
-    # In a real implementation, this would return an actual database connection
-    # based on the validated pool parameters
     logger.info("Database connection retrieved successfully after pool validation")
     return object()  # Placeholder for actual connection
