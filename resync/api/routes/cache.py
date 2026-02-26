@@ -3,10 +3,15 @@
 This module provides REST API endpoints for cache management operations,
 including cache statistics, cache clearing, and cache health monitoring.
 It supports both memory and Redis-based caching with detailed metrics.
+
+Critical fixes applied:
+- P0-14: Thread-safe redis_manager initialization with asyncio.Lock
+- P2-35: Removed password from authentication failure logs
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 
@@ -276,8 +281,39 @@ class RedisCacheManager:
 
         return CacheStats(hits=hits, misses=misses, hit_rate=hit_rate, size=size)
 
-# Global Redis cache manager instance
+# P0-14 fix: Thread-safe initialization with asyncio.Lock
+# Prevents race condition when multiple requests initialize redis_manager concurrently
 redis_manager: RedisCacheManager | None = None
+_redis_manager_lock = asyncio.Lock()
+
+async def _get_or_create_redis_manager() -> RedisCacheManager | None:
+    """
+    Thread-safe initialization of global redis_manager.
+    Uses double-check locking pattern with asyncio.Lock.
+    
+    Returns:
+        RedisCacheManager instance or None if Redis is unavailable
+    """
+    global redis_manager
+    
+    # First check without lock (fast path)
+    if redis_manager is not None:
+        return redis_manager
+    
+    # Acquire lock for initialization
+    async with _redis_manager_lock:
+        # Double-check after acquiring lock
+        if redis_manager is not None:
+            return redis_manager
+        
+        redis_client = get_redis_connection()
+        if redis_client:
+            redis_manager = RedisCacheManager(redis_client)
+            logger.info("redis_manager_initialized_successfully")
+        else:
+            logger.warning("redis_manager_initialization_failed_redis_unavailable")
+        
+        return redis_manager
 
 def validate_connection_pool() -> bool:
     """
@@ -333,8 +369,12 @@ async def verify_admin_credentials(
     correct_password = secrets.compare_digest(creds.password, admin_pass)
 
     if not (correct_username and correct_password):
+        # P2-35 fix: Only log username, never password
+        # Prevents accidental password leakage in log aggregation systems
         logger.warning(
-            "Failed admin authentication attempt for user: %s", creds.username
+            "failed_admin_authentication_attempt",
+            username=creds.username,
+            # REMOVED: password field to prevent leakage
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -353,7 +393,6 @@ async def invalidate_tws_cache(
     request: Request,
     scope: str = "system",  # 'system', 'jobs', 'workstations'
     tws_client: ITWSClient = tws_client_dependency,
-    # Call verify_admin_credentials inside the function to handle rate limiting properly
     creds: HTTPBasicCredentials = security_dependency,
 ) -> CacheInvalidationResponse:
     """
@@ -365,7 +404,7 @@ async def invalidate_tws_cache(
     - **scope='workstations'**: Invalidates only the workstation list cache.
     """
     try:
-        # Verify admin credentials (await async dependency)
+        # Verify admin credentials
         await verify_admin_credentials(creds)
 
         # Log the cache invalidation request for security auditing
@@ -375,21 +414,17 @@ async def invalidate_tws_cache(
             scope,
         )
 
-        # Initialize Redis manager if not already done
-        global redis_manager
-        if redis_manager is None:
-            redis_client = get_redis_connection()
-            if redis_client:
-                redis_manager = RedisCacheManager(redis_client)
-            else:
-                logger.warning(
-                    "Could not connect to Redis, proceeding with TWS client invalidation only"
-                )
+        # P0-14 fix: Use thread-safe initialization
+        manager = await _get_or_create_redis_manager()
+        if manager is None:
+            logger.warning(
+                "Could not connect to Redis, proceeding with TWS client invalidation only"
+            )
 
         if scope == "system":
             # Use Redis manager to clear all TWS-related keys if available
-            if redis_manager:
-                redis_manager.clear_pattern("tws:*")
+            if manager:
+                manager.clear_pattern("tws:*")
 
             await tws_client.invalidate_system_cache()
             logger.info("Full TWS system cache invalidated successfully")
@@ -398,8 +433,8 @@ async def invalidate_tws_cache(
             )
         if scope == "jobs":
             # Use Redis manager to clear job-related keys if available
-            if redis_manager:
-                redis_manager.clear_pattern("tws:jobs:*")
+            if manager:
+                manager.clear_pattern("tws:jobs:*")
 
             await tws_client.invalidate_all_jobs()
             logger.info("All jobs list cache invalidated successfully")
@@ -408,8 +443,8 @@ async def invalidate_tws_cache(
             )
         if scope == "workstations":
             # Use Redis manager to clear workstation-related keys if available
-            if redis_manager:
-                redis_manager.clear_pattern("tws:workstations:*")
+            if manager:
+                manager.clear_pattern("tws:workstations:*")
 
             await tws_client.invalidate_all_workstations()
             logger.info("All workstations list cache invalidated successfully")
@@ -444,24 +479,20 @@ async def get_cache_stats(
     # Verify admin credentials
     await verify_admin_credentials(creds)
 
-    # Initialize Redis manager if not already done
-    global redis_manager
-    if redis_manager is None:
-        redis_client = get_redis_connection()
-        if redis_client:
-            redis_manager = RedisCacheManager(redis_client)
-        else:
-            logger.error("Could not connect to Redis for stats")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Could not connect to Redis for cache statistics.",
-            )
+    # P0-14 fix: Use thread-safe initialization
+    manager = await _get_or_create_redis_manager()
+    if manager is None:
+        logger.error("Could not connect to Redis for stats")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not connect to Redis for cache statistics.",
+        )
 
     # Get and return cache stats
-    stats = redis_manager.get_cache_stats()
+    stats = manager.get_cache_stats()
     logger.info(
         f"Cache stats retrieved: hits={stats.hits}, misses={stats.misses}, "
-        "hit_rate={stats.hit_rate:.2%}, size={stats.size}"
+        f"hit_rate={stats.hit_rate:.2%}, size={stats.size}"
     )
 
     return stats
