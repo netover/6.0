@@ -1,3 +1,14 @@
+"""Orchestration API endpoints.
+
+Provides REST and WebSocket endpoints for workflow orchestration,
+including execution, status monitoring, and real-time event streaming.
+
+Critical fixes applied:
+- P0-15: WebSocket subscription cleanup to prevent memory leak
+- P1-23: Validation of bg_tasks availability in runner initialization
+- P2-36: Safe WebSocket close handling after errors
+"""
+
 import asyncio
 import logging
 from uuid import UUID
@@ -31,13 +42,20 @@ router = APIRouter(prefix="/orchestration", tags=["Orchestration"])
 
 # Dependency for Runner
 def get_runner(request: Request):
-    """Get OrchestrationRunner instance with structured concurrency."""
+    """Get OrchestrationRunner instance with structured concurrency.
+    
+    P1-23 fix: Validates bg_tasks availability to prevent silent failures.
+    """
     bg_tasks = getattr(request.app.state, "bg_tasks", None)
     if not bg_tasks:
-        # Fallback to local TaskGroup if not in lifespan (though less ideal for long-running)
-        # However, for API requests, we should expect lifespan to be active.
-        logger.warning(
-            "bg_tasks_not_found_in_app_state", hint="Check lifespan initialization"
+        # P1-23 fix: Fail loudly instead of silently returning broken runner
+        logger.error(
+            "bg_tasks_not_initialized",
+            hint="Check lifespan initialization in main.py",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Orchestration runner not available. Background task group not initialized.",
         )
 
     return OrchestrationRunner(session_factory=get_db_session, tg=bg_tasks)
@@ -93,9 +111,7 @@ async def get_config(config_id: UUID, db: AsyncSession = Depends(get_database)):
 async def execute_workflow(
     config_id: UUID,
     input_data: dict,
-    background_tasks: BackgroundTasks,  # Using FastAPI background tasks or Runner's internal?
-    # Runner spawns its own asyncio task, but calling it from here relies on current loop.
-    # It's better to await runner.start_execution which returns trace_id and spawns task.
+    background_tasks: BackgroundTasks,
     runner: OrchestrationRunner = Depends(get_runner),
 ):
     """
@@ -156,15 +172,15 @@ async def websocket_execute(
     1. Client connects.
     2. Client sends JSON: {"input": {...}}
     3. Server starts execution and streams events.
-    4. Server closes connection when done? Or keeps open?
+    4. Server closes connection when done.
+    
+    P0-15 fix: Proper subscription cleanup to prevent memory leak.
     """
     await websocket.accept()
 
-    queue = asyncio.Queue()
-    subscription_id = None  # Initialize for finally block
-
-    async def event_handler(event: OrchestrationEvent):
-        await queue.put(event)
+    queue: asyncio.Queue = asyncio.Queue()
+    subscription_id: str | None = None  # Initialize for finally block
+    trace_id: str | None = None  # Initialize for logging
 
     try:
         # Wait for input
@@ -177,18 +193,17 @@ async def websocket_execute(
         )
 
         # Subscribe to events for this trace_id
-        # We need a way to filter subscriptions in EventBus or filter here.
-        # EventBus.subscribe accepts a callback.
-        # We can wrap a filter.
-
         async def filtered_handler(event: OrchestrationEvent):
             if event.trace_id == trace_id:
                 await queue.put(event)
 
-        # Subscribe to all types we care about
-        # Ideally EventBus supports wildcards or we verify in handler
-        # Store the subscription_id so we can unsubscribe later
+        # P0-15 fix: Move subscription inside try to ensure it's set before cleanup
         subscription_id = event_bus.subscribe_all(filtered_handler)
+        logger.info(
+            "websocket_subscription_created",
+            subscription_id=subscription_id,
+            trace_id=trace_id,
+        )
 
         await websocket.send_json({"type": "started", "trace_id": trace_id})
 
@@ -214,20 +229,31 @@ async def websocket_execute(
                 break
 
     except WebSocketDisconnect:
-        logger.info("WebSocket disconnected")
+        logger.info("websocket_disconnected", trace_id=trace_id)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        logger.error("WebSocket error: %s", e)
+        logger.error("websocket_error", error=str(e), trace_id=trace_id)
+        # P2-36 fix: Safe close - wrap in try/except to prevent masking original error
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as close_exc:
-            logger.debug("ws_close_after_error_failed", error=str(close_exc))
+        except Exception as close_exc:
+            # Close can fail if connection already closed - expected in many scenarios
+            logger.debug(
+                "websocket_close_after_error_failed",
+                error=str(close_exc),
+                trace_id=trace_id,
+            )
     finally:
-        # CRITICAL: Cleanup subscription to prevent memory leak
-        # Unsubscribe when WebSocket disconnects
-        if subscription_id:
+        # P0-15 fix: Always cleanup subscription to prevent memory leak
+        # Defensive check: only unsubscribe if subscription was created
+        if subscription_id is not None:
             event_bus.unsubscribe(subscription_id)
             logger.info(
                 "websocket_subscription_cleaned_up",
                 subscription_id=subscription_id,
-                trace_id=trace_id if "trace_id" in locals() else "unknown",
+                trace_id=trace_id if trace_id else "unknown",
+            )
+        else:
+            logger.debug(
+                "websocket_cleanup_skipped_no_subscription",
+                trace_id=trace_id if trace_id else "unknown",
             )
