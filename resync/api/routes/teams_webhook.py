@@ -1,10 +1,14 @@
-"""
-Teams Outgoing Webhook Public Endpoint.
+"""Teams Outgoing Webhook Public Endpoint.
 
 Este endpoint recebe mensagens do Microsoft Teams quando usuários mencionam o bot.
 Implementa validação HMAC, verificação de permissões e processamento de queries.
+
+Critical fixes applied:
+- P0-16: Fixed NameError (db vs _db) in permissions_manager initialization
+- P1-26: Added timeout to request.body() to prevent DoS
 """
 
+import asyncio
 from datetime import datetime, timezone
 
 import structlog
@@ -124,8 +128,21 @@ async def teams_outgoing_webhook_endpoint(
             detail="Teams webhook is currently disabled",
         )
 
-    # Lê corpo da requisição
-    body_bytes = await request.body()
+    # P1-26 fix: Lê corpo da requisição com timeout para prevenir DoS
+    try:
+        body_bytes = await asyncio.wait_for(
+            request.body(),
+            timeout=30.0  # 30 seconds timeout
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "teams_webhook_request_body_timeout",
+            hint="Client sent headers but no body within 30s"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Request body not received within timeout period",
+        )
 
     # Valida assinatura HMAC
     security_token = config.get("security_token")
@@ -168,7 +185,7 @@ async def teams_outgoing_webhook_endpoint(
     # Parse mensagem
     try:
         message = TeamsMessage.model_validate_json(body_bytes)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except Exception as e:
         logger.error("teams_webhook_invalid_message_format", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -191,7 +208,10 @@ async def teams_outgoing_webhook_endpoint(
     # Inicializa componentes
     try:
         agent_manager = await get_agent_manager()
-        permissions_manager = TeamsPermissionsManager(db)
+        
+        # P0-16 fix: Use _db instead of undefined 'db' variable
+        permissions_manager = TeamsPermissionsManager(_db)
+        
         handler = TeamsWebhookHandler(agent_manager, permissions_manager)
 
         # Processa mensagem
@@ -212,7 +232,7 @@ async def teams_outgoing_webhook_endpoint(
 
         return TeamsResponse(text=answer)
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except Exception as e:
         logger.error(
             "teams_webhook_processing_error",
             error=str(e),
