@@ -3,9 +3,15 @@
 This module provides REST API endpoints for audit logging functionality,
 including retrieving audit logs, audit statistics, and audit queue management.
 It handles audit data retrieval with proper pagination, filtering, and access control.
+
+Critical fixes applied:
+- P0-13: TOCTOU race condition in review_memory with rollback
+- P1-17: Async offload of sync I/O operations
+- P1-21: Stable idempotency fingerprint (exclude timestamp/id)
 """
 
 # resync/api/audit.py
+import asyncio
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -226,9 +232,11 @@ async def review_memory(
 ) -> dict[str, str]:
     """
     Processes a human review action for a flagged memory, updating its status in the database.
+    
+    P0-13 fix: Implements rollback logic to prevent TOCTOU race conditions.
+    P1-17 fix: Offloads sync I/O to thread pool to prevent event loop blocking.
     """
-    # Get the current user from request state (this would need to come from auth)
-    # For now, using a placeholder - in production, this should come from auth
+    # Get the current user from request state
     user_id = (
         getattr(request.state, "user_id", "system")
         if hasattr(request.state, "user_id")
@@ -242,7 +250,14 @@ async def review_memory(
 
     if review.action == "approve":
         try:
-            if not audit_queue.update_audit_status_sync(review.memory_id, "approved"):
+            # P1-17 fix: Offload sync I/O to thread pool
+            updated = await asyncio.to_thread(
+                audit_queue.update_audit_status_sync,
+                review.memory_id,
+                "approved"
+            )
+            
+            if not updated:
                 log_audit_event(
                     action="review_attempt_failed",
                     user_id=user_id,
@@ -255,9 +270,48 @@ async def review_memory(
                 )
                 raise HTTPException(status_code=404, detail="Audit record not found.")
 
-            await knowledge_graph.add_observations(
-                review.memory_id, ["MANUALLY_APPROVED_BY_ADMIN"]
-            )
+            # P0-13 fix: Try to write to KG with rollback on failure
+            try:
+                await knowledge_graph.add_observations(
+                    review.memory_id, ["MANUALLY_APPROVED_BY_ADMIN"]
+                )
+            except Exception as kg_err:
+                # ROLLBACK: Revert audit status to pending
+                import structlog
+                logger = structlog.get_logger(__name__)
+                logger.error(
+                    "approve_kg_write_failed_initiating_rollback",
+                    memory_id=review.memory_id,
+                    error=str(kg_err),
+                )
+                
+                rollback_success = await asyncio.to_thread(
+                    audit_queue.update_audit_status_sync,
+                    review.memory_id,
+                    "pending"
+                )
+                
+                if not rollback_success:
+                    logger.critical(
+                        "approve_rollback_failed_inconsistent_state",
+                        memory_id=review.memory_id,
+                    )
+                
+                log_audit_event(
+                    action="approval_error_with_rollback",
+                    user_id=user_id,
+                    details={
+                        "memory_id": review.memory_id,
+                        "error": str(kg_err),
+                        "rollback_success": rollback_success,
+                    },
+                    correlation_id=correlation_id,
+                )
+                
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error approving memory. Audit status rolled back to pending.",
+                ) from kg_err
 
             # Log the successful audit event
             log_audit_event(
@@ -268,7 +322,10 @@ async def review_memory(
             )
 
             return {"status": "approved", "memory_id": review.memory_id}
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            
+        except HTTPException:
+            raise
+        except Exception as e:
             log_audit_event(
                 action="approval_error",
                 user_id=user_id,
@@ -282,7 +339,14 @@ async def review_memory(
 
     elif review.action == "reject":
         try:
-            if not audit_queue.update_audit_status_sync(review.memory_id, "rejected"):
+            # P1-17 fix: Offload sync I/O to thread pool
+            updated = await asyncio.to_thread(
+                audit_queue.update_audit_status_sync,
+                review.memory_id,
+                "rejected"
+            )
+            
+            if not updated:
                 log_audit_event(
                     action="review_attempt_failed",
                     user_id=user_id,
@@ -295,7 +359,35 @@ async def review_memory(
                 )
                 raise HTTPException(status_code=404, detail="Audit record not found.")
 
-            await knowledge_graph.delete_memory(review.memory_id)
+            # P0-13 fix: Try to delete from KG with rollback on failure
+            try:
+                await knowledge_graph.delete_memory(review.memory_id)
+            except Exception as kg_err:
+                # ROLLBACK: Revert to pending
+                import structlog
+                logger = structlog.get_logger(__name__)
+                logger.error(
+                    "reject_kg_delete_failed_initiating_rollback",
+                    memory_id=review.memory_id,
+                    error=str(kg_err),
+                )
+                
+                rollback_success = await asyncio.to_thread(
+                    audit_queue.update_audit_status_sync,
+                    review.memory_id,
+                    "pending"
+                )
+                
+                if not rollback_success:
+                    logger.critical(
+                        "reject_rollback_failed_inconsistent_state",
+                        memory_id=review.memory_id,
+                    )
+                
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error rejecting memory. Audit status rolled back to pending.",
+                ) from kg_err
 
             # Log the successful audit event
             log_audit_event(
@@ -306,7 +398,10 @@ async def review_memory(
             )
 
             return {"status": "rejected", "memory_id": review.memory_id}
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            
+        except HTTPException:
+            raise
+        except Exception as e:
             log_audit_event(
                 action="rejection_error",
                 user_id=user_id,
@@ -434,6 +529,9 @@ async def create_audit_log(
 
     This endpoint requires an X-Idempotency-Key header to prevent duplicate
     audit log entries. The same key will return the same result.
+    
+    P1-21 fix: Idempotency fingerprint excludes volatile fields (timestamp, id)
+    to prevent false conflicts on legitimate retries.
 
     Args:
         request: FastAPI request object
@@ -498,7 +596,9 @@ async def create_audit_log(
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency key is required")
 
-    request_fingerprint = audit_data.model_dump()
+    # P1-21 fix: Exclude volatile fields from fingerprint
+    # timestamp and id vary between legitimate retries, but action/user_id/details should match
+    request_fingerprint = audit_data.model_dump(exclude={"timestamp", "id"})
 
     try:
         cached = await manager.get_cached_response(idempotency_key, request_fingerprint)
