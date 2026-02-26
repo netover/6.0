@@ -14,6 +14,7 @@ No Global State:
 """
 
 import hashlib
+import importlib  # [P3-01] Modern Python 3 API for dynamic imports
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -105,23 +106,35 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
 
 
 class CachedStaticFiles(StarletteStaticFiles):
-    """Static files handler with ETag and Cache-Control headers."""
+    """Static files handler with ETag and Cache-Control headers.
+
+    [P3-03] Settings resolved once at instantiation time, not per request.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize static files handler and cache settings."""
+        super().__init__(**kwargs)
+        # [P3-03] Cache settings resolution at construction time.
+        # Pydantic v2 BaseSettings already caches internally, but this avoids
+        # function call + import resolution overhead on every static file request.
+        settings = _get_settings()
+        self._cache_max_age = getattr(
+            settings, "static_cache_max_age", _DEFAULT_STATIC_CACHE_MAX_AGE
+        )
+        self._etag_hash_length = getattr(
+            settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
+        )
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """Return response with cache-friendly headers."""
         response = await super().get_response(path, scope)
 
         if response.status_code == 200:
-            settings = _get_settings()
-            cache_max_age = getattr(
-                settings, "static_cache_max_age", _DEFAULT_STATIC_CACHE_MAX_AGE
-            )
-            response.headers["Cache-Control"] = f"public, max-age={cache_max_age}"
+            response.headers["Cache-Control"] = f"public, max-age={self._cache_max_age}"
 
             # Generate ETag from file metadata for cache validation
             try:
                 # Reuse stat_result from FileResponse if available (avoid double I/O)
-                # [P3-01] FileResponse now correctly imported from starlette.responses
                 if isinstance(response, FileResponse) and getattr(
                     response, "stat_result", None
                 ):
@@ -132,11 +145,8 @@ class CachedStaticFiles(StarletteStaticFiles):
                     file_metadata = None
 
                 if file_metadata is not None:
-                    hash_len = getattr(
-                        settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
-                    )
                     digest = hashlib.sha256(file_metadata.encode()).hexdigest()[
-                        :hash_len
+                        : self._etag_hash_length
                     ]
                     response.headers["ETag"] = f'"{digest}"'
             except OSError as exc:
@@ -235,7 +245,7 @@ class ApplicationFactory:
             max_sz = self.settings.redis_pool_max_size
             min_sz = self.settings.redis_pool_min_size
             raise ValueError(
-                "redis_pool_max_size "
+                "redis_pool_max_age "
                 f"({max_sz}) must be >= redis_pool_min_size ({min_sz})"
             )
 
@@ -507,7 +517,8 @@ class ApplicationFactory:
 
         for module_path, router_name, log_name in essential_routers:
             try:
-                mod = __import__(module_path, fromlist=[router_name])
+                # [P3-01] Modern importlib API replaces legacy __import__
+                mod = importlib.import_module(module_path)
                 router = getattr(mod, router_name)
                 self.app.include_router(router)
             except ImportError as e:
@@ -531,7 +542,8 @@ class ApplicationFactory:
 
         for module_path, router_name, log_name in optional_routers:
             try:
-                mod = __import__(module_path, fromlist=[router_name])
+                # [P3-01] Modern importlib API replaces legacy __import__
+                mod = importlib.import_module(module_path)
                 router = getattr(mod, router_name)
                 self.app.include_router(router)
             except ImportError as e:
