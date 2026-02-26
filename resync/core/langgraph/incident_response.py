@@ -60,11 +60,9 @@ except ImportError:
     StateGraph = None
     END = "END"
 
-
 # =============================================================================
 # STATE AND MODELS
 # =============================================================================
-
 
 class Severity(str, Enum):
     """Incident severity levels."""
@@ -74,7 +72,6 @@ class Severity(str, Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
-
 class OutputChannel(str, Enum):
     """Output channels for incident response."""
 
@@ -82,7 +79,6 @@ class OutputChannel(str, Enum):
     CHAT = "chat"
     BOTH = "both"
     LOG_ONLY = "log_only"
-
 
 class RelatedIncident(BaseModel):
     """A related historical incident."""
@@ -92,7 +88,6 @@ class RelatedIncident(BaseModel):
     component: str
     resolution: str | None = None
     resolution_time_minutes: int | None = None
-
 
 class IncidentAnalysis(BaseModel):
     """LLM-generated incident analysis."""
@@ -106,7 +101,6 @@ class IncidentAnalysis(BaseModel):
     suggested_action: str = Field(description="Recommended immediate action")
     related_documentation: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1, description="Confidence in the analysis")
-
 
 class IncidentState(TypedDict, total=False):
     """State passed through the incident response graph."""
@@ -143,11 +137,9 @@ class IncidentState(TypedDict, total=False):
     processing_time_ms: float
     graph_trace: list[str]
 
-
 # =============================================================================
 # NODE IMPLEMENTATIONS
 # =============================================================================
-
 
 def intercept_node(state: IncidentState) -> dict:
     """
@@ -179,7 +171,6 @@ def intercept_node(state: IncidentState) -> dict:
         "timestamp": timestamp,
         "graph_trace": ["intercept"],
     }
-
 
 async def enrichment_node(state: IncidentState) -> dict:
     """
@@ -223,7 +214,7 @@ async def enrichment_node(state: IncidentState) -> dict:
             if incident.get("resolution"):
                 similar_resolutions.append(incident["resolution"])
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("historical_search_failed", error=str(e))
         # Fallback: try generic RAG search
         try:
@@ -242,7 +233,7 @@ async def enrichment_node(state: IncidentState) -> dict:
                         "relevance": doc.get("score", 0),
                     }
                 )
-        except Exception as e2:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e2:
             logger.warning("rag_search_failed", error=str(e2))
 
     # 2. Get current system metrics
@@ -250,7 +241,7 @@ async def enrichment_node(state: IncidentState) -> dict:
         from resync.api.v1.workstation_metrics_api import get_current_metrics
 
         current_metrics = await get_current_metrics(component)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.debug("metrics_fetch_failed", error=str(e))
         current_metrics = {"cpu": "N/A", "memory": "N/A", "connections": "N/A"}
 
@@ -265,7 +256,6 @@ async def enrichment_node(state: IncidentState) -> dict:
         "current_metrics": current_metrics,
         "graph_trace": trace,
     }
-
 
 async def analysis_node(state: IncidentState) -> dict:
     """
@@ -376,7 +366,7 @@ JSON:"""
                 "confidence": 0.5,
             }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("llm_analysis_failed", error=str(e))
         analysis = {
             "summary": f"Erro {error_type} detectado no componente {component}.",
@@ -395,7 +385,6 @@ JSON:"""
         "analysis": analysis,
         "graph_trace": trace,
     }
-
 
 def output_node(state: IncidentState) -> dict:
     """
@@ -517,7 +506,6 @@ def output_node(state: IncidentState) -> dict:
         "graph_trace": trace,
     }
 
-
 async def send_notification_node(state: IncidentState) -> dict:
     """
     Node 5: Send notification to configured channels.
@@ -534,7 +522,7 @@ async def send_notification_node(state: IncidentState) -> dict:
             if teams_card:
                 await send_teams_message(teams_card)
                 logger.info("teams_notification_sent")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("teams_notification_failed", error=str(e))
 
     # Update trace
@@ -543,11 +531,9 @@ async def send_notification_node(state: IncidentState) -> dict:
 
     return {"graph_trace": trace}
 
-
 # =============================================================================
 # GRAPH CONSTRUCTION
 # =============================================================================
-
 
 def create_incident_response_graph() -> Any | None:
     """
@@ -582,10 +568,8 @@ def create_incident_response_graph() -> Any | None:
 
     return graph.compile()
 
-
 # Cache the graph
 _incident_graph: Any | None = None
-
 
 def get_incident_graph() -> Any | None:
     """Get or create the incident response graph."""
@@ -594,11 +578,9 @@ def get_incident_graph() -> Any | None:
         _incident_graph = create_incident_response_graph()
     return _incident_graph
 
-
 # =============================================================================
 # PUBLIC API
 # =============================================================================
-
 
 async def handle_incident(
     error: str,
@@ -694,7 +676,7 @@ async def handle_incident(
 
         return result
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("incident_handling_failed", error=str(e))
         return {
             "error": error,
@@ -703,7 +685,6 @@ async def handle_incident(
             "chat_response": f"❌ Erro ao analisar o incidente: {str(e)}",
             "processing_time_ms": (time.time() - start_time) * 1000,
         }
-
 
 async def _fallback_handle_incident(state: IncidentState) -> dict:
     """Fallback handler when LangGraph is unavailable."""
@@ -715,11 +696,9 @@ async def _fallback_handle_incident(state: IncidentState) -> dict:
     state = {**state, **await send_notification_node(state)}
     return state
 
-
 # =============================================================================
 # INTEGRATION HELPERS
 # =============================================================================
-
 
 def integrate_with_anomaly_detector() -> Callable[..., Any]:
     """
@@ -750,7 +729,6 @@ def integrate_with_anomaly_detector() -> Callable[..., Any]:
         )
 
     return callback
-
 
 def integrate_with_chat() -> Callable[..., Any]:
     """
@@ -787,11 +765,9 @@ def integrate_with_chat() -> Callable[..., Any]:
 
     return handler
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     # Enums

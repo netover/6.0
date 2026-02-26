@@ -36,11 +36,9 @@ from .base import BaseRepository, TimestampedRepository
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # CONTEXT REPOSITORIES
 # =============================================================================
-
 
 class ConversationRepository(TimestampedRepository[Conversation]):
     """Repository for conversation history."""
@@ -100,7 +98,6 @@ class ConversationRepository(TimestampedRepository[Conversation]):
         """Approve a flagged conversation."""
         return await self.update(conv_id, is_approved=True)
 
-
 class ContextContentRepository(BaseRepository[ContextContent]):
     """Repository for context content."""
 
@@ -150,7 +147,6 @@ class ContextContentRepository(BaseRepository[ContextContent]):
             result = await session.execute(q)
             return list(result.scalars().all())
 
-
 class ContextStore:
     """Unified Context Store facade."""
 
@@ -193,11 +189,9 @@ class ContextStore:
 
         return results
 
-
 # =============================================================================
 # AUDIT REPOSITORIES
 # =============================================================================
-
 
 class AuditEntryRepository(TimestampedRepository[AuditEntry]):
     """Repository for audit entries."""
@@ -291,7 +285,6 @@ class AuditEntryRepository(TimestampedRepository[AuditEntry]):
             result = await session.execute(q)
             return list(result.scalars().all())
 
-
 class AuditQueueRepository(BaseRepository[AuditQueueItem]):
     """Repository for audit queue."""
 
@@ -344,11 +337,9 @@ class AuditQueueRepository(BaseRepository[AuditQueueItem]):
                 await session.refresh(item)
             return item
 
-
 # =============================================================================
 # ANALYTICS (USER BEHAVIOR) REPOSITORIES
 # =============================================================================
-
 
 class UserProfileRepository(BaseRepository[UserProfile]):
     """Repository for user profiles."""
@@ -389,7 +380,6 @@ class UserProfileRepository(BaseRepository[UserProfile]):
         current_prefs.update(preferences)
         return await self.update(profile.id, preferences=current_prefs)
 
-
 class SessionHistoryRepository(TimestampedRepository[SessionHistory]):
     """Repository for session history."""
 
@@ -418,7 +408,6 @@ class SessionHistoryRepository(TimestampedRepository[SessionHistory]):
             return await self.update(session.id, query_count=session.query_count + 1)
         return None
 
-
 class UserBehaviorStore:
     """Unified User Behavior Store facade."""
 
@@ -426,11 +415,9 @@ class UserBehaviorStore:
         self.profiles = UserProfileRepository(session_factory)
         self.sessions = SessionHistoryRepository(session_factory)
 
-
 # =============================================================================
 # LEARNING REPOSITORIES
 # =============================================================================
-
 
 class FeedbackRepository(TimestampedRepository[Feedback]):
     """Repository for feedback."""
@@ -488,7 +475,6 @@ class FeedbackRepository(TimestampedRepository[Feedback]):
             )
             return list(result.scalars().all())
 
-
 class LearningThresholdRepository(BaseRepository[LearningThreshold]):
     """Repository for learning thresholds."""
 
@@ -528,7 +514,6 @@ class LearningThresholdRepository(BaseRepository[LearningThreshold]):
             min_value=min_value,
             max_value=max_value,
         )
-
 
 class ActiveLearningRepository(BaseRepository[ActiveLearningCandidate]):
     """Repository for active learning candidates."""
@@ -576,7 +561,6 @@ class ActiveLearningRepository(BaseRepository[ActiveLearningCandidate]):
             reviewed_at=datetime.now(timezone.utc),
         )
 
-
 class FeedbackStore:
     """Unified Feedback/Learning Store facade."""
 
@@ -585,11 +569,9 @@ class FeedbackStore:
         self.thresholds = LearningThresholdRepository(session_factory)
         self.active_learning = ActiveLearningRepository(session_factory)
 
-
 # =============================================================================
 # METRICS REPOSITORIES
 # =============================================================================
-
 
 class MetricDataPointRepository(TimestampedRepository[MetricDataPoint]):
     """Repository for metric data points."""
@@ -648,13 +630,11 @@ class MetricDataPointRepository(TimestampedRepository[MetricDataPoint]):
                 }
             return {"min": 0, "max": 0, "avg": 0, "sum": 0, "count": 0}
 
-
 class MetricAggregationRepository(BaseRepository[MetricAggregation]):
     """Repository for pre-aggregated metrics."""
 
     def __init__(self, session_factory: async_sessionmaker | None = None):
         super().__init__(MetricAggregation, session_factory)
-
 
 class MetricsStore:
     """Unified Metrics Store facade."""

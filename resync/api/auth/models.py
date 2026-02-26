@@ -7,7 +7,6 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, ConfigDict
 
-
 class UserRole(str, Enum):
     """User roles in the system."""
 
@@ -15,7 +14,6 @@ class UserRole(str, Enum):
     USER = "user"
     READONLY = "readonly"
     SERVICE = "service"
-
 
 class UserBase(BaseModel):
     """Base user model with common fields."""
@@ -26,12 +24,10 @@ class UserBase(BaseModel):
     role: UserRole = UserRole.USER
     is_active: bool = True
 
-
 class UserCreate(UserBase):
     """Model for creating a new user."""
 
     password: str = Field(..., min_length=8)
-
 
 class UserUpdate(BaseModel):
     """Model for updating a user."""
@@ -41,7 +37,6 @@ class UserUpdate(BaseModel):
     role: UserRole | None = None
     is_active: bool | None = None
     password: str | None = None
-
 
 class UserInDB(UserBase):
     """User model as stored in database."""
@@ -55,7 +50,6 @@ class UserInDB(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class User(UserBase):
     """User model returned to clients (no password)."""
 
@@ -65,14 +59,12 @@ class User(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class Token(BaseModel):
     """JWT token response model."""
 
     access_token: str
     token_type: str = "bearer"
     expires_in: int
-
 
 class TokenPayload(BaseModel):
     """JWT token payload."""

@@ -24,11 +24,9 @@ logger = logging.getLogger(__name__)
 enhanced_router = APIRouter(prefix="/api/v2", tags=["enhanced"])
 INTERNAL_SERVER_ERROR_DETAIL = "Internal server error. Check server logs for details."
 
-
 # =============================================================================
 # DEPENDENCY INJECTION
 # =============================================================================
-
 
 async def get_tws_client() -> OptimizedTWSClient:
     """Get TWS client singleton.
@@ -39,7 +37,6 @@ async def get_tws_client() -> OptimizedTWSClient:
     from resync.core.factories.tws_factory import get_tws_client_singleton
 
     return get_tws_client_singleton()
-
 
 async def get_orchestrator(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
@@ -53,11 +50,9 @@ async def get_orchestrator(
         timeout_seconds=10,
     )
 
-
 # =============================================================================
 # ENHANCED ENDPOINTS
 # =============================================================================
-
 
 @enhanced_router.get(
     "/jobs/{job_name}/investigate",
@@ -124,7 +119,7 @@ async def investigate_job(
             },
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -132,7 +127,6 @@ async def investigate_job(
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @enhanced_router.get(
     "/system/health",
@@ -159,7 +153,7 @@ async def system_health(
 
         return JSONResponse(status_code=status_code, content=health)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -168,7 +162,6 @@ async def system_health(
             status_code=503,
             content={"status": "ERROR", "error": "Service temporarily unavailable"},
         )
-
 
 @enhanced_router.get(
     "/jobs/failed",
@@ -208,7 +201,7 @@ async def get_failed_jobs_endpoint(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -216,7 +209,6 @@ async def get_failed_jobs_endpoint(
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @enhanced_router.get(
     "/jobs/{job_name}/summary",
@@ -290,7 +282,7 @@ async def get_job_summary(
         if status_task and status_task.done() and not status_task.cancelled():
             try:
                 status = status_task.result()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error extracting job status: %s", e)
 
         if status is None:
@@ -301,7 +293,7 @@ async def get_job_summary(
         if context_task and context_task.done() and not context_task.cancelled():
             try:
                 context = context_task.result()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Error extracting relevant context: %s", e)
                 context = f"Erro ao recuperar contexto: {e}"
 
@@ -335,7 +327,7 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -348,7 +340,6 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 # =============================================================================
 # EXPORTS

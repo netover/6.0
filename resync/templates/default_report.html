@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório — Resync</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; }
+        .report { max-width: 900px; margin: 0 auto; }
+        h1 { color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+        .section { margin: 1.5rem 0; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 4px; }
+        pre { background: #f1f5f9; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.875rem; }
+    </style>
+</head>
+<body>
+    <div class="report">
+        <h1>{{ title | default("Relatório do Sistema") }}</h1>
+        <div class="section">
+            <p><strong>Gerado em:</strong> {{ generated_at | default("N/A") }}</p>
+        </div>
+        {% if content %}
+        <div class="section">
+            <h2>Conteúdo</h2>
+            <pre>{{ content }}</pre>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

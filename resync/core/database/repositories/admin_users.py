@@ -26,7 +26,6 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 30
 PASSWORD_SALT_LENGTH = 32
 
-
 def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
     """Hash a password with salt.
 
@@ -45,7 +44,6 @@ def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
     hashed = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
     return f"{salt}:{hashed}", salt
 
-
 def verify_password(password: str, stored_hash: str) -> bool:
     """Verify a password against stored hash.
 
@@ -62,7 +60,6 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return secrets.compare_digest(new_hash, stored_hash)
     except (ValueError, AttributeError):
         return False
-
 
 class AdminUserRepository(BaseRepository[AdminUser]):
     """Repository for admin user operations."""
@@ -328,10 +325,8 @@ class AdminUserRepository(BaseRepository[AdminUser]):
             await session.commit()
             return result.rowcount > 0
 
-
 # Singleton instance
 _repository: AdminUserRepository | None = None
-
 
 def get_admin_user_repository() -> AdminUserRepository:
     """Get singleton AdminUserRepository instance."""

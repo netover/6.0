@@ -46,7 +46,6 @@ TWS_JOB_PATTERN = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 # TWS Workstation pattern
 TWS_WORKSTATION_PATTERN = re.compile(r"^[A-Za-z0-9_\-]{1,16}$")
 
-
 SanitizedValue: TypeAlias = (
     str
     | int
@@ -55,7 +54,6 @@ SanitizedValue: TypeAlias = (
     | dict[str, "SanitizedValue"]
     | list["SanitizedValue"]
 )
-
 
 class ValidationResult:
     """Validation result with error details."""
@@ -74,7 +72,6 @@ class ValidationResult:
 
     def __bool__(self) -> bool:
         return self.is_valid
-
 
 class InputSanitizer:
     """
@@ -383,7 +380,6 @@ class InputSanitizer:
 
         return sanitized
 
-
 def sanitize_input(text: str, strip_dangerous: bool = True) -> str:
     """
     Remove potentially dangerous characters from an input string.
@@ -398,7 +394,6 @@ def sanitize_input(text: str, strip_dangerous: bool = True) -> str:
         The sanitized string.
     """
     return InputSanitizer.sanitize_string(text, strip_dangerous=strip_dangerous)
-
 
 def validate_input(text: str, max_length: int = 1000) -> ValidationResult:
     """
@@ -415,7 +410,6 @@ def validate_input(text: str, max_length: int = 1000) -> ValidationResult:
     """
     return InputSanitizer.validate_string(text, max_length)
 
-
 def sanitize_input_strict(text: str) -> str:
     """
     Strict sanitization - only alphanumeric, underscore, and hyphen.
@@ -429,7 +423,6 @@ def sanitize_input_strict(text: str) -> str:
     """
     return InputSanitizer.sanitize_string_strict(text)
 
-
 def sanitize_tws_job_name(job_name: str) -> str:
     """
     Sanitize TWS/HWA job name.
@@ -441,7 +434,6 @@ def sanitize_tws_job_name(job_name: str) -> str:
         Sanitized name.
     """
     return InputSanitizer.sanitize_tws_job_name(job_name)
-
 
 def sanitize_tws_workstation(workstation: str) -> str:
     """
@@ -455,7 +447,6 @@ def sanitize_tws_workstation(workstation: str) -> str:
     """
     return InputSanitizer.sanitize_tws_workstation(workstation)
 
-
 def validate_email(email: str) -> bool:
     """
     Validate email format.
@@ -467,7 +458,6 @@ def validate_email(email: str) -> bool:
         True if valid.
     """
     return InputSanitizer.validate_email(email)
-
 
 # Annotated type for IDs, ensuring they follow a safe format.
 SafeAgentID = Annotated[
@@ -489,7 +479,6 @@ SafeTWSJobName = Annotated[
 SafeTWSWorkstation = Annotated[
     str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9_\-]+$")
 ]
-
 
 __all__ = [
     "InputSanitizer",

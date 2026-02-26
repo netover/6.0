@@ -54,11 +54,9 @@ if not NATIVE_CHECKPOINTER_AVAILABLE:
     except ImportError:
         pass
 
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-
 
 def get_database_url() -> str:
     """Get PostgreSQL connection URL for checkpointer."""
@@ -80,15 +78,12 @@ def get_database_url() -> str:
 
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
-
 # =============================================================================
 # CHECKPOINTER FACTORY
 # =============================================================================
 
-
 _checkpointer_instance: AsyncPostgresSaver | None = None
 _checkpointer_lock: asyncio.Lock | None = None
-
 
 def _get_checkpointer_lock() -> asyncio.Lock:
     """Lazily create the asyncio lock (must be inside a running event loop)."""
@@ -96,7 +91,6 @@ def _get_checkpointer_lock() -> asyncio.Lock:
     if _checkpointer_lock is None:
         _checkpointer_lock = asyncio.Lock()
     return _checkpointer_lock
-
 
 async def get_checkpointer() -> AsyncPostgresSaver | None:
     """
@@ -147,10 +141,9 @@ async def get_checkpointer() -> AsyncPostgresSaver | None:
 
             return _checkpointer_instance
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("checkpointer_init_failed", error=str(e))
             return None
-
 
 def close_checkpointer() -> None:
     """Close the checkpointer connection."""
@@ -161,9 +154,8 @@ def close_checkpointer() -> None:
             # Native checkpointer handles cleanup
             _checkpointer_instance = None
             logger.info("checkpointer_closed")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("checkpointer_close_error", error=str(e))
-
 
 @asynccontextmanager
 async def checkpointer_context():
@@ -181,11 +173,9 @@ async def checkpointer_context():
     finally:
         close_checkpointer()
 
-
 # =============================================================================
 # MEMORY STORE (NEW IN LANGGRAPH 0.3)
 # =============================================================================
-
 
 try:
     from langgraph.store.memory import InMemoryStore
@@ -195,10 +185,8 @@ except ImportError:
     MEMORY_STORE_AVAILABLE = False
     InMemoryStore = None
 
-
 _memory_store_instance = None
 _memory_store_lock = threading.Lock()
-
 
 def get_memory_store():
     """
@@ -223,11 +211,9 @@ def get_memory_store():
 
     return _memory_store_instance
 
-
 # =============================================================================
 # LEGACY COMPATIBILITY
 # =============================================================================
-
 
 class PostgresCheckpointer:
     """
@@ -278,11 +264,9 @@ class PostgresCheckpointer:
             return await native.aput(config, checkpoint, metadata)
         return config
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     "get_checkpointer",

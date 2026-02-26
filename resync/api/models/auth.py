@@ -2,7 +2,6 @@
 
 from pydantic import BaseModel
 
-
 class LoginRequest(BaseModel):
     """User login request model."""
 
@@ -12,7 +11,6 @@ class LoginRequest(BaseModel):
     captcha_token: str | None = None
     client_fingerprint: str | None = None
     session_token: str | None = None
-
 
 class UserRegistrationRequest(BaseModel):
     """User registration request model."""
@@ -25,7 +23,6 @@ class UserRegistrationRequest(BaseModel):
     terms_accepted: bool = False
     client_fingerprint: str | None = None
 
-
 class PasswordChangeRequest(BaseModel):
     """Password change request model."""
 
@@ -36,13 +33,11 @@ class PasswordChangeRequest(BaseModel):
     session_token: str | None = None
     client_fingerprint: str | None = None
 
-
 class Token(BaseModel):
     """OAuth2 token response model."""
 
     access_token: str
     token_type: str
-
 
 class TokenData(BaseModel):
     """JWT token payload data."""

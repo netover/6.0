@@ -31,11 +31,9 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # ============================================================================
 # EXCEPTION HANDLERS
 # ============================================================================
-
 
 async def base_app_exception_handler(
     request: Request, exc: BaseAppException
@@ -86,7 +84,6 @@ async def base_app_exception_handler(
         content=problem.model_dump(exclude_none=True),
         headers=headers,
     )
-
 
 async def resync_exception_handler(
     request: Request, exc: ResyncException
@@ -145,7 +142,6 @@ async def resync_exception_handler(
         headers=headers,
     )
 
-
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError | PydanticValidationError
 ) -> JSONResponse:
@@ -201,7 +197,6 @@ async def validation_exception_handler(
         content=problem.model_dump(exclude_none=True),
         headers=headers,
     )
-
 
 async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
@@ -269,7 +264,6 @@ async def http_exception_handler(
 
     return await base_app_exception_handler(request, mapped)
 
-
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handler para exceções não tratadas.
 
@@ -300,11 +294,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
     return await base_app_exception_handler(request, internal)
 
-
 # ============================================================================
 # REGISTRATION HELPER
 # ============================================================================
-
 
 def register_exception_handlers(app) -> None:
     """Registra todos os exception handlers na aplicação FastAPI.
@@ -329,7 +321,6 @@ def register_exception_handlers(app) -> None:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     logger.info("Exception handlers registered successfully")
-
 
 __all__ = [
     "base_app_exception_handler",

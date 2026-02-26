@@ -7,8 +7,10 @@ _LAZY_API_EXPORTS: dict[str, tuple[str, str]] = {
 }
 _LOADED: dict[str, Any] = {}
 
-
 def __getattr__(name: str):
+    if name == "monitoring_dashboard":
+        import importlib
+        return importlib.import_module("resync.api.monitoring_dashboard")
     if name in _LAZY_API_EXPORTS:
         mod, attr = _LAZY_API_EXPORTS[name]
         if name not in _LOADED:
@@ -17,11 +19,9 @@ def __getattr__(name: str):
         return _LOADED[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
-
 # =============================================================================
 # v5.8.0: Application factory compatibility layer
 # =============================================================================
-
 
 def create_app():
     """

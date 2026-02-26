@@ -20,7 +20,6 @@ __all__ = [
     "AuditEntry",
 ]
 
-
 class AuditLog:
     """
     Audit Log - PostgreSQL Backend.
@@ -60,9 +59,7 @@ class AuditLog:
         """Search audit entries."""
         return await self._db.search_actions(**kwargs)
 
-
 _instance: AuditLog | None = None
-
 
 def get_audit_log() -> AuditLog:
     """Get the singleton AuditLog instance."""
@@ -70,7 +67,6 @@ def get_audit_log() -> AuditLog:
     if _instance is None:
         _instance = AuditLog()
     return _instance
-
 
 # Alias for backward compatibility
 get_audit_log_manager = get_audit_log

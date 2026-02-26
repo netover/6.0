@@ -22,7 +22,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class IdempotencyManager:
     """
     Gerenciador de chaves de idempotência refatorado
@@ -128,7 +127,7 @@ class IdempotencyManager:
                 error=str(e),
             )
             return None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             self.metrics.storage_errors += 1
             logger.error(
                 "Unexpected error getting cached response",
@@ -232,7 +231,7 @@ class IdempotencyManager:
                 error=str(e),
             )
             return False
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -276,7 +275,7 @@ class IdempotencyManager:
                 error=str(e),
             )
             return False
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -360,7 +359,7 @@ class IdempotencyManager:
                 error=str(e),
             )
             return False
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -414,7 +413,7 @@ class IdempotencyManager:
                 error=str(e),
             )
             return False
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -471,7 +470,7 @@ class IdempotencyManager:
                 error=str(e),
             )
             return False
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

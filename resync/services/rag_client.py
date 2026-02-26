@@ -34,11 +34,9 @@ from resync.settings import settings
 
 logger = get_logger(__name__)
 
-
 # -----------------------------------------------------------------------------
 # Response models (typed helpers)
 # -----------------------------------------------------------------------------
-
 
 class RAGJobStatus(BaseModel):
     """Model for RAG job status response."""
@@ -48,7 +46,6 @@ class RAGJobStatus(BaseModel):
     progress: int | None = None
     message: str | None = None
 
-
 class RAGUploadResponse(BaseModel):
     """Model for RAG upload response."""
 
@@ -56,16 +53,13 @@ class RAGUploadResponse(BaseModel):
     filename: str
     status: str
 
-
 # -----------------------------------------------------------------------------
 # Client implementation
 # -----------------------------------------------------------------------------
 
-
 def _truthy_env(name: str, default: str = "0") -> bool:
     raw = os.getenv(name, default)
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
-
 
 def _safe_int_env(name: str, default: int) -> int:
     raw = os.getenv(name)
@@ -75,7 +69,6 @@ def _safe_int_env(name: str, default: int) -> int:
         return int(str(raw).strip())
     except ValueError:
         return default
-
 
 class RAGServiceClient:
     """Async HTTP client for the RAG microservice.
@@ -144,7 +137,7 @@ class RAGServiceClient:
             # Try JSON first to avoid huge HTML pages.
             data = resp.json()
             txt = str(data)
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             txt = resp.text
         txt = txt or ""
         if len(txt) > limit:
@@ -320,7 +313,7 @@ class RAGServiceClient:
         """
         try:
             data = await self.search(query=query, limit=5)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             logger.warning("rag_get_relevant_context_failed", error=str(exc))
             return None
 
@@ -352,7 +345,6 @@ class RAGServiceClient:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.close()
 
-
 class RAGClient:
     """Compatibility wrapper expected by LangGraph code.
 
@@ -380,15 +372,12 @@ class RAGClient:
         # Compatibility: closing the wrapper does nothing; lifecycle closes singleton.
         return None
 
-
 # -----------------------------------------------------------------------------
 # Singleton access (avoids import-time side effects)
 # -----------------------------------------------------------------------------
 
-
 _rag_client_singleton: RAGServiceClient | None = None
 _rag_client_lock = __import__("threading").Lock()
-
 
 def get_rag_client_singleton() -> RAGServiceClient:
     """Get (or create) the process-wide RAG client singleton (thread-safe)."""
@@ -399,7 +388,6 @@ def get_rag_client_singleton() -> RAGServiceClient:
                 _rag_client_singleton = RAGServiceClient()
     return _rag_client_singleton
 
-
 async def close_rag_client_singleton() -> None:
     """Close and clear the RAG client singleton (best-effort)."""
     global _rag_client_singleton
@@ -408,7 +396,6 @@ async def close_rag_client_singleton() -> None:
             await _rag_client_singleton.close()
         finally:
             _rag_client_singleton = None
-
 
 __all__ = [
     "RAGServiceClient",

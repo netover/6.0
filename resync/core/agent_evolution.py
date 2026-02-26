@@ -30,11 +30,9 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # Data Models
 # =============================================================================
-
 
 class FeedbackType(str, Enum):
     """Type of user feedback."""
@@ -43,7 +41,6 @@ class FeedbackType(str, Enum):
     THUMBS_DOWN = "thumbs_down"
     CORRECTION = "correction"
     COMMENT = "comment"
-
 
 class AgentFeedback(BaseModel):
     """User feedback on agent performance."""
@@ -62,7 +59,6 @@ class AgentFeedback(BaseModel):
     job_type: str | None = None  # BACKUP, ETL, REPORT, etc.
     error_type: str | None = None
 
-
 class DetectedPattern(BaseModel):
     """Pattern detected in feedback data."""
 
@@ -77,7 +73,6 @@ class DetectedPattern(BaseModel):
     job_pattern: str | None = None  # e.g., "BACKUP_*", "ETL_*"
 
     detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 class ImprovementSuggestion(BaseModel):
     """Suggested improvement to agent behavior."""
@@ -98,7 +93,6 @@ class ImprovementSuggestion(BaseModel):
     approved_by: str | None = None
     approved_at: datetime | None = None
 
-
 class SandboxTestResult(BaseModel):
     """Results from sandbox testing."""
 
@@ -117,11 +111,9 @@ class SandboxTestResult(BaseModel):
 
     tested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-
 # =============================================================================
 # Feedback Collection
 # =============================================================================
-
 
 class AgentFeedbackCollector:
     """
@@ -194,7 +186,7 @@ class AgentFeedbackCollector:
         )
 
         # Trigger pattern analysis asynchronously
-        await create_tracked_task(
+        create_tracked_task(
             self._analyze_patterns_async(agent_name), name="analyze_patterns_async"
         )
 
@@ -240,7 +232,7 @@ class AgentFeedbackCollector:
         try:
             analyzer = PatternDetector()
             await analyzer.analyze_feedback(agent_name)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -250,11 +242,9 @@ class AgentFeedbackCollector:
         """Generate unique feedback ID."""
         return f"feedback_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
-
 # =============================================================================
 # Pattern Detection
 # =============================================================================
-
 
 class PatternDetector:
     """
@@ -309,7 +299,7 @@ class PatternDetector:
                     await self._store_pattern(pattern)
 
                     # Trigger improvement suggestion
-                    await create_tracked_task(
+                    create_tracked_task(
                         self._create_improvement_suggestion(pattern)
                     )
 
@@ -410,7 +400,7 @@ Output JSON format:
 
                 return pattern
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Pattern detection failed: %s", e, exc_info=True)
 
         return None
@@ -473,7 +463,7 @@ Output JSON format:
                         and feedback.timestamp >= cutoff
                     ):
                         feedbacks.append(feedback)
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass
@@ -484,11 +474,9 @@ Output JSON format:
         """Generate unique pattern ID."""
         return f"pattern_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
-
 # =============================================================================
 # Improvement Suggester
 # =============================================================================
-
 
 class ImprovementSuggester:
     """
@@ -580,7 +568,7 @@ Output only the improved prompt (no explanation).
         try:
             improved = self._call_llm(model, meta_prompt)
             return improved.strip()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Prompt improvement failed: %s", e, exc_info=True)
             return current_prompt
 
@@ -630,11 +618,9 @@ When analyzing jobs:
         """Generate unique suggestion ID."""
         return f"suggestion_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
-
 # =============================================================================
 # Sandbox Testing
 # =============================================================================
-
 
 class SandboxTester:
     """

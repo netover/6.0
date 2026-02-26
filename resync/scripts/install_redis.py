@@ -116,14 +116,12 @@ volumes:
     driver: local
 """
 
-
 def run_command(
     cmd: list[str], check: bool = True, cwd: str | None = None
 ) -> subprocess.CompletedProcess:
     """Executa um comando shell."""
     print(f"Running: {' '.join(cmd)}")
     return subprocess.run(cmd, check=check, capture_output=True, text=True, cwd=cwd)
-
 
 def detect_os() -> str:
     """Detecta o sistema operacional."""
@@ -133,7 +131,6 @@ def detect_os() -> str:
         return "macos"
     else:
         return "linux"
-
 
 def install_redis_windows() -> None:
     """Instala Redis no Windows."""
@@ -164,7 +161,6 @@ Para instalar Redis no Windows:
    - Execute: docker run -d --name resync-redis -p 6379:6379 redis:7-alpine
 """)
 
-
 def install_redis_linux() -> None:
     """Instala Redis no Linux."""
     print("\n=== Instalando Redis no Linux ===")
@@ -180,7 +176,6 @@ def install_redis_linux() -> None:
         print("Instalando via snap...")
         run_command(["sudo", "snap", "install", "redis"])
 
-
 def install_redis_macos() -> None:
     """Instala Redis no macOS."""
     print("\n=== Instalando Redis no macOS ===")
@@ -192,7 +187,6 @@ Use Homebrew:
 Ou use Docker:
     docker run -d --name resync-redis -p 6379:6379 redis:7-alpine
 """)
-
 
 def setup_redis() -> None:
     """Configura Redis."""
@@ -227,7 +221,6 @@ Para iniciar Redis:
     - Docker: docker-compose -f docker-compose.redis.yml up -d
     - Windows: Use WSL2 ou Docker
 """)
-
 
 def start_redis() -> None:
     """Inicia Redis."""
@@ -275,7 +268,6 @@ Options:
 3. Instale Redis manualmente
 """)
 
-
 def start_docker() -> None:
     """Inicia Redis via Docker Compose."""
     print("\n=== Iniciando Redis via Docker ===")
@@ -294,7 +286,6 @@ def start_docker() -> None:
         except (FileNotFoundError, subprocess.SubprocessError) as e:
             print(f"Docker Compose não disponível: {e}")
 
-
 def test_redis() -> None:
     """Testa conexão com Redis."""
     print("\n=== Testando Conexão com Redis ===")
@@ -310,7 +301,6 @@ def test_redis() -> None:
             print(f"❌ Erro: {result.stderr.strip()}")
     except FileNotFoundError:
         print("redis-cli não encontrado. Redis pode não estar instalado.")
-
 
 def main():
     global REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
@@ -362,7 +352,6 @@ def main():
 
     elif args.action == "test":
         test_redis()
-
 
 if __name__ == "__main__":
     main()

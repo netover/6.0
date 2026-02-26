@@ -30,7 +30,6 @@ from typing import Any, Callable, Coroutine
 
 from pydantic import BaseModel, Field, model_validator
 
-
 class ServiceStatus(str, Enum):
     """Status possible states for a service instance."""
 
@@ -39,7 +38,6 @@ class ServiceStatus(str, Enum):
     MAINTENANCE = "maintenance"
     DRAINING = "draining"
     UNKNOWN = "unknown"
-
 
 class ServiceInstance(BaseModel):
     """
@@ -123,7 +121,6 @@ class ServiceInstance(BaseModel):
             score -= min(20.0, float(self.consecutive_failures * 5))
         return max(0.0, score)
 
-
 class ServiceDefinition(BaseModel):
     """
     Modelo para definição de serviço.
@@ -178,7 +175,6 @@ class ServiceDefinition(BaseModel):
                 raise ValueError("health_check_path deve começar com '/'")
         return self
 
-
 @dataclass
 class BackendHealth:
     """Status de saúde de um backend de discovery."""
@@ -200,7 +196,6 @@ class BackendHealth:
         self.is_healthy = True
         self.error_message = None
         self.response_time = response_time
-
 
 class BackendInterface(ABC):
     """
@@ -307,7 +302,6 @@ class BackendInterface(ABC):
         """Close any resources held by the backend."""
         ...
 
-
 def _is_valid_hostname(hostname: str) -> bool:
     """Check if a hostname is valid."""
     if len(hostname) > 253:
@@ -319,7 +313,6 @@ def _is_valid_hostname(hostname: str) -> bool:
     # Check for valid label lengths
     labels = hostname.split(".")
     return all(0 < len(label) <= 63 for label in labels)
-
 
 __all__ = [
     "BackendInterface",

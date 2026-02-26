@@ -50,11 +50,10 @@ try:
     from langfuse.decorators import langfuse_context
 
     LANGFUSE_AVAILABLE = True
-except Exception as exc:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
     logger.warning("langfuse_context_unavailable reason=%s", type(exc).__name__)
-
 
 class CorrelationIdMiddleware:
     """ASGI middleware that injects correlation and request IDs."""
@@ -120,10 +119,10 @@ class CorrelationIdMiddleware:
                             user_id = str(payload["sub"])
                             hashed_user = hash_user_id(user_id)
                             langfuse_context.update_current_trace(user_id=hashed_user)
-                    except Exception:
-                        # Ignore decoding errors in middleware - not our job to validate
-                        pass
-            except Exception as e:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                        # JWT decode errors in middleware are expected — log at trace level
+                        logger.debug("langfuse_jwt_decode_skipped", error=type(exc).__name__)
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("langfuse_context_update_failed", error=str(e))
 
         # Bind to structlog contextvars if available
@@ -148,15 +147,15 @@ class CorrelationIdMiddleware:
             # Avoid context leakage across requests/tasks
             try:
                 reset_request_id(rid_token)
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.debug("failed_to_reset_request_id", exc_info=True)
             try:
                 reset_trace_id(tid_token)
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.debug("failed_to_reset_trace_id", exc_info=True)
             try:
                 reset_correlation_id(cid_token)
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.debug("failed_to_reset_correlation_id", exc_info=True)
 
             if structlog:

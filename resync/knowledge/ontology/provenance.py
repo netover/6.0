@@ -24,11 +24,9 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # ENUMS
 # =============================================================================
-
 
 class SourceType(str, Enum):
     """Type of source document."""
@@ -41,7 +39,6 @@ class SourceType(str, Enum):
     SYSTEM = "system"
     UNKNOWN = "unknown"
 
-
 class ExtractionMethod(str, Enum):
     """Method used to extract entity."""
 
@@ -50,7 +47,6 @@ class ExtractionMethod(str, Enum):
     HYBRID = "hybrid"
     MANUAL = "manual"
     SYSTEM = "system"
-
 
 class VerificationStatus(str, Enum):
     """Entity verification status."""
@@ -61,11 +57,9 @@ class VerificationStatus(str, Enum):
     REJECTED = "rejected"
     AUTO_VERIFIED = "auto_verified"  # High confidence + validation passed
 
-
 # =============================================================================
 # DATA MODELS
 # =============================================================================
-
 
 @dataclass
 class SourceInfo:
@@ -108,7 +102,6 @@ class SourceInfo:
             "end_line": self.end_line,
         }
 
-
 @dataclass
 class ExtractionInfo:
     """Information about how entity was extracted."""
@@ -144,7 +137,6 @@ class ExtractionInfo:
             "extraction_duration_ms": self.extraction_duration_ms,
         }
 
-
 @dataclass
 class VerificationInfo:
     """Information about entity verification."""
@@ -164,7 +156,6 @@ class VerificationInfo:
             "verification_notes": self.verification_notes,
             "rejection_reason": self.rejection_reason,
         }
-
 
 @dataclass
 class ProvenanceRecord:
@@ -227,11 +218,9 @@ class ProvenanceRecord:
             and self.extraction.confidence_score >= 0.8
         )
 
-
 # =============================================================================
 # PROVENANCE TRACKER
 # =============================================================================
-
 
 class ProvenanceTracker:
     """
@@ -642,14 +631,11 @@ class ProvenanceTracker:
             "unique_entities": len(self._entity_index),
         }
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
-
 _provenance_tracker: ProvenanceTracker | None = None
-
 
 def get_provenance_tracker() -> ProvenanceTracker:
     """Get or create the singleton ProvenanceTracker instance."""
@@ -658,11 +644,9 @@ def get_provenance_tracker() -> ProvenanceTracker:
         _provenance_tracker = ProvenanceTracker()
     return _provenance_tracker
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
 
 def track_entity(
     entity_id: str,
@@ -692,7 +676,6 @@ def track_entity(
         model_name=model_name,
         confidence=confidence,
     )
-
 
 def get_entity_source(entity_id: str) -> dict[str, Any] | None:
     """

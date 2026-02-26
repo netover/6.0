@@ -26,7 +26,6 @@ from .session import TWSSession, get_session_manager
 
 logger = logging.getLogger(__name__)
 
-
 class TWSInstanceManager:
     """
     Manages multiple TWS instances.
@@ -74,7 +73,7 @@ class TWSInstanceManager:
                     self._learning_stores[config.id] = TWSLearningStore(config.id)
 
                 logger.info("Loaded %s TWS instances", len(self._instances))
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error loading instances: %s", e)
         else:
             # Create default instances
@@ -261,7 +260,7 @@ class TWSInstanceManager:
                 return True
             raise IntegrationError(f"Health check failed: {response.status_code}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             instance.status = TWSInstanceStatus.ERROR
             instance.error_count += 1
             instance.last_error = str(e)
@@ -313,7 +312,7 @@ class TWSInstanceManager:
                     "url": instance.connection_url,
                 }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             return {
                 "success": False,
                 "error": str(e),
@@ -392,10 +391,8 @@ class TWSInstanceManager:
             ],
         }
 
-
 # Global manager instance
 _manager: TWSInstanceManager | None = None
-
 
 def get_tws_manager() -> TWSInstanceManager:
     """Get global TWS instance manager."""

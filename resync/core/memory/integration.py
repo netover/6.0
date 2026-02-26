@@ -40,11 +40,9 @@ from resync.core.memory.long_term_memory import (
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # CONTEXT ASSEMBLY
 # =============================================================================
-
 
 async def assemble_memory_context(
     user_id: str,
@@ -100,7 +98,6 @@ async def assemble_memory_context(
 
     return "\n\n".join(sections)
 
-
 async def assemble_full_prompt(
     user_id: str,
     query: str,
@@ -129,11 +126,9 @@ async def assemble_full_prompt(
         return f"{base_system_prompt}\n\n{memory_context}\n\nUSER: {query}"
     return f"{base_system_prompt}\n\nUSER: {query}"
 
-
 # =============================================================================
 # SESSION LIFECYCLE HOOKS
 # =============================================================================
-
 
 async def extract_session_memories(
     user_id: str,
@@ -170,10 +165,9 @@ async def extract_session_memories(
         )
         return len(memories)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Memory extraction failed for session %s: %s", session_id, e)
         return 0
-
 
 async def on_session_end(
     user_id: str,
@@ -205,11 +199,9 @@ async def on_session_end(
         session_id=session_id,
     )
 
-
 # =============================================================================
 # AGENT STATE INTEGRATION
 # =============================================================================
-
 
 async def enrich_agent_state(
     state: dict[str, Any],
@@ -254,7 +246,6 @@ async def enrich_agent_state(
 
     return state
 
-
 async def save_turn_to_memory(
     user_id: str,
     session_id: str,
@@ -287,14 +278,12 @@ async def save_turn_to_memory(
                 {"role": msg.role, "content": msg.content} for msg in session.messages
             ]
             await extract_session_memories(user_id, conversation, session_id)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Background memory extraction failed: %s", e)
-
 
 # =============================================================================
 # USER MEMORY MANAGEMENT
 # =============================================================================
-
 
 async def get_user_memory_summary(user_id: str) -> dict[str, Any]:
     """
@@ -331,7 +320,6 @@ async def get_user_memory_summary(user_id: str) -> dict[str, Any]:
         "samples": samples,
     }
 
-
 async def delete_user_memories(user_id: str) -> dict[str, Any]:
     """
     Delete all long-term memories for a user (GDPR compliance).
@@ -351,7 +339,6 @@ async def delete_user_memories(user_id: str) -> dict[str, Any]:
         "status": "success",
     }
 
-
 async def confirm_memory(user_id: str, memory_id: str) -> bool:
     """
     User confirms a memory is correct.
@@ -365,7 +352,6 @@ async def confirm_memory(user_id: str, memory_id: str) -> bool:
     """
     ltm = get_long_term_memory()
     return await ltm.confirm_memory(memory_id)
-
 
 async def reject_memory(user_id: str, memory_id: str) -> bool:
     """
@@ -381,11 +367,9 @@ async def reject_memory(user_id: str, memory_id: str) -> bool:
     ltm = get_long_term_memory()
     return await ltm.contradict_memory(memory_id)
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     # Context assembly

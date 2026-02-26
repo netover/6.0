@@ -40,11 +40,9 @@ from resync.core.task_tracker import track_task
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # PROTOCOL — desacoplamento do FastAPI/Starlette para testes
 # =============================================================================
-
 
 @runtime_checkable
 class WebSocketProtocol(Protocol):
@@ -64,11 +62,9 @@ class WebSocketProtocol(Protocol):
 
     async def close(self, code: int = 1000) -> None: ...
 
-
 # =============================================================================
 # CONFIGURAÇÃO — Pydantic v2, imutável e validada na instanciação
 # =============================================================================
-
 
 class EventBusConfig(BaseModel):
     """
@@ -85,11 +81,9 @@ class EventBusConfig(BaseModel):
     websocket_send_timeout: float = Field(default=1.5, gt=0.0)
     enable_persistence: bool = False
 
-
 # =============================================================================
 # TIPOS DE ASSINATURA
 # =============================================================================
-
 
 class SubscriptionType(str, Enum):
     """Tipos de assinatura para filtro de eventos."""
@@ -99,7 +93,6 @@ class SubscriptionType(str, Enum):
     WORKSTATIONS = "ws"
     SYSTEM = "system"
     CRITICAL = "critical"
-
 
 # Mapeamento de prioridade explícita para _should_deliver.
 # Ordem importa: "critical" é avaliado antes de "system", que é avaliado
@@ -112,11 +105,9 @@ _SUBSCRIPTION_PRIORITY: list[tuple[str, SubscriptionType]] = [
     ("ws_", SubscriptionType.WORKSTATIONS),
 ]
 
-
 # =============================================================================
 # DATACLASSES — slots=True para eficiência de memória por conexão
 # =============================================================================
-
 
 @dataclass(slots=True)
 class Subscriber:
@@ -127,7 +118,6 @@ class Subscriber:
     subscription_types: set[SubscriptionType]
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     events_received: int = 0
-
 
 @dataclass(slots=True)
 class WebSocketClient:
@@ -140,11 +130,9 @@ class WebSocketClient:
     messages_sent: int = 0
     last_ping: datetime | None = None
 
-
 # =============================================================================
 # EVENT BUS
 # =============================================================================
-
 
 class EventBus:
     """
@@ -400,7 +388,7 @@ class EventBus:
                 client_id=client_id,
                 events_count=len(recent),
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning(
                 "recent_events_failed",
                 client_id=client_id,
@@ -502,7 +490,7 @@ class EventBus:
                 continue
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "event_processing_fatal",
                     error=str(e),
@@ -535,7 +523,7 @@ class EventBus:
                 subscriber.events_received += 1
                 self._events_delivered += 1
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 self._delivery_errors += 1
                 logger.error(
                     "subscriber_notification_error",
@@ -585,7 +573,7 @@ class EventBus:
                 )
                 return client.client_id
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "websocket_send_error",
                     client_id=client.client_id,
@@ -717,7 +705,7 @@ class EventBus:
                 async with asyncio.timeout(self.config.websocket_send_timeout):
                     await client.websocket.send_text(msg_json)
                 return True
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug(
                     "broadcast_message_failed",
                     client_id=client.client_id,
@@ -742,13 +730,11 @@ class EventBus:
 
         return delivered
 
-
 # =============================================================================
 # SINGLETON
 # =============================================================================
 
 _event_bus_instance: EventBus | None = None
-
 
 def get_event_bus() -> EventBus:
     """
@@ -765,7 +751,6 @@ def get_event_bus() -> EventBus:
             "antes de usar get_event_bus()."
         )
     return _event_bus_instance
-
 
 def init_event_bus(
     config: EventBusConfig | None = None,

@@ -15,7 +15,6 @@ from resync.core.structured_logger import get_logger
 if TYPE_CHECKING:
     from resync.core.security_dashboard import ComplianceReport
 
-
 # Lazy imports to avoid circular dependency
 def _get_soc2_compliance_manager():
     """Lazy import to avoid circular dependency."""
@@ -23,16 +22,13 @@ def _get_soc2_compliance_manager():
 
     return SOC2ComplianceManager
 
-
 def _get_compliance_report():
     """Lazy import to avoid circular dependency."""
     from resync.core.security_dashboard import ComplianceReport
 
     return ComplianceReport
 
-
 logger = get_logger(__name__)
-
 
 class ComplianceReportGenerator:
     """

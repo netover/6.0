@@ -15,7 +15,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from resync.core.database.engine import Base
 
-
 class UserRole(str, Enum):
     """User roles."""
 
@@ -23,7 +22,6 @@ class UserRole(str, Enum):
     USER = "user"
     OPERATOR = "operator"
     VIEWER = "viewer"
-
 
 class User(Base):
     """
@@ -163,7 +161,6 @@ class User(Base):
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username={self.username}, role={self.role})>"
 
-
 class AuditLog(Base):
     """
     Audit log for tracking user actions.
@@ -258,6 +255,5 @@ class AuditLog(Base):
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "ip_address": self.ip_address,
         }
-
 
 __all__ = ["User", "UserRole", "AuditLog"]

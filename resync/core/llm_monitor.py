@@ -14,7 +14,6 @@ from resync.core.utils.llm import call_llm
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class LLMCost:
     """LLM cost tracking."""
@@ -24,7 +23,6 @@ class LLMCost:
     output_tokens: int
     cost_usd: float
     timestamp: float = field(default_factory=time.time)
-
 
 @dataclass
 class LLMUsageStats:
@@ -38,7 +36,6 @@ class LLMUsageStats:
     error_rate: float = 0.0
     model_usage: dict[str, int] = field(default_factory=dict)
     daily_costs: dict[str, float] = field(default_factory=dict)
-
 
 class LLMCostMonitor:
     """
@@ -54,6 +51,9 @@ class LLMCostMonitor:
     def __init__(self):
         """Initialize LLM cost monitor."""
         self.usage_stats = LLMUsageStats()
+        # Bounded to prevent unbounded memory growth in long-running processes.
+        # 10,000 records ≈ 2-5 MB depending on payload size.
+        self._max_cost_history = 10_000
         self.cost_history: list[LLMCost] = []
         self.budget_limit = 500.0  # USD per month for 4M jobs/month
         self.cache = None  # Lazy initialization
@@ -97,6 +97,9 @@ class LLMCostMonitor:
         )
 
         self.cost_history.append(cost_record)
+        # Trim to avoid unbounded memory growth
+        if len(self.cost_history) > self._max_cost_history:
+            self.cost_history = self.cost_history[-self._max_cost_history :]
 
         # Update statistics
         self.usage_stats.total_requests += 1
@@ -137,7 +140,7 @@ class LLMCostMonitor:
                 output_cost = model_info["output_cost_per_token"]
                 # Convert to cost per 1K tokens
                 return {"input": input_cost * 1000, "output": output_cost * 1000}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Log pricing calculation error and fallback to hardcoded values
             logger.debug(
                 "LLM pricing calculation failed, using hardcoded values: %s", e
@@ -204,7 +207,6 @@ class LLMCostMonitor:
             * 100,
         }
 
-
 class StreamingLLMResponse:
     """
     Streaming LLM response for long outputs (troubleshooting).
@@ -242,7 +244,7 @@ class StreamingLLMResponse:
 
             self.is_complete = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -253,7 +255,6 @@ class StreamingLLMResponse:
     def get_full_response(self) -> str:
         """Get complete response."""
         return "".join(self.response_chunks)
-
 
 class _LazyLLMCostMonitor:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -271,9 +272,7 @@ class _LazyLLMCostMonitor:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 llm_cost_monitor = _LazyLLMCostMonitor()
-
 
 def get_llm_cost_monitor() -> LLMCostMonitor:
     """Return the singleton instance (preferred over using the proxy directly)."""

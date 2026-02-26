@@ -8,7 +8,6 @@ It defines the core cache operations that all cache implementations must support
 from abc import ABC, abstractmethod
 from typing import Any
 
-
 class BaseCache(ABC):
     """
     Abstract base class for cache implementations.

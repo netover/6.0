@@ -20,7 +20,6 @@ Referências:
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-
 class SecurityHeadersMiddleware:
     """
     Pure ASGI middleware que adiciona headers de segurança a todas as respostas.

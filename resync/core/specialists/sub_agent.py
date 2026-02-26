@@ -41,11 +41,9 @@ from .tools import (
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # SUB-AGENT RESULT
 # =============================================================================
-
 
 class SubAgentStatus(str, Enum):
     """Status of sub-agent execution."""
@@ -56,7 +54,6 @@ class SubAgentStatus(str, Enum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
-
 
 @dataclass
 class SubAgentResult:
@@ -85,11 +82,9 @@ class SubAgentResult:
             "duration_ms": self.duration_ms,
         }
 
-
 # =============================================================================
 # SUB-AGENT CONFIGURATION
 # =============================================================================
-
 
 @dataclass
 class SubAgentConfig:
@@ -112,11 +107,9 @@ class SubAgentConfig:
     # Context
     inherit_context: bool = True  # Inherit parent context
 
-
 # =============================================================================
 # SUB-AGENT
 # =============================================================================
-
 
 class SubAgent:
     """
@@ -202,7 +195,7 @@ class SubAgent:
                 duration_ms=self._get_duration_ms(),
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("sub_agent_error", agent_id=self.agent_id, error=str(e))
             return SubAgentResult(
                 agent_id=self.agent_id,
@@ -285,7 +278,7 @@ class SubAgent:
             async with asyncio.TaskGroup() as tg:
                 for agent in agents:
                     tasks.append(tg.create_task(execute_with_semaphore(agent)))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # TaskGroup usually raises ExceptionGroup, but we catch broad exception here for safety
             logger.error("parallel_execution_error", error=str(e))
 
@@ -315,11 +308,9 @@ class SubAgent:
 
         return results
 
-
 # =============================================================================
 # SUB-AGENT TOOL (for registration in catalog)
 # =============================================================================
-
 
 async def dispatch_sub_agent(
     prompt: str,
@@ -338,7 +329,6 @@ async def dispatch_sub_agent(
     agent = SubAgent(prompt=prompt, context=context)
     result = await agent.execute()
     return result.to_dict()
-
 
 async def dispatch_parallel_sub_agents(
     prompts: list[str],
@@ -360,11 +350,9 @@ async def dispatch_parallel_sub_agents(
     results = await SubAgent.execute_parallel(agents, max_concurrent)
     return [r.to_dict() for r in results]
 
-
 # =============================================================================
 # REGISTRATION HELPERS
 # =============================================================================
-
 
 def register_sub_agent_tools(catalog: ToolCatalog | None = None) -> None:
     """Register sub-agent tools in the catalog."""

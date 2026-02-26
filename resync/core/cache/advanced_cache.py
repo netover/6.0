@@ -27,7 +27,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class CacheEntry:
     """Enhanced cache entry with metadata."""
@@ -89,7 +88,6 @@ class CacheEntry:
 
         return int(base_ttl)
 
-
 @dataclass
 class CacheStats:
     """Comprehensive cache statistics."""
@@ -124,7 +122,6 @@ class CacheStats:
         """Calculate memory efficiency."""
         return self.memory_usage_bytes / max(1, self.max_memory_bytes)
 
-
 @dataclass
 class InvalidationRule:
     """Rule for automatic cache invalidation."""
@@ -133,7 +130,6 @@ class InvalidationRule:
     dependencies: list[str]  # Keys that depend on this pattern
     cascade: bool = True  # Whether to invalidate recursively
     ttl_multiplier: float = 1.0  # TTL adjustment for dependent keys
-
 
 class CacheDependencyGraph:
     """Graph for managing cache dependencies and cascade invalidation."""
@@ -203,7 +199,6 @@ class CacheDependencyGraph:
         for tag_keys in self.tags.values():
             tag_keys.discard(key)
 
-
 class AdvancedCacheManager:
     """
     Intelligent cache manager with automatic invalidation and hierarchical caching.
@@ -256,17 +251,17 @@ class AdvancedCacheManager:
             self.redis_client = await redis_init.initialize()
             self.redis_enabled = True
             logger.info("Redis integration enabled for advanced caching")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Redis not available for caching: %s", e)
             self.redis_enabled = False
 
         self._running = True
 
         # Start background tasks
-        self._cleanup_task = await create_tracked_task(
+        self._cleanup_task = create_tracked_task(
             self._cleanup_loop(), name="cleanup_loop"
         )
-        self._warming_task = await create_tracked_task(
+        self._warming_task = create_tracked_task(
             self._warming_loop(), name="warming_loop"
         )
 
@@ -344,7 +339,7 @@ class AdvancedCacheManager:
                 await self.set(key, value, ttl, dependencies, tags)
                 self._record_miss(time.time() - start_time)
                 return value
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Failed to fetch data for key %s: %s", key, e)
                 self._record_miss(time.time() - start_time)
                 raise
@@ -498,7 +493,7 @@ class AdvancedCacheManager:
                 warmed += 1
                 logger.debug("Warmed cache key: %s", key)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "Failed to warm cache key %s: %s",
                     key_config.get("key", "unknown"),
@@ -585,7 +580,7 @@ class AdvancedCacheManager:
             value_json = await self.redis_client.get(key)
             if value_json:
                 return json.loads(value_json)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Redis get error for key %s: %s", key, e)
 
         return None
@@ -598,7 +593,7 @@ class AdvancedCacheManager:
         try:
             value_json = json.dumps(value)
             await self.redis_client.set(key, value_json, ex=ttl)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Redis set error for key %s: %s", key, e)
 
     def _calculate_ttl(self, key: str, value: Any) -> int:
@@ -705,7 +700,7 @@ class AdvancedCacheManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Cache cleanup error: %s", e)
 
     async def _warming_loop(self) -> None:
@@ -733,13 +728,11 @@ class AdvancedCacheManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Cache warming error: %s", e)
-
 
 # Global cache manager instance
 _advanced_cache_manager_instance: AdvancedCacheManager | None = None
-
 
 class _LazyAdvancedCacheManager:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -757,14 +750,11 @@ class _LazyAdvancedCacheManager:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 advanced_cache_manager = _LazyAdvancedCacheManager()
-
 
 def get_advanced_cache_manager_sync() -> AdvancedCacheManager:
     """Return the singleton instance synchronously."""
     return advanced_cache_manager.get_instance()
-
 
 async def get_advanced_cache_manager() -> AdvancedCacheManager:
     """Get the global advanced cache manager instance."""
@@ -772,10 +762,8 @@ async def get_advanced_cache_manager() -> AdvancedCacheManager:
         await advanced_cache_manager.initialize()
     return advanced_cache_manager  # type: ignore[return-value]
 
-
 # Backward compatibility aliases
 AdvancedApplicationCache = AdvancedCacheManager
-
 
 class CacheInvalidator:
     """Legacy invalidator class shim."""

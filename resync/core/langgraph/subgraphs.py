@@ -49,11 +49,9 @@ except ImportError:
     Send = None
     interrupt = None
 
-
 # =============================================================================
 # SHARED STATE DEFINITIONS
 # =============================================================================
-
 
 class SubgraphState(TypedDict, total=False):
     """Base state for subgraphs."""
@@ -66,7 +64,6 @@ class SubgraphState(TypedDict, total=False):
     result: dict[str, Any]
     error: str | None
 
-
 class ParallelResult(TypedDict):
     """Result from a parallel data source."""
 
@@ -76,11 +73,9 @@ class ParallelResult(TypedDict):
     success: bool
     error: str | None
 
-
 # =============================================================================
 # DIAGNOSTIC SUBGRAPH
 # =============================================================================
-
 
 class DiagnosticSubgraphState(TypedDict, total=False):
     """State for diagnostic subgraph."""
@@ -106,7 +101,6 @@ class DiagnosticSubgraphState(TypedDict, total=False):
     # Control
     iteration: int
     max_iterations: int
-
 
 async def _diagnose_node(state: DiagnosticSubgraphState) -> dict:
     """Analyze problem and extract symptoms."""
@@ -136,11 +130,10 @@ JSON:"""
                 "possible_causes": data.get("possible_causes", []),
                 "confidence": data.get("confidence", 0.5),
             }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("diagnose_error", error=str(e))
 
     return {"symptoms": [problem], "possible_causes": [], "confidence": 0.3}
-
 
 async def _research_node(state: DiagnosticSubgraphState) -> dict:
     """Research documentation and history."""
@@ -153,10 +146,9 @@ async def _research_node(state: DiagnosticSubgraphState) -> dict:
         rag = RAGClient()
         results = await rag.search(query=query, limit=5)
         return {"documentation_context": results.get("results", [])}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("research_error", error=str(e))
         return {"documentation_context": []}
-
 
 async def _synthesize_diagnosis_node(state: DiagnosticSubgraphState) -> dict:
     """Synthesize final diagnosis."""
@@ -190,11 +182,10 @@ JSON:"""
                 "solution": data.get("solution"),
                 "recommendations": data.get("recommendations", []),
             }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("synthesis_error", error=str(e))
 
     return {"recommendations": ["Investigate logs manually"]}
-
 
 def _should_continue_diagnosis(state: DiagnosticSubgraphState) -> str:
     """Check if we need more iterations."""
@@ -205,7 +196,6 @@ def _should_continue_diagnosis(state: DiagnosticSubgraphState) -> str:
     if confidence >= 0.7 or iteration >= max_iter:
         return "synthesize"
     return "research"
-
 
 def create_diagnostic_subgraph():
     """
@@ -239,11 +229,9 @@ def create_diagnostic_subgraph():
 
     return graph.compile()
 
-
 # =============================================================================
 # PARALLEL FETCH SUBGRAPH
 # =============================================================================
-
 
 class ParallelFetchState(TypedDict, total=False):
     """State for parallel fetch subgraph."""
@@ -259,7 +247,6 @@ class ParallelFetchState(TypedDict, total=False):
     # Aggregated
     aggregated_data: dict[str, Any]
     total_latency_ms: float
-
 
 async def _fetch_tws_status(state: ParallelFetchState) -> dict:
     """Fetch TWS status in parallel."""
@@ -287,7 +274,7 @@ async def _fetch_tws_status(state: ParallelFetchState) -> dict:
                 }
             ]
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return {
             "parallel_results": [
                 {
@@ -299,7 +286,6 @@ async def _fetch_tws_status(state: ParallelFetchState) -> dict:
                 }
             ]
         }
-
 
 async def _fetch_rag_context(state: ParallelFetchState) -> dict:
     """Fetch RAG context in parallel."""
@@ -324,7 +310,7 @@ async def _fetch_rag_context(state: ParallelFetchState) -> dict:
                 }
             ]
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return {
             "parallel_results": [
                 {
@@ -336,7 +322,6 @@ async def _fetch_rag_context(state: ParallelFetchState) -> dict:
                 }
             ]
         }
-
 
 def _fetch_logs(state: ParallelFetchState) -> dict:
     """Fetch recent logs in parallel."""
@@ -358,7 +343,7 @@ def _fetch_logs(state: ParallelFetchState) -> dict:
                 }
             ]
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return {
             "parallel_results": [
                 {
@@ -370,7 +355,6 @@ def _fetch_logs(state: ParallelFetchState) -> dict:
                 }
             ]
         }
-
 
 def _aggregate_results(state: ParallelFetchState) -> dict:
     """Aggregate parallel fetch results."""
@@ -396,7 +380,6 @@ def _aggregate_results(state: ParallelFetchState) -> dict:
         "total_latency_ms": total_latency,
     }
 
-
 def _parallel_router(state: ParallelFetchState) -> list[Any] | str:
     """Route to parallel nodes using Send API (LangGraph 0.3)."""
     if not LANGGRAPH_03_FEATURES or Send is None:
@@ -408,7 +391,6 @@ def _parallel_router(state: ParallelFetchState) -> list[Any] | str:
         Send("fetch_rag", state),
         Send("fetch_logs", state),
     ]
-
 
 def create_parallel_subgraph():
     """
@@ -439,11 +421,9 @@ def create_parallel_subgraph():
 
     return graph.compile()
 
-
 # =============================================================================
 # APPROVAL SUBGRAPH (using interrupt() - LangGraph 0.3)
 # =============================================================================
-
 
 class ApprovalState(TypedDict, total=False):
     """State for approval subgraph."""
@@ -461,7 +441,6 @@ class ApprovalState(TypedDict, total=False):
 
     # Result
     execution_result: dict[str, Any] | None
-
 
 def _request_approval_node(state: ApprovalState) -> dict:
     """Request human approval using interrupt()."""
@@ -489,7 +468,6 @@ def _request_approval_node(state: ApprovalState) -> dict:
         "approver": approval.get("approver"),
         "comments": approval.get("comments"),
     }
-
 
 async def _execute_action_node(state: ApprovalState) -> dict:
     """Execute the approved action."""
@@ -521,16 +499,14 @@ async def _execute_action_node(state: ApprovalState) -> dict:
 
         return {"execution_result": result}
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return {"execution_result": {"status": "error", "error": str(e)}}
-
 
 def _check_approval(state: ApprovalState) -> str:
     """Check if action was approved."""
     if state.get("approved"):
         return "execute"
     return END
-
 
 def create_approval_subgraph():
     """
@@ -558,16 +534,13 @@ def create_approval_subgraph():
 
     return graph.compile()
 
-
 # =============================================================================
 # FACTORY FUNCTIONS
 # =============================================================================
 
-
 _DIAGNOSTIC_SUBGRAPH = None
 _PARALLEL_SUBGRAPH = None
 _APPROVAL_SUBGRAPH = None
-
 
 def get_diagnostic_subgraph():
     """Get or create diagnostic subgraph singleton."""
@@ -576,14 +549,12 @@ def get_diagnostic_subgraph():
         _DIAGNOSTIC_SUBGRAPH = create_diagnostic_subgraph()
     return _DIAGNOSTIC_SUBGRAPH
 
-
 def get_parallel_subgraph():
     """Get or create parallel fetch subgraph singleton."""
     global _PARALLEL_SUBGRAPH
     if _PARALLEL_SUBGRAPH is None:
         _PARALLEL_SUBGRAPH = create_parallel_subgraph()
     return _PARALLEL_SUBGRAPH
-
 
 def get_approval_subgraph():
     """Get or create approval subgraph singleton."""
@@ -592,11 +563,9 @@ def get_approval_subgraph():
         _APPROVAL_SUBGRAPH = create_approval_subgraph()
     return _APPROVAL_SUBGRAPH
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     # State types

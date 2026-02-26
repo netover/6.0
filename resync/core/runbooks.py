@@ -10,7 +10,6 @@ identifying, diagnosing, and resolving specific types of incidents.
 import datetime
 from datetime import timezone
 
-
 class IncidentRunbook:
     """Base class for incident response runbooks"""
 
@@ -23,7 +22,6 @@ class IncidentRunbook:
     def execute(self, context: dict) -> dict:
         """Execute the runbook with the given context"""
         raise NotImplementedError("Subclasses must implement execute method")
-
 
 class TWSConnectionFailureRunbook(IncidentRunbook):
     """
@@ -92,7 +90,6 @@ class TWSConnectionFailureRunbook(IncidentRunbook):
             ],
         }
 
-
 class HighErrorRateRunbook(IncidentRunbook):
     """
     Runbook for High Error Rate Incidents
@@ -159,7 +156,6 @@ class HighErrorRateRunbook(IncidentRunbook):
                 "Conduct post-incident review",
             ],
         }
-
 
 class PerformanceDegradationRunbook(IncidentRunbook):
     """
@@ -228,7 +224,6 @@ class PerformanceDegradationRunbook(IncidentRunbook):
             ],
         }
 
-
 class SecurityIncidentRunbook(IncidentRunbook):
     """
     Runbook for Security Incidents
@@ -294,7 +289,6 @@ class SecurityIncidentRunbook(IncidentRunbook):
             ],
         }
 
-
 class DataConsistencyRunbook(IncidentRunbook):
     """
     Runbook for Data Consistency Issues
@@ -359,7 +353,6 @@ class DataConsistencyRunbook(IncidentRunbook):
             ],
         }
 
-
 class RunbookRegistry:
     """
     Registry for managing incident response runbooks
@@ -393,10 +386,8 @@ class RunbookRegistry:
         """List all available runbooks"""
         return list(self.runbooks.keys())
 
-
 # Global registry instance
 runbook_registry = RunbookRegistry()
-
 
 def get_runbook_registry() -> RunbookRegistry:
     """

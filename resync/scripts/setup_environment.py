@@ -22,7 +22,6 @@ from pathlib import Path
 # Constants for file paths
 DOCKER_COMPOSE_FILE = "docker-compose.resync.yml"
 
-
 def run_command(
     cmd: list[str], check: bool = True, cwd: str | None = None
 ) -> subprocess.CompletedProcess:
@@ -35,7 +34,6 @@ def run_command(
         print(result.stdout)
     return result
 
-
 def check_python_version() -> bool:
     """Verifica versão do Python."""
     version = sys.version_info
@@ -46,7 +44,6 @@ def check_python_version() -> bool:
         return False
     print(f"✅ Python {version.major}.{version.minor}.{version.micro}")
     return True
-
 
 def install_python_deps() -> None:
     """Instala dependências Python."""
@@ -88,7 +85,6 @@ def install_python_deps() -> None:
         print(f"⚠️  Erro ao instalar dependências: {e}")
         print("   Continuando mesmo assim...")
 
-
 def setup_postgres() -> None:
     """Configura PostgreSQL."""
     print("\n" + "=" * 60)
@@ -101,7 +97,6 @@ def setup_postgres() -> None:
     else:
         print("❌ Script install_postgres.py não encontrado")
 
-
 def setup_redis() -> None:
     """Configura Redis."""
     print("\n" + "=" * 60)
@@ -113,7 +108,6 @@ def setup_redis() -> None:
         run_command([str(script_path), "--action", "setup"])
     else:
         print("❌ Script install_redis.py não encontrado")
-
 
 def setup_docker() -> None:
     """Setup usando Docker."""
@@ -177,7 +171,6 @@ volumes:
             run_command(["docker", "compose", "-f", DOCKER_COMPOSE_FILE, "up", "-d"])
         except (FileNotFoundError, subprocess.SubprocessError) as e:
             print(f"❌ Docker não disponível: {e}")
-
 
 def create_env_file() -> None:
     """Cria arquivo .env de exemplo."""
@@ -253,7 +246,6 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:8000
         print(f"✅ {env_file} criado!")
         print("   Copie para .env e configure os valores")
 
-
 def verify_setup() -> None:
     """Verifica se tudo está configurado."""
     print("\n" + "=" * 60)
@@ -307,7 +299,6 @@ def verify_setup() -> None:
         print("✅ Ambiente virtual criado")
     else:
         print("⚠️  Ambiente virtual não criado")
-
 
 def main():
     parser = argparse.ArgumentParser(description="Setup Completo para Resync")
@@ -365,7 +356,6 @@ def main():
 ║  3. Acesse: http://localhost:8000                                          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
-
 
 if __name__ == "__main__":
     main()

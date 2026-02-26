@@ -18,7 +18,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 def load_validation_config():
     """Load validation configuration from TOML file."""
     try:
@@ -32,12 +31,11 @@ def load_validation_config():
             config = toml.load(config_file)
             return config.get("graphrag", {}).get("validation", {})
         return {}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return {}
-
 
 class CacheValidationConfig:
     """
@@ -77,7 +75,6 @@ class CacheValidationConfig:
         cls.TRUST_CACHE_DAYS = cls._config.get("trust_cache_days", 7)
         cls.AUTO_INVALIDATE = cls._config.get("auto_invalidate", True)
         cls.AUTO_REDISCOVER = cls._config.get("auto_rediscover", True)
-
 
 class CacheValidationStats:
     """Statistics for cache validation."""
@@ -138,7 +135,6 @@ class CacheValidationStats:
         self.cache_invalidations = 0
         self.dependencies_changed = []
         self.last_reset = datetime.now(timezone.utc)
-
 
 class SmartCacheValidator:
     """
@@ -220,7 +216,7 @@ class SmartCacheValidator:
             if not is_valid and CacheValidationConfig.AUTO_INVALIDATE:
                 await self._handle_invalid_cache(job_name, event_details, changes)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -259,7 +255,7 @@ class SmartCacheValidator:
 
             return None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -279,7 +275,7 @@ class SmartCacheValidator:
             age = datetime.now(timezone.utc) - cached_at
             return age.days
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -350,7 +346,7 @@ class SmartCacheValidator:
             # No changes detected
             return True, None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -371,11 +367,11 @@ class SmartCacheValidator:
             if CacheValidationConfig.AUTO_REDISCOVER and self.discovery:
                 logger.info("Triggering re-discovery for %s", job_name)
 
-                await create_tracked_task(
+                create_tracked_task(
                     self.discovery.on_job_failed(job_name, event_details)
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -395,7 +391,7 @@ class SmartCacheValidator:
 
             logger.debug("Cache invalidated for %s", job_name)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -409,7 +405,6 @@ class SmartCacheValidator:
         """Reset daily statistics."""
         self.stats.reset_daily_stats()
         logger.info("Cache validation stats reset")
-
 
 def get_cache_validator(
     tws_client, cache_client, knowledge_graph, discovery_service=None

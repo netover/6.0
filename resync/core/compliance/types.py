@@ -3,7 +3,6 @@
 from enum import Enum
 from typing import Any, Protocol
 
-
 class SOC2TrustServiceCriteria(Enum):
     """SOC 2 Trust Service Criteria."""
 
@@ -14,7 +13,6 @@ class SOC2TrustServiceCriteria(Enum):
     )
     CONFIDENTIALITY = "confidentiality"  # Information designated confidential protected
     PRIVACY = "privacy"  # Personal information collected, used, retained appropriately
-
 
 class SOC2ComplianceManagerProtocol(Protocol):
     """Protocol for SOC2 compliance manager."""
@@ -30,7 +28,6 @@ class SOC2ComplianceManagerProtocol(Protocol):
     def update_compliance_record(self, record_id: str, data: dict[str, Any]) -> bool:
         """Update a compliance record."""
         ...
-
 
 class SOC2ComplianceManager:
     """

@@ -36,7 +36,6 @@ from resync.models.error_models import (
     BaseErrorResponse,
 )
 
-
 # Lazy imports to avoid circular dependency
 def _get_error_response_builder():
     """Lazy import to avoid circular dependency."""
@@ -44,20 +43,17 @@ def _get_error_response_builder():
 
     return ErrorResponseBuilder
 
-
 def _get_generate_correlation_id():
     """Lazy import to avoid circular dependency."""
     from resync.core.utils.error_utils import generate_correlation_id
 
     return generate_correlation_id
 
-
 def _get_should_include_stack_trace():
     """Lazy import to avoid circular dependency."""
     from resync.core.utils.error_utils import should_include_stack_trace
 
     return should_include_stack_trace
-
 
 class ErrorFactory:
     """Base factory class for creating error responses."""
@@ -126,7 +122,6 @@ class ErrorFactory:
         return UnknownExceptionFactory.create_response(
             builder, exception, is_production
         )
-
 
 class EnhancedResyncExceptionFactory:
     """Factory for handling enhanced Resync exceptions."""
@@ -207,7 +202,6 @@ class EnhancedResyncExceptionFactory:
             details=details,
         )
 
-
 class TWSConnectionExceptionFactory:
     """Factory for handling TWS connection exceptions."""
 
@@ -219,7 +213,6 @@ class TWSConnectionExceptionFactory:
     ) -> BaseErrorResponse:
         """Create response for TWS connection exceptions."""
         return builder.build_external_service_error("TWS", "service_error")
-
 
 class LLMExceptionFactory:
     """Factory for handling LLM exceptions."""
@@ -233,7 +226,6 @@ class LLMExceptionFactory:
         """Create response for LLM exceptions."""
         return builder.build_external_service_error("LLM", "service_error")
 
-
 class DatabaseExceptionFactory:
     """Factory for handling database exceptions."""
 
@@ -245,7 +237,6 @@ class DatabaseExceptionFactory:
     ) -> BaseErrorResponse:
         """Create response for database exceptions."""
         return builder.build_system_error("database_error")
-
 
 class NotFoundExceptionHandler:
     """Factory for handling not found exceptions."""
@@ -261,7 +252,6 @@ class NotFoundExceptionHandler:
             "resource_not_found", resource="Resource"
         )
 
-
 class BaseResyncExceptionFactory:
     """Factory for handling base Resync exceptions."""
 
@@ -276,7 +266,6 @@ class BaseResyncExceptionFactory:
             "internal_server_error", exception=exception if not is_production else None
         )
 
-
 class UnknownExceptionFactory:
     """Factory for handling unknown exceptions."""
 
@@ -290,7 +279,6 @@ class UnknownExceptionFactory:
         return builder.build_system_error(
             "internal_server_error", exception=exception if not is_production else None
         )
-
 
 def _handle_business_logic_exception(
     builder,  # ErrorResponseBuilder
@@ -312,7 +300,6 @@ def _handle_business_logic_exception(
         user_friendly_message=sanitize_error_message(user_friendly_message),
         details=details,
     )
-
 
 def sanitize_error_message(message: str) -> str:
     """

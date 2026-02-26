@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
-
 class SyncItem(BaseModel):
     """
     Model for sync items with validation.
@@ -87,7 +86,6 @@ class SyncItem(BaseModel):
         if dt is None:
             dt = datetime.now(timezone.utc)
         return dt.isoformat()
-
 
 class AuditRecord(BaseModel):
     """
@@ -234,7 +232,6 @@ class AuditRecord(BaseModel):
             dt = datetime.now(timezone.utc)
         return dt.isoformat()
 
-
 class JobStatusUpdate(BaseModel):
     """
     Model for job status updates with validation.
@@ -286,7 +283,6 @@ class JobStatusUpdate(BaseModel):
                 f"Invalid job status: {v}. Must be one of {valid_statuses}"
             )
         return v.lower()
-
 
 class DocumentUpload(BaseModel):
     """
@@ -385,7 +381,7 @@ class DocumentUpload(BaseModel):
             from resync.settings import get_settings
 
             max_size = get_settings().max_file_size
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             max_size = 10 * 1024 * 1024
 
         if v > max_size:
@@ -394,7 +390,6 @@ class DocumentUpload(BaseModel):
             )
 
         return v
-
 
 class CorsConfigResponse(BaseModel):
     """Response model for CORS configuration."""
@@ -406,14 +401,12 @@ class CorsConfigResponse(BaseModel):
     expose_headers: list[str]
     max_age: int
 
-
 class CorsTestParams(BaseModel):
     """Parameters for testing a CORS policy."""
 
     origin: str
     method: str
     path: str
-
 
 class CorsTestResponse(BaseModel):
     """Response model for a CORS policy test."""
@@ -422,12 +415,10 @@ class CorsTestResponse(BaseModel):
     origin: str
     method: str
 
-
 class OriginValidationRequest(BaseModel):
     """Request model for validating a list of origins."""
 
     origins: list[str]
-
 
 class OriginValidationResponse(BaseModel):
     """Response model for origin validation."""

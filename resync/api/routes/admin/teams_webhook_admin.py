@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from importlib.util import find_spec
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -44,7 +44,6 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # Models
 class UserCreate(BaseModel):
     email: EmailStr
@@ -66,13 +65,11 @@ class UserCreate(BaseModel):
 
         return normalized
 
-
 class UserUpdate(BaseModel):
     name: str | None = None
     role: str | None = Field(None, pattern="^(viewer|operator|admin)$")
     can_execute_commands: bool | None = None
     is_active: bool | None = None
-
 
 class UserResponse(BaseModel):
     id: int
@@ -86,7 +83,6 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class AuditLogResponse(BaseModel):
     id: int
     user_email: str
@@ -99,7 +95,6 @@ class AuditLogResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class StatsResponse(BaseModel):
     total_users: int
     active_users: int
@@ -109,21 +104,24 @@ class StatsResponse(BaseModel):
     authorized_commands: int
     unauthorized_attempts: int
 
-
 # Endpoints
 @router.get("/users", response_model=list[UserResponse])
-async def list_users(active_only: bool = True, db: Session = Depends(get_db)):
+async def list_users(
+    active_only: bool = True,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
     """Lista todos os usuários cadastrados."""
     stmt = select(TeamsWebhookUser)
     if active_only:
         stmt = stmt.where(TeamsWebhookUser.is_active)
-    stmt = stmt.order_by(TeamsWebhookUser.created_at.desc())
+    stmt = stmt.order_by(TeamsWebhookUser.created_at.desc()).limit(limit).offset(offset)
 
     result = db.execute(stmt)
     users = result.scalars().all()
 
     return [UserResponse.model_validate(user) for user in users]
-
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -149,7 +147,6 @@ async def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
 
     return UserResponse.model_validate(user)
 
-
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, db: Session = Depends(get_db)):
     """Obtém usuário por ID."""
@@ -162,7 +159,6 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
         )
 
     return UserResponse.model_validate(user)
-
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
@@ -194,7 +190,6 @@ async def update_user(
 
     return UserResponse.model_validate(user)
 
-
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(user_id: int, db: Session = Depends(get_db)):
     """Deleta usuário (soft delete - marca como inativo)."""
@@ -212,10 +207,9 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
 
     logger.info("teams_webhook_user_deleted", user_id=user_id, email=user.email)
 
-
 @router.get("/audit-logs", response_model=list[AuditLogResponse])
 async def get_audit_logs(
-    limit: int = 100, user_email: str | None = None, db: Session = Depends(get_db)
+    limit: int = Query(100, ge=1, le=1000), user_email: str | None = None, db: Session = Depends(get_db)
 ):
     """Obtém logs de auditoria."""
     stmt = select(TeamsWebhookAudit)
@@ -229,7 +223,6 @@ async def get_audit_logs(
     logs = result.scalars().all()
 
     return [AuditLogResponse.model_validate(log) for log in logs]
-
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(db: Session = Depends(get_db)):
@@ -287,7 +280,7 @@ async def get_stats(db: Session = Depends(get_db)):
             authorized_commands=authorized_commands,
             unauthorized_attempts=unauthorized_attempts,
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("teams_webhook_stats_failed", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

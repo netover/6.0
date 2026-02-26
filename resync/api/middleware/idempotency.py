@@ -29,7 +29,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class IdempotencyMiddleware(BaseHTTPMiddleware):
     """
     Middleware FastAPI para processamento de idempotency keys
@@ -137,10 +136,8 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             ):
                 body = await request.body()
 
-                async def receive():
-                    return {"type": "http.request", "body": body}
-
-                request._receive = receive
+                # NOTE: Do not monkey-patch request internals (Starlette private API).
+                # request.body() is cached by Starlette; downstream handlers can call it safely.
 
             cached_response = await self.idempotency_manager.get_cached_response(
                 idempotency_key, request_data
@@ -203,7 +200,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         except HTTPException:
             # Re-lançar exceções HTTP sem modificação
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Para outras exceções, log e re-lança
             logger.error(
                 "Unexpected error in idempotency middleware",
@@ -309,7 +306,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 "query_params": dict(request.query_params),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -383,7 +380,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     idempotency_key=idempotency_key,
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -427,7 +424,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # Para outros tipos, retornar estrutura básica
             return {"message": "Response cached", "status_code": response.status_code}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -461,7 +458,6 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             headers=headers,
         )
 
-
 class IdempotencyConfig:
     """
     Configuração para middleware de idempotency
@@ -480,7 +476,6 @@ class IdempotencyConfig:
         )
         self.exclude_methods = set(exclude_methods or ["GET", "HEAD", "OPTIONS"])
         self.required_for_mutations = required_for_mutations
-
 
 def create_idempotency_middleware(
     idempotency_manager: IdempotencyManager, config: IdempotencyConfig | None = None
@@ -514,9 +509,7 @@ def create_idempotency_middleware(
 
     return idempotency_middleware
 
-
 # Funções utilitárias
-
 
 def generate_idempotency_key() -> str:
     """
@@ -528,7 +521,6 @@ def generate_idempotency_key() -> str:
     import uuid
 
     return str(uuid.uuid4())
-
 
 def validate_idempotency_key(key: str) -> bool:
     """

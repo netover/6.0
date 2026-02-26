@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from resync.core.skill_manager import SkillManager
     from resync.services.llm_service import LLMService
 
-
 @dataclass(slots=True)
 class EnterpriseState:
     """All application singletons and lifecycle flags.
@@ -58,11 +57,9 @@ class EnterpriseState:
     # Test/shutdown marker
     domain_shutdown_complete: bool = False
 
-
 def enterprise_state_from_app(app: FastAPI) -> EnterpriseState:
     """Return typed enterprise state from app."""
     return cast(EnterpriseState, getattr(app.state, "enterprise_state"))
-
 
 def enterprise_state_from_request(request: Request) -> EnterpriseState:
     """Return typed enterprise state from request."""

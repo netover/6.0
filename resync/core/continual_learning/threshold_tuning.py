@@ -15,7 +15,6 @@ from resync.core.database.repositories import FeedbackStore
 
 logger = logging.getLogger(__name__)
 
-
 class AutoTuningMode(str, Enum):
     """Auto-tuning mode for thresholds."""
 
@@ -24,7 +23,6 @@ class AutoTuningMode(str, Enum):
     MODERATE = "moderate"
     AGGRESSIVE = "aggressive"
     ADAPTIVE = "adaptive"
-
 
 @dataclass
 class ThresholdBounds:
@@ -38,7 +36,6 @@ class ThresholdBounds:
         """Clamp value to bounds."""
         return max(self.min_value, min(self.max_value, value))
 
-
 @dataclass
 class ThresholdConfig:
     """Configuration for a threshold."""
@@ -49,7 +46,6 @@ class ThresholdConfig:
     description: str = ""
     auto_tune: bool = True
     mode: AutoTuningMode = AutoTuningMode.MODERATE
-
 
 @dataclass
 class ThresholdMetrics:
@@ -67,7 +63,6 @@ class ThresholdMetrics:
         total = self.hit_count + self.miss_count
         return self.hit_count / total if total > 0 else 0.0
 
-
 @dataclass
 class ThresholdRecommendation:
     """Recommendation for threshold adjustment."""
@@ -78,7 +73,6 @@ class ThresholdRecommendation:
     confidence: float = 0.0
     reason: str = ""
     based_on_samples: int = 0
-
 
 @dataclass
 class AuditLogEntry:
@@ -94,7 +88,6 @@ class AuditLogEntry:
     user_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class AuditResult:
     """Result of an audit operation."""
@@ -103,7 +96,6 @@ class AuditResult:
     message: str = ""
     entries: list[AuditLogEntry] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
-
 
 class AuditToKGPipeline:
     """Pipeline to push audit data to knowledge graph."""
@@ -123,7 +115,6 @@ class AuditToKGPipeline:
         count = len(self._buffer)
         self._buffer.clear()
         return count
-
 
 class ThresholdTuningManager:
     """Manager for threshold tuning operations."""
@@ -182,7 +173,6 @@ class ThresholdTuningManager:
                 applied.append(rec)
         return applied
 
-
 __all__ = [
     "ThresholdTuner",
     "get_threshold_tuner",
@@ -198,7 +188,6 @@ __all__ = [
     "get_threshold_tuning_manager",
     "get_audit_to_kg_pipeline",
 ]
-
 
 class ThresholdTuner:
     """Threshold Tuner - PostgreSQL Backend."""
@@ -271,11 +260,9 @@ class ThresholdTuner:
             "total_feedback": total,
         }
 
-
 _instance: ThresholdTuner | None = None
 _manager_instance: ThresholdTuningManager | None = None
 _pipeline_instance: AuditToKGPipeline | None = None
-
 
 def get_threshold_tuner() -> ThresholdTuner:
     """Get the singleton ThresholdTuner instance."""
@@ -284,14 +271,12 @@ def get_threshold_tuner() -> ThresholdTuner:
         _instance = ThresholdTuner()
     return _instance
 
-
 def get_threshold_tuning_manager() -> ThresholdTuningManager:
     """Get the singleton ThresholdTuningManager instance."""
     global _manager_instance
     if _manager_instance is None:
         _manager_instance = ThresholdTuningManager()
     return _manager_instance
-
 
 def get_audit_to_kg_pipeline() -> AuditToKGPipeline:
     """Get the singleton AuditToKGPipeline instance."""

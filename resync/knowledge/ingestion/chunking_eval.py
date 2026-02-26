@@ -36,7 +36,6 @@ from typing import Any
 
 logger = structlog.get_logger(__name__)
 
-
 class FailureSlice(str, Enum):
     """
     Taxonomy of RAG retrieval failure types.
@@ -68,7 +67,6 @@ class FailureSlice(str, Enum):
     UNKNOWN = "unknown"
     """Failure doesn't fit other categories."""
 
-
 class FailureSeverity(str, Enum):
     """Severity level of a retrieval failure."""
 
@@ -76,7 +74,6 @@ class FailureSeverity(str, Enum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
-
 
 @dataclass
 class RetrievedChunk:
@@ -87,7 +84,6 @@ class RetrievedChunk:
     score: float
     rank: int
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class EvalResult:
@@ -138,7 +134,6 @@ class EvalResult:
             "evaluated_at": self.evaluated_at,
         }
 
-
 @dataclass
 class RuleSuggestion:
     """Suggested chunking rule change based on failure analysis."""
@@ -160,7 +155,6 @@ class RuleSuggestion:
             "affected_queries": self.affected_queries,
             "estimated_impact": self.estimated_impact,
         }
-
 
 @dataclass
 class EvalReport:
@@ -192,7 +186,6 @@ class EvalReport:
             "rule_suggestions": [s.to_dict() for s in self.rule_suggestions],
             "evaluated_at": self.evaluated_at,
         }
-
 
 def detect_failure_slice(
     query: str,
@@ -291,7 +284,6 @@ def detect_failure_slice(
                     )
     return (FailureSlice.UNKNOWN, "Could not determine specific failure type")
 
-
 def _calculate_text_overlap(text1: str, text2: str) -> float:
     """Calculate overlap ratio between two texts."""
     # Cap text length to prevent unbounded memory usage on massive chunks
@@ -302,7 +294,6 @@ def _calculate_text_overlap(text1: str, text2: str) -> float:
     intersection = words1.intersection(words2)
     smaller = min(len(words1), len(words2))
     return len(intersection) / smaller if smaller > 0 else 0.0
-
 
 FAILURE_SLICE_RULES: dict[FailureSlice, dict[str, Any]] = {
     FailureSlice.MISSING_EXCEPTION: {
@@ -384,7 +375,6 @@ FAILURE_SLICE_RULES: dict[FailureSlice, dict[str, Any]] = {
     },
 }
 
-
 def generate_rule_suggestions(results: list[EvalResult]) -> list[RuleSuggestion]:
     """Generate rule change suggestions based on failure analysis."""
     suggestions: dict[FailureSlice, RuleSuggestion] = {}
@@ -410,7 +400,6 @@ def generate_rule_suggestions(results: list[EvalResult]) -> list[RuleSuggestion]
             if suggestions[slice_type].affected_queries <= 3:
                 suggestions[slice_type].rationale += f" | {result.query_id}: {result.failure_description}"
     return sorted(suggestions.values(), key=lambda s: s.affected_queries, reverse=True)
-
 
 class ChunkingEvalPipeline:
     """
@@ -478,7 +467,7 @@ class ChunkingEvalPipeline:
                     )
                     for i, r in enumerate(raw_results)
                 ]
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "eval_retrieve_failed",
                     extra={"query_id": query_id, "error": str(e)},
@@ -627,7 +616,6 @@ class ChunkingEvalPipeline:
             results.append(result)
         return results
 
-
 def create_eval_query(
     query_id: str, query_text: str, expected_answer: str, relevant_chunk_ids: list[str]
 ) -> dict[str, Any]:
@@ -638,7 +626,6 @@ def create_eval_query(
         "expected": expected_answer,
         "relevant_ids": relevant_chunk_ids,
     }
-
 
 __all__ = [
     "FailureSlice",

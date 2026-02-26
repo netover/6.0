@@ -43,7 +43,6 @@ from resync.api.security import decode_token
 
 logger = logging.getLogger(__name__)
 
-
 def _verify_ws_admin(websocket: WebSocket) -> bool:
     """Verify admin authentication for WebSocket connection.
 
@@ -66,13 +65,11 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
         else:
             roles = [roles_claim]
         return "admin" in roles
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
         return False
 
-
 router = APIRouter(prefix="/metrics-dashboard", tags=["Metrics Dashboard"])
-
 
 class CacheMetrics(BaseModel):
     """Métricas do Semantic Cache."""
@@ -87,7 +84,6 @@ class CacheMetrics(BaseModel):
         default=None, description="Idade da entrada mais antiga em horas"
     )
 
-
 class RouterMetrics(BaseModel):
     """Métricas do Embedding Router."""
 
@@ -100,7 +96,6 @@ class RouterMetrics(BaseModel):
     low_confidence_count: int = Field(description="Classificações com baixa confiança")
     top_intents: dict[str, int] = Field(description="Top intents por frequência")
 
-
 class RerankerMetrics(BaseModel):
     """Métricas do Cross-Encoder Reranker."""
 
@@ -111,7 +106,6 @@ class RerankerMetrics(BaseModel):
     docs_filtered: int = Field(description="Documentos filtrados (abaixo threshold)")
     filter_rate: float = Field(description="Taxa de filtragem (0-1)")
     threshold: float = Field(description="Threshold de relevância")
-
 
 class ValidatorMetrics(BaseModel):
     """Métricas dos TWS Validators."""
@@ -124,7 +118,6 @@ class ValidatorMetrics(BaseModel):
     )
     validation_types: dict[str, int] = Field(description="Validações por tipo")
 
-
 class WarmingMetrics(BaseModel):
     """Métricas do Cache Warming."""
 
@@ -135,7 +128,6 @@ class WarmingMetrics(BaseModel):
     duration_seconds: float = Field(description="Duração do último warming")
     is_warming: bool = Field(description="Se warming está em progresso")
 
-
 class SystemMetrics(BaseModel):
     """Métricas do sistema."""
 
@@ -145,7 +137,6 @@ class SystemMetrics(BaseModel):
     active_connections: int = Field(description="Conexões ativas")
     memory_usage_mb: float = Field(description="Uso de memória em MB")
     cpu_usage_percent: float = Field(description="Uso de CPU em %")
-
 
 class DashboardMetrics(BaseModel):
     """Métricas consolidadas do dashboard."""
@@ -158,13 +149,11 @@ class DashboardMetrics(BaseModel):
     warming: WarmingMetrics
     system: SystemMetrics
 
-
 class TimeSeriesPoint(BaseModel):
     """Ponto em série temporal."""
 
     timestamp: datetime
     value: float
-
 
 class HistoricalData(BaseModel):
     """Dados históricos de uma métrica."""
@@ -173,7 +162,6 @@ class HistoricalData(BaseModel):
     period_hours: int
     interval: str
     data_points: list[TimeSeriesPoint]
-
 
 class MetricsStore:
     """Armazena métricas em memória (MVP)."""
@@ -247,13 +235,11 @@ class MetricsStore:
             dict(self._validation_type_counts),
         )
 
-
 class WebSocketRuntimeConfig(BaseModel):
     """Runtime validated websocket polling configuration."""
 
     interval_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
     max_connections: int = Field(default=200, ge=1, le=5000)
-
 
 def _load_ws_runtime_config() -> WebSocketRuntimeConfig:
     """Load and validate websocket runtime knobs from environment."""
@@ -268,17 +254,13 @@ def _load_ws_runtime_config() -> WebSocketRuntimeConfig:
         logger.warning("Invalid websocket runtime config, using defaults: %s", exc)
         return WebSocketRuntimeConfig()
 
-
 WS_RUNTIME_CONFIG = _load_ws_runtime_config()
 
-
 _metrics_store = MetricsStore()
-
 
 def get_metrics_store() -> MetricsStore:
     """Get the MetricsStore singleton (sync version for backwards compatibility)."""
     return _metrics_store
-
 
 async def get_metrics_store_dep() -> MetricsStore:
     """
@@ -289,7 +271,6 @@ async def get_metrics_store_dep() -> MetricsStore:
     allows FastAPI to handle the dependency injection correctly.
     """
     return _metrics_store
-
 
 async def _collect_process_metrics(
     snapshot: dict[str, Any],
@@ -307,26 +288,24 @@ async def _collect_process_metrics(
             process = await asyncio.to_thread(psutil.Process)
             memory_mb = float(process.memory_info().rss / (1024 * 1024))
             cpu_percent = float(process.cpu_percent())
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             logger.warning("psutil_process_metrics_failed", extra={"error": str(exc)})
 
     active_connections = 0
     try:
         connections = await asyncio.to_thread(psutil.net_connections, "inet")
         active_connections = len(connections)
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning("psutil_net_connections_failed", extra={"error": str(exc)})
 
     return (memory_mb, cpu_percent, active_connections)
 
-
 async def _build_dashboard_metrics(store: MetricsStore) -> DashboardMetrics:
     """Create a dashboard snapshot shared by HTTP and websocket endpoints."""
-    from resync.core.metrics import RuntimeMetricsCollector
+    from resync.core.metrics import runtime_metrics
     from resync.knowledge.config import CFG
 
-    collector = RuntimeMetricsCollector()
-    snapshot = collector.get_snapshot()
+    snapshot = runtime_metrics.get_snapshot()
     memory_mb, cpu_percent, active_connections = await _collect_process_metrics(
         snapshot
     )
@@ -395,7 +374,6 @@ async def _build_dashboard_metrics(store: MetricsStore) -> DashboardMetrics:
         ),
     )
 
-
 @router.get("/", response_model=DashboardMetrics)
 async def get_dashboard_metrics(
     store: MetricsStore = Depends(get_metrics_store_dep),
@@ -417,15 +395,14 @@ async def get_dashboard_metrics(
             duration_seconds=float(stats.get("duration_seconds", 0.0)),
             is_warming=bool(warmer.is_warming),
         )
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning("warming_stats_unavailable", extra={"error": str(exc)})
     return dashboard_metrics
-
 
 @router.get("/cache", response_model=CacheMetrics)
 async def get_cache_metrics() -> CacheMetrics:
     """Retorna métricas detalhadas do cache."""
-    from resync.core.metrics import RuntimeMetricsCollector
+    from resync.core.metrics import runtime_metrics
 
     snapshot = RuntimeMetricsCollector().get_snapshot()
     router_cache = snapshot.get("router_cache", {})
@@ -441,7 +418,6 @@ async def get_cache_metrics() -> CacheMetrics:
         hits_last_hour=router_hits,
         misses_last_hour=router_misses,
     )
-
 
 @router.get("/cache/history", response_model=HistoricalData)
 async def get_cache_history(
@@ -461,13 +437,12 @@ async def get_cache_history(
         metric="cache_hit_rate", period_hours=hours, interval=interval, data_points=[]
     )
 
-
 @router.get("/router/intent-distribution")
 async def get_intent_distribution(
     hours: int = Query(default=24, ge=1, le=168),
 ) -> dict[str, Any]:
     """Retorna distribuição de intents classificados."""
-    from resync.core.metrics import RuntimeMetricsCollector
+    from resync.core.metrics import runtime_metrics
 
     snapshot = RuntimeMetricsCollector().get_snapshot()
     router_stats = snapshot.get("router", {})
@@ -480,7 +455,6 @@ async def get_intent_distribution(
         "total_classifications": total,
         "top_intents": intent_counts,
     }
-
 
 @router.post("/cache/warm")
 async def trigger_cache_warming(
@@ -525,14 +499,13 @@ async def trigger_cache_warming(
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=500,
             detail="Erro no cache warming. Check server logs for details.",
         ) from e
-
 
 @router.get("/warming/queries")
 async def get_warming_queries() -> dict[str, Any]:
@@ -570,7 +543,6 @@ async def get_warming_queries() -> dict[str, Any]:
         "counts": warmer.get_static_queries_count(),
     }
 
-
 @router.get("/health")
 async def metrics_health() -> dict[str, Any]:
     """
@@ -585,11 +557,11 @@ async def metrics_health() -> dict[str, Any]:
     }
     try:
         health["components"]["cache"] = "available"
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         health["components"]["cache"] = f"unavailable: {e}"
     try:
         health["components"]["router"] = "available"
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         health["components"]["router"] = f"unavailable: {e}"
     try:
         from resync.knowledge.retrieval.reranker import get_reranker_info
@@ -598,11 +570,11 @@ async def metrics_health() -> dict[str, Any]:
         health["components"]["reranker"] = (
             "available" if info["enabled"] else "disabled"
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         health["components"]["reranker"] = f"unavailable: {e}"
     try:
         health["components"]["validators"] = "available"
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         health["components"]["validators"] = f"unavailable: {e}"
     unavailable = [
         c for c, s in health["components"].items() if "unavailable" in str(s)
@@ -611,7 +583,6 @@ async def metrics_health() -> dict[str, Any]:
         health["status"] = "degraded"
         health["issues"] = unavailable
     return health
-
 
 class ConnectionManager:
     """Thread-safe websocket registry with bounded connection count."""
@@ -643,22 +614,21 @@ class ConnectionManager:
         for connection in connections:
             try:
                 await connection.send_bytes(payload)
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 stale.append(connection)
         if stale:
             async with self._lock:
                 for dead in stale:
                     self._active_connections.discard(dead)
 
-
 manager = ConnectionManager(max_connections=WS_RUNTIME_CONFIG.max_connections)
-
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket para atualizações em tempo real com polling bounded e seguro."""
     if not _verify_ws_admin(websocket):
         logger.warning("metrics_ws_auth_failed")
+        await websocket.accept()
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="Admin authentication required",
@@ -689,7 +659,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             await websocket.send_bytes(orjson.dumps(payload))
     except WebSocketDisconnect:
         logger.info("metrics_ws_client_disconnected")
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.exception("metrics_ws_unhandled_error", extra={"error": str(exc)})
     finally:
         await manager.disconnect(websocket)

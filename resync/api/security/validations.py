@@ -12,10 +12,8 @@ __all__ = [
     "TokenRequestWithValidation",
 ]
 
-
 # --- Enhanced Validation Rules ---
 password_hasher = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 class SensitiveFieldValidator:
     """Sensitive field validator."""
@@ -49,7 +47,6 @@ class SensitiveFieldValidator:
             raise ValueError("Domain part must be 1-255 characters")
         return email
 
-
 class EnhancedLoginRequest(BaseModel):
     """Request model for enhanced login operations."""
 
@@ -64,7 +61,6 @@ class EnhancedLoginRequest(BaseModel):
     @classmethod
     def validate_password(cls, v):
         return SensitiveFieldValidator.validate_password(v)
-
 
 class UserCreateWithValidation(BaseModel):
     """User create with validation."""
@@ -81,7 +77,6 @@ class UserCreateWithValidation(BaseModel):
     @classmethod
     def validate_email(cls, v):
         return SensitiveFieldValidator.validate_email(v)
-
 
 class TokenRequestWithValidation(BaseModel):
     """Request model for token with validation operations."""

@@ -13,7 +13,6 @@ from resync.core.database.repositories import FeedbackStore as PGFeedbackStore
 
 logger = logging.getLogger(__name__)
 
-
 class FeedbackRating(str, Enum):
     """Feedback rating types."""
 
@@ -25,9 +24,7 @@ class FeedbackRating(str, Enum):
     ACCURATE = "accurate"
     INACCURATE = "inaccurate"
 
-
 __all__ = ["FeedbackStore", "get_feedback_store", "FeedbackRating"]
-
 
 class FeedbackStore:
     """Feedback Store - PostgreSQL Backend."""
@@ -101,9 +98,7 @@ class FeedbackStore:
             "positive_rate": positive / len(all_feedback) if all_feedback else 0,
         }
 
-
 _instance: FeedbackStore | None = None
-
 
 def get_feedback_store() -> FeedbackStore:
     """Get the singleton FeedbackStore instance."""

@@ -51,7 +51,6 @@ _current_request_ctx: ContextVar[dict[str, Any] | None] = ContextVar(
 # CUSTOM PROCESSORS
 # ============================================================================
 
-
 def add_correlation_id(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -61,7 +60,6 @@ def add_correlation_id(
     if correlation_id:
         event_dict["correlation_id"] = correlation_id
     return event_dict
-
 
 def add_user_context(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
@@ -73,7 +71,6 @@ def add_user_context(
         event_dict["user_id"] = user_id
     return event_dict
 
-
 def add_request_context(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -83,7 +80,6 @@ def add_request_context(
     if request_id:
         event_dict["request_id"] = request_id
     return event_dict
-
 
 def add_trace_id(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
@@ -95,7 +91,6 @@ def add_trace_id(
         event_dict["trace_id"] = trace_id
     return event_dict
 
-
 def add_service_context(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -106,13 +101,11 @@ def add_service_context(
     event_dict["version"] = settings.PROJECT_VERSION
     return event_dict
 
-
 def add_timestamp(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
     event_dict["timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
     return event_dict
-
 
 def add_log_level(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
@@ -121,7 +114,6 @@ def add_log_level(
         method_name = "warning"
     event_dict["level"] = method_name.upper()
     return event_dict
-
 
 def censor_sensitive_data(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
@@ -196,7 +188,6 @@ def censor_sensitive_data(
 
     return censor_dict(event_dict)
 
-
 def add_request_metadata(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -204,7 +195,6 @@ def add_request_metadata(
     if request_ctx:
         event_dict.update(request_ctx)
     return event_dict
-
 
 def protect_log_injection(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
@@ -215,11 +205,9 @@ def protect_log_injection(
                 event_dict[key] = value.replace("\n", "\n").replace("\r", "\r")
     return event_dict
 
-
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
 
 def configure_structured_logging(
     log_level: str = "INFO", json_logs: bool = True, development_mode: bool = False
@@ -283,7 +271,6 @@ def configure_structured_logging(
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-
 def get_logger(name: str | None = None):
     if structlog is None:
         base = logging.getLogger(name or __name__)
@@ -291,11 +278,9 @@ def get_logger(name: str | None = None):
         return base
     return structlog.get_logger(name) if name else structlog.get_logger()
 
-
 # ============================================================================
 # LOGGING HELPERS
 # ============================================================================
-
 
 class LoggerAdapter:
     def __init__(self, logger: structlog.BoundLogger):
@@ -322,10 +307,8 @@ class LoggerAdapter:
     def bind(self, **kwargs) -> "LoggerAdapter":
         return LoggerAdapter(self.logger.bind(**kwargs))
 
-
 def get_logger_adapter(name: str | None = None) -> LoggerAdapter:
     return LoggerAdapter(get_logger(name))
-
 
 class PerformanceLogger:
     def __init__(self, logger: structlog.BoundLogger):
@@ -343,10 +326,8 @@ class PerformanceLogger:
             **kwargs,
         )
 
-
 def get_performance_logger(name: str | None = None) -> PerformanceLogger:
     return PerformanceLogger(get_logger(name))
-
 
 def set_request_context(request: Request) -> None:
     context = {
@@ -357,7 +338,6 @@ def set_request_context(request: Request) -> None:
     }
     _current_request_ctx.set(context)
 
-
 class SafeEncodingFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         message = super().format(record)
@@ -365,13 +345,11 @@ class SafeEncodingFormatter(logging.Formatter):
             return "[ENCODING ERROR]"
         return message
 
-
 class StructuredErrorLogger:
     @staticmethod
     def log_error(error: Exception, context: dict, level: str = "error") -> None:
         logger = get_logger(__name__)
         getattr(logger, level.lower())("structured_error", error=str(error), **context)
-
 
 __all__ = [
     "configure_structured_logging",

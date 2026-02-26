@@ -34,11 +34,9 @@ from sqlalchemy.sql import func
 
 from resync.core.database.engine import Base
 
-
 # =============================================================================
 # ENUMS (kept for type hints and ontology)
 # =============================================================================
-
 
 class NodeType(str, Enum):
     """Types of nodes in the TWS knowledge graph."""
@@ -53,7 +51,6 @@ class NodeType(str, Enum):
     ENVIRONMENT = "environment"
     EVENT = "event"
     ALERT = "alert"
-
 
 class RelationType(str, Enum):
     """Types of relationships (edges) in the TWS knowledge graph."""
@@ -82,7 +79,6 @@ class RelationType(str, Enum):
     SHARED_BY = "shared_by"  # Resource → Job (multiple)
     EXCLUSIVE_TO = "exclusive_to"  # Resource → Job (single)
 
-
 class TripletStatus(str, Enum):
     """Status values for extracted triplets."""
 
@@ -90,11 +86,9 @@ class TripletStatus(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
 
-
 # =============================================================================
 # REMAINING MODELS
 # =============================================================================
-
 
 class ExtractedTriplet(Base):
     """
@@ -190,7 +184,6 @@ class ExtractedTriplet(Base):
             "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
-
 
 # =============================================================================
 # REMOVED IN v5.9.3

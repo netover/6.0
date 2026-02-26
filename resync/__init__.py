@@ -18,7 +18,6 @@ _LAZY_MODULES = {
 
 _LOADED_MODULES = {}
 
-
 def __getattr__(name):
     """PEP 562 lazy imports for resync package."""
     if name in _LAZY_MODULES:
@@ -38,7 +37,6 @@ def __getattr__(name):
         return _LOADED_MODULES[name]
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from None
-
 
 # Version info
 __version__ = "6.2.0"

@@ -33,7 +33,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class EmbeddingProvider(str, Enum):
     """Supported embedding providers."""
 
@@ -48,7 +47,6 @@ class EmbeddingProvider(str, Enum):
     MISTRAL = "mistral"
     JINA = "jina"
     AUTO = "auto"  # Auto-detect from model name
-
 
 @dataclass
 class EmbeddingConfig:
@@ -71,7 +69,6 @@ class EmbeddingConfig:
         if self.extra_params is None:
             self.extra_params = {}
 
-
 # Default configurations for common providers
 DEFAULT_CONFIGS = {
     EmbeddingProvider.OPENAI: EmbeddingConfig(
@@ -93,7 +90,6 @@ DEFAULT_CONFIGS = {
         dimension=1024,
     ),
 }
-
 
 class MultiProviderEmbeddingService(Embedder):
     """
@@ -366,7 +362,7 @@ class MultiProviderEmbeddingService(Embedder):
         if self._litellm_available:
             try:
                 return await self._embed_with_litellm(texts, timeout=timeout)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "LiteLLM_embedding_failed",
                     error=str(e),
@@ -428,7 +424,7 @@ class MultiProviderEmbeddingService(Embedder):
                     self._stats["litellm_calls"] += 1
                     break
 
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     if attempt < self._retry_attempts - 1:
                         # Exponential backoff with jitter to prevent thundering herd
                         base_delay = 2**attempt
@@ -494,7 +490,6 @@ class MultiProviderEmbeddingService(Embedder):
         """Get embedding dimension."""
         return self._dimension
 
-
 # Backwards compatibility alias
 class EmbeddingService(MultiProviderEmbeddingService):
     """
@@ -509,7 +504,6 @@ class EmbeddingService(MultiProviderEmbeddingService):
             model=os.getenv("EMBED_MODEL", CFG.embed_model),
             dimension=int(os.getenv("EMBED_DIM", str(CFG.embed_dim))),
         )
-
 
 # Factory function for creating embedding services
 def create_embedding_service(
@@ -561,3 +555,8 @@ def create_embedding_service(
         provider=provider,
         **kwargs,
     )
+
+# Alias
+def get_embedder() -> "MultiProviderEmbeddingService":
+    """Return a shared MultiProviderEmbeddingService instance."""
+    return MultiProviderEmbeddingService()

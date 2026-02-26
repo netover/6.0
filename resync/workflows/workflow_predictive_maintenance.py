@@ -21,7 +21,7 @@ import asyncio
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional, TypedDict
+from typing import Any, Literal, TypedDict
 
 import structlog
 from pydantic import BaseModel, Field, field_validator
@@ -74,8 +74,7 @@ _checkpointer_pool: Any = None
 _checkpointer_instance: Any = None
 _pool_lock = asyncio.Lock()
 
-
-async def get_checkpointer() -> Optional[Any]:
+async def get_checkpointer() -> Any | None:
     """
     Returns singleton PostgresSaver with shared connection pool.
 
@@ -119,10 +118,9 @@ async def get_checkpointer() -> Optional[Any]:
             logger.info("postgres_checkpointer_initialized", min_size=2, max_size=10)
             return _checkpointer_instance
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("postgres_checkpointer_init_failed", error=str(e))
             return None
-
 
 async def close_checkpointer() -> None:
     """Close the checkpointer pool. Call on application shutdown."""
@@ -132,12 +130,11 @@ async def close_checkpointer() -> None:
         try:
             await _checkpointer_pool.close()
             logger.info("postgres_checkpointer_closed")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("postgres_checkpointer_close_failed", error=str(e))
         finally:
             _checkpointer_pool = None
             _checkpointer_instance = None
-
 
 # ============================================================================
 # RATE LIMITING FOR LLM CALLS
@@ -145,17 +142,14 @@ async def close_checkpointer() -> None:
 
 _llm_semaphore = asyncio.Semaphore(10)
 
-
 async def rate_limited_llm_call(llm_func, *args, **kwargs):
     """Wrapper for LLM calls with rate limiting."""
     async with _llm_semaphore:
         return await llm_func(*args, **kwargs)
 
-
 # ============================================================================
 # STATE DEFINITION
 # ============================================================================
-
 
 class PredictiveMaintenanceState(TypedDict):
     """State para workflow de Predictive Maintenance."""
@@ -203,11 +197,9 @@ class PredictiveMaintenanceState(TypedDict):
     status: Literal["running", "pending_review", "completed", "failed"]
     error: str | None
 
-
 # ============================================================================
 # NODES (WORKFLOW STEPS)
 # ============================================================================
-
 
 async def fetch_data_node(
     state: PredictiveMaintenanceState, db: AsyncSession | None = None
@@ -228,7 +220,6 @@ async def fetch_data_node(
         async with get_async_session() as session:
             return await _fetch_data_node_impl(state, session)
     return await _fetch_data_node_impl(state, db)
-
 
 async def _fetch_data_node_impl(
     state: PredictiveMaintenanceState, db: AsyncSession
@@ -263,12 +254,11 @@ async def _fetch_data_node_impl(
             "workstation_metrics": workstation_metrics,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.fetch_data_failed", error=str(e))
         return {**state, "status": "failed", "error": f"Failed to fetch data: {str(e)}"}
-
 
 async def analyze_degradation_node(
     state: PredictiveMaintenanceState,
@@ -305,12 +295,11 @@ async def analyze_degradation_node(
             "degradation_severity": degradation_result.get("severity", 0.0),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.analyze_degradation_failed", error=str(e))
         return {**state, "error": f"Degradation analysis failed: {str(e)}"}
-
 
 async def correlate_node(
     state: PredictiveMaintenanceState, llm: Any
@@ -350,12 +339,11 @@ async def correlate_node(
             "contributing_factors": correlation_result.get("factors", []),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.correlate_failed", error=str(e))
         return state
-
 
 async def predict_node(
     state: PredictiveMaintenanceState, llm: Any
@@ -394,12 +382,11 @@ async def predict_node(
             "confidence": prediction_result["confidence"],
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.predict_failed", error=str(e))
         return state
-
 
 async def recommend_node(
     state: PredictiveMaintenanceState, llm: Any
@@ -445,12 +432,11 @@ async def recommend_node(
             "status": "pending_review" if requires_review else "running",
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.recommend_failed", error=str(e))
         return state
-
 
 async def human_review_node(
     state: PredictiveMaintenanceState,
@@ -476,7 +462,6 @@ async def human_review_node(
     # Resume when human provides feedback via API
     return {**state, "status": "pending_review"}
 
-
 async def execute_actions_node(
     state: PredictiveMaintenanceState, db: AsyncSession | None = None
 ) -> PredictiveMaintenanceState:
@@ -498,7 +483,6 @@ async def execute_actions_node(
         async with get_async_session() as session:
             return await _execute_actions_node_impl(state, session)
     return await _execute_actions_node_impl(state, db)
-
 
 async def _execute_actions_node_impl(
     state: PredictiveMaintenanceState, db: AsyncSession
@@ -536,7 +520,7 @@ async def _execute_actions_node_impl(
                 result=result,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
             logger.error(
@@ -551,7 +535,6 @@ async def _execute_actions_node_impl(
         "status": "completed",
         "completed_at": datetime.now(timezone.utc),
     }
-
 
 async def execute_preventive_action(
     action: dict[str, Any], db: AsyncSession
@@ -571,11 +554,9 @@ async def execute_preventive_action(
         ),
     }
 
-
 # ============================================================================
 # ROUTING LOGIC
 # ============================================================================
-
 
 def should_continue_after_fetch(
     state: PredictiveMaintenanceState,
@@ -588,7 +569,6 @@ def should_continue_after_fetch(
         return "end"
     return "analyze"
 
-
 def should_continue_after_recommend(
     state: PredictiveMaintenanceState,
 ) -> Literal["human_review", "execute", "end"]:
@@ -599,7 +579,6 @@ def should_continue_after_recommend(
         return "execute"
     return "end"
 
-
 def should_continue_after_human_review(
     state: PredictiveMaintenanceState,
 ) -> Literal["execute", "end"]:
@@ -608,14 +587,12 @@ def should_continue_after_human_review(
         return "execute"
     return "end"
 
-
 # ============================================================================
 # WORKFLOW GRAPH
 # ============================================================================
 
-
 def create_predictive_maintenance_workflow(
-    llm: Any, checkpointer: Optional[Any] = None
+    llm: Any, checkpointer: Any | None = None
 ) -> StateGraph:
     """
     Create the Predictive Maintenance workflow graph.
@@ -691,11 +668,9 @@ def create_predictive_maintenance_workflow(
         interrupt_after=["human_review"],  # Pause AFTER notification is sent
     )
 
-
 # ============================================================================
 # WORKFLOW RUNNER
 # ============================================================================
-
 
 class WorkflowRequest(BaseModel):
     """Validated request for predictive maintenance workflow."""
@@ -734,7 +709,6 @@ class WorkflowRequest(BaseModel):
                 raise ValueError("workflow_id cannot contain path separators")
         return v
 
-
 class ApprovalRequest(BaseModel):
     """Validated request for workflow approval."""
 
@@ -759,7 +733,6 @@ class ApprovalRequest(BaseModel):
             raise ValueError("user_id contains invalid characters")
         return v
 
-
 async def run_predictive_maintenance(
     job_name: str, lookback_days: int = 30, workflow_id: str | None = None
 ) -> dict[str, Any]:
@@ -778,7 +751,7 @@ async def run_predictive_maintenance(
         request = WorkflowRequest(
             job_name=job_name, lookback_days=lookback_days, workflow_id=workflow_id
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("invalid_workflow_request", job_name=job_name[:20], error=str(e))
         raise ValueError(f"Invalid parameters: {e}")
 
@@ -864,11 +837,9 @@ async def run_predictive_maintenance(
 
     return result
 
-
 # ============================================================================
 # API FOR HUMAN REVIEW
 # ============================================================================
-
 
 async def approve_workflow(
     workflow_id: str,
@@ -899,7 +870,7 @@ async def approve_workflow(
             feedback=feedback,
             user_id=user_id,
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("invalid_approval_request", workflow_id=workflow_id, error=str(e))
         raise ValueError(f"Invalid parameters: {e}")
 

@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["DatabasePool", "DatabaseConnectionPool", "get_db_pool"]
 
-
 class DatabasePool:
     """
     Database Pool - PostgreSQL Backend.
@@ -71,9 +70,7 @@ class DatabasePool:
             }
         return {"status": "not_initialized"}
 
-
 _instance: DatabasePool | None = None
-
 
 def get_db_pool() -> DatabasePool:
     """Get the singleton DatabasePool instance."""
@@ -82,13 +79,11 @@ def get_db_pool() -> DatabasePool:
         _instance = DatabasePool()
     return _instance
 
-
 async def initialize_db_pool() -> DatabasePool:
     """Initialize and return the DatabasePool."""
     pool = get_db_pool()
     pool.initialize()
     return pool
-
 
 # Alias for backward compatibility
 DatabaseConnectionPool = DatabasePool

@@ -21,7 +21,6 @@ from .base_health_checker import BaseHealthChecker
 
 logger = structlog.get_logger(__name__)
 
-
 class ConnectionPoolsHealthChecker(BaseHealthChecker):
     """
     Health checker for connection pools health.
@@ -126,7 +125,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 metadata=enhanced_metadata,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             response_time = (time.time() - start_time) * 1000
             logger.error("connection_pools_health_check_failed", error=str(e))
             return ComponentHealth(

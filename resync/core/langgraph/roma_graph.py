@@ -26,11 +26,9 @@ except ImportError:
     END = "END"
     StateGraph = None
 
-
 def route_atomizer(state: RomaState) -> str:
     """Route atomic requests directly to aggregator, others to planner."""
     return "aggregator" if state.get("is_atomic") else "planner"
-
 
 def create_roma_graph() -> Any:
     """Create compiled ROMA graph or fallback implementation."""
@@ -58,7 +56,6 @@ def create_roma_graph() -> Any:
 
     return workflow.compile()
 
-
 class FallbackRomaGraph:
     """Fallback executor if LangGraph is unavailable."""
 
@@ -78,7 +75,6 @@ class FallbackRomaGraph:
         verified = verifier_node(merged)
         merged.update(verified)
         return merged
-
 
 async def execute_roma_query(user_query: str) -> dict[str, Any]:
     """Execute ROMA orchestration for a query."""

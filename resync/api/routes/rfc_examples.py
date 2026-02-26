@@ -33,16 +33,13 @@ __all__ = [
     "get_rfc_examples",
 ]
 
-
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/examples", tags=["RFC Examples"])
 
-
 # ============================================================================
 # MODELS
 # ============================================================================
-
 
 class Book(BaseModel):
     """Modelo de exemplo: Livro."""
@@ -66,15 +63,12 @@ class Book(BaseModel):
         }
     )
 
-
 class BookOut(Book):
     """Book out."""
 
     _links: dict[str, Any]
 
-
 ISBN = Annotated[str, StringConstraints(pattern=r"^[\d-]+$")]
-
 
 class BookCreate(BaseModel):
     """Request para criar livro."""
@@ -85,7 +79,6 @@ class BookCreate(BaseModel):
     published_year: int | None = Field(
         None, description="Ano de publicação", ge=1000, le=9999
     )
-
 
 # Simulação de banco de dados em memória
 _books_db: list[Book] = [
@@ -107,11 +100,9 @@ _books_db: list[Book] = [
     ),
 ]
 
-
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
-
 
 @router.get(
     "/books",
@@ -202,7 +193,6 @@ async def list_books(
         query_params=query_params,
     )
 
-
 @router.get(
     "/books/{book_id}",
     response_model=BookOut,
@@ -279,7 +269,6 @@ async def get_book(book_id: str):
     }
 
     return book_dict
-
 
 @router.post(
     "/books",
@@ -371,7 +360,6 @@ async def create_book(book_data: BookCreate):
 
     return book_dict
 
-
 @router.delete(
     "/books/{book_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -401,7 +389,6 @@ async def delete_book(book_id: str):
     logger.info("Book deleted", book_id=book_id, title=deleted_book.title)
 
     return
-
 
 @router.get(
     "/rfc-examples",

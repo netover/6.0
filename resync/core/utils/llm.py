@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Type, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel
 
@@ -16,7 +16,6 @@ from .llm_factories import LLMFactory
 logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
-
 
 @circuit_breaker(failure_threshold=3, recovery_timeout=60, name="llm_service")
 @retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0, jitter=True)
@@ -82,10 +81,9 @@ async def call_llm(
         timeout=timeout,
     )
 
-
 async def call_llm_structured(
     prompt: str,
-    output_model: Type[T],
+    output_model: type[T],
     model: str | None = None,
     temperature: float = 0.1,
     max_retries: int = 2,
@@ -148,7 +146,7 @@ JSON:"""
             logger.warning(
                 "structured_output_parse_error", attempt=attempt + 1, error=str(e)
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("structured_output_error", attempt=attempt + 1, error=str(e))
 
     return None

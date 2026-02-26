@@ -33,7 +33,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from functools import lru_cache
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from fastapi import Depends
 from redis import Redis as SyncRedis
@@ -47,12 +47,11 @@ if TYPE_CHECKING:
     from resync.settings import Settings as AppSettings
 
 # Thread-safe singleton instances
-_async_redis_instance: Optional["AsyncRedis"] = None
-_sync_redis_instance: Optional["SyncRedis"] = None
+_async_redis_instance: "AsyncRedis" | None = None
+_sync_redis_instance: "SyncRedis" | None = None
 _redis_lock = threading.Lock()
 _async_lock = None  # lazy-initialized asyncio.Lock (gunicorn --preload safe)
 _async_lock_loop = None
-
 
 def _get_async_lock() -> asyncio.Lock:
     """Return a process-global asyncio.Lock bound to the current event loop.
@@ -75,7 +74,6 @@ def _get_async_lock() -> asyncio.Lock:
         _async_lock_loop = loop
     return _async_lock
 
-
 @lru_cache(maxsize=1)
 def _get_settings() -> "AppSettings":
     """
@@ -87,7 +85,6 @@ def _get_settings() -> "AppSettings":
     from resync.settings import settings
 
     return settings
-
 
 def _get_redis_url(settings: "AppSettings") -> str:
     """
@@ -107,7 +104,6 @@ def _get_redis_url(settings: "AppSettings") -> str:
     if password:
         return f"redis://:{password}@{host}:{port}/{db}"
     return f"redis://{host}:{port}/{db}"
-
 
 def _create_async_redis(settings: "AppSettings") -> "AsyncRedis":
     """
@@ -136,7 +132,6 @@ def _create_async_redis(settings: "AppSettings") -> "AsyncRedis":
 
     return Redis(connection_pool=pool)
 
-
 def _create_sync_redis(settings: "AppSettings") -> "SyncRedis":
     """
     Create a new sync Redis client instance.
@@ -164,9 +159,8 @@ def _create_sync_redis(settings: "AppSettings") -> "SyncRedis":
 
     return Redis(connection_pool=pool)
 
-
 async def get_async_redis_singleton(
-    settings: Optional["AppSettings"] = None,
+    settings: "AppSettings" | None = None,
 ) -> "AsyncRedis":
     """
     Get or create the async Redis client singleton.
@@ -190,9 +184,8 @@ async def get_async_redis_singleton(
 
     return _async_redis_instance
 
-
 def get_sync_redis_singleton(
-    settings: Optional["AppSettings"] = None,
+    settings: "AppSettings" | None = None,
 ) -> "SyncRedis":
     """
     Get or create the sync Redis client singleton.
@@ -215,7 +208,6 @@ def get_sync_redis_singleton(
                 _sync_redis_instance = _create_sync_redis(effective_settings)
 
     return _sync_redis_instance
-
 
 async def get_redis_client(
     settings: "AppSettings" = Depends(_get_settings),
@@ -241,7 +233,6 @@ async def get_redis_client(
 
     return _canonical()
 
-
 def get_redis_client_sync(
     settings: "AppSettings" = Depends(_get_settings),
 ) -> "SyncRedis":
@@ -257,7 +248,6 @@ def get_redis_client_sync(
         SyncRedis: The singleton sync Redis client instance
     """
     return get_sync_redis_singleton(settings)
-
 
 async def reset_redis_clients() -> None:
     """
@@ -280,7 +270,6 @@ async def reset_redis_clients() -> None:
 
         _get_settings.cache_clear()
 
-
 async def check_redis_health() -> dict:
     """
     Check Redis connection health.
@@ -301,19 +290,17 @@ async def check_redis_health() -> dict:
             "latency_ms": round(latency, 2),
             "connected": True,
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return {
             "status": "unhealthy",
             "error": str(e),
             "connected": False,
         }
 
-
 # Aliases for backward compatibility
 get_redis = get_redis_client
 get_redis_pool = get_async_redis_singleton
 get_redis_client_singleton = get_async_redis_singleton
-
 
 __all__ = [
     "get_redis_client",

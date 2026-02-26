@@ -1,0 +1,69 @@
+# ============================================================
+# requirements.in — production dependencies for Resync v6.2.0
+# Compile with: pip-compile requirements.in -o requirements.txt
+# ============================================================
+
+# Web Framework
+fastapi>=0.115
+uvicorn[standard]>=0.30
+uvicorn-worker>=0.3.0
+gunicorn>=22.0
+uvloop>=0.21
+
+# Configuration
+python-dotenv>=1.0
+pydantic>=2.7
+pydantic-settings>=2.0
+
+# Database
+sqlalchemy>=2.0
+sqlmodel>=0.0.21
+asyncpg>=0.29
+psycopg[async]>=3.1
+
+# HTTP Clients
+httpx[http2]>=0.27
+aiohttp>=3.10
+
+# Cache / Redis
+redis[hiredis]>=5.0
+redisvl>=0.3
+
+# Serialization
+orjson>=3.10
+
+# Security
+bcrypt>=4.0
+PyJWT>=2.10.1
+python-jose>=3.3.0
+passlib[bcrypt]>=1.7.4
+cryptography>=42.0
+
+# Observability
+prometheus-client>=0.20
+structlog>=24.0
+sentry-sdk[fastapi,asyncio,sqlalchemy,redis]>=2.0
+opentelemetry-api>=1.26
+opentelemetry-sdk>=1.26
+opentelemetry-exporter-otlp-proto-grpc>=1.26
+opentelemetry-instrumentation-fastapi>=0.47b0
+opentelemetry-instrumentation-asyncpg>=0.47b0
+opentelemetry-instrumentation-redis>=0.47b0
+
+# Rate Limiting / Pagination
+slowapi>=0.1.9
+fastapi-pagination>=0.12
+
+# AI / ML
+langchain>=0.3
+langchain-community>=0.3
+langgraph>=0.2
+litellm>=1.44
+sentence-transformers>=3.0
+torch>=2.3
+transformers>=4.42
+
+# System
+psutil>=5.9
+
+alembic>=1.13.0

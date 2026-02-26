@@ -24,7 +24,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class ErrorRelationType(str, Enum):
     """Types of error relationships in the KG."""
 
@@ -33,7 +32,6 @@ class ErrorRelationType(str, Enum):
     CONFUSION_WITH = "CONFUSION_WITH"
     MISLEADING_CONTEXT = "MISLEADING_CONTEXT"
     DEPRECATED_INFO = "DEPRECATED_INFO"
-
 
 @dataclass
 class AuditResult:
@@ -50,7 +48,6 @@ class AuditResult:
     error_type: str | None = None
     suggested_correction: str | None = None
 
-
 @dataclass
 class ErrorTriplet:
     """Triplet representing an error pattern."""
@@ -64,7 +61,6 @@ class ErrorTriplet:
     error_reason: str
     source_query: str
     source_memory_id: str
-
 
 class AuditToKGPipeline:
     """
@@ -386,7 +382,7 @@ class AuditToKGPipeline:
 
                 added += 1
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "failed_to_add_triplet",
                     subject=triplet.subject,
@@ -455,7 +451,7 @@ class AuditToKGPipeline:
                 }
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("failed_to_get_error_patterns", error=str(e))
 
         return patterns
@@ -485,17 +481,15 @@ class AuditToKGPipeline:
                     # This would query the graph for error edges
                     # For now, return False (no known issues)
                     pass
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
 
         return False, None
 
-
 # Singleton instance
 _pipeline: AuditToKGPipeline | None = None
-
 
 def get_audit_to_kg_pipeline() -> AuditToKGPipeline:
     """Get global pipeline instance."""
@@ -503,7 +497,6 @@ def get_audit_to_kg_pipeline() -> AuditToKGPipeline:
     if _pipeline is None:
         _pipeline = AuditToKGPipeline()
     return _pipeline
-
 
 async def process_audit_finding(
     memory_id: str,

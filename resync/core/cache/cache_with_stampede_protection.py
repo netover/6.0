@@ -12,7 +12,6 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class CacheEntry:
     """Represents a cache entry with metadata."""
 
@@ -22,14 +21,12 @@ class CacheEntry:
         self.is_loading = is_loading
         self.created_at = time.time()
 
-
 class StampedeProtectionLevel(Enum):
     """Levels of stampede protection."""
 
     NONE = "none"
     BASIC = "basic"
     AGGRESSIVE = "aggressive"
-
 
 @dataclass
 class CacheConfig:
@@ -39,7 +36,6 @@ class CacheConfig:
     stampede_protection_level: StampedeProtectionLevel = StampedeProtectionLevel.BASIC
     max_concurrent_loads: int = 3
     load_timeout: int = 30  # seconds
-
 
 class CacheWithStampedeProtection(Generic[T]):
     """Cache implementation with stampede protection."""
@@ -131,7 +127,7 @@ class CacheWithStampedeProtection(Generic[T]):
 
             return value
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

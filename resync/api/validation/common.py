@@ -12,7 +12,6 @@ from typing import Annotated, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic import StringConstraints as PydanticStringConstraints
 
-
 class ValidationErrorResponse(BaseModel):
     """Standardized validation error response format."""
 
@@ -56,7 +55,6 @@ class ValidationErrorResponse(BaseModel):
         """Get total number of validation errors."""
         return len(self.details)
 
-
 class BaseValidatedModel(BaseModel):
     """Base model with common validation methods and sanitization."""
 
@@ -81,7 +79,6 @@ class BaseValidatedModel(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
-
 
 class StringConstraints:
     """Common string validation constraints."""
@@ -152,7 +149,6 @@ class StringConstraints:
         ),
     ]
 
-
 class UUIDValidator:
     """UUID validation utilities."""
 
@@ -176,7 +172,6 @@ class UUIDValidator:
             except ValueError:
                 raise ValueError(f"Invalid UUID in list: {uuid_str}") from None
         return validated_uuids
-
 
 class NumericConstraints:
     """Numeric validation constraints."""
@@ -205,7 +200,6 @@ class NumericConstraints:
     MAX_AGENT_NAME_LENGTH = 100
     MIN_AGENT_DESCRIPTION_LENGTH = 10
     MAX_AGENT_DESCRIPTION_LENGTH = 2000
-
 
 class ValidationPatterns:
     """Common regex patterns for validation."""
@@ -243,7 +237,6 @@ class ValidationPatterns:
         r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
     )
 
-
 class SanitizationLevel(str, Enum):
     """Levels of input sanitization."""
 
@@ -252,14 +245,12 @@ class SanitizationLevel(str, Enum):
     PERMISSIVE = "permissive"  # Allow most safe characters
     NONE = "none"  # No sanitization (use with caution)
 
-
 class ValidationSeverity(str, Enum):
     """Validation error severity levels."""
 
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
-
 
 def sanitize_input(
     text: str, level: SanitizationLevel = SanitizationLevel.MODERATE
@@ -306,7 +297,6 @@ def sanitize_input(
     # Remove excessive whitespace
     return re.sub(r"\s+", " ", text).strip()
 
-
 def validate_string_length(text: str, min_length: int, max_length: int) -> str:
     """
     Validate string length within specified bounds.
@@ -335,7 +325,6 @@ def validate_string_length(text: str, min_length: int, max_length: int) -> str:
         raise ValueError(f"String length {length} exceeds maximum {max_length}")
 
     return text
-
 
 def validate_numeric_range(
     value: int | float,
@@ -367,7 +356,6 @@ def validate_numeric_range(
 
     return value
 
-
 def validate_pattern(
     text: str, pattern: str | Pattern, message: str | None = None
 ) -> str:
@@ -394,7 +382,6 @@ def validate_pattern(
         raise ValueError(f"Text does not match required pattern: {pattern.pattern}")
 
     return text
-
 
 def validate_enum_value(
     value: str, enum_class: type, case_sensitive: bool = True
@@ -424,7 +411,6 @@ def validate_enum_value(
         raise ValueError(f"Value '{value}' is not one of: {valid_values}")
 
     return value
-
 
 class FieldValidationRule(BaseModel):
     """Individual field validation rule."""

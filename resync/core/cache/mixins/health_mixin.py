@@ -11,7 +11,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class CacheHealthMixin:
     """
     Mixin providing health check capabilities for cache.
@@ -20,7 +19,7 @@ class CacheHealthMixin:
     - self.shards: List of cache shards  # type: ignore[attr-defined]
     - self.shard_locks: List of shard locks  # type: ignore[attr-defined]
     - self.is_running: bool  # type: ignore[attr-defined]
-    - self.cleanup_task: Optional[asyncio.Task]  # type: ignore[attr-defined]
+    - self.cleanup_task: asyncio.Task | None  # type: ignore[attr-defined]
     """
 
     async def health_check(self) -> dict[str, Any]:
@@ -86,7 +85,7 @@ class CacheHealthMixin:
                 "checks": check_results,
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Health check failed: %s", e)
             return {
                 "status": "error",
@@ -114,7 +113,7 @@ class CacheHealthMixin:
 
             return {"status": "healthy", "operations": ["set", "get", "delete"]}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -144,7 +143,7 @@ class CacheHealthMixin:
                 "expired_entries": expired_entries,
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -165,7 +164,7 @@ class CacheHealthMixin:
                 "cache_running": self.is_running,  # type: ignore[attr-defined]
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -188,7 +187,7 @@ class CacheHealthMixin:
                 "total_entries": metrics.get("total_entries", 0),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -212,7 +211,7 @@ class CacheHealthMixin:
                 "issues": issues,
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

@@ -23,7 +23,6 @@ __all__ = [
     "add_audit_records_batch_async",
 ]
 
-
 class AuditDB:
     """Audit Database - PostgreSQL Backend."""
 
@@ -188,9 +187,7 @@ class AuditDB:
             )
         return await self._repo.find(filters, limit=limit)
 
-
 _instance: AuditDB | None = None
-
 
 def get_audit_db() -> AuditDB:
     """Get the singleton AuditDB instance."""
@@ -199,7 +196,6 @@ def get_audit_db() -> AuditDB:
         _instance = AuditDB()
     return _instance
 
-
 async def log_audit_action(action: str, **kwargs) -> AuditEntry:
     """Convenience function to log an audit action."""
     db = get_audit_db()
@@ -207,12 +203,10 @@ async def log_audit_action(action: str, **kwargs) -> AuditEntry:
         db.initialize()
     return await db.log_action(action, **kwargs)
 
-
 def get_db_connection():
     """Legacy function - returns None, use AuditDB class instead."""
     logger.warning("get_db_connection is deprecated, use AuditDB class")
     return
-
 
 def add_audit_records_batch(records: list) -> int:
     """Add multiple audit records in batch (synchronous wrapper).
@@ -250,7 +244,6 @@ def add_audit_records_batch(records: list) -> int:
     track_task(_batch_insert_async(records), name="batch_insert_async")
     return len(records)
 
-
 async def add_audit_records_batch_async(records: list) -> int:
     """Asynchronously insert multiple audit records.
 
@@ -277,7 +270,6 @@ async def add_audit_records_batch_async(records: list) -> int:
         count += 1
     return count
 
-
 def _validate_memory_id(record: dict) -> None:
     """Validate Memory ID field."""
     mem_id = record.get("id")
@@ -287,7 +279,6 @@ def _validate_memory_id(record: dict) -> None:
         raise ValueError("Memory ID must be string")
     if len(mem_id) > 255:
         raise ValueError("Memory ID too long")
-
 
 def _validate_user_query(record: dict) -> None:
     """Validate user_query field."""
@@ -305,7 +296,6 @@ def _validate_user_query(record: dict) -> None:
     from resync.core.database_security import DatabaseInputValidator
 
     DatabaseInputValidator.validate_string_input(query)
-
 
 def _validate_audit_record(record: dict) -> dict:
     """Validate an audit record has required fields.
@@ -328,3 +318,7 @@ def _validate_audit_record(record: dict) -> dict:
     if "agent_response" not in record and "user_query" in record:
         raise ValueError("Agent response is required")
     return record
+
+async def add_audit_record(record: "AuditEntry") -> None:
+    """Add a single audit record. Alias for add_audit_records_batch([record])."""
+    await add_audit_records_batch_async([record])

@@ -24,7 +24,6 @@ from resync.models.tws import (
 
 logger = logging.getLogger(__name__)
 
-
 class MockTWSClient:
     """
     A mock client for the HCL Workload Automation (TWS) API, used for
@@ -36,7 +35,7 @@ class MockTWSClient:
         **kwargs: Additional keyword arguments (unused)
 
     Attributes:
-        mock_data (Dict[str, Any]): The loaded mock data from the JSON file
+        mock_data (dict[str, Any]): The loaded mock data from the JSON file
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -100,7 +99,7 @@ class MockTWSClient:
             )
             self.mock_data = {}
             # Don't raise here to allow the service to continue with empty data
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "Unexpected error loading mock data from %s: %s",
                 mock_data_path,
@@ -159,7 +158,7 @@ class MockTWSClient:
         Mocks retrieving workstation status.
 
         Returns:
-            List[WorkstationStatus]: List of workstation status objects
+            list[WorkstationStatus]: List of workstation status objects
 
         Note:
             Simulates an asynchronous delay with a 0.1 second wait
@@ -171,7 +170,7 @@ class MockTWSClient:
             if isinstance(ws, dict):
                 try:
                     workstations.append(WorkstationStatus(**ws))
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning(
                         "Failed to create WorkstationStatus from data: %s", e
                     )
@@ -182,7 +181,7 @@ class MockTWSClient:
         Mocks retrieving job status.
 
         Returns:
-            List[JobStatus]: List of job status objects
+            list[JobStatus]: List of job status objects
 
         Note:
             Simulates an asynchronous delay with a 0.1 second wait
@@ -194,7 +193,7 @@ class MockTWSClient:
             if isinstance(job, dict):
                 try:
                     jobs.append(JobStatus(**job))
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning("Failed to create JobStatus from data: %s", e)
         return jobs
 
@@ -203,7 +202,7 @@ class MockTWSClient:
         Mocks retrieving critical path status.
 
         Returns:
-            List[CriticalJob]: List of critical job status objects
+            list[CriticalJob]: List of critical job status objects
 
         Note:
             Simulates an asynchronous delay with a 0.1 second wait
@@ -214,7 +213,7 @@ class MockTWSClient:
             if isinstance(job, dict):
                 try:
                     critical_jobs.append(CriticalJob(**job))
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning("Failed to create CriticalJob from data: %s", e)
         return critical_jobs
 
@@ -508,7 +507,7 @@ class MockTWSClient:
             status_filter: Optional status filter (e.g., 'SUCC', 'ABEND')
 
         Returns:
-            List[JobStatus]: List of job status objects
+            list[JobStatus]: List of job status objects
 
         Note:
             Simulates an asynchronous delay and returns filtered mock jobs

@@ -18,7 +18,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class ResourceInfo:
     """Information about a managed resource."""
@@ -32,7 +31,6 @@ class ResourceInfo:
     def get_lifetime_seconds(self) -> float:
         """Get the lifetime of the resource in seconds."""
         return (datetime.now(timezone.utc) - self.created_at).total_seconds()
-
 
 class ManagedResource[T]:
     """
@@ -84,7 +82,7 @@ class ManagedResource[T]:
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     f"lifetime: {lifetime:.2f}s"
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error closing resource %s: %s", self.resource_id, e)
                 raise
 
@@ -101,7 +99,7 @@ class ManagedResource[T]:
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     f"lifetime: {lifetime:.2f}s"
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error closing resource %s: %s", self.resource_id, e)
                 raise
 
@@ -112,7 +110,6 @@ class ManagedResource[T]:
     def _cleanup_sync(self) -> None:
         """Override this method to implement sync cleanup logic."""
         pass
-
 
 class DatabaseConnectionResource(ManagedResource[Any]):
     """Managed database connection resource."""
@@ -131,10 +128,9 @@ class DatabaseConnectionResource(ManagedResource[Any]):
                     close_result = await asyncio.to_thread(self.connection.close)
                     if inspect.isawaitable(close_result):
                         await close_result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Error closing database connection: %s", e)
             raise
-
 
 class FileResource(ManagedResource[Any]):
     """Managed file resource."""
@@ -153,7 +149,7 @@ class FileResource(ManagedResource[Any]):
                     close_result = await asyncio.to_thread(self.file_handle.close)
                     if inspect.isawaitable(close_result):
                         await close_result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Error closing file handle: %s", e)
             raise
 
@@ -162,10 +158,9 @@ class FileResource(ManagedResource[Any]):
         try:
             if hasattr(self.file_handle, "close"):
                 self.file_handle.close()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Error closing file handle synchronously: %s", e)
             raise
-
 
 class NetworkSocketResource(ManagedResource[Any]):
     """Managed network socket resource."""
@@ -184,10 +179,9 @@ class NetworkSocketResource(ManagedResource[Any]):
                     close_result = await asyncio.to_thread(self.socket.close)
                     if inspect.isawaitable(close_result):
                         await close_result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Error closing network socket: %s", e)
             raise
-
 
 @asynccontextmanager
 async def managed_database_connection(pool: Any) -> AsyncIterator[Any]:
@@ -199,7 +193,6 @@ async def managed_database_connection(pool: Any) -> AsyncIterator[Any]:
             yield conn
     finally:
         pass
-
 
 @asynccontextmanager
 async def managed_file(file_path: str, mode: str = "r") -> AsyncIterator[Any]:
@@ -224,7 +217,6 @@ async def managed_file(file_path: str, mode: str = "r") -> AsyncIterator[Any]:
         if file_handle:
             await file_handle.close()
 
-
 @contextmanager
 def managed_file_sync(file_path: str, mode: str = "r") -> Iterator[Any]:
     """
@@ -237,7 +229,6 @@ def managed_file_sync(file_path: str, mode: str = "r") -> Iterator[Any]:
     finally:
         if file_handle:
             file_handle.close()
-
 
 class ResourcePool[T]:
     """
@@ -310,7 +301,7 @@ class ResourcePool[T]:
                         close_result = await asyncio.to_thread(resource.close)
                         if inspect.isawaitable(close_result):
                             await close_result
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error closing resource %s: %s", resource_id, e)
 
             del self.active_resources[resource_id]
@@ -371,7 +362,6 @@ class ResourcePool[T]:
             },
         }
 
-
 async def resource_scope[T](
     pool: ResourcePool,
     resource_type: str,
@@ -386,7 +376,6 @@ async def resource_scope[T](
         yield resource
     finally:
         await pool.release(resource_id, resource)
-
 
 class BatchResourceManager:
     """
@@ -423,7 +412,7 @@ class BatchResourceManager:
                             await close_result
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error cleaning up batch resource %s: %s", resource_id, e)
 
         self.resources.clear()
@@ -437,10 +426,8 @@ class BatchResourceManager:
         await self.cleanup_all()
         return False
 
-
 # Global resource pool instance
 _global_resource_pool: ResourcePool | None = None
-
 
 def get_global_resource_pool() -> ResourcePool:
     """Get the global resource pool instance."""

@@ -19,13 +19,11 @@ from resync.knowledge.kg_store.store import PostgresGraphStore
 
 router = APIRouter(prefix="/api/admin/kg", tags=["KG Admin"])
 
-
 @router.get("/health")
 async def kg_health() -> dict:
     store = PostgresGraphStore()
     await store.ensure_schema()
     return {"status": "ok"}
-
 
 @router.get("/stats")
 async def kg_stats(
@@ -34,7 +32,6 @@ async def kg_stats(
 ) -> dict:
     store = PostgresGraphStore()
     return await store.stats(tenant=tenant, graph_version=graph_version)
-
 
 @router.get("/subgraph")
 async def kg_subgraph(

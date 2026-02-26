@@ -48,7 +48,6 @@ chat_router = APIRouter()
 # Optional: track background tasks for observability (non-blocking)
 _bg_tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
 
-
 class SupportsAgentMeta(Protocol):
     """Minimal contract used by this module for agent-like objects."""
 
@@ -58,11 +57,9 @@ class SupportsAgentMeta(Protocol):
     llm_model: Any | None  # type: ignore[assignment]
     model: Any | None  # type: ignore[assignment]
 
-
 def _now_iso() -> str:
     """Get current timestamp in ISO format."""
     return datetime.now(timezone.utc).isoformat()
-
 
 async def send_error_message(
     websocket: WebSocket, message: str, agent_id: str, session_id: str
@@ -91,7 +88,7 @@ async def send_error_message(
         logger.debug("Failed to send error message, WebSocket runtime error: %s", exc)
     except ConnectionError as exc:
         logger.debug("Failed to send error message, connection error: %s", exc)
-    except Exception as _e:  # pylint
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:  # pylint
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -99,7 +96,6 @@ async def send_error_message(
         logger.warning(
             "Failed to send error message due to an unexpected error.", exc_info=True
         )
-
 
 async def run_auditor_safely() -> None:
     """
@@ -119,7 +115,7 @@ async def run_auditor_safely() -> None:
     except asyncio.CancelledError:  # pylint
         # Propagate task cancellation correctly
         raise
-    except Exception as _e:  # pylint
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:  # pylint
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -127,7 +123,6 @@ async def run_auditor_safely() -> None:
             "IA Auditor background task failed with an unhandled exception.",
             exc_info=True,
         )
-
 
 async def _handle_agent_interaction(
     websocket: WebSocket,
@@ -182,7 +177,7 @@ async def _handle_agent_interaction(
                 content=sanitized,
                 metadata={"agent_id": agent_id_str},
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Failed to persist user message: %s", e)
 
         # Route via HybridRouter (single source of truth)
@@ -248,17 +243,17 @@ async def _handle_agent_interaction(
                     "processing_time_ms": processing_time_ms,
                 },
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Failed to persist assistant message: %s", e)
 
         # Schedule the IA Auditor to run in the background
         logger.info("Scheduling IA Auditor to run in the background.")
-        task = await create_tracked_task(
+        task = create_tracked_task(
             run_auditor_safely(), name="run_auditor_safely"
         )
         _bg_tasks.add(task)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Error in agent interaction: %s", e, exc_info=True)
         await send_error_message(
             websocket,
@@ -267,12 +262,10 @@ async def _handle_agent_interaction(
             session_id,
         )
 
-
 async def _setup_websocket_session(
     websocket: WebSocket, agent_id: SafeAgentID
 ) -> tuple[SupportsAgentMeta | Any, str]:
     """Handles WebSocket connection setup and agent retrieval."""
-    await websocket.accept()
     logger.info("WebSocket connection established for agent %s", agent_id)
 
     # WebSocket endpoints cannot use FastAPI Depends(get_agent_manager) which
@@ -316,7 +309,6 @@ async def _setup_websocket_session(
     )
     return agent, session_id
 
-
 async def _message_processing_loop(
     websocket: WebSocket,
     agent: SupportsAgentMeta | Any,
@@ -334,7 +326,6 @@ async def _message_processing_loop(
 
         await _handle_agent_interaction(websocket, agent_id, raw_data)
 
-
 @chat_router.websocket("/ws/{agent_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
@@ -351,7 +342,10 @@ async def websocket_endpoint(
 
     Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
     """
-    # Verify token before accepting connection - FAIL CLOSED
+    # Accept first to follow report guidance (some ASGI servers also allow close-before-accept to deny with 403).
+    await websocket.accept()
+
+    # Verify token after accepting connection - FAIL CLOSED
     try:
         from resync.api.auth.service import get_auth_service
 
@@ -359,7 +353,7 @@ async def websocket_endpoint(
         if not token or not auth_service.verify_token(token):
             await websocket.close(code=1008, reason="Authentication required")
             return
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         # P0 fix: FAIL CLOSED — deny connection when auth service is unavailable.
         # Previous code fell through and allowed unauthenticated connections.
         logger.warning(
@@ -397,7 +391,7 @@ async def websocket_endpoint(
             agent_id_str,
             session_id,
         )
-    except Exception as _e:  # pylint: disable=broad-exception-caught
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:  # pylint: disable=broad-exception-caught
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -412,7 +406,6 @@ async def websocket_endpoint(
             agent_id_str,
             session_id,
         )
-
 
 async def _validate_input(
     raw_data: str, agent_id: SafeAgentID, websocket: WebSocket

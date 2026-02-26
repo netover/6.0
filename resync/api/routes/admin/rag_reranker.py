@@ -33,14 +33,12 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # Singleton instances for runtime configuration
 # =============================================================================
 
 _gating_policy: RerankGatingPolicy | None = None
 _reranker: IReranker | None = None
-
 
 def get_gating_policy() -> RerankGatingPolicy:
     """Get or create the gating policy singleton."""
@@ -49,7 +47,6 @@ def get_gating_policy() -> RerankGatingPolicy:
         _gating_policy = RerankGatingPolicy(config=RerankGatingConfig.from_env())
     return _gating_policy
 
-
 def get_reranker_instance() -> IReranker:
     """Get or create the reranker singleton."""
     global _reranker
@@ -57,11 +54,9 @@ def get_reranker_instance() -> IReranker:
         _reranker = create_reranker()
     return _reranker
 
-
 # =============================================================================
 # Request/Response Models
 # =============================================================================
-
 
 class GatingConfigResponse(BaseModel):
     """Response model for gating configuration."""
@@ -75,7 +70,6 @@ class GatingConfigResponse(BaseModel):
     entropy_check_enabled: bool = Field(description="Whether entropy check is enabled")
     entropy_threshold: float = Field(description="Entropy threshold for activation")
 
-
 class GatingStatsResponse(BaseModel):
     """Response model for gating statistics."""
 
@@ -84,7 +78,6 @@ class GatingStatsResponse(BaseModel):
     rerank_rate: float = Field(description="Rerank activation rate (0-1)")
     reasons: dict[str, int] = Field(description="Breakdown by activation reason")
     config: GatingConfigResponse = Field(description="Current configuration")
-
 
 class RerankerInfoResponse(BaseModel):
     """Response model for reranker information."""
@@ -97,7 +90,6 @@ class RerankerInfoResponse(BaseModel):
     threshold: float | None = Field(description="Score threshold")
     call_count: int = Field(description="Number of rerank calls")
     avg_latency_ms: float | None = Field(description="Average latency in ms")
-
 
 class UpdateGatingConfigRequest(BaseModel):
     """Request model for updating gating configuration."""
@@ -125,14 +117,12 @@ class UpdateGatingConfigRequest(BaseModel):
         description="Max candidates to rerank (1-100)",
     )
 
-
 class UpdateGatingConfigResponse(BaseModel):
     """Response model for config update."""
 
     message: str
     old_config: GatingConfigResponse
     new_config: GatingConfigResponse
-
 
 class FullStatusResponse(BaseModel):
     """Combined status response."""
@@ -141,11 +131,9 @@ class FullStatusResponse(BaseModel):
     gating: GatingStatsResponse
     rag_config: dict[str, Any]
 
-
 # =============================================================================
 # Endpoints
 # =============================================================================
-
 
 @router.get(
     "/status",
@@ -194,7 +182,7 @@ async def get_full_status() -> FullStatusResponse:
                 "rerank_gating_enabled": CFG.rerank_gating_enabled,
             },
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -203,7 +191,6 @@ async def get_full_status() -> FullStatusResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get status. Check server logs for details.",
         ) from None
-
 
 @router.get(
     "/gating/config",
@@ -222,7 +209,6 @@ async def get_gating_config() -> GatingConfigResponse:
         entropy_check_enabled=policy.config.enable_entropy_check,
         entropy_threshold=policy.config.entropy_threshold,
     )
-
 
 @router.get(
     "/gating/stats",
@@ -248,7 +234,6 @@ async def get_gating_stats() -> GatingStatsResponse:
             entropy_threshold=policy.config.entropy_threshold,
         ),
     )
-
 
 @router.put(
     "/gating/config",
@@ -304,7 +289,6 @@ async def update_gating_config(
         new_config=new_config,
     )
 
-
 @router.post(
     "/gating/reset-stats",
     summary="Reset gating statistics",
@@ -317,7 +301,6 @@ async def reset_gating_stats() -> dict[str, str]:
 
     logger.info("Gating statistics reset")
     return {"message": "Gating statistics reset successfully"}
-
 
 @router.get(
     "/reranker/info",
@@ -339,7 +322,6 @@ async def get_reranker_info_endpoint() -> RerankerInfoResponse:
         call_count=info.get("call_count", 0),
         avg_latency_ms=info.get("avg_latency_ms"),
     )
-
 
 @router.post(
     "/reranker/preload",
@@ -367,7 +349,6 @@ async def preload_reranker_model() -> dict[str, Any]:
         "message": "Reranker does not support preloading (NoOp or unavailable)",
         "status": "skipped",
     }
-
 
 # =============================================================================
 # Export router

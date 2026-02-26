@@ -6,19 +6,18 @@ Manages task lifecycle, JSON-RPC routing, and agent delegation.
 import asyncio
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from resync.models.a2a import JsonRpcRequest, JsonRpcResponse, TaskState
 
 logger = structlog.get_logger(__name__)
 
-
 class A2ATask:
     """Represents an A2A task in the system."""
 
     def __init__(
-        self, task_id: str, agent_id: str, method: str, params: Dict[str, Any]
+        self, task_id: str, agent_id: str, method: str, params: dict[str, Any]
     ):
         self.task_id = task_id
         self.agent_id = agent_id
@@ -28,7 +27,7 @@ class A2ATask:
         self.created_at = datetime.now()
         self.updated_at = self.created_at
         self.result: Any = None
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
     def update_state(
         self, state: TaskState, result: Any = None, error: str | None = None
@@ -41,7 +40,7 @@ class A2ATask:
         if error is not None:
             self.error = error
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert task to dictionary for responses."""
         return {
             "task_id": self.task_id,
@@ -54,13 +53,12 @@ class A2ATask:
             "updated_at": self.updated_at.isoformat(),
         }
 
-
 class A2AHandler:
     """Handles JSON-RPC requests and manages A2A task execution."""
 
     def __init__(self, agent_manager: Any):
         self.agent_manager = agent_manager
-        self._tasks: Dict[str, A2ATask] = {}
+        self._tasks: dict[str, A2ATask] = {}
         self._event_queue: asyncio.Queue = asyncio.Queue()
 
     async def handle_request(
@@ -94,7 +92,7 @@ class A2AHandler:
 
             return JsonRpcResponse(result=result, id=request.id)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "a2a_task_failed",
                 agent_id=agent_id,
@@ -109,7 +107,7 @@ class A2AHandler:
             )
 
     async def _execute_method(
-        self, agent_id: str, method: str, params: Dict[str, Any]
+        self, agent_id: str, method: str, params: dict[str, Any]
     ) -> Any:
         """Internal dispatch for agent methods."""
         agent = await self.agent_manager.get_agent(agent_id)

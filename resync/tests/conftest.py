@@ -114,7 +114,7 @@ async def db_engine(test_database_url):
 
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
 
     yield engine
@@ -338,6 +338,25 @@ def cleanup_environment():
     """Clean up environment after each test."""
     yield
     # Reset any global state if needed
+
+
+# FIX P2-08: Settings are cached with @lru_cache(maxsize=1). Without clearing
+# the cache between tests, env var changes between tests are silently ignored,
+# causing test-order-dependent failures.
+@pytest.fixture(autouse=True)
+def _clear_settings_cache():
+    """Auto-clear lru_cache on get_settings() before every test for isolation."""
+    try:
+        from resync.settings import get_settings
+        get_settings.cache_clear()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # noqa: BLE001
+        pass
+    yield
+    try:
+        from resync.settings import get_settings
+        get_settings.cache_clear()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # noqa: BLE001
+        pass
 
 
 # =============================================================================

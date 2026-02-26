@@ -35,7 +35,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class AuditEntry:
     """Single audit log entry with cryptographic integrity."""
@@ -125,7 +124,6 @@ class AuditEntry:
 
         return entry
 
-
 @dataclass
 class EncryptionKey:
     """Encryption key with metadata."""
@@ -144,7 +142,6 @@ class EncryptionKey:
     def get_fernet_key(self) -> bytes:
         """Get key in Fernet format."""
         return base64.urlsafe_b64encode(self.key_data)
-
 
 @dataclass
 class AuditLogBlock:
@@ -170,7 +167,6 @@ class AuditLogBlock:
         content_str = json.dumps(content, sort_keys=True, separators=(",", ":"))
         self.block_hash = hashlib.sha256(content_str.encode()).hexdigest()
         return self.block_hash
-
 
 @dataclass
 class EncryptedAuditConfig:
@@ -205,7 +201,6 @@ class EncryptedAuditConfig:
 
     # Encryption control - default to False (plaintext storage)
     encryption_enabled: bool = False
-
 
 class KeyManager:
     """Secure key management for audit encryption."""
@@ -280,7 +275,6 @@ class KeyManager:
             for key in self.keys.values()
         ]
 
-
 class EncryptedAuditTrail:
     """
     Cryptographically secure audit trail with encrypted storage
@@ -337,7 +331,7 @@ class EncryptedAuditTrail:
         if chain_file.exists():
             try:
                 self.chain_hash = chain_file.read_text().strip()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Failed to load chain hash: %s", e)
                 self.chain_hash = ""
 
@@ -346,7 +340,7 @@ class EncryptedAuditTrail:
         if counter_file.exists():
             try:
                 self.block_counter = int(counter_file.read_text().strip())
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Failed to load block counter: %s", e)
                 self.block_counter = 0
 
@@ -567,7 +561,7 @@ class EncryptedAuditTrail:
                     results["integrity_status"] = "compromised"
                     results["issues_found"].extend(full_check["issues"])
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("exception_caught", error=str(e), exc_info=True)
             results["integrity_status"] = "error"
             results["issues_found"].append(f"verification_error: {str(e)}")
@@ -826,7 +820,7 @@ class EncryptedAuditTrail:
                 await self._flush_pending_entries()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Flush worker error: %s", e)
 
     async def _archival_worker(self) -> None:
@@ -839,7 +833,7 @@ class EncryptedAuditTrail:
                 # to compressed .tar.gz archives
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Archival worker error: %s", e)
 
     async def _verification_worker(self) -> None:
@@ -857,13 +851,11 @@ class EncryptedAuditTrail:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Verification worker error: %s", e)
-
 
 # Global encrypted audit trail instance (lazy-initialized)
 _encrypted_audit_trail: EncryptedAuditTrail | None = None
-
 
 def _get_encrypted_audit_trail_instance() -> EncryptedAuditTrail:
     """Get or create the encrypted audit trail (lazy init)."""
@@ -872,10 +864,8 @@ def _get_encrypted_audit_trail_instance() -> EncryptedAuditTrail:
         _encrypted_audit_trail = EncryptedAuditTrail()
     return _encrypted_audit_trail
 
-
 # Backward compatibility alias
 encrypted_audit_trail: EncryptedAuditTrail | None = None  # type: ignore[assignment]
-
 
 async def get_encrypted_audit_trail() -> EncryptedAuditTrail:
     """Get the global encrypted audit trail instance."""

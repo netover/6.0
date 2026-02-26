@@ -44,11 +44,9 @@ from resync.core.specialists.tools import (
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # PROMPT LOADER
 # =============================================================================
-
 
 def _load_specialist_prompts() -> dict[str, Any]:
     """Load specialist prompts from YAML file."""
@@ -63,14 +61,11 @@ def _load_specialist_prompts() -> dict[str, Any]:
     logger.warning("specialist_prompts_not_found", path=str(prompts_path))
     return {}
 
-
 SPECIALIST_PROMPTS = _load_specialist_prompts()
-
 
 # =============================================================================
 # LITELLM INTEGRATION (REPLACES AGNO)
 # =============================================================================
-
 
 async def _call_llm(
     prompt: str,
@@ -103,18 +98,16 @@ async def _call_llm(
 
         return response.choices[0].message.content
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("llm_call_failed", error=str(e))
         return f"[LLM Error] {str(e)}"
 
-
 # =============================================================================
 # QUERY CLASSIFIER
 # =============================================================================
-
 
 class QueryClassifier:
     """
@@ -231,11 +224,9 @@ class QueryClassifier:
 
         return entities
 
-
 # =============================================================================
 # SPECIALIST AGENT CLASSES (AGNO-FREE)
 # =============================================================================
-
 
 class BaseSpecialist:
     """
@@ -316,7 +307,7 @@ class BaseSpecialist:
                 processing_time_ms=processing_time,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             processing_time = int((time.time() - start_time) * 1000)
             logger.error(
                 "specialist_processing_error",
@@ -354,7 +345,6 @@ class BaseSpecialist:
         """Get names of tools used."""
         return [t.__name__ if callable(t) else str(t) for t in self._get_tools()]
 
-
 class JobAnalystAgent(BaseSpecialist):
     """
     Specialist for job execution analysis.
@@ -387,7 +377,7 @@ class JobAnalystAgent(BaseSpecialist):
                 log = await self.job_log_tool.get_job_log(job)
                 if log:
                     results.append(f"Log for {job}:\n{log[:500]}...")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Could not get log for %s: %s", job, e)
 
         # Lookup error codes
@@ -396,11 +386,10 @@ class JobAnalystAgent(BaseSpecialist):
                 info = await self.error_code_tool.lookup_error(code)
                 if info:
                     results.append(f"Error {code}: {info}")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Could not lookup %s: %s", code, e)
 
         return "\n\n".join(results)
-
 
 class DependencySpecialist(BaseSpecialist):
     """
@@ -437,11 +426,10 @@ class DependencySpecialist(BaseSpecialist):
                 if succs:
                     results.append(f"Successors of {job}: {', '.join(succs)}")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Could not get dependencies for %s: %s", job, e)
 
         return "\n".join(results)
-
 
 class ResourceSpecialist(BaseSpecialist):
     """
@@ -473,11 +461,10 @@ class ResourceSpecialist(BaseSpecialist):
                 status = await self.workstation_tool.get_workstation_status(ws)
                 if status:
                     results.append(f"Status of {ws}: {status}")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Could not get status for %s: %s", ws, e)
 
         return "\n".join(results)
-
 
 class KnowledgeSpecialist(BaseSpecialist):
     """
@@ -513,16 +500,14 @@ class KnowledgeSpecialist(BaseSpecialist):
                 docs = [f"- {r.get('content', '')[:200]}..." for r in results]
                 return "Relevant documentation:\n" + "\n".join(docs)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.debug("Knowledge search failed: %s", e)
 
         return ""
 
-
 # =============================================================================
 # TEAM ORCHESTRATOR (AGNO-FREE)
 # =============================================================================
-
 
 class TWSSpecialistTeam:
     """
@@ -659,9 +644,10 @@ class TWSSpecialistTeam:
             async with asyncio.TaskGroup() as tg:
                 for spec in specialists[: self.config.max_parallel_specialists]:
                     tasks.append(tg.create_task(spec.process(query, context)))
-        except* Exception:
-            # Individual task exceptions are handled below
-            pass
+        except* Exception as eg:
+            # Individual task exceptions are handled below per-task;
+            # log so unexpected errors are observable
+            logger.debug("specialist_task_group_error", count=len(eg.exceptions))
 
         result = []
         for i, task in enumerate(tasks):
@@ -692,7 +678,7 @@ class TWSSpecialistTeam:
             try:
                 resp = await spec.process(query, context)
                 responses.append(resp)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 responses.append(
                     SpecialistResponse(
                         specialist_type=spec.specialist_type,
@@ -747,13 +733,11 @@ class TWSSpecialistTeam:
 
         return sum(r.confidence for r in successful) / len(successful)
 
-
 # =============================================================================
 # SINGLETON FUNCTIONS
 # =============================================================================
 
 _team_instance: TWSSpecialistTeam | None = None
-
 
 def get_specialist_team() -> TWSSpecialistTeam:
     """Get the singleton TWSSpecialistTeam instance."""
@@ -761,7 +745,6 @@ def get_specialist_team() -> TWSSpecialistTeam:
     if _team_instance is None:
         _team_instance = TWSSpecialistTeam()
     return _team_instance
-
 
 def create_specialist_team(
     config: "SpecialistConfig | None" = None,
@@ -782,7 +765,6 @@ def create_specialist_team(
         config = SpecialistConfig()
 
     return TWSSpecialistTeam(config=config, llm_client=llm_client)
-
 
 # =============================================================================
 # EXPORTS

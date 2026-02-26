@@ -15,7 +15,6 @@ from resync.core.health.health_models import HealthCheckConfig
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthCheckConfigurationManager:
     """
     Manages comprehensive health check configuration.
@@ -337,7 +336,7 @@ class HealthCheckConfigurationManager:
             )
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

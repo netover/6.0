@@ -22,11 +22,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # DATA MODELS
 # =============================================================================
-
 
 @dataclass
 class Message:
@@ -53,7 +51,6 @@ class Message:
             timestamp=data.get("timestamp", time.time()),
             metadata=data.get("metadata", {}),
         )
-
 
 @dataclass
 class ConversationContext:
@@ -182,11 +179,9 @@ class ConversationContext:
         ctx.user_preferences = data.get("user_preferences", {})
         return ctx
 
-
 # =============================================================================
 # MEMORY STORE INTERFACE
 # =============================================================================
-
 
 class MemoryStore(ABC):
     """Abstract base class for conversation memory storage."""
@@ -207,11 +202,9 @@ class MemoryStore(ABC):
     async def list_sessions(self, limit: int = 100) -> list[str]:
         """List active session IDs."""
 
-
 # =============================================================================
 # REDIS MEMORY STORE
 # =============================================================================
-
 
 class RedisMemoryStore(MemoryStore):
     """
@@ -257,7 +250,7 @@ class RedisMemoryStore(MemoryStore):
                 )
                 logger.info("Redis memory store connected")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Redis connection failed: %s", e)
                 raise
 
@@ -290,7 +283,7 @@ class RedisMemoryStore(MemoryStore):
 
         try:
             return ConversationContext.from_dict(json.loads(data))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to parse context: %s", e)
             return None
 
@@ -322,11 +315,9 @@ class RedisMemoryStore(MemoryStore):
             await self._redis.close()
             self._redis = None
 
-
 # =============================================================================
 # IN-MEMORY STORE (FALLBACK)
 # =============================================================================
-
 
 class InMemoryStore(MemoryStore):
     """
@@ -366,11 +357,9 @@ class InMemoryStore(MemoryStore):
         """List session IDs."""
         return list(self._store.keys())[:limit]
 
-
 # =============================================================================
 # MEMORY MANAGER
 # =============================================================================
-
 
 class ConversationMemory:
     """
@@ -427,7 +416,7 @@ class ConversationMemory:
                 logger.info("Using Redis for conversation memory")
                 return self._store
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Redis not available for memory: %s", e)
 
         # Fall back to in-memory
@@ -537,13 +526,11 @@ class ConversationMemory:
 
         return resolved
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _memory_instance: ConversationMemory | None = None
-
 
 def get_conversation_memory() -> ConversationMemory:
     """Get singleton conversation memory instance."""
@@ -551,7 +538,6 @@ def get_conversation_memory() -> ConversationMemory:
     if _memory_instance is None:
         _memory_instance = ConversationMemory()
     return _memory_instance
-
 
 __all__ = [
     "Message",

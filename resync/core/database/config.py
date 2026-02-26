@@ -21,17 +21,14 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
-
 
 class DatabaseDriver(str, Enum):
     """Database driver enumeration."""
 
     POSTGRESQL = "postgresql"  # Only supported backend
-
 
 @dataclass
 class DatabaseConfig:
@@ -99,7 +96,6 @@ class DatabaseConfig:
             "pool_recycle": self.pool_recycle,
         }
 
-
 def get_database_config() -> DatabaseConfig:
     """
     Get database configuration from environment.
@@ -130,7 +126,6 @@ def get_database_config() -> DatabaseConfig:
         ssl_mode=os.getenv("DATABASE_SSL_MODE", "prefer"),
     )
 
-
 def _parse_database_url(url: str) -> DatabaseConfig:
     """
     Parse a database URL into DatabaseConfig.
@@ -157,7 +152,6 @@ def _parse_database_url(url: str) -> DatabaseConfig:
 
     return config
 
-
 def _is_production_env() -> bool:
     """
     Best-effort env detection without importing Settings (avoid circular deps).
@@ -171,7 +165,6 @@ def _is_production_env() -> bool:
     )
     v = raw.strip().lower()
     return v in {"prod", "production"}
-
 
 def _validate_database_url_security(url: str) -> None:
     """
@@ -188,7 +181,7 @@ def _validate_database_url_security(url: str) -> None:
         normalized = normalized.replace("postgres://", "postgresql://", 1)
 
     parsed = urlparse(normalized)
-    password: Optional[str] = parsed.password
+    password: str | None = parsed.password
 
     if not password:
         return
@@ -208,10 +201,8 @@ def _validate_database_url_security(url: str) -> None:
             "DATABASE_URL contains an insecure database password; set a strong password/secret in production"
         )
 
-
 # Singleton config instance
 _config: DatabaseConfig | None = None
-
 
 def get_config() -> DatabaseConfig:
     """Get singleton database config."""

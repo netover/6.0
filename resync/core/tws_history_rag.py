@@ -24,7 +24,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class TWSHistoryRAG:
     """
     Componente RAG para consultas históricas do TWS.
@@ -200,7 +199,7 @@ class TWSHistoryRAG:
                         )
 
                         return start, end
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning(
                         "time_extraction_error", pattern=pattern, error=str(e)
                     )
@@ -308,7 +307,7 @@ class TWSHistoryRAG:
                 patterns = await self.status_store.get_patterns(min_confidence=0.5)
                 context["patterns"] = patterns
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("context_gathering_error", error=str(e))
 
         return context
@@ -352,7 +351,7 @@ class TWSHistoryRAG:
             # Chama LLM
             return await self.llm_client.generate(prompt)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -479,7 +478,6 @@ class TWSHistoryRAG:
         """Atalho para padrões detectados."""
         return await self.query("quais padrões foram detectados?")
 
-
 # =============================================================================
 # TOOL DEFINITION FOR AGENT
 # =============================================================================
@@ -511,18 +509,15 @@ Use para responder perguntas sobre:
     },
 }
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _rag_instance: TWSHistoryRAG | None = None
 
-
 def get_tws_history_rag() -> TWSHistoryRAG | None:
     """Retorna instância singleton do RAG."""
     return _rag_instance
-
 
 def init_tws_history_rag(
     status_store: Any = None,
@@ -538,11 +533,9 @@ def init_tws_history_rag(
 
     return _rag_instance
 
-
 # =============================================================================
 # INCIDENT SEARCH (for Incident Response Pipeline)
 # =============================================================================
-
 
 async def search_historical_incidents(
     query: str,
@@ -592,7 +585,7 @@ async def search_historical_incidents(
                             "mttr": item.get("mttr"),
                         }
                     )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.debug("rag_search_failed", error=str(e))
 
     # Fallback: Search in database
@@ -635,18 +628,16 @@ async def search_historical_incidents(
                             "mttr": int(row.mttr) if row.mttr else None,
                         }
                     )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.debug("db_incident_search_failed", error=str(e))
 
     logger.info("historical_incident_search", query=query[:50], count=len(results))
     return results
 
-
 def _extract_error_type_from_content(content: str) -> str:
     """Extract error type from content string."""
     match = re.search(r"(\w+Error|\w+Exception|\w+Timeout|ABEND|ABND)", content)
     return match.group(1) if match else "Unknown"
-
 
 async def log_incident_resolution(
     error_type: str,
@@ -682,7 +673,7 @@ async def log_incident_resolution(
             "incident_resolution_logged", error_type=error_type, component=component
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

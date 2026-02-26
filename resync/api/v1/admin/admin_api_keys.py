@@ -41,11 +41,9 @@ from resync.core.security import hash_api_key, verify_admin_token
 
 logger = structlog.get_logger(__name__)
 
-
 # ============================================================================
 # DATABASE MODEL
 # ============================================================================
-
 
 class APIKey(Base):
     """
@@ -109,11 +107,9 @@ class APIKey(Base):
         """Check if key is valid (active, not revoked, not expired)."""
         return self.is_active and not self.is_revoked and not self.is_expired
 
-
 # ============================================================================
 # PYDANTIC MODELS
 # ============================================================================
-
 
 class APIKeyCreate(BaseModel):
     """Request model para criar API key."""
@@ -166,7 +162,6 @@ class APIKeyCreate(BaseModel):
         }
     )
 
-
 class APIKeyResponse(BaseModel):
     """Response model para API key."""
 
@@ -186,7 +181,6 @@ class APIKeyResponse(BaseModel):
     created_by: str
 
     model_config = ConfigDict(from_attributes=True)
-
 
 class APIKeyCreatedResponse(BaseModel):
     """Response quando key é criada (inclui key completa)."""
@@ -215,12 +209,10 @@ class APIKeyCreatedResponse(BaseModel):
         }
     )
 
-
 class APIKeyRevoke(BaseModel):
     """Request para revogar key."""
 
     reason: str | None = Field(None, max_length=500, description="Motivo da revogação")
-
 
 class APIKeyListResponse(BaseModel):
     """Response para list de keys."""
@@ -228,18 +220,15 @@ class APIKeyListResponse(BaseModel):
     total: int
     keys: list[APIKeyResponse]
 
-
 # ============================================================================
 # ROUTER
 # ============================================================================
 
 router = APIRouter(prefix="/api/v1/admin/api-keys", tags=["Admin - API Keys"])
 
-
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
-
 
 @router.post(
     "",
@@ -314,14 +303,13 @@ async def create_api_key(
             created_at=api_key.created_at,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         await db.rollback()
         logger.error("api_key_creation_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create API key. Check server logs for details.",
         ) from None
-
 
 @router.get(
     "",
@@ -369,7 +357,6 @@ async def list_api_keys(
 
     return APIKeyListResponse(total=len(key_responses), keys=key_responses)
 
-
 @router.get(
     "/{key_id}",
     response_model=APIKeyResponse,
@@ -408,7 +395,6 @@ async def get_api_key(
         created_at=api_key.created_at,
         created_by=api_key.created_by,
     )
-
 
 @router.delete(
     "/{key_id}",
@@ -464,7 +450,6 @@ async def revoke_api_key(
 
     return
 
-
 @router.delete(
     "/{key_id}/permanent",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -499,11 +484,9 @@ async def delete_api_key_permanent(
 
     return
 
-
 # ============================================================================
 # HEALTH & STATS
 # ============================================================================
-
 
 @router.get(
     "/stats/summary",

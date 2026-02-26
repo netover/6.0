@@ -41,12 +41,9 @@ def safe_sigmoid(x: float) -> float:
         exp_x = math.exp(x)
         return exp_x / (1 + exp_x)
 
-
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-
 
 def _bool(env: str, default: bool = False) -> bool:
     """Parse boolean environment variable."""
@@ -54,7 +51,6 @@ def _bool(env: str, default: bool = False) -> bool:
     if v is None:
         return default
     return v.lower() in {"1", "true", "yes", "on"}
-
 
 @dataclass
 class RerankGatingConfig:
@@ -95,11 +91,9 @@ class RerankGatingConfig:
         """Create config from environment variables."""
         return cls()
 
-
 # =============================================================================
 # GATING POLICY
 # =============================================================================
-
 
 @dataclass
 class RerankGatingPolicy:
@@ -276,11 +270,9 @@ class RerankGatingPolicy:
             "skipped": 0,
         }
 
-
 # =============================================================================
 # RERANKER INTERFACE (Protocol)
 # =============================================================================
-
 
 @runtime_checkable
 class IReranker(Protocol):
@@ -319,11 +311,9 @@ class IReranker(Protocol):
         """Get reranker information and status."""
         ...
 
-
 # =============================================================================
 # NOOP RERANKER (Null Object Pattern)
 # =============================================================================
-
 
 class NoOpReranker:
     """
@@ -367,11 +357,9 @@ class NoOpReranker:
             "description": "Pass-through reranker (disabled)",
         }
 
-
 # =============================================================================
 # CROSS-ENCODER RERANKER
 # =============================================================================
-
 
 class CrossEncoderReranker:
     """
@@ -443,7 +431,7 @@ class CrossEncoderReranker:
             self._available = False
             return None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("failed_to_load_cross_encoder", error=str(e))
             self._available = False
             return None
@@ -526,7 +514,7 @@ class CrossEncoderReranker:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("cross_encoder_reranking_failed", error=str(e))
             if top_k is not None:
                 return candidates[:top_k]
@@ -550,7 +538,7 @@ class CrossEncoderReranker:
             _ = model.predict([("test", "test")])
             logger.info("cross_encoder_warmed_up")
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("cross_encoder_warmup_failed", error=str(e))
             return False
 
@@ -572,11 +560,9 @@ class CrossEncoderReranker:
             "avg_latency_ms": round(avg_latency, 2),
         }
 
-
 # =============================================================================
 # FACTORY FUNCTION
 # =============================================================================
-
 
 def create_reranker(
     enabled: bool | None = None,
@@ -624,7 +610,6 @@ def create_reranker(
     logger.info("created_cross_encoder_reranker", model=reranker.model_name)
     return reranker
 
-
 def create_gated_reranker(
     reranker: IReranker | None = None,
     gating_config: RerankGatingConfig | None = None,
@@ -665,11 +650,9 @@ def create_gated_reranker(
 
     return reranker, policy
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     # Protocols

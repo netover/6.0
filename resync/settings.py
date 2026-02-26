@@ -31,7 +31,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from .settings_types import CacheHierarchyConfig, Environment
 from .settings_validators import SettingsValidators
 
-
 class Settings(BaseSettings, SettingsValidators):
     """
     Configurações da aplicação com validação type-safe.
@@ -510,6 +509,44 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
+    # WEBSOCKET POOL
+    # ============================================================================
+    # FIX P0-02: These fields were missing — websocket_pool_manager accessed them
+    # causing AttributeError on every WebSocket connection.
+    ws_pool_max_size: int = Field(
+        default=100, ge=1, description="Maximum simultaneous WebSocket connections"
+    )
+    ws_pool_cleanup_interval: float = Field(
+        default=30.0, gt=0, description="WebSocket pool cleanup interval in seconds"
+    )
+    ws_connection_timeout: float = Field(
+        default=300.0, gt=0, description="WebSocket inactivity timeout in seconds"
+    )
+    ws_max_connection_duration: float = Field(
+        default=7200.0, gt=0, description="Maximum WebSocket connection duration in seconds"
+    )
+
+    @property
+    def WS_POOL_MAX_SIZE(self) -> int:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_pool_max_size
+
+    @property
+    def WS_POOL_CLEANUP_INTERVAL(self) -> float:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_pool_cleanup_interval
+
+    @property
+    def WS_CONNECTION_TIMEOUT(self) -> float:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_connection_timeout
+
+    @property
+    def WS_MAX_CONNECTION_DURATION(self) -> float:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_max_connection_duration
+
+    # ============================================================================
     # TWS (Workload Automation)
     # ============================================================================
     tws_mock_mode: bool = Field(
@@ -770,6 +807,14 @@ class Settings(BaseSettings, SettingsValidators):
         default="HS256",
         description="Algorithm for JWT token signing",
     )
+    jwt_leeway_seconds: int = Field(
+        default=60,
+        ge=0,
+        le=600,
+        validation_alias=AliasChoices("JWT_LEEWAY_SECONDS", "APP_JWT_LEEWAY_SECONDS"),
+        description="Allowed clock skew (seconds) when validating JWT exp/nbf claims",
+    )
+
     access_token_expire_minutes: int = Field(
         default=30,
         ge=5,
@@ -838,7 +883,14 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # CORS
-    cors_allowed_origins: list[str] = Field(default=["http://localhost:3000"])
+    cors_allowed_origins: list[str] = Field(
+        default=["http://localhost:3000"],
+        description=(
+            "Allowed CORS origins. MUST be overridden in production via "
+            "APP_CORS_ALLOWED_ORIGINS env var (comma-separated). "
+            "Wildcard '*' is rejected in production by _validate_critical_settings()."
+        ),
+    )
     cors_allow_credentials: bool = Field(default=False)
     cors_allow_methods: list[str] = Field(default=["*"])
     cors_allow_headers: list[str] = Field(default=["*"])
@@ -960,7 +1012,7 @@ class Settings(BaseSettings, SettingsValidators):
         description="Number of worker processes (set based on CPU cores)",
     )
     worker_class: str = Field(
-        default="uvicorn.workers.UvicornWorker",
+        default="uvicorn_worker.UvicornWorker",
         description="Gunicorn worker class for async support",
     )
     worker_timeout: int = Field(
@@ -1646,7 +1698,6 @@ class Settings(BaseSettings, SettingsValidators):
         parts = [f"{name}={value!r}" for name, value in fields.items()]
         return f"{self.__class__.__name__}({', '.join(parts)})"
 
-
 # -----------------------------------------------------------------------------
 # Instância global (lazy) + helpers
 # -----------------------------------------------------------------------------
@@ -1670,11 +1721,9 @@ def get_settings() -> Settings:
             settings.secret_key = SecretStr(secrets.token_urlsafe(32))
     return settings
 
-
 def clear_settings_cache() -> None:
     """Clear the cached settings instance (useful for testing)."""
     get_settings.cache_clear()
-
 
 class _SettingsProxy:
     """Proxy de conveniência para manter compatibilidade."""
@@ -1696,9 +1745,7 @@ class _SettingsProxy:
     def __dir__(self) -> list[str]:
         return dir(get_settings())
 
-
 settings = _SettingsProxy()
-
 
 # -----------------------------------------------------------------------------
 # Backward helper retained
@@ -1707,11 +1754,9 @@ def load_settings() -> Settings:
     """Load application settings (backward-compat shim)."""
     return get_settings()
 
-
 # =============================================================================
 # TEAMS OUTGOING WEBHOOK CONFIGURATION
 # =============================================================================
-
 
 # Define a proxy class to lazily access settings for the dictionary interface
 class _TeamsConfigProxy(Mapping[str, Any]):
@@ -1748,7 +1793,6 @@ class _TeamsConfigProxy(Mapping[str, Any]):
             return self[key]
         except KeyError:
             return default
-
 
 TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()
 

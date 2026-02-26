@@ -13,7 +13,6 @@ from typing import Any
 
 _EPOCH_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
-
 @dataclass
 class CacheEntry:
     """
@@ -89,7 +88,6 @@ class CacheEntry:
             hit_count=hit_count,
             metadata=metadata,
         )
-
 
 @dataclass
 class CacheResult:

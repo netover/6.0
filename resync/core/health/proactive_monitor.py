@@ -17,7 +17,6 @@ from resync.core.connection_pool_manager import get_advanced_connection_pool_man
 
 logger = structlog.get_logger(__name__)
 
-
 class ProactiveHealthMonitor:
     """
     Provides proactive health monitoring and predictive analysis.
@@ -130,7 +129,7 @@ class ProactiveHealthMonitor:
             # Store results in history
             self._add_to_monitoring_history(results)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("proactive_health_checks_failed", error=str(e))
             results["error"] = str(e)
 
@@ -173,7 +172,7 @@ class ProactiveHealthMonitor:
                     }
                 return basic_metrics
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("connection_pool_health_check_failed", error=str(e))
 
         return {"error": "Unable to check connection pool health"}
@@ -211,7 +210,7 @@ class ProactiveHealthMonitor:
                             "p95", 0
                         ),
                     }
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.error("exception_caught", error=str(e), exc_info=True)
                     results[name] = {"error": str(e)}
 
@@ -271,7 +270,7 @@ class ProactiveHealthMonitor:
                     }
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("predictive_analysis_failed", error=str(e))
 
         return alerts
@@ -315,7 +314,7 @@ class ProactiveHealthMonitor:
                             }
                         )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("auto_recovery_execution_failed", error=str(e))
 
         return actions

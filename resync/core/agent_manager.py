@@ -38,11 +38,9 @@ from .global_utils import get_environment_tags, get_global_correlation_id
 agent_logger = structlog.get_logger("resync.agent_manager")
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # NATIVE AGENT IMPLEMENTATION (v5.2.3.24 — replaces Agno)
 # =============================================================================
-
 
 class Agent:
     """Lightweight LLM agent backed by LiteLLM.
@@ -114,7 +112,7 @@ class Agent:
 
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -152,7 +150,7 @@ class Agent:
                     "ajudar com operações TWS. "
                     "(Nota: LLM temporariamente indisponível)"
                 )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             agent_logger.error("fallback_response_error", error=str(e), agent=self.name)
             return (
                 "Ocorreu um erro inesperado ao tentar gerar uma resposta alternativa."
@@ -180,11 +178,9 @@ class Agent:
             "tools": [str(t) for t in self.tools] if self.tools else [],
         }
 
-
 # Backward compatibility aliases
 MockAgent = Agent
 AGNO_AVAILABLE = True
-
 
 # --- Pydantic models --------------------------------------------------------
 class AgentsConfig(BaseModel):
@@ -192,11 +188,9 @@ class AgentsConfig(BaseModel):
 
     agents: list[AgentConfig] = Field(default_factory=list)
 
-
 # =============================================================================
 # AGENT MANAGER
 # =============================================================================
-
 
 def _discover_tools() -> dict[str, Any]:
     """Return the map of tool-name -> callable for agent injection."""
@@ -208,7 +202,6 @@ def _discover_tools() -> dict[str, Any]:
     except (ImportError, AttributeError) as exc:
         logger.warning("tool_discovery_failed", error=str(exc))
         return {}
-
 
 class AgentManager:
     """Manages agent lifecycle: creation, caching, configuration, and tools.
@@ -424,7 +417,7 @@ class AgentManager:
                         agent=agent_data.get("id", "unknown"),
                         field=str(exc),
                     )
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.error(
                         "agent_config_parse_error",
                         agent=agent_data.get("id", "unknown"),
@@ -454,7 +447,7 @@ class AgentManager:
             )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             logger.error(
                 "agent_config_load_error",
                 file=str(config_file),
@@ -522,7 +515,7 @@ class AgentManager:
             )
             return agent
 
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -581,7 +574,7 @@ class AgentManager:
                     "tws_client_initialized",
                     client_type=type(self.tws_client).__name__,
                 )
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.warning("tws_client_init_failed", error=str(exc))
 
     async def get_tws_client(self) -> Any:
@@ -647,14 +640,12 @@ class AgentManager:
                 cards.append(card)
         return cards
 
-
 # =============================================================================
 # MODULE-LEVEL STATE  (replaces singleton pattern)
 # =============================================================================
 
 _agent_manager: AgentManager | None = None
 _init_lock = threading.Lock()
-
 
 def initialize_agent_manager(
     settings_module: Any = settings,
@@ -671,7 +662,6 @@ def initialize_agent_manager(
             tws_client_factory=tws_client_factory,
         )
     return _agent_manager
-
 
 def get_agent_manager() -> AgentManager:
     """Return the module-level ``AgentManager``.
@@ -691,11 +681,9 @@ def get_agent_manager() -> AgentManager:
                 _agent_manager = AgentManager()
     return _agent_manager
 
-
 # =============================================================================
 # UNIFIED AGENT INTERFACE
 # =============================================================================
-
 
 class UnifiedAgent:
     """High-level chat interface with automatic intent routing.
@@ -831,13 +819,11 @@ class UnifiedAgent:
         """Access the underlying router for advanced usage."""
         return self._router
 
-
 # ---------------------------------------------------------------------------
 # Module-level UnifiedAgent (lazy, per-session safe)
 # ---------------------------------------------------------------------------
 
 _unified_agent: UnifiedAgent | None = None
-
 
 def get_unified_agent() -> UnifiedAgent:
     """Return (or create) the module-level ``UnifiedAgent``."""
@@ -846,11 +832,9 @@ def get_unified_agent() -> UnifiedAgent:
         _unified_agent = UnifiedAgent(get_agent_manager())
     return _unified_agent
 
-
 # ---------------------------------------------------------------------------
 # Module __getattr__ for backward-compat named imports
 # ---------------------------------------------------------------------------
-
 
 def __getattr__(name: str) -> Any:
     """Support ``from resync.core.agent_manager import agent_manager``
@@ -862,7 +846,6 @@ def __getattr__(name: str) -> Any:
     if name == "unified_agent":
         return get_unified_agent()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 # =============================================================================
 # EXPORTS
@@ -881,3 +864,24 @@ __all__ = [
     "get_unified_agent",
     "initialize_agent_manager",
 ]
+
+# =============================================================================
+# Module-level `unified_agent` singleton proxy
+# =============================================================================
+
+class _UnifiedAgentProxy:
+    """Lazy proxy: delegates all attribute access to the real UnifiedAgent.
+
+    This allows ``from resync.core.agent_manager import unified_agent``
+    to work without triggering initialization at import time.
+    """
+
+    def __getattr__(self, name: str):
+        return getattr(get_unified_agent(), name)
+
+    def __repr__(self) -> str:
+        return f"<UnifiedAgentProxy wrapping {get_unified_agent()!r}>"
+
+
+#: Module-level singleton used by ``resync.api.routes.core.chat``.
+unified_agent: "_UnifiedAgentProxy" = _UnifiedAgentProxy()

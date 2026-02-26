@@ -41,14 +41,11 @@ import structlog
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-
 logger = structlog.get_logger(__name__)
-
 
 # -----------------------------------------------------------------------------
 # Local no‑op tracer/span implementations
 # -----------------------------------------------------------------------------
-
 
 class _NoOpSpan:
     """A minimal span that does nothing."""
@@ -68,7 +65,6 @@ class _NoOpSpan:
 
         return _Ctx()
 
-
 class _NoOpTracer:
     """A tracer that produces no‑op spans."""
 
@@ -85,31 +81,25 @@ class _NoOpTracer:
 
         return _SpanContextManager()
 
-
 def is_telemetry_enabled() -> bool:
     """Check if OpenTelemetry is enabled."""
     return os.getenv("OTEL_ENABLED", "true").lower() in ("true", "1", "yes")
-
 
 def get_service_name() -> str:
     """Get service name for telemetry."""
     return os.getenv("OTEL_SERVICE_NAME", "resync")
 
-
 def get_service_version() -> str:
     """Get service version for telemetry."""
     return os.getenv("OTEL_SERVICE_VERSION", "5.6.0")
-
 
 def get_environment() -> str:
     """Get environment name."""
     return os.getenv("OTEL_ENVIRONMENT", os.getenv("ENVIRONMENT", "production"))
 
-
 def get_hostname() -> str:
     """Get hostname for resource attributes."""
     return socket.gethostname()
-
 
 def setup_telemetry(app: FastAPI | None = None) -> None:
     """
@@ -165,7 +155,7 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
         otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
         span_processor = BatchSpanProcessor(otlp_exporter)
         tracer_provider.add_span_processor(span_processor)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Failed to setup OTLP exporter: %s", e)
 
     # Set global tracer provider
@@ -181,7 +171,6 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
         environment=get_environment(),
     )
 
-
 def _instrument_frameworks(app: FastAPI | None = None) -> None:
     """Setup auto-instrumentation for frameworks."""
     # FastAPI
@@ -195,7 +184,7 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
             logger.debug("FastAPI instrumented")
         except ImportError:
             pass
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("FastAPI instrumentation failed: %s", e)
 
     # SQLAlchemy
@@ -206,7 +195,7 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
         logger.debug("SQLAlchemy instrumented")
     except ImportError:
         pass
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("SQLAlchemy instrumentation failed: %s", e)
 
     # Redis
@@ -217,7 +206,7 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
         logger.debug("Redis instrumented")
     except ImportError:
         pass
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Redis instrumentation failed: %s", e)
 
     # HTTPX
@@ -228,9 +217,8 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
         logger.debug("HTTPX instrumented")
     except ImportError:
         pass
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("HTTPX instrumentation failed: %s", e)
-
 
 def get_tracer(name: str = __name__) -> Any:
     """
@@ -250,9 +238,8 @@ def get_tracer(name: str = __name__) -> Any:
         from opentelemetry import trace  # type: ignore
 
         return trace.get_tracer(name)
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return _NoOpTracer()
-
 
 def get_current_span() -> Any:
     """Get the current active span."""
@@ -262,9 +249,8 @@ def get_current_span() -> Any:
         from opentelemetry import trace  # type: ignore
 
         return trace.get_current_span()
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return _NoOpSpan()
-
 
 def get_current_trace_id() -> str | None:
     """Get the current trace ID as a hex string."""
@@ -273,14 +259,12 @@ def get_current_trace_id() -> str | None:
         return format(span.get_span_context().trace_id, "032x")
     return None
 
-
 def get_current_span_id() -> str | None:
     """Get the current span ID as a hex string."""
     span = get_current_span()
     if span and span.get_span_context().is_valid:
         return format(span.get_span_context().span_id, "016x")
     return None
-
 
 @contextmanager
 def create_span(
@@ -299,14 +283,12 @@ def create_span(
     with tracer.start_as_current_span(name, attributes=attributes or {}) as span:
         yield span
 
-
 def add_span_attributes(attributes: dict[str, Any]) -> None:
     """Add attributes to the current span."""
     span = get_current_span()
     if span:
         for key, value in attributes.items():
             span.set_attribute(key, value)
-
 
 def record_exception(
     exception: Exception, attributes: dict[str, Any] | None = None
@@ -315,7 +297,6 @@ def record_exception(
     span = get_current_span()
     if span:
         span.record_exception(exception, attributes=attributes or {})
-
 
 def set_span_status_error(message: str) -> None:
     """Set the current span status to error."""
@@ -326,17 +307,15 @@ def set_span_status_error(message: str) -> None:
         span = get_current_span()
         if getattr(span, "set_status", None):
             span.set_status(Status(StatusCode.ERROR, message))
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
 
-
 # =============================================================================
 # Logging Integration
 # =============================================================================
-
 
 def inject_trace_context(
     logger: logging.Logger, method_name: str, event_dict: dict
@@ -362,7 +341,6 @@ def inject_trace_context(
 
     return event_dict
 
-
 # =============================================================================
 # Prometheus Metrics (OPTIONAL - for external scraping compatibility only)
 # =============================================================================
@@ -379,7 +357,6 @@ def inject_trace_context(
 # with external monitoring systems that may scrape /metrics endpoints.
 # Prefer using the internal metrics system for new code.
 # =============================================================================
-
 
 def setup_prometheus_metrics(app: FastAPI) -> None:
     """
@@ -427,17 +404,15 @@ def setup_prometheus_metrics(app: FastAPI) -> None:
             "prometheus-fastapi-instrumentator not installed. "
             "Install with: pip install prometheus-fastapi-instrumentator"
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to setup Prometheus metrics: %s", e)
 
-
 # =============================================================================
 # Shutdown
 # =============================================================================
-
 
 def shutdown_telemetry() -> None:
     """Shutdown telemetry providers gracefully."""
@@ -451,5 +426,5 @@ def shutdown_telemetry() -> None:
         if hasattr(provider, "shutdown"):
             provider.shutdown()
         logger.info("OpenTelemetry shutdown complete")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Error during telemetry shutdown: %s", e)

@@ -31,11 +31,9 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-
 
 @dataclass
 class LangFuseConfig:
@@ -67,7 +65,6 @@ class LangFuseConfig:
         """Check if LangFuse is properly configured."""
         return self.enabled and bool(self.public_key) and bool(self.secret_key)
 
-
 @dataclass
 class EvidentlyConfig:
     """Evidently configuration."""
@@ -98,7 +95,6 @@ class EvidentlyConfig:
         )
     )
 
-
 @dataclass
 class ObservabilityConfig:
     """Combined observability configuration."""
@@ -113,10 +109,8 @@ class ObservabilityConfig:
     service_name: str = "resync"
     service_version: str = "5.3.8"
 
-
 # Singleton config
 _config: ObservabilityConfig | None = None
-
 
 def get_observability_config() -> ObservabilityConfig:
     """Get or create observability configuration."""
@@ -125,14 +119,12 @@ def get_observability_config() -> ObservabilityConfig:
         _config = ObservabilityConfig()
     return _config
 
-
 # =============================================================================
 # LANGFUSE SETUP
 # =============================================================================
 
 # LangFuse client (lazy init)
 _langfuse_client = None
-
 
 def setup_langfuse() -> bool:
     """
@@ -170,22 +162,20 @@ def setup_langfuse() -> bool:
         )
         return True
 
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
             "langfuse_not_available",
             hint="pip install langfuse",
             reason=type(exc).__name__,
         )
         return False
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("langfuse_init_failed", error=str(e))
         return False
-
 
 def get_langfuse_client():
     """Get the LangFuse client."""
     return _langfuse_client
-
 
 def shutdown_langfuse():
     """Shutdown LangFuse client gracefully."""
@@ -196,11 +186,10 @@ def shutdown_langfuse():
             _langfuse_client.flush()
             _langfuse_client.shutdown()
             logger.info("langfuse_shutdown")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("langfuse_shutdown_error", error=str(e))
         finally:
             _langfuse_client = None
-
 
 # =============================================================================
 # EVIDENTLY SETUP
@@ -208,7 +197,6 @@ def shutdown_langfuse():
 
 # Evidently monitor (lazy init)
 _evidently_monitor = None
-
 
 class EvidentlyMonitor:
     """
@@ -389,7 +377,7 @@ class EvidentlyMonitor:
 
             return report_data
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("drift_check_failed", error=str(e))
             return {"error": str(e)}
 
@@ -416,7 +404,7 @@ class EvidentlyMonitor:
             # Cleanup old reports
             self._cleanup_old_reports()
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -443,7 +431,7 @@ class EvidentlyMonitor:
                 if file_time < cutoff:
                     os.remove(filepath)
                     logger.debug("old_report_deleted", filename=filename)
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass
@@ -462,7 +450,6 @@ class EvidentlyMonitor:
                 "check_interval_minutes": self.config.check_interval_minutes,
             },
         }
-
 
 def setup_evidently() -> EvidentlyMonitor | None:
     """
@@ -484,16 +471,13 @@ def setup_evidently() -> EvidentlyMonitor | None:
 
     return _evidently_monitor
 
-
 def get_evidently_monitor() -> EvidentlyMonitor | None:
     """Get the Evidently monitor."""
     return _evidently_monitor
 
-
 # =============================================================================
 # UNIFIED OBSERVABILITY
 # =============================================================================
-
 
 async def setup_observability() -> dict[str, bool]:
     """
@@ -510,12 +494,10 @@ async def setup_observability() -> dict[str, bool]:
     logger.info("observability_setup_complete", **results)
     return results
 
-
 async def shutdown_observability() -> None:
     """Shutdown all observability components."""
     shutdown_langfuse()
     logger.info("observability_shutdown_complete")
-
 
 def get_observability_status() -> dict[str, Any]:
     """Get status of all observability components."""

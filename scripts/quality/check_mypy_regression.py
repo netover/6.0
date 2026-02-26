@@ -10,13 +10,11 @@ from pathlib import Path
 BASELINE_FILE = Path("config/quality/mypy_baseline.json")
 ERROR_RE = re.compile(r": error:")
 
-
 def _run(paths: list[str]) -> tuple[int, str]:
     cmd = ["python", "-m", "mypy", "--strict", *paths]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
     return len(ERROR_RE.findall(output)), output
-
 
 def main() -> int:
     data = json.loads(BASELINE_FILE.read_text())
@@ -50,7 +48,6 @@ def main() -> int:
 
     print("\nMypy regression gate passed.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

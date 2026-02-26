@@ -25,14 +25,12 @@ from resync.core.structured_logger import get_logger as _get_logger
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Re-export get_logger for backward compatibility
 # ============================================================================
 def get_logger(name: str = __name__) -> logging.Logger:
     """Get a structured logger instance."""
     return _get_logger(name)
-
 
 # ============================================================================
 # User Authentication Dependencies
@@ -54,7 +52,6 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         pass
     return None
 
-
 # ============================================================================
 # Concurrency Locks for Thread-Safe Initialization
 # ============================================================================
@@ -66,7 +63,6 @@ _context_store_lock: asyncio.Lock = asyncio.Lock()
 _metrics_store_lock: asyncio.Lock = asyncio.Lock()
 _feedback_store_lock: asyncio.Lock = asyncio.Lock()
 
-
 # ============================================================================
 # Store Singletons
 # ============================================================================
@@ -75,7 +71,6 @@ _context_store: ContextStore | None = None
 _metrics_store: MetricsStore | None = None
 _feedback_store: FeedbackStore | None = None
 
-
 # ============================================================================
 # Database Session Dependencies
 # ============================================================================
@@ -83,7 +78,6 @@ async def get_database() -> AsyncGenerator[AsyncSession, None]:
     """Get database session dependency."""
     async with get_db_session() as session:
         yield session
-
 
 # ============================================================================
 # Store Dependencies (Thread-Safe with Double-Check Pattern)
@@ -106,7 +100,6 @@ async def get_tws_store() -> TWSStore:
                 logger.info("TWSStore singleton initialized successfully")
     return _tws_store
 
-
 async def get_context_store() -> ContextStore:
     """
     Get context store dependency (Thread-Safe).
@@ -120,7 +113,6 @@ async def get_context_store() -> ContextStore:
                 logger.debug("Initializing ContextStore singleton...")
                 _context_store = ContextStore()
     return _context_store
-
 
 async def get_metrics_store() -> MetricsStore:
     """
@@ -136,7 +128,6 @@ async def get_metrics_store() -> MetricsStore:
                 _metrics_store = MetricsStore()
     return _metrics_store
 
-
 async def get_feedback_store() -> FeedbackStore:
     """
     Get feedback store dependency (Thread-Safe).
@@ -150,7 +141,6 @@ async def get_feedback_store() -> FeedbackStore:
                 logger.debug("Initializing FeedbackStore singleton...")
                 _feedback_store = FeedbackStore()
     return _feedback_store
-
 
 # ============================================================================
 # Cleanup (Shutdown)
@@ -168,7 +158,7 @@ async def cleanup_dependencies():
         try:
             await _tws_store.close()
             logger.info("TWSStore closed successfully")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Error closing TWSStore: %s", e)
         _tws_store = None
 

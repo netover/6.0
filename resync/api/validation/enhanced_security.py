@@ -93,7 +93,6 @@ SUSPICIOUS_PATTERNS: list[Pattern] = [
     re.compile(r"(?i)document\.write"),
 ]
 
-
 class SecurityLevel(str, Enum):
     """Security levels for different contexts."""
 
@@ -101,7 +100,6 @@ class SecurityLevel(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 class ThreatType(str, Enum):
     """Types of security threats detected."""
@@ -113,7 +111,6 @@ class ThreatType(str, Enum):
     RECONNAISSANCE = "reconnaissance"
     PRIVILEGE_ESCALATION = "privilege_escalation"
 
-
 class SecurityEventSeverity(str, Enum):
     """Severity levels for security events."""
 
@@ -123,7 +120,6 @@ class SecurityEventSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 class SecurityEventType(str, Enum):
     """Types of security events."""
@@ -136,7 +132,6 @@ class SecurityEventType(str, Enum):
     SUSPICIOUS_ACTIVITY = "suspicious_activity"
     RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
 
-
 class SecurityContext(BaseModel):
     """Context for security operations."""
 
@@ -147,7 +142,6 @@ class SecurityContext(BaseModel):
     threat_level: SecurityLevel = SecurityLevel.LOW
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = Field(default_factory=dict)
-
 
 class SecurityEventLog(BaseModel):
     """Structure for logging security events."""
@@ -162,7 +156,6 @@ class SecurityEventLog(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     correlation_id: str | None = None
 
-
 class TokenPayload(BaseModel):
     """Structure for JWT token payloads."""
 
@@ -174,7 +167,6 @@ class TokenPayload(BaseModel):
     session_id: str | None = Field(None, description="Session identifier")
     ip_address: str | None = Field(None, description="IP address at token issuance")
 
-
 class SecurityToken(BaseModel):
     """Structure for security tokens."""
 
@@ -184,7 +176,6 @@ class SecurityToken(BaseModel):
     refresh_token: str | None = Field(None, description="Refresh token")
     csrf_token: str | None = Field(None, description="CSRF protection token")
 
-
 class RateLimitInfo(BaseModel):
     """Information about rate limiting."""
 
@@ -192,7 +183,6 @@ class RateLimitInfo(BaseModel):
     remaining: int = Field(..., description="Remaining requests")
     reset_time: datetime = Field(..., description="Time when limit resets")
     window_seconds: int = Field(..., description="Window duration in seconds")
-
 
 class InputValidationResult(BaseModel):
     """Result of input validation."""
@@ -203,14 +193,12 @@ class InputValidationResult(BaseModel):
     threat_detected: ThreatType | None = Field(None, description="Detected threat type")
     security_context: SecurityContext = Field(default_factory=SecurityContext)
 
-
 class SecurityValidator(ABC):
     """Abstract base class for security validators."""
 
     @abstractmethod
     async def validate(self, data: Any, context: SecurityContext) -> ValidationResult:
         """Validate data with security context."""
-
 
 class AsyncSecurityContextManager:
     """Async context manager for security operations."""
@@ -234,7 +222,6 @@ class AsyncSecurityContextManager:
             context=self.context.model_dump(),
         )
         return False  # Don't suppress exceptions
-
 
 class EnhancedSecurityValidator:
     """Enhanced security validator with comprehensive validation capabilities."""
@@ -382,7 +369,7 @@ class EnhancedSecurityValidator:
             from pydantic import validate_email
 
             validated_email = validate_email(email)[1]  # Returns (name, email)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("exception_caught", error=str(e), exc_info=True)
             return InputValidationResult(
                 is_valid=False,
@@ -484,7 +471,7 @@ class EnhancedSecurityValidator:
                     threat_detected=ThreatType.CSRF,
                     security_context=context,
                 )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("exception_caught", error=str(e), exc_info=True)
             return InputValidationResult(
                 is_valid=False,
@@ -536,7 +523,7 @@ class EnhancedSecurityValidator:
 
         except JWTError as e:
             return False, None, f"Token validation failed: {str(e)}"
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("exception_caught", error=str(e), exc_info=True)
             return False, None, f"Unexpected error: {str(e)}"
 
@@ -830,7 +817,7 @@ class EnhancedSecurityValidator:
             try:
                 # Try to hash with passlib
                 return pwd_context.hash(truncated_password)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # CRITICAL SECURITY: Never fall back to plain text
                 logger.error("Password hashing failed: %s", e)
                 raise RuntimeError(
@@ -873,14 +860,13 @@ class EnhancedSecurityValidator:
         if HAS_PASSLIB:
             try:
                 return pwd_context.verify(truncated_password, hashed_password)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Password verification failed: %s", e)
                 return False
 
         # CRITICAL SECURITY: No insecure fallback allowed
         logger.error("Secure password verification library required but not available")
         return False
-
 
 # Dependency function for FastAPI
 async def get_security_validator() -> EnhancedSecurityValidator:
@@ -891,7 +877,6 @@ async def get_security_validator() -> EnhancedSecurityValidator:
         EnhancedSecurityValidator instance
     """
     return EnhancedSecurityValidator()
-
 
 # Utility functions for validation
 async def validate_password(
@@ -910,7 +895,6 @@ async def validate_password(
     """
     return await validator.validate_password_strength(password, security_level)
 
-
 async def validate_email(
     email: str, security_level: SecurityLevel, validator: EnhancedSecurityValidator
 ) -> InputValidationResult:
@@ -927,7 +911,6 @@ async def validate_email(
     """
     return await validator.validate_email_security(email, security_level)
 
-
 async def validate_input(
     input_data: str, security_level: SecurityLevel, validator: EnhancedSecurityValidator
 ) -> InputValidationResult:
@@ -943,7 +926,6 @@ async def validate_input(
         InputValidationResult with validation outcome
     """
     return await validator.validate_input_security(input_data, security_level)
-
 
 # Security Headers Middleware
 class SecurityHeadersMiddleware:
@@ -969,7 +951,6 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_security_headers)
-
 
 # Export all public classes and functions
 __all__ = [

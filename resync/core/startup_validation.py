@@ -35,7 +35,6 @@ RECOMMENDED_ENV_VARS = {
     "server": ["SERVER_HOST", "SERVER_PORT"],
 }
 
-
 class ConfigurationValidationError(Exception):
     """Raised when configuration validation fails."""
 
@@ -43,7 +42,6 @@ class ConfigurationValidationError(Exception):
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
-
 
 class DependencyUnavailableError(Exception):
     """Raised when required dependencies are unavailable."""
@@ -56,7 +54,6 @@ class DependencyUnavailableError(Exception):
         self.details = details or {}
         super().__init__(self.message)
 
-
 class StartupError(Exception):
     """Raised for general startup errors."""
 
@@ -64,7 +61,6 @@ class StartupError(Exception):
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
-
 
 def validate_environment_variables() -> dict[str, str]:
     """
@@ -164,7 +160,6 @@ def validate_environment_variables() -> dict[str, str]:
 
     return validated_vars
 
-
 async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) -> bool:
     """
     Validate Redis connection with retry logic.
@@ -250,7 +245,7 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
                     },
                 ) from e
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Unexpected error
             startup_logger.error(
                 "redis_unexpected_error",
@@ -265,7 +260,6 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
             ) from e
 
     return False
-
 
 def validate_tws_configuration() -> dict[str, str]:
     """
@@ -345,7 +339,6 @@ def validate_tws_configuration() -> dict[str, str]:
 
     return tws_config
 
-
 def validate_security_settings() -> dict[str, str]:
     """
     Validate security-related configuration.
@@ -401,7 +394,6 @@ def validate_security_settings() -> dict[str, str]:
 
     return security_config
 
-
 async def validate_all_settings() -> "Settings":
     """
     Comprehensive validation of all application settings and dependencies.
@@ -456,7 +448,7 @@ async def validate_all_settings() -> "Settings":
     except (ConfigurationValidationError, DependencyUnavailableError, StartupError):
         # Re-raise validation errors as-is
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Catch any unexpected errors
         error_msg = f"Unexpected validation error: {type(e).__name__}"
         startup_logger.error(

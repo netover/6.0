@@ -27,7 +27,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class KnowledgeIncorporator:
     """
     Incorpora feedback humano ao knowledge base.
@@ -260,7 +259,7 @@ class KnowledgeIncorporator:
                 )
                 results["doc_ids"].append(doc_id)
                 results["success"] += 1
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 results["failed"] += 1
                 results["errors"].append(
                     {
@@ -303,10 +302,9 @@ class KnowledgeIncorporator:
             await self._store.delete_by_doc_id(doc_id, collection=CFG.collection_write)
             logger.info("incorporated_document_removed", doc_id=doc_id)
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("remove_incorporated_error", doc_id=doc_id, error=str(e))
             return False
-
 
 # =============================================================================
 # SINGLETON INSTANCE
@@ -314,14 +312,12 @@ class KnowledgeIncorporator:
 
 _instance: KnowledgeIncorporator | None = None
 
-
 def get_knowledge_incorporator() -> KnowledgeIncorporator:
     """Get or create the singleton KnowledgeIncorporator instance."""
     global _instance
     if _instance is None:
         _instance = KnowledgeIncorporator()
     return _instance
-
 
 async def incorporate_feedback(
     feedback_id: int,

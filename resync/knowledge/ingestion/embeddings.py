@@ -27,7 +27,6 @@ from dataclasses import dataclass
 
 logger = structlog.get_logger(__name__)
 
-
 @dataclass
 class EmbeddingConfig:
     """Configuration for embedding provider."""
@@ -37,7 +36,6 @@ class EmbeddingConfig:
     batch_size: int = 100
     max_retries: int = 3
     timeout: float = 30.0
-
 
 class EmbeddingProvider(ABC):
     """Abstract base class for embedding providers — ASYNC interface."""
@@ -82,7 +80,6 @@ class EmbeddingProvider(ABC):
     @abstractmethod
     def dimension(self) -> int:
         """Get embedding dimension."""
-
 
 class LiteLLMEmbeddingProvider(EmbeddingProvider):
     """
@@ -184,7 +181,7 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
                     if attempt == self._config.max_retries - 1:
                         raise
                     await asyncio.sleep(2**attempt)
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     # CORRIGIDO P1: extra={} → kwargs diretos
                     logger.error(
                         "embedding_error",
@@ -203,7 +200,6 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
             model=self._config.model,
         )
         return all_embeddings
-
 
 class MockEmbeddingProvider(EmbeddingProvider):
     """
@@ -252,11 +248,9 @@ class MockEmbeddingProvider(EmbeddingProvider):
         """Generate mock embeddings for batch."""
         return [await self.embed(text) for text in texts]
 
-
 # Singleton state — thread-safe via threading.Lock
 _embedding_provider: EmbeddingProvider | None = None
 _embedding_provider_lock = __import__("threading").Lock()
-
 
 def get_embedding_provider() -> EmbeddingProvider:
     """
@@ -300,7 +294,6 @@ def get_embedding_provider() -> EmbeddingProvider:
         )
         return _embedding_provider
 
-
 def set_embedding_provider(provider: EmbeddingProvider) -> None:
     """
     Set custom embedding provider (for testing).
@@ -310,3 +303,9 @@ def set_embedding_provider(provider: EmbeddingProvider) -> None:
     """
     global _embedding_provider
     _embedding_provider = provider
+
+# Alias pointing to pgvector store
+def get_vector_service():
+    """Return the vector store service (alias for get_vector_store)."""
+    from resync.knowledge.store.pgvector import get_vector_store
+    return get_vector_store()

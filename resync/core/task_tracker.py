@@ -44,7 +44,6 @@ DEFAULT_SHUTDOWN_TIMEOUT: float = float(
     os.getenv("TASK_TRACKER_SHUTDOWN_TIMEOUT", "5.0")
 )
 
-
 def _require_running_loop() -> asyncio.AbstractEventLoop:
     """
     Return the running event loop or raise a clear error.
@@ -59,7 +58,6 @@ def _require_running_loop() -> asyncio.AbstractEventLoop:
             "create_tracked_task_threadsafe()."
         ) from e
 
-
 def _validate_timeout_positive(
     timeout: float | None, *, param_name: str = "timeout"
 ) -> None:
@@ -68,7 +66,6 @@ def _validate_timeout_positive(
     if timeout <= 0:
         raise ValueError(f"{param_name} must be > 0 or None, got: {timeout!r}")
 
-
 def _try_close_coroutine(coro: Coroutine[Any, Any, Any]) -> None:
     """
     Close a coroutine object if we are going to drop it without scheduling.
@@ -76,10 +73,9 @@ def _try_close_coroutine(coro: Coroutine[Any, Any, Any]) -> None:
     """
     try:
         coro.close()
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         # Defensive: coroutine.close() shouldn't normally fail, but never break caller.
         logger.exception("task_tracker_coroutine_close_failed")
-
 
 def _cap_check_or_reject(coro: Coroutine[Any, Any, Any]) -> None:
     """
@@ -94,7 +90,6 @@ def _cap_check_or_reject(coro: Coroutine[Any, Any, Any]) -> None:
                 "This indicates runaway task spawning or insufficient cleanup."
             )
 
-
 def _on_task_done(task: asyncio.Task[Any]) -> None:
     """
     Done callback for all tasks created by this module.
@@ -107,7 +102,7 @@ def _on_task_done(task: asyncio.Task[Any]) -> None:
     try:
         with _tasks_lock:
             _background_tasks.discard(task)
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         # Never allow callback failure to bubble into event loop.
         logger.exception(
             "task_tracker_done_callback_lock_failed",
@@ -124,7 +119,7 @@ def _on_task_done(task: asyncio.Task[Any]) -> None:
     except asyncio.CancelledError:
         # Race: in rare cases exception() may raise CancelledError
         return
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         logger.exception(
             "task_tracker_done_callback_exception_failed",
             extra={"task": task.get_name()},
@@ -137,7 +132,6 @@ def _on_task_done(task: asyncio.Task[Any]) -> None:
             extra={"task": task.get_name(), "error": str(exc)},
             exc_info=exc,
         )
-
 
 def create_tracked_task(
     coro: Coroutine[Any, Any, T],
@@ -179,7 +173,6 @@ def create_tracked_task(
     )
     return task
 
-
 def create_tracked_task_threadsafe(
     coro_factory: Callable[[], Coroutine[Any, Any, T]],
     loop: asyncio.AbstractEventLoop,
@@ -207,12 +200,11 @@ def create_tracked_task_threadsafe(
                 coro, name=name, cancel_on_shutdown=cancel_on_shutdown
             )
             fut.set_result(t)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             fut.set_exception(e)
 
     loop.call_soon_threadsafe(_create)
     return fut
-
 
 def background_task(
     func: Callable[..., Coroutine[Any, Any, T]],
@@ -230,7 +222,6 @@ def background_task(
         return create_tracked_task(coro, name=func.__name__, cancel_on_shutdown=True)
 
     return wrapper
-
 
 async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[str, int]:
     """
@@ -332,12 +323,10 @@ async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[st
     logger.info("Background tasks shutdown complete", extra=stats)
     return stats
 
-
 def get_task_count() -> int:
     """Get number of currently tracked background tasks."""
     with _tasks_lock:
         return len(_background_tasks)
-
 
 def get_task_names() -> list[str]:
     """Get names of all currently tracked background tasks (sorted for stability)."""
@@ -345,7 +334,6 @@ def get_task_names() -> list[str]:
         names = [t.get_name() for t in _background_tasks]
     names.sort()
     return names
-
 
 async def wait_for_tasks(
     timeout: float | None = None,
@@ -393,7 +381,6 @@ async def wait_for_tasks(
     await asyncio.wait(pending, timeout=bounded)
     return False
 
-
 def track_task(
     coro: Coroutine[Any, Any, T],
     name: str | None = None,
@@ -402,7 +389,6 @@ def track_task(
 ) -> asyncio.Task[T]:
     """Backward-compatibility alias for create_tracked_task()."""
     return create_tracked_task(coro, name=name, cancel_on_shutdown=cancel_on_shutdown)
-
 
 if __name__ == "__main__":
 

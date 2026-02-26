@@ -32,7 +32,6 @@ from .ingest import IngestService
 
 logger = structlog.get_logger(__name__)
 
-
 @dataclass
 class IngestionResult:
     """Result of the full ingestion pipeline."""
@@ -48,7 +47,6 @@ class IngestionResult:
     total_time_s: float
     status: str = "success"
     error: str | None = None
-
 
 class DocumentIngestionPipeline:
     """
@@ -165,7 +163,7 @@ class DocumentIngestionPipeline:
                     tags=auto_tags,
                     chunking_strategy=chunking_strategy,
                 )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("ingestion_failed", doc_id=doc_id, error=str(e))

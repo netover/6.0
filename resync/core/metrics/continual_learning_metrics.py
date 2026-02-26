@@ -27,11 +27,9 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # METRIC NAMES (centralized for consistency)
 # =============================================================================
-
 
 class MetricNames:
     """Centralized metric names for continual learning."""
@@ -78,7 +76,6 @@ class MetricNames:
     SYSTEM_CPU_PERCENT = "cl.system.cpu_percent"
     SYSTEM_DB_SIZE_MB = "cl.system.db_size_mb"
 
-
 @dataclass
 class QueryMetrics:
     """Metrics collected during a single query."""
@@ -93,7 +90,6 @@ class QueryMetrics:
     needs_review: bool = False
     review_reasons: int = 0
     total_duration_ms: float = 0
-
 
 class ContinualLearningMetrics:
     """
@@ -436,13 +432,11 @@ class ContinualLearningMetrics:
             return 0.0
         return positive / total
 
-
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================
 
 _cl_metrics: ContinualLearningMetrics | None = None
-
 
 def get_cl_metrics() -> ContinualLearningMetrics:
     """Get the global continual learning metrics instance."""

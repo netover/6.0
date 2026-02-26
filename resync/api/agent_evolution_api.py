@@ -41,11 +41,9 @@ JSON_FILE_GLOB = "*.json"
 AGENT_IMPROVEMENTS_DIR = Path("data/agent_improvements")
 SUGGESTION_NOT_FOUND_DETAIL = "Suggestion not found"
 
-
 # =============================================================================
 # Request/Response Models
 # =============================================================================
-
 
 class SubmitFeedbackRequest(BaseModel):
     """Request to submit feedback on agent output."""
@@ -70,14 +68,12 @@ class SubmitFeedbackRequest(BaseModel):
         }
     )
 
-
 class FeedbackResponse(BaseModel):
     """Response after submitting feedback."""
 
     status: str
     feedback_id: str
     message: str
-
 
 class PatternResponse(BaseModel):
     """Pattern detection response."""
@@ -89,7 +85,6 @@ class PatternResponse(BaseModel):
     confidence: float
     examples: list[str]
     job_pattern: str | None = None
-
 
 class ImprovementResponse(BaseModel):
     """Improvement suggestion response."""
@@ -104,7 +99,6 @@ class ImprovementResponse(BaseModel):
     status: str
     created_at: str
 
-
 class TestResultResponse(BaseModel):
     """Sandbox test result response."""
 
@@ -115,7 +109,6 @@ class TestResultResponse(BaseModel):
     improvement_pct: float
     regressions_detected: list[str]
     safe_to_deploy: bool
-
 
 class PerformanceMetrics(BaseModel):
     """Agent performance metrics."""
@@ -128,11 +121,9 @@ class PerformanceMetrics(BaseModel):
     accuracy: float
     trend: str  # "improving" | "stable" | "degrading"
 
-
 # =============================================================================
 # Endpoints
 # =============================================================================
-
 
 @router.post(
     "/feedback",
@@ -184,14 +175,13 @@ async def submit_feedback(request: SubmitFeedbackRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         # Don't re-raise programming errors - let them propagate to global handler
         logger.error("Failed to collect feedback: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.get(
     "/{agent_name}/patterns",
@@ -233,7 +223,7 @@ async def get_patterns(agent_name: str):
                     async with aiofiles.open(file_path) as f:
                         data = json.loads(await f.read())
                         patterns.append(PatternResponse(**data))
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -245,13 +235,12 @@ async def get_patterns(agent_name: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get patterns: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.get(
     "/improvements",
@@ -305,7 +294,7 @@ async def list_improvements(status: str | None = None):
                             continue
 
                         improvements.append(ImprovementResponse(**data))
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -317,13 +306,12 @@ async def list_improvements(status: str | None = None):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to list improvements: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.post(
     "/improvements/{suggestion_id}/test",
@@ -381,13 +369,12 @@ async def test_improvement(suggestion_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to test improvement: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.post(
     "/improvements/{suggestion_id}/approve",
@@ -462,13 +449,12 @@ async def approve_improvement(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to approve improvement: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.post(
     "/improvements/{suggestion_id}/reject",
@@ -506,13 +492,12 @@ async def reject_improvement(suggestion_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to reject improvement: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.get(
     "/{agent_name}/performance",
@@ -568,7 +553,7 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
                             positive += 1
                         else:
                             negative += 1
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -592,7 +577,7 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
             trend=trend,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -601,11 +586,9 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
 
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
 
 async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     """Load suggestion from disk."""
@@ -630,9 +613,8 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
         async with aiofiles.open(file_path) as f:
             data = json.loads(await f.read())
             return ImprovementSuggestion(**data)
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return None
-
 
 async def _save_suggestion(suggestion: ImprovementSuggestion):
     """Save suggestion to disk."""

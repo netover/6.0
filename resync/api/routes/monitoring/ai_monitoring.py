@@ -37,11 +37,9 @@ CONFIG_PATH = (
     / "ai_config.json"
 )
 
-
 # ============================================================================
 # PYDANTIC MODELS FOR API
 # ============================================================================
-
 
 class ResourceLimitsConfig(BaseModel):
     """Resource limits configuration."""
@@ -61,7 +59,6 @@ class ResourceLimitsConfig(BaseModel):
         le=19,
         description="Process nice level (higher = lower priority)",
     )
-
 
 class SpecialistAgentConfig(BaseModel):
     """Configuration for a single specialist agent."""
@@ -83,7 +80,6 @@ class SpecialistAgentConfig(BaseModel):
     custom_instructions: str | None = Field(
         default=None, description="Additional custom instructions"
     )
-
 
 class SpecialistsConfig(BaseModel):
     """Configuration for all specialist agents."""
@@ -122,7 +118,6 @@ class SpecialistsConfig(BaseModel):
         default_factory=lambda: SpecialistAgentConfig(temperature=0.4, max_tokens=3072)
     )
 
-
 class MonitoringScheduleConfig(BaseModel):
     """Monitoring schedule configuration."""
 
@@ -142,7 +137,6 @@ class MonitoringScheduleConfig(BaseModel):
         le=6,
         description="Day of week for weekly (0=Monday, 6=Sunday)",
     )
-
 
 class DriftDetectionConfig(BaseModel):
     """Drift detection configuration."""
@@ -169,7 +163,6 @@ class DriftDetectionConfig(BaseModel):
         default=24, ge=1, le=168, description="Current data window"
     )
 
-
 class AIMonitoringConfig(BaseModel):
     """Complete AI monitoring configuration."""
 
@@ -184,7 +177,6 @@ class AIMonitoringConfig(BaseModel):
         default=30, ge=1, le=365, description="Max reports to retain"
     )
 
-
 class AIConfigResponse(BaseModel):
     """Complete AI configuration response."""
 
@@ -192,7 +184,6 @@ class AIConfigResponse(BaseModel):
     monitoring: AIMonitoringConfig = Field(default_factory=AIMonitoringConfig)
     last_updated: str | None = Field(default=None, description="Last update timestamp")
     updated_by: str | None = Field(default=None, description="Who made the last update")
-
 
 class MonitoringStatusResponse(BaseModel):
     """Monitoring status response."""
@@ -204,7 +195,6 @@ class MonitoringStatusResponse(BaseModel):
     total_alerts: int
     recent_alerts: int
     evidently_available: bool
-
 
 class DriftAlertResponse(BaseModel):
     """Drift alert response."""
@@ -219,7 +209,6 @@ class DriftAlertResponse(BaseModel):
     timestamp: str
     details: dict[str, Any] = Field(default_factory=dict)
 
-
 class MonitoringRunResponse(BaseModel):
     """Monitoring run result response."""
 
@@ -230,7 +219,6 @@ class MonitoringRunResponse(BaseModel):
     alerts: list[dict[str, Any]]
     duration_seconds: float
     error: str | None = None
-
 
 # ============================================================================
 # DEFAULT CONFIGURATION
@@ -312,11 +300,9 @@ DEFAULT_AI_CONFIG: dict[str, Any] = {
     "updated_by": None,
 }
 
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
 
 def _load_config() -> dict[str, Any]:
     """Load configuration from file."""
@@ -330,7 +316,6 @@ def _load_config() -> dict[str, Any]:
             logger.warning("config_load_error", error=str(e))
     return DEFAULT_AI_CONFIG.copy()
 
-
 def _save_config(config: dict[str, Any], updated_by: str = "admin") -> None:
     """Save configuration to file."""
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -343,7 +328,6 @@ def _save_config(config: dict[str, Any], updated_by: str = "admin") -> None:
 
     logger.info("config_saved", path=str(CONFIG_PATH), updated_by=updated_by)
 
-
 def _deep_merge(base: dict, override: dict) -> dict:
     """Deep merge two dictionaries."""
     result = base.copy()
@@ -354,7 +338,6 @@ def _deep_merge(base: dict, override: dict) -> dict:
             result[key] = value
     return result
 
-
 def _get_monitoring_service():
     """Get the monitoring service, lazy import to avoid circular dependency."""
     try:
@@ -364,11 +347,9 @@ def _get_monitoring_service():
     except ImportError:
         return None
 
-
 # ============================================================================
 # ENDPOINTS - CONFIGURATION
 # ============================================================================
-
 
 @router.get(
     "/config",
@@ -381,7 +362,6 @@ def _get_monitoring_service():
 async def get_ai_config() -> dict[str, Any]:
     """Get current AI configuration."""
     return _load_config()
-
 
 @router.put(
     "/config",
@@ -403,7 +383,7 @@ async def update_ai_config(
 
         return _load_config()
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -412,7 +392,6 @@ async def update_ai_config(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update configuration. Check server logs for details.",
         ) from e
-
 
 @router.patch(
     "/config/specialists",
@@ -428,7 +407,6 @@ async def update_specialists_config(
     config["specialists"] = specialists.model_dump()
     _save_config(config)
     return config["specialists"]
-
 
 @router.patch(
     "/config/monitoring",
@@ -450,11 +428,9 @@ async def update_monitoring_config(
 
     return config["monitoring"]
 
-
 # ============================================================================
 # ENDPOINTS - SPECIALISTS
 # ============================================================================
-
 
 @router.get(
     "/specialists/status",
@@ -493,7 +469,6 @@ async def get_specialists_status() -> dict[str, Any]:
         "parallel_execution": specialists_config.get("parallel_execution", True),
         "specialists": status_list,
     }
-
 
 @router.post(
     "/specialists/{specialist_type}/toggle",
@@ -535,11 +510,9 @@ async def toggle_specialist(
         ),
     }
 
-
 # ============================================================================
 # ENDPOINTS - MONITORING
 # ============================================================================
-
 
 @router.get(
     "/monitoring/status",
@@ -568,7 +541,6 @@ async def get_monitoring_status() -> dict[str, Any]:
         "evidently_available": False,
     }
 
-
 @router.post(
     "/monitoring/toggle",
     summary="Toggle Monitoring",
@@ -591,7 +563,6 @@ async def toggle_monitoring(
         "message": f"Monitoring {'enabled' if enabled else 'disabled'}",
     }
 
-
 @router.post(
     "/monitoring/run",
     response_model=MonitoringRunResponse,
@@ -610,13 +581,12 @@ async def run_monitoring_now() -> dict[str, Any]:
 
     try:
         return await service.run_monitoring()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("manual_monitoring_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Monitoring run failed. Check server logs for details.",
         ) from e
-
 
 @router.get(
     "/monitoring/alerts",
@@ -660,7 +630,6 @@ async def get_monitoring_alerts(
 
     return [a.to_dict() for a in alerts]
 
-
 @router.get(
     "/monitoring/reports",
     summary="List Monitoring Reports",
@@ -697,11 +666,9 @@ async def list_monitoring_reports(
         "reports": reports,
     }
 
-
 # ============================================================================
 # BACKGROUND TASKS
 # ============================================================================
-
 
 async def _reload_services(config: dict[str, Any]) -> None:
     """Reload services with new configuration."""
@@ -714,7 +681,6 @@ async def _reload_services(config: dict[str, Any]) -> None:
     # Reload specialists if config changed
     if "specialists" in config:
         await _reload_specialists(config["specialists"])
-
 
 async def _restart_monitoring(monitoring_config: dict[str, Any]) -> None:
     """Restart monitoring service with new configuration."""
@@ -738,12 +704,11 @@ async def _restart_monitoring(monitoring_config: dict[str, Any]) -> None:
 
     except ImportError:
         logger.warning("monitoring_module_not_available")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("monitoring_restart_error", error=str(e))
-
 
 async def _reload_specialists(specialists_config: dict[str, Any]) -> None:
     """Reload specialist agents with new configuration."""
@@ -782,12 +747,11 @@ async def _reload_specialists(specialists_config: dict[str, Any]) -> None:
 
     except ImportError:
         logger.warning("specialists_module_not_available")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("specialists_reload_error", error=str(e))
-
 
 async def _toggle_monitoring_service(enabled: bool) -> None:
     """Start or stop monitoring service."""
@@ -810,7 +774,7 @@ async def _toggle_monitoring_service(enabled: bool) -> None:
 
     except ImportError:
         logger.warning("monitoring_module_not_available")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

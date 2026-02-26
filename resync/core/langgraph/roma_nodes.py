@@ -12,7 +12,6 @@ from resync.core.utils.llm_factories import LLMFactory
 
 logger = get_logger(__name__)
 
-
 async def atomizer_node(state: RomaState) -> dict[str, Any]:
     """Detect whether the user query is atomic or needs decomposition."""
     query = state.get("user_query", "").strip()
@@ -33,7 +32,7 @@ async def atomizer_node(state: RomaState) -> dict[str, Any]:
         )
         payload = json.loads(response)
         is_atomic = bool(payload.get("is_atomic", False))
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("roma_atomizer_fallback", error=str(e))
         is_atomic = False
 
@@ -41,7 +40,6 @@ async def atomizer_node(state: RomaState) -> dict[str, Any]:
         "is_atomic": is_atomic,
         "execution_logs": [f"atomizer_result={'atomic' if is_atomic else 'composite'}"],
     }
-
 
 async def planner_node(state: RomaState) -> dict[str, Any]:
     """Create a deterministic plan for composite tasks."""
@@ -60,7 +58,7 @@ async def planner_node(state: RomaState) -> dict[str, Any]:
         tasks = [
             SubTask.model_validate(item) for item in parsed if isinstance(item, dict)
         ]
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("roma_planner_fallback", error=str(e))
         tasks = [
             SubTask(
@@ -74,7 +72,6 @@ async def planner_node(state: RomaState) -> dict[str, Any]:
         "plan": tasks,
         "execution_logs": [f"planner_created_{len(tasks)}_tasks"],
     }
-
 
 async def executor_node(state: RomaState) -> dict[str, Any]:
     """Execute each subtask through a concise reasoning prompt."""
@@ -92,7 +89,7 @@ async def executor_node(state: RomaState) -> dict[str, Any]:
                 prompt=prompt, model="tws-reasoning", temperature=0.2
             )
             results.append({"task_id": task.id, "status": "done", "output": output})
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("roma_executor_task_failed", task_id=task.id, error=str(e))
             results.append({"task_id": task.id, "status": "failed", "output": str(e)})
 
@@ -100,7 +97,6 @@ async def executor_node(state: RomaState) -> dict[str, Any]:
         "execution_results": results,
         "execution_logs": [f"executor_completed_{len(results)}_results"],
     }
-
 
 def aggregator_node(state: RomaState) -> dict[str, Any]:
     """Aggregate outputs into a user-facing summary."""
@@ -123,7 +119,6 @@ def aggregator_node(state: RomaState) -> dict[str, Any]:
         "final_response": "Execução ROMA concluída:\n" + "\n".join(lines),
         "execution_logs": ["aggregator_built_final_response"],
     }
-
 
 def verifier_node(state: RomaState) -> dict[str, Any]:
     """Provide lightweight verification notes for observability."""

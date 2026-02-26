@@ -11,7 +11,6 @@ from resync.core.database.models.teams import TeamsWebhookAudit, TeamsWebhookUse
 
 logger = structlog.get_logger(__name__)
 
-
 class TeamsPermissionsManager:
     """Gerencia permissões de usuários do Teams webhook."""
 

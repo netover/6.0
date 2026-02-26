@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, Float, Index, Integer, String
 from resync.core.database import Base
 
-
 class WorkstationMetricsHistory(Base):
     """
     Historical record of TWS workstation resource metrics (CPU, Memory, Disk).

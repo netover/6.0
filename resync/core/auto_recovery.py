@@ -17,7 +17,6 @@ from resync.core.connection_pool_manager import (
 
 logger = structlog.get_logger(__name__)
 
-
 class AutoRecovery:
     """Automatic recovery system for health monitoring."""
 
@@ -81,7 +80,7 @@ class AutoRecovery:
             scaling_actions = await self._perform_auto_scaling()
             actions.extend(scaling_actions)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("auto_recovery_execution_failed", error=str(e))
 
         return actions
@@ -120,7 +119,7 @@ class AutoRecovery:
                     }
                 return basic_metrics
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("connection_pool_health_check_failed", error=str(e))
 
         return {"error": "Unable to check connection pool health"}
@@ -158,7 +157,7 @@ class AutoRecovery:
                             "p95", 0
                         ),
                     }
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.error("exception_caught", error=str(e), exc_info=True)
                     results[name] = {"error": str(e)}
 
@@ -198,7 +197,7 @@ class AutoRecovery:
                     }
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("component_recovery_failed", error=str(e))
 
         return actions
@@ -223,7 +222,7 @@ class AutoRecovery:
             if cache_cleanup:
                 actions.append(cache_cleanup)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("resource_cleanup_failed", error=str(e))
 
         return actions
@@ -262,7 +261,7 @@ class AutoRecovery:
                     }
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("auto_scaling_failed", error=str(e))
 
         return actions
@@ -274,7 +273,7 @@ class AutoRecovery:
             logger.info("resetting_database_connections")
             # Placeholder implementation
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -288,7 +287,7 @@ class AutoRecovery:
 
             memory = psutil.virtual_memory()
             return memory.percent > 85
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -303,7 +302,7 @@ class AutoRecovery:
             gc.collect()
             logger.info("forced_memory_cleanup")
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -329,7 +328,7 @@ class AutoRecovery:
                         try:
                             os.remove(filepath)
                             cleanup_count += 1
-                        except Exception as e:
+                        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                             logger.warning(
                                 "failed_to_cleanup_temp_file",
                                 file=filepath,
@@ -342,7 +341,7 @@ class AutoRecovery:
                 "files_cleaned": cleanup_count,
                 "temp_directory": temp_dir,
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -360,7 +359,7 @@ class AutoRecovery:
                 "timestamp": time.time(),
                 "connections_cleaned": 0,
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -378,7 +377,7 @@ class AutoRecovery:
                 "timestamp": time.time(),
                 "entries_cleaned": 0,
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -392,7 +391,7 @@ class AutoRecovery:
             logger.info("scaling_connection_pool", direction=direction)
             # Placeholder implementation
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

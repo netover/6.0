@@ -10,7 +10,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class CacheSnapshotMixin:
     """
     Mixin providing snapshot/backup capabilities for cache.
@@ -93,7 +92,7 @@ class CacheSnapshotMixin:
             logger.info("Restored %s entries from snapshot", restored_count)
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

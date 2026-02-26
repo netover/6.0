@@ -57,11 +57,9 @@ except ImportError:
     SentenceTransformer = None
     np = None
 
-
 # =============================================================================
 # ENUMS AND CONSTANTS
 # =============================================================================
-
 
 class ChunkingStrategy(str, Enum):
     """Available chunking strategies."""
@@ -73,7 +71,6 @@ class ChunkingStrategy(str, Enum):
     HIERARCHICAL = "hierarchical"  # Multi-level granularity
     TWS_OPTIMIZED = "tws_optimized"  # TWS-specific patterns
 
-
 class ChunkType(str, Enum):
     """Type of content in a chunk."""
 
@@ -84,7 +81,6 @@ class ChunkType(str, Enum):
     PROCEDURE = "procedure"
     HEADER = "header"
     DEFINITION = "definition"
-
 
 class OverlapStrategy(str, Enum):
     """Overlap strategy for chunking.
@@ -99,7 +95,6 @@ class OverlapStrategy(str, Enum):
     STRUCTURE = "structure"  # Overlap at boundaries only
     NONE = "none"  # No overlap
 
-
 class ChunkViewType(str, Enum):
     """Types of views for multi-view chunk indexing.
 
@@ -111,7 +106,6 @@ class ChunkViewType(str, Enum):
     SUMMARY = "summary"  # Generated summary (first sentence + key entities)
     ENTITIES = "entities"  # Extracted key terms and entities
     FAQ = "faq"  # Q/A format for policies and procedures
-
 
 # TWS-specific patterns
 TWS_ERROR_PATTERN = re.compile(
@@ -126,11 +120,9 @@ TWS_COMMAND_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
-
 
 @dataclass
 class ChunkMetadata:
@@ -256,7 +248,6 @@ class ChunkMetadata:
             "snippet_preview": self.snippet_preview,
         }
 
-
 @dataclass
 class EnrichedChunk:
     """A chunk with content and rich metadata."""
@@ -278,7 +269,6 @@ class EnrichedChunk:
             "sha256": self.sha256,
             "metadata": self.metadata.to_dict(),
         }
-
 
 @dataclass
 class MultiViewChunk:
@@ -332,7 +322,6 @@ class MultiViewChunk:
             "faq_view": self.faq_view,
             "metadata": self.metadata,
         }
-
 
 @dataclass
 class ChunkingConfig:
@@ -388,18 +377,15 @@ class ChunkingConfig:
     # Enable FAQ conversion for policies/procedures
     enable_faq_conversion: bool = True
 
-
 # =============================================================================
 # TOKEN UTILITIES
 # =============================================================================
-
 
 def count_tokens(text: str) -> int:
     """Count tokens in text."""
     if _HAS_TIKTOKEN and _ENC:
         return len(_ENC.encode(text))
     return max(1, len(text) // 4)
-
 
 def truncate_to_tokens(text: str, max_tokens: int) -> str:
     """Truncate text to max tokens."""
@@ -412,11 +398,9 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
     max_chars = max_tokens * 4
     return text[:max_chars]
 
-
 # =============================================================================
 # TEXT SPLITTING UTILITIES
 # =============================================================================
-
 
 def split_sentences(text: str) -> list[str]:
     """
@@ -445,17 +429,14 @@ def split_sentences(text: str) -> list[str]:
     # Clean up
     return [s.strip() for s in sentences if s.strip()]
 
-
 def split_paragraphs(text: str) -> list[str]:
     """Split text into paragraphs."""
     paragraphs = re.split(r"\n\s*\n", text)
     return [p.strip() for p in paragraphs if p.strip()]
 
-
 # =============================================================================
 # MARKDOWN STRUCTURE DETECTION
 # =============================================================================
-
 
 @dataclass
 class MarkdownSection:
@@ -467,7 +448,6 @@ class MarkdownSection:
     start_line: int
     end_line: int
     children: list[MarkdownSection] = field(default_factory=list)
-
 
 def parse_markdown_structure(text: str) -> list[MarkdownSection]:
     """
@@ -547,7 +527,6 @@ def parse_markdown_structure(text: str) -> list[MarkdownSection]:
 
     return sections
 
-
 def build_section_hierarchy(sections: list[MarkdownSection]) -> list[MarkdownSection]:
     """Build hierarchical structure from flat sections."""
     if not sections:
@@ -570,17 +549,14 @@ def build_section_hierarchy(sections: list[MarkdownSection]) -> list[MarkdownSec
 
     return root_sections
 
-
 def get_section_path(section: MarkdownSection, ancestors: list[str]) -> str:
     """Get full path of section (e.g., 'Chapter 5 > Troubleshooting > Errors')."""
     path_parts = ancestors + [section.title] if section.title else ancestors
     return " > ".join(path_parts)
 
-
 # =============================================================================
 # CODE BLOCK DETECTION
 # =============================================================================
-
 
 def extract_code_blocks(text: str) -> list[tuple[str, str, int, int]]:
     """
@@ -599,16 +575,13 @@ def extract_code_blocks(text: str) -> list[tuple[str, str, int, int]]:
 
     return code_blocks
 
-
 def extract_inline_code(text: str) -> list[str]:
     """Extract inline code segments."""
     return re.findall(r"`([^`]+)`", text)
 
-
 # =============================================================================
 # TABLE DETECTION
 # =============================================================================
-
 
 def extract_markdown_tables(text: str) -> list[tuple[str, int, int]]:
     """
@@ -630,17 +603,14 @@ def extract_markdown_tables(text: str) -> list[tuple[str, int, int]]:
 
     return tables
 
-
 # =============================================================================
 # TWS-SPECIFIC EXTRACTION
 # =============================================================================
-
 
 def extract_tws_error_codes(text: str) -> list[str]:
     """Extract TWS error codes from text."""
     matches = TWS_ERROR_PATTERN.findall(text)
     return list(set(m.upper() for m in matches))
-
 
 def extract_tws_job_names(text: str) -> list[str]:
     """Extract potential TWS job names from text."""
@@ -665,12 +635,10 @@ def extract_tws_job_names(text: str) -> list[str]:
     }
     return list(set(m for m in matches if m not in common_words))
 
-
 def extract_tws_commands(text: str) -> list[str]:
     """Extract TWS commands from text."""
     matches = TWS_COMMAND_PATTERN.findall(text.lower())
     return list(set(matches))
-
 
 def detect_error_documentation(text: str) -> bool:
     """Check if text appears to be error documentation."""
@@ -690,7 +658,6 @@ def detect_error_documentation(text: str) -> bool:
     )
     return len(error_codes) >= 1 and has_explanation
 
-
 def detect_procedure(text: str) -> bool:
     """Check if text appears to be a procedure/steps."""
     # Check for numbered steps or bullet points
@@ -706,11 +673,9 @@ def detect_procedure(text: str) -> bool:
     )
     return step_count >= 2
 
-
 # =============================================================================
 # SEMANTIC CHUNKING
 # =============================================================================
-
 
 class SemanticChunker:
     """
@@ -833,11 +798,9 @@ class SemanticChunker:
 
         return distances
 
-
 # =============================================================================
 # CONTEXTUAL ENRICHMENT
 # =============================================================================
-
 
 def create_contextual_prefix(
     chunk: str,
@@ -891,7 +854,6 @@ def create_contextual_prefix(
     prefix = "[Context: " + " | ".join(prefix_parts) + "]\n\n"
     return prefix + chunk
 
-
 def generate_chunk_summary(chunk: str, max_words: int = 20) -> str:
     """
     Generate a simple summary of a chunk (without LLM).
@@ -911,11 +873,9 @@ def generate_chunk_summary(chunk: str, max_words: int = 20) -> str:
 
     return summary
 
-
 # =============================================================================
 # v6.0: MULTI-VIEW GENERATION (Decision #8)
 # =============================================================================
-
 
 def generate_entities_view(content: str, metadata: ChunkMetadata) -> str:
     """
@@ -946,7 +906,6 @@ def generate_entities_view(content: str, metadata: ChunkMetadata) -> str:
     parts.append(f"Type: {metadata.chunk_type.value}")
 
     return " | ".join(parts) if parts else content[:100]
-
 
 def generate_faq_view(
     content: str, section_path: str, chunk_type: ChunkType
@@ -983,7 +942,6 @@ def generate_faq_view(
         return f"Q: What is {topic.lower()}?\nA: {content[:300]}..."
 
     return None
-
 
 def create_multi_view_chunk(chunk: EnrichedChunk, doc_id: str) -> MultiViewChunk:
     """
@@ -1024,11 +982,9 @@ def create_multi_view_chunk(chunk: EnrichedChunk, doc_id: str) -> MultiViewChunk
         metadata=chunk.metadata.to_dict(),
     )
 
-
 # =============================================================================
 # v6.0: STRUCTURE-AWARE OVERLAP (Decision #3)
 # =============================================================================
-
 
 def get_structure_aware_overlap(
     prev_content: str,
@@ -1071,11 +1027,9 @@ def get_structure_aware_overlap(
 
     return overlap_text.strip()
 
-
 # =============================================================================
 # v6.0: CITATION-FRIENDLY IDS (Decision #7)
 # =============================================================================
-
 
 def generate_stable_id(doc_id: str, section_path: str, chunk_index: int) -> str:
     """
@@ -1100,7 +1054,6 @@ def generate_stable_id(doc_id: str, section_path: str, chunk_index: int) -> str:
 
     return f"{doc_id}::{section_id}::{chunk_index:06d}"
 
-
 def generate_snippet_preview(content: str, max_chars: int = 100) -> str:
     """
     Generate a short snippet preview for quick identification.
@@ -1118,11 +1071,9 @@ def generate_snippet_preview(content: str, max_chars: int = 100) -> str:
 
     return truncated + "..."
 
-
 # =============================================================================
 # MAIN CHUNKER CLASS
 # =============================================================================
-
 
 class AdvancedChunker:
     """
@@ -1462,7 +1413,7 @@ class AdvancedChunker:
                         )
 
                 return chunks
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Semantic chunking failed: %s", e)
 
         # Fallback to size-based
@@ -1924,11 +1875,9 @@ class AdvancedChunker:
 
         return chunks
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
 
 def chunk_document(
     text: str,
@@ -1961,7 +1910,6 @@ def chunk_document(
     chunker = AdvancedChunker(config)
     return chunker.chunk_document(text, source, document_title)
 
-
 def chunk_text_simple(
     text: str,
     max_tokens: int = 512,
@@ -1990,10 +1938,8 @@ def chunk_text_simple(
     for chunk in chunks:
         yield chunk.content
 
-
 # Backward compatibility alias
 chunk_text = chunk_text_simple
-
 
 # =============================================================================
 # EXPORTS

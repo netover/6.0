@@ -24,7 +24,6 @@ from resync.knowledge.kg_store.store import PostgresGraphStore
 
 logger = logging.getLogger(__name__)
 
-
 class DocumentGraphRAG:
     def __init__(self) -> None:
         from resync.settings import get_settings
@@ -107,6 +106,6 @@ class DocumentGraphRAG:
             if not formatted:
                 return ""
             return "\n\n[Document Knowledge Graph Context]\n" + formatted
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("document_graphrag_failed", error=str(e))
             return ""

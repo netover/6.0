@@ -25,7 +25,6 @@ llm_api_breaker = pybreaker.CircuitBreaker(
 
 logger = logging.getLogger(__name__)
 
-
 class TWS_LLMOptimizer:
     """
     TWS-optimized LLM integration with caching and model routing.
@@ -130,7 +129,7 @@ class TWS_LLMOptimizer:
                         return self.model_routing["troubleshooting"]
                     if any("gpt-4" in model for model in self.model_routing.values()):
                         return self.model_routing["complex"]
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     # Log model selection error and fall back to normal selection
                     logger.debug("GPT-4 model selection failed, using fallback: %s", e)
 
@@ -149,7 +148,7 @@ class TWS_LLMOptimizer:
                             return (
                                 "ollama/mistral"  # Use local model for simple queries
                             )
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     # Log Ollama availability check error and continue with normal selection
                     logger.debug(
                         "Ollama availability check failed, using fallback: %s", e
@@ -250,7 +249,7 @@ class TWS_LLMOptimizer:
                 success=True,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             response_time = time.time() - start_time
             # Track failed request
             await llm_cost_monitor.track_request(
@@ -322,7 +321,7 @@ class TWS_LLMOptimizer:
 
             return full_response
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.error("Error in LLM streaming", exc_info=True)
             # Fallback to original method (which now also uses LiteLLM)
             result = await call_llm(prompt, model=model, max_tokens=1000)
@@ -342,10 +341,8 @@ class TWS_LLMOptimizer:
             "response_cache": self.response_cache.get_metrics(),
         }
 
-
 # Global instance (lazy loaded)
 _tws_llm_optimizer: TWS_LLMOptimizer | None = None
-
 
 def get_llm_optimizer() -> TWS_LLMOptimizer:
     """Get the singleton instance of TWS_LLMOptimizer."""
@@ -353,7 +350,6 @@ def get_llm_optimizer() -> TWS_LLMOptimizer:
     if _tws_llm_optimizer is None:
         _tws_llm_optimizer = TWS_LLMOptimizer()
     return _tws_llm_optimizer
-
 
 def __getattr__(name: str) -> Any:
     """Module-level getattr to support lazy loading of tws_llm_optimizer."""

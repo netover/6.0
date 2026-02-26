@@ -24,9 +24,10 @@ logger = logging.getLogger(__name__)
 _DEFAULT_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "")
 if not _DEFAULT_SECRET_KEY:
     _env = os.getenv("ENVIRONMENT", "development").lower()
-    if _env in ("production", "prod", "staging"):
+    # Fail closed for any environment that is not explicitly a local/dev/test environment.
+    if _env not in ("development", "dev", "local", "test"):
         raise RuntimeError(
-            "AUTH_SECRET_KEY must be set in production/staging environments. "
+            "AUTH_SECRET_KEY must be set for non-development environments. "
             "Set the AUTH_SECRET_KEY environment variable."
         )
     logger.warning(
@@ -34,7 +35,6 @@ if not _DEFAULT_SECRET_KEY:
         "This is only acceptable in development."
     )
     _DEFAULT_SECRET_KEY = "insecure-dev-key-do-not-use-in-production"
-
 
 class AuthService:
     """
@@ -232,7 +232,7 @@ class AuthService:
                 username=payload["username"],
                 role=payload["role"],
                 permissions=payload.get("permissions", []),
-                exp=datetime.fromtimestamp(payload["exp"]),
+                exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
             )
 
         except JWTError:
@@ -372,11 +372,9 @@ class AuthService:
 
         return True
 
-
 # Global service instance and lock
 _auth_service: AuthService | None = None
 _auth_lock = __import__("threading").Lock()
-
 
 def get_auth_service() -> AuthService:
     """Get or create auth service instance (thread-safe)."""
@@ -386,7 +384,6 @@ def get_auth_service() -> AuthService:
             if _auth_service is None:
                 _auth_service = AuthService()
     return _auth_service
-
 
 def reset_auth_service():
     """Reset auth service (for testing)."""

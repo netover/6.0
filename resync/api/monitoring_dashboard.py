@@ -12,8 +12,8 @@
 import asyncio
 import inspect
 import logging
-import secrets
-import threading
+import random  # FIX P2-05: was secrets (CSPRNG) — performance jitter doesn't need crypto RNG
+# threading import removed — FIX P1-02 eliminated the threading.Lock singleton pattern
 import time
 from contextlib import suppress
 from dataclasses import asdict, dataclass
@@ -21,10 +21,12 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
+from starlette.websockets import WebSocketState  # FIX P2-07: needed for safe close guard
 
 from resync.api.security import decode_token, require_role
 from resync.core.metrics import runtime_metrics
 from resync.core.redis_init import get_redis_client
+from resync.core.task_tracker import create_tracked_task  # FIX P1-04
 
 if TYPE_CHECKING:
     import redis.asyncio as redis_async
@@ -48,7 +50,6 @@ REDIS_KEY_PREV_WALLTIME = "resync:monitoring:prev_walltime"
 REDIS_CH_BROADCAST = "resync:monitoring:broadcast"
 REDIS_LOCK_COLLECTOR = "resync:monitoring:collector:lock"
 
-
 # ── Helpers de Serialização ──────────────────────────────────────────────────
 
 try:
@@ -68,7 +69,6 @@ except ImportError:
     def json_loads(data: str | bytes) -> Any:
         return json.loads(data)
 
-
 def _safe_float(val: Any, default: float = 0.0) -> float:
     if isinstance(val, bytes):
         val = val.decode(errors="ignore")
@@ -78,7 +78,6 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
         return float(val)
     except (TypeError, ValueError):
         return default
-
 
 def _safe_int(val: Any, default: int = 0) -> int:
     if isinstance(val, bytes):
@@ -90,7 +89,6 @@ def _safe_int(val: Any, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
 
-
 def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
     """Parse JSON com tratamento de erro robusto."""
     if not data:
@@ -99,10 +97,9 @@ def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
         if isinstance(data, bytes):
             data = data.decode()
         return json_loads(data)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("JSON corrompido (%s): %s", context, e)
         return None
-
 
 def _classify_collection_error(error: Exception) -> str:
     """Classifica erro de coleta sem expor detalhes internos."""
@@ -114,10 +111,8 @@ def _classify_collection_error(error: Exception) -> str:
     }
     return mapping.get(type_name, "collection_failed")
 
-
 def _utc_iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
 
 def _build_metric_sample(
     snapshot: dict[str, Any],
@@ -181,7 +176,6 @@ def _build_metric_sample(
         correlation_ids_active=_safe_int(system.get("correlation_ids_active")),
     )
 
-
 def _get_redis() -> "redis_async.Redis":
     """Obtém o cliente Redis canônico da aplicação."""
     client = get_redis_client()
@@ -189,17 +183,18 @@ def _get_redis() -> "redis_async.Redis":
         raise ConnectionError("Redis client indisponível")
     return client
 
-
 def _jitter_seconds(base: float) -> float:
-    """Retorna jitter em [0, 10% de base] sem RNG pseudo-aleatório."""
+    """Retorna jitter em [0, 10% de base] para backoff de reconexão.
+
+    FIX P2-05: Was using secrets.randbelow (CSPRNG) which is ~10x slower than
+    random.uniform. Jitter for reconnect backoff does not require cryptographic
+    randomness — standard PRNG is sufficient and correct here.
+    """
     if base <= 0:
         return 0.0
-    max_millis = int(base * 100)
-    return secrets.randbelow(max_millis + 1) / 1000.0
-
+    return random.uniform(0.0, base * 0.1)  # noqa: S311 — non-security use
 
 # ── Data Models ──────────────────────────────────────────────────────────────
-
 
 @dataclass(slots=True)
 class MetricSample:
@@ -254,9 +249,7 @@ class MetricSample:
 
     collection_error: str | None = None
 
-
 # ── Dashboard Metrics Store ──────────────────────────────────────────────────
-
 
 class DashboardMetricsStore:
     """Store de métricas persistido no Redis para consistência global."""
@@ -299,14 +292,14 @@ class DashboardMetricsStore:
             if task_req and task_req.done() and not task_req.cancelled():
                 try:
                     prev_requests = _safe_int(task_req.result())
-                except Exception:
-                    pass
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    logger.debug("metric_task_result_error", task="req", error=str(exc))
 
             if task_time and task_time.done() and not task_time.cancelled():
                 try:
                     prev_walltime = _safe_float(task_time.result())
-                except Exception:
-                    pass
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    logger.debug("metric_task_result_error", task="time", error=str(exc))
 
             time_delta = (
                 now_wall - prev_walltime
@@ -326,7 +319,7 @@ class DashboardMetricsStore:
 
             sample = sample_builder(max(0.0, rps))
             await self.add_sample(sample)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Falha ao calcular RPS; usando 0 (%s)", type(e).__name__)
             sample = sample_builder(0.0)
             await self.add_sample(sample)
@@ -345,7 +338,7 @@ class DashboardMetricsStore:
             tws_status = (
                 snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.debug("Failed to get TWS status: %s", e)
 
         sample = MetricSample(
@@ -374,7 +367,7 @@ class DashboardMetricsStore:
             if new_alerts:
                 pipe.ltrim(REDIS_KEY_ALERTS, 0, 19)
             await pipe.execute()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Falha ao persistir amostra no Redis (%s)", type(e).__name__)
 
     def _compute_alerts(self, sample: MetricSample) -> list[dict[str, Any]]:
@@ -418,7 +411,7 @@ class DashboardMetricsStore:
                 return 0.0
             self._cached_start_time = float(raw)
             return now - self._cached_start_time
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.exception(
                 "Erro ao obter uptime global do Redis (%s)", type(e).__name__
             )
@@ -440,7 +433,7 @@ class DashboardMetricsStore:
             alerts = [p for a in alerts_raw if (p := _safe_json_loads(a, "alert"))]
 
             return self._format_metrics_dict(data, alerts)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Erro ao obter métricas (%s)", type(e).__name__)
             return self._empty_response("error")
 
@@ -483,7 +476,7 @@ class DashboardMetricsStore:
                 "agents": {"active": [s.get("agents_active", 0) for s in samples]},
                 "sample_count": len(samples),
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Erro ao obter histórico (%s)", type(e).__name__)
             return self._empty_history()
 
@@ -536,9 +529,7 @@ class DashboardMetricsStore:
             "sample_count": 0,
         }
 
-
 # ── WebSocket Manager ───────────────────────────────────────────────────────
-
 
 class WebSocketManager:
     """Gerencia conexões WebSocket locais e sincroniza via Redis Pub/Sub."""
@@ -562,7 +553,13 @@ class WebSocketManager:
             return False
         if self._sync_task is None or self._sync_task.done():
             self._stop_event.clear()
-            self._sync_task = asyncio.create_task(self._pubsub_listener())
+            # FIX P1-04: Use create_tracked_task so this task is registered in the
+            # global task registry and properly cancelled during graceful shutdown.
+            # Previously asyncio.create_task() left an orphan loop after app stop.
+            self._sync_task = create_tracked_task(
+                self._pubsub_listener(),
+                name="ws_pubsub_listener",
+            )
             return True
         return False
 
@@ -624,7 +621,7 @@ class WebSocketManager:
 
         try:
             await pubsub.unsubscribe(REDIS_CH_BROADCAST)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("PubSub unsubscribe failed: %s", e)
 
         close_fn = getattr(pubsub, "close", None)
@@ -633,7 +630,7 @@ class WebSocketManager:
                 maybe_awaitable = close_fn()
                 if inspect.isawaitable(maybe_awaitable):
                     await maybe_awaitable
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("PubSub close failed: %s", e)
 
     async def _pubsub_listener(self) -> None:
@@ -653,7 +650,7 @@ class WebSocketManager:
             except asyncio.CancelledError:
                 logger.info("WebSocketManager Pub/Sub listener cancelado")
                 raise
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.exception("Pub/Sub desconectado; tentando reconectar")
                 if not self._stop_event.is_set():
                     jitter = _jitter_seconds(backoff)
@@ -676,7 +673,7 @@ class WebSocketManager:
                 await asyncio.wait_for(
                     ws.send_text(message_str), timeout=WS_SEND_TIMEOUT
                 )
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.debug(
                     "Falha ao enviar mensagem WebSocket; desconectando cliente"
                 )
@@ -687,13 +684,12 @@ class WebSocketManager:
                 async with asyncio.TaskGroup() as tg:
                     for c in clients:
                         tg.create_task(_safe_send(c))
-            except* Exception:
-                # _safe_send already handles internal errors/disconnects
-                pass
-
+            except* Exception as eg:
+                # _safe_send handles individual errors; log the group
+                logger.debug("ws_broadcast_task_group_error",
+                             count=len(eg.exceptions))
 
 # ── WebSocket Authentication ─────────────────────────────────────────────────
-
 
 def _verify_ws_admin(websocket: WebSocket) -> str | None:
     """Valida autenticação admin para WebSocket.
@@ -724,38 +720,35 @@ def _verify_ws_admin(websocket: WebSocket) -> str | None:
             return None
 
         return username
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.debug("WebSocket authentication failed: %s", type(e).__name__)
         return None
 
-
 # ── Singletons ───────────────────────────────────────────────────────────────
+# FIX P1-02: Replaced threading.Lock double-checked locking pattern with
+# module-level eager initialization. In a single-process async app the module
+# is imported once per interpreter; there is no thread-safety issue with plain
+# module-level assignment. threading.Lock in async contexts is incorrect and
+# can cause starvation on free-threaded Python 3.13+.
 
-_metrics_store: DashboardMetricsStore | None = None
-_ws_manager: WebSocketManager | None = None
-_singleton_lock = threading.Lock()
-
+_metrics_store: DashboardMetricsStore = DashboardMetricsStore()
+_ws_manager: WebSocketManager = WebSocketManager()
 
 def get_metrics_store() -> DashboardMetricsStore:
-    global _metrics_store
-    if _metrics_store is None:
-        with _singleton_lock:
-            if _metrics_store is None:
-                _metrics_store = DashboardMetricsStore()
+    """Return the process-wide DashboardMetricsStore singleton."""
     return _metrics_store
 
-
 def get_ws_manager() -> WebSocketManager:
-    global _ws_manager
-    if _ws_manager is None:
-        with _singleton_lock:
-            if _ws_manager is None:
-                _ws_manager = WebSocketManager()
+    """Return the process-wide WebSocketManager singleton."""
     return _ws_manager
 
+def reset_singletons_for_testing() -> None:
+    """Re-create singletons — call from test fixtures only."""
+    global _metrics_store, _ws_manager  # noqa: PLW0603
+    _metrics_store = DashboardMetricsStore()
+    _ws_manager = WebSocketManager()
 
 # ── Collector Logic ──────────────────────────────────────────────────────────
-
 
 async def collect_metrics_sample() -> None:
     """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
@@ -787,28 +780,34 @@ async def collect_metrics_sample() -> None:
         if subscribers == 0:
             logger.debug("Nenhum subscriber no canal de broadcast")
 
-    except Exception as e:
+    except asyncio.CancelledError:
+        # FIX P1-06: CancelledError is BaseException in Python 3.8+.
+        # It MUST be re-raised so the metrics_collector_loop can exit cleanly
+        # during graceful shutdown. A bare `except Exception` would swallow it.
+        raise
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Erro na coleta (%s)", type(e).__name__)
         try:
             store = get_metrics_store()
             await store.add_error_sample(e)
             current = await store.get_current_metrics()
             await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
-        except Exception:
+        except asyncio.CancelledError:
+            raise  # propagate cancellation even inside error handler
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.debug("Falha ao persistir/broadcast amostra de erro")
     finally:
         try:
             await lock.release()
-        except Exception as lock_error:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as lock_error:
             logger.debug("Lock release failed (possibly expired): %s", lock_error)
-
 
 async def metrics_collector_loop() -> None:
     """Loop de coleta de métricas em background."""
     try:
         redis = _get_redis()
         await redis.ping()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.exception(
             "Redis não disponível, encerrando collector (%s)", type(e).__name__
         )
@@ -822,7 +821,7 @@ async def metrics_collector_loop() -> None:
                 await collect_metrics_sample()
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 logger.exception(
                     "Erro no collector loop ao executar collect_metrics_sample"
                 )
@@ -830,38 +829,40 @@ async def metrics_collector_loop() -> None:
     finally:
         await ws_manager.stop()
 
-
 # ── FastAPI Router ───────────────────────────────────────────────────────────
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
-
 
 @router.get("/current", dependencies=[Depends(require_role("admin"))])
 async def get_current():
     """Retorna métricas atuais do sistema. Requer autenticação admin."""
     return await get_metrics_store().get_current_metrics()
 
-
 @router.get("/history", dependencies=[Depends(require_role("admin"))])
 async def get_history(minutes: int = 120):
     """Retorna histórico de métricas para gráficos. Requer autenticação admin."""
     return await get_metrics_store().get_history(min(max(1, minutes), 120))
 
-
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket):
     """WebSocket para métricas em tempo real com autenticação."""
+    # FIX P0-06: ASGI protocol requires accept() before any close().
+    # Calling close() in "connecting" state raises RuntimeError.
+    # Always accept first, then reject with close() if auth fails.
+    await websocket.accept()
+
     username = _verify_ws_admin(websocket)
     if not username:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        # FIX P2-07: Guard against calling close() on already-disconnected socket
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
-    await websocket.accept()
 
     ws_manager = get_ws_manager()
 
     if not await ws_manager.connect(websocket):
-        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)
         return
 
     try:

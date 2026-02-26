@@ -22,7 +22,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 @dataclass
 class QueryIntent:
     """Intent extraído de uma query."""
@@ -35,7 +34,6 @@ class QueryIntent:
     filters: dict[str, Any]
     original_query: str
 
-
 @dataclass
 class QueryResult:
     """Resultado de uma query RAG."""
@@ -45,7 +43,6 @@ class QueryResult:
     details: list[dict[str, Any]]
     suggestions: list[str]
     metadata: dict[str, Any]
-
 
 class TWSQueryProcessor:
     """
@@ -756,11 +753,9 @@ class TWSQueryProcessor:
 
         return f"de {start.strftime('%d/%m')} a {end.strftime('%d/%m')}"
 
-
 # =============================================================================
 # API INTEGRATION
 # =============================================================================
-
 
 async def process_tws_query(query: str) -> QueryResult:
     """
@@ -778,7 +773,6 @@ async def process_tws_query(query: str) -> QueryResult:
 
     processor = TWSQueryProcessor(status_store=get_tws_status_store())
     return await processor.process_query(query)
-
 
 # =============================================================================
 # EXAMPLES

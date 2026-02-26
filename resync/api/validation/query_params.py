@@ -15,13 +15,11 @@ from .common import (
     ValidationPatterns,
 )
 
-
 class SortOrder(str, Enum):
     """Valid sort orders."""
 
     ASC = "asc"
     DESC = "desc"
-
 
 class FilterOperator(str, Enum):
     """Valid filter operators."""
@@ -38,7 +36,6 @@ class FilterOperator(str, Enum):
     NOT_IN = "not_in"
     LIKE = "like"
     NOT_LIKE = "not_like"
-
 
 class PaginationParams(BaseValidatedModel):
     """Pagination query parameters."""
@@ -79,7 +76,6 @@ class PaginationParams(BaseValidatedModel):
     def get_limit(self) -> int:
         """Get limit for database queries."""
         return self.page_size
-
 
 class SearchParams(BaseValidatedModel):
     """Search query parameters."""
@@ -138,7 +134,6 @@ class SearchParams(BaseValidatedModel):
         if len(v) != len(set(v)):
             raise ValueError("Duplicate search fields found")
         return v
-
 
 class FilterParams(BaseValidatedModel):
     """Filter query parameters."""
@@ -199,7 +194,6 @@ class FilterParams(BaseValidatedModel):
                         )
         return v
 
-
 class SortParams(BaseValidatedModel):
     """Sorting query parameters."""
 
@@ -239,7 +233,6 @@ class SortParams(BaseValidatedModel):
             raise ValueError("Number of sort orders must match number of sort fields")
         return v
 
-
 class DateRangeParams(BaseValidatedModel):
     """Date range query parameters."""
 
@@ -267,7 +260,6 @@ class DateRangeParams(BaseValidatedModel):
         if start_date and v and v < start_date:
             raise ValueError("End date must be after start date")
         return v
-
 
 class AgentQueryParams(BaseValidatedModel):
     """Agent-specific query parameters."""
@@ -326,7 +318,6 @@ class AgentQueryParams(BaseValidatedModel):
                 raise ValueError(f"List item contains malicious content: {item}")
         return v
 
-
 class SystemQueryParams(BaseValidatedModel):
     """System monitoring query parameters."""
 
@@ -364,7 +355,6 @@ class SystemQueryParams(BaseValidatedModel):
         if len(v) != len(set(v)):
             raise ValueError("Duplicate values found in list")
         return v
-
 
 class AuditQueryParams(BaseValidatedModel):
     """Audit query parameters."""
@@ -408,7 +398,6 @@ class AuditQueryParams(BaseValidatedModel):
         if v and ValidationPatterns.SCRIPT_PATTERN.search(v):
             raise ValueError("Search query contains potentially malicious content")
         return v
-
 
 class FileQueryParams(BaseValidatedModel):
     """File-related query parameters."""
@@ -455,7 +444,6 @@ class FileQueryParams(BaseValidatedModel):
                         )
         return v
 
-
 # Combined query parameters for complex endpoints
 class CombinedQueryParams(PaginationParams, SearchParams, SortParams, DateRangeParams):
     """Combined query parameters for endpoints that support multiple filtering options."""
@@ -463,7 +451,6 @@ class CombinedQueryParams(PaginationParams, SearchParams, SortParams, DateRangeP
     model_config = ConfigDict(
         extra="forbid",
     )
-
 
 # Export individual parameter types for flexible usage
 __all__ = [

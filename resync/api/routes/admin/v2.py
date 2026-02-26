@@ -30,13 +30,11 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 class HealthStatus(str, Enum):
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
-
 
 class ServiceHealth(BaseModel):
     """Health status for a single service"""
@@ -48,7 +46,6 @@ class ServiceHealth(BaseModel):
     last_check: datetime
     details: dict[str, Any] = Field(default_factory=dict)
 
-
 class SystemHealthResponse(BaseModel):
     """Complete system health response"""
 
@@ -57,7 +54,6 @@ class SystemHealthResponse(BaseModel):
     timestamp: datetime
     uptime_seconds: float
     version: str
-
 
 class CircuitBreakerStatus(BaseModel):
     """Circuit breaker status"""
@@ -72,7 +68,6 @@ class CircuitBreakerStatus(BaseModel):
     recovery_timeout: int
     is_critical: bool
 
-
 class CircuitBreakerListResponse(BaseModel):
     """List of all circuit breakers"""
 
@@ -80,7 +75,6 @@ class CircuitBreakerListResponse(BaseModel):
     total: int
     open_count: int
     critical_open_count: int
-
 
 class RedisStrategyStatus(BaseModel):
     """Redis fail-fast strategy status"""
@@ -91,14 +85,12 @@ class RedisStrategyStatus(BaseModel):
     degraded_endpoints: list[str]
     healthy: bool
 
-
 class ResilienceConfigRequest(BaseModel):
     """Request to update resilience configuration"""
 
     fail_fast_enabled: bool | None = None
     fail_fast_timeout: float | None = None
     degradation_mode: str | None = None
-
 
 class ChunkingConfig(BaseModel):
     """RAG chunking configuration"""
@@ -109,14 +101,12 @@ class ChunkingConfig(BaseModel):
     preserve_structure: bool = True
     extract_metadata: bool = True
 
-
 class ReindexRequest(BaseModel):
     """Request to reindex knowledge base"""
 
     strategy: str | None = None
     chunk_size: int | None = None
     documents: list[str] | None = None
-
 
 class ReindexStatus(BaseModel):
     """Reindexing job status"""
@@ -130,13 +120,11 @@ class ReindexStatus(BaseModel):
     completed_at: datetime | None = None
     error: str | None = None
 
-
 class MaintenanceModeRequest(BaseModel):
     """Request to toggle maintenance mode"""
 
     enabled: bool
     message: str = "System is under maintenance"
-
 
 class RestoreRequest(BaseModel):
     """Request to restore from backup"""
@@ -144,7 +132,6 @@ class RestoreRequest(BaseModel):
     backup_id: str
     confirm: bool = False
     admin_password: str | None = None
-
 
 @router.get("/health/realtime", response_model=SystemHealthResponse)
 async def get_realtime_health():
@@ -186,7 +173,7 @@ async def get_realtime_health():
         )
         if not redis_health.get("healthy"):
             overall_healthy = False
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         services.append(
             ServiceHealth(
                 name="redis",
@@ -220,7 +207,7 @@ async def get_realtime_health():
         )
         if not db_health.get("healthy"):
             overall_healthy = False
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         services.append(
             ServiceHealth(
                 name="database",
@@ -252,7 +239,7 @@ async def get_realtime_health():
         )
         if not is_healthy:
             overall_healthy = False
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         services.append(
             ServiceHealth(
                 name="tws",
@@ -288,7 +275,7 @@ async def get_realtime_health():
         )
         if all_open:
             overall_healthy = False
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         services.append(
             ServiceHealth(
                 name="llm",
@@ -307,7 +294,7 @@ async def get_realtime_health():
             if startup_time
             else 0
         )
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         uptime = 0
     return SystemHealthResponse(
         overall_status=HealthStatus.HEALTHY
@@ -318,7 +305,6 @@ async def get_realtime_health():
         uptime_seconds=uptime,
         version="5.4.2",
     )
-
 
 @router.get("/resilience/status")
 async def get_resilience_status():
@@ -337,18 +323,17 @@ async def get_resilience_status():
         response["total_breakers"] = cb_health.get("total_breakers", 0)
         response["open_breakers"] = cb_health.get("open_breakers", 0)
         response["critical_open"] = cb_health.get("critical_open", 0)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Failed to get circuit breaker health", extra={"error": str(e)})
     try:
         from resync.core.redis_strategy import get_redis_strategy_status
 
         redis_status = get_redis_strategy_status()
         response["redis_strategy"] = redis_status
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Failed to get redis strategy", extra={"error": str(e)})
         response["redis_strategy"] = {"enabled": False, "error": str(e)}
     return response
-
 
 @router.get("/resilience/breakers", response_model=CircuitBreakerListResponse)
 async def list_circuit_breakers():
@@ -385,7 +370,7 @@ async def list_circuit_breakers():
                         is_critical=is_critical,
                     )
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "Failed to get breaker %s", name, extra={"error": str(e)}
                 )
@@ -399,7 +384,6 @@ async def list_circuit_breakers():
         return CircuitBreakerListResponse(
             breakers=[], total=0, open_count=0, critical_open_count=0
         )
-
 
 @router.post("/resilience/breaker/{name}/reset")
 async def reset_circuit_breaker(name: str):
@@ -438,14 +422,13 @@ async def reset_circuit_breaker(name: str):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset circuit breaker. Check server logs for details.",
         ) from e
-
 
 @router.post("/resilience/config")
 async def update_resilience_config(config: ResilienceConfigRequest):
@@ -470,14 +453,13 @@ async def update_resilience_config(config: ResilienceConfigRequest):
             "updated": changes,
             "restart_required": manager.requires_restart(),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update config. Check server logs for details.",
         ) from e
-
 
 @router.get("/rag/chunking")
 async def get_chunking_config():
@@ -493,13 +475,12 @@ async def get_chunking_config():
             preserve_structure=manager.get("rag.preserve_structure", True),
             extract_metadata=manager.get("rag.extract_metadata", True),
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return ChunkingConfig(
             strategy="tws_optimized", chunk_size=512, chunk_overlap=50
         )
-
 
 @router.put("/rag/chunking")
 async def update_chunking_config(config: ChunkingConfig):
@@ -536,7 +517,7 @@ async def update_chunking_config(config: ChunkingConfig):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -544,9 +525,7 @@ async def update_chunking_config(config: ChunkingConfig):
             detail="Failed to update config. Check server logs for details.",
         ) from e
 
-
 _reindex_jobs: dict[str, ReindexStatus] = {}
-
 
 @router.post("/rag/reindex")
 async def start_reindex(request: ReindexRequest, background_tasks: BackgroundTasks):
@@ -580,7 +559,6 @@ async def start_reindex(request: ReindexRequest, background_tasks: BackgroundTas
         ),
     }
 
-
 async def _run_reindex(
     job_id: str,
     strategy: str | None,
@@ -600,12 +578,11 @@ async def _run_reindex(
             job.progress = job.documents_processed / job.documents_total
         job.status = "completed"
         job.completed_at = datetime.now(timezone.utc)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         job.status = "failed"
         job.error = str(e)
         job.completed_at = datetime.now(timezone.utc)
         logger.error("Reindex failed", extra={"job_id": job_id, "error": str(e)})
-
 
 @router.get("/rag/reindex/{job_id}", response_model=ReindexStatus)
 async def get_reindex_status(job_id: str):
@@ -617,7 +594,6 @@ async def get_reindex_status(job_id: str):
             detail=f"Reindex job '{job_id}' not found",
         )
     return job
-
 
 @router.post("/system/maintenance")
 async def toggle_maintenance_mode(request: MaintenanceModeRequest):
@@ -642,14 +618,13 @@ async def toggle_maintenance_mode(request: MaintenanceModeRequest):
             if request.enabled
             else "Maintenance mode disabled",
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to toggle maintenance mode. Check server logs for details.",
         ) from e
-
 
 @router.post("/system/restore")
 async def restore_from_backup(request: RestoreRequest):
@@ -697,14 +672,13 @@ async def restore_from_backup(request: RestoreRequest):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Restore operation failed. Check server logs for details.",
         ) from e
-
 
 @router.get("/system/restart-required")
 async def check_restart_required():
@@ -718,11 +692,10 @@ async def check_restart_required():
             "pending_changes": list(manager.get_pending_restarts()),
             "urgency": manager.get_restart_requirement().value,
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return {"restart_required": False, "error": str(e)}
-
 
 @router.get("/logs/stream")
 async def stream_logs(file: str = "app.log", lines: int = 100):
@@ -755,7 +728,7 @@ async def stream_logs(file: str = "app.log", lines: int = 100):
                         yield f"data: {line.strip()}\n\n"
                     else:
                         await asyncio.sleep(0.5)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             yield f"data: Error: {e}\n\n"
 
     return StreamingResponse(
@@ -763,7 +736,6 @@ async def stream_logs(file: str = "app.log", lines: int = 100):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
-
 
 @router.get("/config/all")
 async def get_all_config():
@@ -791,14 +763,13 @@ async def get_all_config():
             "restart_required": manager.requires_restart(),
             "pending_restarts": list(manager.get_pending_restarts()),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get config. Check server logs for details.",
         ) from e
-
 
 @router.put("/config/{key}")
 async def update_config(key: str, value: Any):
@@ -824,7 +795,7 @@ async def update_config(key: str, value: Any):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid request. Check server logs for details.",
         ) from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(

@@ -24,7 +24,6 @@ from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
-
 class ControlCategory(Enum):
     """SOC 2 Control Categories."""
 
@@ -37,7 +36,6 @@ class ControlCategory(Enum):
     INCIDENT_RESPONSE = "incident_response"
     BUSINESS_CONTINUITY = "business_continuity"
 
-
 class ControlStatus(Enum):
     """Control implementation status."""
 
@@ -47,7 +45,6 @@ class ControlStatus(Enum):
     TESTED = "tested"
     AUDITED = "audited"
     COMPLIANT = "compliant"
-
 
 @dataclass
 class SOC2Control:
@@ -101,7 +98,6 @@ class SOC2Control:
                     "Control %s marked as failed after 3 failures", self.control_id
                 )
 
-
 @dataclass
 class SOC2Evidence:
     """Evidence for SOC 2 compliance."""
@@ -125,7 +121,6 @@ class SOC2Evidence:
         self.content_hash = hashlib.sha256(content).hexdigest()
         return self.content_hash
 
-
 @dataclass
 class AvailabilityMetric:
     """System availability metrics."""
@@ -145,7 +140,6 @@ class AvailabilityMetric:
         return max(
             0.0, 100.0 - (self.unplanned_downtime_hours / 8760 * 100)
         )  # 8760 = hours in year
-
 
 @dataclass
 class ProcessingIntegrityCheck:
@@ -179,7 +173,6 @@ class ProcessingIntegrityCheck:
             and self.integrity_score >= 99.9
         )
 
-
 @dataclass
 class ConfidentialityIncident:
     """Confidentiality breach incident."""
@@ -195,7 +188,6 @@ class ConfidentialityIncident:
     resolved: bool = False
     resolution_details: str = ""
     preventive_measures: list[str] = field(default_factory=list)
-
 
 @dataclass
 class SOC2ComplianceConfig:
@@ -225,7 +217,6 @@ class SOC2ComplianceConfig:
     # Risk management
     risk_assessment_frequency_days: int = 180  # 6 months
     critical_control_monitoring: bool = True
-
 
 class SOC2ComplianceManager(BaseSOC2ComplianceManager):
     """
@@ -586,7 +577,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
 
             return test_result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Control testing failed for %s: %s", control_id, e)
             control.mark_tested(False)
             return {"success": False, "error": str(e)}
@@ -866,7 +857,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Control testing worker error: %s", e)
 
     async def _monitoring_worker(self) -> None:
@@ -895,7 +886,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Monitoring worker error: %s", e)
 
     async def _reporting_worker(self) -> None:
@@ -920,7 +911,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Reporting worker error: %s", e)
 
     def _generate_recommendations(self, report: dict[str, Any]) -> list[str]:
@@ -983,7 +974,6 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
         """Get period end timestamp."""
         return time.time()
 
-
 # Global SOC 2 compliance manager instance
 class _LazySOC2ComplianceManager:
     """Lazily instantiate SOC2ComplianceManager to avoid import-time side effects."""
@@ -1001,9 +991,7 @@ class _LazySOC2ComplianceManager:
     def __getattr__(self, item: str):
         return getattr(self.get_instance(), item)
 
-
 soc2_compliance_manager = _LazySOC2ComplianceManager()
-
 
 async def get_soc2_compliance_manager(
     tg: asyncio.TaskGroup | None = None,

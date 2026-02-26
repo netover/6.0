@@ -40,7 +40,7 @@ try:
     from watchdog.observers import Observer
 
     WATCHDOG_AVAILABLE = True
-except Exception:  # pragma: no cover
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover
     # Allow import without watchdog;
     # hot-reload watching will be disabled.
     FileModifiedEvent = object  # type: ignore[assignment]
@@ -53,7 +53,6 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class ConfigChange:
     """Represents a configuration change."""
@@ -63,7 +62,6 @@ class ConfigChange:
     new_value: Any
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     source: str = "api"  # api, file, env
-
 
 class ConfigFileHandler(FileSystemEventHandler):
     """Handles file system events for config files."""
@@ -90,7 +88,6 @@ class ConfigFileHandler(FileSystemEventHandler):
                 logger.warning(
                     "config_file_modified_but_no_loop_active", path=event.src_path
                 )
-
 
 class ConfigManager:
     """
@@ -207,7 +204,7 @@ class ConfigManager:
             async with aiofiles.open(config_file, "w") as f:
                 await f.write(json.dumps(self._config, indent=2, default=str))
             logger.info("Configuration saved")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to save config: %s", e)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -295,7 +292,7 @@ class ConfigManager:
                     result = await asyncio.to_thread(callback, change)
                     if inspect.isawaitable(result):
                         await result
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error notifying subscriber: %s", e)
 
     def get_all(self) -> dict[str, Any]:
@@ -327,10 +324,8 @@ class ConfigManager:
             await self._save_config()
             return True
 
-
 # Global instance
 _config_manager: ConfigManager | None = None
-
 
 def get_config_manager() -> ConfigManager:
     """Get global configuration manager."""
@@ -338,7 +333,6 @@ def get_config_manager() -> ConfigManager:
     if _config_manager is None:
         _config_manager = ConfigManager()
     return _config_manager
-
 
 async def init_config_manager():
     """Initialize global configuration manager."""

@@ -20,7 +20,6 @@ from pydantic import BaseModel, Field
 # EXISTING MODELS (maintained for compatibility)
 # =============================================================================
 
-
 class WorkstationInfo(BaseModel):
     """Information model for workstation."""
 
@@ -28,7 +27,6 @@ class WorkstationInfo(BaseModel):
     name: str
     status: str
     last_seen: datetime | None = None
-
 
 class JobInfo(BaseModel):
     """Information model for job."""
@@ -40,14 +38,12 @@ class JobInfo(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
 
-
 class SystemStatusResponse(BaseModel):
     """Response model for system status operations."""
 
     workstations: list[WorkstationInfo]
     jobs: list[JobInfo]
     timestamp: datetime
-
 
 class AgentInfo(BaseModel):
     """Information model for agent."""
@@ -57,13 +53,11 @@ class AgentInfo(BaseModel):
     status: str
     description: str | None = None
 
-
 class AgentListResponse(BaseModel):
     """Response model for agent list operations."""
 
     agents: list[AgentInfo]
     total: int
-
 
 class FileUploadResponse(BaseModel):
     """Response model for file upload operations."""
@@ -72,7 +66,6 @@ class FileUploadResponse(BaseModel):
     status: str
     file_id: str | None = None
     upload_time: datetime
-
 
 class AuditFlagInfo(BaseModel):
     """Information model for audit flag."""
@@ -86,7 +79,6 @@ class AuditFlagInfo(BaseModel):
     created_at: datetime
     reviewed_at: datetime | None = None
 
-
 class AuditMetricsResponse(BaseModel):
     """Response model for audit metrics operations."""
 
@@ -95,7 +87,6 @@ class AuditMetricsResponse(BaseModel):
     rejected: int
     total: int
 
-
 class AuditReviewResponse(BaseModel):
     """Response model for audit review operations."""
 
@@ -103,7 +94,6 @@ class AuditReviewResponse(BaseModel):
     action: str
     status: str
     reviewed_at: datetime
-
 
 class ChatMessageResponse(BaseModel):
     """Response model for chat message operations."""
@@ -114,7 +104,6 @@ class ChatMessageResponse(BaseModel):
     is_final: bool = False
     metadata: dict[str, Any] | None = None  # Intent classification and routing info
 
-
 class HealthResponse(BaseModel):
     """Response model for health operations."""
 
@@ -122,12 +111,10 @@ class HealthResponse(BaseModel):
     uptime: str
     version: str
 
-
 class LoginResponse(BaseModel):
     """Response model for login operations."""
 
     message: str
-
 
 class StatusResponse(BaseModel):
     """Response model for status operations."""
@@ -135,12 +122,10 @@ class StatusResponse(BaseModel):
     workstations: list[Any]
     jobs: list[Any]
 
-
 class AuditFlagsResponse(BaseModel):
     """Response model for audit flags operations."""
 
     flags: list[dict[str, Any]]
-
 
 class RAGUploadResponse(BaseModel):
     """Response model for RAG upload operations."""
@@ -148,11 +133,9 @@ class RAGUploadResponse(BaseModel):
     filename: str
     status: str
 
-
 # =============================================================================
 # NEW MODELS FOR AGENTIC EXECUTION (PR-4)
 # =============================================================================
-
 
 class ToolResult(BaseModel):
     """
@@ -165,7 +148,6 @@ class ToolResult(BaseModel):
     error: str | None = Field(None, description="Error message if failed")
     duration_ms: int = Field(0, description="Execution duration in milliseconds")
     trace_id: str | None = Field(None, description="Trace ID for this execution")
-
 
 class ExecutionStep(BaseModel):
     """
@@ -180,7 +162,6 @@ class ExecutionStep(BaseModel):
     duration_ms: int = Field(0, description="Step duration")
     success: bool = Field(True, description="Whether step succeeded")
     error: str | None = Field(None, description="Error if step failed")
-
 
 class ExecutionTrace(BaseModel):
     """
@@ -230,7 +211,6 @@ class ExecutionTrace(BaseModel):
     )
     approved_by: str | None = Field(None, description="Approver ID if approved")
 
-
 class AgentExecuteResponse(BaseModel):
     """
     Response from agent execution.
@@ -263,11 +243,9 @@ class AgentExecuteResponse(BaseModel):
         None, description="Pending action details"
     )
 
-
 # =============================================================================
 # APPROVAL RESPONSE MODELS
 # =============================================================================
-
 
 class PendingApproval(BaseModel):
     """
@@ -284,7 +262,6 @@ class PendingApproval(BaseModel):
     requested_at: datetime = Field(..., description="When approval was requested")
     expires_at: datetime | None = Field(None, description="When approval expires")
     risk_level: str = Field("medium", description="Risk level")
-
 
 class ApprovalResponse(BaseModel):
     """
@@ -303,7 +280,6 @@ class ApprovalResponse(BaseModel):
         None, description="Execution result if approved"
     )
 
-
 class ApprovalListResponse(BaseModel):
     """
     Response listing pending approvals.
@@ -320,11 +296,9 @@ class ApprovalListResponse(BaseModel):
         default_factory=dict, description="Count by risk"
     )
 
-
 # =============================================================================
 # DIAGNOSTIC RESPONSE MODELS
 # =============================================================================
-
 
 class DiagnosticResult(BaseModel):
     """
@@ -374,7 +348,6 @@ class DiagnosticResult(BaseModel):
     iterations: int = Field(1, description="Diagnostic iterations")
     processing_time_ms: int = Field(0, description="Processing time")
 
-
 class DiagnosticResponse(BaseModel):
     """
     Full response from diagnostic endpoint.
@@ -391,11 +364,9 @@ class DiagnosticResponse(BaseModel):
     # Full trace (optional)
     trace: ExecutionTrace | None = Field(None, description="Full execution trace")
 
-
 # =============================================================================
 # FEEDBACK RESPONSE MODELS
 # =============================================================================
-
 
 class FeedbackResponse(BaseModel):
     """
@@ -407,7 +378,6 @@ class FeedbackResponse(BaseModel):
     status: str = Field(..., description="Submission status")
     message: str = Field(..., description="Confirmation message")
 
-
 class IncidentResolutionResponse(BaseModel):
     """
     Response to incident resolution recording.
@@ -418,11 +388,9 @@ class IncidentResolutionResponse(BaseModel):
     message: str = Field(..., description="Confirmation message")
     added_to_knowledge_base: bool = Field(False, description="Whether added to KB")
 
-
 # =============================================================================
 # METRICS AND OBSERVABILITY RESPONSE MODELS
 # =============================================================================
-
 
 class MetricsSummary(BaseModel):
     """
@@ -462,7 +430,6 @@ class MetricsSummary(BaseModel):
         default_factory=dict, description="Errors by type"
     )
 
-
 class AnomalyInfo(BaseModel):
     """
     Information about a detected anomaly.
@@ -475,7 +442,6 @@ class AnomalyInfo(BaseModel):
     actual_value: float = Field(..., description="Actual value")
     severity: str = Field(..., description="Severity level")
     description: str = Field(..., description="Anomaly description")
-
 
 class MetricsResponse(BaseModel):
     """
@@ -490,7 +456,6 @@ class MetricsResponse(BaseModel):
 
     # Raw metrics (optional)
     raw_metrics: dict[str, Any] | None = Field(None, description="Raw metric data")
-
 
 class TraceListResponse(BaseModel):
     """

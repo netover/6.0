@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 # --- Type Definitions ---
 T = TypeVar("T")
 
-
 @dataclass(frozen=True)
 class ConnectionPoolStats:
     """Statistics for connection pool monitoring."""
@@ -48,7 +47,6 @@ class ConnectionPoolStats:
     average_wait_time: float = 0.0
     peak_connections: int = 0
 
-
 @dataclass
 class ConnectionPoolConfig:
     """Configuration for connection pools."""
@@ -60,7 +58,6 @@ class ConnectionPoolConfig:
     connection_timeout: int = 30  # 30 seconds
     health_check_interval: int = 60  # 1 minute
     max_lifetime: int = 1800  # 30 minutes
-
 
 class ConnectionPool(ABC, Generic[T]):
     """Abstract base class for connection pools."""
@@ -89,7 +86,7 @@ class ConnectionPool(ABC, Generic[T]):
                 self._setup_pool()
                 self._initialized = True
                 logger.info("Initialized %s connection pool", self.config.pool_name)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "Failed to initialize %s connection pool: %s",
                     self.config.pool_name,
@@ -118,7 +115,7 @@ class ConnectionPool(ABC, Generic[T]):
                 self._close_pool()
                 self._shutdown = True
                 logger.info("Closed %s connection pool", self.config.pool_name)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "Error closing %s connection pool: %s", self.config.pool_name, e
                 )
@@ -162,6 +159,6 @@ class ConnectionPool(ABC, Generic[T]):
                 # This is a basic check that just tries to acquire a connection
                 pass
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Health check failed for %s: %s", self.config.pool_name, e)
             return False

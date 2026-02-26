@@ -23,7 +23,6 @@ from .common import ErrorContext, build_error_health, response_time_ms
 
 logger = structlog.get_logger(__name__)
 
-
 class WebSocketPoolHealthChecker(BaseHealthChecker):
     """
     Health checker for WebSocket pool health.
@@ -59,7 +58,7 @@ class WebSocketPoolHealthChecker(BaseHealthChecker):
                     "connections": "unknown",  # Would be populated by actual WebSocket pool manager
                 },
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             return build_error_health(
                 ctx=ErrorContext(
                     name=self.component_name,

@@ -13,10 +13,10 @@ SECURITY (v5.4.1):
 
 import logging
 import os
+from urllib.parse import unquote, urlparse
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
-
 
 def _get_secure_database_url() -> str:
     """
@@ -24,25 +24,55 @@ def _get_secure_database_url() -> str:
 
     - Production: MUST be set via environment variable
     - Development: Falls back to localhost (no password)
+
+    Extra hardening:
+        - Warn (dev) / fail (prod) on weak or default passwords
     """
     url = os.getenv("DATABASE_URL")
     env = os.getenv("ENVIRONMENT", "development").lower()
+
     if url:
-        if ":password@" in url:
+        # Minimal parsing to detect embedded credentials
+        try:
+            parsed = urlparse(url)
+            password = parsed.password
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+            password = None
+
+        weak_passwords = {
+            "password",
+            "password@",
+            "admin",
+            "123456",
+            "postgres",
+            "resync",
+        }
+
+        if password:
+            pwd = unquote(password)
+            if pwd in weak_passwords:
+                msg = "DATABASE_URL contains a weak/default password"
+                if env == "production":
+                    raise ValueError(msg)
+                logger.warning(
+                    "insecure_database_url_detected",
+                    extra={"hint": msg},
+                )
+        elif env == "production":
+            # In production we require explicit credentials (or a secret manager URL)
             logger.warning(
-                "insecure_database_url_detected",
-                extra={
-                    "hint": "DATABASE_URL contains default password - change for production"
-                },
+                "database_url_has_no_password",
+                extra={"hint": "Set DATABASE_URL with strong credentials in production"},
             )
+
         return url
+
     if env == "production":
         raise ValueError(
             "DATABASE_URL must be set in production. Example: postgresql://user:pass@host:5432/dbname"
         )
+
     return "postgresql://localhost:5432/resync"
-
-
 @dataclass
 class RAGConfig:
     """Configuration for RAG service with pgvector."""
@@ -75,9 +105,7 @@ class RAGConfig:
         """Check if pgvector is properly configured."""
         return bool(self.database_url) and (not self.use_mock)
 
-
 _config: RAGConfig | None = None
-
 
 def get_rag_config() -> RAGConfig:
     """Get or create RAG configuration."""
@@ -85,7 +113,6 @@ def get_rag_config() -> RAGConfig:
     if _config is None:
         _config = RAGConfig.from_env()
     return _config
-
 
 def reset_rag_config():
     """Reset configuration (for testing)."""

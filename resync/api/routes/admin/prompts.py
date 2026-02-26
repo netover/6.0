@@ -38,18 +38,15 @@ prompt_router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # REQUEST/RESPONSE MODELS
 # =============================================================================
-
 
 class PromptListResponse(BaseModel):
     """Response for listing prompts."""
 
     prompts: list[dict[str, Any]]
     total: int
-
 
 class PromptDetailResponse(BaseModel):
     """Response for a single prompt."""
@@ -70,7 +67,6 @@ class PromptDetailResponse(BaseModel):
     created_at: str
     updated_at: str
 
-
 class PromptCreateRequest(BaseModel):
     """Request to create a new prompt."""
 
@@ -88,7 +84,6 @@ class PromptCreateRequest(BaseModel):
     is_active: bool = True
     is_default: bool = False
 
-
 class PromptUpdateRequest(BaseModel):
     """Request to update a prompt."""
 
@@ -103,12 +98,10 @@ class PromptUpdateRequest(BaseModel):
     is_active: bool | None = None
     is_default: bool | None = None
 
-
 class PromptTestRequest(BaseModel):
     """Request to test a prompt."""
 
     variables: dict[str, str] = Field(default_factory=dict)
-
 
 class PromptTestResponse(BaseModel):
     """Response from testing a prompt."""
@@ -117,11 +110,9 @@ class PromptTestResponse(BaseModel):
     variables_used: dict[str, str]
     missing_variables: list[str]
 
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
-
 
 @prompt_router.get("", summary="List all prompts")
 async def list_prompts(
@@ -163,7 +154,7 @@ async def list_prompts(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -172,7 +163,6 @@ async def list_prompts(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @prompt_router.get("/{prompt_id}", summary="Get a prompt")
 async def get_prompt(
@@ -204,7 +194,6 @@ async def get_prompt(
         created_at=config.created_at.isoformat() if config.created_at else "",
         updated_at=config.updated_at.isoformat() if config.updated_at else "",
     )
-
 
 @prompt_router.post("", status_code=201, summary="Create a prompt")
 async def create_prompt(
@@ -263,7 +252,6 @@ async def create_prompt(
         updated_at=created.updated_at.isoformat() if created.updated_at else "",
     )
 
-
 @prompt_router.put("/{prompt_id}", summary="Update a prompt")
 async def update_prompt(
     prompt_id: str,
@@ -300,7 +288,6 @@ async def update_prompt(
         updated_at=updated.updated_at.isoformat() if updated.updated_at else "",
     )
 
-
 @prompt_router.delete("/{prompt_id}", status_code=204, summary="Delete a prompt")
 async def delete_prompt(
     prompt_id: str,
@@ -312,7 +299,6 @@ async def delete_prompt(
 
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Prompt '{prompt_id}' not found")
-
 
 @prompt_router.post("/{prompt_id}/test", summary="Test a prompt")
 async def test_prompt(
@@ -347,7 +333,6 @@ async def test_prompt(
         variables_used=final_vars,
         missing_variables=list(missing),
     )
-
 
 @prompt_router.get("/types", summary="Get prompt types")
 async def get_prompt_types() -> dict[str, Any]:

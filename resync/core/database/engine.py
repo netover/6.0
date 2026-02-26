@@ -21,22 +21,21 @@ from .config import get_database_config
 
 logger = logging.getLogger(__name__)
 
-
 # Base class for all SQLAlchemy models
 class Base(DeclarativeBase):
     """Base class for all database models."""
 
-
-# Global engine and session factory
+# Module-level engine singleton — intentional for connection pool reuse.
+# _engine_lock guards the lazy initialization only (runs once at startup).
+# All async I/O uses the async session factory after initialization.
 _engine = None
 _session_factory = None
-_engine_lock = threading.Lock()  # Lock síncrono para a inicialização lazy
+_engine_lock = threading.Lock()  # Sync lock guards one-time lazy init only
 
 # v5.9.4: Contador de sessões ativas para graceful shutdown
 _active_sessions = 0
 _active_sessions_lock: asyncio.Lock | None = None
 _active_sessions_lock_loop: asyncio.AbstractEventLoop | None = None
-
 
 def _get_active_sessions_lock() -> asyncio.Lock:
     """Return a lock bound to the current running event loop.
@@ -58,9 +57,7 @@ def _get_active_sessions_lock() -> asyncio.Lock:
         _active_sessions_lock_loop = loop
     return _active_sessions_lock
 
-
 _shutdown_event: asyncio.Event | None = None
-
 
 async def _increment_sessions():
     """Incrementa contador de sessões ativas."""
@@ -68,13 +65,11 @@ async def _increment_sessions():
     async with _get_active_sessions_lock():
         _active_sessions += 1
 
-
 async def _decrement_sessions():
     """Decrementa contador de sessões ativas."""
     global _active_sessions
     async with _get_active_sessions_lock():
         _active_sessions -= 1
-
 
 def get_engine():
     """
@@ -121,7 +116,6 @@ def get_engine():
 
     return _engine
 
-
 def get_session_factory():
     """Get or create session factory."""
     global _session_factory
@@ -138,11 +132,9 @@ def get_session_factory():
 
     return _session_factory
 
-
 def is_engine_available() -> bool:
     """Check if engine is available (not shut down)."""
     return _engine is not None and _shutdown_event is None
-
 
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -175,12 +167,11 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             try:
                 yield session
                 await session.commit()
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 await session.rollback()
                 raise
     finally:
         await _decrement_sessions()
-
 
 @asynccontextmanager
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -189,7 +180,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with get_session() as session:
         yield session
-
 
 async def close_engine(timeout: float = 30.0):
     """
@@ -241,7 +231,6 @@ async def close_engine(timeout: float = 30.0):
         _session_factory = None
         _shutdown_event = None
         _active_sessions = 0
-
 
 def get_engine_status() -> dict:
     """Get engine status information."""

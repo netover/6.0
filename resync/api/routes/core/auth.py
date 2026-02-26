@@ -73,7 +73,6 @@ except ImportError:
 
 _DEVELOPMENT_FALLBACK_SECRET: str | None = None
 
-
 def _get_dev_fallback_secret() -> str:
     """Generate a secure random fallback secret for development only."""
     global _DEVELOPMENT_FALLBACK_SECRET
@@ -82,7 +81,6 @@ def _get_dev_fallback_secret() -> str:
 
         _DEVELOPMENT_FALLBACK_SECRET = os.urandom(32).hex()
     return _DEVELOPMENT_FALLBACK_SECRET
-
 
 def _is_secret_key_secure(secret: str | None) -> bool:
     if not secret:
@@ -94,7 +92,6 @@ def _is_secret_key_secure(secret: str | None) -> bool:
         "dev-secret-key-change-me-in-production-minimum-32-chars",
     }
     return secret not in known_insecure and secret != _get_dev_fallback_secret()
-
 
 def _get_configured_secret_key() -> str | None:
     """Fetch the configured JWT secret key as a raw string (never masked).
@@ -111,7 +108,6 @@ def _get_configured_secret_key() -> str | None:
     if hasattr(key, "get_secret_value"):
         return key.get_secret_value()
     return str(key)
-
 
 def get_jwt_secret_key() -> str:
     """Resolve JWT secret key.
@@ -143,7 +139,6 @@ def get_jwt_secret_key() -> str:
         "auth_secret_key_insecure_nonprod", extra={"length": len(configured)}
     )
     return configured
-
 
 class SecureAuthenticator:
     """Authenticator resistant to timing attacks with secure key derivation."""
@@ -268,9 +263,9 @@ class SecureAuthenticator:
         try:
             redis = get_redis_client()
             await redis.delete(f"{self._redis_prefix}:{sanitized_ip}")
-        except Exception:
-            # Non-fatal: if Redis is down, we just can't clear the lockout
-            pass
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            # Non-fatal: if Redis is down, lockout TTL will expire naturally
+            logger.debug("redis_lockout_clear_failed", error=str(exc))
 
         logger.info(
             "auth_success",
@@ -290,37 +285,22 @@ class SecureAuthenticator:
             - HMAC-SHA256 for rainbow table resistance
         """
         auth_key = self._get_auth_key()
-        return hmac.new(auth_key, credential.encode("utf-8"), hashlib.sha256).digest()
+        return hmac.digest(auth_key, credential.encode("utf-8"), hashlib.sha256)
 
     async def _check_lockout_state(self, ip: str) -> tuple[bool, int]:
-        """Check if IP is locked out and return remaining time."""
+        """Check if IP is locked out and return remaining minutes.
+
+        Uses the same atomic Lua path as `_check_and_record_attempt` (with success=True),
+        avoiding TOCTOU races between Redis calls.
+        """
         try:
-            redis = get_redis_client()
-            key = f"{self._redis_prefix}:{ip}"
-
-            now = time.time()
-            cutoff = now - self._lockout_duration_seconds
-
-            # Remove old attempts
-            await redis.zremrangebyscore(key, "-inf", cutoff)
-
-            # Get current attempt count
-            attempt_count = await redis.zcard(key)
-
-            if attempt_count >= self._max_attempts:
-                # Calculate remaining time from the oldest attempt still in window
-                oldest = await redis.zrange(key, 0, 0, withscores=True)
-                if oldest:
-                    _, ts = oldest[0]
-                    remaining = int((ts + self._lockout_duration_seconds - now) / 60)
-                    return True, max(1, remaining)
-                return True, 1
-
+            is_locked, remaining_minutes, _ = await self._check_and_record_attempt(
+                ip, success=True
+            )
+            return is_locked, remaining_minutes
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            logger.error("redis_lockout_check_failed", error=str(exc))
             return False, 0
-        except Exception as e:
-            logger.error("redis_lockout_check_failed", error=str(e))
-            return False, 0
-
     # Removed: _record_failed_attempt is now part of _check_and_record_attempt
     # to prevent TOCTOU race conditions
 
@@ -357,7 +337,7 @@ class SecureAuthenticator:
             local success = ARGV[5] == 'true'
 
             -- Remove old attempts
-            redis.call('ZREMRANGEBYSCORE', key, 0, cutoff)
+            redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
 
             -- Count recent attempts
             local count = redis.call('ZCARD', key)
@@ -409,16 +389,14 @@ class SecureAuthenticator:
 
             return is_locked, remaining_minutes, attempt_count
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0, 0
-
 
 # Global authenticator singleton (lazy init; thread-safe)
 # Using threading.Lock for thread-safety across event loops (TASK-013)
 _authenticator: SecureAuthenticator | None = None
 _authenticator_init_lock: threading.Lock | None = None
-
 
 def _get_authenticator_lock() -> threading.Lock:
     """Get or create the authenticator initialization lock."""
@@ -426,7 +404,6 @@ def _get_authenticator_lock() -> threading.Lock:
     if _authenticator_init_lock is None:
         _authenticator_init_lock = threading.Lock()
     return _authenticator_init_lock
-
 
 async def get_authenticator() -> SecureAuthenticator:
     """Return a lazily-initialized SecureAuthenticator (thread-safe).
@@ -449,8 +426,7 @@ async def get_authenticator() -> SecureAuthenticator:
 
     return _authenticator
 
-
-def verify_admin_credentials(
+async def verify_admin_credentials(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> str | None:
@@ -553,7 +529,7 @@ def verify_admin_credentials(
     except HTTPException:
         raise
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Generic handler - no sensitive data in error
         logger.error(
             "auth_unexpected_error",
@@ -573,7 +549,6 @@ def verify_admin_credentials(
         # blocking the event loop. Maintains constant-time defense (TASK-007).
         await asyncio.sleep(0.050)
 
-
 def create_access_token(
     data: dict[str, Any], expires_delta: timedelta | None = None
 ) -> str:
@@ -583,7 +558,6 @@ def create_access_token(
     return jwt_security.create_access_token(
         subject=data.get("sub", ""), expires_delta=expires_delta
     )
-
 
 async def authenticate_admin(username: str, password: str) -> bool:
     """
@@ -603,18 +577,15 @@ async def authenticate_admin(username: str, password: str) -> bool:
     )
     return is_valid
 
-
 # =============================================================================
 # AUTH ENDPOINTS
 # =============================================================================
-
 
 class LoginRequest(BaseModel):
     """Login request model."""
 
     username: str
     password: str
-
 
 class TokenResponse(BaseModel):
     """Token response model."""
@@ -623,14 +594,12 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int = ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
-
 class LoginResponse(BaseModel):
     """Login response model."""
 
     success: bool
     message: str
     token: TokenResponse | None = None
-
 
 @router.post("/login")
 @rate_limit_auth
@@ -695,7 +664,6 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
 
     return response
 
-
 @router.post("/logout")
 async def logout(request: Request) -> Response:
     """
@@ -726,7 +694,6 @@ async def logout(request: Request) -> Response:
     )
 
     return response
-
 
 @router.get("/verify")
 async def verify_token(

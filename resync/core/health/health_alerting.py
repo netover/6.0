@@ -16,7 +16,6 @@ from resync.core.health.health_models import ComponentHealth, HealthStatus
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthAlerting:
     """
     Manages health alerts and notifications.
@@ -145,7 +144,6 @@ class HealthAlerting:
             "history_entries": len(self.alert_history),
             "recent_alerts": recent_total,
         }
-
 
 class HealthReporting:
     """
@@ -320,7 +318,6 @@ class HealthReporting:
 
         lines.append("=" * 60)
         return "\n".join(lines)
-
 
 class HealthStatusAggregator:
     """

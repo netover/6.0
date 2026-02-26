@@ -61,7 +61,6 @@ from resync.settings import settings
 
 logger = get_logger(__name__)
 
-
 def _metric_inc(metric: Any, value: float = 1.0) -> None:
     """Increment metric counters compatible with both wrapper and Prometheus APIs."""
     if hasattr(metric, "increment"):
@@ -69,7 +68,6 @@ def _metric_inc(metric: Any, value: float = 1.0) -> None:
         return
     if hasattr(metric, "inc"):
         metric.inc(value)
-
 
 # Import SemanticCache for router intent caching
 try:
@@ -92,11 +90,9 @@ except ImportError:
     END = "END"
     interrupt = None
 
-
 # =============================================================================
 # STATE DEFINITION
 # =============================================================================
-
 
 class AgentState(TypedDict, total=False):
     """State passed between nodes in the graph."""
@@ -176,7 +172,6 @@ class AgentState(TypedDict, total=False):
     # Config-driven limits (set from AgentGraphConfig at graph init)
     max_verification_attempts: int
 
-
 @dataclass
 class AgentGraphConfig:
     """Configuration for the agent graph."""
@@ -188,7 +183,6 @@ class AgentGraphConfig:
     enable_hallucination_check: bool = True
     enable_output_critique: bool = True
     max_verification_attempts: int = 3
-
 
 # Required entities per intent
 REQUIRED_ENTITIES = {
@@ -218,9 +212,15 @@ ENTITY_PATTERNS = {
 
 # Router Cache Singleton (threshold=0.95 for high precision)
 # Thread-safe initialization with asyncio.Lock
+import threading as _threading_module  # FIX P2-09: module-level import for sync lock
+
 _router_cache_instance: SemanticCache | None = None
 _router_cache_lock: asyncio.Lock | None = None
+_router_cache_sync_lock: _threading_module.Lock = _threading_module.Lock()  # FIX P2-09: shared module-level lock
 
+def _get_sync_init_lock() -> _threading_module.Lock:
+    """Return the module-level threading.Lock for sync-context initialization."""
+    return _router_cache_sync_lock
 
 def _get_router_cache() -> SemanticCache | None:
     """Get or create the router cache singleton (thread-safe with asyncio.Lock).
@@ -256,27 +256,29 @@ def _get_router_cache() -> SemanticCache | None:
                         threshold=0.95,
                         default_ttl=3600,
                     )
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning("router_cache_init_failed", error=str(e))
                     return None
         except RuntimeError:
-            # No running event loop - we're in sync context
-            # Use synchronous lock acquisition
-            import threading
+            # No running event loop — we're in a sync context (e.g. CLI tool).
+            # FIX P2-09: Original code created a new threading.Lock() on every call
+            # which means the lock provides no mutual exclusion (each caller gets
+            # their own lock object). Use the module-level _sync_init_lock instead.
+            import threading as _threading
 
-            with threading.Lock():
+            _sync_init_lock: _threading.Lock = _get_sync_init_lock()
+            with _sync_init_lock:
                 if _router_cache_instance is None:
                     try:
                         _router_cache_instance = SemanticCache(
                             threshold=0.95,
                             default_ttl=3600,
                         )
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                         logger.warning("router_cache_init_failed", error=str(e))
                         return None
 
     return _router_cache_instance
-
 
 async def async_init_router_cache() -> SemanticCache | None:
     """Async version of router cache initialization (preferred for async contexts).
@@ -306,12 +308,11 @@ async def async_init_router_cache() -> SemanticCache | None:
                     threshold=0.95,
                     default_ttl=3600,
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("router_cache_init_failed", error=str(e))
                 return None
 
     return _router_cache_instance
-
 
 def _get_knowledge_graph_or_stub() -> Any:
     """Return the Knowledge Graph client (RAG) or a safe stub.
@@ -325,7 +326,7 @@ def _get_knowledge_graph_or_stub() -> Any:
         from resync.services.rag_client import RAGClient
 
         return RAGClient()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -343,11 +344,9 @@ def _get_knowledge_graph_or_stub() -> Any:
 
         return _KGStub()
 
-
 # =============================================================================
 # NODE IMPLEMENTATIONS
 # =============================================================================
-
 
 async def router_node(state: AgentState) -> AgentState:
     """
@@ -464,7 +463,7 @@ async def router_node(state: AgentState) -> AgentState:
                 # Skip LLM call - return immediately
                 return state
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Graceful degradation - continue to LLM if cache fails
             logger.warning("router_cache_check_error", error=str(e))
 
@@ -510,13 +509,13 @@ async def router_node(state: AgentState) -> AgentState:
                     )
                     # Increment metric
                     _metric_inc(runtime_metrics.router_cache_sets)
-                except Exception as cache_err:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as cache_err:
                     # Non-critical - log and continue
                     logger.warning("router_cache_store_error", error=str(cache_err))
         else:
             state = _fallback_router(state)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("router_llm_failed", error=str(e))
         state = _fallback_router(state)
 
@@ -545,7 +544,6 @@ async def router_node(state: AgentState) -> AgentState:
 
     return state
 
-
 async def document_kg_context_node(state: AgentState) -> AgentState:
     """Enrich state with Document-KG GraphRAG context for downstream LLM calls.
 
@@ -567,11 +565,10 @@ async def document_kg_context_node(state: AgentState) -> AgentState:
             state=state,
         )
         state["doc_kg_context"] = ctx or ""
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.debug("document_kg_context_skipped", error=str(e))
         state["doc_kg_context"] = ""
     return state
-
 
 def _fallback_router(state: AgentState) -> AgentState:
     """Fallback using keyword matching."""
@@ -591,7 +588,6 @@ def _fallback_router(state: AgentState) -> AgentState:
     state["intent"] = intent
     state["confidence"] = confidence
     return state
-
 
 def clarification_node(state: AgentState) -> AgentState:
     """Generate clarification question for missing entities."""
@@ -619,7 +615,6 @@ def clarification_node(state: AgentState) -> AgentState:
     state["current_node"] = "clarification"
 
     return state
-
 
 def planner_node(state: AgentState) -> AgentState:
     """Create a deterministic execution plan for high-impact intents.
@@ -654,13 +649,11 @@ def planner_node(state: AgentState) -> AgentState:
 
     return state
 
-
 def _step_completed(plan: dict[str, Any], step_id: str) -> bool:
     for s in plan.get("steps", []):
         if s.get("id") == step_id:
             return bool(s.get("completed"))
     return False
-
 
 async def plan_executor_node(state: AgentState) -> AgentState:
     """Execute one step of the plan (looped by the graph)."""
@@ -723,7 +716,7 @@ async def plan_executor_node(state: AgentState) -> AgentState:
         step["completed"] = True
         step["error"] = None
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         step["completed"] = False
         step["error"] = str(e)
         if step.get("on_failure") == "abort":
@@ -734,7 +727,6 @@ async def plan_executor_node(state: AgentState) -> AgentState:
     plan["steps"] = steps
     state["execution_plan"] = plan
     return state
-
 
 def _after_plan_executor(state: AgentState) -> str:
     """Decide next hop after executing a plan step."""
@@ -754,7 +746,6 @@ def _after_plan_executor(state: AgentState) -> str:
     if idx < total:
         return "plan_executor"
     return "synthesizer"
-
 
 async def _execute_orchestrator_collect(
     state: AgentState, include_logs: bool
@@ -803,7 +794,6 @@ async def _execute_orchestrator_collect(
     }
     return state
 
-
 def _execute_analyze_evidence(state: AgentState) -> AgentState:
     """Extract lightweight signals from the collected evidence."""
     raw = state.get("raw_data", {}) or {}
@@ -822,7 +812,6 @@ def _execute_analyze_evidence(state: AgentState) -> AgentState:
     }
     state["raw_data"] = raw
     return state
-
 
 async def _execute_validate_action(state: AgentState) -> AgentState:
     """Validate if an action is allowed for the current job status."""
@@ -860,7 +849,6 @@ async def _execute_validate_action(state: AgentState) -> AgentState:
     state.setdefault("raw_data", {})["pre_action_status"] = current_status
     return state
 
-
 def _execute_request_approval(state: AgentState) -> AgentState:
     """Request HITL approval via LangGraph interrupt when available."""
     entities = state.get("entities", {})
@@ -888,7 +876,6 @@ def _execute_request_approval(state: AgentState) -> AgentState:
     state.setdefault("raw_data", {})["approved_by"] = approval.get("approver")
     return state
 
-
 async def _execute_tws_action(state: AgentState) -> AgentState:
     """Execute an action against TWS."""
     from resync.core.factories import get_tws_client_singleton
@@ -906,7 +893,6 @@ async def _execute_tws_action(state: AgentState) -> AgentState:
     )
     state["action_pending_verification"] = str(action_type)
     return state
-
 
 async def _execute_verification_once(state: AgentState) -> AgentState:
     """Verify the action had effect in TWS with bounded retries.
@@ -968,7 +954,6 @@ async def _execute_verification_once(state: AgentState) -> AgentState:
         raw["_verification_retry"] = True
     return state
 
-
 async def llm_rescue_node(state: AgentState) -> AgentState:
     """Emergency fallback when the deterministic plan aborts.
 
@@ -981,7 +966,6 @@ async def llm_rescue_node(state: AgentState) -> AgentState:
     state["execution_plan"] = None
     state["plan_step_index"] = 0
     return await troubleshoot_handler_node(state)
-
 
 async def output_critique_node(state: AgentState) -> AgentState:
     """LLM-based critique for high-risk paths only (troubleshoot/diagnostic)."""
@@ -1027,18 +1011,16 @@ async def output_critique_node(state: AgentState) -> AgentState:
         else:
             state["needs_refinement"] = False
 
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         # Never block a response on critique failures.
         state["needs_refinement"] = False
 
     return state
 
-
 def _after_critique(state: AgentState) -> str:
     if state.get("needs_refinement") and (state.get("critique_retries", 0) or 0) < 2:
         return "synthesizer"
     return "hallucination_check"
-
 
 async def status_handler_node(state: AgentState) -> AgentState:
     """Handle job status queries."""
@@ -1080,20 +1062,19 @@ async def status_handler_node(state: AgentState) -> AgentState:
             if result.job_dependencies:
                 status = {**status, "dependencies": result.job_dependencies}
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             status = await tws.get_job_status(job_name)
 
         state["raw_data"] = status
         state["tool_name"] = "get_job_status"
         state["tool_output"] = json.dumps(status, ensure_ascii=False, default=str)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("status_handler_error", error=str(e))
         state["error"] = str(e)
         state["raw_data"] = {"error": str(e)}
 
     return state
-
 
 async def troubleshoot_handler_node(state: AgentState) -> AgentState:
     """
@@ -1154,7 +1135,7 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
                     "data_completeness": "{orch.success_rate:.0%}",
                 }
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Não bloquear troubleshooting se orquestração falhar
             enriched_context["orchestrator_error"] = str(e)
 
@@ -1197,13 +1178,12 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
         # incident_response not available, use diagnostic subgraph
         state = await _fallback_troubleshoot(state, job_name, message)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("troubleshoot_error", error=str(e))
         state["error"] = str(e)
         state["raw_data"] = {"error": str(e)}
 
     return state
-
 
 async def _fallback_troubleshoot(
     state: AgentState, job_name: str | None, message: str
@@ -1237,7 +1217,6 @@ async def _fallback_troubleshoot(
 
     state["tool_name"] = "diagnostic_subgraph"
     return state
-
 
 async def query_handler_node(state: AgentState) -> AgentState:
     """Handle RAG queries."""
@@ -1277,13 +1256,12 @@ Resposta:"""
             "response": response,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("query_error", error=str(e))
         state["error"] = str(e)
         state["response"] = "Não foi possível buscar na documentação."
 
     return state
-
 
 async def action_handler_node(state: AgentState) -> AgentState:
     """
@@ -1327,7 +1305,7 @@ async def action_handler_node(state: AgentState) -> AgentState:
                     "result": result,
                     "approved_by": approval.get("approver"),
                 }
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 state["error"] = str(e)
                 state["raw_data"] = {"error": str(e)}
         else:
@@ -1349,7 +1327,6 @@ async def action_handler_node(state: AgentState) -> AgentState:
         )
 
     return state
-
 
 async def general_handler_node(state: AgentState) -> AgentState:
     """Handle general conversation."""
@@ -1378,12 +1355,11 @@ async def general_handler_node(state: AgentState) -> AgentState:
         state["response"] = response
         state["raw_data"] = {"response": response}
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("general_handler_error", error=str(e))
         state["response"] = "Olá! Como posso ajudar com o TWS hoje?"
 
     return state
-
 
 def synthesizer_node(state: AgentState) -> AgentState:
     """Synthesize user-friendly response from raw data."""
@@ -1482,7 +1458,6 @@ def synthesizer_node(state: AgentState) -> AgentState:
 
     return state
 
-
 async def hallucination_check_node(state: AgentState) -> AgentState:
     """Check response for hallucinations."""
     from resync.core.langgraph.hallucination_grader import grade_hallucination
@@ -1506,17 +1481,15 @@ async def hallucination_check_node(state: AgentState) -> AgentState:
             retry_count = state.get("hallucination_retry_count", 0)
             state["hallucination_retry_count"] = retry_count + 1
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("hallucination_check_error", error=str(e))
         state["is_grounded"] = True  # Assume grounded on error
 
     return state
 
-
 # =============================================================================
 # ROUTING FUNCTIONS
 # =============================================================================
-
 
 def _get_next_node(state: AgentState) -> str:
     """Route from router to appropriate handler."""
@@ -1536,13 +1509,11 @@ def _get_next_node(state: AgentState) -> str:
 
     return routing.get(intent, "general_handler")
 
-
 def _get_next_node_v6_1(state: AgentState) -> str:
     """v6.1 Golden Path routing: clarification goes direct, everything else through DKG context."""
     if state.get("needs_clarification"):
         return "clarification"
     return "document_kg_context"
-
 
 def _after_dkg_context(state: AgentState) -> str:
     """Route from DKG context node to the appropriate handler or planner."""
@@ -1557,7 +1528,6 @@ def _after_dkg_context(state: AgentState) -> str:
     }
     return routing.get(intent, "general_handler")
 
-
 def _should_retry(state: AgentState) -> str:
     """Check if we should retry or proceed."""
     if state.get("tool_error") and state.get("retry_count", 0) < state.get(
@@ -1566,7 +1536,6 @@ def _should_retry(state: AgentState) -> str:
         return "retry"
     return "synthesizer"
 
-
 def _should_regenerate(state: AgentState) -> str:
     """Check if we should regenerate due to hallucination."""
     if not state.get("is_grounded", True):
@@ -1574,11 +1543,9 @@ def _should_regenerate(state: AgentState) -> str:
             return "regenerate"
     return "end"
 
-
 # =============================================================================
 # GRAPH CREATION
 # =============================================================================
-
 
 def create_tws_agent_graph(
     config: AgentGraphConfig | None = None,
@@ -1738,7 +1705,6 @@ def create_tws_agent_graph(
 
     return compiled
 
-
 def create_router_graph() -> Any:
     """Create simplified router-only graph."""
     if not LANGGRAPH_AVAILABLE:
@@ -1751,11 +1717,9 @@ def create_router_graph() -> Any:
 
     return graph.compile()
 
-
 # =============================================================================
 # FALLBACK IMPLEMENTATION
 # =============================================================================
-
 
 class FallbackGraph:
     """Fallback when LangGraph unavailable."""
@@ -1833,7 +1797,7 @@ class FallbackGraph:
             if self.config.enable_hallucination_check:
                 full_state = await hallucination_check_node(full_state)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("fallback_error", error=str(e))
             full_state["error"] = str(e)
             full_state["response"] = f"Erro: {str(e)}"
@@ -1854,11 +1818,9 @@ class FallbackGraph:
         result = await self.ainvoke(state)
         yield {"event": "on_chain_end", "data": {"output": result}}
 
-
 # =============================================================================
 # STREAMING SUPPORT
 # =============================================================================
-
 
 async def stream_agent_response(
     graph,
@@ -1896,18 +1858,16 @@ async def stream_agent_response(
 
             yield event
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("streaming_error", error=str(e))
         yield {"event": "error", "error": str(e)}
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     "AgentState",

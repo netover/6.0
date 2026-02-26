@@ -36,7 +36,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = get_logger(__name__)
 
-
 class LogLevel(Enum):
     """Standard log levels."""
 
@@ -45,7 +44,6 @@ class LogLevel(Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
-
 
 class LogSource(Enum):
     """Types of log sources."""
@@ -56,7 +54,6 @@ class LogSource(Enum):
     SYSTEM = "system"
     CONTAINER = "container"
     CUSTOM = "custom"
-
 
 @dataclass
 class LogEntry:
@@ -118,7 +115,6 @@ class LogEntry:
         doc.pop("index_timestamp", None)
         return doc
 
-
 @dataclass
 class LogParser:
     """Log parser with Grok patterns."""
@@ -148,7 +144,6 @@ class LogParser:
             parsed[mapped_key] = value
 
         return parsed
-
 
 @dataclass
 class LogSourceConfig:
@@ -183,7 +178,6 @@ class LogSourceConfig:
     buffer_size: int = 1000
     flush_interval: int = 5
 
-
 @dataclass
 class KibanaDashboard:
     """Kibana dashboard configuration."""
@@ -213,7 +207,6 @@ class KibanaDashboard:
                 "timeFrom": self.time_range["from"],
             },
         }
-
 
 @dataclass
 class LogAggregatorConfig:
@@ -246,7 +239,6 @@ class LogAggregatorConfig:
     # Security
     enable_ssl_verification: bool = True
     log_encryption_enabled: bool = False
-
 
 class LogAggregator:
     """
@@ -398,19 +390,19 @@ class LogAggregator:
             await self._initialize_kibana()
 
         # Start log collection
-        self._collection_task = await create_tracked_task(
+        self._collection_task = create_tracked_task(
             self._log_collection_worker(), name="log_collection_worker"
         )
 
         # Start processing workers
         for _i in range(self.config.indexing_workers):
-            task = await create_tracked_task(
+            task = create_tracked_task(
                 self._log_processing_worker(), name="log_processing_worker"
             )
             self._processing_tasks.append(task)
 
         # Start cleanup worker
-        self._cleanup_task = await create_tracked_task(
+        self._cleanup_task = create_tracked_task(
             self._cleanup_worker(), name="cleanup_worker"
         )
 
@@ -557,7 +549,7 @@ class LogAggregator:
                     }
                 return {"error": f"Elasticsearch query failed: {response.status}"}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -588,7 +580,7 @@ class LogAggregator:
                         await self._create_standard_dashboards()
                 else:
                     logger.warning("Kibana connection failed: %s", response.status)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -619,7 +611,7 @@ class LogAggregator:
                             "Failed to create dashboard "
                             f"{dashboard.title}: {response.status}"
                         )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -747,7 +739,7 @@ class LogAggregator:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -796,7 +788,7 @@ class LogAggregator:
                 if line.strip():  # Skip empty lines
                     self._process_log_line(line, source_config)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -873,7 +865,7 @@ class LogAggregator:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -931,7 +923,7 @@ class LogAggregator:
                     logger.error("Elasticsearch bulk index failed: %s", response.status)
                     self.metrics["indexing_errors"] += len(batch)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -955,7 +947,7 @@ class LogAggregator:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -1001,7 +993,7 @@ class LogAggregator:
                                         "Failed to delete index %s", index_name
                                     )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -1054,10 +1046,8 @@ class LogAggregator:
             },
         }
 
-
 # Global log aggregator instance
 _log_aggregator_instance: LogAggregator | None = None
-
 
 class _LazyLogAggregator:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -1075,9 +1065,7 @@ class _LazyLogAggregator:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 log_aggregator = _LazyLogAggregator()
-
 
 async def get_log_aggregator() -> LogAggregator:
     """Get the global log aggregator instance."""

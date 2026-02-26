@@ -27,7 +27,6 @@ file_dependency = File(...)
 file_ingestor_dependency = Depends(get_file_ingestor)
 router = APIRouter(prefix="/api/rag", tags=["rag"])
 
-
 @router.post("/upload", summary="Upload a document for RAG ingestion")
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -86,7 +85,7 @@ async def upload_document(
         raise HTTPException(
             status_code=400, detail="Invalid request. Check server logs for details."
         ) from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to process uploaded file: %s", e, exc_info=True)

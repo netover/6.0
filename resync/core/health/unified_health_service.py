@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-
 class UnifiedHealthService:
     """
     Unified health check service that consolidates orchestration and enhanced monitoring.
@@ -144,7 +143,7 @@ class UnifiedHealthService:
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if isinstance(e, asyncio.CancelledError):
                     break
                 logger.error("health_monitoring_error", error=str(e))
@@ -188,16 +187,17 @@ class UnifiedHealthService:
                             }
                     except* asyncio.CancelledError:
                         raise
-                    except* Exception:
-                        # Results extracted below from tasks
-                        pass
+                    except* Exception as eg:
+                        # Results extracted from task.result() below
+                        logger.debug("health_checker_group_error",
+                                     count=len(eg.exceptions))
 
                     # Extração segura de resultados
                     for name, task in tasks.items():
                         if task.done() and not task.cancelled():
                             try:
                                 components[name] = task.result()
-                            except Exception as e:
+                            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                                 if isinstance(e, asyncio.CancelledError):
                                     raise
                                 components[name] = self._create_error_health(
@@ -212,7 +212,7 @@ class UnifiedHealthService:
                     "comprehensive_health_check_timeout",
                     timeout=self.config.timeout_seconds,
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if isinstance(e, asyncio.CancelledError):
                     raise
                 logger.error("comprehensive_health_check_group_error", error=str(e))
@@ -256,7 +256,7 @@ class UnifiedHealthService:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.error("comprehensive_health_check_failed", error=str(e))
@@ -290,7 +290,7 @@ class UnifiedHealthService:
         except TimeoutError:
             logger.warning("health_check_timeout", component=name)
             return self._create_error_health(name, "Check timeout")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -489,7 +489,6 @@ class UnifiedHealthService:
             "components_tracked": len(self._component_results),
         }
 
-
 # =============================================================================
 # Module-level singleton management
 # =============================================================================
@@ -497,7 +496,6 @@ class UnifiedHealthService:
 _unified_health_service: UnifiedHealthService | None = None
 _service_lock: asyncio.Lock | None = None
 _service_lock_loop: asyncio.AbstractEventLoop | None = None
-
 
 def _get_service_lock() -> asyncio.Lock:
     """Lazy-initialize service lock bound to current running loop (gunicorn --preload safe)."""
@@ -511,7 +509,6 @@ def _get_service_lock() -> asyncio.Lock:
         _service_lock = asyncio.Lock()
         _service_lock_loop = loop
     return _service_lock
-
 
 async def get_unified_health_service() -> UnifiedHealthService:
     """
@@ -529,7 +526,6 @@ async def get_unified_health_service() -> UnifiedHealthService:
 
     return _unified_health_service
 
-
 async def shutdown_unified_health_service() -> None:
     """Shutdown the singleton UnifiedHealthService instance."""
     global _unified_health_service
@@ -537,7 +533,6 @@ async def shutdown_unified_health_service() -> None:
     if _unified_health_service is not None:
         await _unified_health_service.stop_monitoring()
         _unified_health_service = None
-
 
 async def get_health_status() -> HealthCheckResult:
     """

@@ -8,14 +8,13 @@ v6.0: Updated to support skill_manager injection.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from resync.core.agent_manager import get_agent_manager
 from resync.core.agent_router import HybridRouter, create_router
 from resync.core.orchestration.schemas import StepConfig, StepType
 
 logger = logging.getLogger(__name__)
-
 
 class AgentAdapter:
     """
@@ -25,7 +24,7 @@ class AgentAdapter:
     def __init__(self, skill_manager: Any = None):
         self.agent_manager = get_agent_manager()
         self._skill_manager = skill_manager
-        self._router: Optional[HybridRouter] = None
+        self._router: HybridRouter | None = None
 
     @property
     def router(self) -> HybridRouter:
@@ -37,8 +36,8 @@ class AgentAdapter:
         return self._router
 
     async def execute_step(
-        self, step: StepConfig, input_data: Dict[str, Any], context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, step: StepConfig, input_data: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Execute a single orchestration step.
 
@@ -66,13 +65,13 @@ class AgentAdapter:
                     "reason": "not_implemented",
                 }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(f"Error executing step {step.id}: {e}", exc_info=True)
             raise
 
     async def _execute_agent_step(
-        self, step: StepConfig, input_data: Dict[str, Any], context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, step: StepConfig, input_data: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Execute a step via an Agent or Router."""
 
         # Determine input message
@@ -134,8 +133,8 @@ class AgentAdapter:
             }
 
     async def _execute_tool_step(
-        self, step: StepConfig, input_data: Dict[str, Any], context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, step: StepConfig, input_data: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Execute a tool directly."""
         tool_name = step.tool_name
         if not tool_name:
@@ -167,6 +166,6 @@ class AgentAdapter:
                 result = await asyncio.to_thread(tool_func, **tool_args)
 
             return {"output": result, "tool_name": tool_name}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(f"Tool execution failed: {e}")
             raise

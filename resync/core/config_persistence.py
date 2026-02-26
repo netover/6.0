@@ -23,10 +23,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 class ConfigPersistenceError(Exception):
     """Base exception for configuration persistence errors."""
-
 
 class ConfigPersistenceManager:
     """Manages persistent storage of application configuration.
@@ -93,7 +91,7 @@ class ConfigPersistenceManager:
         """
         try:
             return await asyncio.to_thread(self._load_config_sync)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -122,7 +120,7 @@ class ConfigPersistenceManager:
             await asyncio.to_thread(
                 self._save_config_sync, section, data, create_backup
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to save configuration: %s", e, exc_info=True)
             raise ConfigPersistenceError(f"Failed to save config: {e}") from e
 
@@ -170,13 +168,13 @@ class ConfigPersistenceManager:
             # Clean old backups
             self._cleanup_old_backups_sync()
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             # Restore from backup if save failed
             if backup_file and backup_file.exists():
                 try:
                     shutil.copy2(backup_file, self.config_file)
                     logger.info("Configuration restored from backup after failure")
-                except Exception as restore_error:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as restore_error:
                     logger.error("Failed to restore backup: %s", restore_error)
             raise
 
@@ -211,7 +209,7 @@ class ConfigPersistenceManager:
             try:
                 old_backup.unlink()
                 logger.debug("Removed old backup: %s", old_backup)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Failed to remove old backup %s: %s", old_backup, e)
 
     async def get_section(self, section: str) -> dict[str, Any]:
@@ -273,7 +271,7 @@ class ConfigPersistenceManager:
         """
         try:
             await asyncio.to_thread(self._restore_backup_sync, backup_file)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to restore backup: %s", e, exc_info=True)
             raise ConfigPersistenceError(f"Failed to restore backup: {e}") from e
 
@@ -294,7 +292,7 @@ class ConfigPersistenceManager:
                 f"previous config backed up to: {current_backup.name}"
             )
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             raise
 
     def validate_config(self, config: dict[str, Any]) -> tuple[bool, list[str]]:

@@ -39,11 +39,9 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # PYDANTIC MODELS - Request/Response
 # =============================================================================
-
 
 class ConfigField(BaseModel):
     """Metadata about a configuration field."""
@@ -60,7 +58,6 @@ class ConfigField(BaseModel):
     category: str
     sensitive: bool = False
 
-
 class ConfigCategory(BaseModel):
     """A category of configuration fields."""
 
@@ -69,7 +66,6 @@ class ConfigCategory(BaseModel):
     description: str
     icon: str  # FontAwesome icon class
     fields: list[ConfigField]
-
 
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration values."""
@@ -83,7 +79,6 @@ class ConfigUpdateRequest(BaseModel):
             raise ValueError("At least one update is required")
         return v
 
-
 class ConfigUpdateResponse(BaseModel):
     """Response after updating configuration."""
 
@@ -92,7 +87,6 @@ class ConfigUpdateResponse(BaseModel):
     requires_restart: bool
     errors: dict[str, str] = Field(default_factory=dict)
     message: str
-
 
 class SystemResourcesResponse(BaseModel):
     """Current system resource usage."""
@@ -106,11 +100,9 @@ class SystemResourcesResponse(BaseModel):
     active_workers: int
     uptime_seconds: float
 
-
 # =============================================================================
 # CONFIGURATION DEFINITIONS
 # =============================================================================
-
 
 def get_config_definitions() -> list[ConfigCategory]:
     """
@@ -938,7 +930,6 @@ def get_config_definitions() -> list[ConfigCategory]:
     # API ENDPOINTS
     # =============================================================================
 
-
 @router.get("/categories", response_model=list[ConfigCategory])
 async def get_config_categories():
     """
@@ -949,7 +940,7 @@ async def get_config_categories():
     """
     try:
         return get_config_definitions()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -958,7 +949,6 @@ async def get_config_categories():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get configuration. Check server logs for details.",
         ) from e
-
 
 @router.get("/category/{category_name}", response_model=ConfigCategory)
 async def get_config_category(category_name: str):
@@ -975,7 +965,6 @@ async def get_config_category(category_name: str):
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Category '{category_name}' not found",
     )
-
 
 @router.post("/update", response_model=ConfigUpdateResponse)
 async def update_config(request: ConfigUpdateRequest):
@@ -1026,7 +1015,7 @@ async def update_config(request: ConfigUpdateRequest):
             # Update in-memory settings if possible
             try:
                 setattr(settings, field_name, validated_value)
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass
@@ -1060,7 +1049,7 @@ async def update_config(request: ConfigUpdateRequest):
             message=message,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1069,7 +1058,6 @@ async def update_config(request: ConfigUpdateRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update configuration. Check server logs for details.",
         ) from e
-
 
 @router.get("/resources", response_model=SystemResourcesResponse)
 async def get_system_resources():
@@ -1088,7 +1076,7 @@ async def get_system_resources():
             workers = len(
                 [c for c in parent.children() if "python" in c.name().lower()]
             )
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             workers = 1
 
         return SystemResourcesResponse(
@@ -1119,7 +1107,7 @@ async def get_system_resources():
             active_workers=1,
             uptime_seconds=0,
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1128,7 +1116,6 @@ async def get_system_resources():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get resources. Check server logs for details.",
         ) from e
-
 
 @router.post("/gc")
 async def trigger_garbage_collection():
@@ -1169,7 +1156,6 @@ async def trigger_garbage_collection():
         "memory_freed_mb": round(freed, 1),
     }
 
-
 @router.post("/cache/clear")
 async def clear_cache():
     """
@@ -1195,7 +1181,7 @@ async def clear_cache():
 
         return {"success": True, "message": "Caches cleared successfully"}
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1205,11 +1191,9 @@ async def clear_cache():
             detail="Failed to clear cache. Check server logs for details.",
         ) from e
 
-
 # =============================================================================
 # VALIDATION HELPERS
 # =============================================================================
-
 
 def validate_field_value(field: ConfigField, value: Any) -> Any:
     """

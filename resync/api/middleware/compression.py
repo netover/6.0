@@ -10,7 +10,6 @@ from typing import Literal
 
 from starlette.middleware.gzip import GZipMiddleware
 
-
 @dataclass
 class CompressionConfig:
     """
@@ -29,7 +28,6 @@ class CompressionConfig:
     minimum_size: int = 500
     compresslevel: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9] = 6
 
-
 def get_compression_config() -> CompressionConfig:
     """
     Get compression configuration from settings.
@@ -47,7 +45,6 @@ def get_compression_config() -> CompressionConfig:
         )
     except ImportError:
         return CompressionConfig()
-
 
 def setup_compression(app, config: CompressionConfig | None = None) -> None:
     """
@@ -74,7 +71,6 @@ def setup_compression(app, config: CompressionConfig | None = None) -> None:
         minimum_size=config.minimum_size,
         compresslevel=config.compresslevel,
     )
-
 
 __all__ = [
     "CompressionConfig",

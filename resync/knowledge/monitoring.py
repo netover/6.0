@@ -18,7 +18,6 @@ logger = structlog.get_logger(__name__)
 # Buckets otimizados para operações RAG (ms → s)
 _LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
 
-
 class _NoOpMetric:
     """
     NoOp stub para métricas Prometheus quando registry não está disponível.
@@ -36,7 +35,6 @@ class _NoOpMetric:
 
     def set(self, *_args: object, **_kwargs: object) -> None:
         pass
-
 
 try:
     embed_seconds: Histogram | _NoOpMetric = Histogram(
@@ -73,7 +71,7 @@ try:
         "Cache hits for embedding lookups",
         ["layer"],  # "redis" | "local"
     )
-except Exception as _exc:  # noqa: BLE001
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _exc:  # noqa: BLE001
     # Em testes sem Prometheus registry, não quebrar o import.
     # CORRIGIDO: define stubs para evitar NameError em importadores.
     logger.warning("prometheus_metrics_init_failed", error=str(_exc))

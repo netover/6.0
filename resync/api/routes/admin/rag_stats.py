@@ -12,7 +12,7 @@ Versão: 1.0.0
 
 import os
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -24,19 +24,17 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/rag", tags=["RAG Admin"])
 
-
 class IndexStatus(BaseModel):
     """Status do índice BM25."""
 
     path: str
     exists: bool
-    size_bytes: Optional[int] = None
-    last_modified: Optional[str] = None
+    size_bytes: int | None = None
+    last_modified: str | None = None
     is_locked: bool
     is_loaded: bool
     num_documents: int = 0
     num_terms: int = 0
-
 
 class CachePerformance(BaseModel):
     """Performance do cache de queries."""
@@ -47,7 +45,6 @@ class CachePerformance(BaseModel):
     cache_size: int
     cache_max_size: int
 
-
 class ChatMemoryStatus(BaseModel):
     """Status da memória de chat."""
 
@@ -57,7 +54,6 @@ class ChatMemoryStatus(BaseModel):
     active_sessions: int = 0
     expired_turns_cleaned: int = 0
 
-
 class RAGStatsResponse(BaseModel):
     """Resposta completa de estatísticas RAG."""
 
@@ -65,7 +61,6 @@ class RAGStatsResponse(BaseModel):
     index_status: IndexStatus
     cache_performance: CachePerformance
     chat_memory: ChatMemoryStatus
-
 
 @router.get("/stats", response_model=RAGStatsResponse)
 async def get_rag_stats() -> RAGStatsResponse:
@@ -143,7 +138,6 @@ async def get_rag_stats() -> RAGStatsResponse:
         ),
     )
 
-
 @router.get("/health")
 async def rag_health_check() -> dict[str, Any]:
     """
@@ -158,6 +152,5 @@ async def rag_health_check() -> dict[str, Any]:
         "index_ready": index_ok,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
 
 __all__ = ["router", "get_rag_stats", "rag_health_check"]

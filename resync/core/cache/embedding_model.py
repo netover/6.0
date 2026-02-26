@@ -30,22 +30,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 # Singleton lock and instance
 _model_lock = threading.Lock()
 _embedding_model: "SentenceTransformer | None" = None
 _model_load_attempted: bool = False
-
 
 # Model configuration
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 DEFAULT_EMBEDDING_DIM = 384
 FALLBACK_EMBEDDING_DIM = 384  # Same dim for compatibility
 
-
 class EmbeddingModelError(Exception):
     """Raised when embedding model fails to load or generate."""
-
 
 def _get_model() -> "SentenceTransformer | None":
     """
@@ -95,10 +91,9 @@ def _get_model() -> "SentenceTransformer | None":
             )
             return None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to load embedding model: %s", e)
             return None
-
 
 def _hash_to_vector(text: str, dim: int = FALLBACK_EMBEDDING_DIM) -> list[float]:
     """
@@ -142,7 +137,6 @@ def _hash_to_vector(text: str, dim: int = FALLBACK_EMBEDDING_DIM) -> list[float]
 
     return arr.tolist()
 
-
 def generate_embedding(
     text: str,
     normalize: bool = True,
@@ -179,7 +173,7 @@ def generate_embedding(
             )
             return embedding.tolist()
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Embedding generation failed: %s", e)
             if not use_fallback:
                 raise EmbeddingModelError(f"Failed to generate embedding: {e}") from e
@@ -194,7 +188,6 @@ def generate_embedding(
         "Embedding model not available and fallback disabled. "
         "Install sentence-transformers: pip install sentence-transformers"
     )
-
 
 def generate_embeddings_batch(
     texts: list[str],
@@ -227,12 +220,11 @@ def generate_embeddings_batch(
             )
             return embeddings.tolist()
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Batch embedding failed: %s", e)
 
     # Fallback: generate individually
     return [generate_embedding(text, normalize, use_fallback=True) for text in texts]
-
 
 def get_embedding_dimension() -> int | None:
     """
@@ -245,7 +237,6 @@ def get_embedding_dimension() -> int | None:
     if model is not None:
         return model.get_sentence_embedding_dimension()
     return FALLBACK_EMBEDDING_DIM
-
 
 def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     """
@@ -272,7 +263,6 @@ def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
 
     return float(dot_product / (norm_a * norm_b))
 
-
 def cosine_distance(vec1: list[float], vec2: list[float]) -> float:
     """
     Calculate cosine distance between two vectors.
@@ -288,11 +278,9 @@ def cosine_distance(vec1: list[float], vec2: list[float]) -> float:
     """
     return 1.0 - cosine_similarity(vec1, vec2)
 
-
 def is_model_loaded() -> bool:
     """Check if the embedding model is currently loaded in memory."""
     return _embedding_model is not None
-
 
 def get_model_info() -> dict:
     """
@@ -320,7 +308,6 @@ def get_model_info() -> dict:
         "device": "cpu",
     }
 
-
 def preload_model() -> bool:
     """
     Preload the embedding model into memory.
@@ -332,7 +319,6 @@ def preload_model() -> bool:
     """
     model = _get_model()
     return model is not None
-
 
 def unload_model() -> None:
     """
@@ -346,7 +332,6 @@ def unload_model() -> None:
         _embedding_model = None
         _model_load_attempted = False
         logger.info("Embedding model unloaded")
-
 
 __all__ = [
     "EmbeddingModelError",

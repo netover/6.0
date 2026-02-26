@@ -30,11 +30,9 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["Metrics Collection"])
 
-
 # ============================================================================
 # Pydantic Models
 # ============================================================================
-
 
 class WorkstationMetrics(BaseModel):
     """Workstation resource metrics."""
@@ -56,14 +54,12 @@ class WorkstationMetrics(BaseModel):
     total_memory_gb: int | None = Field(None, ge=0, description="Total memory in GB")
     total_disk_gb: int | None = Field(None, ge=0, description="Total disk space in GB")
 
-
 class WorkstationMetadata(BaseModel):
     """Workstation metadata."""
 
     os_type: str | None = Field(None, description="Operating system type")
     hostname: str | None = Field(None, description="Full hostname")
     collector_version: str | None = Field(None, description="Collector script version")
-
 
 class MetricsPayload(BaseModel):
     """Complete metrics payload."""
@@ -124,7 +120,6 @@ class MetricsPayload(BaseModel):
         }
     )
 
-
 class MetricsResponse(BaseModel):
     """Endpoint response."""
 
@@ -134,11 +129,9 @@ class MetricsResponse(BaseModel):
     timestamp: datetime = Field(..., description="Processed timestamp")
     metrics_saved: bool = Field(..., description="Whether metrics were saved")
 
-
 # ============================================================================
 # API Endpoints
 # ============================================================================
-
 
 @router.post(
     "/workstation",
@@ -210,7 +203,7 @@ async def receive_workstation_metrics(
             metrics_saved=True,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error(
             "metrics_storage_failed", error=str(e), workstation=payload.workstation
         )
@@ -219,7 +212,6 @@ async def receive_workstation_metrics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to store metrics",
         )
-
 
 @router.get(
     "/workstation/{workstation_name}",
@@ -268,17 +260,14 @@ async def get_metrics_history(
         ],
     }
 
-
 @router.get("/health", summary="Service health check")
 async def health():
     """Simple health check for the metrics API."""
     return {"status": "healthy", "module": "metrics-v1"}
 
-
 # ============================================================================
 # Private Helpers
 # ============================================================================
-
 
 async def _check_critical_metrics(payload: MetricsPayload) -> None:
     """

@@ -42,7 +42,6 @@ from langgraph.graph import END, StateGraph
 
 logger = structlog.get_logger(__name__)
 
-
 def get_db_url() -> str:
     """Get PostgreSQL connection URL for checkpointer."""
     # Try settings first
@@ -63,11 +62,9 @@ def get_db_url() -> str:
 
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
-
 # ============================================================================
 # STATE DEFINITION
 # ============================================================================
-
 
 class CapacityForecastState(TypedDict):
     """State para workflow de Capacity Forecasting."""
@@ -85,11 +82,9 @@ class CapacityForecastState(TypedDict):
     status: str
     error: str | None
 
-
 # ============================================================================
 # NODES
 # ============================================================================
-
 
 async def fetch_metrics_node(state: CapacityForecastState) -> CapacityForecastState:
     """Step 1: Fetch historical metrics."""
@@ -113,7 +108,6 @@ async def fetch_metrics_node(state: CapacityForecastState) -> CapacityForecastSt
     state["historical_data"] = {"cpu_usage": cpu_usage, "memory_usage": memory_usage}
 
     return state
-
 
 def analyze_trends_node(state: CapacityForecastState) -> CapacityForecastState:
     """Step 2: Detect trends."""
@@ -139,7 +133,6 @@ def analyze_trends_node(state: CapacityForecastState) -> CapacityForecastState:
 
     state["trends"] = trends
     return state
-
 
 def forecast_node(state: CapacityForecastState) -> CapacityForecastState:
     """Step 3: Forecast future values."""
@@ -176,7 +169,6 @@ def forecast_node(state: CapacityForecastState) -> CapacityForecastState:
     state["forecast"] = forecast_data
     return state
 
-
 def identify_saturation_node(state: CapacityForecastState) -> CapacityForecastState:
     """Step 4: Identify saturation points."""
     logger.info("capacity_forecast.identify_saturation")
@@ -200,7 +192,6 @@ def identify_saturation_node(state: CapacityForecastState) -> CapacityForecastSt
 
     state["saturation_points"] = saturation_points
     return state
-
 
 async def generate_report_node(state: CapacityForecastState) -> CapacityForecastState:
     """Step 5: Generate report and visualizations."""
@@ -229,18 +220,16 @@ async def generate_report_node(state: CapacityForecastState) -> CapacityForecast
     try:
         await asyncio.to_thread(_write_report, report_path, report_content)
         state["report_url"] = report_path
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("report_generation_failed", error=str(e))
         state["error"] = f"Failed to generate report: {str(e)}"
 
     state["status"] = "completed"
     return state
 
-
 # ============================================================================
 # GRAPH CONSTRUCTION
 # ============================================================================
-
 
 def build_capacity_forecast_graph() -> StateGraph:
     """Build the LangGraph workflow."""
@@ -262,11 +251,9 @@ def build_capacity_forecast_graph() -> StateGraph:
 
     return workflow
 
-
 def _write_report(report_path: str, report_content: str) -> None:
     with open(report_path, "w") as f:
         f.write(report_content)
-
 
 async def run_workflow(
     resource_id: str, forecast_days: int = 90, checkpointer: Any = None
@@ -300,7 +287,6 @@ async def run_workflow(
 
     final_state = await app.ainvoke(initial_state)
     return final_state
-
 
 async def run_capacity_forecast(
     resource_id: str, forecast_days: int = 90, checkpointer: Any = None

@@ -7,7 +7,6 @@ v5.5.0: Initial implementation.
 from resync.core.enterprise.manager import EnterpriseConfig
 from resync.settings import get_settings
 
-
 def load_enterprise_config() -> EnterpriseConfig:
     """Load enterprise configuration from application settings."""
     settings = get_settings()

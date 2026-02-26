@@ -5,12 +5,10 @@ from typing import Any
 
 COMMENTS_FILE = Path("pr_comments.json")
 
-
 def _safe_stdout_utf8() -> None:
     """Configure stdout to UTF-8 when the runtime supports reconfigure."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-
 
 def _author_login(payload: dict[str, Any]) -> str:
     author = payload.get("author") or {}
@@ -18,14 +16,11 @@ def _author_login(payload: dict[str, Any]) -> str:
         return str(author.get("login") or "unknown")
     return "unknown"
 
-
 def _timestamp(payload: dict[str, Any], key: str) -> str:
     return str(payload.get(key) or "unknown-date")
 
-
 def _body(payload: dict[str, Any]) -> str:
     return str(payload.get("body") or "")
-
 
 def main() -> int:
     _safe_stdout_utf8()
@@ -76,7 +71,6 @@ def main() -> int:
         print("-" * 50)
 
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

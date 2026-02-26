@@ -36,13 +36,11 @@ try:
 except ImportError:
     _scipy_stats = None  # type: ignore
 
-
 def build_hour_bucket(ts: Any) -> datetime | None:
     """Convert timestamp to hour bucket (rounds down to hour)."""
     if isinstance(ts, datetime):
         return ts.replace(minute=0, second=0, microsecond=0)
     return None
-
 
 def extract_job_rows(job_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Extract and normalize job data into rows with hour buckets."""
@@ -76,7 +74,6 @@ def extract_job_rows(job_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     return rows
 
-
 def extract_workstation_rows(
     workstation_metrics: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -99,7 +96,6 @@ def extract_workstation_rows(
 
     return rows
 
-
 def aggregate_by_hour(rows: list[dict[str, Any]], key: str) -> dict[datetime, float]:
     """Aggregate rows by hour, computing mean for the given key."""
     buckets: dict[datetime, list[float]] = {}
@@ -112,7 +108,6 @@ def aggregate_by_hour(rows: list[dict[str, Any]], key: str) -> dict[datetime, fl
         buckets.setdefault(t, []).append(float(value))
 
     return {t: sum(values) / len(values) for t, values in buckets.items() if values}
-
 
 def calculate_correlations(
     duration: list[float],
@@ -149,7 +144,6 @@ def calculate_correlations(
         },
     }
 
-
 def select_best_factor(
     corr_dur: dict[str, Any], threshold: float = 0.45
 ) -> tuple[str | None, float | None, bool]:
@@ -167,7 +161,6 @@ def select_best_factor(
     best_key, best_val = scored[0]
     is_significant = abs(best_val) >= threshold
     return best_key, best_val, is_significant
-
 
 def interpret_factor(factor_key: str | None) -> tuple[str | None, list[str]]:
     """Interpret the best factor into root cause and contributing factors."""
@@ -190,7 +183,6 @@ def interpret_factor(factor_key: str | None) -> tuple[str | None, list[str]]:
 
     return factor_map.get(factor_key, (None, []))
 
-
 def pearson_corr(x: list[float], y: list[float]) -> float | None:
     """Calculate Pearson correlation coefficient between two lists."""
     if len(x) != len(y) or len(x) < 3:
@@ -199,7 +191,7 @@ def pearson_corr(x: list[float], y: list[float]) -> float | None:
     if _NUMPY_AVAILABLE:
         try:
             return float(_np.corrcoef(_np.array(x), _np.array(y))[0, 1])
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning(
                 "NumPy correlation failed, falling back to manual", error=str(e)
             )
@@ -217,7 +209,6 @@ def pearson_corr(x: list[float], y: list[float]) -> float | None:
 
     return numerator / (denx * deny)
 
-
 def _safe_float(v: Any) -> float | None:
     """Safely convert value to float."""
     try:
@@ -227,17 +218,15 @@ def _safe_float(v: Any) -> float | None:
     except (TypeError, ValueError):
         return None
 
-
 def _duration_seconds(start: Any, end: Any) -> float | None:
     """Calculate duration in seconds between two timestamps."""
     if not start or not end:
         return None
     try:
         return max(0.0, (end - start).total_seconds())
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Failed to calculate duration between timestamps", error=str(e))
         return None
-
 
 async def fetch_job_history_from_db(
     db: Any,
@@ -250,7 +239,6 @@ async def fetch_job_history_from_db(
     Async contract: this function must be awaited by callers.
     """
     return await _fetch_job_history_query(db, job_name, since, limit)
-
 
 async def _fetch_job_history_query(
     db: Any,
@@ -294,12 +282,11 @@ async def _fetch_job_history_query(
                 }
             )
         return list(reversed(out))
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.exception(
             "Failed to fetch job history from DB", error=str(e), job_name=job_name
         )
         return []
-
 
 def extract_job_items_from_tws_response(plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract job items from TWS API response."""
@@ -315,7 +302,6 @@ def extract_job_items_from_tws_response(plan: dict[str, Any]) -> list[dict[str, 
         return []
 
     return items
-
 
 def map_tws_job_item(item: dict[str, Any], job_name: str) -> dict[str, Any] | None:
     """Map TWS API job item to standard format."""
@@ -345,7 +331,6 @@ def map_tws_job_item(item: dict[str, Any], job_name: str) -> dict[str, Any] | No
         "source": "tws",
     }
 
-
 async def fetch_job_history_from_tws(
     tws_client: Any,
     job_name: str,
@@ -364,12 +349,11 @@ async def fetch_job_history_from_tws(
             if mapped:
                 out.append(mapped)
         return out
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.exception(
             "Failed to fetch job history from TWS", error=str(e), job_name=job_name
         )
         return []
-
 
 def extract_runtime_series(
     job_history: list[dict[str, Any]],
@@ -395,7 +379,6 @@ def extract_runtime_series(
 
     series.sort(key=lambda x: x[0])
     return series
-
 
 def calculate_danger_threshold(values: list[float]) -> tuple[float, float, float]:
     """Calculate danger threshold using Median Absolute Deviation (MAD).
@@ -428,7 +411,6 @@ def calculate_danger_threshold(values: list[float]) -> tuple[float, float, float
 
     return median, mad, danger
 
-
 def linear_regression(
     x_values: list[float], y_values: list[float]
 ) -> tuple[float, float, float]:
@@ -457,7 +439,6 @@ def linear_regression(
     residual_std = (sse / dof) ** 0.5
 
     return intercept, slope, residual_std
-
 
 def calculate_confidence_interval(
     slope: float,
@@ -502,7 +483,6 @@ def calculate_confidence_interval(
 
     return ci
 
-
 def calculate_failure_probability(
     degradation_severity: float,
     estimated_days_to_failure: float | None,
@@ -526,7 +506,6 @@ def calculate_failure_probability(
 
     return base_prob
 
-
 def calculate_confidence_score(
     degradation_severity: float,
     residual_std: float,
@@ -546,7 +525,6 @@ def calculate_confidence_score(
         confidence *= 0.7
 
     return confidence
-
 
 def extract_runtimes_and_failures(
     job_history: list[dict[str, Any]],
@@ -570,7 +548,6 @@ def extract_runtimes_and_failures(
 
     return runtimes, failures
 
-
 def calculate_runtime_growth(
     runtimes: list[float],
     window: int,
@@ -591,7 +568,6 @@ def calculate_runtime_growth(
 
     return mu_recent, mu_prior, growth
 
-
 def calculate_failure_metrics(
     failures: list[float],
     window: int,
@@ -610,7 +586,6 @@ def calculate_failure_metrics(
     fail_growth = fail_recent - fail_prior
 
     return fail_recent, fail_prior, fail_growth, z_scores
-
 
 def rolling_zscore(data: list[float], window: int = 10) -> list[float]:
     """Calculate rolling z-score for data."""
@@ -632,7 +607,6 @@ def rolling_zscore(data: list[float], window: int = 10) -> list[float]:
                 result.append((data[i] - mean) / std)
 
     return result
-
 
 def generate_recommendation(
     title: str,
@@ -659,7 +633,6 @@ def generate_recommendation(
         return {"recommendation": rec, "action": action}
 
     return {"recommendation": rec, "action": None}
-
 
 def build_recommendations(
     job_name: str,

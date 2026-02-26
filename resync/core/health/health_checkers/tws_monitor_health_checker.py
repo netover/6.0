@@ -23,7 +23,6 @@ from .base_health_checker import BaseHealthChecker
 
 logger = structlog.get_logger(__name__)
 
-
 class TWSMonitorHealthChecker(BaseHealthChecker):
     """
     Health checker for TWS monitor health (external API service).
@@ -67,7 +66,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                     resp = await client.get(f"{tws_url}/health")
                     if resp.status_code != 200:
                         raise Exception(f"HTTP {resp.status_code}")
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 # Re-raise to be caught by outer block
                 raise
 
@@ -86,7 +85,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                 },
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             response_time = (time.time() - start_time) * 1000
             logger.error("tws_monitor_health_check_failed", error=str(e))
             return ComponentHealth(

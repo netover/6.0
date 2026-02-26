@@ -38,7 +38,6 @@ from resync.core.circuit_breaker_registry import (
 _cross_encoder_model: "CrossEncoder | None" = None
 _cross_encoder_available: bool | None = None
 
-
 @dataclass
 class RerankResult:
     """Result of cross-encoder reranking."""
@@ -48,7 +47,6 @@ class RerankResult:
     model_used: str
     original_count: int
     filtered_count: int
-
 
 def is_cross_encoder_available() -> bool:
     """Check if cross-encoder model is available."""
@@ -70,7 +68,6 @@ def is_cross_encoder_available() -> bool:
         )
 
     return _cross_encoder_available
-
 
 def get_cross_encoder() -> "CrossEncoder | None":
     """
@@ -103,11 +100,10 @@ def get_cross_encoder() -> "CrossEncoder | None":
 
         return _cross_encoder_model
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to load RAG cross-encoder: %s", e)
         _cross_encoder_available = False
         return None
-
 
 def preload_cross_encoder() -> bool:
     """
@@ -127,10 +123,9 @@ def preload_cross_encoder() -> bool:
         _ = model.predict([("test query", "test document")])
         logger.info("RAG cross-encoder model warmed up")
         return True
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Failed to warm up RAG cross-encoder: %s", e)
         return False
-
 
 @circuit_protected(CircuitBreakers.RAG_RETRIEVAL)
 async def rerank_documents(
@@ -225,7 +220,7 @@ async def rerank_documents(
             filtered_count=len(filtered_docs),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Cross-encoder reranking failed: %s", e)
         # Fallback: return original documents
         return RerankResult(
@@ -235,7 +230,6 @@ async def rerank_documents(
             original_count=original_count,
             filtered_count=min(len(documents), top_k),
         )
-
 
 def get_reranker_info() -> dict[str, Any]:
     """Get information about the RAG reranker."""
@@ -247,7 +241,6 @@ def get_reranker_info() -> dict[str, Any]:
         "top_k": CFG.cross_encoder_top_k,
         "threshold": CFG.cross_encoder_threshold,
     }
-
 
 __all__ = [
     "RerankResult",

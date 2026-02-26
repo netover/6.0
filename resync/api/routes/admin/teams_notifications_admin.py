@@ -5,10 +5,10 @@
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import desc, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.api.routes.admin.main import verify_admin_credentials
 from resync.core.database.models.teams_notifications import (
@@ -29,11 +29,9 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # ============================================================================
 # MODELS
 # ============================================================================
-
 
 class ChannelCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -42,7 +40,6 @@ class ChannelCreate(BaseModel):
     color: str = Field(default="#0078D4", pattern="^#[0-9A-Fa-f]{6}$")
     icon: str = Field(default="📢", max_length=20)
 
-
 class ChannelUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
@@ -50,7 +47,6 @@ class ChannelUpdate(BaseModel):
     is_active: bool | None = None
     color: str | None = None
     icon: str | None = None
-
 
 class ChannelResponse(BaseModel):
     id: int
@@ -65,12 +61,10 @@ class ChannelResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class JobMappingCreate(BaseModel):
     job_name: str = Field(..., min_length=1, max_length=255)
     channel_id: int
     priority: int = Field(default=0)
-
 
 class JobMappingResponse(BaseModel):
     id: int
@@ -82,7 +76,6 @@ class JobMappingResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class PatternRuleCreate(BaseModel):
     pattern: str = Field(..., min_length=1, max_length=255)
     channel_id: int
@@ -91,7 +84,6 @@ class PatternRuleCreate(BaseModel):
     pattern_type: str = Field(
         default="glob", pattern="^(glob|regex|prefix|suffix|contains)$"
     )
-
 
 class PatternRuleResponse(BaseModel):
     id: int
@@ -105,7 +97,6 @@ class PatternRuleResponse(BaseModel):
     match_count: int
 
     model_config = ConfigDict(from_attributes=True)
-
 
 class ConfigUpdate(BaseModel):
     notify_on_status: list[str] | None = None
@@ -123,7 +114,6 @@ class ConfigUpdate(BaseModel):
     include_mention_on_critical: bool | None = None
     mention_text: str | None = Field(None, max_length=100)
 
-
 class StatsResponse(BaseModel):
     total_channels: int
     active_channels: int
@@ -133,21 +123,24 @@ class StatsResponse(BaseModel):
     notifications_failed_today: int
     top_notified_jobs: list[dict]
 
-
 # ============================================================================
 # CHANNELS ENDPOINTS
 # ============================================================================
 
-
 @router.get("/channels", response_model=list[ChannelResponse])
-async def list_channels(active_only: bool = False, db: Session = Depends(get_db)):
+async def list_channels(
+    active_only: bool = False,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
     """Lista todos os canais configurados."""
     stmt = select(TeamsChannel)
     if active_only:
         stmt = stmt.where(TeamsChannel.is_active)
-    stmt = stmt.order_by(TeamsChannel.name)
+    stmt = stmt.order_by(TeamsChannel.name).limit(limit).offset(offset)
 
-    channels = db.execute(stmt).scalars().all()
+    channels = (await db.execute(stmt)).scalars().all()
 
     return [
         ChannelResponse(
@@ -157,15 +150,14 @@ async def list_channels(active_only: bool = False, db: Session = Depends(get_db)
         for channel in channels
     ]
 
-
 @router.post(
     "/channels", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED
 )
-async def create_channel(channel_data: ChannelCreate, db: Session = Depends(get_db)):
+async def create_channel(channel_data: ChannelCreate, db: AsyncSession = Depends(get_db)):
     """Cria novo canal."""
     # Verificar duplicados
     stmt = select(TeamsChannel).where(TeamsChannel.name == channel_data.name)
-    if db.execute(stmt).scalar_one_or_none():
+    if (await db.execute(stmt)).scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Canal '{channel_data.name}' já existe",
@@ -179,8 +171,8 @@ async def create_channel(channel_data: ChannelCreate, db: Session = Depends(get_
         icon=channel_data.icon,
     )
     db.add(channel)
-    db.commit()
-    db.refresh(channel)
+    await db.commit()
+    await db.refresh(channel)
 
     logger.info("teams_channel_created", channel=channel.name)
 
@@ -189,10 +181,9 @@ async def create_channel(channel_data: ChannelCreate, db: Session = Depends(get_
         webhook_url_masked=_mask_webhook_url(str(channel.webhook_url)),
     )
 
-
 @router.put("/channels/{channel_id}", response_model=ChannelResponse)
 async def update_channel(
-    channel_id: int, update_data: ChannelUpdate, db: Session = Depends(get_db)
+    channel_id: int, update_data: ChannelUpdate, db: AsyncSession = Depends(get_db)
 ):
     """Atualiza canal."""
     channel = db.get(TeamsChannel, channel_id)
@@ -213,29 +204,27 @@ async def update_channel(
         channel.icon = update_data.icon
 
     channel.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(channel)
+    await db.commit()
+    await db.refresh(channel)
 
     return ChannelResponse(
         **channel.__dict__,
         webhook_url_masked=_mask_webhook_url(str(channel.webhook_url)),
     )
 
-
 @router.delete("/channels/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_channel(channel_id: int, db: Session = Depends(get_db)):
+async def delete_channel(channel_id: int, db: AsyncSession = Depends(get_db)):
     """Deleta canal."""
     channel = db.get(TeamsChannel, channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Canal não encontrado")
 
-    db.delete(channel)
-    db.commit()
+    await db.delete(channel)
+    await db.commit()
     logger.info("teams_channel_deleted", channel=channel.name)
 
-
 @router.post("/channels/{channel_id}/test")
-async def test_channel(channel_id: int, db: Session = Depends(get_db)):
+async def test_channel(channel_id: int, db: AsyncSession = Depends(get_db)):
     """Envia notificação de teste para o canal."""
     manager = TeamsNotificationManager(db)
     success = await manager.test_channel(channel_id)
@@ -248,23 +237,28 @@ async def test_channel(channel_id: int, db: Session = Depends(get_db)):
 
     return {"success": True, "message": "Notificação de teste enviada com sucesso"}
 
-
 # ============================================================================
 # JOB MAPPINGS ENDPOINTS
 # ============================================================================
 
-
 @router.get("/mappings", response_model=list[JobMappingResponse])
-async def list_job_mappings(db: Session = Depends(get_db)):
+async def list_job_mappings(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
     """Lista todos os mapeamentos de jobs."""
-    stmt = select(TeamsJobMapping).order_by(
-        TeamsJobMapping.priority.desc(), TeamsJobMapping.job_name
+    stmt = (
+        select(TeamsJobMapping)
+        .order_by(TeamsJobMapping.priority.desc(), TeamsJobMapping.job_name)
+        .limit(limit)
+        .offset(offset)
     )
-    mappings = db.execute(stmt).scalars().all()
+    mappings = (await db.execute(stmt)).scalars().all()
 
     result = []
     for mapping in mappings:
-        channel = db.get(TeamsChannel, mapping.channel_id)
+        channel = await db.get(TeamsChannel, mapping.channel_id)
         result.append(
             JobMappingResponse(
                 **mapping.__dict__, channel_name=channel.name if channel else None
@@ -273,10 +267,9 @@ async def list_job_mappings(db: Session = Depends(get_db)):
 
     return result
 
-
 @router.post("/mappings", response_model=JobMappingResponse, status_code=201)
 async def create_job_mapping(
-    mapping_data: JobMappingCreate, db: Session = Depends(get_db)
+    mapping_data: JobMappingCreate, db: AsyncSession = Depends(get_db)
 ):
     """Cria novo mapeamento de job."""
     mapping = TeamsJobMapping(
@@ -285,40 +278,46 @@ async def create_job_mapping(
         priority=mapping_data.priority,
     )
     db.add(mapping)
-    db.commit()
-    db.refresh(mapping)
+    await db.commit()
+    await db.refresh(mapping)
 
     channel = db.get(TeamsChannel, mapping.channel_id)
     return JobMappingResponse(
         **mapping.__dict__, channel_name=channel.name if channel else None
     )
 
-
 @router.delete("/mappings/{mapping_id}", status_code=204)
-async def delete_job_mapping(mapping_id: int, db: Session = Depends(get_db)):
+async def delete_job_mapping(mapping_id: int, db: AsyncSession = Depends(get_db)):
     """Deleta mapeamento de job."""
     mapping = db.get(TeamsJobMapping, mapping_id)
     if not mapping:
         raise HTTPException(status_code=404)
 
-    db.delete(mapping)
-    db.commit()
-
+    await db.delete(mapping)
+    await db.commit()
 
 # ============================================================================
 # PATTERN RULES ENDPOINTS
 # ============================================================================
 
-
 @router.get("/rules", response_model=list[PatternRuleResponse])
-async def list_pattern_rules(db: Session = Depends(get_db)):
+async def list_pattern_rules(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
     """Lista todas as regras de padrões."""
-    stmt = select(TeamsPatternRule).order_by(TeamsPatternRule.priority.desc())
-    rules = db.execute(stmt).scalars().all()
+    stmt = (
+        select(TeamsPatternRule)
+        .order_by(TeamsPatternRule.priority.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rules = (await db.execute(stmt)).scalars().all()
 
     result = []
     for rule in rules:
-        channel = db.get(TeamsChannel, rule.channel_id)
+        channel = await db.get(TeamsChannel, rule.channel_id)
         result.append(
             PatternRuleResponse(
                 **rule.__dict__, channel_name=channel.name if channel else None
@@ -327,10 +326,9 @@ async def list_pattern_rules(db: Session = Depends(get_db)):
 
     return result
 
-
 @router.post("/rules", response_model=PatternRuleResponse, status_code=201)
 async def create_pattern_rule(
-    rule_data: PatternRuleCreate, db: Session = Depends(get_db)
+    rule_data: PatternRuleCreate, db: AsyncSession = Depends(get_db)
 ):
     """Cria nova regra de padrão."""
     rule = TeamsPatternRule(
@@ -341,70 +339,64 @@ async def create_pattern_rule(
         pattern_type=rule_data.pattern_type,
     )
     db.add(rule)
-    db.commit()
-    db.refresh(rule)
+    await db.commit()
+    await db.refresh(rule)
 
     channel = db.get(TeamsChannel, rule.channel_id)
     return PatternRuleResponse(
         **rule.__dict__, channel_name=channel.name if channel else None
     )
 
-
 @router.delete("/rules/{rule_id}", status_code=204)
-async def delete_pattern_rule(rule_id: int, db: Session = Depends(get_db)):
+async def delete_pattern_rule(rule_id: int, db: AsyncSession = Depends(get_db)):
     """Deleta regra de padrão."""
     rule = db.get(TeamsPatternRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404)
 
-    db.delete(rule)
-    db.commit()
-
+    await db.delete(rule)
+    await db.commit()
 
 # ============================================================================
 # CONFIG ENDPOINTS
 # ============================================================================
 
-
 @router.get("/config")
-async def get_config(db: Session = Depends(get_db)):
+async def get_config(db: AsyncSession = Depends(get_db)):
     """Obtém configuração global."""
     config = db.query(TeamsNotificationConfig).first()
     if not config:
         # Criar configuração padrão
         config = TeamsNotificationConfig(notify_on_status=["ABEND", "ERROR", "FAILED"])
-        db.add(config)
-        db.commit()
-        db.refresh(config)
+        await run_in_threadpool(db.add, config)
+        await db.commit()
+        await run_in_threadpool(db.refresh, config)
 
     return config
 
-
 @router.put("/config")
-async def update_config(config_data: ConfigUpdate, db: Session = Depends(get_db)):
+async def update_config(config_data: ConfigUpdate, db: AsyncSession = Depends(get_db)):
     """Atualiza configuração global."""
     config = db.query(TeamsNotificationConfig).first()
     if not config:
         config = TeamsNotificationConfig()
-        db.add(config)
+        await run_in_threadpool(db.add, config)
 
     for field, value in config_data.model_dump(exclude_unset=True).items():
         setattr(config, field, value)
 
     config.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(config)
+    await db.commit()
+    await run_in_threadpool(db.refresh, config)
 
     return config
-
 
 # ============================================================================
 # STATS ENDPOINTS
 # ============================================================================
 
-
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats(db: Session = Depends(get_db)):
+async def get_stats(db: AsyncSession = Depends(get_db)):
     """Obtém estatísticas de uso."""
     try:
         total_channels = db.query(func.count(TeamsChannel.id)).scalar()
@@ -457,17 +449,19 @@ async def get_stats(db: Session = Depends(get_db)):
             notifications_failed_today=notifications_failed_today,
             top_notified_jobs=[{"job": job, "count": count} for job, count in top_jobs],
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("teams_notifications_stats_failed", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch notifications stats",
         ) from e
 
-
 @router.get("/logs")
 async def get_notification_logs(
-    limit: int = 100, channel_id: int | None = None, db: Session = Depends(get_db)
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    channel_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
 ):
     """Obtém logs de notificações."""
     stmt = (
@@ -479,12 +473,12 @@ async def get_notification_logs(
     if channel_id:
         stmt = stmt.where(TeamsNotificationLog.channel_id == channel_id)
 
-    logs = db.execute(stmt).scalars().all()
+    stmt = stmt.offset(offset)
+    logs = (await db.execute(stmt)).scalars().all()
     return [log.__dict__ for log in logs]
 
-
 @router.post("/test")
-async def send_test_notification(test_data: dict = None, db: Session = Depends(get_db)):
+async def send_test_notification(test_data: dict = None, db: AsyncSession = Depends(get_db)):
     """Envia uma notificação de teste para o canal padrão."""
     manager = TeamsNotificationManager(db)
 
@@ -528,11 +522,9 @@ async def send_test_notification(test_data: dict = None, db: Session = Depends(g
             detail="Failed to send test notification",
         )
 
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
 
 def _mask_webhook_url(url: str) -> str:
     """Mascara URL do webhook para segurança."""

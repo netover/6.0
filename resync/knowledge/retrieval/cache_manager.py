@@ -30,13 +30,11 @@ import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from resync.core.structured_logger import get_logger
 from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
-
 
 @dataclass
 class CacheStats:
@@ -80,7 +78,6 @@ class CacheStats:
             "avg_load_time_ms": round(self.avg_load_time_ms, 2),
         }
 
-
 class KGCacheManager:
     """
     Manages cache lifecycle for the Knowledge Graph.
@@ -88,7 +85,7 @@ class KGCacheManager:
     Provides TTL-based invalidation and background refresh.
     """
 
-    _instance: Optional["KGCacheManager"] = None
+    _instance: "KGCacheManager" | None = None
 
     def __new__(cls) -> "KGCacheManager":
         """Singleton pattern."""
@@ -215,7 +212,7 @@ class KGCacheManager:
 
                 return True
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("cache_refresh_failed", error=str(e))
                 raise
 
@@ -276,11 +273,10 @@ class KGCacheManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("background_refresh_error", error=str(e))
                 # Continue loop even on error
                 await asyncio.sleep(60)  # Wait a bit before retrying
-
 
 # =============================================================================
 # SINGLETON ACCESS
@@ -288,14 +284,12 @@ class KGCacheManager:
 
 _cache_manager: KGCacheManager | None = None
 
-
 def get_cache_manager() -> KGCacheManager:
     """Get or create the singleton cache manager."""
     global _cache_manager
     if _cache_manager is None:
         _cache_manager = KGCacheManager()
     return _cache_manager
-
 
 async def start_cache_refresh_task(
     ttl_seconds: int = 300, auto_register_kg: bool = True
@@ -323,7 +317,6 @@ async def start_cache_refresh_task(
     cache.start_background_refresh()
 
     return cache
-
 
 async def stop_cache_refresh_task() -> None:
     """Stop the cache refresh background task."""

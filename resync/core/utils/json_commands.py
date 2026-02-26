@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 MAX_JSON_SIZE = 1024 * 1024
 MAX_TEXT_SIZE = 10 * 1024 * 1024
 
-
 class JSONParseCommand:
     """Base command class for parsing JSON responses."""
 
@@ -118,7 +117,6 @@ class JSONParseCommand:
 
         check_nesting(self.result)
 
-
 class JSONParseCommandFactory:
     """Factory for creating JSON parsing commands."""
 
@@ -131,7 +129,6 @@ class JSONParseCommandFactory:
     ) -> JSONParseCommand:
         """Create a JSON parsing command."""
         return JSONParseCommand(text, required_keys, max_size, strict)
-
 
 class JSONParseCommandExecutor:
     """Executor for JSON parsing commands."""

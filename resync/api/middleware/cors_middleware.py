@@ -34,14 +34,12 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 @dataclass(slots=True)
 class CORSMetrics:
     total_requests: int = 0
     preflight_requests: int = 0
     allowed_origins: int = 0
     denied_origins: int = 0
-
 
 class LoggingCORSMiddleware:
     """CORS middleware with security logging, delegating to CORSMiddleware."""

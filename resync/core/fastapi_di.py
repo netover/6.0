@@ -29,10 +29,8 @@ from fastapi import HTTPException, Request, status
 
 T_co = TypeVar("T_co", covariant=True)
 
-
 class ServiceFactory(Protocol[T_co]):
     def __call__(self) -> T_co: ...
-
 
 @dataclass
 class ServiceContainer:
@@ -45,9 +43,7 @@ class ServiceContainer:
             raise KeyError(f"Service not found: {name}")
         return self.services[name]
 
-
 _container: ServiceContainer | None = None
-
 
 def initialize_services(services: dict[str, Any]) -> ServiceContainer:
     """Initialize the global service container."""
@@ -56,16 +52,13 @@ def initialize_services(services: dict[str, Any]) -> ServiceContainer:
     _container = ServiceContainer(services)
     return _container
 
-
 def get_container() -> ServiceContainer:
     if _container is None:
         raise RuntimeError("Service container not initialized")
     return _container
 
-
 def get_service(name: str) -> Any:
     return get_container().get(name)
-
 
 # ---------------------------------------------------------------------------
 # Canonical dependencies used by the API
@@ -82,7 +75,6 @@ from resync.core.wiring import (  # noqa: E402
     get_tws_client,
 )
 
-
 def get_redis_client():
     """Return the *canonical* Redis client singleton.
 
@@ -96,7 +88,7 @@ def get_redis_client():
         from resync.core.redis_init import get_redis_client as _get_redis_client
 
         return _get_redis_client()
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
@@ -105,7 +97,6 @@ def get_redis_client():
             ),
         ) from exc
 
-
 def get_teams_integration():
     """Return the TeamsIntegration singleton."""
 
@@ -113,14 +104,12 @@ def get_teams_integration():
 
     return _get()
 
-
 def get_audit_queue():
     """Return the AuditQueue singleton."""
 
     from resync.core.audit_queue import get_audit_queue as _get
 
     return _get()
-
 
 async def get_file_ingestor(request: Request):
     """RAG file-ingestor dependency.
@@ -133,7 +122,7 @@ async def get_file_ingestor(request: Request):
         from resync.core.wiring import get_file_ingestor as _get
 
         return _get(request)
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
@@ -141,7 +130,6 @@ async def get_file_ingestor(request: Request):
                 "Install the optional dependencies / module and enable it in settings."
             ),
         ) from exc
-
 
 __all__ = [
     # legacy container

@@ -14,7 +14,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class SubgraphRetriever:
     """
     Retrieves knowledge subgraphs for GraphRAG applications.
@@ -94,7 +93,7 @@ class SubgraphRetriever:
 
             return context
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Subgraph retrieval failed: %s", e, exc_info=True)
             return self._empty_context(job_name)
 
@@ -253,7 +252,6 @@ class SubgraphRetriever:
         """Clear subgraph cache."""
         self.cache.clear()
         logger.info("Subgraph cache cleared")
-
 
 def get_subgraph_retriever(knowledge_graph):
     """

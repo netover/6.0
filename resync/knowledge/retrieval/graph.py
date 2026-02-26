@@ -26,7 +26,6 @@ from resync.services.tws_graph_service import (
 
 logger = structlog.get_logger(__name__)
 
-
 class KnowledgeGraphWrapper:
     """
     Wrapper that provides async methods expected by existing code.
@@ -133,14 +132,12 @@ class KnowledgeGraphWrapper:
         """Get graph statistics (async version)."""
         return self.get_stats()
 
-
 # =============================================================================
 # MODULE-LEVEL FACTORY FUNCTIONS
 # =============================================================================
 
 _wrapper: KnowledgeGraphWrapper | None = None
 _wrapper_lock = asyncio.Lock()
-
 
 async def get_knowledge_graph() -> KnowledgeGraphWrapper:
     """Get the knowledge graph wrapper (singleton)."""
@@ -150,11 +147,9 @@ async def get_knowledge_graph() -> KnowledgeGraphWrapper:
             _wrapper = KnowledgeGraphWrapper()
         return _wrapper
 
-
 # Aliases
 get_kg_instance = get_knowledge_graph
 get_graph_service = get_graph_service  # Re-export
-
 
 async def initialize_knowledge_graph() -> KnowledgeGraphWrapper:
     """Initialize and return the knowledge graph."""
@@ -162,10 +157,8 @@ async def initialize_knowledge_graph() -> KnowledgeGraphWrapper:
     kg.initialize()
     return kg
 
-
 # Legacy class alias
 TWSKnowledgeGraph = KnowledgeGraphWrapper
-
 
 # =============================================================================
 # EXPORTS

@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["TWSLearningStore", "get_tws_learning_store"]
 
-
 class TWSLearningStore:
     """TWS Learning Store - PostgreSQL Backend."""
 
@@ -61,9 +60,7 @@ class TWSLearningStore:
         successes = sum(1 for o in outcomes if o.is_positive)
         return successes / len(outcomes)
 
-
 _instance: TWSLearningStore | None = None
-
 
 def get_tws_learning_store() -> TWSLearningStore:
     """Get the singleton TWSLearningStore instance."""

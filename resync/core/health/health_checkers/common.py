@@ -14,7 +14,6 @@ from resync.core.health.health_models import (
     HealthStatus,
 )
 
-
 @dataclass(frozen=True)
 class ThresholdConfig:
     """Thresholds and messages for health checks."""
@@ -25,11 +24,9 @@ class ThresholdConfig:
     degraded_msg: str
     critical_msg: str
 
-
 def response_time_ms(start_time: float) -> float:
     """Return elapsed time in milliseconds from a start timestamp."""
     return (time.time() - start_time) * 1000
-
 
 def threshold_status(
     value: float,
@@ -42,7 +39,6 @@ def threshold_status(
         return HealthStatus.DEGRADED, config.degraded_msg.format(value=value)
     return HealthStatus.HEALTHY, config.healthy_msg.format(value=value)
 
-
 @dataclass(frozen=True)
 class ErrorContext:
     """Context for building error health results."""
@@ -54,7 +50,6 @@ class ErrorContext:
     start_time: float
     error: Exception
     log_event: str
-
 
 def build_error_health(
     ctx: ErrorContext,

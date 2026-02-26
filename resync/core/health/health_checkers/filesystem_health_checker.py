@@ -30,7 +30,6 @@ from .common import (
 
 logger = structlog.get_logger(__name__)
 
-
 class FileSystemHealthChecker(BaseHealthChecker):
     """
     Health checker for file system health and disk space monitoring.
@@ -84,7 +83,7 @@ class FileSystemHealthChecker(BaseHealthChecker):
                 },
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             return build_error_health(
                 ctx=ErrorContext(
                     name=self.component_name,

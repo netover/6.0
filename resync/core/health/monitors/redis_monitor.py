@@ -22,7 +22,6 @@ from resync.settings import settings
 
 logger = structlog.get_logger(__name__)
 
-
 class RedisHealthMonitor:
     """
     Comprehensive Redis health monitor.
@@ -123,10 +122,10 @@ class RedisHealthMonitor:
                 # Close the test connection
                 try:
                     await redis_client.close()
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.debug("Redis client close error during health check: %s", e)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             response_time = (time.time() - start_time) * 1000
 
             # Sanitize error message for security
@@ -159,7 +158,7 @@ class RedisHealthMonitor:
         for attempt in range(max_retries):
             try:
                 return await self.check_redis_health()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if attempt == max_retries - 1:
                     logger.error(
                         "redis_health_check_failed_after_retries",
@@ -210,3 +209,6 @@ class RedisHealthMonitor:
         """Clear the cached health result."""
         self._cached_result = None
         self._last_check = None
+
+# Backward compat alias
+RedisMonitor = RedisHealthMonitor

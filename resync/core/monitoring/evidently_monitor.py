@@ -62,11 +62,9 @@ except ImportError:
         "evidently_not_available", message="Install with: pip install evidently"
     )
 
-
 # ============================================================================
 # CONFIGURATION MODELS
 # ============================================================================
-
 
 class DriftType(str, Enum):
     """Types of drift that can be monitored."""
@@ -75,7 +73,6 @@ class DriftType(str, Enum):
     PREDICTION = "prediction"  # Model output patterns
     TARGET = "target"  # User feedback/outcomes
     CONCEPT = "concept"  # Input-output relationship
-
 
 class MonitoringSchedule(str, Enum):
     """Monitoring schedule options."""
@@ -86,7 +83,6 @@ class MonitoringSchedule(str, Enum):
     WEEKLY = "weekly"
     MANUAL = "manual"  # Only on-demand
 
-
 class AlertSeverity(str, Enum):
     """Alert severity levels."""
 
@@ -94,7 +90,6 @@ class AlertSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 @dataclass
 class DriftAlert:
@@ -123,7 +118,6 @@ class DriftAlert:
             "details": self.details,
         }
 
-
 class ResourceLimits(BaseModel):
     """Resource limits for monitoring jobs."""
 
@@ -142,7 +136,6 @@ class ResourceLimits(BaseModel):
         le=19,
         description="Process nice level (higher = lower priority)",
     )
-
 
 class MonitoringConfig(BaseModel):
     """Configuration for AI monitoring."""
@@ -201,15 +194,12 @@ class MonitoringConfig(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-
 # Default configuration
 DEFAULT_MONITORING_CONFIG = MonitoringConfig()
-
 
 # ============================================================================
 # DATA COLLECTOR
 # ============================================================================
-
 
 class MonitoringDataCollector:
     """
@@ -446,16 +436,14 @@ class MonitoringDataCollector:
                             deleted_count += 1
                 except (IndexError, ValueError, OSError):
                     continue
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("data_cleanup_error", error=str(e))
 
         return deleted_count
 
-
 # ============================================================================
 # DRIFT DETECTOR
 # ============================================================================
-
 
 class DriftDetector:
     """
@@ -538,7 +526,7 @@ class DriftDetector:
 
             return drift_detected, drift_score, report
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("data_drift_detection_error", error=str(e))
             return False, 0.0, None
 
@@ -599,7 +587,7 @@ class DriftDetector:
 
             return drift_detected, drift_score, report
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("prediction_drift_detection_error", error=str(e))
             return False, 0.0, None
 
@@ -666,7 +654,7 @@ class DriftDetector:
 
             return drift_detected, drift_score, report
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("target_drift_detection_error", error=str(e))
             return False, 0.0, None
 
@@ -693,16 +681,14 @@ class DriftDetector:
                         deleted_count += 1
                     except OSError:
                         continue
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("report_cleanup_error", error=str(e))
 
         return deleted_count
 
-
 # ============================================================================
 # MONITORING SERVICE
 # ============================================================================
-
 
 class AIMonitoringService:
     """
@@ -793,7 +779,7 @@ class AIMonitoringService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("scheduler_error", error=str(e))
                 await asyncio.sleep(60)  # Wait before retry
 
@@ -914,7 +900,7 @@ class AIMonitoringService:
             )
             self.drift_detector.cleanup_old_reports()
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("monitoring_run_error", error=str(e))
             results["error"] = str(e)
 
@@ -1022,18 +1008,15 @@ class AIMonitoringService:
             "evidently_available": EVIDENTLY_AVAILABLE,
         }
 
-
 # ============================================================================
 # SINGLETON AND FACTORY
 # ============================================================================
 
 _monitoring_service_instance: AIMonitoringService | None = None
 
-
 def get_monitoring_service() -> AIMonitoringService | None:
     """Get the singleton monitoring service instance."""
     return _monitoring_service_instance
-
 
 async def init_monitoring_service(
     config: MonitoringConfig | None = None,
@@ -1055,7 +1038,6 @@ async def init_monitoring_service(
     _monitoring_service_instance.start(tg=tg)
 
     return _monitoring_service_instance
-
 
 # ============================================================================
 # EXPORTS

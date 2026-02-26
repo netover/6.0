@@ -20,11 +20,9 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # ENUMS E MODELS
 # =============================================================================
-
 
 class QueryType(str, Enum):
     """Tipos de query identificados."""
@@ -36,7 +34,6 @@ class QueryType(str, Enum):
     COMPARISON = "comparison"  # "Diferença entre X e Y?"
     GENERAL = "general"  # Outros casos
 
-
 class StructuredQuery(BaseModel):
     """Query estruturada com contexto rankeado."""
 
@@ -46,11 +43,9 @@ class StructuredQuery(BaseModel):
     intent: str
     ranked_context: list[dict]
 
-
 # =============================================================================
 # QUERY PROCESSOR
 # =============================================================================
-
 
 class QueryProcessor:
     """
@@ -110,7 +105,7 @@ class QueryProcessor:
         # 3. Buscar contexto
         try:
             raw_context = await self.kg.get_relevant_context(query)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Failed to get KG context: %s", e)
             raw_context = ""
 
@@ -385,7 +380,6 @@ Por favor, responda considerando o contexto acima quando relevante."""
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ]
-
 
 # =============================================================================
 # EXPORTS

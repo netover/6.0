@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 # Lock for thread-safe counter updates
 _counter_lock = asyncio.Lock()
 
-
 class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
     """
     Middleware for detecting and preventing SQL injection attacks.
@@ -90,7 +89,7 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
             return response
         except HTTPException:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             self._log_request_outcome(request, False, str(e))
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -166,8 +165,7 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
                 content_type = request.headers.get("content-type", "")
                 if "application/json" in content_type:
                     body = await request.json()
-                    # Cache body and re-inject for downstream handlers
-                    request._body_cache = body
+                    # Starlette caches request.json()/body() internally; avoid private _body_cache.
                     if isinstance(body, dict):
                         for key, value in body.items():
                             data[f"body.{key}"] = value
@@ -176,10 +174,10 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
                 elif "application/x-www-form-urlencoded" in content_type:
                     form = await request.form()
                     # Cache form and re-inject for downstream handlers
-                    request._body_cache = dict(form)
+                    # Starlette caches request.form() internally; avoid private _body_cache.
                     for key, value in form.items():
                         data[f"form.{key}"] = value
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.debug("failed_to_extract_request_body", extra={"error": str(e)})
         return data
 
@@ -227,7 +225,7 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
                 )
 
             fire_and_forget(_async_log_access(), logger=logger, name="db_access_audit")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("failed_to_log_request_outcome", extra={"error": str(e)})
@@ -251,7 +249,6 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
             "middleware_enabled": self.enabled,
             "patterns_monitored": len(self.SQL_INJECTION_PATTERNS),
         }
-
 
 class DatabaseConnectionSecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -311,7 +308,6 @@ class DatabaseConnectionSecurityMiddleware(BaseHTTPMiddleware):
         """
         return any((path.startswith(endpoint) for endpoint in self.DATABASE_ENDPOINTS))
 
-
 def create_database_security_middleware(
     app: Callable, enabled: bool = True
 ) -> DatabaseSecurityMiddleware:
@@ -326,7 +322,6 @@ def create_database_security_middleware(
         DatabaseSecurityMiddleware instance
     """
     return DatabaseSecurityMiddleware(app, enabled=enabled)
-
 
 def create_database_connection_security_middleware(
     app: Callable, enabled: bool = True

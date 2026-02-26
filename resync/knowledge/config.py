@@ -97,16 +97,13 @@ SENSITIVE_QS_KEYS: Final[frozenset[str]] = frozenset(
 # Conservative identifier pattern for collection/table names (if quiser, pode mover para regex)
 # Mantive simples com pattern em Field, abaixo.
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-
 def _current_environment() -> str:
     """Return normalized deployment environment."""
     return os.getenv("ENVIRONMENT", "development").strip().lower() or "development"
-
 
 def _is_weak_password(password: str) -> bool:
     """
@@ -117,7 +114,6 @@ def _is_weak_password(password: str) -> bool:
     if len(password) < 12:
         return True
     return password.lower() in WEAK_PASSWORDS
-
 
 def _sanitize_db_url(url: str) -> str:
     """
@@ -161,9 +157,8 @@ def _sanitize_db_url(url: str) -> str:
             parsed = parsed._replace(query=new_query)
 
         return urlunparse(parsed._replace(netloc=netloc))
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return "[DATABASE_URL_REDACTED]"
-
 
 def _validate_database_url_raw(url: str, environment: str) -> str:
     """
@@ -173,7 +168,7 @@ def _validate_database_url_raw(url: str, environment: str) -> str:
     """
     try:
         parsed = urlparse(url)
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         logger.error(
         "database_url_parse_failed",
             hint="Check DATABASE_URL format (postgresql+asyncpg://user:pass@host:5432/dbname)",
@@ -219,7 +214,6 @@ def _validate_database_url_raw(url: str, environment: str) -> str:
 
     return url
 
-
 def _default_database_url_for_env() -> SecretStr:
     """
     Dev fallback for database_url.
@@ -232,11 +226,9 @@ def _default_database_url_for_env() -> SecretStr:
         return SecretStr("")
     return SecretStr(DEV_DATABASE_URL)
 
-
 # ---------------------------------------------------------------------------
 # Settings model
 # ---------------------------------------------------------------------------
-
 
 class RagConfig(BaseSettings):
     """
@@ -494,11 +486,9 @@ class RagConfig(BaseSettings):
 
         return self
 
-
 # ---------------------------------------------------------------------------
 # Singleton factory (no import-time side effects)
 # ---------------------------------------------------------------------------
-
 
 @lru_cache(maxsize=1)
 def get_config() -> RagConfig:
@@ -515,4 +505,25 @@ def get_config() -> RagConfig:
     """
     return RagConfig()
 
-CFG = get_config()
+# FIX P0-04: Original code had `CFG = get_config()` at module level, which
+# instantiated RagConfig() immediately on import, triggering DATABASE_URL
+# validation. In CI / fresh dev environments without env vars this caused
+# ValidationError, making the entire resync.knowledge package unimportable.
+#
+# Solution: a lazy proxy that defers the real instantiation until first attribute
+# access, while remaining fully backward-compatible (`CFG.some_attr` still works).
+class _CfgProxy:
+    """Lazy proxy for RagConfig — defers instantiation until first attribute access."""
+
+    __slots__ = ()
+
+    def __getattr__(self, name: str):  # type: ignore[override]
+        return getattr(get_config(), name)
+
+    def __repr__(self) -> str:
+        return repr(get_config())
+
+    def __eq__(self, other: object) -> bool:
+        return get_config() == other
+
+CFG: RagConfig = _CfgProxy()  # type: ignore[assignment]  # lazy — RagConfig not yet instantiated

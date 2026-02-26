@@ -34,7 +34,6 @@ from typing import Any
 
 logger = structlog.get_logger(__name__)
 
-
 class SupportedFormat(str, Enum):
     """File formats supported by the converter."""
 
@@ -44,7 +43,6 @@ class SupportedFormat(str, Enum):
     MARKDOWN = "md"
     XLSX = "xlsx"
     TXT = "txt"
-
 
 FORMAT_EXTENSIONS: dict[str, SupportedFormat] = {
     ".pdf": SupportedFormat.PDF,
@@ -59,7 +57,6 @@ FORMAT_EXTENSIONS: dict[str, SupportedFormat] = {
     ".text": SupportedFormat.TXT,
 }
 
-
 @dataclass
 class ExtractedTable:
     """A table extracted from a document."""
@@ -69,7 +66,6 @@ class ExtractedTable:
     section: str | None = None
     rows: int = 0
     cols: int = 0
-
 
 @dataclass
 class ConvertedDocument:
@@ -84,7 +80,6 @@ class ConvertedDocument:
     conversion_time_s: float = 0.0
     status: str = "success"
     error: str | None = None
-
 
 def _docling_convert_worker(
     file_path: str,
@@ -131,7 +126,7 @@ def _docling_convert_worker(
                 md_table = table_item.export_to_markdown()
                 df = table_item.export_to_dataframe()
                 rows, cols = df.shape
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 md_table = str(table_item)
                 rows, cols = (0, 0)
             tables.append(
@@ -157,7 +152,7 @@ def _docling_convert_worker(
             "tables": tables,
             "metadata": metadata,
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         output = {
             "status": "error",
             "error": f"{type(e).__name__}: {str(e)}",
@@ -167,7 +162,6 @@ def _docling_convert_worker(
         }
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, default=str)
-
 
 def _plaintext_fallback(file_path: str) -> dict:
     """Fallback: read file as plain text when Docling is unavailable."""
@@ -179,7 +173,7 @@ def _plaintext_fallback(file_path: str) -> dict:
             "tables": [],
             "metadata": {"title": Path(file_path).stem, "fallback": True},
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return {
             "status": "error",
             "error": str(e),
@@ -187,7 +181,6 @@ def _plaintext_fallback(file_path: str) -> dict:
             "tables": [],
             "metadata": {},
         }
-
 
 class DoclingConverter:
     """
@@ -398,7 +391,6 @@ class DoclingConverter:
             status=data.get("status", "error"),
             error=data.get("error"),
         )
-
 
 async def convert_document(
     file_path: str | Path, *, do_table_structure: bool = True, do_ocr: bool = False

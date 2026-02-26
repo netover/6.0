@@ -17,7 +17,6 @@ from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
 
 logger = structlog.get_logger(__name__)
 
-
 class ProactiveMonitoringSystem:
     """
     Proactive health monitoring system for connection pools and critical components.
@@ -122,7 +121,7 @@ class ProactiveMonitoringSystem:
                 recovery_actions=len(results["recovery_actions"]),
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("proactive_health_checks_failed", error=str(e))
             results["error"] = str(e)
 
@@ -170,7 +169,7 @@ class ProactiveMonitoringSystem:
             except ImportError:
                 pass
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("connection_pool_health_check_failed", error=str(e))
 
         return {"error": "Unable to check connection pool health"}
@@ -207,7 +206,7 @@ class ProactiveMonitoringSystem:
                                 "p95", 0
                             ),
                         }
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                         logger.error("exception_caught", error=str(e), exc_info=True)
                         results[name] = {"error": str(e)}
         except ImportError:

@@ -26,7 +26,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 class RedisDatabase(IntEnum):
     """
     Redis database separation by purpose.
@@ -46,7 +45,6 @@ class RedisDatabase(IntEnum):
     IDEMPOTENCY = 4  # Idempotency keys for request deduplication
     # DBs 5-15: Reserved for future use
 
-
 class RedisConfig:
     """
     Configuration holder for Redis connections.
@@ -60,7 +58,7 @@ class RedisConfig:
         # Environment variables still take precedence for backwards compatibility.
         try:
             from resync.settings import settings as app_settings
-        except Exception:  # pragma: no cover
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover
             app_settings = None  # type: ignore
 
         redis_url = None
@@ -161,7 +159,6 @@ class RedisConfig:
             f"password={'***' if self.password else None})"
         )
 
-
 # Global config instance (singleton pattern)
 @lru_cache(maxsize=1)
 def get_redis_config() -> RedisConfig:
@@ -172,10 +169,8 @@ def get_redis_config() -> RedisConfig:
     """
     return RedisConfig()
 
-
 # Connection pool cache (one per database)
 _connection_pools: dict[RedisDatabase, Any] = {}
-
 
 def get_redis_client(
     db: RedisDatabase = RedisDatabase.CONNECTIONS,
@@ -221,7 +216,6 @@ def get_redis_client(
     _connection_pools[db] = client
     return client
 
-
 async def check_redis_stack_available() -> dict[str, bool | str]:
     """
     Check if Redis Stack modules are available.
@@ -261,20 +255,20 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
             result["bloom"] = "bf" in module_names or "bloom" in module_names
             result["timeseries"] = "timeseries" in module_names
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             # MODULE LIST not available (older Redis or disabled)
             # Try specific commands to detect modules
             try:
                 await client.execute_command("FT._LIST")
                 result["search"] = True
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.debug(
                     "suppressed_exception", extra={"error": str(exc)}, exc_info=True
                 )
 
             try:
                 await client.execute_command("JSON.DEBUG", "MEMORY", "__test__")
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 if "unknown command" not in str(exc).lower():
                     result["json"] = True
 
@@ -283,11 +277,10 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
             f"search={result['search']}, json={result['json']}"
         )
 
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         logger.warning("Failed to check Redis Stack availability", exc_info=True)
 
     return result  # type: ignore[return-value]
-
 
 async def close_all_pools() -> None:
     """
@@ -299,13 +292,12 @@ async def close_all_pools() -> None:
         try:
             await pool.disconnect()
             logger.info("Closed Redis pool", extra={"db": db.name})
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning(
                 "Error closing Redis pool", extra={"db": db.name, "error": str(e)}
             )
 
     _connection_pools.clear()
-
 
 # Health check utility
 async def redis_health_check(
@@ -344,14 +336,13 @@ async def redis_health_check(
                 "connected_clients", -1
             )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         result["error"] = str(e)
         logger.error(
             "Redis health check failed", extra={"db": db.name, "error": str(e)}
         )
 
     return result
-
 
 __all__ = [
     "RedisDatabase",

@@ -28,11 +28,9 @@ router = APIRouter(prefix="/api/v1/metrics", tags=["Metrics Dashboard"])
 templates_dir = Path(__file__).parent.parent.parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
-
 # =============================================================================
 # PYDANTIC MODELS
 # =============================================================================
-
 
 class TimeSeriesPoint(BaseModel):
     """A single point in a time series."""
@@ -40,14 +38,12 @@ class TimeSeriesPoint(BaseModel):
     timestamp: str
     value: float
 
-
 class ChartData(BaseModel):
     """Data for a chart visualization."""
 
     label: str
     data: list[TimeSeriesPoint]
     color: str | None = None
-
 
 class GaugeData(BaseModel):
     """Current value gauge."""
@@ -57,7 +53,6 @@ class GaugeData(BaseModel):
     unit: str | None = None
     status: str = "ok"  # ok, warning, critical
 
-
 class DashboardResponse(BaseModel):
     """Complete dashboard data response."""
 
@@ -66,7 +61,6 @@ class DashboardResponse(BaseModel):
     gauges: list[GaugeData]
     system: dict[str, Any]
     generated_at: str
-
 
 class MetricSummary(BaseModel):
     """Summary for a specific metric."""
@@ -79,11 +73,9 @@ class MetricSummary(BaseModel):
     max_24h: float
     trend: str  # up, down, stable
 
-
 # =============================================================================
 # DASHBOARD PAGE
 # =============================================================================
-
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def metrics_dashboard(request: Request):
@@ -94,11 +86,9 @@ async def metrics_dashboard(request: Request):
         {"title": "Continual Learning Metrics"},
     )
 
-
 # =============================================================================
 # DATA ENDPOINTS
 # =============================================================================
-
 
 @router.get("/data", response_model=DashboardResponse)
 async def get_dashboard_data(
@@ -242,7 +232,7 @@ async def get_dashboard_data(
             generated_at=datetime.now(timezone.utc).isoformat(),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -251,7 +241,6 @@ async def get_dashboard_data(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/series/{metric_name}")
 async def get_metric_series(
@@ -288,7 +277,7 @@ async def get_metric_series(
                 for m in data
             ],
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -297,7 +286,6 @@ async def get_metric_series(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/summary")
 async def get_metrics_summary():
@@ -316,7 +304,7 @@ async def get_metrics_summary():
             "available_metrics": metric_names,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -325,7 +313,6 @@ async def get_metrics_summary():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/gauges")
 async def get_current_gauges():
@@ -373,7 +360,7 @@ async def get_current_gauges():
             "counters": counters,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -382,7 +369,6 @@ async def get_current_gauges():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/health")
 async def metrics_health():
@@ -411,7 +397,7 @@ async def metrics_health():
             "storage": summary.get("storage", {}),
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -421,11 +407,9 @@ async def metrics_health():
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
-
 # =============================================================================
 # CONTINUAL LEARNING SPECIFIC ENDPOINTS
 # =============================================================================
-
 
 @router.get("/continual-learning")
 async def get_cl_dashboard_data(
@@ -438,7 +422,7 @@ async def get_cl_dashboard_data(
         cl_metrics = get_cl_metrics()
         return await cl_metrics.get_dashboard_data(hours=hours)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -447,7 +431,6 @@ async def get_cl_dashboard_data(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/feedback-analysis")
 async def get_feedback_analysis(
@@ -509,7 +492,7 @@ async def get_feedback_analysis(
             "period_days": days,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

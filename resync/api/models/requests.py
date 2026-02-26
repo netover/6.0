@@ -20,13 +20,11 @@ from pydantic import BaseModel, Field
 # EXISTING MODELS (maintained for compatibility)
 # =============================================================================
 
-
 class AuditReviewRequest(BaseModel):
     """Request model for audit review operations."""
 
     memory_id: str
     action: str
-
 
 class ChatMessageRequest(BaseModel):
     """Request model for chat message operations."""
@@ -37,7 +35,6 @@ class ChatMessageRequest(BaseModel):
     session_id: str | None = None  # Session ID for conversation memory
     metadata: dict[str, Any] | None = None  # Additional metadata
 
-
 class FileUploadRequest(BaseModel):
     """Request model for file upload operations."""
 
@@ -45,13 +42,11 @@ class FileUploadRequest(BaseModel):
     content_type: str
     size: int
 
-
 class SystemStatusFilter(BaseModel):
     """System status filter."""
 
     workstation_filter: str | None = None
     job_status_filter: str | None = None
-
 
 class LoginRequest(BaseModel):
     """Request model for login operations."""
@@ -59,13 +54,11 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-
 class RAGUploadRequest(BaseModel):
     """Request model for RAG upload operations."""
 
     filename: str
     content: str
-
 
 class AuditFlagsQuery(BaseModel):
     """Query model for audit flags operations."""
@@ -75,19 +68,16 @@ class AuditFlagsQuery(BaseModel):
     limit: int = 50
     offset: int = 0
 
-
 class ChatHistoryQuery(BaseModel):
     """Query model for chat history operations."""
 
     agent_id: str | None = None
     limit: int = 50
 
-
 class RAGFileQuery(BaseModel):
     """Query model for RAG file operations."""
 
     file_id: str
-
 
 class FileUploadValidation(BaseModel):
     """Validation model for file uploads"""
@@ -115,11 +105,9 @@ class FileUploadValidation(BaseModel):
                 f"File too large. Maximum size: {max_size / (1024 * 1024)}MB"
             )
 
-
 # =============================================================================
 # NEW MODELS FOR AGENTIC EXECUTION (PR-4)
 # =============================================================================
-
 
 class Goal(BaseModel):
     """
@@ -152,7 +140,6 @@ class Goal(BaseModel):
         default=False, description="Whether to require HITL approval before execution"
     )
 
-
 class ToolCallRequest(BaseModel):
     """
     Request to execute a specific tool.
@@ -167,7 +154,6 @@ class ToolCallRequest(BaseModel):
     user_role: str = Field(
         default="operator", description="User role for permission checking"
     )
-
 
 class AgentExecuteRequest(BaseModel):
     """
@@ -208,7 +194,6 @@ class AgentExecuteRequest(BaseModel):
             return self.goal.description
         return ""
 
-
 class ApprovalRequest(BaseModel):
     """
     Request for HITL approval of a pending action.
@@ -224,7 +209,6 @@ class ApprovalRequest(BaseModel):
     reason: str | None = Field(
         None, max_length=500, description="Reason for approval/rejection"
     )
-
 
 class ApprovalListQuery(BaseModel):
     """
@@ -242,11 +226,9 @@ class ApprovalListQuery(BaseModel):
     )
     offset: int = Field(default=0, ge=0, description="Offset for pagination")
 
-
 # =============================================================================
 # DIAGNOSTIC EXECUTION MODELS
 # =============================================================================
-
 
 class DiagnosticRequest(BaseModel):
     """
@@ -276,11 +258,9 @@ class DiagnosticRequest(BaseModel):
         default=5, ge=1, le=10, description="Maximum diagnostic iterations"
     )
 
-
 # =============================================================================
 # FEEDBACK AND LEARNING MODELS
 # =============================================================================
-
 
 class FeedbackRequest(BaseModel):
     """
@@ -302,7 +282,6 @@ class FeedbackRequest(BaseModel):
     resolution_worked: bool | None = Field(
         None, description="Whether the suggested resolution worked"
     )
-
 
 class IncidentResolutionRequest(BaseModel):
     """
@@ -337,11 +316,9 @@ class IncidentResolutionRequest(BaseModel):
         description="Status of the resolution",
     )
 
-
 # =============================================================================
 # METRICS AND OBSERVABILITY MODELS
 # =============================================================================
-
 
 class MetricsQuery(BaseModel):
     """
@@ -362,7 +339,6 @@ class MetricsQuery(BaseModel):
     include_anomalies: bool = Field(
         default=True, description="Include anomaly detection results"
     )
-
 
 class TraceQuery(BaseModel):
     """

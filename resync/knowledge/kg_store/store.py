@@ -31,7 +31,6 @@ except ImportError:
     asyncpg = None
     ASYNCPG_AVAILABLE = False
 
-
 @dataclass(frozen=True)
 class KGNode:
     node_id: str
@@ -39,7 +38,6 @@ class KGNode:
     name: str
     aliases: list[str] | None = None
     properties: dict[str, Any] | None = None
-
 
 @dataclass(frozen=True)
 class KGEdge:
@@ -49,7 +47,6 @@ class KGEdge:
     weight: float = 0.5
     evidence: dict[str, Any] | None = None
     edge_id: str | None = None
-
 
 class PostgresGraphStore:
     """Async Postgres store for nodes/edges with shared connection pool."""
@@ -110,7 +107,7 @@ class PostgresGraphStore:
         if not self._pool_is_closed(PostgresGraphStore._pool):
             try:
                 await PostgresGraphStore._pool.close()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Failed to close connection pool: %s", e)
             finally:
                 PostgresGraphStore._pool = None

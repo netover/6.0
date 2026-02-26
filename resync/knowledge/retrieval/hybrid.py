@@ -21,6 +21,7 @@ v5.9.3: Graph now built on-demand from TWS API via TwsGraphService.
 """
 
 import asyncio
+from inspect import isawaitable
 import hashlib
 import re
 from dataclasses import dataclass
@@ -35,11 +36,9 @@ from resync.knowledge.retrieval.graph import get_knowledge_graph
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # QUERY INTENT CLASSIFICATION
 # =============================================================================
-
 
 class QueryIntent(str, Enum):
     """Types of queries that can be handled."""
@@ -64,7 +63,6 @@ class QueryIntent(str, Enum):
     # Default
     GENERAL = "general"  # Unclear intent
 
-
 @dataclass
 class QueryClassification:
     """Result of query classification."""
@@ -75,7 +73,6 @@ class QueryClassification:
     use_graph: bool
     use_rag: bool
     graph_query_type: str | None = None
-
 
 # Intent patterns (Portuguese + English)
 INTENT_PATTERNS = {
@@ -156,7 +153,6 @@ def _compile_patterns():
         intent: [re.compile(p, re.IGNORECASE) for p in patterns]
         for intent, patterns in INTENT_PATTERNS.items()
     }
-
 
 class QueryClassifier:
     """
@@ -424,7 +420,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
 
             return intent
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("llm_classification_failed", error=str(e))
             return None
 
@@ -435,14 +431,14 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
                 from resync.services.llm_service import get_llm_service
 
                 service = get_llm_service()
-                if asyncio.iscoroutine(service):
+                if isawaitable(service):
                     self._llm = await asyncio.wait_for(service, timeout=30.0)
                 else:
                     self._llm = service
             except ImportError:
                 logger.warning("llm_service_not_available")
                 return None
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.warning("llm_service_initialization_failed", error=str(exc))
                 return None
         return self._llm
@@ -499,11 +495,9 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
         # Default: RAG only
         return False, True, None
 
-
 # =============================================================================
 # HYBRID QUERY EXECUTOR
 # =============================================================================
-
 
 class HybridRAG:
     """
@@ -562,13 +556,13 @@ class HybridRAG:
                 from resync.services.llm_service import get_llm_service
 
                 service = get_llm_service()
-                if asyncio.iscoroutine(service):
+                if isawaitable(service):
                     self._llm = await asyncio.wait_for(service, timeout=30.0)
                 else:
                     self._llm = service
             except ImportError:
                 logger.warning("LLM service not available")
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.warning("llm_service_initialization_failed", error=str(exc))
                 return None
         return self._llm
@@ -617,7 +611,7 @@ class HybridRAG:
                     )
             except ImportError:
                 logger.debug("continual_learning_module_not_available")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("context_enrichment_error", error=str(e))
         # === END Context Enrichment ===
 
@@ -713,7 +707,7 @@ class HybridRAG:
 
                 except ImportError:
                     logger.debug("continual_learning_module_not_available")
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning("active_learning_check_error", error=str(e))
             # === END Active Learning Check ===
 
@@ -803,7 +797,7 @@ class HybridRAG:
                 "documents": results,
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("rag_query_failed", error=str(e))
             return {"error": str(e), "documents": []}
 
@@ -855,7 +849,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
 
             return all_queries
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("query_expansion_failed", error=str(e))
             return [query]
 
@@ -985,7 +979,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 },
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("fusion_rag_failed", error=str(e))
             # Fallback to standard RAG
             return await self._execute_rag_query(query_text, entities)
@@ -1045,7 +1039,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 llm.generate(f"{formatted['system']}\n\n{formatted['user']}"),
                 timeout=30.0,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("response_generation_failed", error=str(e))
             return self._format_results_as_text(results)
 
@@ -1136,14 +1130,12 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
 
         return "\n\n".join(parts) if parts else "No results found."
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
 _hybrid_rag: HybridRAG | None = None
 _hybrid_rag_lock = asyncio.Lock()
-
 
 async def get_hybrid_rag() -> HybridRAG:
     """Get or create the singleton HybridRAG instance."""
@@ -1152,7 +1144,6 @@ async def get_hybrid_rag() -> HybridRAG:
         if _hybrid_rag is None:
             _hybrid_rag = HybridRAG()
         return _hybrid_rag
-
 
 async def hybrid_query(
     query_text: str, context: dict[str, Any] | None = None

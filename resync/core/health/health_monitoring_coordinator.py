@@ -16,7 +16,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthMonitoringCoordinator:
     """
     Coordinates continuous health monitoring and service lifecycle management.
@@ -75,7 +74,7 @@ class HealthMonitoringCoordinator:
                 await asyncio.sleep(self.config.check_interval_seconds)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("error_in_health_monitoring_loop", error=str(e))
                 await asyncio.sleep(10)  # Brief pause on error
 

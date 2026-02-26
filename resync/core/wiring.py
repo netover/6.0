@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Final
@@ -19,12 +20,12 @@ if TYPE_CHECKING:
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
     from resync.core.file_ingestor import IFileIngestor
-    from resync.core.hybrid_router import HybridRouter
+    from resync.core.agent_router import HybridRouter          # actual location
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.interfaces import ITWSClient
-    from resync.core.llm_service import LLMService
+    from resync.services.llm_service import LLMService         # actual location
     from resync.core.skill_manager import SkillManager
-    from resync.services.a2a_handler import A2AHandler
+    from resync.core.a2a_handler import A2AHandler             # actual location
 
 logger = get_logger(__name__)
 
@@ -55,7 +56,6 @@ _REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
     }
 )
 
-
 def validate_app_state_contract(app: FastAPI) -> None:
     state = getattr(app.state, "enterprise_state", None)
     if state is None:
@@ -68,11 +68,9 @@ def validate_app_state_contract(app: FastAPI) -> None:
             f"enterprise_state missing required fields: {missing_sorted}"
         )
 
-
 # -----------------------------------------------------------------------------
 # App-level startup/shutdown hooks (lifespan)
 # -----------------------------------------------------------------------------
-
 
 async def init_domain_singletons(app: FastAPI) -> None:
     """Initialize core domain services and attach to app.state.
@@ -87,21 +85,38 @@ async def init_domain_singletons(app: FastAPI) -> None:
     settings = get_settings()
     logger.info("initializing_domain_singletons", environment=settings.environment)
 
-    # Import specialized factories locally to avoid top-level cycles
+    # FIX P0-07: Corrected all 6 import paths that pointed to non-existent modules.
+    # Verified actual locations by inspecting the project tree.
     from resync.core.agent_manager import initialize_agent_manager
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
     from resync.core.factories.tws_factory import get_tws_client_singleton
     from resync.core.file_ingestor import FileIngestor
-    from resync.core.hybrid_router import HybridRouter
+    from resync.core.agent_router import HybridRouter          # was: resync.core.hybrid_router (not found)
     from resync.core.idempotency.manager import IdempotencyManager
-    from resync.core.llm_service import get_llm_service
+    from resync.services.llm_service import get_llm_service    # was: resync.core.llm_service (not found)
     from resync.core.redis_init import get_redis_client
-    from resync.services.a2a_handler import A2AHandler
-    from resync.services.embedding_service import MultiProviderEmbeddingService
-    from resync.services.ingest_service import IngestService
-    from resync.services.pg_vector_store import PgVectorStore
+    from resync.core.a2a_handler import A2AHandler             # was: resync.services.a2a_handler (not found)
+    from resync.knowledge.ingestion.embedding_service import MultiProviderEmbeddingService  # was: resync.services.embedding_service
+    from resync.knowledge.ingestion.ingest import IngestService                             # was: resync.services.ingest_service
+    from resync.knowledge.store.pgvector_store import PgVectorStore                        # was: resync.services.pg_vector_store
     from resync.services.rag_client import get_rag_client_singleton
+
+    # ── Database initialization (idempotent: CREATE IF NOT EXISTS) ──────────
+    # Must run before any ORM access. Uses check_first=True so it's safe
+    # to call on every startup — existing tables are never dropped.
+    try:
+        from resync.core.database.schema import initialize_database
+        await initialize_database()
+        logger.info("database_schema_initialized")
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        logger.error(
+            "database_schema_init_failed",
+            error=str(exc),
+            hint="Check DATABASE_URL and PostgreSQL availability.",
+        )
+        # Re-raise — application cannot function without its schema
+        raise RuntimeError(f"Database schema initialization failed: {exc}") from exc
 
     # Core Infrastructure
     connection_manager = ConnectionManager()
@@ -116,21 +131,19 @@ async def init_domain_singletons(app: FastAPI) -> None:
     else:
         try:
             tws = get_tws_client_singleton()  # type: ignore
-        except Exception as exc:
-            # Fallback to optimized client or fail hard?
-            # For now, let's log and try once more or propagate.
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            # FIX P0-03: Original code re-imported the factory but never called it,
+            # leaving `tws` unbound. Now we fall back to MockTWSClient explicitly so
+            # `tws` is always assigned before use below.
             logger.error(
-                "tws_client_init_failed", error=str(exc), hint="Check TWS credentials."
+                "tws_client_init_failed",
+                error=str(exc),
+                hint="Check TWS credentials. Falling back to MockTWSClient.",
             )
-            # Retry logic or fallback logic could go here.
-            # Re-raising ensures we don't start with a broken singleton
-            # unless we explicitly support optional TWS.
-            # raise RuntimeError("Failed to initialize TWS client") from exc
+            from resync.services.mock_tws_service import MockTWSClient
 
-            # Attempt a safe fallback if appropriate for the domain
-            from resync.core.factories.tws_factory import get_tws_client_singleton
-
-            logger.info("tws_client_mode", mode="optimized_fallback")
+            tws = MockTWSClient()  # type: ignore[assignment]
+            logger.warning("tws_client_mode", mode="mock_fallback_after_error")
 
     # Agent manager depends on settings + TWS reference
     agent_manager = initialize_agent_manager(
@@ -204,17 +217,19 @@ async def init_domain_singletons(app: FastAPI) -> None:
         tws_mode="mock" if getattr(settings, "TWS_MOCK_MODE", False) else "optimized",
     )
 
-
 # -----------------------------------------------------------------------------
 # Shutdown helper
 # -----------------------------------------------------------------------------
-
 
 async def _safe_close(obj: object, label: str) -> None:
     """Call shutdown() or close() on *obj* if available, logging errors.
 
     This centralises the best-effort teardown pattern used by
     shutdown_domain_singletons to avoid duplicated try/except/pass blocks.
+
+    FIX P1-08: Programming errors (TypeError, AttributeError, NameError) are
+    now re-raised in development mode so they surface instead of being silently
+    swallowed, which historically made teardown bugs invisible in tests.
     """
     try:
         if hasattr(obj, "shutdown"):
@@ -229,16 +244,28 @@ async def _safe_close(obj: object, label: str) -> None:
             res = obj.aclose()  # type: ignore[attr-defined]
             if inspect.isawaitable(res):
                 await res
-    except Exception as exc:
-        # During shutdown, ALL exceptions are non-fatal. Re-raising here would
-        # abort the remaining shutdown steps and leak resources.
+    except asyncio.CancelledError:
+        raise  # never swallow cancellation
+    except (TypeError, AttributeError, NameError) as prog_err:
+        # Programming errors indicate a real bug — surface them in dev.
+        _s = get_settings()
+        if getattr(_s, "is_development", False):
+            raise
+        logger.error(
+            "singleton_shutdown_programming_error",
+            component=label,
+            error=type(prog_err).__name__,
+            detail=str(prog_err),
+        )
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        # During shutdown, runtime errors are non-fatal. Re-raising would
+        # abort remaining shutdown steps and leak resources.
         logger.warning(
             "singleton_shutdown_error",
             component=label,
             error=type(exc).__name__,
             detail="Internal server error. Check server logs for details.",
         )
-
 
 async def shutdown_domain_singletons(app: FastAPI) -> None:
     """Best-effort shutdown for domain singletons.
@@ -284,7 +311,7 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 
         await close_rag_client_singleton()
         logger.info("rag_client_closed")
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
             "rag_client_close_error", error=type(exc).__name__, detail=str(exc)
         )
@@ -305,7 +332,7 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 
         await close_redis_client()
         logger.info("redis_client_closed")
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
             "redis_client_close_error",
             error=type(exc).__name__,
@@ -314,7 +341,6 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 
     logger.info("domain_singletons_shutdown_completed")
 
-
 # -----------------------------------------------------------------------------
 # FastAPI dependencies (HTTP path)
 #
@@ -322,61 +348,49 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 # consumed via Depends(get_xxx) in route handlers.
 # -----------------------------------------------------------------------------
 
-
 def get_connection_manager(request: Request) -> ConnectionManager:
     """Provide the ConnectionManager singleton for a request."""
     return enterprise_state_from_request(request).connection_manager
-
 
 def get_knowledge_graph(request: Request) -> ContextStore:
     """Provide the ContextStore (knowledge graph) singleton for a request."""
     return enterprise_state_from_request(request).knowledge_graph
 
-
 def get_tws_client(request: Request) -> ITWSClient:
     """Provide the ITWSClient singleton for a request."""
     return enterprise_state_from_request(request).tws_client
-
 
 def get_agent_manager(request: Request) -> AgentManager:
     """Provide the AgentManager singleton for a request."""
     return enterprise_state_from_request(request).agent_manager
 
-
 def get_hybrid_router(request: Request) -> HybridRouter:
     """Provide the HybridRouter singleton for a request."""
     return enterprise_state_from_request(request).hybrid_router
-
 
 def get_idempotency_manager(request: Request) -> IdempotencyManager:
     """Provide the IdempotencyManager singleton for a request."""
     return enterprise_state_from_request(request).idempotency_manager
 
-
 def get_llm_service(request: Request) -> LLMService:
     """Provide the LLMService singleton for a request."""
     return enterprise_state_from_request(request).llm_service
-
 
 def get_file_ingestor(request: Request) -> IFileIngestor:
     """Provide the IFileIngestor singleton for a request."""
     return enterprise_state_from_request(request).file_ingestor
 
-
 def get_a2a_handler(request: Request) -> A2AHandler:
     """Provide the A2AHandler singleton for a request."""
     return enterprise_state_from_request(request).a2a_handler
-
 
 def get_skill_manager(request: Request) -> SkillManager:
     """Provide the SkillManager singleton for a request."""
     return enterprise_state_from_request(request).skill_manager
 
-
 # -----------------------------------------------------------------------------
 # Request-scoped resource example (Depends-compatible pattern)
 # -----------------------------------------------------------------------------
-
 
 def request_context() -> Iterator[dict[str, str]]:
     """Example request-scoped resource using yield semantics.

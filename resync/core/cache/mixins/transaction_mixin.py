@@ -9,13 +9,11 @@ from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
-
 class CacheTransactionMixinProtocol(Protocol):
     """Protocol defining methods expected by CacheTransactionMixin."""
 
     async def delete(self, key: str) -> None: ...
     async def set(self, key: str, value: Any, **kwargs: Any) -> None: ...
-
 
 class CacheTransactionMixin:
     """
@@ -92,7 +90,7 @@ class CacheTransactionMixin:
             self._in_transaction = False
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Rollback failed: %s", e)
             return False
 

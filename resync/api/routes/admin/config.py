@@ -67,7 +67,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
 }
 
-
 async def _get_health_report() -> dict[str, Any]:
     """Assemble a basic health report.
 
@@ -89,7 +88,6 @@ async def _get_health_report() -> dict[str, Any]:
     teams_cfg = cfg.get("teams_config", DEFAULT_CONFIG["teams_config"])
     report["teams"] = bool(teams_cfg.get("enabled"))
     return report
-
 
 async def _load_config() -> dict[str, Any]:
     """Read configuration from disk or return defaults.
@@ -128,10 +126,9 @@ async def _load_config() -> dict[str, Any]:
                 merged[section] = data[section]
 
         return merged
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("config_load_failed", exc_info=True, extra={"error": str(e)})
         return DEFAULT_CONFIG.copy()
-
 
 async def _save_config(config: dict[str, Any]) -> None:
     """Persist the entire configuration to disk as JSON.
@@ -151,14 +148,13 @@ async def _save_config(config: dict[str, Any]) -> None:
                 json.dump(config, f, indent=2, ensure_ascii=False)
 
         await asyncio.to_thread(_write)
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save configuration. Check server logs for details.",
         ) from exc
-
 
 @router.get("/teams-config", tags=["Admin"])
 async def get_teams_config() -> dict[str, Any]:
@@ -173,7 +169,6 @@ async def get_teams_config() -> dict[str, Any]:
     """
     config = await _load_config()
     return config.get("teams_config", DEFAULT_CONFIG["teams_config"]).copy()
-
 
 @router.post("/teams-config", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_teams_config(settings: dict[str, Any]) -> None:
@@ -198,13 +193,11 @@ async def update_teams_config(settings: dict[str, Any]) -> None:
     config["teams_config"] = teams_config
     await _save_config(config)
 
-
 @router.get("/tws-config", tags=["Admin"])
 async def get_tws_config() -> dict[str, Any]:
     """Return current TWS connection configuration."""
     config = await _load_config()
     return config.get("tws_config", DEFAULT_CONFIG["tws_config"]).copy()
-
 
 @router.post("/tws-config", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_tws_config(settings: dict[str, Any]) -> None:
@@ -223,13 +216,11 @@ async def update_tws_config(settings: dict[str, Any]) -> None:
     config["tws_config"] = tws_config
     await _save_config(config)
 
-
 @router.get("/system-settings", tags=["Admin"])
 async def get_system_settings() -> dict[str, Any]:
     """Return current system settings."""
     config = await _load_config()
     return config.get("system_settings", DEFAULT_CONFIG["system_settings"]).copy()
-
 
 @router.post("/system-settings", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_system_settings(settings: dict[str, Any]) -> None:
@@ -251,13 +242,11 @@ async def update_system_settings(settings: dict[str, Any]) -> None:
     config["system_settings"] = sys_cfg
     await _save_config(config)
 
-
 @router.get("/notifications", tags=["Admin"])
 async def get_notifications() -> dict[str, Any]:
     """Return current notification configuration."""
     config = await _load_config()
     return config.get("notifications", DEFAULT_CONFIG["notifications"]).copy()
-
 
 @router.post("/notifications", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
 async def update_notifications(settings: dict[str, Any]) -> None:
@@ -277,7 +266,6 @@ async def update_notifications(settings: dict[str, Any]) -> None:
             notifications[key] = bool(settings[key])
     config["notifications"] = notifications
     await _save_config(config)
-
 
 @router.get("/logs", tags=["Admin"])
 async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
@@ -326,12 +314,11 @@ async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
             dq = deque(f, maxlen=lines)
             content = "".join(dq)
         return {"file": file, "content": content}
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to read log file. Check server logs for details.",
         ) from exc
-
 
 @router.post("/backup", tags=["Admin"])
 async def create_backup() -> dict[str, str]:
@@ -366,13 +353,12 @@ async def create_backup() -> dict[str, str]:
         async with aiofiles.open(backup_file, "w") as f:
             await f.write(json.dumps(backup_data, indent=2))
         return {"created": [backup_file.name], "count": len(backup_data)}
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.error("backup_failed", exc_info=True, extra={"error": str(exc)})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Backup failed. Check server logs for details.",
         ) from exc
-
 
 @router.post("/restore", tags=["Admin"])
 async def restore_from_latest() -> dict[str, str]:
@@ -403,7 +389,6 @@ async def restore_from_latest() -> dict[str, str]:
         "latest_backup": backups[0].name,
         "recommendation": "Use: pg_restore -d resync backup.dump",
     }
-
 
 @router.get("/audit", tags=["Admin"])
 async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
@@ -437,10 +422,9 @@ async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
             for e in entries
         ]
         return {"records": records, "count": len(records)}
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.error("audit_query_failed", exc_info=True, extra={"error": str(exc)})
         return {"records": [], "error": str(exc)}
-
 
 @router.get("/health", tags=["Admin"])
 async def get_health() -> dict[str, Any]:

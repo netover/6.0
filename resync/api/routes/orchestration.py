@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Optional
 from uuid import UUID
 
 from fastapi import (
@@ -30,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orchestration", tags=["Orchestration"])
 
-
 # Dependency for Runner
 def get_runner(request: Request):
     """Get OrchestrationRunner instance with structured concurrency."""
@@ -44,16 +42,14 @@ def get_runner(request: Request):
 
     return OrchestrationRunner(session_factory=get_db_session, tg=bg_tasks)
 
-
 # --- Config Endpoints ---
-
 
 @router.post("/configs", status_code=status.HTTP_201_CREATED)
 async def create_config(
     name: str,
     strategy: str,
     steps: dict,  # Accepts raw dict, validates partially?
-    description: Optional[str] = None,
+    description: str | None = None,
     db: AsyncSession = Depends(get_database),
 ):
     """Create a new orchestration configuration."""
@@ -66,14 +62,13 @@ async def create_config(
         steps_list = steps.get("steps") if isinstance(steps, dict) else steps
         if not isinstance(steps_list, list):
             raise ValueError("Steps must be a list or dict with 'steps' key")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     config = await repo.create(
         name=name, strategy=strategy, steps=steps, description=description
     )
     return config
-
 
 @router.get("/configs")
 async def list_configs(
@@ -82,7 +77,6 @@ async def list_configs(
     """List orchestration configurations."""
     repo = OrchestrationConfigRepository(db)
     return await repo.list_all(limit=limit, offset=offset)
-
 
 @router.get("/configs/{config_id}")
 async def get_config(config_id: UUID, db: AsyncSession = Depends(get_database)):
@@ -93,9 +87,7 @@ async def get_config(config_id: UUID, db: AsyncSession = Depends(get_database)):
         raise HTTPException(status_code=404, detail="Config not found")
     return config
 
-
 # --- Execution Endpoints ---
-
 
 @router.post("/execute/{config_id}", status_code=status.HTTP_202_ACCEPTED)
 async def execute_workflow(
@@ -117,10 +109,9 @@ async def execute_workflow(
         return {"trace_id": trace_id, "status": "accepted"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Execution start failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 @router.get("/status/{trace_id}")
 async def get_execution_status(trace_id: str, db: AsyncSession = Depends(get_database)):
@@ -151,9 +142,7 @@ async def get_execution_status(trace_id: str, db: AsyncSession = Depends(get_dat
         ],
     }
 
-
 # --- WebSocket ---
-
 
 @router.websocket("/ws/execute/{config_id}")
 async def websocket_execute(
@@ -226,12 +215,12 @@ async def websocket_execute(
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("WebSocket error: %s", e)
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-        except Exception:
-            pass
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as close_exc:
+            logger.debug("ws_close_after_error_failed", error=str(close_exc))
     finally:
         # CRITICAL: Cleanup subscription to prevent memory leak
         # Unsubscribe when WebSocket disconnects

@@ -22,7 +22,6 @@ from pydantic import SecretStr, ValidationInfo, field_validator, model_validator
 
 from .settings_types import Environment
 
-
 def _redact_sensitive(val: Any) -> str:
     """Mask sensitive string values for logs/errors."""
     if isinstance(val, SecretStr):
@@ -33,7 +32,6 @@ def _redact_sensitive(val: Any) -> str:
     if len(s) <= 4:
         return "*" * len(s)
     return f"{s[:2]}...{s[-2:]}"
-
 
 class SettingsValidators:
     """Collection of field validators for Settings class."""
@@ -200,7 +198,7 @@ class SettingsValidators:
             if not parsed.hostname:
                 # Do not include the full URL in the error message as it may contain credentials
                 raise ValueError("Redis URL missing hostname")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Mask the URL in the error message
             redacted = _redact_sensitive(val)
             raise ValueError(f"Invalid Redis URL format: {redacted}") from e

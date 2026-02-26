@@ -54,11 +54,9 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
 
-
 # =============================================================================
 # CIRCUIT BREAKER DEFINITIONS
 # =============================================================================
-
 
 class CircuitBreakers(str, Enum):
     """
@@ -89,7 +87,6 @@ class CircuitBreakers(str, Enum):
     HEALTH_CHECK = "health_check"  # Health check operations
     BACKGROUND_SYNC = "background_sync"  # Background sync tasks
 
-
 @dataclass
 class CircuitBreakerSpec:
     """Specification for a circuit breaker."""
@@ -99,7 +96,6 @@ class CircuitBreakerSpec:
     recovery_timeout: int
     description: str
     critical: bool = False  # If True, failures should alert
-
 
 # Pre-configured specs for all circuit breakers
 CIRCUIT_BREAKER_SPECS: dict[CircuitBreakers, CircuitBreakerSpec] = {
@@ -210,11 +206,9 @@ CIRCUIT_BREAKER_SPECS: dict[CircuitBreakers, CircuitBreakerSpec] = {
     ),
 }
 
-
 # =============================================================================
 # CIRCUIT BREAKER REGISTRY
 # =============================================================================
-
 
 class CircuitBreakerRegistry:
     """
@@ -401,11 +395,9 @@ class CircuitBreakerRegistry:
             "last_success": getattr(cb.metrics, "last_success_time", None),
         }
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
 
 def get_circuit_breaker(cb_type: CircuitBreakers) -> CircuitBreaker:
     """
@@ -420,23 +412,19 @@ def get_circuit_breaker(cb_type: CircuitBreakers) -> CircuitBreaker:
     registry = CircuitBreakerRegistry.get_instance_sync()
     return registry.get(cb_type)
 
-
 def get_circuit_breaker_registry() -> CircuitBreakerRegistry:
     """Get the circuit breaker registry."""
     return CircuitBreakerRegistry.get_instance_sync()
-
 
 def get_all_circuit_breaker_status() -> dict[str, dict[str, Any]]:
     """Get status of all circuit breakers."""
     registry = CircuitBreakerRegistry.get_instance_sync()
     return registry.get_all_status()
 
-
 def get_circuit_breaker_health() -> dict[str, Any]:
     """Get health report for circuit breakers."""
     registry = CircuitBreakerRegistry.get_instance_sync()
     return registry.get_health_report()
-
 
 def get_registry() -> CircuitBreakerRegistry:
     """
@@ -446,11 +434,9 @@ def get_registry() -> CircuitBreakerRegistry:
     """
     return CircuitBreakerRegistry.get_instance_sync()
 
-
 # =============================================================================
 # DECORATORS
 # =============================================================================
-
 
 def circuit_protected(
     cb_type: CircuitBreakers,
@@ -501,7 +487,6 @@ def circuit_protected(
         return wrapper
 
     return decorator
-
 
 def multi_circuit_protected(
     primary: CircuitBreakers,
@@ -556,7 +541,7 @@ def multi_circuit_protected(
                         function=func.__name__,
                     )
                     continue
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     last_error = e
                     logger.warning(
                         "circuit_call_failed_trying_next",
@@ -574,11 +559,9 @@ def multi_circuit_protected(
 
     return decorator
 
-
 # =============================================================================
 # ASYNC CONTEXT MANAGER
 # =============================================================================
-
 
 class CircuitBreakerContext:
     """

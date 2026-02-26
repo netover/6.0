@@ -26,7 +26,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 class ProactiveMonitoringManager:
     """
     Gerenciador central do sistema de monitoramento proativo.
@@ -158,7 +157,7 @@ class ProactiveMonitoringManager:
                     self._pattern_detection_loop(), name="pattern_detection_loop"
                 )
             else:
-                self._pattern_detection_task = await create_tracked_task(
+                self._pattern_detection_task = create_tracked_task(
                     self._pattern_detection_loop(), name="pattern_detection_loop"
                 )
 
@@ -168,7 +167,7 @@ class ProactiveMonitoringManager:
                 self._cleanup_loop(), name="cleanup_loop"
             )
         else:
-            self._cleanup_task = await create_tracked_task(
+            self._cleanup_task = create_tracked_task(
                 self._cleanup_loop(), name="cleanup_loop"
             )
 
@@ -215,7 +214,7 @@ class ProactiveMonitoringManager:
         if self._status_store:
             try:
                 await self._status_store.save_event(event)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("failed_to_save_event", error=str(e))
 
         # Se for um ABEND, notifica Teams e tenta encontrar solução
@@ -275,7 +274,7 @@ class ProactiveMonitoringManager:
             finally:
                 db.close()
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -339,7 +338,7 @@ class ProactiveMonitoringManager:
                     success_rate=solution["success_rate"],
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("solution_suggestion_error", error=str(e))
 
     async def _pattern_detection_loop(self) -> None:
@@ -365,7 +364,7 @@ class ProactiveMonitoringManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("pattern_detection_error", error=str(e))
                 await asyncio.sleep(60)  # Wait before retry
 
@@ -414,7 +413,7 @@ class ProactiveMonitoringManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("cleanup_error", error=str(e))
                 await asyncio.sleep(3600)  # Wait 1h before retry
 
@@ -475,18 +474,15 @@ class ProactiveMonitoringManager:
     def config(self):
         return self._config
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _manager_instance: ProactiveMonitoringManager | None = None
 
-
 def get_monitoring_manager() -> ProactiveMonitoringManager | None:
     """Retorna instância singleton do manager."""
     return _manager_instance
-
 
 def init_monitoring_manager() -> ProactiveMonitoringManager:
     """Inicializa o manager singleton."""
@@ -497,11 +493,9 @@ def init_monitoring_manager() -> ProactiveMonitoringManager:
 
     return _manager_instance
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
 
 async def setup_proactive_monitoring(
     tws_client: Any,
@@ -529,7 +523,6 @@ async def setup_proactive_monitoring(
         await manager.start(tg=tg)
 
     return manager
-
 
 async def shutdown_proactive_monitoring() -> None:
     """Para e limpa o sistema de monitoramento."""

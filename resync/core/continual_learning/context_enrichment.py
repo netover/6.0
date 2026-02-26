@@ -21,7 +21,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class EnrichmentResult:
     """Result of query enrichment."""
@@ -32,7 +31,6 @@ class EnrichmentResult:
     entities_found: dict[str, list[str]]
     enrichment_source: str
     confidence: float = 1.0
-
 
 @dataclass
 class EntityContext:
@@ -55,7 +53,6 @@ class EntityContext:
     # General
     last_seen: datetime | None = None
     notes: list[str] = field(default_factory=list)
-
 
 class ContextEnricher:
     """
@@ -312,7 +309,7 @@ class ContextEnricher:
                             f"Erros comuns {job_name}: {', '.join(top_errors)}"
                         )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Error getting job context for %s: %s", job_name, e)
 
         return context_parts
@@ -342,7 +339,7 @@ class ContextEnricher:
                         f"Erro {error_code}: resolução comum '{resolution[:50]}'"
                     )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Error getting error context for %s: %s", error_code, e)
 
         return context_parts
@@ -375,7 +372,7 @@ class ContextEnricher:
                     jobs = list(downstream)[:3]
                     context_parts.append(f"Jobs após {job_name}: {', '.join(jobs)}")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.debug("Error getting dependency context for %s: %s", job_name, e)
 
         return context_parts
@@ -417,7 +414,7 @@ class ContextEnricher:
 
                     downstream = await kg.get_downstream_jobs(entity_id, max_depth=1)
                     context.dependents = list(downstream) if downstream else []
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -455,10 +452,8 @@ class ContextEnricher:
 
         return " | ".join(parts) if parts else ""
 
-
 # Singleton instance
 _enricher: ContextEnricher | None = None
-
 
 def get_context_enricher() -> ContextEnricher:
     """Get global context enricher instance."""
@@ -466,7 +461,6 @@ def get_context_enricher() -> ContextEnricher:
     if _enricher is None:
         _enricher = ContextEnricher()
     return _enricher
-
 
 async def enrich_query(
     query: str,

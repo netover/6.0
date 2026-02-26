@@ -31,7 +31,6 @@ from resync.core.task_tracker import track_task
 
 logger = structlog.get_logger(__name__)
 
-
 class EventType(str, Enum):
     """Tipos de eventos gerados pelo poller."""
 
@@ -58,7 +57,6 @@ class EventType(str, Enum):
     ANOMALY_DETECTED = "anomaly_detected"
     PATTERN_DETECTED = "pattern_detected"
 
-
 class AlertSeverity(str, Enum):
     """Severidade dos alertas."""
 
@@ -66,7 +64,6 @@ class AlertSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 @dataclass
 class TWSEvent:
@@ -95,7 +92,6 @@ class TWSEvent:
             "previous_state": self.previous_state,
             "current_state": self.current_state,
         }
-
 
 @dataclass
 class JobStatus:
@@ -126,7 +122,6 @@ class JobStatus:
             "error_message": self.error_message,
         }
 
-
 @dataclass
 class WorkstationStatus:
     """Status de uma workstation."""
@@ -147,7 +142,6 @@ class WorkstationStatus:
             "jobs_pending": self.jobs_pending,
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
         }
-
 
 @dataclass
 class SystemSnapshot:
@@ -177,7 +171,6 @@ class SystemSnapshot:
                 "system_health": self.system_health,
             },
         }
-
 
 class TWSBackgroundPoller:
     """
@@ -370,7 +363,7 @@ class TWSBackgroundPoller:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 self._errors_count += 1
                 logger.error(
                     "polling_error",
@@ -441,7 +434,7 @@ class TWSBackgroundPoller:
                 system_health=system_health,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -784,7 +777,7 @@ class TWSBackgroundPoller:
                 else:
                     # P1 fix: Run sync handler in thread pool and await the result
                     await asyncio.to_thread(handler, event)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "event_handler_error",
                     error=str(e),
@@ -800,7 +793,7 @@ class TWSBackgroundPoller:
                 else:
                     # P1 fix: Run sync handler in thread pool and await the result
                     await asyncio.to_thread(handler, snapshot)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("snapshot_handler_error", error=str(e))
 
     async def _persist_snapshot(self, snapshot: SystemSnapshot) -> None:
@@ -808,7 +801,7 @@ class TWSBackgroundPoller:
         if self.status_store:
             try:
                 await self.status_store.save_snapshot(snapshot)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("snapshot_persistence_error", error=str(e))
 
     # =========================================================================
@@ -840,18 +833,15 @@ class TWSBackgroundPoller:
         """Força uma coleta imediata."""
         return await self._collect_snapshot()
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _poller_instance: TWSBackgroundPoller | None = None
 
-
 def get_tws_poller() -> TWSBackgroundPoller | None:
     """Retorna instância singleton do poller."""
     return _poller_instance
-
 
 def init_tws_poller(
     tws_client: Any,

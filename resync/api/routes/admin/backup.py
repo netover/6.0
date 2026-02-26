@@ -27,6 +27,8 @@ Endpoints:
 
 from typing import Any
 
+import asyncio
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -50,11 +52,9 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # REQUEST/RESPONSE MODELS
 # =============================================================================
-
 
 class CreateBackupRequest(BaseModel):
     """Request to create a backup."""
@@ -69,7 +69,6 @@ class CreateBackupRequest(BaseModel):
     collection_name: str | None = Field(
         default=None, description="Collection name for RAG backup"
     )
-
 
 class BackupResponse(BaseModel):
     """Response with backup information."""
@@ -106,13 +105,11 @@ class BackupResponse(BaseModel):
             error=backup.error,
         )
 
-
 class BackupListResponse(BaseModel):
     """Response with list of backups."""
 
     backups: list[BackupResponse]
     total: int
-
 
 class CreateScheduleRequest(BaseModel):
     """Request to create a backup schedule."""
@@ -128,14 +125,12 @@ class CreateScheduleRequest(BaseModel):
         default=30, ge=1, le=365, description="Days to retain backups"
     )
 
-
 class UpdateScheduleRequest(BaseModel):
     """Request to update a backup schedule."""
 
     enabled: bool | None = None
     cron_expression: str | None = None
     retention_days: int | None = Field(default=None, ge=1, le=365)
-
 
 class ScheduleResponse(BaseModel):
     """Response with schedule information."""
@@ -164,12 +159,10 @@ class ScheduleResponse(BaseModel):
             created_at=schedule.created_at.isoformat(),
         )
 
-
 class ScheduleListResponse(BaseModel):
     """Response with list of schedules."""
 
     schedules: list[ScheduleResponse]
-
 
 class BackupStatsResponse(BaseModel):
     """Response with backup statistics."""
@@ -181,12 +174,10 @@ class BackupStatsResponse(BaseModel):
     active_schedules: int
     backup_directory: str
 
-
 class CleanupRequest(BaseModel):
     """Request to cleanup old backups."""
 
     retention_days: int = Field(default=30, ge=1, le=365)
-
 
 class CleanupResponse(BaseModel):
     """Response with cleanup result."""
@@ -194,11 +185,9 @@ class CleanupResponse(BaseModel):
     deleted_count: int
     retention_days: int
 
-
 # =============================================================================
 # BACKUP ENDPOINTS
 # =============================================================================
-
 
 @router.post("/database", response_model=BackupResponse)
 async def create_database_backup(
@@ -218,13 +207,12 @@ async def create_database_backup(
             compress=request.compress,
         )
         return BackupResponse.from_backup_info(backup)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("create_database_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.post("/config", response_model=BackupResponse)
 async def create_config_backup(request: CreateBackupRequest):
@@ -236,18 +224,18 @@ async def create_config_backup(request: CreateBackupRequest):
     service = get_backup_service()
 
     try:
-        backup = service.create_config_backup(
+        backup = await asyncio.to_thread(
+            service.create_config_backup,
             description=request.description,
             include_env=request.include_env,
         )
         return BackupResponse.from_backup_info(backup)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("create_config_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.post("/full", response_model=BackupResponse)
 async def create_full_backup(request: CreateBackupRequest):
@@ -261,13 +249,12 @@ async def create_full_backup(request: CreateBackupRequest):
     try:
         backup = await service.create_full_backup(description=request.description)
         return BackupResponse.from_backup_info(backup)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("create_full_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/list", response_model=BackupListResponse)
 async def list_backups(
@@ -312,7 +299,6 @@ async def list_backups(
         total=len(backups),
     )
 
-
 @router.get("/{backup_id}", response_model=BackupResponse)
 async def get_backup(backup_id: str):
     """
@@ -325,7 +311,6 @@ async def get_backup(backup_id: str):
         raise HTTPException(status_code=404, detail="Backup not found")
 
     return BackupResponse.from_backup_info(backup)
-
 
 @router.get("/{backup_id}/download")
 async def download_backup(backup_id: str):
@@ -356,7 +341,6 @@ async def download_backup(backup_id: str):
         media_type=media_type,
     )
 
-
 @router.delete("/{backup_id}")
 async def delete_backup(backup_id: str):
     """
@@ -370,11 +354,9 @@ async def delete_backup(backup_id: str):
 
     return {"message": "Backup deleted", "backup_id": backup_id}
 
-
 # =============================================================================
 # SCHEDULE ENDPOINTS
 # =============================================================================
-
 
 @router.get("/schedules", response_model=ScheduleListResponse)
 async def list_schedules():
@@ -387,7 +369,6 @@ async def list_schedules():
     return ScheduleListResponse(
         schedules=[ScheduleResponse.from_schedule(s) for s in schedules]
     )
-
 
 @router.post("/schedules", response_model=ScheduleResponse)
 async def create_schedule(request: CreateScheduleRequest):
@@ -422,7 +403,6 @@ async def create_schedule(request: CreateScheduleRequest):
 
     return ScheduleResponse.from_schedule(schedule)
 
-
 @router.put("/schedules/{schedule_id}", response_model=ScheduleResponse)
 async def update_schedule(schedule_id: str, request: UpdateScheduleRequest):
     """
@@ -442,7 +422,6 @@ async def update_schedule(schedule_id: str, request: UpdateScheduleRequest):
 
     return ScheduleResponse.from_schedule(schedule)
 
-
 @router.delete("/schedules/{schedule_id}")
 async def delete_schedule(schedule_id: str):
     """
@@ -456,11 +435,9 @@ async def delete_schedule(schedule_id: str):
 
     return {"message": "Schedule deleted", "schedule_id": schedule_id}
 
-
 # =============================================================================
 # UTILITY ENDPOINTS
 # =============================================================================
-
 
 @router.get("/stats", response_model=BackupStatsResponse)
 async def get_backup_stats():
@@ -471,7 +448,6 @@ async def get_backup_stats():
     stats = service.get_statistics()
 
     return BackupStatsResponse(**stats)
-
 
 @router.post("/cleanup", response_model=CleanupResponse)
 async def cleanup_old_backups(request: CleanupRequest):
@@ -489,7 +465,6 @@ async def cleanup_old_backups(request: CleanupRequest):
         retention_days=request.retention_days,
     )
 
-
 @router.post("/scheduler/start")
 async def start_scheduler():
     """
@@ -500,7 +475,6 @@ async def start_scheduler():
 
     return {"message": "Backup scheduler started"}
 
-
 @router.post("/scheduler/stop")
 async def stop_scheduler():
     """
@@ -510,7 +484,6 @@ async def stop_scheduler():
     await service.stop_scheduler()
 
     return {"message": "Backup scheduler stopped"}
-
 
 @router.post(
     "/rag/index",
@@ -538,7 +511,6 @@ async def create_rag_index_backup(request: CreateBackupRequest):
 
     raise HTTPException(status_code=500, detail="Failed to create RAG index backup")
 
-
 @router.get("/rag/list", response_model=BackupListResponse)
 async def list_rag_backups():
     """
@@ -551,7 +523,6 @@ async def list_rag_backups():
         backups=[BackupResponse.from_backup_info(b) for b in backups],
         total=len(backups),
     )
-
 
 @router.post(
     "/rag/{backup_id}/restore",

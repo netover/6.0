@@ -29,7 +29,6 @@ from resync.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class ErrorResponseBuilder:
     """Builder class for creating standardized error responses."""
 
@@ -236,11 +235,9 @@ class ErrorResponseBuilder:
             **kwargs,
         )
 
-
 def generate_correlation_id() -> str:
     """Generate a unique correlation ID for error tracking."""
     return str(uuid.uuid4())
-
 
 def extract_validation_errors(
     validation_error: RequestValidationError | ValidationError,
@@ -261,7 +258,6 @@ def extract_validation_errors(
 
     return errors
 
-
 def should_include_stack_trace() -> bool:
     """Determine if stack traces should be included in error responses."""
     # In development environment, include stack traces for debugging
@@ -274,7 +270,6 @@ def should_include_stack_trace() -> bool:
 
     # Default to not including stack traces in production
     return False
-
 
 def log_error_response(
     error_response: BaseErrorResponse, original_exception: Exception | None = None
@@ -309,7 +304,6 @@ def log_error_response(
     else:
         logger.info("Low severity error occurred: %s", log_data)
 
-
 def get_error_status_code(error_category: ErrorCategory) -> int:
     """Get HTTP status code based on error category."""
     status_code_map = {
@@ -323,7 +317,6 @@ def get_error_status_code(error_category: ErrorCategory) -> int:
         ErrorCategory.RATE_LIMIT: status.HTTP_429_TOO_MANY_REQUESTS,
     }
     return status_code_map.get(error_category, status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ErrorSanitizer:
     """
@@ -363,7 +356,6 @@ class ErrorSanitizer:
 
         return sanitized
 
-
 @lru_cache(maxsize=128)
 def get_sensitive_patterns() -> frozenset[Pattern]:
     """
@@ -388,7 +380,6 @@ def get_sensitive_patterns() -> frozenset[Pattern]:
         ]
     )
 
-
 def sanitize_error_message(message: str) -> str:
     """
     Sanitize error messages to prevent sensitive information disclosure.
@@ -398,7 +389,6 @@ def sanitize_error_message(message: str) -> str:
     """
     return ErrorSanitizer.sanitize(message)
 
-
 def create_json_response_from_error(error_response: BaseErrorResponse) -> JSONResponse:
     """Create FastAPI JSONResponse from standardized error response."""
     status_code = get_error_status_code(error_response.category)
@@ -406,7 +396,6 @@ def create_json_response_from_error(error_response: BaseErrorResponse) -> JSONRe
     content = error_response.model_dump(exclude_none=True, mode="json")
 
     return JSONResponse(status_code=status_code, content=content)
-
 
 def register_exception_handlers(app):
     """Register standardized exception handlers for the FastAPI application."""
@@ -495,7 +484,6 @@ def register_exception_handlers(app):
         return create_json_response_from_error(error_response)
 
     return app
-
 
 def create_error_response_from_exception(
     exception: Exception,

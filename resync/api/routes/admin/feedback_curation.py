@@ -34,11 +34,9 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # PYDANTIC MODELS
 # =============================================================================
-
 
 class ApprovalRequest(BaseModel):
     """Request para aprovar feedback e incorporar conhecimento."""
@@ -50,13 +48,11 @@ class ApprovalRequest(BaseModel):
     )
     notes: str | None = Field(None, description="Notas do revisor")
 
-
 class RejectionRequest(BaseModel):
     """Request para rejeitar feedback."""
 
     reviewer_id: str = Field(..., description="ID do revisor")
     reason: str = Field(..., description="Motivo da rejeição")
-
 
 class FeedbackListItem(BaseModel):
     """Item da lista de feedback."""
@@ -70,7 +66,6 @@ class FeedbackListItem(BaseModel):
     curation_status: str
     created_at: str
     has_correction: bool
-
 
 class FeedbackDetail(BaseModel):
     """Detalhes completos de um feedback."""
@@ -91,7 +86,6 @@ class FeedbackDetail(BaseModel):
     approved_at: str | None = None
     incorporated_doc_id: str | None = None
 
-
 class CurationStats(BaseModel):
     """Estatísticas de curadoria."""
 
@@ -103,7 +97,6 @@ class CurationStats(BaseModel):
     avg_rating: float | None = None
     pending_with_correction: int
 
-
 class ApprovalResponse(BaseModel):
     """Resposta de aprovação."""
 
@@ -112,11 +105,9 @@ class ApprovalResponse(BaseModel):
     incorporated: bool
     doc_id: str | None = None
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
 
 async def _get_feedback_by_id(feedback_id: int):
     """Busca feedback por ID usando o repositório."""
@@ -130,7 +121,6 @@ async def _get_feedback_by_id(feedback_id: int):
         )
         return result.scalar_one_or_none()
 
-
 async def _update_feedback(feedback_id: int, **updates):
     """Atualiza feedback no banco."""
     from sqlalchemy import update
@@ -143,11 +133,9 @@ async def _update_feedback(feedback_id: int, **updates):
         )
         await session.commit()
 
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
-
 
 class PaginatedFeedbackResponse(BaseModel):
     """Resposta paginada de feedbacks."""
@@ -159,7 +147,6 @@ class PaginatedFeedbackResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_previous: bool
-
 
 @router.get("/pending", response_model=PaginatedFeedbackResponse)
 async def list_pending_feedback(
@@ -273,7 +260,7 @@ async def list_pending_feedback(
                 has_previous=has_previous,
             )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -282,7 +269,6 @@ async def list_pending_feedback(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/{feedback_id}", response_model=FeedbackDetail)
 async def get_feedback_detail(feedback_id: int):
@@ -314,7 +300,7 @@ async def get_feedback_detail(feedback_id: int):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -323,7 +309,6 @@ async def get_feedback_detail(feedback_id: int):
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.get("/stats", response_model=CurationStats)
 async def get_curation_stats():
@@ -370,7 +355,7 @@ async def get_curation_stats():
                 pending_with_correction=pending_correction_count,
             )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -379,7 +364,6 @@ async def get_curation_stats():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.post("/{feedback_id}/approve", response_model=ApprovalResponse)
 async def approve_and_incorporate(
@@ -473,7 +457,7 @@ async def approve_and_incorporate(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -482,7 +466,6 @@ async def approve_and_incorporate(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.post("/{feedback_id}/reject")
 async def reject_feedback(
@@ -533,7 +516,7 @@ async def reject_feedback(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -542,7 +525,6 @@ async def reject_feedback(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.delete("/{feedback_id}/rollback")
 async def rollback_incorporation(
@@ -604,7 +586,7 @@ async def rollback_incorporation(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -613,7 +595,6 @@ async def rollback_incorporation(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
 
 @router.post("/bulk-approve")
 async def bulk_approve(
@@ -663,12 +644,12 @@ async def bulk_approve(
 
             except HTTPException as he:
                 results["errors"].append({"id": fid, "error": he.detail})
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 results["errors"].append({"id": fid, "error": str(e)})
 
         return results
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

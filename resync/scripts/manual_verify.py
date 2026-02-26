@@ -19,12 +19,10 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 from resync.core.utils.async_bridge import run_sync
 
-
 def _require(condition: bool, message: str) -> None:
     """Raise a runtime error when a manual check fails."""
     if not condition:
         raise RuntimeError(message)
-
 
 MOCKED_IMPORT_MODULES = (
     "fastapi",
@@ -34,7 +32,6 @@ MOCKED_IMPORT_MODULES = (
     "resync.core.metrics",
     "structlog",
 )
-
 
 def _install_import_mocks() -> None:
     """Install module mocks required to import runtime modules in isolation."""
@@ -50,7 +47,6 @@ def _install_import_mocks() -> None:
     fastapi.status = MagicMock()
     fastapi.responses.JSONResponse = MagicMock
 
-
 @contextlib.contextmanager
 def _patched_import_mocks() -> Iterator[None]:
     """Temporarily install import mocks and restore previous modules afterwards."""
@@ -64,7 +60,6 @@ def _patched_import_mocks() -> Iterator[None]:
                 sys.modules.pop(name, None)
             else:
                 sys.modules[name] = module
-
 
 async def test_dashboard_redis_integration() -> None:
     """Validate Redis persistence and pub/sub broadcast paths."""
@@ -168,7 +163,6 @@ async def test_dashboard_redis_integration() -> None:
 
     print("test_dashboard_redis_integration passed!")
 
-
 async def test_workflows_history() -> None:
     """Validate history mappers default and float handling."""
     from resync.workflows.nodes_verbose import (
@@ -236,7 +230,6 @@ async def test_workflows_history() -> None:
         )
     print("test_workflows_history passed!")
 
-
 async def test_settings_validation() -> bool:
     """Validate formal Settings object and validators (Issues 3, 4, 15)."""
     print("\n--- [Issue 3 & 4] Running Settings Validation ---")
@@ -258,10 +251,9 @@ async def test_settings_validation() -> bool:
 
         print("\nSettings validation PASSED.")
         return True
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         print(f"\nSettings validation FAILED: {e}")
         return False
-
 
 def _redact_sensitive(val: Any) -> str:
     """Helper for redacted dump in manual verify."""
@@ -275,7 +267,6 @@ def _redact_sensitive(val: Any) -> str:
     if len(s) <= 4:
         return "*" * len(s)
     return f"{s[:2]}...{s[-2:]}"
-
 
 async def main() -> int:
     """Main entry point with fail-fast (Issue 8)."""
@@ -291,14 +282,14 @@ async def main() -> int:
     # 2. Redis Integration
     try:
         await test_dashboard_redis_integration()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         print(f"test_dashboard_redis_integration FAILED: {e}")
         success = False
 
     # 3. Workflows History
     try:
         await test_workflows_history()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         print(f"test_workflows_history FAILED: {e}")
         success = False
 
@@ -308,7 +299,6 @@ async def main() -> int:
     else:
         print("\nSOME VERIFICATIONS FAILED.")
         return 1
-
 
 if __name__ == "__main__":
     exit_code = run_sync(main())

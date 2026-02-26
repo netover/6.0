@@ -21,7 +21,6 @@ from .base_health_checker import BaseHealthChecker
 
 logger = structlog.get_logger(__name__)
 
-
 class CacheHealthChecker(BaseHealthChecker):
     """
     Health checker for cache hierarchy functionality.
@@ -92,7 +91,7 @@ class CacheHealthChecker(BaseHealthChecker):
                 metadata=metrics,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             response_time = (time.time() - start_time) * 1000
             logger.error("cache_hierarchy_health_check_failed", error=str(e))
             return ComponentHealth(

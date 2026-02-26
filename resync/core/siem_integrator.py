@@ -23,7 +23,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -31,7 +31,6 @@ from resync.core.structured_logger import get_logger
 from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
-
 
 class SIEMType(Enum):
     """Supported SIEM types."""
@@ -44,7 +43,6 @@ class SIEMType(Enum):
     LOGRHYTHM = "logrhythm"
     CUSTOM = "custom"
 
-
 class EventFormat(Enum):
     """Standard event formats."""
 
@@ -54,7 +52,6 @@ class EventFormat(Enum):
     SYSLOG = "syslog"
     RAW = "raw"
 
-
 class SIEMStatus(Enum):
     """SIEM connection status."""
 
@@ -63,7 +60,6 @@ class SIEMStatus(Enum):
     CONNECTING = "connecting"
     ERROR = "error"
     MAINTENANCE = "maintenance"
-
 
 @dataclass
 class SIEMEvent:
@@ -182,7 +178,6 @@ class SIEMEvent:
         mapping = {"informational": 0, "low": 1, "medium": 5, "high": 8, "critical": 10}
         return mapping.get(severity.lower(), 5)
 
-
 @dataclass
 class SIEMConfiguration:
     """Configuration for SIEM integration."""
@@ -214,7 +209,6 @@ class SIEMConfiguration:
                 headers["X-API-Key"] = self.api_key
 
         return headers
-
 
 class SIEMConnector(ABC):
     """Abstract base class for SIEM connectors."""
@@ -263,7 +257,6 @@ class SIEMConnector(ABC):
             ),
         }
 
-
 class SplunkConnector(SIEMConnector):
     """Splunk SIEM connector."""
 
@@ -295,7 +288,7 @@ class SplunkConnector(SIEMConnector):
             self.status = SIEMStatus.ERROR
             return False
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions and programming errors (bugs)
             if isinstance(
                 e,
@@ -365,7 +358,7 @@ class SplunkConnector(SIEMConnector):
                 )
                 return 0
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -388,13 +381,12 @@ class SplunkConnector(SIEMConnector):
                     return {"status": "ok", "response_time": time.time()}
                 return {"status": "error", "http_status": response.status}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
             logger.error("exception_caught", error=str(e), exc_info=True)
             return {"status": "error", "error": str(e)}
-
 
 class ELKConnector(SIEMConnector):
     """ELK Stack (Elasticsearch) SIEM connector."""
@@ -427,7 +419,7 @@ class ELKConnector(SIEMConnector):
             self.status = SIEMStatus.ERROR
             return False
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions and programming errors
             if isinstance(
                 e,
@@ -499,7 +491,7 @@ class ELKConnector(SIEMConnector):
                 )
                 return 0
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -526,13 +518,12 @@ class ELKConnector(SIEMConnector):
                     }
                 return {"status": "error", "http_status": response.status}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
             logger.error("exception_caught", error=str(e), exc_info=True)
             return {"status": "error", "error": str(e)}
-
 
 class SIEMIntegrator:
     """
@@ -646,7 +637,7 @@ class SIEMIntegrator:
             logger.info("Added SIEM connector: %s (%s)", name, config.siem_type.value)
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(
                 e,
@@ -786,7 +777,7 @@ class SIEMIntegrator:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -809,7 +800,7 @@ class SIEMIntegrator:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -838,7 +829,7 @@ class SIEMIntegrator:
                         self.circuit_breaker.record_failure(name)
                         logger.warning("Failed to send events to %s", name)
 
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     # Re-raise critical system exceptions
                     if isinstance(
                         e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -883,14 +874,13 @@ class SIEMIntegrator:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
                 ):
                     raise
                 logger.error("Health monitor error: %s", e, exc_info=True)
-
 
 class EventCorrelationEngine:
     """Engine for correlating security events."""
@@ -949,7 +939,6 @@ class EventCorrelationEngine:
         # Real implementation would check against historical events
         return None
 
-
 class EventEnrichmentEngine:
     """Engine for enriching security events with additional context."""
 
@@ -971,7 +960,6 @@ class EventEnrichmentEngine:
 
         # Add category-based tags
         event.tags.add(f"category_{event.category}")
-
 
 class SIEMCircuitBreaker:
     """Circuit breaker for SIEM connections."""
@@ -1015,12 +1003,10 @@ class SIEMCircuitBreaker:
         self.failure_counts[siem_name] = 0
         self.last_failures[siem_name] = time.time()
 
-
 # Global SIEM integrator instance
 # Lazily instantiate the SIEMIntegrator to avoid import-time heavy initialization
 # (important for gunicorn --preload and faster module import).
-_siem_integrator_instance: Optional["SIEMIntegrator"] = None
-
+_siem_integrator_instance: "SIEMIntegrator" | None = None
 
 def get_siem_integrator_sync() -> "SIEMIntegrator":
     """Return the singleton instance synchronously."""
@@ -1029,15 +1015,12 @@ def get_siem_integrator_sync() -> "SIEMIntegrator":
         _siem_integrator_instance = SIEMIntegrator()
     return _siem_integrator_instance
 
-
 class _LazySIEMIntegratorProxy:
     def __getattr__(self, item):
         return getattr(get_siem_integrator(), item)
 
-
 # Backward-compatible module-level symbol (lazy proxy)
 siem_integrator = _LazySIEMIntegratorProxy()
-
 
 async def get_siem_integrator() -> SIEMIntegrator:
     """Get the global SIEM integrator instance."""

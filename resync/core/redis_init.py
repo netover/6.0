@@ -12,7 +12,7 @@ import os
 import socket
 from collections.abc import Awaitable
 from contextlib import suppress
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, cast
 
 from resync.core.task_tracker import create_tracked_task
 
@@ -48,20 +48,17 @@ except ImportError:  # redis opcional
 
 logger = logging.getLogger(__name__)
 
-
 async def _ensure_awaitable_bool(result: Awaitable[bool] | bool) -> bool:
     """Normalize redis methods that may return bool or awaitable bool."""
     if inspect.isawaitable(result):
         return await cast(Awaitable[bool], result)
     return cast(bool, result)
 
-
 async def _ensure_awaitable_str(result: Awaitable[str] | str) -> str:
     """Normalize redis eval that may return str or awaitable str."""
     if inspect.isawaitable(result):
         return await cast(Awaitable[str], result)
     return cast(str, result)
-
 
 def _resolve_redis_url(url_value: object) -> str:
     """Normalize redis url value from str/SecretStr-like objects."""
@@ -74,7 +71,6 @@ def _resolve_redis_url(url_value: object) -> str:
     if url_value is None:
         return "redis://localhost:6379/0"
     return str(url_value)
-
 
 def _env_flag(name: str, default: str = "0") -> bool:
     """Return True when an env var is set to a truthy value.
@@ -92,20 +88,16 @@ def _env_flag(name: str, default: str = "0") -> bool:
         return False
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
-
 class RedisInitError(RuntimeError):
     """Erro de inicialização do Redis."""
 
+_REDIS_CLIENT: "redis.Redis" | None = None  # type: ignore
 
-_REDIS_CLIENT: Optional["redis.Redis"] = None  # type: ignore
-
-_IDEMPOTENCY_MANAGER: Optional["IdempotencyManager"] = None
-
+_IDEMPOTENCY_MANAGER: "IdempotencyManager" | None = None
 
 def is_redis_available() -> bool:
     """Check if Redis library is available."""
     return redis is not None
-
 
 def get_redis_client() -> "redis.Redis":  # type: ignore
     """Return the canonical Redis client.
@@ -157,7 +149,6 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
 
     return _REDIS_CLIENT
 
-
 async def close_redis_client() -> None:
     """Close the global Redis client if it exists.
 
@@ -168,10 +159,9 @@ async def close_redis_client() -> None:
     if _REDIS_CLIENT is not None:
         try:
             await _REDIS_CLIENT.close()
-        except Exception:
-            pass  # best-effort; logged by caller
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            logger.debug("redis_close_error_ignored", error=str(exc))  # best-effort on shutdown
         _REDIS_CLIENT = None
-
 
 def get_idempotency_manager() -> "IdempotencyManager":
     """Return the global idempotency manager if initialized.
@@ -187,7 +177,6 @@ def get_idempotency_manager() -> "IdempotencyManager":
         client = get_redis_client()
         _IDEMPOTENCY_MANAGER = IdempotencyManager(client)
     return _IDEMPOTENCY_MANAGER
-
 
 class RedisInitializer:
     """
@@ -276,7 +265,7 @@ class RedisInitializer:
                         # when init lock is held elsewhere.
                         try:
                             await redis_client.close()
-                        except Exception:
+                        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                             logger.debug("redis_client_close_failed", exc_info=True)
                         await asyncio.sleep(2)
                         continue
@@ -324,7 +313,7 @@ class RedisInitializer:
                             self._health_task.cancel()
                             with suppress(asyncio.CancelledError):
                                 await self._health_task
-                        self._health_task = await create_tracked_task(
+                        self._health_task = create_tracked_task(
                             self._health_check_loop(health_check_interval)
                         )
 
@@ -348,7 +337,7 @@ class RedisInitializer:
                     logger.critical(msg)
                     raise RedisInitError(msg) from e
 
-                except Exception as e:  # pylint
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # pylint
                     msg = "Unexpected error during Redis initialization"
                     logger.critical(msg, exc_info=True)
                     raise RedisInitError(f"{msg}: {e}") from e
@@ -434,10 +423,8 @@ class RedisInitializer:
             with suppress(RedisError, ConnectionError):
                 await self._client.connection_pool.disconnect()
 
-
 # Global Redis initializer instance - lazy initialization
 _redis_initializer: RedisInitializer | None = None
-
 
 def get_redis_initializer() -> RedisInitializer:
     """

@@ -53,14 +53,12 @@ except ImportError:
     logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
-
 class RelationConfidence(str, Enum):
     """Confidence level for a relationship."""
 
     EXPLICIT = "explicit"
     INFERRED = "inferred"
     TEMPORAL = "temporal"
-
 
 @dataclass
 class TemporalState:
@@ -70,7 +68,6 @@ class TemporalState:
     timestamp: datetime
     state: dict[str, Any]
     source: str = "api"
-
 
 @dataclass
 class VerifiedRelationship:
@@ -84,7 +81,6 @@ class VerifiedRelationship:
     first_seen: datetime | None = None
     last_verified: datetime | None = None
 
-
 @dataclass
 class IntersectionResult:
     """Result of a common neighbor analysis."""
@@ -97,7 +93,6 @@ class IntersectionResult:
     conflict_risk: str
     explanation: str
 
-
 @dataclass
 class NegationResult:
     """Result of a negation/exclusion query."""
@@ -107,7 +102,6 @@ class NegationResult:
     excluded_entities: set[str]
     result_entities: set[str]
     exclusion_reason: str
-
 
 class TemporalGraphManager:
     """
@@ -335,7 +329,6 @@ class TemporalGraphManager:
             "max_history_per_entity": self.max_history,
         }
 
-
 class NegationQueryEngine:
     """
     Handles negation and exclusion queries using set operations.
@@ -500,7 +493,6 @@ class NegationQueryEngine:
             result_entities=result,
             exclusion_reason=f"Excluded {len(entities_with_property)} entities with {property_name}={property_value}",
         )
-
 
 class CommonNeighborAnalyzer:
     """
@@ -686,7 +678,6 @@ class CommonNeighborAnalyzer:
                 for pred in nx.ancestors(self._graph, job):
                     dependency_count[pred] += 1
         return {dep: count for dep, count in dependency_count.items() if count > 1}
-
 
 class EdgeVerificationEngine:
     """
@@ -903,7 +894,6 @@ class EdgeVerificationEngine:
             },
         }
 
-
 class AdvancedGraphQueryService:
     """
     Unified service combining all 4 advanced query techniques.
@@ -1075,9 +1065,7 @@ class AdvancedGraphQueryService:
             "graph_edges": self._graph.number_of_edges() if self._graph else 0,
         }
 
-
 _advanced_query_service: AdvancedGraphQueryService | None = None
-
 
 def get_advanced_query_service(
     graph: nx.DiGraph | None = None,

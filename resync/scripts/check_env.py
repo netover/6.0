@@ -19,7 +19,6 @@ import os
 import sys
 from pathlib import Path
 
-
 def get_required_vars() -> list[tuple[str, str]]:
     """
     Return list of (variable_name, description) tuples.
@@ -40,7 +39,6 @@ def get_required_vars() -> list[tuple[str, str]]:
         ),
     ]
 
-
 def get_optional_warn_vars() -> list[tuple[str, str]]:
     """
     Return list of (variable_name, description) tuples.
@@ -52,7 +50,6 @@ def get_optional_warn_vars() -> list[tuple[str, str]]:
         ("LANGFUSE_SECRET_KEY", "Langfuse observability secret"),
         ("GRAPHRAG_ENABLED", "Enable GraphRAG (true/false)"),
     ]
-
 
 def validate_env_file_exists() -> bool:
     """Check if .env file exists in expected locations."""
@@ -66,7 +63,6 @@ def validate_env_file_exists() -> bool:
         if location.exists():
             return True
     return False
-
 
 def check_required_vars() -> tuple[bool, list[str]]:
     """
@@ -130,7 +126,6 @@ def check_required_vars() -> tuple[bool, list[str]]:
 
     return len(errors) == 0, errors
 
-
 def check_optional_vars() -> list[str]:
     """
     Check optional environment variables.
@@ -147,7 +142,6 @@ def check_optional_vars() -> list[str]:
             )
 
     return warnings
-
 
 def main() -> int:
     """Main entry point. Returns 0 on success, 1 on failure."""
@@ -187,11 +181,10 @@ def main() -> int:
         print("   3. For Docker: add --env-file or set variables in docker-compose.yml")
         return 1
 
-
 if __name__ == "__main__":
     try:
         exit_code = main()
         sys.exit(exit_code)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         print(f"[ERROR] Unexpected error during validation: {e}")
         sys.exit(1)

@@ -11,15 +11,17 @@ No Global State:
 """
 
 import hashlib
+import os
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.staticfiles import FileResponse
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
+from starlette.types import Scope
 
 from resync.core.structured_logger import configure_structured_logging, get_logger
 from resync.settings import settings
@@ -27,13 +29,11 @@ from resync.settings import settings
 if TYPE_CHECKING:
     from resync.core.startup import lifespan as app_lifespan
 
-
 def _get_lifespan() -> "app_lifespan":
     """Lazy loader for lifespan to avoid circular imports at module load time."""
     from resync.core.startup import lifespan
 
     return lifespan
-
 
 # =============================================================================
 # MODULE CONSTANTS (configurable via settings / admin UI where noted)
@@ -74,11 +74,10 @@ app_logger = get_logger("resync.app_factory")
 # Use app_logger as the primary logger for this module
 logger = app_logger
 
-
 class CachedStaticFiles(StarletteStaticFiles):
     """Static files handler with ETag and Cache-Control headers."""
 
-    async def get_response(self, path: str, scope):
+    async def get_response(self, path: str, scope: Scope) -> Response:  # FIX P2-06: added type hints
         """Return response with cache-friendly headers."""
         response = await super().get_response(path, scope)
 
@@ -115,7 +114,6 @@ class CachedStaticFiles(StarletteStaticFiles):
 
         return response
 
-
 class ApplicationFactory:
     """
     Factory for creating and configuring FastAPI applications.
@@ -124,7 +122,7 @@ class ApplicationFactory:
     providing a clean separation of concerns and modular architecture.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the application factory."""
         self.app: FastAPI
         self.templates: Jinja2Templates | None = None
@@ -306,6 +304,53 @@ class ApplicationFactory:
         """
         from resync.api.middleware.cors_config import CORSConfig
         from resync.api.middleware.cors_middleware import LoggingCORSMiddleware
+        # 0) Reverse-proxy hardening (enterprise default)
+        # - ProxyHeadersMiddleware: trust X-Forwarded-* only from known proxies
+        # - TrustedHostMiddleware: protect against Host header attacks
+        #
+        # Configure via:
+        #   TRUSTED_HOSTS="api.example.com,*.example.com"
+        #   PROXY_TRUSTED_HOSTS="10.0.0.0/8,192.168.0.0/16"  (or "*" ONLY in dev)
+        try:
+            if settings.is_production:
+                trusted_hosts_env = os.getenv("TRUSTED_HOSTS", "").strip()
+                if trusted_hosts_env:
+                    from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+                    allowed_hosts = [
+                        h.strip()
+                        for h in trusted_hosts_env.split(",")
+                        if h.strip()
+                    ]
+                    self.app.add_middleware(
+                        TrustedHostMiddleware,
+                        allowed_hosts=allowed_hosts,
+                    )
+
+                proxy_enabled = os.getenv("PROXY_HEADERS", "false").lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+                if proxy_enabled:
+                    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+                    # Comma-separated list of proxy IPs/CIDRs. Defaults to FORWARDED_ALLOW_IPS.
+                    proxy_trusted = os.getenv(
+                        "PROXY_TRUSTED_HOSTS",
+                        os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+                    )
+                    self.app.add_middleware(
+                        ProxyHeadersMiddleware,
+                        trusted_hosts=proxy_trusted,
+                    )
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            # Fail closed in production: better to crash than accept spoofed headers.
+            if settings.is_production:
+                logger.critical("proxy_middleware_setup_failed_prod", error=str(e))
+                raise
+            logger.warning("proxy_middleware_setup_failed", error=str(e))
 
         # 1) Rate limiting (startup-time wiring)
         try:
@@ -511,9 +556,16 @@ class ApplicationFactory:
         # Register monitoring routers
         try:
             from resync.api.routes.monitoring.routes import monitoring_router
+            from resync.api.routes.monitoring.prometheus_exporter import (
+                router as prometheus_exporter_router,
+            )
             from resync.core.monitoring_integration import register_dashboard_route
 
             self.app.include_router(monitoring_router, tags=["Monitoring"])
+            self.app.include_router(  # FIX P0-01: was bare `app` (NameError); import moved here
+                prometheus_exporter_router,
+                tags=["Monitoring - Prometheus"],
+            )
             register_dashboard_route(self.app)
             logger.info("monitoring_routers_registered")
         except ImportError as e:
@@ -576,6 +628,7 @@ class ApplicationFactory:
             from resync.api.routes.monitoring.ai_monitoring import (
                 router as ai_monitoring_router,
             )
+            # prometheus_exporter_router already imported and registered above
             from resync.api.routes.monitoring.metrics_dashboard import (
                 router as metrics_dashboard_router,
             )
@@ -714,7 +767,7 @@ class ApplicationFactory:
 
         # Revision page
         @self.app.get("/revisao", include_in_schema=False, response_class=HTMLResponse)
-        async def revisao_page(request: Request):
+        async def revisao_page(request: Request) -> HTMLResponse:
             """Serve the revision page."""
             return self._render_template("revisao.html", request)
 
@@ -724,7 +777,7 @@ class ApplicationFactory:
 
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
-        async def csp_violation_report(request: Request):
+        async def csp_violation_report(request: Request) -> JSONResponse:
             """
             Handle CSP violation reports with stream-based payload validation.
 
@@ -753,7 +806,7 @@ class ApplicationFactory:
                             status_code=413,
                         )
                     chunks.append(chunk)
-            except Exception as e:  # noqa: BLE001 - Stream errors must be handled
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # noqa: BLE001 - Stream errors must be handled
                 logger.error("csp_report_stream_error", error=str(e))
                 return JSONResponse(
                     {"status": "ignored", "reason": "stream_error"},
@@ -854,12 +907,11 @@ class ApplicationFactory:
             raise HTTPException(
                 status_code=404, detail=f"Template {template_name} not found"
             ) from None
-        except Exception as e:  # noqa: BLE001 - Template errors must not leak
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # noqa: BLE001 - Template errors must not leak
             logger.error("template_render_error", template=template_name, error=str(e))
             raise HTTPException(
                 status_code=500, detail="Internal server error"
             ) from None
-
 
 def create_app() -> FastAPI:
     """Entry point para Uvicorn e Pytest.

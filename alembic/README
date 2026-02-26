@@ -1,0 +1,21 @@
+# Alembic Migrations for Resync
+
+## First-time setup
+```bash
+# Apply all migrations to a fresh database
+alembic upgrade head
+
+# Or let the application create tables automatically on first startup
+# (via initialize_database() called from wiring.py)
+```
+
+## Create a new migration
+```bash
+alembic revision --autogenerate -m "add_user_preferences_table"
+```
+
+## Rollback
+```bash
+alembic downgrade -1          # one step back
+alembic downgrade base        # all the way back
+```

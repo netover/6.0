@@ -9,7 +9,6 @@ from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import Embedder, Retriever, VectorStore
 from resync.knowledge.monitoring import query_seconds
 
-
 class RagRetriever(Retriever):
     """Rag retriever."""
 
@@ -61,3 +60,13 @@ class RagRetriever(Retriever):
                 key=lambda h: cosine_similarity_score(h.get("vector")), reverse=True
             )
         return hits
+
+# Factory function alias
+_retriever_instance: "RagRetriever | None" = None
+
+def get_retriever() -> "RagRetriever":
+    """Return a shared RagRetriever instance."""
+    global _retriever_instance
+    if _retriever_instance is None:
+        _retriever_instance = RagRetriever()
+    return _retriever_instance

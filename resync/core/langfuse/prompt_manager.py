@@ -40,7 +40,7 @@ try:
     from langfuse import Langfuse
 
     LANGFUSE_AVAILABLE = True
-except Exception as exc:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     logger.warning(
@@ -48,11 +48,9 @@ except Exception as exc:
         type(exc).__name__,
     )
 
-
 # =============================================================================
 # MODELS
 # =============================================================================
-
 
 class PromptType(str, Enum):
     """Types of prompts in the system."""
@@ -63,7 +61,6 @@ class PromptType(str, Enum):
     RAG = "rag"
     ROUTER = "router"
     TOOL = "tool"
-
 
 class PromptConfig(BaseModel):
     """Configuration for a single prompt."""
@@ -116,7 +113,6 @@ class PromptConfig(BaseModel):
     @field_serializer("created_at", "updated_at")
     def serialize_datetimes(self, value: datetime) -> str:
         return value.isoformat()
-
 
 class PromptTemplate:
     """
@@ -184,11 +180,9 @@ class PromptTemplate:
     def temperature_hint(self) -> float | None:
         return self.config.temperature_hint
 
-
 # =============================================================================
 # PROMPT MANAGER
 # =============================================================================
-
 
 class PromptManager:
     """
@@ -254,7 +248,7 @@ class PromptManager:
                         ),
                     )
                     logger.info("langfuse_client_initialized")
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.warning("langfuse_init_failed", error=str(e))
 
             # Load prompts
@@ -422,12 +416,12 @@ Se houver erros, explique o que pode ter acontecido.""",
                             prompt_id=config.id,
                             file=yaml_file.name,
                         )
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                         logger.warning(
                             "invalid_prompt_in_yaml", file=yaml_file.name, error=str(e)
                         )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("yaml_load_failed", file=yaml_file.name, error=str(e))
 
     def _sync_from_langfuse(self) -> None:
@@ -444,7 +438,7 @@ Se houver erros, explique o que pode ter acontecido.""",
             # For now, we'll just log that we would sync
             logger.debug("langfuse_sync_placeholder")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("langfuse_sync_failed", error=str(e))
 
     # =========================================================================
@@ -632,7 +626,7 @@ Se houver erros, explique o que pode ter acontecido.""",
         try:
             # LangFuse SDK prompt creation would go here
             logger.debug("langfuse_prompt_sync", prompt_id=config.id)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning(
                 "langfuse_prompt_sync_failed", prompt_id=config.id, error=str(e)
             )
@@ -683,13 +677,11 @@ Se houver erros, explique o que pode ter acontecido.""",
         # Fallback to first active variant
         return self._templates[variants[0].id]
 
-
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================
 
 _prompt_manager: PromptManager | None = None
-
 
 @lru_cache(maxsize=1)
 def get_prompt_manager() -> PromptManager:
@@ -698,7 +690,6 @@ def get_prompt_manager() -> PromptManager:
     if _prompt_manager is None:
         _prompt_manager = PromptManager()
     return _prompt_manager
-
 
 async def initialize_prompt_manager() -> PromptManager:
     """Initialize and return the prompt manager."""

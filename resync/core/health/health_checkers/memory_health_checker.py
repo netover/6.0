@@ -28,7 +28,6 @@ from .common import (
 
 logger = structlog.get_logger(__name__)
 
-
 class MemoryHealthChecker(BaseHealthChecker):
     """
     Health checker for memory usage monitoring.
@@ -84,7 +83,7 @@ class MemoryHealthChecker(BaseHealthChecker):
                 },
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             return build_error_health(
                 ctx=ErrorContext(
                     name=self.component_name,

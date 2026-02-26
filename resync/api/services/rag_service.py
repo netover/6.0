@@ -25,7 +25,6 @@ from .rag_config import RAGConfig, get_rag_config
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class RAGDocument:
     """Represents a document in the RAG system."""
@@ -41,7 +40,6 @@ class RAGDocument:
     )
     processed_at: str | None = None
 
-
 @dataclass
 class RAGSearchResult:
     """Represents a search result from RAG."""
@@ -51,7 +49,6 @@ class RAGSearchResult:
     content: str
     score: float
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 class RAGIntegrationService:
     """
@@ -124,7 +121,7 @@ class RAGIntegrationService:
         except RuntimeError as e:
             logger.warning("pgvector not configured: %s", e)
             self.use_mock = True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -191,7 +188,7 @@ class RAGIntegrationService:
                 logger.info(
                     "Ingested document %s with %s chunks", file_id, chunks_count
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 doc.status = "failed"
                 doc.metadata["error"] = str(e)
                 logger.error("Failed to ingest document %s: %s", file_id, e)
@@ -238,7 +235,7 @@ class RAGIntegrationService:
                 )
 
             return results
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Search failed: %s", e)
             return []
 
@@ -372,7 +369,7 @@ class RAGIntegrationService:
                 for path in self.upload_dir.glob(f"{file_id}_*"):
                     try:
                         path.unlink()
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                         logger.warning("Failed to delete file %s: %s", path, e)
 
             await asyncio.to_thread(_delete_files)
@@ -404,10 +401,8 @@ class RAGIntegrationService:
             "use_mock": self.use_mock,
         }
 
-
 # Global service instance (singleton pattern)
 _rag_service: RAGIntegrationService | None = None
-
 
 def get_rag_service() -> RAGIntegrationService:
     """Get or create RAG service instance."""
@@ -418,7 +413,6 @@ def get_rag_service() -> RAGIntegrationService:
         _rag_service = RAGIntegrationService(use_mock=use_mock)
 
     return _rag_service
-
 
 def reset_rag_service():
     """Reset RAG service (for testing)."""

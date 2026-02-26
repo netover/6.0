@@ -33,7 +33,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class LoadMetrics:
     """Real-time load metrics for connection pools."""
@@ -121,7 +120,6 @@ class LoadMetrics:
             + weights["queue_depth"] * queue_score
         )
 
-
 @dataclass
 class AutoScalingConfig:
     """Configuration for automatic pool scaling."""
@@ -149,7 +147,6 @@ class AutoScalingConfig:
     # Gradual scaling
     gradual_scaling: bool = True
     scaling_step_size: int = 5  # Add/remove 5 connections at a time
-
 
 class AutoScalingManager:
     """Intelligent auto-scaling manager for connection pools."""
@@ -210,7 +207,7 @@ class AutoScalingManager:
                 # Update predictions
                 self._update_predictions()
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("auto_scaling_monitoring_error", error=str(e))
 
             # Sleep for measurement period
@@ -356,7 +353,6 @@ class AutoScalingManager:
             },
         }
 
-
 class AdvancedConnectionPoolManager:
     """
     Advanced connection pool manager with smart pooling integration.
@@ -497,7 +493,7 @@ class AdvancedConnectionPoolManager:
                         "healthy": pool_stats.total_connections > 0,
                         "total_connections": pool_stats.total_connections,
                     }
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.error("exception_caught", error=str(e), exc_info=True)
                     results["traditional_pools"][pool_name] = {
                         "healthy": False,
@@ -506,10 +502,8 @@ class AdvancedConnectionPoolManager:
 
         return results
 
-
 # Global advanced pool manager instance
 _advanced_pool_manager: AdvancedConnectionPoolManager | None = None
-
 
 def get_advanced_connection_pool_manager() -> AdvancedConnectionPoolManager:
     """Get the global advanced connection pool manager instance."""
@@ -518,13 +512,11 @@ def get_advanced_connection_pool_manager() -> AdvancedConnectionPoolManager:
         _advanced_pool_manager = AdvancedConnectionPoolManager()
     return _advanced_pool_manager
 
-
 async def initialize_advanced_pooling() -> None:
     """Initialize the advanced connection pooling system."""
     manager = get_advanced_connection_pool_manager()
     await manager.initialize()
     logger.info("advanced_connection_pooling_initialized")
-
 
 async def shutdown_advanced_pooling() -> None:
     """Shutdown the advanced connection pooling system."""
@@ -536,11 +528,9 @@ async def shutdown_advanced_pooling() -> None:
 
     logger.info("advanced_connection_pooling_shutdown")
 
-
 async def shutdown_connection_pool_manager() -> None:
     """Shutdown the connection pool manager (backward compatibility)."""
     await shutdown_advanced_pooling()
-
 
 # Re-export the main classes and functions for backward compatibility
 __all__ = [

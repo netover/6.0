@@ -23,7 +23,6 @@ from resync.core.redis_init import get_redis_client, is_redis_available
 
 logger = logging.getLogger(__name__)
 
-
 class RedisPool:
     """Connection pool for redis resources."""
 
@@ -56,7 +55,6 @@ class RedisPool:
                 # usa factory centralizada
                 self._client = get_redis_client()
         return self._client
-
 
 # Adicionar alias para compatibilidade
 RedisConnectionPool = RedisPool

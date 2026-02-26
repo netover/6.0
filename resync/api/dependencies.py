@@ -19,7 +19,6 @@ logger = get_logger(__name__)
 
 # Legacy fallback (non-HTTP contexts). The canonical HTTP path uses app.state.
 
-
 # Rate limit configuration (module-level constants)
 RATE_LIMIT_REQUESTS = 100  # requests per window
 RATE_LIMIT_WINDOW = 60  # seconds
@@ -27,7 +26,6 @@ RATE_LIMIT_WINDOW = 60  # seconds
 # ============================================================================
 # IDEMPOTENCY DEPENDENCIES
 # ============================================================================
-
 
 def get_idempotency_manager(request: Request) -> IdempotencyManager:
     """Get IdempotencyManager from the canonical enterprise state.
@@ -45,7 +43,6 @@ def get_idempotency_manager(request: Request) -> IdempotencyManager:
         )
     return st.idempotency_manager
 
-
 async def get_idempotency_key(
     x_idempotency_key: str | None = Header(None, alias="X-Idempotency-Key"),
 ) -> str | None:
@@ -58,7 +55,6 @@ async def get_idempotency_key(
         Idempotency key ou None
     """
     return x_idempotency_key
-
 
 async def require_idempotency_key(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
@@ -101,11 +97,9 @@ async def require_idempotency_key(
 
     return str(uuid_obj)
 
-
 # ============================================================================
 # CORRELATION ID DEPENDENCIES
 # ============================================================================
-
 
 async def get_correlation_id(
     x_correlation_id: str | None = Header(None, alias="X-Correlation-ID"),
@@ -133,13 +127,11 @@ async def get_correlation_id(
 
     return str(uuid.uuid4())
 
-
 # ============================================================================
 # AUTHENTICATION DEPENDENCIES
 # ============================================================================
 
 security = HTTPBearer(auto_error=False)
-
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
@@ -160,10 +152,10 @@ async def get_current_user(
 
     try:
         # Import security module for JWT validation
-        from resync.api.core.security import verify_token
+        from resync.api.core.security import verify_token_async
 
         token = credentials.credentials
-        payload = verify_token(token)
+        payload = await verify_token_async(token)
 
         if not payload:
             return None
@@ -177,16 +169,15 @@ async def get_current_user(
     except AuthenticationError:
         # Re-raise auth errors - these are expected "not authenticated" cases
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # BUG FIX: Log and re-raise infrastructure errors instead of silently swallowing them
         # This prevents masking serious issues like Redis unavailability or token parsing errors
         logger.error("Authentication infrastructure error", error=str(e), exc_info=True)
         # Re-raise as authentication error to inform the client appropriately
         raise AuthenticationError(
             message="Authentication service unavailable",
-            details={"error": str(e)},
+            details={"code": "AUTH_INFRA_FAILURE"},
         ) from e
-
 
 async def require_authentication(
     user: dict | None = Depends(get_current_user),

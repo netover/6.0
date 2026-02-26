@@ -24,7 +24,6 @@ from resync.core.interfaces import (
     ITWSClient,
 )
 
-
 class IContainer(Protocol):
     """Protocol for the dependency injection container."""
 
@@ -39,7 +38,6 @@ class IContainer(Protocol):
     @abstractmethod
     def dispose(self) -> None:
         """Dispose of all managed resources."""
-
 
 class Container:
     """Implementation of the dependency injection container."""
@@ -127,15 +125,13 @@ class Container:
             if hasattr(instance, "close") and callable(instance.close):
                 try:
                     await instance.close()
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     self._logger.error("Error disposing instance: %s", e)
 
         self._instances.clear()
 
-
 # Global container instance
 container = Container()
-
 
 def setup_dependencies(
     tws_client: ITWSClient,
@@ -160,7 +156,6 @@ def setup_dependencies(
         IKnowledgeService,
         ServiceFactory.create_knowledge_service(knowledge_graph),
     )
-
 
 # Context manager for container lifecycle
 @asynccontextmanager

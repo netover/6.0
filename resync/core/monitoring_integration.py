@@ -17,7 +17,6 @@ from fastapi import FastAPI
 
 logger = structlog.get_logger(__name__)
 
-
 async def initialize_proactive_monitoring(
     app: FastAPI, tg: asyncio.TaskGroup | None = None
 ) -> None:
@@ -128,10 +127,9 @@ async def initialize_proactive_monitoring(
             pattern_detection=monitoring_config["pattern_detection_enabled"],
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("proactive_monitoring_initialization_failed", error=str(e))
         # Do not fail startup, just log the error
-
 
 async def shutdown_proactive_monitoring(app: FastAPI) -> None:
     """
@@ -154,12 +152,11 @@ async def shutdown_proactive_monitoring(app: FastAPI) -> None:
 
         logger.info("proactive_monitoring_shutdown_complete")
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("proactive_monitoring_shutdown_error", error=str(e))
-
 
 def register_monitoring_routes(app: FastAPI) -> None:
     """
@@ -177,7 +174,6 @@ def register_monitoring_routes(app: FastAPI) -> None:
 
     except ImportError as e:
         logger.warning("monitoring_routes_not_available", error=str(e))
-
 
 def register_dashboard_route(app: FastAPI) -> None:
     """
@@ -232,11 +228,9 @@ def register_dashboard_route(app: FastAPI) -> None:
 
     logger.info("dashboard_routes_registered")
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
 
 def _get_tws_client(app: "FastAPI") -> Any | None:
     """Get TWS client from the dependency container."""
@@ -245,13 +239,12 @@ def _get_tws_client(app: "FastAPI") -> Any | None:
 
         return getattr(app.state, STATE_TWS_CLIENT)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.warning("failed_to_get_tws_client", error=str(e))
         return None
-
 
 def _get_llm_client(app: "FastAPI") -> Any | None:
     """Get LLM client from the dependency container."""
@@ -260,13 +253,12 @@ def _get_llm_client(app: "FastAPI") -> Any | None:
 
         return getattr(app.state, STATE_LLM_SERVICE)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.warning("failed_to_get_llm_client", error=str(e))
         return None
-
 
 def _create_mock_tws_client() -> Any:
     """Create a mock TWS client for development."""
@@ -337,11 +329,9 @@ def _create_mock_tws_client() -> Any:
 
     return MockTWSClient()
 
-
 # =============================================================================
 # CONVENIENCE FUNCTION FOR APP FACTORY
 # =============================================================================
-
 
 def setup_monitoring_system(app: FastAPI) -> None:
     """
@@ -359,7 +349,6 @@ def setup_monitoring_system(app: FastAPI) -> None:
     # 2. Initialize system (will be called in startup)
     # The actual initialization occurs in the lifespan
 
-
 def get_monitoring_startup_handler(app: FastAPI):
     """
     Returns the startup handler for the monitoring system.
@@ -375,7 +364,6 @@ def get_monitoring_startup_handler(app: FastAPI):
         await initialize_proactive_monitoring(app)
 
     return startup
-
 
 def get_monitoring_shutdown_handler(app: FastAPI):
     """

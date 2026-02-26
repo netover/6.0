@@ -28,7 +28,6 @@
 # (Ver documentação: https://prometheus.io/docs/...
 # e Python docs para contextvars e perf_counter)
 
-
 import logging
 import threading
 import time
@@ -42,7 +41,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 # -----------------------------
 # Utilidades
 # -----------------------------
@@ -50,11 +48,9 @@ def _now_wall() -> float:
     """Wall-clock (para timestamps e logs)."""
     return time.time()
 
-
 def _now_perf() -> float:
     """Monotônico, alta resolução (para medir durações)."""
     return time.perf_counter()  # recomendado para benchmarking/medição de duração
-
 
 def _sanitize_metric_name(name: str) -> str:
     """Sanitiza nomes para Prometheus (básico: substitui chars inválidos por '_')."""
@@ -75,10 +71,8 @@ def _sanitize_metric_name(name: str) -> str:
         s = "m_" + s
     return s
 
-
 def _escape_help(text: str) -> str:
     return text.replace("\\", "\\\\").replace("\n", "\\n")
-
 
 # -----------------------------
 # Métricas básicas
@@ -106,7 +100,6 @@ class MetricCounter:
             # não deveriam ter 'set' arbitrário.
             self.value = value
 
-
 @dataclass
 class MetricGauge:
     """Gauge (sobe e desce)."""
@@ -121,7 +114,6 @@ class MetricGauge:
     def get(self) -> float:
         with self._lock:
             return self.value
-
 
 class MetricHistogram:
     """
@@ -250,14 +242,12 @@ class MetricHistogram:
             lines.append(f"{name}_count {self._count}")
         return lines
 
-
 # -----------------------------
 # Correlation por contexto (contextvars)
 # -----------------------------
 _current_correlation_id: ContextVar[str | None] = ContextVar(
     "_current_correlation_id", default=None
 )
-
 
 class RuntimeMetrics:
     """
@@ -635,13 +625,11 @@ class RuntimeMetrics:
 
         return "\n".join(lines)
 
-
 # -----------------------------
 # Singleton global (unificado)
 # -----------------------------
 _runtime_metrics: RuntimeMetrics | None = None
 _runtime_lock = threading.Lock()
-
 
 def _get_runtime_metrics() -> RuntimeMetrics:
     global _runtime_metrics
@@ -651,16 +639,13 @@ def _get_runtime_metrics() -> RuntimeMetrics:
                 _runtime_metrics = RuntimeMetrics()
     return _runtime_metrics
 
-
 class _RuntimeMetricsProxy:
     """Proxy que delega ao singleton verdadeiro (sem instância própria)."""
 
     def __getattr__(self, name):
         return getattr(_get_runtime_metrics(), name)
 
-
 runtime_metrics = _RuntimeMetricsProxy()
-
 
 # -----------------------------
 # Funções utilitárias públicas
@@ -677,7 +662,6 @@ def get_correlation_context() -> str:
     cid = rm.create_correlation_id()
     rm.set_current_correlation_id(cid)
     return cid
-
 
 def track_llm_metrics(func):
     """
@@ -710,7 +694,7 @@ def track_llm_metrics(func):
                         otoks = int(getattr(usage, "completion_tokens", 0) or 0)
                     runtime_metrics.llm_tokens.increment(itoks + otoks)
                 return result
-            except Exception as _e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:
                 runtime_metrics.llm_errors.increment()
                 raise
 
@@ -734,12 +718,11 @@ def track_llm_metrics(func):
                     otoks = int(getattr(usage, "completion_tokens", 0) or 0)
                 runtime_metrics.llm_tokens.increment(itoks + otoks)
             return result
-        except Exception as _e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:
             runtime_metrics.llm_errors.increment()
             raise
 
     return sync_wrapper
-
 
 def log_with_correlation(
     level: int, message: str, correlation_id: str | None = None, **kwargs: Any

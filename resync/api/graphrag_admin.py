@@ -21,19 +21,16 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin/graphrag", tags=["graphrag-admin"])
 
-
 class CacheInvalidationRequest(BaseModel):
     """Request to invalidate discovery cache."""
 
     job_name: str | None = None  # None = invalidate all
-
 
 class DiscoveryTriggerRequest(BaseModel):
     """Request to manually trigger discovery for a job."""
 
     job_name: str
     force: bool = False  # Bypass filters
-
 
 @router.get("/stats")
 async def get_graphrag_stats():
@@ -51,13 +48,12 @@ async def get_graphrag_stats():
 
     try:
         return await graphrag.get_stats()
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to get GraphRAG stats: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.post("/cache/invalidate")
 async def invalidate_discovery_cache(request: CacheInvalidationRequest):
@@ -97,13 +93,12 @@ async def invalidate_discovery_cache(request: CacheInvalidationRequest):
             "job_name": request.job_name or "all",
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to invalidate cache: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.post("/discover")
 async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
@@ -138,7 +133,7 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
 
         if request.force:
             # Bypass filters - directly call _discover_and_store
-            await create_tracked_task(
+            create_tracked_task(
                 graphrag.discovery_service._discover_and_store(
                     request.job_name, event_details
                 )
@@ -158,13 +153,12 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
             "message": "Discovery submitted (subject to filters)",
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to trigger discovery: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.post("/validation/reset-stats")
 async def reset_validation_stats():
@@ -188,13 +182,12 @@ async def reset_validation_stats():
             "message": "Cache validation statistics reset successfully",
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to reset stats: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.get("/config")
 async def get_discovery_config():
@@ -231,7 +224,6 @@ async def get_discovery_config():
         "critical_jobs": list(DiscoveryConfig.CRITICAL_JOBS),
     }
 
-
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration."""
 
@@ -242,7 +234,6 @@ class ConfigUpdateRequest(BaseModel):
     validate_on_abend: bool | None = None
     validate_on_failed: bool | None = None
     auto_invalidate: bool | None = None
-
 
 @router.post("/config/update")
 async def update_config(request: ConfigUpdateRequest):
@@ -358,7 +349,7 @@ async def update_config(request: ConfigUpdateRequest):
             ),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to update config: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,

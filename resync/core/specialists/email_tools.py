@@ -6,7 +6,6 @@ from typing import Any
 from resync.core.specialists.tools import ToolPermission, tool
 from resync.services.notification.email_service import get_email_service
 
-
 @tool(
     name="send_email_report",
     description="Send a formatted report via email to a user. Supports optional attachment.",

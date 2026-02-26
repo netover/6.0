@@ -4,12 +4,11 @@ This module handles imports of heavy libraries (like litellm) only when needed,
 preventing side effects (network/telemetry) at module import time.
 """
 
-from typing import Any, Tuple
+from typing import Any
 
 _litellm_router = None
 
-
-def get_litellm_exceptions() -> Tuple[type, ...]:
+def get_litellm_exceptions() -> tuple[type, ...]:
     """
     Lazy load LiteLLM exceptions.
     Returns a tuple of exception classes for try/except blocks.
@@ -36,13 +35,11 @@ def get_litellm_exceptions() -> Tuple[type, ...]:
         Timeout,
     )
 
-
 def get_acompletion() -> Any:
     """Lazy load litellm.acompletion function."""
     from litellm import acompletion
 
     return acompletion
-
 
 def get_available_models() -> Any:
     """Lazy load litellm.get_available_models function."""

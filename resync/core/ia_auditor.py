@@ -29,7 +29,6 @@ logger = get_logger(__name__)
 # Lazy initialization of knowledge graph (Context Store with SQLite)
 _knowledge_graph = None
 
-
 def _get_knowledge_graph():
     global _knowledge_graph
     if _knowledge_graph is None:
@@ -38,7 +37,6 @@ def _get_knowledge_graph():
         _knowledge_graph = ContextStore()
     return _knowledge_graph
 
-
 audit_lock = DistributedAuditLock()
 audit_queue = AsyncAuditQueue()
 
@@ -46,14 +44,12 @@ audit_queue = AsyncAuditQueue()
 # Default to 5 concurrent analyses
 _analysis_semaphore: asyncio.Semaphore | None = None
 
-
 def _get_analysis_semaphore() -> asyncio.Semaphore:
     """Get or create the analysis semaphore."""
     global _analysis_semaphore
     if _analysis_semaphore is None:
         _analysis_semaphore = asyncio.Semaphore(5)
     return _analysis_semaphore
-
 
 async def _validate_memory_for_analysis(mem: dict[str, Any]) -> bool:
     """Checks if a memory is valid for analysis."""
@@ -81,7 +77,6 @@ async def _validate_memory_for_analysis(mem: dict[str, Any]) -> bool:
         return False
 
     return True
-
 
 async def _get_llm_analysis(
     user_query: str, agent_response: str
@@ -122,11 +117,10 @@ async def _get_llm_analysis(
         logger.error("llm_json_parsing_failed", error=str(e), exc_info=True)
         # Return None to indicate a non-critical failure for this memory
         return None
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.critical("unexpected_error_in_llm_analysis", error=str(e), exc_info=True)
         # Encapsulate unexpected errors in a domain-specific one
         raise LLMError("Failed to get LLM analysis for memory audit") from e
-
 
 async def _perform_action_on_memory(
     mem: dict[str, Any], analysis: dict[str, Any]
@@ -161,7 +155,7 @@ async def _perform_action_on_memory(
             )
         except ImportError:
             logger.debug("continual_learning_module_not_available")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("continual_learning_pipeline_error", error=str(e))
         # === END CONTINUAL LEARNING INTEGRATION ===
 
@@ -192,7 +186,7 @@ async def _perform_action_on_memory(
             )
         except ImportError:
             logger.debug("continual_learning_module_not_available")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("continual_learning_pipeline_error", error=str(e))
         # === END CONTINUAL LEARNING INTEGRATION ===
 
@@ -206,7 +200,6 @@ async def _perform_action_on_memory(
 
     return None
 
-
 async def _fetch_recent_memories() -> list[dict[str, Any]]:
     """Fetches recent memories from knowledge graph."""
     try:
@@ -217,7 +210,6 @@ async def _fetch_recent_memories() -> list[dict[str, Any]]:
     except KnowledgeGraphError as e:
         logger.error("failed_to_fetch_memories", error=str(e), exc_info=True)
         raise AuditError("Failed to fetch memories for analysis") from e
-
 
 async def _process_memory_batch(
     memories: list[dict[str, Any]],
@@ -249,7 +241,6 @@ async def _process_memory_batch(
 
     return deleted, flagged
 
-
 async def _store_flagged_memories(flagged: list[dict[str, Any]]) -> None:
     """Stores flagged memories in audit queue for human review."""
     for mem in flagged:
@@ -273,7 +264,6 @@ async def _store_flagged_memories(flagged: list[dict[str, Any]]) -> None:
                 error=str(e),
                 exc_info=True,
             )
-
 
 async def analyze_memory(
     mem: dict[str, Any],
@@ -326,7 +316,7 @@ async def analyze_memory(
                 exc_info=True,
             )
             return None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Catch unexpected errors to prevent crashing the batch
             logger.error(
                 "unexpected_error_analyzing_memory",
@@ -336,20 +326,17 @@ async def analyze_memory(
             )
             return None
 
-
 async def _cleanup_locks() -> None:
     """Safely cleans up expired audit locks."""
     try:
         await audit_lock.cleanup_expired_locks(max_age=60)
-    except Exception as _e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.warning("error_cleaning_up_expired_locks", exc_info=True)
 
-
 # Old functions removed - replaced by refactored versions above
-
 
 async def analyze_and_flag_memories() -> dict[str, int | str]:
     """

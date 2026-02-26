@@ -39,7 +39,6 @@ except ImportError:
 
 from fastapi.responses import JSONResponse, Response
 
-
 class ORJSONResponse(JSONResponse):
     """
     High-performance JSON response using orjson.
@@ -93,7 +92,6 @@ class ORJSONResponse(JSONResponse):
             ),
         )
 
-
 class MsgSpecJSONResponse(Response):
     """
     Ultra-high-performance JSON response using msgspec.
@@ -144,7 +142,6 @@ class MsgSpecJSONResponse(Response):
 
         return msgspec.json.encode(content)
 
-
 # Convenience function to get best available response class
 def get_optimized_response_class() -> type[JSONResponse]:
     """
@@ -167,10 +164,8 @@ def get_optimized_response_class() -> type[JSONResponse]:
         return MsgSpecJSONResponse
     return JSONResponse
 
-
 # Export optimized response class as default
 OptimizedJSONResponse = get_optimized_response_class()
-
 
 __all__ = [
     "ORJSONResponse",

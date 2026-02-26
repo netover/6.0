@@ -9,7 +9,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class CSRFMiddleware(BaseHTTPMiddleware):
     """
     CSRF protection with:
@@ -74,7 +73,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     def _generate_csrf_token(self) -> str:
         """Generate cryptographically secure CSRF token."""
         random_bytes = secrets.token_bytes(32)
-        signature = hmac.new(self.secret_key, random_bytes, digestmod=hashlib.sha256).digest()
+        signature = hmac.digest(self.secret_key, random_bytes, hashlib.sha256)
 
         return (random_bytes + signature).hex()
 

@@ -31,7 +31,7 @@ class _FakeManager:
     def trace_context(self, operation_name: str, **attributes):
         try:
             yield self._span
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             self._span.record_exception(exc)
             self._span.set_status(str(exc))
             raise

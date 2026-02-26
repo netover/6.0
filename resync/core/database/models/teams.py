@@ -9,7 +9,6 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-
 class TeamsWebhookUser(Base):
     """Teams webhook user permissions model."""
 
@@ -32,7 +31,6 @@ class TeamsWebhookUser(Base):
 
     def __repr__(self):
         return f"<TeamsWebhookUser(email={self.email}, role={self.role})>"
-
 
 class TeamsWebhookAudit(Base):
     """Audit log for Teams webhook interactions."""

@@ -7,7 +7,6 @@ from redis.asyncio import Redis
 from resync.core.idempotency.exceptions import IdempotencyStorageError
 from resync.core.idempotency.models import IdempotencyRecord
 
-
 class IdempotencyStorage:
     """Abstração de armazenamento para o sistema de idempotency"""
 
@@ -39,7 +38,7 @@ class IdempotencyStorage:
 
             record_dict = json.loads(cached_data)
             return IdempotencyRecord.from_dict(record_dict)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -57,7 +56,7 @@ class IdempotencyStorage:
             redis = self._ensure_redis()
             success = await redis.setex(key, ttl_seconds, serialized_data)
             return bool(success)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -84,7 +83,7 @@ class IdempotencyStorage:
             redis = self._ensure_redis()
             result = await redis.set(key, serialized_data, nx=True, ex=ttl_seconds)
             return result is not None and bool(result)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise IdempotencyStorageError(
@@ -96,7 +95,7 @@ class IdempotencyStorage:
         try:
             redis = self._ensure_redis()
             return bool(await redis.exists(key))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -108,7 +107,7 @@ class IdempotencyStorage:
             redis = self._ensure_redis()
             deleted = await redis.delete(key)
             return deleted > 0
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

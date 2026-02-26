@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-
 class EnterprisePhase(Enum):
     """Enterprise module phases."""
 
@@ -45,7 +44,6 @@ class EnterprisePhase(Enum):
     COMPLIANCE = "compliance"  # gdpr, encrypted_audit, siem
     OBSERVABILITY = "observability"  # log_aggregator, anomaly_detector
     RESILIENCE = "resilience"  # chaos_engineering, service_discovery
-
 
 @dataclass
 class EnterpriseStatus:
@@ -58,7 +56,6 @@ class EnterpriseStatus:
     last_check: datetime | None = None
     error: str | None = None
     components: dict[str, bool] = field(default_factory=dict)
-
 
 @dataclass
 class EnterpriseConfig:
@@ -106,7 +103,6 @@ class EnterpriseConfig:
     # Anomaly detection settings
     anomaly_sensitivity: float = 0.95
     anomaly_check_interval_seconds: int = 60
-
 
 class EnterpriseManager:
     """
@@ -269,7 +265,7 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to initialize essential modules", error=str(e))
             status.error = str(e)
 
@@ -308,7 +304,7 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to initialize compliance modules", error=str(e))
             status.error = str(e)
 
@@ -339,7 +335,7 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to initialize observability modules", error=str(e))
             status.error = str(e)
 
@@ -370,7 +366,7 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to initialize resilience modules", error=str(e))
             status.error = str(e)
 
@@ -440,7 +436,7 @@ class EnterpriseManager:
                     pass  # Implementation depends on metrics source
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Anomaly monitoring error", error=str(e))
 
     async def _auto_recovery_loop(self) -> None:
@@ -453,7 +449,7 @@ class EnterpriseManager:
                     pass  # Implementation depends on health checks
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Auto-recovery monitoring error", error=str(e))
 
     # =========================================================================
@@ -588,10 +584,8 @@ class EnterpriseManager:
                 details=details or {},
             )
 
-
 # Global instance
 _enterprise_manager: EnterpriseManager | None = None
-
 
 async def get_enterprise_manager(
     tg: asyncio.TaskGroup | None = None,
@@ -608,13 +602,12 @@ async def get_enterprise_manager(
             from resync.core.enterprise.config import load_enterprise_config
 
             config = load_enterprise_config()
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             config = EnterpriseConfig()  # Use defaults
 
         _enterprise_manager = EnterpriseManager(config)
         await _enterprise_manager.initialize(tg=tg)
     return _enterprise_manager
-
 
 async def shutdown_enterprise_manager() -> None:
     """Shutdown the enterprise manager."""

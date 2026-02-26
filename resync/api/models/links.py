@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 # MODELS
 # ============================================================================
 
-
 class Link(BaseModel):
     """Modelo de link HATEOAS.
 
@@ -51,7 +50,6 @@ class Link(BaseModel):
         None, description="Tipo de mídia", examples=["application/json"]
     )
 
-
 class HATEOASResponse(BaseModel):
     """Response com suporte a HATEOAS.
 
@@ -70,11 +68,9 @@ class HATEOASResponse(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-
 # ============================================================================
 # LINK BUILDERS
 # ============================================================================
-
 
 class LinkBuilder:
     """Construtor de links HATEOAS."""
@@ -269,11 +265,9 @@ class LinkBuilder:
 
         return links
 
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
 
 def add_hateoas_links(data: Any, links: dict[str, Link]) -> HATEOASResponse:
     """Adiciona links HATEOAS a uma resposta.
@@ -286,7 +280,6 @@ def add_hateoas_links(data: Any, links: dict[str, Link]) -> HATEOASResponse:
         Response com links HATEOAS
     """
     return HATEOASResponse(data=data, links=links)
-
 
 def build_link_header(links: dict[str, Link]) -> str:
     """Constrói header Link (RFC 8288).
@@ -317,7 +310,6 @@ def build_link_header(links: dict[str, Link]) -> str:
         link_parts.append("; ".join(parts))
 
     return ", ".join(link_parts)
-
 
 __all__ = [
     "Link",

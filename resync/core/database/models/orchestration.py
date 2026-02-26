@@ -4,7 +4,6 @@ Orchestration Models - SQLAlchemy Async
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -23,7 +22,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from resync.core.database.engine import Base
 
-
 class OrchestrationStrategy(str, Enum):
     """Enumeration of orchestration strategies."""
 
@@ -31,7 +29,6 @@ class OrchestrationStrategy(str, Enum):
     PARALLEL = "parallel"
     CONSENSUS = "consensus"
     FALLBACK = "fallback"
-
 
 class ExecutionStatus(str, Enum):
     """Status states for orchestration execution."""
@@ -44,7 +41,6 @@ class ExecutionStatus(str, Enum):
     CANCELLED = "cancelled"
     COMPENSATION = "compensation"
 
-
 class StepStatus(str, Enum):
     """Status states for individual step runs."""
 
@@ -54,7 +50,6 @@ class StepStatus(str, Enum):
     FAILED = "failed"
     SKIPPED = "skipped"
     PAUSED = "paused"
-
 
 class OrchestrationConfig(Base):
     """
@@ -73,7 +68,7 @@ class OrchestrationConfig(Base):
 
     # Identification
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Strategy
     strategy: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -85,8 +80,8 @@ class OrchestrationConfig(Base):
     meta_data: Mapped[dict] = mapped_column(JSON, default=lambda: {})
 
     # Access control
-    owner_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    owner_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_global: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Versioning
@@ -119,7 +114,6 @@ class OrchestrationConfig(Base):
     def __repr__(self) -> str:
         return f"<OrchestrationConfig(id={self.id}, name={self.name}, strategy={self.strategy})>"
 
-
 class OrchestrationExecution(Base):
     """
     Model for orchestration execution instance.
@@ -141,12 +135,12 @@ class OrchestrationExecution(Base):
     )
 
     # Configuration reference
-    config_id: Mapped[Optional[UUID]] = mapped_column(
+    config_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("orchestration_configs.id", ondelete="SET NULL"),
         nullable=True,
     )
-    config_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    config_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -156,18 +150,18 @@ class OrchestrationExecution(Base):
     output_data: Mapped[dict] = mapped_column(JSON, default=lambda: {})
 
     # Context
-    user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Timestamps
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    paused_at: Mapped[Optional[datetime]] = mapped_column(
+    paused_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -178,17 +172,17 @@ class OrchestrationExecution(Base):
     meta_data: Mapped[dict] = mapped_column(JSON, default=lambda: {})
 
     # Metrics
-    total_latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    estimated_cost: Mapped[Optional[float]] = mapped_column(
+    total_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    estimated_cost: Mapped[float | None] = mapped_column(
         Numeric(precision=10, scale=6, asdecimal=False), nullable=True
     )
 
     # Control
-    created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    callback_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    callback_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
-    config: Mapped[Optional["OrchestrationConfig"]] = relationship(
+    config: Mapped["OrchestrationConfig" | None] = relationship(
         "OrchestrationConfig", back_populates="executions"
     )
     step_runs: Mapped[list["OrchestrationStepRun"]] = relationship(
@@ -215,7 +209,6 @@ class OrchestrationExecution(Base):
     def __repr__(self) -> str:
         return f"<OrchestrationExecution(id={self.id}, trace_id={self.trace_id}, status={self.status})>"
 
-
 class OrchestrationStepRun(Base):
     """
     Model for individual step execution within an orchestration.
@@ -241,37 +234,37 @@ class OrchestrationStepRun(Base):
     # Step identification
     step_index: Mapped[int] = mapped_column(Integer, nullable=False)
     step_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    step_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    step_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Output
     output: Mapped[dict] = mapped_column(JSON, default=lambda: {})
-    output_truncated: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_trace: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    output_truncated: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_trace: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Dependencies
     dependencies_json: Mapped[list] = mapped_column(JSON, default=lambda: [])
 
     # Metrics
-    latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
-    token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    estimated_cost: Mapped[Optional[float]] = mapped_column(nullable=True)
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    estimated_cost: Mapped[float | None] = mapped_column(nullable=True)
 
     # Timestamps
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
     # Context
-    agent_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    agent_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    agent_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Relationships
     execution: Mapped["OrchestrationExecution"] = relationship(
@@ -290,7 +283,6 @@ class OrchestrationStepRun(Base):
 
     def __repr__(self) -> str:
         return f"<OrchestrationStepRun(id={self.id}, step_id={self.step_id}, status={self.status})>"
-
 
 class OrchestrationCallback(Base):
     """
@@ -316,10 +308,10 @@ class OrchestrationCallback(Base):
 
     # Callback configuration
     callback_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    callback_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    callback_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     callback_method: Mapped[str] = mapped_column(String(10), default="POST")
     callback_headers: Mapped[dict] = mapped_column(JSON, default=lambda: {})
-    callback_body_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    callback_body_template: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(String(50), default="pending")
@@ -327,22 +319,22 @@ class OrchestrationCallback(Base):
     # Retry
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
-    last_retry_at: Mapped[Optional[datetime]] = mapped_column(
+    last_retry_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
     # Result
-    response_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    response_body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    sent_at: Mapped[Optional[datetime]] = mapped_column(
+    sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

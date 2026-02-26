@@ -1,29 +1,38 @@
 """
-Core Domain Mypy Analyzer
-Analisa relatórios do MyPy especificamente para o core do Resync.
+Core Domain Mypy Analyzer.
+
+Analyzes MyPy reports specifically for the resync/core domain.
+Groups errors by subdomain for targeted remediation planning.
 """
 
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict
-
 
 def _parse_mypy_line(line: str, prefix: str = "resync/core/") -> str | None:
     """
-    Extrai o domínio a partir de uma linha de erro do mypy.
-    Retorna None se a linha for inválida ou não pertencer ao core.
+    Extract domain from a mypy error line.
+
+    Expected format: filepath:line:col: severity: message
+    Returns None for lines that are not errors or outside the prefix.
+
+    Args:
+        line: Single line from mypy output.
+        prefix: File path prefix to filter by.
+
+    Returns:
+        Domain string (e.g., 'resync/core/cache') or None.
     """
     if "error:" not in line:
         return None
 
     parts = line.split(":")
 
-    # HARDENING (P2): Validação rigorosa da estrutura do MyPy
-    # Formato esperado: filepath:line:col: severity: message
+    # Need at least: filepath:line:col:severity (4+ parts)
     if len(parts) < 4:
         return None
 
+    # Normalize path separators before use (handles Windows CI paths)
     filepath = parts[0].replace("\\", "/")
     if not filepath.startswith(prefix):
         return None
@@ -34,12 +43,20 @@ def _parse_mypy_line(line: str, prefix: str = "resync/core/") -> str | None:
 
     return f"{prefix.rstrip('/')} (root files)"
 
-
 def _count_errors_by_domain(
     report_file: Path, prefix: str = "resync/core/"
-) -> Dict[str, int]:
-    """Lê o relatório de forma segura e conta erros agrupados por domínio."""
-    domain_counts: Dict[str, int] = defaultdict(int)
+) -> dict[str, int]:  # P2-01: dict instead of deprecated typing.Dict
+    """
+    Read mypy report and count errors grouped by domain.
+
+    Args:
+        report_file: Path to mypy output file.
+        prefix: File prefix to filter errors by.
+
+    Returns:
+        Mapping of domain path to error count.
+    """
+    domain_counts: dict[str, int] = defaultdict(int)
 
     try:
         content = report_file.read_text(encoding="utf-8")
@@ -47,16 +64,23 @@ def _count_errors_by_domain(
             domain = _parse_mypy_line(line, prefix)
             if domain:
                 domain_counts[domain] += 1
-    except OSError as e:  # Captura falhas de permissão ou de leitura (I/O)
+    except OSError as e:
         print(
-            f"ERROR: Falha ao ler o relatório {report_file.name}: {e}", file=sys.stderr
+            f"ERROR: Failed to read report {report_file.name}: {e}", file=sys.stderr
         )
 
     return domain_counts
 
+def _format_plan(domain_counts: dict[str, int]) -> str:
+    """
+    Generate structured Markdown remediation plan.
 
-def _format_plan(domain_counts: Dict[str, int]) -> str:
-    """Gera o texto em Markdown estruturado por quantidade de erros."""
+    Args:
+        domain_counts: Mapping of domain to error count.
+
+    Returns:
+        Markdown-formatted plan string.
+    """
     sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)
 
     plan_lines = [
@@ -67,30 +91,28 @@ def _format_plan(domain_counts: Dict[str, int]) -> str:
     ]
 
     if not sorted_domains:
-        plan_lines.append("Nenhum erro encontrado! O core está 100% complacente.")
+        plan_lines.append("No errors found! Core is 100% compliant.")
     else:
         for domain, count in sorted_domains:
-            plan_lines.append(f"- [ ] `mypy` para `{domain}/` ({count} erros)")
+            plan_lines.append(f"- [ ] `mypy` for `{domain}/` ({count} errors)")
 
     return "\n".join(plan_lines)
 
-
 def generate_core_plan() -> None:
-    """Função principal de orquestração."""
+    """Main orchestration function."""
     report_file = Path("mypy_core_report.txt")
 
     if not report_file.exists():
-        print(f"Relatório '{report_file.name}' não encontrado.")
+        print(f"Report '{report_file.name}' not found.")
         return
 
     domain_counts = _count_errors_by_domain(report_file)
     if not domain_counts:
-        print("Nenhum erro processado ou o ficheiro estava vazio/ilegível.")
+        print("No errors processed or file was empty/unreadable.")
         return
 
     plan = _format_plan(domain_counts)
     print(plan)
-
 
 if __name__ == "__main__":
     generate_core_plan()

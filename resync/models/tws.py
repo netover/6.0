@@ -3,7 +3,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 class WorkstationStatus(BaseModel):
     """Represents the status of a single TWS workstation."""
 
@@ -16,7 +15,6 @@ class WorkstationStatus(BaseModel):
         ..., description="The type of the workstation (e.g., 'FTA', 'MASTER')."
     )
 
-
 class JobStatus(BaseModel):
     """Represents the status of a single TWS job."""
 
@@ -28,7 +26,6 @@ class JobStatus(BaseModel):
     )
     job_stream: str = Field(..., description="The job stream the job belongs to.")
 
-
 class CriticalJob(BaseModel):
     """Represents a job that is part of the critical path (TWS 'plan')."""
 
@@ -39,9 +36,7 @@ class CriticalJob(BaseModel):
     status: str = Field(..., description="The status of the critical job.")
     start_time: str = Field(..., description="The scheduled start time for the job.")
 
-
 # --- New Data Models for Complete MVP ---
-
 
 class JobExecution(BaseModel):
     """Represents a single execution of a job."""
@@ -54,7 +49,6 @@ class JobExecution(BaseModel):
     error_message: str | None = Field(
         None, description="Error message if execution failed"
     )
-
 
 class JobDetails(BaseModel):
     """Detailed information about a TWS job."""
@@ -77,7 +71,6 @@ class JobDetails(BaseModel):
         default_factory=list, description="Recent execution history"
     )
 
-
 class PlanDetails(BaseModel):
     """Information about the current TWS plan."""
 
@@ -88,7 +81,6 @@ class PlanDetails(BaseModel):
         None, description="Estimated completion time"
     )
     status: str = Field(..., description="Current status of the plan")
-
 
 class ResourceStatus(BaseModel):
     """Information about resource usage in TWS."""
@@ -106,7 +98,6 @@ class ResourceStatus(BaseModel):
         None, description="Utilization as percentage"
     )
 
-
 class Event(BaseModel):
     """Represents a TWS event log entry."""
 
@@ -121,7 +112,6 @@ class Event(BaseModel):
         None, description="Associated workstation if applicable"
     )
 
-
 class PerformanceData(BaseModel):
     """Performance metrics for TWS operations."""
 
@@ -134,7 +124,6 @@ class PerformanceData(BaseModel):
     cpu_usage_percentage: float = Field(..., description="CPU usage percentage")
     active_connections: int = Field(..., description="Number of active connections")
     jobs_per_minute: float = Field(..., description="Jobs processed per minute")
-
 
 class DependencyTree(BaseModel):
     """Represents the dependency tree for a job."""
@@ -149,7 +138,6 @@ class DependencyTree(BaseModel):
     dependency_graph: dict[str, list[str]] = Field(
         default_factory=dict, description="Complete dependency graph"
     )
-
 
 class SystemStatus(BaseModel):
     """A composite model representing the overall status of the TWS environment."""

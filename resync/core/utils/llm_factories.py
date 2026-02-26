@@ -15,7 +15,6 @@ from ..structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class LLMFactory:
     """Factory class for creating provider-specific LLM calls."""
 
@@ -137,7 +136,7 @@ class LLMFactory:
         except APIError as e:
             logger.error("llm_api_error", error=str(e))
             raise LLMError(f"API error: {str(e)}") from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("llm_unexpected_error", error=str(e))
             raise LLMError(f"Unexpected error: {str(e)}") from e
 
@@ -180,7 +179,6 @@ class LLMFactory:
             verbose=kwargs.get("verbose", False),
         )
 
-
 class LLMProviderFactory:
     """Factory for creating LLM providers with specific configurations."""
 
@@ -194,7 +192,6 @@ class LLMProviderFactory:
         if provider == "anthropic":
             return AnthropicProvider(**kwargs)
         return DefaultLLMProvider(**kwargs)
-
 
 class LLMProvider:
     """Base class for LLM providers."""
@@ -218,7 +215,6 @@ class LLMProvider:
             **kwargs,
         )
 
-
 class OpenAIProvider(LLMProvider):
     """Provider for OpenAI models."""
 
@@ -226,7 +222,6 @@ class OpenAIProvider(LLMProvider):
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "gpt-4o")
         self.api_base = kwargs.get("api_base", "https://api.openai.com/v1")
-
 
 class OllamaProvider(LLMProvider):
     """Provider for Ollama models."""
@@ -236,7 +231,6 @@ class OllamaProvider(LLMProvider):
         self.model = kwargs.get("model", "mistral")
         self.api_base = kwargs.get("api_base", "http://localhost:11434/v1")
 
-
 class AnthropicProvider(LLMProvider):
     """Provider for Anthropic models."""
 
@@ -244,7 +238,6 @@ class AnthropicProvider(LLMProvider):
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "claude-3-opus-20240229")
         self.api_base = kwargs.get("api_base", "https://api.anthropic.com/v1")
-
 
 class DefaultLLMProvider(LLMProvider):
     """Default provider for LLM calls."""

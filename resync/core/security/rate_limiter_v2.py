@@ -1,519 +1,262 @@
 # ruff: noqa: E501
-# pylint
+# pylint: disable=too-few-public-methods
 """
-Rate Limiting Middleware - Enhanced rate limiting with slowapi.
+Enterprise-grade rate limiting for FastAPI / Starlette.
 
-v5.6.0: Production-ready rate limiting.
+Why not depend on external libraries?
+- In VM deployments with small concurrency (~25 users), a simple in-memory
+  sliding-window limiter is reliable, low-dependency, and easy to audit.
+- Each Gunicorn worker maintains its own limiter (acceptable for this scale).
+- If you later deploy behind a load balancer / multiple nodes, you can switch
+  to a Redis-backed limiter without changing the call sites.
 
-Features:
-- Configurable rate limits per endpoint
-- Redis-backed storage for distributed deployments
-- Different limits for auth vs regular endpoints
-- Custom key functions (IP, user, API key)
-- Bypass for internal/health endpoints
+Design goals:
+- Fail-closed in production ONLY if explicitly enabled (RATE_LIMIT_ENABLED=true).
+- Different defaults for auth vs general API.
+- Exempt healthcheck endpoints by default.
+- Minimal overhead, safe under asyncio (uses an asyncio.Lock).
 
-Usage:
-    from resync.core.security.rate_limiter_v2 import (
-        limiter,
-        rate_limit,
-        rate_limit_auth,
-        setup_rate_limiting,
-    )
-
-    @router.post("/login")
-    @rate_limit_auth  # 5/minute for auth endpoints
-    async def login(request: "Request"):
-        ...
-
-    @router.get("/data")
-    @rate_limit("100/minute")  # Custom limit
-    async def get_data(request: "Request"):
-        ...
+References:
+- OWASP API Security recommends throttling/rate limiting as a standard control.
+  https://owasp.org/API-Security/
 """
 
-import ipaddress
+from __future__ import annotations
+
+import asyncio
 import os
-import warnings as _warnings
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+import time
+from collections import deque
+from dataclasses import dataclass
 
-import structlog
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
-if TYPE_CHECKING:
-    from fastapi import FastAPI, Request
+# -----------------------------
+# Configuration (env-driven)
+# -----------------------------
 
-logger = structlog.get_logger(__name__)
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)).strip())
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        return default
 
+RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
 
-def _parse_trusted_proxies(raw: str | None) -> tuple[bool, list[str]]:
-    """Parse a trusted proxy allow-list.
+# Defaults: tuned for small internal network usage.
+AUTH_LIMIT_REQUESTS = _env_int("RATE_LIMIT_AUTH_REQUESTS", 10)
+AUTH_LIMIT_WINDOW_SECONDS = _env_int("RATE_LIMIT_AUTH_WINDOW_SECONDS", 60)
 
-    The list accepts:
-      - `*` to trust all proxies (NOT recommended)
-      - individual IPs (e.g. `10.0.0.10`)
-      - CIDRs (e.g. `10.0.0.0/8`)
+API_LIMIT_REQUESTS = _env_int("RATE_LIMIT_API_REQUESTS", 120)
+API_LIMIT_WINDOW_SECONDS = _env_int("RATE_LIMIT_API_WINDOW_SECONDS", 60)
 
-    This mirrors the idea behind uvicorn's `--forwarded-allow-ips`.
-    """
-    if not raw:
-        return False, []
-    items = [p.strip() for p in raw.split(",") if p.strip()]
-    if not items:
-        return False, []
-    if any(p == "*" for p in items):
-        return True, []
-    return False, items
+WS_CONNECT_LIMIT_REQUESTS = _env_int("RATE_LIMIT_WS_CONNECT_REQUESTS", 20)
+WS_CONNECT_WINDOW_SECONDS = _env_int("RATE_LIMIT_WS_CONNECT_WINDOW_SECONDS", 60)
 
-
-_TRUST_ALL_PROXIES, _TRUSTED_PROXIES = _parse_trusted_proxies(
-    os.getenv("RATE_LIMIT_TRUSTED_PROXIES") or os.getenv("FORWARDED_ALLOW_IPS")
+# Comma-separated path prefixes that bypass rate limiting.
+# Health endpoints should be cheap and always reachable by monitoring.
+BYPASS_PREFIXES = tuple(
+    p.strip()
+    for p in os.getenv(
+        "RATE_LIMIT_BYPASS_PREFIXES",
+        "/health,/healthz,/liveness,/readiness,/metrics",
+    ).split(",")
+    if p.strip()
 )
 
+# -----------------------------
+# In-memory sliding window
+# -----------------------------
 
-def _is_trusted_proxy(client_ip: str) -> bool:
-    """Return True if the immediate peer is a trusted proxy."""
-    if _TRUST_ALL_PROXIES:
-        return True
-    if not _TRUSTED_PROXIES:
-        return False
-    try:
-        ip = ipaddress.ip_address(client_ip)
-    except ValueError:
-        return False
-    for entry in _TRUSTED_PROXIES:
-        try:
-            net = ipaddress.ip_network(entry, strict=False)
-            if ip in net:
-                return True
-        except ValueError:
-            if entry == client_ip:
-                return True
-    return False
+@dataclass(frozen=True, slots=True)
+class Limit:
+    requests: int
+    window_seconds: int
 
-
-# =============================================================================
-# Configuration
-# =============================================================================
-
-
-def get_rate_limit_enabled() -> bool:
-    """Check if rate limiting is enabled."""
-    # Defensive parsing: env vars sometimes include whitespace/newlines.
-    return os.getenv("RATE_LIMIT_ENABLED", "true").strip().lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-
-
-def get_redis_url() -> str | None:
-    """Get Redis URL for distributed rate limiting."""
-    return os.getenv("REDIS_URL", os.getenv("RATE_LIMIT_REDIS_URL"))
-
-
-def get_default_limit() -> str:
-    """Get default rate limit."""
-    return os.getenv("RATE_LIMIT_DEFAULT", "100/minute").strip()
-
-
-def get_auth_limit() -> str:
-    """Get rate limit for authentication endpoints."""
-    return os.getenv("RATE_LIMIT_AUTH", "5/minute").strip()
-
-
-def get_strict_limit() -> str:
-    """Get strict rate limit for sensitive endpoints."""
-    return os.getenv("RATE_LIMIT_STRICT", "3/minute").strip()
-
-
-def get_bypass_paths() -> list[str]:
-    """Get list of paths that bypass rate limiting."""
-    default_paths = [
-        "/health",
-        "/health/",
-        "/metrics",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-    ]
-    raw = os.getenv("RATE_LIMIT_BYPASS_PATHS", ",".join(default_paths))
-    return [p.strip() for p in raw.split(",") if p.strip()]
-
-
-def _is_bypass_path(request: "Request") -> bool:
-    """Check if request path should bypass rate limiting."""
-    path = request.url.path
-    bypass_paths = get_bypass_paths()
-    return any(path.startswith(p) for p in bypass_paths)
-
-
-def _is_cors_preflight(request: "Request") -> bool:
-    """Check if request is a CORS preflight (OPTIONS)."""
-    return request.method == "OPTIONS"
-
-
-# =============================================================================
-# Key Functions
-# =============================================================================
-
-
-def get_remote_address(request: "Request") -> str:
+class SlidingWindowLimiter:
     """
-    Get client IP address.
+    Sliding-window limiter using a deque of timestamps per key.
 
-    Handles X-Forwarded-For header for proxied requests.
+    Key suggestions:
+      - HTTP: f"ip:{client_ip}:{bucket}"
+      - WS:   f"ws:{client_ip}"
     """
-    # IMPORTANT: Forwarded headers are **spoofable** unless you only trust them
-    # when the immediate peer is a known proxy.
-    peer_ip = request.client.host if request.client else None
 
-    if peer_ip and _is_trusted_proxy(peer_ip):
-        # Check for forwarded header (common in reverse proxy setups)
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            # Take the first IP (original client)
-            return forwarded.split(",")[0].strip()
+    def __init__(self) -> None:
+        self._events: dict[str, deque[float]] = {}
+        self._lock = asyncio.Lock()
 
-        # Check for real IP header
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
+    async def allow(self, key: str, limit: Limit) -> tuple[bool, int]:
+        """
+        Returns: (allowed, retry_after_seconds)
+        """
+        now = time.monotonic()
+        cutoff = now - float(limit.window_seconds)
 
-    # Default/fallback to direct peer address
-    if peer_ip:
-        return peer_ip
+        async with self._lock:
+            q = self._events.get(key)
+            if q is None:
+                q = deque()
+                self._events[key] = q
 
+            # evict old
+            while q and q[0] < cutoff:
+                q.popleft()
+
+            if len(q) < limit.requests:
+                q.append(now)
+                return True, 0
+
+            # compute retry-after
+            oldest = q[0]
+            retry_after = int(max(1, (oldest + limit.window_seconds) - now))
+            return False, retry_after
+
+# Module-global limiter (per worker process)
+_LIMITER = SlidingWindowLimiter()
+
+def _client_ip(request: Request) -> str:
+    # No load balancer; do NOT trust X-Forwarded-For by default.
+    if request.client and request.client.host:
+        return request.client.host
     return "unknown"
 
+def _choose_http_limit(path: str) -> Limit:
+    # Auth endpoints stricter
+    if path.startswith("/api/v1/auth") or path.startswith("/auth"):
+        return Limit(AUTH_LIMIT_REQUESTS, AUTH_LIMIT_WINDOW_SECONDS)
+    return Limit(API_LIMIT_REQUESTS, API_LIMIT_WINDOW_SECONDS)
 
-def get_user_identifier(request: "Request") -> str:
-    """
-    Get user identifier for rate limiting.
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """HTTP rate limiting middleware."""
 
-    Uses authenticated user ID if available, otherwise IP address.
-    """
-    # Try to get user from request state (set by auth middleware)
-    if hasattr(request.state, "user") and request.state.user:
-        return f"user:{request.state.user.id}"
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if not RATE_LIMIT_ENABLED:
+            return await call_next(request)
 
-    # Try to get API key
-    api_key = request.headers.get("X-API-Key")
-    if api_key:
-        return f"api:{api_key[:16]}"  # Use prefix only
+        path = request.url.path
 
-    # Fallback to IP
-    return f"ip:{get_remote_address(request)}"
+        # Bypass health/metrics etc.
+        if BYPASS_PREFIXES and path.startswith(BYPASS_PREFIXES):
+            return await call_next(request)
 
+        ip = _client_ip(request)
+        limit = _choose_http_limit(path)
+        bucket = "auth" if limit.requests == AUTH_LIMIT_REQUESTS and limit.window_seconds == AUTH_LIMIT_WINDOW_SECONDS else "api"
+        key = f"ip:{ip}:{bucket}"
 
-def get_api_key(request: "Request") -> str:
-    """Get API key for rate limiting."""
-    api_key = request.headers.get("X-API-Key", "")
-    if api_key:
-        return f"api:{api_key[:16]}"
-    return get_remote_address(request)
+        allowed, retry_after = await _LIMITER.allow(key, limit)
+        if allowed:
+            return await call_next(request)
 
-
-# =============================================================================
-# Limiter Setup
-# =============================================================================
-
-try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.errors import RateLimitExceeded
-    from slowapi.util import (
-        get_remote_address as slowapi_get_remote_address,  # noqa: F401
-    )
-
-    # Create limiter instance
-    # Create limiter instance using SafeMemoryStorage to prevent import-time threads
-    try:
-        from limits.storage import registry
-
-        from .storage import SafeMemoryStorage
-
-        if SafeMemoryStorage:
-            # Manually register scheme if register_scheme helper is available
-            if hasattr(registry, "register_scheme"):
-                registry.register_scheme("safememory", SafeMemoryStorage)
-            elif hasattr(registry, "SCHEMES") and isinstance(registry.SCHEMES, dict):
-                registry.SCHEMES["safememory"] = SafeMemoryStorage
-            else:
-                # Fallback: cannot register safe storage, use memory but log warning
-                logger.warning(
-                    "could_not_register_safememory",
-                    reason="incompatible_limits_library",
-                )
-                SafeMemoryStorage = None
-
-            if SafeMemoryStorage:
-                _storage_uri = "safememory://"
-            else:
-                _storage_uri = "memory://"
-        else:
-            _storage_uri = "memory://"
-    except ImportError:
-        _storage_uri = "memory://"
-
-    RATE_LIMIT_STRATEGY = os.getenv("RATE_LIMIT_STRATEGY", "sliding-window-counter")
-
-    try:
-        limiter = Limiter(
-            key_func=get_remote_address,
-            default_limits=[get_default_limit()],
-            # Use our safe storage implementation to avoid import-time threads
-            storage_uri=_storage_uri,
-            strategy=RATE_LIMIT_STRATEGY,
-            headers_enabled=True,
-        )
-    except Exception as exc:
-        # Strategy strings vary across limits/slowapi versions; fall back to fixed-window
-        # rather than crashing the application in dev/test.
-        logger.warning(
-            "rate_limit_strategy_fallback",
-            requested=RATE_LIMIT_STRATEGY,
-            fallback="fixed-window",
-            error=type(exc).__name__,
-            detail=str(exc),
-        )
-        limiter = Limiter(
-            key_func=get_remote_address,
-            default_limits=[get_default_limit()],
-            storage_uri=_storage_uri,
-            strategy="fixed-window",
-            headers_enabled=True,
+        headers = {
+            "Retry-After": str(retry_after),
+            "X-RateLimit-Limit": str(limit.requests),
+            "X-RateLimit-Window": str(limit.window_seconds),
+        }
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded", "retry_after_seconds": retry_after},
+            headers=headers,
         )
 
-    SLOWAPI_AVAILABLE = True
+async def ws_allow_connect(client_ip: str) -> tuple[bool, int]:
+    """Rate limit for websocket connect attempts."""
+    if not RATE_LIMIT_ENABLED:
+        return True, 0
+    key = f"ws:{client_ip}"
+    return await _LIMITER.allow(key, Limit(WS_CONNECT_LIMIT_REQUESTS, WS_CONNECT_WINDOW_SECONDS))
 
-
-except ImportError:
-    logger.warning(
-        "slowapi not installed. Rate limiting disabled. Install with: pip install slowapi"
-    )
-    limiter = None
-    SLOWAPI_AVAILABLE = False
-
-
-# =============================================================================
-# Rate Limit Decorators
-# =============================================================================
-
-
-def rate_limit(limit: str | None = None, key_func: Callable | None = None):
+def setup_rate_limiting(app) -> None:
     """
-    Rate limit decorator with custom limit.
+    Called from app_factory during startup.
+
+    We keep the API compatible with previous versions that used slowapi.
+    """
+    app.add_middleware(RateLimitMiddleware)
+
+
+# =============================================================================
+# rate_limit decorator — wraps endpoints with per-route sliding-window limiting
+# Usage: @rate_limit("30/minute")
+# =============================================================================
+import functools
+import re as _re
+
+def rate_limit(limit_str: str):
+    """Decorator: apply a sliding-window rate limit to an endpoint.
 
     Args:
-        limit: Rate limit string (e.g., "100/minute", "10/second")
-        key_func: Custom key function for rate limit identification
+        limit_str: Limit spec string, e.g. ``"30/minute"``, ``"10/second"``.
 
-    Usage:
-        @router.get("/data")
-        @rate_limit("50/minute")
-        async def get_data(request: "Request"):
-            ...
+    Usage::
+
+        @router.post("/login")
+        @rate_limit("10/minute")
+        async def login(request: Request): ...
     """
+    _window_map = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
+
+    def _parse(s: str) -> Limit:
+        m = _re.match(r"(\d+)\s*/\s*(\w+)", s.strip())
+        if not m:
+            raise ValueError(f"Invalid rate limit spec: {s!r}. Use 'N/unit' (e.g. '30/minute')")
+        count = int(m.group(1))
+        unit = m.group(2).lower().rstrip("s")  # "minutes" -> "minute"
+        if unit not in _window_map:
+            raise ValueError(f"Unknown time unit {unit!r}. Use: second, minute, hour, day")
+        return Limit(requests=count, window_seconds=_window_map[unit])
+
+    lim = _parse(limit_str)
+    _limiter = SlidingWindowLimiter()
 
     def decorator(func):
-        if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
+        if not RATE_LIMIT_ENABLED:
             return func
 
-        # Apply slowapi limiter with bypass for health/docs paths and CORS preflight
-        limit_str = limit or get_default_limit()
-        key = key_func or get_remote_address
+        @functools.wraps(func)
+        async def wrapper(request: "Request", *args, **kwargs):
+            ip = _client_ip(request)
+            key = f"rl:{func.__name__}:{ip}"
+            allowed, retry_after = await _limiter.allow(key, lim)
+            if not allowed:
+                from starlette.responses import JSONResponse
+                return JSONResponse(
+                    {"detail": "Too Many Requests", "retry_after": retry_after},
+                    status_code=429,
+                    headers={"Retry-After": str(retry_after)},
+                )
+            return await func(request, *args, **kwargs)
 
-        def exempt_condition(request: "Request") -> bool:
-            """Bypass rate limit for health endpoints, docs, and CORS preflight."""
-            return _is_bypass_path(request) or _is_cors_preflight(request)
-
-        return limiter.limit(limit_str, key_func=key, exempt_when=exempt_condition)(
-            func
-        )
-
+        return wrapper
     return decorator
 
 
 def rate_limit_auth(func):
-    """
-    Rate limit decorator for authentication endpoints.
+    """Decorator: apply the auth-specific rate limit to an endpoint.
 
-    Applies stricter limits (default: 5/minute) to prevent brute force.
-
-    Usage:
-        @router.post("/login")
-        @rate_limit_auth
-        async def login(request: "Request"):
-            ...
+    Uses ``AUTH_LIMIT_REQUESTS / AUTH_LIMIT_WINDOW_SECONDS`` from config.
     """
-    if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
+    if not RATE_LIMIT_ENABLED:
         return func
 
-    def exempt_condition(request: "Request") -> bool:
-        """Bypass rate limit for health endpoints, docs, and CORS preflight."""
-        return _is_bypass_path(request) or _is_cors_preflight(request)
+    _limiter = SlidingWindowLimiter()
+    _lim = Limit(requests=AUTH_LIMIT_REQUESTS, window_seconds=AUTH_LIMIT_WINDOW_SECONDS)
 
-    return limiter.limit(
-        get_auth_limit(), key_func=get_remote_address, exempt_when=exempt_condition
-    )(func)
-
-
-def rate_limit_strict(func):
-    """
-    Strict rate limit decorator for sensitive operations.
-
-    Applies very strict limits (default: 3/minute).
-
-    Usage:
-        @router.post("/password-reset")
-        @rate_limit_strict
-        async def password_reset(request: "Request"):
-            ...
-    """
-    if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
-        return func
-
-    def exempt_condition(request: "Request") -> bool:
-        """Bypass rate limit for health endpoints, docs, and CORS preflight."""
-        return _is_bypass_path(request) or _is_cors_preflight(request)
-
-    return limiter.limit(
-        get_strict_limit(), key_func=get_remote_address, exempt_when=exempt_condition
-    )(func)
-
-
-def rate_limit_by_user(limit: str | None = None):
-    """
-    Rate limit by authenticated user.
-
-    Args:
-        limit: Rate limit string
-
-    Usage:
-        @router.post("/expensive-operation")
-        @rate_limit_by_user("10/hour")
-        async def expensive_op(request: "Request"):
-            ...
-    """
-
-    def decorator(func):
-        if not SLOWAPI_AVAILABLE or not get_rate_limit_enabled():
-            return func
-
-        def exempt_condition(request: "Request") -> bool:
-            """Bypass rate limit for health endpoints, docs, and CORS preflight."""
-            return _is_bypass_path(request) or _is_cors_preflight(request)
-
-        limit_str = limit or get_default_limit()
-        return limiter.limit(
-            limit_str, key_func=get_user_identifier, exempt_when=exempt_condition
-        )(func)
-
-    return decorator
-
-
-# =============================================================================
-# FastAPI Integration
-# =============================================================================
-
-
-def setup_rate_limiting(app: "FastAPI") -> None:
-    from resync.settings import get_settings
-
-    get_settings().is_production
-    """
-    Setup rate limiting for FastAPI application.
-
-    Call this in your application startup:
-        from resync.core.security.rate_limiter_v2 import setup_rate_limiting
-        setup_rate_limiting(app)
-    """
-    if not SLOWAPI_AVAILABLE:
-        logger.warning("Rate limiting not available - slowapi not installed")
-        return
-
-    if not get_rate_limit_enabled():
-        logger.info("Rate limiting disabled via RATE_LIMIT_ENABLED=false")
-        return
-
-    # Upgrade storage to Redis if configured (post-import)
-    redis_url = get_redis_url()
-    if redis_url and limiter:
-        try:
-            from limits.storage import storage_from_string
-
-            limiter._storage = storage_from_string(redis_url)
-            logger.info("Rate limiter storage upgraded to Redis")
-        except Exception as e:
-            logger.error(
-                "Failed to upgrade rate limiter storage to Redis", error=str(e)
+    @functools.wraps(func)
+    async def wrapper(request: "Request", *args, **kwargs):
+        ip = _client_ip(request)
+        key = f"rl_auth:{ip}"
+        allowed, retry_after = await _limiter.allow(key, _lim)
+        if not allowed:
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                {"detail": "Too Many Requests", "retry_after": retry_after},
+                status_code=429,
+                headers={"Retry-After": str(retry_after)},
             )
+        return await func(request, *args, **kwargs)
 
-    # Add limiter to app state
-    app.state.limiter = limiter
-
-    # Add exception handler
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-    logger.info(
-        "Rate limiting enabled",
-        default_limit=get_default_limit(),
-        auth_limit=get_auth_limit(),
-        storage="redis" if get_redis_url() else "memory",
-    )
-
-
-# =============================================================================
-# Middleware (DEPRECATED — does not perform actual rate limiting)
-# =============================================================================
-class RateLimitMiddleware:
-    """Rate limiting middleware for global limits.
-
-    .. deprecated::
-        This middleware is a no-op — it never rejects requests.
-        Use ``setup_rate_limiting()`` for real rate limiting via slowapi.
-    """
-
-    def __init__(
-        self,
-        app,
-        default_limit: str | None = None,
-        exclude_paths: list[str] | None = None,
-    ):
-        _warnings.warn(
-            "RateLimitMiddleware is a no-op and will be removed in v7.0. "
-            "Use setup_rate_limiting() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.app = app
-        self.default_limit = default_limit or get_default_limit()
-        self.exclude_paths = exclude_paths or [
-            "/health",
-            "/health/",
-            "/metrics",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-        ]
-
-    async def __call__(self, scope, receive, send):
-        # Pass-through — no actual rate limiting is performed.
-        await self.app(scope, receive, send)
-
-
-# =============================================================================
-# Export
-# =============================================================================
-
-__all__ = [
-    "limiter",
-    "rate_limit",
-    "rate_limit_auth",
-    "rate_limit_strict",
-    "rate_limit_by_user",
-    "setup_rate_limiting",
-    "get_remote_address",
-    "get_user_identifier",
-    "get_bypass_paths",
-    "SLOWAPI_AVAILABLE",
-]
+    return wrapper

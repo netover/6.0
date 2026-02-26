@@ -27,7 +27,6 @@ from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
-
 class MetricType(Enum):
     """Types of security metrics."""
 
@@ -37,7 +36,6 @@ class MetricType(Enum):
     DURATION = "duration"  # Time durations
     SCORE = "score"  # Calculated scores
     TREND = "trend"  # Trend indicators
-
 
 class MetricCategory(Enum):
     """Security metric categories."""
@@ -50,7 +48,6 @@ class MetricCategory(Enum):
     USER_BEHAVIOR = "user_behavior"
     NETWORK_SECURITY = "network_security"
     DATA_PROTECTION = "data_protection"
-
 
 @dataclass
 class SecurityMetric:
@@ -154,7 +151,6 @@ class SecurityMetric:
             "critical_threshold": self.critical_threshold,
         }
 
-
 @dataclass
 class DashboardWidget:
     """Dashboard widget configuration."""
@@ -173,7 +169,6 @@ class DashboardWidget:
     def can_access(self, user_roles: set[str]) -> bool:
         """Check if user can access this widget."""
         return bool(self.roles.intersection(user_roles))
-
 
 @dataclass
 class Dashboard:
@@ -195,7 +190,6 @@ class Dashboard:
     def get_visible_widgets(self, user_roles: set[str]) -> list[DashboardWidget]:
         """Get widgets visible to user."""
         return [w for w in self.widgets if w.can_access(user_roles)]
-
 
 @dataclass
 class AlertRule:
@@ -246,7 +240,6 @@ class AlertRule:
         """Mark alert as triggered."""
         self.last_triggered = time.time()
 
-
 @dataclass
 class ComplianceReport:
     """Compliance report data."""
@@ -268,7 +261,6 @@ class ComplianceReport:
     author: str = "Security Dashboard"
     reviewers: list[str] = field(default_factory=list)
     status: str = "draft"  # draft, reviewed, approved, published
-
 
 @dataclass
 class SecurityDashboardConfig:
@@ -307,7 +299,6 @@ class SecurityDashboardConfig:
     max_concurrent_users: int = 50
     cache_enabled: bool = True
     cache_ttl_seconds: int = 300
-
 
 class MetricCollector:
     """Component for collecting security metrics from various sources."""
@@ -504,7 +495,6 @@ class MetricCollector:
 
         return dict(summary)
 
-
 class AlertManager:
     """Component for managing security alerts."""
 
@@ -648,7 +638,6 @@ class AlertManager:
 
         return alerts
 
-
 class ReportGenerator:
     """Component for generating security reports."""
 
@@ -742,7 +731,6 @@ class ReportGenerator:
         }
 
         report.compliance_score = 87.5
-
 
 class SecurityDashboard:
     """
@@ -1057,7 +1045,7 @@ class SecurityDashboard:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Metric collection worker error: %s", e)
 
     def _collect_system_metrics(self) -> None:
@@ -1095,7 +1083,7 @@ class SecurityDashboard:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Alert checking worker error: %s", e)
 
     def _handle_triggered_alert(self, alert: dict[str, Any]) -> None:
@@ -1155,13 +1143,11 @@ class SecurityDashboard:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Report generation worker error: %s", e)
-
 
 # Global security dashboard instance
 _security_dashboard_instance: SecurityDashboard | None = None
-
 
 class _LazySecurityDashboard:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -1179,9 +1165,7 @@ class _LazySecurityDashboard:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 security_dashboard = _LazySecurityDashboard()
-
 
 async def get_security_dashboard(
     tg: asyncio.TaskGroup | None = None,

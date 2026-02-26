@@ -5,7 +5,7 @@ Production path
 In production this project is normally started by an ASGI server importing
 the app object directly, e.g.:
 
-    gunicorn --preload -k uvicorn.workers.UvicornWorker resync.main:app
+    gunicorn --preload -k uvicorn_worker.UvicornWorker resync.main:app
 
 **Important:** all configuration validation and startup health checks are run
 from the application's ASGI *lifespan* (see :mod:`resync.core.startup` and
@@ -44,7 +44,6 @@ from resync.app_factory import create_app  # noqa: E402
 
 app = create_app()
 
-
 def main() -> None:
     """Run a local development server."""
     # Import uvicorn here to avoid loading it in production ASGI path
@@ -65,7 +64,6 @@ def main() -> None:
         reload=os.getenv("RELOAD", "false").lower() in {"1", "true", "yes", "on"},
         loop="uvloop",  # P2-05 fix: Use uvloop for 2-4x async performance
     )
-
 
 if __name__ == "__main__":
     main()

@@ -19,7 +19,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import structlog
 import yaml
@@ -52,7 +52,6 @@ ALLOWED_FRONTMATTER_FIELDS = frozenset(
 MAX_SKILL_SIZE = 2500  # chars por skill
 MAX_TOTAL_CONTEXT = 6000  # chars total (mantido do original)
 
-
 @dataclass
 class SkillMetadata:
     """Metadados de uma skill."""
@@ -60,12 +59,11 @@ class SkillMetadata:
     name: str
     description: str
     folder_path: Path
-    tags: List[str] = field(default_factory=list)
-    intents: List[str] = field(default_factory=list)
-    tools_expected: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    intents: list[str] = field(default_factory=list)
+    tools_expected: list[str] = field(default_factory=list)
     version: str = "1.0"
     file_mtime: float = 0.0
-
 
 class SkillManager:
     """
@@ -97,9 +95,9 @@ class SkillManager:
                 self.skills_dir = fallback
 
         # Indexação e cache
-        self.skills_metadata: List[SkillMetadata] = []
-        self._by_name: Dict[str, SkillMetadata] = {}  # O(1) lookup
-        self._content_cache: Dict[str, Tuple[float, str]] = {}  # (mtime, content)
+        self.skills_metadata: list[SkillMetadata] = []
+        self._by_name: dict[str, SkillMetadata] = {}  # O(1) lookup
+        self._content_cache: dict[str, tuple[float, str]] = {}  # (mtime, content)
 
         # Validar diretório de skills (segurança)
         self._validate_skills_dir()
@@ -222,14 +220,14 @@ class SkillManager:
             logger.error(
                 "skill_frontmatter_yaml_error", file=str(file_path), error=str(e)
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "error_parsing_skill_frontmatter", file=str(file_path), error=str(e)
             )
 
         return {}
 
-    def get_skill_metadata(self, skill_name: str) -> Optional[SkillMetadata]:
+    def get_skill_metadata(self, skill_name: str) -> SkillMetadata | None:
         """
         Obtém metadados de uma skill por nome.
 
@@ -237,7 +235,7 @@ class SkillManager:
         """
         return self._by_name.get(skill_name)
 
-    def get_skill_content(self, skill_name: str) -> Optional[str]:
+    def get_skill_content(self, skill_name: str) -> str | None:
         """
         Phase 2: Deep Loading. Carrega o texto completo sob demanda.
 
@@ -272,7 +270,7 @@ class SkillManager:
         try:
             with open(skill_file, "r", encoding="utf-8") as f:
                 content = f.read()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("skill_read_error", skill=skill_name, error=str(e))
             return None
 
@@ -296,7 +294,7 @@ class SkillManager:
 
         return content
 
-    async def get_skill_content_async(self, skill_name: str) -> Optional[str]:
+    async def get_skill_content_async(self, skill_name: str) -> str | None:
         """
         Async version of get_skill_content for high-concurrency paths.
 
@@ -340,7 +338,7 @@ class SkillManager:
                     skill_file.read_text,
                     encoding="utf-8",
                 )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("skill_read_error_async", skill=skill_name, error=str(e))
             return None
 
@@ -366,7 +364,7 @@ class SkillManager:
 
     async def build_skill_context_async(
         self,
-        skill_names: List[str],
+        skill_names: list[str],
         max_skills: int = 3,
         max_total_size: int = MAX_TOTAL_CONTEXT,
     ) -> str:
@@ -425,7 +423,7 @@ class SkillManager:
 
     def build_skill_context(
         self,
-        skill_names: List[str],
+        skill_names: list[str],
         max_skills: int = 3,
         max_total_size: int = MAX_TOTAL_CONTEXT,
     ) -> str:
@@ -497,7 +495,7 @@ class SkillManager:
 
         return result
 
-    def list_skills(self) -> List[Dict[str, Any]]:
+    def list_skills(self) -> list[dict[str, Any]]:
         """Lista todas as skills disponíveis (para API/admin)."""
         return [
             {
@@ -518,13 +516,11 @@ class SkillManager:
         self._load_all_metadata()
         logger.info("skills_reloaded", count=len(self.skills_metadata))
 
-
 # =============================================================================
 # DEPRECATED: Singleton global (mantido para compatibilidade)
 # =============================================================================
 
-_skill_manager: Optional[SkillManager] = None
-
+_skill_manager: SkillManager | None = None
 
 def get_skill_manager() -> SkillManager:
     """
@@ -554,7 +550,6 @@ def get_skill_manager() -> SkillManager:
     if _skill_manager is None:
         _skill_manager = SkillManager()
     return _skill_manager
-
 
 def create_skill_manager(skills_dir: str | None = None) -> SkillManager:
     """

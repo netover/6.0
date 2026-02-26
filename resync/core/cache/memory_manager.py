@@ -13,7 +13,7 @@ from typing import Any
 
 try:
     from resync.core.metrics import runtime_metrics
-except Exception as _e:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:
 
     class _DummyRuntimeMetrics:
         """_ dummy runtime metrics."""
@@ -40,7 +40,6 @@ except Exception as _e:
 
     runtime_metrics = _DummyRuntimeMetrics()
 logger = logging.getLogger(__name__)
-
 
 class CacheEntry:
     """
@@ -87,7 +86,6 @@ class CacheEntry:
         now = time.time()
         self.last_accessed_at = now
         self.timestamp = now
-
 
 class CacheMemoryManager:
     """
@@ -238,7 +236,7 @@ class CacheMemoryManager:
                         self.max_memory_mb,
                     )
                     return False
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             runtime_metrics.create_correlation_id(
                 {
                     "component": "cache_memory_manager",
@@ -350,7 +348,7 @@ class CacheMemoryManager:
                 correlation_id,
             )
             return bytes_freed
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Error during eviction: %s", str(e), exc_info=True)
             log_with_correlation(
                 logging.ERROR, f"Error during eviction: {e}", correlation_id
@@ -408,7 +406,7 @@ class CacheMemoryManager:
             if total_entries == 0:
                 return 0.0
             return total_memory / (1024 * 1024)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.warning("Failed to estimate cache memory usage: %s", e)
@@ -438,10 +436,9 @@ class CacheMemoryManager:
             else 0,
         }
 
-
 try:
     from resync.core.metrics import log_with_correlation
-except Exception as e:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
     logger.error("Failed to import log_with_correlation: %s", str(e), exc_info=True)
 
     def log_with_correlation(

@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["AuditQueue", "AsyncAuditQueue", "IAuditQueue", "get_audit_queue"]
 
-
 class AuditQueue:
     """Audit Queue - PostgreSQL Backend."""
 
@@ -88,13 +87,11 @@ class AuditQueue:
             await processor_fn(item.action, item.payload)
             await self.mark_completed(item.id)
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             await self.mark_failed(item.id, str(e))
             return False
 
-
 _instance: AuditQueue | None = None
-
 
 def get_audit_queue() -> AuditQueue:
     """Get the singleton AuditQueue instance."""
@@ -103,13 +100,11 @@ def get_audit_queue() -> AuditQueue:
         _instance = AuditQueue()
     return _instance
 
-
 async def initialize_audit_queue() -> AuditQueue:
     """Initialize and return the AuditQueue."""
     queue = get_audit_queue()
     queue.initialize()
     return queue
-
 
 # Aliases for backward compatibility
 AsyncAuditQueue = AuditQueue

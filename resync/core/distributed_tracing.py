@@ -54,7 +54,6 @@ except ImportError:
         OK = 0
         ERROR = 1
 
-
 try:
     from opentelemetry.trace.propagation.tracecontext import TraceContextPropagator
 except ImportError:
@@ -80,7 +79,6 @@ except ImportError:
         def shutdown(self, **kwargs: object) -> None:
             pass
 
-
 try:
     from opentelemetry.sdk.trace.export import ConsoleSpanProcessor
 
@@ -92,9 +90,7 @@ except ImportError:
         def __init__(self, **kwargs):
             pass
 
-
 from resync.core.structured_logger import get_logger
-
 
 class _NoOpSpan:
     """Fallback span used when OpenTelemetry is disabled or uninitialized."""
@@ -115,12 +111,10 @@ class _NoOpSpan:
     def set_status(self, *args, **kwargs):
         return None
 
-
 logger = get_logger(__name__)
 
 current_trace_id: ContextVar[str | None] = ContextVar("current_trace_id", default=None)
 current_span_id: ContextVar[str | None] = ContextVar("current_span_id", default=None)
-
 
 class IntelligentSampler(Sampler):
     """Adaptive sampling strategy."""
@@ -182,7 +176,6 @@ class IntelligentSampler(Sampler):
             )
         return self.base_sample_rate
 
-
 @dataclass
 class TraceConfiguration:
     jaeger_endpoint: str = "http://localhost:14268/api/traces"
@@ -202,7 +195,6 @@ class TraceConfiguration:
     auto_instrument_external_calls: bool = True
     custom_span_processors: list[Any] = field(default_factory=list)
     custom_instrumentations: list[Any] = field(default_factory=list)
-
 
 class DistributedTracingManager:
     """Main distributed tracing manager."""
@@ -277,7 +269,7 @@ class DistributedTracingManager:
         try:
             self._instrumented = True
             logger.info("Auto-instrumentation completed")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to setup auto-instrumentation: %s", e)
 
     @contextlib.contextmanager
@@ -302,7 +294,7 @@ class DistributedTracingManager:
             self.trace_metrics["spans_created"] += 1
             try:
                 yield span
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 span.record_exception(e)  # Record exception here
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 raise
@@ -366,9 +358,7 @@ class DistributedTracingManager:
             span.record_exception(exception)
             span.set_status(Status(StatusCode.ERROR, str(exception)))
 
-
 _distributed_tracing_manager: DistributedTracingManager | None = None
-
 
 def _get_tracing_manager() -> DistributedTracingManager:
     global _distributed_tracing_manager
@@ -376,25 +366,20 @@ def _get_tracing_manager() -> DistributedTracingManager:
         _distributed_tracing_manager = DistributedTracingManager()
     return _distributed_tracing_manager
 
-
 async def get_distributed_tracing_manager() -> DistributedTracingManager:
     manager = _get_tracing_manager()
     if not manager._running:
         await manager.start()
     return manager
 
-
 def trace_method(operation_name: str | None = None):
     return _get_tracing_manager().trace_method(operation_name)
-
 
 def trace_context(operation_name: str, **attributes):
     return _get_tracing_manager().trace_context(operation_name, **attributes)
 
-
 def record_exception(exception: Exception) -> None:
     _get_tracing_manager().record_exception(exception)
-
 
 def traced(operation_name: str, **attributes):
     def decorator(func):

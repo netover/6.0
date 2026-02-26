@@ -15,7 +15,6 @@ from resync.core.metrics import runtime_metrics
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class CachePerformanceMetrics:
     """Comprehensive cache performance metrics."""
@@ -46,7 +45,6 @@ class CachePerformanceMetrics:
         )
 
         return hit_score + eviction_score + memory_score
-
 
 @dataclass
 class ConnectionPoolMetrics:
@@ -87,7 +85,6 @@ class ConnectionPoolMetrics:
         error_score = max(0, (1 - error_rate) * 30)
 
         return utilization_score + wait_time_score + error_score
-
 
 class CachePerformanceMonitor:
     """
@@ -177,7 +174,6 @@ class CachePerformanceMonitor:
             recommendations.append("Cache performance is optimal.")
 
         return recommendations
-
 
 class ConnectionPoolOptimizer:
     """
@@ -297,7 +293,6 @@ class ConnectionPoolOptimizer:
 
         return recommendations
 
-
 class ResourceManager:
     """
     Centralized resource management for deterministic cleanup.
@@ -350,7 +345,7 @@ class ResourceManager:
                             close_result = await asyncio.to_thread(resource.close)
                             if inspect.isawaitable(close_result):
                                 await close_result
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     logger.error("Error cleaning up resource %s: %s", resource_id, e)
                 finally:
                     if resource_id in self.active_resources:
@@ -380,9 +375,7 @@ class ResourceManager:
         """Get the number of active resources."""
         return len(self.active_resources)
 
-
 _resource_manager: ResourceManager | None = None
-
 
 def get_resource_manager() -> ResourceManager:
     """Get the global resource manager instance."""
@@ -390,7 +383,6 @@ def get_resource_manager() -> ResourceManager:
     if _resource_manager is None:
         _resource_manager = ResourceManager()
     return _resource_manager
-
 
 class PerformanceOptimizationService:
     """
@@ -460,9 +452,7 @@ class PerformanceOptimizationService:
 
         return report
 
-
 _performance_service: PerformanceOptimizationService | None = None
-
 
 def get_performance_service() -> PerformanceOptimizationService:
     """Get the global performance optimization service."""

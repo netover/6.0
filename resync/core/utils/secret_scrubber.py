@@ -71,7 +71,6 @@ VALUE_PATTERN = re.compile(
 
 SCRUBBED_PLACEHOLDER = "***SCRUBBED***"
 
-
 class SecretScrubber:
     """Secret scrubber with configurable patterns."""
 
@@ -138,10 +137,8 @@ class SecretScrubber:
         # Replace key=value patterns
         return self.value_pattern.sub(r"\1=***SCRUBBED***", text)
 
-
 # Global instance
 _default_scrubber = SecretScrubber()
-
 
 def scrub_secrets(data: Any, max_depth: int = 10) -> Any:
     """
@@ -156,21 +153,17 @@ def scrub_secrets(data: Any, max_depth: int = 10) -> Any:
     """
     return _default_scrubber.scrub(data, max_depth)
 
-
 def scrub_dict(data: dict) -> dict:
     """Scrub secrets from dict (shorthand)."""
     return scrub_secrets(data)
-
 
 def scrub_string(text: str) -> str:
     """Scrub secrets from string (shorthand)."""
     return scrub_secrets(text)
 
-
 def is_sensitive_key(key: str) -> bool:
     """Check if key name indicates sensitive data."""
     return bool(SENSITIVE_REGEX.search(key))
-
 
 # Decorator for automatic scrubbing
 def scrub_args_and_result(func):
@@ -200,7 +193,6 @@ def scrub_args_and_result(func):
 
     return wrapper
 
-
 # AsyncIO version
 def scrub_args_and_result_async(func):
     """Async version of scrub_args_and_result."""
@@ -212,7 +204,6 @@ def scrub_args_and_result_async(func):
         return result
 
     return wrapper
-
 
 __all__ = [
     "scrub_secrets",

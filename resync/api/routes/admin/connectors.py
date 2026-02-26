@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 # v5.9.5: Added authentication
 router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
 
-
 class ConnectorType(str, Enum):
     """Types of connectors."""
 
@@ -38,7 +37,6 @@ class ConnectorType(str, Enum):
     TEAMS = "teams"
     WEBHOOK = "webhook"
 
-
 class ConnectorStatus(str, Enum):
     """Connector status."""
 
@@ -46,7 +44,6 @@ class ConnectorStatus(str, Enum):
     DISCONNECTED = "disconnected"
     ERROR = "error"
     UNKNOWN = "unknown"
-
 
 class ConnectorCreate(BaseModel):
     """Model for creating a connector."""
@@ -60,7 +57,6 @@ class ConnectorCreate(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
 
-
 class ConnectorUpdate(BaseModel):
     """Model for updating a connector."""
 
@@ -71,7 +67,6 @@ class ConnectorUpdate(BaseModel):
     password: str | None = None
     config: dict[str, Any] | None = None
     enabled: bool | None = None
-
 
 class ConnectorResponse(BaseModel):
     """Model for connector response."""
@@ -86,12 +81,10 @@ class ConnectorResponse(BaseModel):
     last_check: str | None = None
     error_message: str | None = None
 
-
 class ConnectorTest(BaseModel):
     """Model for connector test."""
 
     timeout_seconds: int = 10
-
 
 # In-memory connector store
 _connectors = {
@@ -127,7 +120,6 @@ _connectors = {
     },
 }
 
-
 @router.get(
     "/connectors", response_model=list[ConnectorResponse], tags=["Admin Connectors"]
 )
@@ -145,7 +137,6 @@ async def list_connectors(
         connectors = [c for c in connectors if c.get("enabled", True)]
 
     return connectors
-
 
 @router.post(
     "/connectors",
@@ -189,7 +180,6 @@ async def create_connector(connector: ConnectorCreate):
 
     return ConnectorResponse(**new_connector)
 
-
 @router.get(
     "/connectors/{connector_id}",
     response_model=ConnectorResponse,
@@ -204,7 +194,6 @@ async def get_connector(connector_id: str):
         )
 
     return ConnectorResponse(**_connectors[connector_id])
-
 
 @router.put(
     "/connectors/{connector_id}",
@@ -230,7 +219,6 @@ async def update_connector(connector_id: str, update: ConnectorUpdate):
     logger.info("Connector updated: %s", connector["name"])
     return ConnectorResponse(**connector)
 
-
 @router.delete(
     "/connectors/{connector_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -247,7 +235,6 @@ async def delete_connector(connector_id: str):
     name = _connectors[connector_id]["name"]
     del _connectors[connector_id]
     logger.info("Connector deleted: %s", name)
-
 
 @router.post("/connectors/{connector_id}/test", tags=["Admin Connectors"])
 async def test_connector(connector_id: str, test: ConnectorTest):
@@ -287,7 +274,7 @@ async def test_connector(connector_id: str, test: ConnectorTest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         connector["status"] = "error"
         connector["error_message"] = str(e)
 
@@ -296,7 +283,6 @@ async def test_connector(connector_id: str, test: ConnectorTest):
             "status": "error",
             "message": str(e),
         }
-
 
 @router.post(
     "/connectors/{connector_id}/enable",
@@ -314,7 +300,6 @@ async def enable_connector(connector_id: str):
     _connectors[connector_id]["enabled"] = True
     logger.info("Connector enabled: %s", _connectors[connector_id]["name"])
 
-
 @router.post(
     "/connectors/{connector_id}/disable",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -330,7 +315,6 @@ async def disable_connector(connector_id: str):
 
     _connectors[connector_id]["enabled"] = False
     logger.info("Connector disabled: %s", _connectors[connector_id]["name"])
-
 
 @router.get("/connectors/types/available", tags=["Admin Connectors"])
 async def get_connector_types():
@@ -364,7 +348,6 @@ async def get_connector_types():
             {"type": "webhook", "name": "Webhook", "description": "Generic webhook"},
         ]
     }
-
 
 @router.get("/connectors/status/summary", tags=["Admin Connectors"])
 async def get_connectors_status_summary():

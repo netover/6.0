@@ -24,11 +24,9 @@ from .base import BaseRepository, TimestampedRepository
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # DATA CLASSES (preserving interface from original tws_status_store.py)
 # =============================================================================
-
 
 @dataclass
 class JobStatus:
@@ -59,7 +57,6 @@ class JobStatus:
             "metadata": self.metadata,
         }
 
-
 @dataclass
 class PatternMatch:
     """Pattern match data class."""
@@ -85,11 +82,9 @@ class PatternMatch:
             "pattern_data": self.pattern_data,
         }
 
-
 # =============================================================================
 # REPOSITORIES
 # =============================================================================
-
 
 class TWSSnapshotRepository(TimestampedRepository[TWSSnapshot]):
     """Repository for TWS snapshots."""
@@ -109,7 +104,6 @@ class TWSSnapshotRepository(TimestampedRepository[TWSSnapshot]):
             job_count=job_count,
             workstation_count=workstation_count,
         )
-
 
 class TWSJobStatusRepository(TimestampedRepository[TWSJobStatus]):
     """Repository for TWS job status records."""
@@ -204,7 +198,6 @@ class TWSJobStatusRepository(TimestampedRepository[TWSJobStatus]):
             )
             return {row[0]: row[1] for row in result.all()}
 
-
 class TWSEventRepository(TimestampedRepository[TWSEvent]):
     """Repository for TWS events."""
 
@@ -260,7 +253,6 @@ class TWSEventRepository(TimestampedRepository[TWSEvent]):
             query = query.order_by(TWSEvent.timestamp.desc()).limit(limit)
             result = await session.execute(query)
             return list(result.scalars().all())
-
 
 class TWSPatternRepository(BaseRepository[TWSPattern]):
     """Repository for detected patterns."""
@@ -323,7 +315,6 @@ class TWSPatternRepository(BaseRepository[TWSPattern]):
             result = await session.execute(query)
             return list(result.scalars().all())
 
-
 class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
     """Repository for problem-solution pairs."""
 
@@ -384,11 +375,9 @@ class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
                 await session.refresh(solution)
             return solution
 
-
 # =============================================================================
 # UNIFIED TWS STORE (facade for all repositories)
 # =============================================================================
-
 
 class TWSStore:
     """

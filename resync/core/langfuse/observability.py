@@ -41,7 +41,7 @@ try:
     from langfuse.decorators import langfuse_context, observe
 
     LANGFUSE_AVAILABLE = True
-except Exception as exc:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     observe = None
@@ -51,15 +51,12 @@ except Exception as exc:
         type(exc).__name__,
     )
 
-
 # Type variable for decorated functions
 F = TypeVar("F", bound=Callable[..., Any])
-
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
-
 
 @dataclass
 class LLMCallTrace:
@@ -130,7 +127,6 @@ class LLMCallTrace:
             "session_id": self.session_id,
         }
 
-
 @dataclass
 class TraceSession:
     """A session containing multiple traces."""
@@ -164,7 +160,6 @@ class TraceSession:
             return 1.0
         return sum(1 for t in self.traces if t.success) / len(self.traces)
 
-
 # =============================================================================
 # COST ESTIMATION
 # =============================================================================
@@ -179,7 +174,6 @@ MODEL_COSTS: dict[str, dict[str, float]] = {
     "claude-3-5-sonnet-20241022": {"input": 0.003, "output": 0.015},
     "default": {"input": 0.0002, "output": 0.0002},
 }
-
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     """
@@ -200,11 +194,9 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 
     return round(input_cost + output_cost, 6)
 
-
 # =============================================================================
 # TRACER
 # =============================================================================
-
 
 class LangFuseTracer:
     """
@@ -248,7 +240,7 @@ class LangFuseTracer:
                     ),
                 )
                 logger.info("langfuse_tracer_initialized")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("langfuse_tracer_init_failed", error=str(e))
 
         self._initialized = True
@@ -308,7 +300,7 @@ class LangFuseTracer:
                     model, trace.input_tokens, trace.output_tokens
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             trace.complete(error=str(e))
             trace.error_type = type(e).__name__
             raise
@@ -382,7 +374,7 @@ class LangFuseTracer:
                 trace_id=trace.trace_id,
                 model=trace.model,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning(
                 "langfuse_trace_failed", error=str(e), trace_id=trace.trace_id
             )
@@ -459,11 +451,9 @@ class LangFuseTracer:
             "langfuse_enabled": self._client is not None,
         }
 
-
 # =============================================================================
 # DECORATOR
 # =============================================================================
-
 
 def trace_llm_call(
     name: str,
@@ -512,13 +502,11 @@ def trace_llm_call(
 
     return decorator
 
-
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================
 
 _tracer: LangFuseTracer | None = None
-
 
 def get_tracer() -> LangFuseTracer:
     """Get or create the singleton tracer."""

@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 @dataclass(slots=True)
 class CacheEntry[T]:
     """
@@ -52,7 +51,6 @@ class CacheEntry[T]:
     data: T
     timestamp: float
     ttl: float
-
 
 @dataclass(slots=True)
 class CacheStats:
@@ -75,7 +73,6 @@ class CacheStats:
     def total_operations(self) -> int:
         """Total number of operations."""
         return self.hits + self.misses + self.sets + self.deletes
-
 
 class AsyncTTLCache:
     """
@@ -263,7 +260,7 @@ class AsyncTTLCache:
                 await self._remove_expired_entries()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if isinstance(e, asyncio.CancelledError):
                     break
                 logger.error("Error in cleanup loop: %s", e)
@@ -619,7 +616,6 @@ class AsyncTTLCache:
         """Context manager exit."""
         await self.stop()
 
-
 # Factory function for creating configured cache instances
 def create_cache(
     ttl_seconds: int = 60,
@@ -650,10 +646,8 @@ def create_cache(
         **kwargs,
     )
 
-
 # Backward compatibility alias
 ImprovedAsyncCache = AsyncTTLCache
-
 
 __all__ = [
     "AsyncTTLCache",

@@ -9,7 +9,6 @@ from typing import Any
 
 import structlog
 
-
 def setup_logging() -> None:
     """
     Configures structured logging for the application with JSON format.
@@ -64,7 +63,6 @@ def setup_logging() -> None:
     file_handler.setLevel(log_level)
     root_logger.addHandler(file_handler)
 
-
 def log_with_correlation(
     level: int,
     message: str,
@@ -116,7 +114,6 @@ def log_with_correlation(
     elif level == logging.CRITICAL:
         logger.critical("LOG_EVENT", **log_entry)
 
-
 def log_audit_event(
     action: str,
     user_id: str,
@@ -162,9 +159,8 @@ def log_audit_event(
             source_component="main",
             severity=severity,
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to persist audit event to database: %s", e, exc_info=True)
-
 
 def _sanitize_audit_details(details: dict[str, Any]) -> dict[str, Any]:
     """

@@ -40,7 +40,6 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 class CacheStatsResponse(BaseModel):
     """Response model for cache statistics."""
 
@@ -59,7 +58,6 @@ class CacheStatsResponse(BaseModel):
     )
     used_memory_human: str = Field(description="Redis memory usage")
 
-
 class ThresholdUpdateRequest(BaseModel):
     """Request model for updating cache threshold."""
 
@@ -71,14 +69,12 @@ class ThresholdUpdateRequest(BaseModel):
         examples=[0.25, 0.3, 0.35],
     )
 
-
 class ThresholdUpdateResponse(BaseModel):
     """Response model for threshold update."""
 
     old_threshold: float
     new_threshold: float
     message: str
-
 
 class InvalidateRequest(BaseModel):
     """Request model for cache invalidation."""
@@ -91,13 +87,11 @@ class InvalidateRequest(BaseModel):
         default=False, description="Clear entire cache (use with caution!)"
     )
 
-
 class InvalidateResponse(BaseModel):
     """Response model for cache invalidation."""
 
     invalidated_count: int
     message: str
-
 
 class HealthCheckResponse(BaseModel):
     """Response model for health check."""
@@ -110,14 +104,12 @@ class HealthCheckResponse(BaseModel):
     embedding_model_info: dict[str, Any]
     timestamp: datetime
 
-
 class PreloadResponse(BaseModel):
     """Response model for model preload."""
 
     success: bool
     model_info: dict[str, Any]
     message: str
-
 
 class RedisInfoResponse(BaseModel):
     """Response model for Redis server information."""
@@ -137,7 +129,6 @@ class RedisInfoResponse(BaseModel):
     ops_per_sec: int = Field(description="Operations per second")
     uptime_days: float = Field(description="Server uptime in days")
 
-
 @router.get(
     "/stats",
     summary="Get cache statistics",
@@ -149,7 +140,7 @@ async def get_cache_stats() -> CacheStatsResponse:
         cache = await get_semantic_cache()
         stats = await cache.get_stats()
         return CacheStatsResponse(**stats)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get cache stats: %s", e)
@@ -157,7 +148,6 @@ async def get_cache_stats() -> CacheStatsResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve cache statistics. Check server logs for details.",
         ) from e
-
 
 @router.get(
     "/health",
@@ -186,7 +176,7 @@ async def health_check() -> HealthCheckResponse:
             embedding_model_info=model_info,
             timestamp=datetime.now(timezone.utc),
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Health check failed: %s", e)
@@ -199,7 +189,6 @@ async def health_check() -> HealthCheckResponse:
             embedding_model_info={"error": str(e)},
             timestamp=datetime.now(timezone.utc),
         )
-
 
 @router.put(
     "/threshold",
@@ -225,7 +214,7 @@ async def update_threshold(request: ThresholdUpdateRequest) -> ThresholdUpdateRe
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Internal server error. Check server logs for details.",
         ) from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to update threshold: %s", e)
@@ -233,7 +222,6 @@ async def update_threshold(request: ThresholdUpdateRequest) -> ThresholdUpdateRe
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update threshold. Check server logs for details.",
         ) from e
-
 
 @router.post(
     "/invalidate",
@@ -272,7 +260,7 @@ async def invalidate_cache(request: InvalidateRequest) -> InvalidateResponse:
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to invalidate cache: %s", e)
@@ -280,7 +268,6 @@ async def invalidate_cache(request: InvalidateRequest) -> InvalidateResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to invalidate cache. Check server logs for details.",
         ) from e
-
 
 @router.post(
     "/preload-model",
@@ -303,7 +290,7 @@ async def preload_embedding_model() -> PreloadResponse:
             model_info=model_info,
             message="Failed to load embedding model, using fallback",
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to preload model: %s", e)
@@ -311,7 +298,6 @@ async def preload_embedding_model() -> PreloadResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to preload model. Check server logs for details.",
         ) from e
-
 
 @router.get(
     "/test",
@@ -334,7 +320,7 @@ async def test_cache_lookup(
             "cached_query": result.entry.query if result.entry else None,
             "hit_count": result.entry.hit_count if result.entry else None,
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Test lookup failed: %s", e)
@@ -342,7 +328,6 @@ async def test_cache_lookup(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Test failed. Check server logs for details.",
         ) from e
-
 
 @router.post(
     "/test-store",
@@ -372,7 +357,7 @@ async def test_cache_store(
             if success
             else "Failed to store entry",
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Test store failed: %s", e)
@@ -380,7 +365,6 @@ async def test_cache_store(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Test failed. Check server logs for details.",
         ) from e
-
 
 @router.get(
     "/redis-info",
@@ -397,7 +381,7 @@ async def get_redis_info() -> RedisInfoResponse:
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             info = await client.info()
             connected = True
-        except Exception as conn_err:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as conn_err:
             logger.warning("Redis connection failed: %s", conn_err)
             connected = False
             info = {}
@@ -423,7 +407,7 @@ async def get_redis_info() -> RedisInfoResponse:
                     "bloom": stack_info.get("bf", False)
                     or stack_info.get("bloom", False),
                 }
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 logger.debug(
                     "suppressed_exception", exc_info=True, extra={"error": str(exc)}
                 )
@@ -446,7 +430,7 @@ async def get_redis_info() -> RedisInfoResponse:
                     try:
                         parts = dict((p.split("=") for p in db_info.split(",")))
                         keys = int(parts.get("keys", 0))
-                    except Exception:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                         keys = 0
                 else:
                     keys = 0
@@ -475,7 +459,7 @@ async def get_redis_info() -> RedisInfoResponse:
             if info
             else 0,
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get Redis info: %s", e)
@@ -483,7 +467,6 @@ async def get_redis_info() -> RedisInfoResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get Redis info. Check server logs for details.",
         ) from e
-
 
 @router.post(
     "/redis-test",
@@ -506,7 +489,7 @@ async def test_redis_connection() -> dict[str, Any]:
             "latency_ms": round(latency_ms, 2),
             "message": "Redis connection successful" if pong else "Redis ping failed",
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Redis connection test failed: %s", e)
@@ -516,7 +499,6 @@ async def test_redis_connection() -> dict[str, Any]:
             "message": f"Connection failed: {str(e)}",
             "error": str(e),
         }
-
 
 class RerankerInfoResponse(BaseModel):
     """Response model for reranker information."""
@@ -529,7 +511,6 @@ class RerankerInfoResponse(BaseModel):
     gray_zone_min: float = Field(description="Minimum distance for gray zone")
     gray_zone_max: float = Field(description="Maximum distance for gray zone")
     stats: dict[str, Any] = Field(description="Reranking statistics")
-
 
 class RerankerConfigRequest(BaseModel):
     """Request model for updating reranker configuration."""
@@ -552,7 +533,6 @@ class RerankerConfigRequest(BaseModel):
         le=1.0,
         description="Maximum embedding distance for gray zone",
     )
-
 
 @router.get(
     "/reranker",
@@ -581,7 +561,7 @@ async def get_reranker_status() -> RerankerInfoResponse:
                 ),
             },
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to get reranker info: %s", e)
@@ -589,7 +569,6 @@ async def get_reranker_status() -> RerankerInfoResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get reranker info. Check server logs for details.",
         ) from e
-
 
 @router.put(
     "/reranker/enabled",
@@ -610,7 +589,7 @@ async def toggle_reranking(
             if actual_state == enabled
             else "Reranking could not be enabled (model not available)",
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to toggle reranking: %s", e)
@@ -618,7 +597,6 @@ async def toggle_reranking(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to toggle reranking. Check server logs for details.",
         ) from e
-
 
 @router.put(
     "/reranker/config",
@@ -645,7 +623,7 @@ async def update_reranker_configuration(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Internal server error. Check server logs for details.",
         ) from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to update reranker config: %s", e)
@@ -653,7 +631,6 @@ async def update_reranker_configuration(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update config. Check server logs for details.",
         ) from e
-
 
 @router.post(
     "/reranker/preload",
@@ -673,7 +650,7 @@ async def preload_reranker_model() -> dict[str, Any]:
             if success
             else "Failed to load reranker model",
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to preload reranker: %s", e)
@@ -681,6 +658,5 @@ async def preload_reranker_model() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to preload model. Check server logs for details.",
         ) from e
-
 
 __all__ = ["router"]

@@ -5,7 +5,6 @@ Service Level Objectives and Key Performance Indicators configuration
 from dataclasses import dataclass
 from typing import Any
 
-
 @dataclass
 class ServiceLevelObjectives:
     """Service Level Objectives for Resync system"""
@@ -24,7 +23,6 @@ class ServiceLevelObjectives:
     MAX_CONCURRENT_USERS: int = 1000
     MAX_REQUESTS_PER_MINUTE: int = 10000
     CACHE_HIT_RATIO_THRESHOLD: float = 0.8  # 80%
-
 
 # KPI definitions
 KPI_DEFINITIONS = {
@@ -65,7 +63,6 @@ KPI_DEFINITIONS = {
         "critical_threshold": 0.70,  # 70%
     },
 }
-
 
 def validate_slo_compliance(metrics: dict[str, Any]) -> dict[str, bool]:
     """

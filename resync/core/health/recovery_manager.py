@@ -21,7 +21,6 @@ from resync.core.pools.pool_manager import (
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthRecoveryManager:
     """
     Manages recovery operations for unhealthy system components.
@@ -121,7 +120,7 @@ class HealthRecoveryManager:
             await self._add_to_history(result)
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             recovery_time_ms = (time.time() - start_time) * 1000
             error_message = f"Database recovery failed: {str(e)}"
 
@@ -217,7 +216,7 @@ class HealthRecoveryManager:
             await self._add_to_history(result)
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             recovery_time_ms = (time.time() - start_time) * 1000
             error_message = f"Cache recovery failed: {str(e)}"
 
@@ -311,7 +310,7 @@ class HealthRecoveryManager:
             await self._add_to_history(result)
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             recovery_time_ms = (time.time() - start_time) * 1000
             error_message = f"Service recovery failed: {str(e)}"
 
@@ -357,7 +356,7 @@ class HealthRecoveryManager:
                 "connections_tested": 1,
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -396,7 +395,7 @@ class HealthRecoveryManager:
                 "needs_restart": False,
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("cache_connectivity_test_failed", error=str(e), exc_info=True)
@@ -438,7 +437,7 @@ class HealthRecoveryManager:
         try:
             # This would implement full cache reset logic
             return {"success": True, "system_reset": True, "reset_time_ms": 100}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -450,7 +449,7 @@ class HealthRecoveryManager:
         try:
             # This would check circuit breaker status and reset if appropriate
             return {"reset_performed": False, "breakers_checked": 0, "breakers_open": 0}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -462,7 +461,7 @@ class HealthRecoveryManager:
         try:
             # This would validate health endpoints of external services
             return {"success": True, "endpoints_validated": 1, "endpoints_healthy": 1}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -478,7 +477,7 @@ class HealthRecoveryManager:
                 "diagnostics_performed": ["dns", "routing", "firewall"],
                 "issues_found": 0,
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

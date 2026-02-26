@@ -39,14 +39,12 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class CircuitBreakerState(Enum):
     """Estados possíveis do Circuit Breaker"""
 
     CLOSED = "closed"  # Funcionando normalmente
     OPEN = "open"  # Bloqueando chamadas
     HALF_OPEN = "half_open"  # Testando recuperação
-
 
 @dataclass(frozen=True)
 class CircuitBreakerConfig:
@@ -81,7 +79,6 @@ class CircuitBreakerConfig:
                 f"got {self.recovery_timeout!r}"
             )
 
-
 @dataclass
 class CircuitBreakerMetrics:
     """Métricas do Circuit Breaker"""
@@ -93,7 +90,6 @@ class CircuitBreakerMetrics:
     last_failure_time: datetime | None = None
     last_success_time: datetime | None = None
     state_changes: int = 0
-
 
 class CircuitBreaker:
     """
@@ -277,7 +273,6 @@ class CircuitBreaker:
             "state_changes": self.metrics.state_changes,
         }
 
-
 @dataclass(frozen=True)
 class RetryConfig:
     """Configuração para retry com backoff.
@@ -292,7 +287,6 @@ class RetryConfig:
     jitter: bool = True
     expected_exceptions: tuple[type[BaseException], ...] = (Exception,)
 
-
 @dataclass
 class RetryMetrics:
     """Métricas de retry"""
@@ -301,7 +295,6 @@ class RetryMetrics:
     successful_attempts: int = 0
     failed_attempts: int = 0
     total_retry_delay: float = 0.0
-
 
 class RetryWithBackoff:
     """
@@ -402,7 +395,6 @@ class RetryWithBackoff:
             ),
         }
 
-
 class TimeoutManager:
     """
     Gerenciador de timeouts para operações assíncronas
@@ -438,9 +430,7 @@ class TimeoutManager:
                 f"Operation timed out after {timeout_seconds} seconds"
             ) from exc
 
-
 # Decoradores para facilitar uso dos padrões
-
 
 def circuit_breaker(
     failure_threshold: int = 5,
@@ -477,7 +467,6 @@ def circuit_breaker(
         return wrapper  # type: ignore[return-value]
 
     return decorator
-
 
 def retry_with_backoff(
     max_retries: int = 3,
@@ -520,7 +509,6 @@ def retry_with_backoff(
 
     return decorator
 
-
 def with_timeout(timeout_seconds: float, timeout_exception: Exception | None = None):
     """
     Decorador para aplicar timeout
@@ -541,9 +529,7 @@ def with_timeout(timeout_seconds: float, timeout_exception: Exception | None = N
 
     return decorator
 
-
 # Funções utilitárias para monitoramento
-
 
 def get_all_circuit_breakers() -> dict[str, CircuitBreaker]:
     """Return all live circuit breaker instances.
@@ -554,14 +540,12 @@ def get_all_circuit_breakers() -> dict[str, CircuitBreaker]:
     """
     return {cb.config.name: cb for cb in CircuitBreaker._registry}
 
-
 def get_circuit_breaker_metrics() -> dict[str, dict[str, Any]]:
     """
     Retorna métricas de todos os circuit breakers
     """
     breakers = get_all_circuit_breakers()
     return {name: breaker.get_metrics() for name, breaker in breakers.items()}
-
 
 # Configurações padrão para diferentes tipos de serviço
 
@@ -576,7 +560,6 @@ DEFAULT_DATABASE_CONFIG = CircuitBreakerConfig(
 DEFAULT_EXTERNAL_API_CONFIG = CircuitBreakerConfig(
     failure_threshold=2, recovery_timeout=120, name="external_api"
 )
-
 
 class CircuitBreakerManager:
     """
@@ -623,7 +606,6 @@ class CircuitBreakerManager:
     def state(self, name: str) -> str:
         state = self.get(name).state
         return state.value  # "closed" | "open" | "half-open"
-
 
 async def retry_with_backoff_async(
     op: Callable[[], Awaitable[T]],

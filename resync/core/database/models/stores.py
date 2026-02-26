@@ -7,7 +7,6 @@ All models use async-compatible SQLAlchemy 2.0 style.
 
 import enum
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -31,7 +30,6 @@ from resync.core.database.engine import Base
 # ENUMS
 # =============================================================================
 
-
 class JobStatusEnum(str, enum.Enum):
     """TWS Job status enumeration."""
 
@@ -44,7 +42,6 @@ class JobStatusEnum(str, enum.Enum):
     HELD = "held"
     UNKNOWN = "unknown"
 
-
 class EventSeverity(str, enum.Enum):
     """Event severity levels."""
 
@@ -52,7 +49,6 @@ class EventSeverity(str, enum.Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 class ContentType(str, enum.Enum):
     """Content types for context store."""
@@ -62,11 +58,9 @@ class ContentType(str, enum.Enum):
     SOLUTION = "solution"
     OBSERVATION = "observation"
 
-
 # =============================================================================
 # TWS STATUS STORE MODELS (from tws_status_store.py)
 # =============================================================================
-
 
 class TWSSnapshot(Base):
     """Snapshot of TWS status at a point in time."""
@@ -91,7 +85,6 @@ class TWSSnapshot(Base):
         back_populates="snapshot",
         lazy="raise",  # Força uso de selectinload() para prevenir N+1
     )
-
 
 class TWSJobStatus(Base):
     """Individual job status record."""
@@ -125,11 +118,10 @@ class TWSJobStatus(Base):
 
     # Relationships
     # lazy="raise" força erro se acessar sem eager loading (previne N+1 queries)
-    snapshot: Mapped[Optional["TWSSnapshot"]] = relationship(
+    snapshot: Mapped["TWSSnapshot" | None] = relationship(
         back_populates="job_statuses",
         lazy="raise",  # Força uso de joinedload() para prevenir N+1
     )
-
 
 class TWSWorkstationStatus(Base):
     """Workstation status record."""
@@ -151,7 +143,6 @@ class TWSWorkstationStatus(Base):
         DateTime(timezone=True), default=func.now()
     )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
-
 
 class TWSEvent(Base):
     """TWS events and alerts."""
@@ -179,7 +170,6 @@ class TWSEvent(Base):
     acknowledged_by: Mapped[str | None] = mapped_column(String(255))
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-
 class TWSPattern(Base):
     """Detected patterns in TWS data."""
 
@@ -205,7 +195,6 @@ class TWSPattern(Base):
     pattern_data: Mapped[dict | None] = mapped_column(JSONB)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-
 class TWSProblemSolution(Base):
     """Known problems and their solutions."""
 
@@ -229,11 +218,9 @@ class TWSProblemSolution(Base):
     )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
-
 # =============================================================================
 # CONTEXT STORE MODELS (from context_store.py)
 # =============================================================================
-
 
 class Conversation(Base):
     """Conversation history for context."""
@@ -263,7 +250,6 @@ class Conversation(Base):
     is_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True)
 
-
 class ContextContent(Base):
     """General content for context retrieval."""
 
@@ -290,11 +276,9 @@ class ContextContent(Base):
     embedding_id: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-
 # =============================================================================
 # AUDIT MODELS (from audit_db.py, audit_queue.py)
 # =============================================================================
-
 
 class AuditEntry(Base):
     """Audit log entries."""
@@ -321,7 +305,6 @@ class AuditEntry(Base):
         DateTime(timezone=True), default=func.now()
     )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
-
 
 class AuditQueueItem(Base):
     """Pending audit items queue."""
@@ -350,11 +333,9 @@ class AuditQueueItem(Base):
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-
 # =============================================================================
 # USER BEHAVIOR MODELS (from user_behavior.py)
 # =============================================================================
-
 
 class UserProfile(Base):
     """User profile and preferences."""
@@ -379,7 +360,6 @@ class UserProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
-
 
 class SessionHistory(Base):
     """User session history."""
@@ -406,11 +386,9 @@ class SessionHistory(Base):
     actions: Mapped[dict | None] = mapped_column(JSONB)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
-
 # =============================================================================
 # FEEDBACK & LEARNING MODELS (from feedback_store.py, active_learning.py)
 # =============================================================================
-
 
 class Feedback(Base):
     """User feedback on responses."""
@@ -451,7 +429,6 @@ class Feedback(Base):
         String(255)
     )  # Vector store doc ID
 
-
 class LearningThreshold(Base):
     """Dynamic learning thresholds."""
 
@@ -478,7 +455,6 @@ class LearningThreshold(Base):
         DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
 
-
 class ActiveLearningCandidate(Base):
     """Candidates for active learning."""
 
@@ -504,11 +480,9 @@ class ActiveLearningCandidate(Base):
     )
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
-
 # =============================================================================
 # METRICS MODELS (from lightweight_store.py)
 # =============================================================================
-
 
 class MetricDataPoint(Base):
     """Time-series metric data points."""
@@ -529,7 +503,6 @@ class MetricDataPoint(Base):
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now()
     )
-
 
 class MetricAggregation(Base):
     """Pre-aggregated metrics for faster queries."""
@@ -564,11 +537,9 @@ class MetricAggregation(Base):
         DateTime(timezone=True), default=func.now()
     )
 
-
 # =============================================================================
 # HELPER FUNCTION TO GET ALL MODELS
 # =============================================================================
-
 
 def get_all_models():
     """Return all model classes for migration/schema creation."""

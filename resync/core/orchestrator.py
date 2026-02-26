@@ -23,13 +23,11 @@ from typing import Any, Protocol
 
 from resync.core.structured_logger import get_logger
 
-
 class AsyncKnowledgeGraphProtocol(Protocol):
     """Protocol for async KG calls used by the orchestrator."""
 
     async def get_relevant_context(self, user_query: str) -> str:
         """Return context for a given query."""
-
 
 class AsyncTWSClientProtocol(Protocol):
     """Protocol for async TWS calls used by the orchestrator."""
@@ -76,11 +74,9 @@ _FAILED_JOBS_HOURS_WINDOW: int = 24
 #: Maximum backoff delay (seconds) to cap exponential growth.
 _MAX_BACKOFF_SECONDS: float = 8.0
 
-
 # =============================================================================
 # RESULT MODEL
 # =============================================================================
-
 
 @dataclass
 class OrchestrationResult:
@@ -126,11 +122,9 @@ class OrchestrationResult:
         failed = len(self.errors)
         return (self.attempted_tasks - failed) / self.attempted_tasks
 
-
 # =============================================================================
 # SERVICE ORCHESTRATOR
 # =============================================================================
-
 
 class ServiceOrchestrator:
     """Fan-out/fan-in orchestrator for backend service calls.
@@ -201,7 +195,7 @@ class ServiceOrchestrator:
             except asyncio.CancelledError:
                 # Respect cooperative cancellation — never swallow it.
                 raise
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                 last_exc = exc
                 if attempt == max_attempts - 1:
                     logger.error(
@@ -373,9 +367,11 @@ class ServiceOrchestrator:
                             )
                 except* asyncio.CancelledError:
                     raise
-                except* Exception:
-                    # Exceptions will be caught when checking task.result()
-                    pass
+                except* Exception as eg:
+                    # Exceptions are extracted from task.result() below;
+                    # log so unexpected errors are observable
+                    logger.debug("health_task_group_error",
+                                 count=len(eg.exceptions))
         except TimeoutError:
             logger.error("health_check_timeout", timeout=self.timeout)
             return {
@@ -456,7 +452,6 @@ class ServiceOrchestrator:
         if context:
             return [{"summary": context}]
         return []
-
 
 # =============================================================================
 # EXPORTS

@@ -33,7 +33,6 @@ from resync.core.task_tracker import create_tracked_task, track_task
 
 logger = get_logger(__name__)
 
-
 class DataCategory(Enum):
     """GDPR data categories with specific retention policies."""
 
@@ -45,7 +44,6 @@ class DataCategory(Enum):
     COMMUNICATION_DATA = "communication_data"  # Messages, chat logs
     AUDIT_DATA = "audit_data"  # Security logs, access records
     ANALYTICS_DATA = "analytics_data"  # Usage statistics, metrics
-
 
 class RetentionPolicy(Enum):
     """Standard GDPR retention policy durations."""
@@ -60,7 +58,6 @@ class RetentionPolicy(Enum):
     ANALYTICS_DATA = 2 * 365  # 2 years for analytics data
     TEMPORARY_DATA = 30  # 30 days for temporary data
 
-
 class ConsentStatus(Enum):
     """User consent status for data processing."""
 
@@ -69,7 +66,6 @@ class ConsentStatus(Enum):
     EXPIRED = "expired"
     PENDING = "pending"
     DENIED = "denied"
-
 
 @dataclass
 class DataRetentionPolicy:
@@ -90,7 +86,6 @@ class DataRetentionPolicy:
     def get_anonymization_deadline(self, created_at: float) -> float:
         """Get timestamp when data should be anonymized."""
         return created_at + (self.retention_days * 24 * 3600)
-
 
 @dataclass
 class UserConsent:
@@ -121,7 +116,6 @@ class UserConsent:
         self.status = ConsentStatus.WITHDRAWN
         self.withdrawn_at = time.time()
 
-
 @dataclass
 class DataErasureRequest:
     """Request for data erasure (Right to be Forgotten)."""
@@ -149,7 +143,6 @@ class DataErasureRequest:
         )
         return hashlib.sha256(data_str.encode()).hexdigest()
 
-
 @dataclass
 class DataPortabilityRequest:
     """Request for data portability."""
@@ -164,7 +157,6 @@ class DataPortabilityRequest:
     completed_at: float | None = None
     data_size_bytes: int = 0
     download_url: str | None = None
-
 
 @dataclass
 class GDPRComplianceConfig:
@@ -194,7 +186,6 @@ class GDPRComplianceConfig:
     # Performance settings
     max_concurrent_operations: int = 10
     batch_size: int = 1000
-
 
 class DataAnonymizer:
     """Handles data anonymization and pseudonymization."""
@@ -275,7 +266,6 @@ class DataAnonymizer:
         key = f"{user_id}:{value}:{self._salt}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
-
 class GDPRDataEncryptor:
     """Handles encryption/decryption of sensitive GDPR data."""
 
@@ -323,7 +313,7 @@ class GDPRDataEncryptor:
             encrypted = base64.urlsafe_b64decode(encrypted_data)
             decrypted = self._cipher.decrypt(encrypted)
             return decrypted.decode()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -334,7 +324,6 @@ class GDPRDataEncryptor:
         """Check if encryption key should be rotated."""
         elapsed_days = (time.time() - self._key_created_at) / (24 * 3600)
         return elapsed_days >= self.config.encryption_key_rotation_days
-
 
 class GDPRComplianceManager:
     """
@@ -573,7 +562,7 @@ class GDPRComplianceManager:
         )
 
         # Start erasure process asynchronously
-        await create_tracked_task(
+        create_tracked_task(
             self._process_data_erasure(request), name="process_data_erasure"
         )
 
@@ -611,7 +600,7 @@ class GDPRComplianceManager:
         )
 
         # Start portability process asynchronously
-        await create_tracked_task(
+        create_tracked_task(
             self._process_data_portability(request), name="process_data_portability"
         )
 
@@ -692,7 +681,7 @@ class GDPRComplianceManager:
         )
 
         # Trigger breach response
-        await create_tracked_task(
+        create_tracked_task(
             self._handle_data_breach(breach_incident), name="handle_data_breach"
         )
 
@@ -776,7 +765,7 @@ class GDPRComplianceManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Cleanup worker error: %s", e)
 
     async def _audit_worker(self) -> None:
@@ -793,7 +782,7 @@ class GDPRComplianceManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Audit worker error: %s", e)
 
     async def _breach_monitor(self) -> None:
@@ -814,7 +803,7 @@ class GDPRComplianceManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Breach monitor error: %s", e)
 
     def _audit_event(self, event_type: str, **kwargs) -> None:
@@ -854,7 +843,7 @@ class GDPRComplianceManager:
 
             logger.info("Data erasure completed: %s", request.request_id)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -884,7 +873,7 @@ class GDPRComplianceManager:
 
             logger.info("Data portability completed: %s", request.request_id)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -976,10 +965,8 @@ class GDPRComplianceManager:
 
         logger.info("Breach notification sent: %s", breach["breach_id"])
 
-
 # Global GDPR compliance manager instance (lazy-initialized)
 _gdpr_compliance_manager: GDPRComplianceManager | None = None
-
 
 def _get_gdpr_compliance_manager_instance() -> GDPRComplianceManager:
     """Get or create the GDPR compliance manager (lazy init)."""
@@ -988,10 +975,8 @@ def _get_gdpr_compliance_manager_instance() -> GDPRComplianceManager:
         _gdpr_compliance_manager = GDPRComplianceManager()
     return _gdpr_compliance_manager
 
-
 # Backward compatibility alias
 gdpr_compliance_manager: GDPRComplianceManager | None = None  # type: ignore[assignment]
-
 
 async def get_gdpr_compliance_manager(
     tg: asyncio.TaskGroup | None = None,

@@ -16,13 +16,12 @@ import hashlib
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 from resync.core.gdpr_compliance import DataAnonymizer, GDPRComplianceConfig
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
-
 
 def _safe_int(env_key: str, default: int) -> int:
     val = os.environ.get(env_key)
@@ -35,7 +34,6 @@ def _safe_int(env_key: str, default: int) -> int:
 
 CHAT_MEMORY_TTL_DAYS = _safe_int("CHAT_MEMORY_TTL_DAYS", 30)
 CHAT_MEMORY_COLLECTION = "chat_history"
-
 
 @dataclass
 class ChatTurn:
@@ -61,9 +59,8 @@ class ChatTurn:
             datetime.now(timezone.utc) + timedelta(days=CHAT_MEMORY_TTL_DAYS)
         )
     )
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 class ChatMemoryStore:
     """
@@ -173,12 +170,12 @@ class ChatMemoryStore:
 
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("chat_turn_store_failed", error=str(e))
             return False
 
     async def search(
-        self, query: str, user_id: str, session_id: Optional[str] = None, top_k: int = 5
+        self, query: str, user_id: str, session_id: str | None = None, top_k: int = 5
     ) -> list[dict[str, Any]]:
         """
         Busca em conversas anteriores por similaridade semântica.
@@ -222,7 +219,7 @@ class ChatMemoryStore:
 
             return valid_results
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("chat_history_search_failed", error=str(e))
             return []
 
@@ -252,7 +249,7 @@ class ChatMemoryStore:
                     logger.info("chat_memory_cleanup_finished", deleted_count=deleted)
                     return deleted
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("chat_memory_cleanup_failed", error=str(e))
             return 0
 
@@ -277,10 +274,8 @@ class ChatMemoryStore:
             )
             del self._session_cache[oldest_session]
 
-
-_chat_memory_store: Optional[ChatMemoryStore] = None
-_global_chat_lock: Optional[asyncio.Lock] = None
-
+_chat_memory_store: ChatMemoryStore | None = None
+_global_chat_lock: asyncio.Lock | None = None
 
 async def get_chat_memory_store_async() -> ChatMemoryStore:
     """Get or cria singleton do ChatMemoryStore de forma assíncrona."""
@@ -294,7 +289,6 @@ async def get_chat_memory_store_async() -> ChatMemoryStore:
                 _chat_memory_store = ChatMemoryStore()
     return _chat_memory_store
 
-
 def get_chat_memory_store() -> ChatMemoryStore:
     """
     Get or cria singleton do ChatMemoryStore (Sincronamente).
@@ -304,6 +298,5 @@ def get_chat_memory_store() -> ChatMemoryStore:
     if _chat_memory_store is None:
         _chat_memory_store = ChatMemoryStore()
     return _chat_memory_store
-
 
 __all__ = ["ChatTurn", "ChatMemoryStore", "get_chat_memory_store"]

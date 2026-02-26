@@ -36,7 +36,6 @@ SETTINGS_OVERRIDE_PATH = (
     / "settings_override.json"
 )
 
-
 # =============================================================================
 # SETTINGS SCHEMA - Organized by Section
 # =============================================================================
@@ -1038,18 +1037,15 @@ SETTINGS_SCHEMA = {
     },
 }
 
-
 # =============================================================================
 # REQUEST/RESPONSE MODELS
 # =============================================================================
-
 
 class SettingUpdate(BaseModel):
     """Model for updating a single setting."""
 
     key: str = Field(..., description="Setting key (e.g., 'llm_timeout')")
     value: Any = Field(..., description="New value for the setting")
-
 
 class BulkSettingsUpdate(BaseModel):
     """Model for updating multiple settings at once."""
@@ -1058,11 +1054,9 @@ class BulkSettingsUpdate(BaseModel):
         ..., description="Dictionary of settings to update"
     )
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
 
 def _load_overrides() -> dict[str, Any]:
     """Load settings overrides from JSON file."""
@@ -1070,10 +1064,9 @@ def _load_overrides() -> dict[str, Any]:
         try:
             with SETTINGS_OVERRIDE_PATH.open("r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to load settings overrides: %s", e)
     return {}
-
 
 def _save_overrides(overrides: dict[str, Any]) -> None:
     """Save settings overrides to JSON file."""
@@ -1082,7 +1075,7 @@ def _save_overrides(overrides: dict[str, Any]) -> None:
         overrides["_last_modified"] = datetime.now(timezone.utc).isoformat()
         with SETTINGS_OVERRIDE_PATH.open("w", encoding="utf-8") as f:
             json.dump(overrides, f, indent=2, ensure_ascii=False, default=str)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1091,7 +1084,6 @@ def _save_overrides(overrides: dict[str, Any]) -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save settings. Check server logs for details.",
         ) from None
-
 
 def _get_current_value(settings: Settings, key: str) -> Any:
     """Get current value for a setting, checking overrides first."""
@@ -1105,9 +1097,8 @@ def _get_current_value(settings: Settings, key: str) -> Any:
         if hasattr(value, "get_secret_value"):
             return "********"  # Don't expose secrets
         return value
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return None
-
 
 def _get_all_settings_values(settings: Settings) -> dict[str, dict[str, Any]]:
     """Get all current settings values organized by section."""
@@ -1130,17 +1121,15 @@ def _get_all_settings_values(settings: Settings) -> dict[str, dict[str, Any]]:
                         section_values[field_key] = str(value)
                     else:
                         section_values[field_key] = value
-                except Exception:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                     section_values[field_key] = None
         result[section_key] = section_values
 
     return result
 
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
-
 
 @router.get("/schema")
 async def get_settings_schema() -> dict[str, Any]:
@@ -1154,7 +1143,6 @@ async def get_settings_schema() -> dict[str, Any]:
         "total_sections": len(SETTINGS_SCHEMA),
         "total_fields": sum(len(s["fields"]) for s in SETTINGS_SCHEMA.values()),
     }
-
 
 @router.get("/all")
 async def get_all_settings() -> dict[str, Any]:
@@ -1173,7 +1161,6 @@ async def get_all_settings() -> dict[str, Any]:
         "overrides_count": len([k for k in overrides if not k.startswith("_")]),
         "last_modified": overrides.get("_last_modified"),
     }
-
 
 @router.get("/section/{section_key}")
 async def get_section_settings(section_key: str) -> dict[str, Any]:
@@ -1208,7 +1195,7 @@ async def get_section_settings(section_key: str) -> dict[str, Any]:
                     values[field_key] = str(value)
                 else:
                     values[field_key] = value
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 values[field_key] = None
 
     return {
@@ -1219,7 +1206,6 @@ async def get_section_settings(section_key: str) -> dict[str, Any]:
         "fields": section["fields"],
         "values": values,
     }
-
 
 @router.put("/update")
 async def update_setting(update: SettingUpdate) -> dict[str, Any]:
@@ -1281,7 +1267,7 @@ async def update_setting(update: SettingUpdate) -> dict[str, Any]:
         try:
             clear_settings_cache()
             logger.info("Setting hot-reloaded: %s = %s", update.key, update.value)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Could not clear settings cache: %s", e)
     else:
         logger.info(
@@ -1300,7 +1286,6 @@ async def update_setting(update: SettingUpdate) -> dict[str, Any]:
         if hot_reload
         else f"Requer restart: {restart_reason}",
     }
-
 
 @router.put("/bulk-update")
 async def bulk_update_settings(update: BulkSettingsUpdate) -> dict[str, Any]:
@@ -1364,7 +1349,7 @@ async def bulk_update_settings(update: BulkSettingsUpdate) -> dict[str, Any]:
     try:
         clear_settings_cache()
         logger.info("Settings cache cleared after updating %s settings", len(updated))
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Could not clear settings cache: %s", e)
 
     return {
@@ -1381,7 +1366,6 @@ async def bulk_update_settings(update: BulkSettingsUpdate) -> dict[str, Any]:
         ),
     }
 
-
 def _build_update_message(hot_count: int, restart_count: int, error_count: int) -> str:
     """Build a human-readable update message."""
     parts = []
@@ -1392,7 +1376,6 @@ def _build_update_message(hot_count: int, restart_count: int, error_count: int) 
     if error_count > 0:
         parts.append(f"{error_count} erros")
     return ", ".join(parts) if parts else "Nenhuma alteração"
-
 
 @router.delete("/reset/{key}")
 async def reset_setting(key: str) -> dict[str, Any]:
@@ -1426,7 +1409,6 @@ async def reset_setting(key: str) -> dict[str, Any]:
         "message": "Setting reset to default",
     }
 
-
 @router.delete("/reset-all")
 async def reset_all_settings() -> dict[str, Any]:
     """Reset all settings to their default values.
@@ -1444,7 +1426,6 @@ async def reset_all_settings() -> dict[str, Any]:
         "reset_count": count,
         "message": f"Reset {count} settings to defaults",
     }
-
 
 @router.get("/export")
 async def export_settings() -> dict[str, Any]:
@@ -1464,7 +1445,6 @@ async def export_settings() -> dict[str, Any]:
         else str(settings.environment),
         "settings": values,
     }
-
 
 @router.post("/import")
 async def import_settings(data: dict[str, Any]) -> dict[str, Any]:

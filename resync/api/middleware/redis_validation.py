@@ -28,7 +28,6 @@ logger = structlog.get_logger(__name__)
 # Lazy import to avoid circular dependencies
 _redis_strategy = None
 
-
 def get_redis_strategy():
     """Lazy load Redis strategy to avoid import issues."""
     global _redis_strategy
@@ -37,7 +36,6 @@ def get_redis_strategy():
 
         _redis_strategy = _get_strategy()
     return _redis_strategy
-
 
 class RedisValidationMiddleware(BaseHTTPMiddleware):
     """
@@ -162,7 +160,7 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
         # Process request
         try:
             response = await call_next(request)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "request_processing_error",
                 method=method,
@@ -192,7 +190,6 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
         response.headers["X-Processing-Time"] = f"{duration:.3f}s"
 
         return response
-
 
 class RedisHealthMiddleware(BaseHTTPMiddleware):
     """

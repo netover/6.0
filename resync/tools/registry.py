@@ -33,11 +33,9 @@ logger = structlog.get_logger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-
 # =============================================================================
 # PERMISSIONS AND ROLES
 # =============================================================================
-
 
 class ToolPermission(str, Enum):
     """Tool permission levels."""
@@ -47,7 +45,6 @@ class ToolPermission(str, Enum):
     EXECUTE = "execute"  # Can execute actions on external systems
     ADMIN = "admin"  # Administrative operations
 
-
 class UserRole(str, Enum):
     """User roles for permission checking."""
 
@@ -55,7 +52,6 @@ class UserRole(str, Enum):
     OPERATOR = "operator"  # Can execute approved actions
     ADMIN = "admin"  # Full access
     SYSTEM = "system"  # Internal system calls
-
 
 # Role-based tool permissions allowlist
 ROLE_PERMISSIONS: dict[UserRole, set[ToolPermission]] = {
@@ -75,11 +71,9 @@ ROLE_PERMISSIONS: dict[UserRole, set[ToolPermission]] = {
     },
 }
 
-
 # =============================================================================
 # TOOL RUN STATUS (Observable for reactive UI)
 # =============================================================================
-
 
 class ToolRunStatus(str, Enum):
     """Observable status for tool execution."""
@@ -91,7 +85,6 @@ class ToolRunStatus(str, Enum):
     ERROR = "error"
     CANCELLED = "cancelled"
 
-
 class RiskLevel(str, Enum):
     """Risk classification for approval workflow."""
 
@@ -99,7 +92,6 @@ class RiskLevel(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 @dataclass
 class ToolRun:
@@ -117,7 +109,6 @@ class ToolRun:
     approval_id: str | None = None
     can_cancel: bool = True
     can_undo: bool = False
-
 
 @dataclass
 class ToolExecutionTrace:
@@ -140,7 +131,6 @@ class ToolExecutionTrace:
     undo_data: Any | None = None
     risk_level: RiskLevel = RiskLevel.LOW
 
-
 @dataclass
 class ToolDefinition:
     """Definition of a tool in the catalog."""
@@ -157,11 +147,9 @@ class ToolDefinition:
     tags: list[str] = field(default_factory=list)
     supports_undo: bool = False
 
-
 # =============================================================================
 # TOOL CATALOG (Singleton Registry)
 # =============================================================================
-
 
 class ToolCatalog:
     _tools: dict[str, ToolDefinition]
@@ -366,20 +354,16 @@ class ToolCatalog:
             logger.info("tool_rejected", approval_id=approval_id, reason=reason)
         return trace
 
-
 # Global catalog instance
 _catalog = ToolCatalog()
-
 
 def get_tool_catalog() -> ToolCatalog:
     """Get the global tool catalog instance."""
     return _catalog
 
-
 # =============================================================================
 # EXCEPTIONS
 # =============================================================================
-
 
 class ApprovalRequiredError(Exception):
     """Raised when a tool requires HITL approval."""
@@ -389,11 +373,9 @@ class ApprovalRequiredError(Exception):
         self.approval_id = approval_id
         self.trace = trace
 
-
 # =============================================================================
 # TOOL DECORATOR
 # =============================================================================
-
 
 def tool(
     permission: ToolPermission = ToolPermission.READ_ONLY,
@@ -456,7 +438,6 @@ def tool(
         return cast(F, wrapper)
 
     return decorator
-
 
 def _execute_tool_with_guardrails(
     func: Callable[..., Any],
@@ -536,14 +517,13 @@ def _execute_tool_with_guardrails(
 
     except ApprovalRequiredError:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         trace.success = False
         trace.error = str(e)
         raise
     finally:
         trace.duration_ms = int((time.time() - start_time) * 1000)
         _catalog.record_execution(trace)
-
 
 # =============================================================================
 # EXPORTS

@@ -18,7 +18,6 @@ from resync.core.connection_pool_manager import get_advanced_connection_pool_man
 
 logger = structlog.get_logger(__name__)
 
-
 class PerformanceMetricsCollector:
     """
     Collects and manages performance metrics for health monitoring.
@@ -60,7 +59,7 @@ class PerformanceMetricsCollector:
 
         try:
             return await asyncio.to_thread(_blocking_collect)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.warning("failed_to_get_system_performance_metrics", error=str(e))
@@ -103,7 +102,7 @@ class PerformanceMetricsCollector:
                 "collection_time": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -127,7 +126,7 @@ class PerformanceMetricsCollector:
                 return await pool_manager.get_performance_metrics()
             return {"error": "Advanced connection pool manager not available"}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -143,7 +142,7 @@ class PerformanceMetricsCollector:
         """
         try:
             # Collect system metrics
-            system_metrics = self.get_system_performance_metrics()
+            system_metrics = await self.get_system_performance_metrics_async()
 
             # Collect connection pool metrics
             pool_metrics = await self.get_connection_pool_metrics()
@@ -165,7 +164,7 @@ class PerformanceMetricsCollector:
 
             return comprehensive_metrics
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -278,7 +277,7 @@ class PerformanceMetricsCollector:
 
             return summary
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

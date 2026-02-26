@@ -1,3 +1,121 @@
+# Audit Pass 3 — Full Project Corrections Applied (2026-02-25)
+
+**Files corrected:** 12 root scripts + 4 resync/knowledge files  
+**Issues resolved:** All P0, P1, P2 from previous audit passes  
+**pycache:** Removed (all __pycache__ dirs and .pyc files)
+
+## Summary of All Applied Fixes
+
+### P0-01 · Prompt Injection · `resync/knowledge/kg_extraction/prompts.py`
+- Added `_sanitize_text_for_prompt()`: NFKC normalization, 8k truncation,
+  5 injection-pattern detectors (raises `ValueError`), backtick escaping.
+
+### P0-02 · Non-atomic writes · `fix_logger_final.py`, `fix_tools_final.py`, `fix_settings.py`
+- All scripts now use `tempfile + os.fsync() + Path.replace()`.
+- `.bak` backup created before write; removed only on success; restored on failure.
+
+### P0-03 · `ast.unparse()` destroys comments · `apply_fixes_ast.py`
+- Default is dry-run. `--apply` requires explicit opt-in + emits `UserWarning`.
+- `import re` moved to module level (was inside hot-path method).
+- `tmp_path` pre-initialized to `None` (safe in `except` block).
+- Exception no longer swallowed — propagates to `stderr`.
+
+### P0-04 · Incomplete requirements · `requirements.txt` / `requirements.in`
+- Added full stack: pydantic-settings, uvloop, sqlmodel, psycopg[async],
+  asyncpg, httpx, aiohttp, redisvl, sentry-sdk, opentelemetry-*, slowapi,
+  fastapi-pagination, langchain, litellm, langgraph, sentence-transformers,
+  torch, transformers, python-jose.
+- Testing deps (pytest, pytest-asyncio) moved to `requirements-dev.txt`.
+
+### P1-01 · Silent no-op · `fix_settings.py`
+- Missing `# VALIDADORES` marker now raises `RuntimeError` + `sys.exit(1)`.
+
+### P1-02 · Empty normalizer · `resync/knowledge/kg_extraction/normalizer.py`
+- Implemented `normalize_entity()`, `normalize_relation_type()`, `are_same_entity()`.
+
+### P1-03 · mypy not strict · `mypy.ini`
+- `strict = True` enabled. Redundant flags cleaned up with documentation comments.
+
+### P1-04 · requirements.in missing `uvicorn-worker`
+- Added to `requirements.in`.
+
+### P1-05 · rglob symlink loop · `apply_fixes_ast.py`
+- Filtered with `not p.is_symlink()`.
+
+### P2-01 · Deprecated `typing.Dict/Tuple` · `analyze_core.py`, `generate_plan.py`
+- Replaced with built-in `dict` / `tuple`.
+
+### P2-02 · Deprecated `typing.Iterable` · `kg_extraction/prompts.py`
+- Replaced with `collections.abc.Iterable`.
+
+### P2-05 · Missing `__init__.py` · `resync/knowledge/kg_extraction/`
+- Package init created.
+
+### P2-06 · Non-atomic `write_text()` · `generate_plan.py`
+- `import os/tempfile` moved to module level; `tmp_path` pre-initialized.
+
+### Architecture
+- `fix_reorder_imports.py` created: shared utility eliminating 86 lines of
+  duplication between `fix_logger_final.py` and `fix_tools_final.py`.
+- `TypeAlias` added to `interfaces.py`; `verify_async_protocol()` helper added.
+- `max_concepts`/`max_edges` parameter validation added to `prompts.py`.
+- `.gitignore` updated to exclude `.bak`, `.tmp` files.
+
+---
+
+# Security & Performance Audit — Applied Corrections (Pass 2)
+
+**Patch applied:** 2026-02-25  
+**Files modified:** 9  
+**Issues resolved:** 4 × P0 (critical), 5 × P1 (high), 6 × P2 (medium)
+
+---
+
+## P0 — Critical
+
+### P0-01 · Prompt Injection — `kg_extraction/prompts.py`
+`text` inserted directly into LLM prompts without sanitization.  
+**Fix:** `_sanitize_text_for_prompt()` — NFKC normalization, 8 000-char truncation, 5 injection-pattern detectors (raises `ValueError`), triple-backtick escaping.
+
+### P0-02 · Non-atomic writes — `fix_logger_final.py`, `fix_tools_final.py`, `fix_settings.py`
+`open(f, "w")` truncates immediately; mid-write interrupt produces empty file.  
+**Fix:** `tempfile.NamedTemporaryFile` + `os.fsync()` + `Path.replace()` (atomic rename) in all three scripts.
+
+### P0-03 · `ast.unparse()` destroys all comments — `apply_fixes_ast.py`
+Every `# type: ignore`, security comment, and TODO was silently deleted.  
+**Fix:** Default is now dry-run; `--apply` requires explicit opt-in and emits `UserWarning`. Slug regex sanitized. Complex expressions skipped cleanly.
+
+### P0-04 · ~80% of stack dependencies missing from `requirements.txt`
+`structlog`, `pydantic-settings`, `opentelemetry-*`, `sentry-sdk`, `uvloop`, `sqlmodel`, `asyncpg`, and 15+ more were absent.  
+**Fix:** Both `requirements.in` and `requirements.txt` updated with complete stack.
+
+---
+
+## P1 — High
+
+- **P1-01** `fix_settings.py`: silent no-op → now raises `RuntimeError` on missing marker.
+- **P1-02** `normalizer.py`: was empty → `normalize_entity()`, `normalize_relation_type()`, `are_same_entity()` implemented.
+- **P1-03** `mypy.ini`: `disallow_untyped_defs = False` → `strict = True`.
+- **P1-04** `requirements.in` missing `uvicorn-worker` → added.
+- **P1-05** `apply_fixes_ast.py`: `rglob` symlink loop → filtered with `not p.is_symlink()`.
+
+---
+
+## P2 — Medium
+
+- **P2-01** `analyze_core.py`, `generate_plan.py`: `typing.Dict/Tuple` → `dict/tuple`.
+- **P2-02** `prompts.py`: `typing.Iterable` → `collections.abc.Iterable`.
+- **P2-03** `prompts.py`: removed redundant `from __future__ import annotations` (Python 3.14).
+- **P2-05** Created `resync/knowledge/kg_extraction/__init__.py`.
+- **P2-06** `generate_plan.py`: `write_text()` → atomic temp+rename.
+- **P2-cleanup** Removed all `__pycache__` and `.pyc` files.
+
+---
+
+*Audit pass 2 · 2026-02-25 · Python 3.14 / FastAPI / Pydantic v2*
+
+---
+
 # Security & Performance Audit — Applied Corrections
 
 **Patch applied:** 2026-02-24  

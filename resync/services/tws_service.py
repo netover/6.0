@@ -51,7 +51,6 @@ logger = structlog.get_logger(__name__)
 # NOTE: instrumenting at import-time is a global side effect; we do it lazily and idempotently.
 _HTTPX_OTEL_INSTRUMENTED = False
 
-
 def _ensure_httpx_instrumented() -> None:
     """Instrument httpx once, if opentelemetry instrumentation is available."""
     global _HTTPX_OTEL_INSTRUMENTED
@@ -68,7 +67,7 @@ def _ensure_httpx_instrumented() -> None:
         return
     try:
         HTTPXClientInstrumentor().instrument()
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(exc, (ImportError, AttributeError, TypeError)):
             raise
@@ -76,7 +75,6 @@ def _ensure_httpx_instrumented() -> None:
         logger.debug("suppressed_exception", error=str(exc), exc_info=True)
     finally:
         _HTTPX_OTEL_INSTRUMENTED = True
-
 
 _ID_LIKE_SEGMENT_RE = re.compile(
     r"""(?ix)
@@ -89,7 +87,6 @@ _ID_LIKE_SEGMENT_RE = re.compile(
     """
 )
 
-
 def _normalize_endpoint_label(path: str) -> str:
     """Collapse ID-like path segments to avoid Prometheus high-cardinality labels."""
     segments = [s for s in path.split("/") if s]
@@ -100,7 +97,6 @@ def _normalize_endpoint_label(path: str) -> str:
         else:
             norm.append(seg)
     return "_".join(norm) or "root"
-
 
 class OptimizedTWSClient:
     """
@@ -972,11 +968,9 @@ class OptimizedTWSClient:
             return enrich_response_with_cache_meta(value, is_cached, age)
         return value
 
-
 # =============================================================================
 # HELPER FUNCTION
 # =============================================================================
-
 
 def get_tws_client() -> "OptimizedTWSClient":
     """Backward-compatible helper.

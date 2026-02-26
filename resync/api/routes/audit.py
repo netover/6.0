@@ -39,13 +39,11 @@ __all__ = [
     "AuditLogger",
 ]
 
-
 # Module-level dependencies to avoid B008 errors
 audit_queue_dependency = Depends(get_audit_queue)
 knowledge_graph_dependency = Depends(get_knowledge_graph)
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
-
 
 class AuditAction(str, Enum):
     """Enum for different audit actions."""
@@ -58,7 +56,6 @@ class AuditAction(str, Enum):
     CACHE_INVALIDATION = "cache_invalidation"
     LLM_QUERY = "llm_query"
     CORS_VIOLATION = "cors_violation"
-
 
 class AuditRecordResponse(BaseModel):
     """Response model for audit records."""
@@ -77,7 +74,6 @@ class AuditRecordResponse(BaseModel):
     user_agent: str | None = Field(
         None, description="User agent string of the requester"
     )
-
 
 def generate_audit_log(
     user_id: str,
@@ -127,7 +123,6 @@ def generate_audit_log(
 
     return audit_record
 
-
 class ReviewAction(BaseModel):
     """Review action."""
 
@@ -150,7 +145,6 @@ class ReviewAction(BaseModel):
         if v.lower() not in valid_actions:
             raise ValueError(f"Invalid action: {v}. Must be one of {valid_actions}")
         return v.lower()
-
 
 @router.get("/flags", response_model=list[dict[str, Any]])
 def get_flagged_memories(
@@ -210,7 +204,7 @@ def get_flagged_memories(
         )
 
         return memories
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         log_audit_event(
             action="retrieve_flagged_memories_error",
             user_id=user_id,
@@ -221,7 +215,6 @@ def get_flagged_memories(
             status_code=500,
             detail="Error retrieving flagged memories. Check server logs for details.",
         ) from e
-
 
 @router.post("/review")
 async def review_memory(
@@ -275,7 +268,7 @@ async def review_memory(
             )
 
             return {"status": "approved", "memory_id": review.memory_id}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             log_audit_event(
                 action="approval_error",
                 user_id=user_id,
@@ -313,7 +306,7 @@ async def review_memory(
             )
 
             return {"status": "rejected", "memory_id": review.memory_id}
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             log_audit_event(
                 action="rejection_error",
                 user_id=user_id,
@@ -326,7 +319,6 @@ async def review_memory(
             ) from e
 
     raise HTTPException(status_code=400, detail="Invalid action") from None
-
 
 @router.get("/metrics", response_model=dict[str, int])  # New endpoint for metrics
 def get_audit_metrics(
@@ -361,7 +353,7 @@ def get_audit_metrics(
         )
 
         return metrics
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         log_audit_event(
             action="retrieve_audit_metrics_error",
             user_id=user_id,
@@ -372,7 +364,6 @@ def get_audit_metrics(
             status_code=500,
             detail="Error retrieving audit metrics. Check server logs for details.",
         ) from e
-
 
 # Additional audit endpoints for enhanced functionality
 @router.get("/logs", response_model=list[AuditRecordResponse])
@@ -418,7 +409,7 @@ def get_audit_logs(
         # This would normally return actual audit logs from the database
         # For now, return an empty list as a placeholder
         return []
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         log_audit_event(
             action="retrieve_audit_logs_error",
             user_id=current_user_id,
@@ -429,7 +420,6 @@ def get_audit_logs(
             status_code=500,
             detail="Error retrieving audit logs. Check server logs for details.",
         ) from e
-
 
 @router.post("/log", response_model=AuditRecordResponse)
 async def create_audit_log(
@@ -489,7 +479,7 @@ async def create_audit_log(
             # In a real implementation, we would store this in the audit database
             # For now, we'll just return the data that was provided
             return audit_data
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -512,7 +502,7 @@ async def create_audit_log(
 
     try:
         cached = await manager.get_cached_response(idempotency_key, request_fingerprint)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Map semantic conflicts to 409
         from resync.core.idempotency.exceptions import IdempotencyConflictError
 
@@ -547,7 +537,6 @@ async def create_audit_log(
         return result
     finally:
         await manager.clear_processing(idempotency_key)
-
 
 class AuditLogger:
     """Basic audit logger implementation."""

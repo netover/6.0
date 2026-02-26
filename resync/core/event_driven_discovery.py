@@ -21,7 +21,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 def load_config_from_file():
     """Load GraphRAG configuration from TOML file."""
     try:
@@ -36,13 +35,12 @@ def load_config_from_file():
             return config.get("graphrag", {})
         logger.warning("GraphRAG config file not found: %s", config_file)
         return {}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to load GraphRAG config: %s", e, exc_info=True)
         return {}
-
 
 class DiscoveryConfig:
     """
@@ -110,7 +108,6 @@ class DiscoveryConfig:
         cls.CRITICAL_JOBS = set(critical_jobs) if critical_jobs else set()
 
         logger.info("DiscoveryConfig reloaded from file")
-
 
 class EventDrivenDiscovery:
     """
@@ -190,7 +187,7 @@ Return ONLY valid JSON (no markdown, no preamble):
             return
 
         # ✅ Trigger background discovery
-        await create_tracked_task(self._discover_and_store(job_name, event_details))
+        create_tracked_task(self._discover_and_store(job_name, event_details))
 
         logger.info(
             "Discovery triggered",
@@ -306,7 +303,7 @@ Return ONLY valid JSON (no markdown, no preamble):
                 discoveries_today=self.discoveries_today,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 f"Discovery failed for {job_name}: {e}",
                 exc_info=True,
@@ -327,7 +324,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
             return logs
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -372,7 +369,7 @@ Return ONLY valid JSON (no markdown, no preamble):
             logger.error("Failed to parse LLM response as JSON: %s", e)
             logger.debug("Response was: %s", response[:200])
             return None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -433,7 +430,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
             return stored
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to store relations: %s", e, exc_info=True)
             return stored
 
@@ -453,7 +450,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
             return bool(result and result[0].get("solution_count", 0) > 0)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -480,7 +477,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
             return 0
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -550,10 +547,9 @@ Return ONLY valid JSON (no markdown, no preamble):
 
             return 0
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to invalidate cache: %s", e, exc_info=True)
             return 0
-
 
 def get_discovery_service(llm_service, knowledge_graph, tws_client, redis_client):
     """

@@ -29,7 +29,6 @@ from .common import (
 
 logger = structlog.get_logger(__name__)
 
-
 class CpuHealthChecker(BaseHealthChecker):
     """
     Health checker for CPU load monitoring.
@@ -91,7 +90,7 @@ class CpuHealthChecker(BaseHealthChecker):
                 },
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             return build_error_health(
                 ctx=ErrorContext(
                     name=self.component_name,

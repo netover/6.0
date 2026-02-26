@@ -21,7 +21,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class FeedbackAwareRetriever:
     """
     Retriever que aplica reranking baseado em feedback histórico.
@@ -293,7 +292,6 @@ class FeedbackAwareRetriever:
             "feedback_weight": self.feedback_weight,
             "feedback_stats": feedback_stats,
         }
-
 
 def create_feedback_aware_retriever(
     embedder: Any,

@@ -22,11 +22,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # MODELS
 # =============================================================================
-
 
 @dataclass
 class CacheWarmingConfig:
@@ -36,7 +34,6 @@ class CacheWarmingConfig:
     enabled: bool = True
     warmup_on_startup: bool = True
     warmup_interval_minutes: int = 60  # Re-warm a cada hora
-
 
 @dataclass
 class CacheStats:
@@ -56,11 +53,9 @@ class CacheStats:
         total = self.hits + self.misses
         return (self.hits / total * 100) if total > 0 else 0.0
 
-
 # =============================================================================
 # CACHE MANAGER
 # =============================================================================
-
 
 class EnhancedCacheManager:
     """
@@ -94,7 +89,7 @@ class EnhancedCacheManager:
         Pré-aquece cache com dados críticos.
 
         Args:
-            warmers: Dict[key, fetcher] para pré-carregar
+            warmers: dict[key, fetcher] para pré-carregar
                      Se None, usa self.warming_config.warmers
 
         Exemplo:
@@ -156,7 +151,7 @@ class EnhancedCacheManager:
 
             logger.debug("Cache warmed: %s", key)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -201,7 +196,7 @@ class EnhancedCacheManager:
                 f"{deleted_count} keys deleted for pattern {pattern}"
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "Failed to invalidate pattern %s: %s", pattern, e, exc_info=True
             )
@@ -222,7 +217,7 @@ class EnhancedCacheManager:
 
         try:
             await self.redis.delete(*patterns)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Failed to batch-delete cache keys: %s", e)
 
         logger.info("Invalidated job cache for: %s", job_name)
@@ -238,7 +233,7 @@ class EnhancedCacheManager:
         try:
             redis_info = await self.redis.info("stats")
             keyspace_info = await self.redis.info("keyspace")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to get Redis info: %s", e)
             redis_info = {}
             keyspace_info = {}
@@ -275,13 +270,11 @@ class EnhancedCacheManager:
         self.warming_config.warmers[key] = fetcher
         logger.debug("Registered cache warmer: %s", key)
 
-
 # =============================================================================
 # GLOBAL INSTANCE
 # =============================================================================
 
 _cache_manager: EnhancedCacheManager | None = None
-
 
 def get_cache_manager() -> EnhancedCacheManager:
     """Obtém instância global do cache manager."""
@@ -290,11 +283,9 @@ def get_cache_manager() -> EnhancedCacheManager:
         _cache_manager = EnhancedCacheManager()
     return _cache_manager
 
-
 # =============================================================================
 # STARTUP HOOK
 # =============================================================================
-
 
 async def warmup_cache_on_startup():
     """
@@ -321,10 +312,9 @@ async def warmup_cache_on_startup():
         # Aquecer cache
         await cache_manager.warm_cache()
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to warm cache on startup: %s", e, exc_info=True)
         # Não falhar o startup por causa do cache warming
-
 
 # =============================================================================
 # EXPORTS

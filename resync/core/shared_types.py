@@ -20,11 +20,9 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 # =============================================================================
 # CACHE TYPES
 # =============================================================================
-
 
 @dataclass
 class CacheEntry(Generic[T]):
@@ -85,7 +83,6 @@ class CacheEntry(Generic[T]):
         self.last_access = time.time()
         self.access_count += 1
 
-
 @dataclass
 class CacheStats:
     """
@@ -113,11 +110,9 @@ class CacheStats:
         total = self.hits + self.misses
         return self.hits / total if total > 0 else 0.0
 
-
 # =============================================================================
 # CIRCUIT BREAKER TYPES
 # =============================================================================
-
 
 class CircuitBreakerState(str, Enum):
     """
@@ -131,7 +126,6 @@ class CircuitBreakerState(str, Enum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
-
 
 @dataclass
 class CircuitBreakerConfig:
@@ -150,11 +144,9 @@ class CircuitBreakerConfig:
     timeout: float = 30.0
     half_open_max_calls: int = 3
 
-
 # =============================================================================
 # ALERT TYPES
 # =============================================================================
-
 
 class AlertSeverity(str, Enum):
     """Severity levels for alerts."""
@@ -163,7 +155,6 @@ class AlertSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 @dataclass
 class AlertRule:
@@ -187,7 +178,6 @@ class AlertRule:
     enabled: bool = True
     last_triggered: float | None = None
 
-
 @dataclass
 class Alert:
     """
@@ -209,11 +199,9 @@ class Alert:
     context: dict[str, Any] = field(default_factory=dict)
     acknowledged: bool = False
 
-
 # =============================================================================
 # METRIC TYPES
 # =============================================================================
-
 
 class MetricType(str, Enum):
     """Types of metrics that can be collected."""
@@ -222,7 +210,6 @@ class MetricType(str, Enum):
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
     SUMMARY = "summary"
-
 
 @dataclass
 class PerformanceMetrics:
@@ -249,11 +236,9 @@ class PerformanceMetrics:
     active_connections: int = 0
     timestamp: datetime = field(default_factory=datetime.now)
 
-
 # =============================================================================
 # REQUEST/RESPONSE TYPES
 # =============================================================================
-
 
 @dataclass
 class LoginRequest:
@@ -272,7 +257,6 @@ class LoginRequest:
     remember_me: bool = False
     mfa_code: str | None = None
 
-
 @dataclass
 class APIKeyRequest:
     """
@@ -287,7 +271,6 @@ class APIKeyRequest:
     name: str
     scopes: list[str] = field(default_factory=list)
     expires_in_days: int | None = None
-
 
 @dataclass
 class FileUploadRequest:
@@ -306,11 +289,9 @@ class FileUploadRequest:
     size_bytes: int
     checksum: str | None = None
 
-
 # =============================================================================
 # HEALTH CHECK TYPES
 # =============================================================================
-
 
 class HealthStatus(str, Enum):
     """Health status values."""
@@ -319,7 +300,6 @@ class HealthStatus(str, Enum):
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
-
 
 @dataclass
 class ComponentHealth:
@@ -341,7 +321,6 @@ class ComponentHealth:
     latency_ms: float = 0.0
     last_check: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 # =============================================================================
 # EXPORTS

@@ -9,10 +9,8 @@ from resync.core.websocket_pool_manager import get_websocket_pool_manager
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
 
-
 # --- Constants ---
 LOCK_TIMEOUT_SECONDS = 5.0
-
 
 class ConnectionManager:
     """
@@ -66,7 +64,7 @@ class ConnectionManager:
         # Close websocket outside lock to avoid potential deadlocks
         try:
             await websocket.close()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
@@ -114,7 +112,7 @@ class ConnectionManager:
                 )
             else:
                 logger.error("Runtime error sending to client %s: %s", client_id, e)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.error("Unexpected error sending to client %s: %s", client_id, e)

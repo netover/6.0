@@ -24,7 +24,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # TEMPLATE PATHS
 # =============================================================================
@@ -32,11 +31,9 @@ logger = get_logger(__name__)
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "prompts"
 SYNTHESIS_TEMPLATES_FILE = TEMPLATES_DIR / "synthesis_templates.yaml"
 
-
 # =============================================================================
 # TEMPLATE LOADING
 # =============================================================================
-
 
 @lru_cache(maxsize=1)
 def _load_templates() -> dict[str, Any]:
@@ -52,20 +49,18 @@ def _load_templates() -> dict[str, Any]:
                 "templates_file_not_found", path=str(SYNTHESIS_TEMPLATES_FILE)
             )
             return {}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("templates_load_error", error=str(e))
         return {}
 
-
 def reload_templates() -> None:
     """Force reload of templates (clears cache)."""
     _load_templates.cache_clear()
     _load_templates()
     logger.info("templates_reloaded")
-
 
 def get_template(name: str) -> dict[str, Any] | None:
     """
@@ -79,7 +74,6 @@ def get_template(name: str) -> dict[str, Any] | None:
     """
     templates = _load_templates()
     return templates.get(name)
-
 
 def get_template_string(name: str) -> str | None:
     """
@@ -98,11 +92,9 @@ def get_template_string(name: str) -> str | None:
         return template
     return None
 
-
 # =============================================================================
 # TEMPLATE RENDERING
 # =============================================================================
-
 
 def render_template(name: str, context: dict[str, Any] | None = None, **kwargs) -> str:
     """
@@ -143,10 +135,9 @@ def render_template(name: str, context: dict[str, Any] | None = None, **kwargs) 
         logger.warning("template_missing_key", name=name, key=str(e))
         # Try partial rendering
         return _safe_format(template_str, values)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("template_render_error", name=name, error=str(e))
         return _fallback_render(name, values)
-
 
 def _safe_format(template: str, values: dict) -> str:
     """Format template, replacing missing keys with placeholders."""
@@ -158,7 +149,6 @@ def _safe_format(template: str, values: dict) -> str:
 
     return re.sub(r"\{(\w+)\}", replace_placeholder, template)
 
-
 def _fallback_render(name: str, values: dict) -> str:
     """Fallback rendering when template not found."""
     lines = [f"**{name.replace('_', ' ').title()}**", ""]
@@ -167,11 +157,9 @@ def _fallback_render(name: str, values: dict) -> str:
             lines.append(f"- **{key}:** {value}")
     return "\n".join(lines)
 
-
 # =============================================================================
 # STATUS TRANSLATION
 # =============================================================================
-
 
 def get_status_translation(status: str) -> str:
     """
@@ -187,11 +175,9 @@ def get_status_translation(status: str) -> str:
     translations = templates.get("status_translations", {})
     return translations.get(status.upper(), status)
 
-
 # =============================================================================
 # CLARIFICATION HELPERS
 # =============================================================================
-
 
 def get_clarification_question(
     entity_type: str, language: str = "pt", **format_args
@@ -221,7 +207,6 @@ def get_clarification_question(
 
     return question_template or f"Please provide the {entity_type}."
 
-
 def get_action_verb(intent: str, language: str = "pt") -> str:
     """
     Get action verb for intent in specified language.
@@ -239,11 +224,9 @@ def get_action_verb(intent: str, language: str = "pt") -> str:
     intent_verbs = verbs.get(intent, {})
     return intent_verbs.get(language, intent_verbs.get("en", intent))
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     "get_template",

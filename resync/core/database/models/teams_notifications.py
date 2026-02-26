@@ -9,7 +9,6 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-
 class TeamsChannel(Base):
     """Canais do Teams configurados para notificações."""
 
@@ -36,7 +35,6 @@ class TeamsChannel(Base):
     def __repr__(self):
         return f"<TeamsChannel(name={self.name}, active={self.is_active})>"
 
-
 class TeamsJobMapping(Base):
     """Mapeamento de jobs específicos para canais."""
 
@@ -58,7 +56,6 @@ class TeamsJobMapping(Base):
 
     def __repr__(self):
         return f"<TeamsJobMapping(job={self.job_name}, channel_id={self.channel_id})>"
-
 
 class TeamsPatternRule(Base):
     """Regras de padrões (regex) para mapeamento automático."""
@@ -86,7 +83,6 @@ class TeamsPatternRule(Base):
         return (
             f"<TeamsPatternRule(pattern={self.pattern}, channel_id={self.channel_id})>"
         )
-
 
 class TeamsNotificationConfig(Base):
     """Configuração global de notificações."""
@@ -117,7 +113,6 @@ class TeamsNotificationConfig(Base):
 
     def __repr__(self):
         return f"<TeamsNotificationConfig(id={self.id})>"
-
 
 class TeamsNotificationLog(Base):
     """Log de notificações enviadas."""

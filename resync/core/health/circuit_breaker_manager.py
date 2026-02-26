@@ -14,7 +14,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class CircuitBreakerManager:
     """
     Manages multiple circuit breakers for different system components.
@@ -91,7 +90,7 @@ class CircuitBreakerManager:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Update statistics
             await self._update_breaker_stats(breaker_name, success=False)
 
@@ -144,7 +143,7 @@ class CircuitBreakerManager:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "failed_to_get_circuit_breaker_status",
                 breaker_name=breaker_name,
@@ -205,7 +204,7 @@ class CircuitBreakerManager:
 
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "circuit_breaker_reset_failed", breaker_name=breaker_name, error=str(e)
             )
@@ -240,7 +239,7 @@ class CircuitBreakerManager:
                 state = getattr(circuit_breaker, "state", "unknown")
                 if state == "open":
                     open_breakers.append(breaker_name)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "failed_to_check_circuit_breaker_state",
                     breaker_name=breaker_name,

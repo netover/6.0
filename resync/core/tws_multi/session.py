@@ -13,7 +13,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class TWSSession:
     """
@@ -83,7 +82,6 @@ class TWSSession:
     def is_active(self) -> bool:
         """Check if session is still active (activity in last 30 minutes)."""
         return (datetime.now(timezone.utc) - self.last_activity).total_seconds() < 1800
-
 
 class SessionManager:
     """
@@ -201,10 +199,8 @@ class SessionManager:
             },
         }
 
-
 # Global session manager
 _session_manager: SessionManager | None = None
-
 
 def get_session_manager() -> SessionManager:
     """Get global session manager."""

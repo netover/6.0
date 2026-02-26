@@ -2,12 +2,10 @@ import os
 import subprocess
 import zipfile
 
-
 def run_tool(command):
     print(f"Running: {' '.join(command)}")
     result = subprocess.run(command, capture_output=True, text=True)
     return result.stdout + "\n" + result.stderr
-
 
 def run_ruff_fix(target_dir):
     print("Running Ruff safe fixes...")
@@ -20,7 +18,6 @@ def run_ruff_fix(target_dir):
     subprocess.run(
         ["python", "-m", "ruff", "format", target_dir], capture_output=True, text=True
     )
-
 
 def create_zip(source_dir, zip_filename):
     print(f"Creating zip file {zip_filename}...")
@@ -44,7 +41,6 @@ def create_zip(source_dir, zip_filename):
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, start=source_dir)
                         zipf.write(file_path, arcname)
-
 
 def main():
     target_dir = "resync"
@@ -81,7 +77,6 @@ def main():
     create_zip(".", zip_file)
     print(f"Project zipped to {zip_file}")
     print("Done!")
-
 
 if __name__ == "__main__":
     main()

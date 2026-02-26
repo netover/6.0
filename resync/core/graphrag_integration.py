@@ -18,7 +18,6 @@ from resync.core.subgraph_retriever import SubgraphRetriever
 
 logger = structlog.get_logger(__name__)
 
-
 class GraphRAGIntegration:
     """
     Coordinates GraphRAG features with existing Resync components.
@@ -97,7 +96,7 @@ class GraphRAGIntegration:
 
             return context
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Failed to get enriched context: %s", e, exc_info=True)
             return {"job": {"name": job_name}}
 
@@ -159,10 +158,8 @@ class GraphRAGIntegration:
             self.cache_validator.reset_stats()
             logger.info("Cache validation stats reset")
 
-
 # Global instance (initialized on startup)
 _graphrag_integration: GraphRAGIntegration | None = None
-
 
 def initialize_graphrag(
     llm_service, knowledge_graph, tws_client, redis_client=None, enabled: bool = True
@@ -193,7 +190,6 @@ def initialize_graphrag(
 
     return _graphrag_integration
 
-
 def get_graphrag_integration() -> GraphRAGIntegration | None:
     """
     Get global GraphRAG integration instance.
@@ -203,9 +199,7 @@ def get_graphrag_integration() -> GraphRAGIntegration | None:
     """
     return _graphrag_integration
 
-
 # Convenience functions for direct access
-
 
 async def get_job_subgraph(job_name: str) -> dict:
     """
@@ -224,7 +218,6 @@ async def get_job_subgraph(job_name: str) -> dict:
         return {"job": {"name": job_name}}
 
     return await integration.get_enriched_context(job_name)
-
 
 async def handle_job_failure(job_name: str, event_details: dict):
     """

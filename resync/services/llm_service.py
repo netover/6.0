@@ -88,30 +88,51 @@ try:
 except ImportError:
     LANGFUSE_INTEGRATION = False
 
-
 def _count_tokens(text: str) -> int:
     """Count tokens in text using tiktoken if available, fallback to word estimate."""
     if TIKTOKEN_AVAILABLE:
         try:
             enc = tiktoken.get_encoding("cl100k_base")
             return len(enc.encode(text))
-        except Exception:
-            pass
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            # tiktoken encoding failed — fall back to word-count estimate
+            import logging as _logging
+            _logging.getLogger(__name__).debug(
+                "tiktoken_encoding_failed fallback=word_count error=%s", exc
+            )
     return int(len(text.split()) * 1.3)
-
 
 logger = logging.getLogger(__name__)
 
-
 def _coerce_secret(value: Any) -> str | None:
-    """Accept str or pydantic SecretStr; return plain str or None."""
+    """Coerce secret-like values safely.
+
+    Accepts:
+        - `str`
+        - Pydantic `SecretStr` / `SecretBytes`-like objects with a callable `get_secret_value()`
+
+    Security:
+        - Avoids silently stringifying arbitrary objects that *might* contain secrets.
+    """
     if value is None:
         return None
     if isinstance(value, str):
         return value
-    get_secret = getattr(value, "get_secret_value", None)
-    return get_secret() if callable(get_secret) else str(value)
 
+    get_secret = getattr(value, "get_secret_value", None)
+    if get_secret is None:
+        raise TypeError(f"Unsupported secret type: {type(value)!r}")
+    if not callable(get_secret):
+        raise TypeError(
+            f"Invalid secret-like object (get_secret_value not callable): {type(value)!r}"
+        )
+
+    secret_value = get_secret()
+    if secret_value is None:
+        return None
+    if isinstance(secret_value, (str, bytes)):
+        return secret_value.decode("utf-8") if isinstance(secret_value, bytes) else secret_value
+    return str(secret_value)
 
 class LLMService:
     """Service for interacting with LLM APIs through OpenAI-compatible endpoints."""
@@ -218,7 +239,7 @@ class LLMService:
                     "request_id": getattr(exc, "request_id", None),
                 },
             ) from exc
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             if isinstance(
                 exc,
                 (SystemExit, KeyboardInterrupt, ImportError, AttributeError, TypeError),
@@ -399,6 +420,7 @@ class LLMService:
         max_tool_iterations: int = 5,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        _fallback_depth: int = 0,  # internal recursion guard
     ) -> str:
         """
         Generates a response with tool support (function calling).
@@ -438,6 +460,8 @@ class LLMService:
                     temperature=temp,
                     max_tokens=max_tok,
                 )
+                if not getattr(response, 'choices', None):
+                    raise IntegrationError('Empty response from LLM', details={'operation': 'tool_completion'})
                 message = response.choices[0].message
                 if not message.tool_calls:
                     return message.content or ""
@@ -478,7 +502,7 @@ class LLMService:
                     )
             logger.warning("Max tool iterations (%s) reached", max_tool_iterations)
             return "Sorry, I reached the tool iteration limit. Please rephrase your question more specifically."
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(
                 e,
                 (
@@ -493,6 +517,11 @@ class LLMService:
             ):
                 raise
             logger.error("Error in generate_response_with_tools: %s", e, exc_info=True)
+            if _fallback_depth >= 1:
+                raise IntegrationError(
+                    message="LLM tool execution failed (fallback exhausted)",
+                    details={"error_type": type(e).__name__},
+                ) from e
             return await self.generate_response(
                 messages, temperature=temperature, max_tokens=max_tokens
             )
@@ -503,6 +532,7 @@ class LLMService:
         temperature: float | None = None,
         top_p: float | None = None,
         max_tokens: int | None = None,
+        _fallback_depth: int = 0,  # internal recursion guard
         frequency_penalty: float | None = None,
         presence_penalty: float | None = None,
         stream: bool = False,
@@ -560,6 +590,8 @@ class LLMService:
                     presence_penalty=presence_penalty,
                     stream=False,
                 )
+                if not getattr(response, 'choices', None):
+                    raise IntegrationError('Empty response from LLM', details={'operation': 'chat_completion'})
                 content = response.choices[0].message.content or ""
             logger.info("Generated LLM response (%d characters)", len(content))
             return content
@@ -581,7 +613,7 @@ class LLMService:
                     "model": self.model,
                 },
             ) from exc
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             if isinstance(
                 exc,
                 (
@@ -638,6 +670,8 @@ class LLMService:
                 stream=True,
             )
             async for chunk in response:
+                if not getattr(chunk, 'choices', None):
+                    continue
                 delta = chunk.choices[0].delta
                 if getattr(delta, "content", None):
                     yield delta.content
@@ -661,7 +695,7 @@ class LLMService:
                     "model": self.model,
                 },
             ) from exc
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             if isinstance(
                 exc,
                 (
@@ -728,7 +762,7 @@ class LLMService:
                         prompt.id,
                         agent_id,
                     )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
                 ):
@@ -806,7 +840,7 @@ class LLMService:
                             "rag_prompt_loaded_from_manager",
                             extra={"prompt_id": prompt.id},
                         )
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     if isinstance(
                         e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
                     ):
@@ -842,7 +876,7 @@ class LLMService:
                     messages, max_tokens=1000, temperature=0.2
                 )
                 logger.info("self_rag_regenerated", extra={"query": query[:50]})
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("self_rag_regeneration_failed", extra={"error": str(e)})
         else:
             logger.debug("self_rag_grounded", extra={"query": query[:50]})
@@ -892,7 +926,7 @@ class LLMService:
             )
             is_grounded = reflection.strip().upper().startswith("YES")
             return (is_grounded, reflection.strip())
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("hallucination_check_failed", extra={"error": str(e)})
             return (True, "check_failed")
 
@@ -912,7 +946,7 @@ class LLMService:
                     "endpoint": getattr(settings, "llm_endpoint", None),
                     "available_models": len(models_resp.data),
                 }
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 await self.generate_response(
                     messages=[{"role": "user", "content": "hi"}], max_tokens=1
                 )
@@ -937,7 +971,7 @@ class LLMService:
                 "error": str(exc),
                 "request_id": getattr(exc, "request_id", None),
             }
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             if isinstance(
                 exc,
                 (
@@ -979,11 +1013,9 @@ class LLMService:
         """Alias for graceful shutdown (used by wiring teardown)."""
         await self.aclose()
 
-
 # Eagerly initialised — never None — eliminates TOCTOU race on lock init
 _llm_service_lock: asyncio.Lock = asyncio.Lock()
 _llm_service_instance: LLMService | None = None
-
 
 async def get_llm_service() -> LLMService:
     """Get or create global LLM service instance (thread-safe)."""
@@ -993,3 +1025,8 @@ async def get_llm_service() -> LLMService:
             if _llm_service_instance is None:
                 _llm_service_instance = LLMService()
     return _llm_service_instance
+
+async def get_llm_completion(prompt: str, **kwargs) -> str:
+    """Simple completion wrapper — returns the first message content."""
+    svc = await get_llm_service()
+    return await svc.complete(prompt, **kwargs)

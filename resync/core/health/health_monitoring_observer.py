@@ -17,7 +17,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthMonitoringEvent:
     """Event data for health monitoring notifications."""
 
@@ -35,7 +34,6 @@ class HealthMonitoringEvent:
         self.timestamp = timestamp or datetime.now(timezone.utc)
         self.metadata = metadata or {}
 
-
 class HealthMonitorObserver(ABC):
     """Abstract base class for health monitor observers."""
 
@@ -50,7 +48,6 @@ class HealthMonitorObserver(ABC):
     @abstractmethod
     async def on_system_health_summary(self, event: HealthMonitoringEvent) -> None:
         """Called when system health summary is generated."""
-
 
 class HealthMonitoringSubject:
     """Subject class that manages health monitoring observers."""
@@ -167,9 +164,9 @@ class HealthMonitoringSubject:
         for observer in observers_copy:
             try:
                 method = getattr(observer, method_name)
-                task = await create_tracked_task(method(event), name="method")
+                task = create_tracked_task(method(event), name="method")
                 tasks.append(task)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "error_getting_observer_method",
                     observer_type=type(observer).__name__,
@@ -180,7 +177,7 @@ class HealthMonitoringSubject:
         if tasks:
             try:
                 await asyncio.gather(*tasks, return_exceptions=True)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(
                     "error_notifying_observers",
                     method=method_name,
@@ -191,7 +188,6 @@ class HealthMonitoringSubject:
     def get_observer_count(self) -> int:
         """Get the number of attached observers."""
         return len(self._observers)
-
 
 class LoggingHealthObserver(HealthMonitorObserver):
     """Observer that logs health monitoring events."""
@@ -225,7 +221,6 @@ class LoggingHealthObserver(HealthMonitorObserver):
             total_components=metadata.get("total_components"),
             components=metadata.get("summary"),
         )
-
 
 class AlertingHealthObserver(HealthMonitorObserver):
     """Observer that handles health-based alerting."""
@@ -287,7 +282,6 @@ class AlertingHealthObserver(HealthMonitorObserver):
             total_components=event.metadata.get("total_components"),
             summary=event.metadata.get("summary"),
         )
-
 
 class MetricsHealthObserver(HealthMonitorObserver):
     """Observer that collects health metrics."""

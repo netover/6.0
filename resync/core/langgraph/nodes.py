@@ -33,11 +33,9 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # BASE NODE
 # =============================================================================
-
 
 class BaseNode(ABC):
     """
@@ -60,11 +58,9 @@ class BaseNode(ABC):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(name={self.name})>"
 
-
 # =============================================================================
 # ROUTER NODE
 # =============================================================================
-
 
 @dataclass
 class RouterConfig:
@@ -99,7 +95,6 @@ class RouterConfig:
         if self.model is None:
             self.model = get_llm_config().get_model(task_type="classification")
 
-
 class RouterNode(BaseNode):
     """
     Router node for intent classification.
@@ -126,7 +121,7 @@ class RouterNode(BaseNode):
         if self.config.use_llm:
             try:
                 intent, confidence = await self._classify_with_llm(message)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("router_llm_failed", error=str(e))
                 if self.config.fallback_to_keywords:
                     intent, confidence = self._classify_with_keywords(message)
@@ -189,11 +184,9 @@ class RouterNode(BaseNode):
 
         return "general", 0.5
 
-
 # =============================================================================
 # LLM NODE
 # =============================================================================
-
 
 @dataclass
 class LLMNodeConfig:
@@ -215,7 +208,6 @@ class LLMNodeConfig:
     def __post_init__(self):
         if self.prompt_variables is None:
             self.prompt_variables = {}
-
 
 class LLMNode(BaseNode):
     """
@@ -302,11 +294,9 @@ class LLMNode(BaseNode):
 
         return state
 
-
 # =============================================================================
 # TOOL NODE
 # =============================================================================
-
 
 @dataclass
 class ToolNodeConfig:
@@ -323,7 +313,6 @@ class ToolNodeConfig:
 
     # Timeout
     timeout_seconds: float = 30.0
-
 
 class ToolNode(BaseNode):
     """
@@ -378,7 +367,7 @@ class ToolNode(BaseNode):
 
             except asyncio.TimeoutError:
                 last_error = f"Tool {self.config.tool_name} timed out after {self.config.timeout_seconds}s"
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 last_error = str(e)
 
             retry_count += 1
@@ -413,11 +402,9 @@ class ToolNode(BaseNode):
             return await result
         return result
 
-
 # =============================================================================
 # VALIDATION NODE
 # =============================================================================
-
 
 @dataclass
 class ValidationConfig:
@@ -435,7 +422,6 @@ class ValidationConfig:
     def __post_init__(self):
         if self.required_fields is None:
             self.required_fields = ["response"]
-
 
 class ValidationNode(BaseNode):
     """
@@ -489,11 +475,9 @@ class ValidationNode(BaseNode):
         state["current_node"] = self.name
         return state
 
-
 # =============================================================================
 # HUMAN APPROVAL NODE
 # =============================================================================
-
 
 @dataclass
 class ApprovalRequest:
@@ -539,7 +523,6 @@ class ApprovalRequest:
             if data.get("approved_at")
             else None,
         )
-
 
 class HumanApprovalNode(BaseNode):
     """
@@ -596,7 +579,7 @@ class HumanApprovalNode(BaseNode):
                 self.timeout_seconds,
                 json.dumps(request.to_dict()),
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("approval_persistence_failed", error=str(e))
             raise RuntimeError(f"Failed to persist approval request: {e}")
 
@@ -730,6 +713,6 @@ class HumanApprovalNode(BaseNode):
                     if request.status == "pending":
                         if user_id is None or request.user_id == user_id:
                             pending.append(request)
-                except Exception:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                     continue
         return pending

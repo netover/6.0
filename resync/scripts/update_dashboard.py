@@ -29,12 +29,10 @@ async def websocket_metrics(websocket: WebSocket):
     if not await ws_manager.connect(websocket):
         await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER); return'''
 
-
 def main() -> None:
     content = TARGET.read_text(encoding="utf-8")
     updated = content.replace(OLD_WS, NEW_WS)
     TARGET.write_text(updated, encoding="utf-8")
-
 
 if __name__ == "__main__":
     main()

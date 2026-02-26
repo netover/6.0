@@ -17,6 +17,7 @@ Versão: 5.2
 """
 
 import json
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -25,17 +26,16 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+from resync.core.security.rate_limiter_v2 import ws_allow_connect
 
 logger = structlog.get_logger(__name__)
 
 # Router para endpoints de monitoramento
 monitoring_router = APIRouter(prefix="/api/v1/monitoring", tags=["Monitoring"])
 
-
 # =============================================================================
 # PYDANTIC MODELS
 # =============================================================================
-
 
 class PollingConfigUpdate(BaseModel):
     """Atualização de configuração de polling."""
@@ -47,7 +47,6 @@ class PollingConfigUpdate(BaseModel):
     dashboard_theme: str | None = None
     dashboard_refresh_seconds: int | None = Field(None, ge=1, le=60)
 
-
 class SolutionInput(BaseModel):
     """Input para adicionar uma solução."""
 
@@ -55,18 +54,15 @@ class SolutionInput(BaseModel):
     problem_pattern: str
     solution: str
 
-
 class SolutionResultInput(BaseModel):
     """Input para registrar resultado de solução."""
 
     problem_id: str
     success: bool
 
-
 # =============================================================================
 # CONFIGURATION ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.get("/config")
 async def get_monitoring_config():
@@ -79,7 +75,6 @@ async def get_monitoring_config():
         "config": config.model_dump(),
         "frontend_config": config.to_frontend_config(),
     }
-
 
 @monitoring_router.put("/config")
 async def update_monitoring_config_endpoint(updates: PollingConfigUpdate):
@@ -110,11 +105,9 @@ async def update_monitoring_config_endpoint(updates: PollingConfigUpdate):
         "config": new_config.model_dump(),
     }
 
-
 # =============================================================================
 # STATUS ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.get("/status")
 async def get_current_status():
@@ -140,7 +133,6 @@ async def get_current_status():
         "snapshot": snapshot.to_dict() if snapshot else None,
     }
 
-
 @monitoring_router.get("/status/workstations")
 async def get_workstations_status():
     """Obtém status das workstations."""
@@ -165,7 +157,6 @@ async def get_workstations_status():
             "offline": sum(1 for ws in snapshot.workstations if ws.status != "LINKED"),
         },
     }
-
 
 @monitoring_router.get("/status/jobs")
 async def get_jobs_status(
@@ -202,11 +193,9 @@ async def get_jobs_status(
         },
     }
 
-
 # =============================================================================
 # EVENTS ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.get("/events")
 async def get_events(
@@ -253,7 +242,6 @@ async def get_events(
         },
     }
 
-
 @monitoring_router.get("/events/search")
 async def search_events(
     q: str = Query(..., min_length=2, description="Search query"),
@@ -276,7 +264,6 @@ async def search_events(
         "total": len(events),
     }
 
-
 @monitoring_router.get("/events/critical")
 async def get_critical_events(
     limit: int = Query(20, ge=1, le=100),
@@ -297,11 +284,9 @@ async def get_critical_events(
         "total": len(events),
     }
 
-
 # =============================================================================
 # HISTORY ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.get("/history/job/{job_name}")
 async def get_job_history(
@@ -327,7 +312,6 @@ async def get_job_history(
         "period_days": days,
     }
 
-
 @monitoring_router.get("/history/daily/{date}")
 async def get_daily_summary(date: str):
     """Obtém resumo de um dia específico (formato: YYYY-MM-DD)."""
@@ -352,11 +336,9 @@ async def get_daily_summary(date: str):
         **summary,
     }
 
-
 # =============================================================================
 # PATTERNS ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.get("/patterns")
 async def get_patterns(
@@ -379,7 +361,6 @@ async def get_patterns(
         "total": len(patterns),
     }
 
-
 @monitoring_router.post("/patterns/detect")
 async def trigger_pattern_detection():
     """Dispara detecção manual de padrões."""
@@ -398,11 +379,9 @@ async def trigger_pattern_detection():
         "patterns": [p.to_dict() for p in patterns],
     }
 
-
 # =============================================================================
 # SOLUTIONS ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.post("/solutions")
 async def add_solution(input: SolutionInput):
@@ -425,7 +404,6 @@ async def add_solution(input: SolutionInput):
         "problem_id": problem_id,
         "message": "Solution added successfully",
     }
-
 
 @monitoring_router.get("/solutions/find")
 async def find_solution(
@@ -455,7 +433,6 @@ async def find_solution(
         "message": "No matching solution found",
     }
 
-
 @monitoring_router.post("/solutions/result")
 async def record_solution_result(input: SolutionResultInput):
     """Registra resultado de aplicação de solução."""
@@ -473,11 +450,9 @@ async def record_solution_result(input: SolutionResultInput):
         "message": "Result recorded",
     }
 
-
 # =============================================================================
 # POLLER CONTROL ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.post("/poller/start")
 async def start_poller():
@@ -497,7 +472,6 @@ async def start_poller():
         "metrics": poller.get_metrics(),
     }
 
-
 @monitoring_router.post("/poller/stop")
 async def stop_poller():
     """Para o poller de background."""
@@ -515,7 +489,6 @@ async def stop_poller():
         "message": "Poller stopped",
         "metrics": poller.get_metrics(),
     }
-
 
 @monitoring_router.post("/poller/poll")
 async def force_poll():
@@ -535,11 +508,9 @@ async def force_poll():
         "snapshot": snapshot.to_dict() if snapshot else None,
     }
 
-
 # =============================================================================
 # STATS ENDPOINTS
 # =============================================================================
-
 
 @monitoring_router.get("/stats")
 async def get_monitoring_stats():
@@ -571,7 +542,6 @@ async def get_monitoring_stats():
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
-
 @monitoring_router.post("/cleanup")
 async def cleanup_old_data():
     """Remove dados antigos do banco."""
@@ -590,17 +560,14 @@ async def cleanup_old_data():
         "deleted": deleted,
     }
 
-
 # =============================================================================
 # RAG QUERY ENDPOINTS
 # =============================================================================
-
 
 class RAGQueryInput(BaseModel):
     """Input para query RAG."""
 
     query: str = Field(..., min_length=3, max_length=500)
-
 
 @monitoring_router.post("/query")
 async def process_rag_query(input: RAGQueryInput):
@@ -625,7 +592,6 @@ async def process_rag_query(input: RAGQueryInput):
         "metadata": result.metadata,
     }
 
-
 @monitoring_router.get("/query/examples")
 async def get_query_examples():
     """Retorna exemplos de queries RAG."""
@@ -635,7 +601,6 @@ async def get_query_examples():
         "success": True,
         "examples": EXAMPLE_QUERIES,
     }
-
 
 # =============================================================================
 # DASHBOARD ROUTE
@@ -657,11 +622,9 @@ async def serve_dashboard():
         status_code=404,
     )
 
-
 # =============================================================================
 # NOTIFICATION MANAGEMENT
 # =============================================================================
-
 
 @monitoring_router.post("/notification-dismissed")
 async def track_notification_dismissed(data: dict):
@@ -670,7 +633,6 @@ async def track_notification_dismissed(data: dict):
     if event_id:
         logger.info("notification_dismissed", event_id=event_id)
     return {"success": True}
-
 
 @monitoring_router.post("/subscribe-push")
 async def subscribe_push_notifications(subscription: dict):
@@ -684,7 +646,6 @@ async def subscribe_push_notifications(subscription: dict):
         "success": True,
         "message": "Subscription registered",
     }
-
 
 @monitoring_router.post("/test-notification")
 async def send_test_notification():
@@ -711,11 +672,9 @@ async def send_test_notification():
         "message": f"Test notification sent to {count} clients",
     }
 
-
 # =============================================================================
 # WEBSOCKET ENDPOINT
 # =============================================================================
-
 
 @monitoring_router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -723,13 +682,57 @@ async def websocket_endpoint(websocket: WebSocket):
     WebSocket para eventos em tempo real.
 
     Protocolo:
-    - Cliente se conecta
+    - Cliente se conecta com token de admin (query param `token` ou header `Authorization`)
+    - Servidor valida credenciais ANTES de aceitar (fail-closed)
     - Servidor envia eventos recentes
     - Servidor envia novos eventos conforme ocorrem
     - Cliente pode enviar mensagens de controle
+
+    Security:
+    - Rejeita conexões sem token admin válido (close 4001 antes do accept).
+    - Limite de mensagem: MONITORING_WS_MAX_MESSAGE_SIZE (default 64 KiB).
     """
+    from resync.api.routes.core.auth import verify_admin_credentials
     from resync.core.event_bus import SubscriptionType, get_event_bus
 
+    # ── Auth: must verify BEFORE accept() ─────────────────────────────────────
+    # WebSocket handshake headers are available before accept().
+    # We accept a Bearer token via the `token` query param (browsers can't set
+    # Upgrade headers) OR via the `Authorization` header (native clients).
+    token: str | None = websocket.query_params.get("token")
+    if not token:
+        raw_auth = websocket.headers.get("authorization", "")
+        if raw_auth.lower().startswith("bearer "):
+            token = raw_auth[7:]
+
+    if not token:
+        # Reject before handshake — saves resources and prevents any data leak.
+        await websocket.close(code=4001, reason="Unauthorized: token required")
+        return
+
+    try:
+        # Reuse existing JWT validation logic.
+        from resync.core.jwt_utils import decode_access_token
+
+        payload = decode_access_token(token)
+        role = (payload or {}).get("role", "")
+        if role not in ("admin", "superadmin"):
+            await websocket.close(code=4001, reason="Unauthorized: admin required")
+            return
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        await websocket.close(code=4001, reason="Unauthorized: invalid token")
+        return
+    # ── End auth ──────────────────────────────────────────────────────────────
+
+    # Maximum payload per inbound message (env: MONITORING_WS_MAX_MESSAGE_SIZE, default 64 KiB).
+    _MAX_MSG_BYTES: int = int(os.environ.get("MONITORING_WS_MAX_MESSAGE_SIZE", str(64 * 1024)))
+
+    # Rate limit connect attempts (defense-in-depth)
+    client_ip = getattr(getattr(websocket, 'client', None), 'host', None) or 'unknown'
+    allowed, retry_after = await ws_allow_connect(client_ip)
+    if not allowed:
+        await websocket.close(code=1013, reason=f'Rate limited. Retry after ~{retry_after}s')
+        return
     await websocket.accept()
 
     client_id = str(uuid.uuid4())
@@ -771,6 +774,17 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Aguarda mensagens do cliente
             data = await websocket.receive_text()
+
+            # Reject oversized control messages (DoS protection, close 1009).
+            if len(data.encode("utf-8")) > _MAX_MSG_BYTES:
+                logger.warning(
+                    "monitoring_ws_message_too_large",
+                    client_id=client_id,
+                    size=len(data),
+                    max_size=_MAX_MSG_BYTES,
+                )
+                await websocket.close(code=1009, reason="Message Too Big")
+                return
 
             try:
                 message = json.loads(data)
@@ -821,16 +835,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("websocket_client_disconnected", client_id=client_id)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("websocket_error", client_id=client_id, error=str(e))
     finally:
         await bus.unregister_websocket(client_id)
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
 
 async def broadcast_notification(
     title: str,

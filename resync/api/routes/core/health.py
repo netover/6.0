@@ -19,14 +19,12 @@ logger = logging.getLogger(__name__)
 
 PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
 
-
 # Lazy import of runtime_metrics to avoid circular dependencies
 def _get_runtime_metrics():
     """Lazy import of runtime_metrics."""
     from resync.core.metrics import runtime_metrics
 
     return runtime_metrics
-
 
 # Main health router
 router = APIRouter(prefix="/health", tags=["health"])
@@ -38,7 +36,6 @@ config_router = APIRouter(
 
 # Alias for health router
 health_router = router
-
 
 # Health check response models
 class HealthSummaryResponse(BaseModel):
@@ -53,7 +50,6 @@ class HealthSummaryResponse(BaseModel):
     alerts: list[str]
     performance_metrics: dict[str, Any]
 
-
 class ComponentHealthResponse(BaseModel):
     """Individual component health response."""
 
@@ -66,7 +62,6 @@ class ComponentHealthResponse(BaseModel):
     last_check: str
     error_count: int
     metadata: dict[str, Any] | None = None
-
 
 class DetailedHealthResponse(BaseModel):
     """Detailed health check response."""
@@ -81,7 +76,6 @@ class DetailedHealthResponse(BaseModel):
     performance_metrics: dict[str, Any]
     history: list[dict[str, Any]]
 
-
 class CoreHealthResponse(BaseModel):
     """Core components health response."""
 
@@ -91,10 +85,8 @@ class CoreHealthResponse(BaseModel):
     core_components: dict[str, ComponentHealthResponse]
     summary: dict[str, Any]
 
-
 # Core components that are critical for system operation
 CORE_COMPONENTS = {"database", "redis", "connection_pools", "file_system"}
-
 
 @router.get("/", response_model=HealthSummaryResponse)
 async def get_health_summary(
@@ -145,7 +137,7 @@ async def get_health_summary(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -163,7 +155,6 @@ async def get_health_summary(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Health check system error: {str(original_exception)}",
         ) from original_exception
-
 
 @router.get("/core", response_model=CoreHealthResponse)
 async def get_core_health() -> CoreHealthResponse:
@@ -233,7 +224,7 @@ async def get_core_health() -> CoreHealthResponse:
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -242,7 +233,6 @@ async def get_core_health() -> CoreHealthResponse:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Core health check system error. Check server logs for details.",
         ) from e
-
 
 @router.get("/detailed", response_model=DetailedHealthResponse)
 async def get_detailed_health(
@@ -310,7 +300,7 @@ async def get_detailed_health(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -319,7 +309,6 @@ async def get_detailed_health(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Detailed health check system error. Check server logs for details.",
         ) from e
-
 
 @router.get("/ready")
 async def readiness_probe() -> dict[str, Any]:
@@ -373,7 +362,7 @@ async def readiness_probe() -> dict[str, Any]:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -387,7 +376,6 @@ async def readiness_probe() -> dict[str, Any]:
                 "error": str(e),
             },
         ) from e
-
 
 @router.get("/live")
 async def liveness_probe() -> dict[str, Any]:
@@ -437,7 +425,7 @@ async def liveness_probe() -> dict[str, Any]:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -451,7 +439,6 @@ async def liveness_probe() -> dict[str, Any]:
                 "error": str(e),
             },
         ) from e
-
 
 @router.post("/component/{component_name}/recover")
 async def recover_component(component_name: str) -> dict[str, Any]:
@@ -499,7 +486,7 @@ async def recover_component(component_name: str) -> dict[str, Any]:
     except HTTPException:
         # Re-raise HTTPException to preserve the original status code and detail
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -514,7 +501,6 @@ async def recover_component(component_name: str) -> dict[str, Any]:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         ) from e
-
 
 @router.get("/redis")
 async def get_redis_health() -> dict[str, Any]:
@@ -579,7 +565,7 @@ async def get_redis_health() -> dict[str, Any]:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -594,7 +580,6 @@ async def get_redis_health() -> dict[str, Any]:
                 "guarantee idempotency"
             ),
         }
-
 
 @router.get("/components")
 async def list_components() -> dict[str, list[dict[str, str]]]:

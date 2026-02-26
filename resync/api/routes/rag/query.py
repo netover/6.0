@@ -35,11 +35,9 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".json"}
 
-
 def get_rag() -> RAGIntegrationService:
     """Dependency to get RAG service."""
     return get_rag_service()
-
 
 def validate_file(file: UploadFile) -> None:
     """Validate uploaded file using Pydantic model"""
@@ -60,7 +58,7 @@ def validate_file(file: UploadFile) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid request. Check server logs for details.",
         ) from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("file_validation_failed", exc_info=True, extra={"error": str(e)})
@@ -69,7 +67,6 @@ def validate_file(file: UploadFile) -> None:
             detail="File validation failed. Check server logs for details.",
         ) from e
 
-
 async def save_upload_file(upload_file: UploadFile, destination: Path) -> str:
     """Save uploaded file to disk and return content."""
     try:
@@ -77,14 +74,13 @@ async def save_upload_file(upload_file: UploadFile, destination: Path) -> str:
         async with await anyio.open_file(destination, "wb") as buffer:
             await buffer.write(content)
         return content.decode("utf-8", errors="ignore")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save file. Check server logs for details.",
         ) from e
-
 
 async def process_rag_document(
     rag_service: RAGIntegrationService,
@@ -98,13 +94,12 @@ async def process_rag_document(
         await rag_service.ingest_document(
             file_id=file_id, filename=filename, content=content, tags=tags
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         import logging
 
         logging.error(f"RAG processing failed for {file_id}: {e}")
-
 
 @router.post("/rag/upload", response_model=FileUploadResponse)
 async def upload_rag_file(
@@ -157,7 +152,7 @@ async def upload_rag_file(
         return upload_response
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger_instance.error(
@@ -170,7 +165,6 @@ async def upload_rag_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process file upload",
         ) from e
-
 
 @router.get("/rag/search")
 async def search_rag(
@@ -207,14 +201,13 @@ async def search_rag(
             ],
             "total": len(results),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger_instance.error("rag_search_error", error=str(e), query=query)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Search failed"
         ) from e
-
 
 @router.get("/rag/files")
 async def list_rag_files(
@@ -244,7 +237,7 @@ async def list_rag_files(
             file_count=len(files),
         )
         return {"files": files, "total": len(files)}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger_instance.error("rag_files_listing_error", error=str(e))
@@ -252,7 +245,6 @@ async def list_rag_files(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list RAG files",
         ) from e
-
 
 @router.get("/rag/files/{file_id}")
 async def get_rag_file(
@@ -278,7 +270,6 @@ async def get_rag_file(
         "metadata": doc.metadata,
     }
 
-
 @router.delete("/rag/files/{file_id}")
 async def delete_rag_file(
     file_id: str,
@@ -300,7 +291,7 @@ async def delete_rag_file(
         return {"message": "File deleted successfully", "file_id": file_id}
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger_instance.error("rag_file_deletion_error", error=str(e), file_id=file_id)
@@ -308,7 +299,6 @@ async def delete_rag_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete RAG file",
         ) from e
-
 
 @router.get("/rag/stats")
 async def get_rag_stats(

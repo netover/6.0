@@ -15,13 +15,11 @@ logger = logging.getLogger(__name__)
 
 PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
 
-
 @runtime_checkable
 class TWSStatusClientProtocol(Protocol):
     """Subset of the TWS client contract required by tool definitions."""
 
     async def get_system_status(self) -> Any: ...
-
 
 class TWSToolReadOnly(BaseModel):
     """
@@ -36,7 +34,6 @@ class TWSToolReadOnly(BaseModel):
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
 
 class TWSStatusTool(TWSToolReadOnly):
     """A tool for retrieving the overall status of the TWS environment."""
@@ -83,7 +80,7 @@ class TWSStatusTool(TWSToolReadOnly):
             raise ToolProcessingError(
                 "Erro ao processar os dados de status do TWS."
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, PROGRAMMING_ERRORS):
                 raise
             logger.error("Unexpected error in TWSStatusTool: %s", e, exc_info=True)
@@ -91,7 +88,6 @@ class TWSStatusTool(TWSToolReadOnly):
             raise ToolExecutionError(
                 "Ocorreu um erro inesperado ao obter o status do TWS."
             ) from e
-
 
 class TWSTroubleshootingTool(TWSToolReadOnly):
     """A tool for diagnosing and providing solutions for TWS issues."""
@@ -158,7 +154,7 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
             raise ToolProcessingError(
                 "Erro ao processar os dados de falhas do TWS."
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, PROGRAMMING_ERRORS):
                 raise
             logger.error(
@@ -167,7 +163,6 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
             raise ToolExecutionError(
                 "Ocorreu um erro inesperado ao analisar as falhas do TWS."
             ) from e
-
 
 # --- Tool Instantiation ---
 # Create single, reusable instances of the tools.

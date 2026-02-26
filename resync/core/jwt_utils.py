@@ -19,6 +19,25 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
+def _unwrap_secret(value: object) -> str:
+    """Return a real secret string for libraries that require ``str`` keys.
+
+    Supports Pydantic v2 ``SecretStr``-like objects (anything with a callable
+    ``get_secret_value``). Fails closed on unknown types to avoid accidental
+    secret exposure via ``str(value)``.
+    """
+    if isinstance(value, str):
+        return value
+    get_secret_value = getattr(value, "get_secret_value", None)
+    if callable(get_secret_value):
+        secret = get_secret_value()
+        if not isinstance(secret, str):
+            raise TypeError("Secret value must be a str")
+        return secret
+    raise TypeError("JWT secret key must be str or SecretStr-like")
+
+
 # =============================================================================
 # JWT LIBRARY SELECTION
 # Priority: PyJWT > python-jose
@@ -64,25 +83,21 @@ except ImportError:
             "Install with: pip install PyJWT>=2.10.1"
         )
 
-
 def is_jwt_available() -> bool:
     """Check if any JWT library is available."""
     return JWT_LIBRARY != "none"
-
 
 def get_jwt_library() -> str:
     """Get the name of the JWT library in use."""
     return JWT_LIBRARY
 
-
 # =============================================================================
 # UNIFIED JWT FUNCTIONS
 # =============================================================================
 
-
 def decode_token(
     token: str,
-    secret_key: str,
+    secret_key: str | object,
     algorithms: list[str] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
@@ -109,6 +124,8 @@ def decode_token(
             "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
         )
 
+    secret_key = _unwrap_secret(secret_key)
+
     if algorithms is None:
         algorithms = ["HS256"]
 
@@ -119,10 +136,9 @@ def decode_token(
         )
     return jwt_module.decode(token, secret_key, algorithms=algorithms, **kwargs)
 
-
 def create_token(
     payload: dict[str, Any],
-    secret_key: str,
+    secret_key: str | object,
     algorithm: str = "HS256",
     expires_in: int | None = 3600,
 ) -> str:
@@ -150,6 +166,8 @@ def create_token(
 
     to_encode = payload.copy()
 
+    secret_key = _unwrap_secret(secret_key)
+
     # Add timing claims
     now = time.time()
     to_encode["iat"] = int(now)
@@ -164,10 +182,9 @@ def create_token(
         )
     return jwt_module.encode(to_encode, secret_key, algorithm=algorithm)
 
-
 def verify_token(
     token: str,
-    secret_key: str,
+    secret_key: str | object,
     algorithms: list[str] | None = None,
     verify_exp: bool = True,
 ) -> tuple[bool, dict[str, Any] | str]:
@@ -192,6 +209,7 @@ def verify_token(
         return False, "No JWT library available"
 
     try:
+        secret_key = _unwrap_secret(secret_key)
         if algorithms is None:
             algorithms = ["HS256"]
 
@@ -216,9 +234,8 @@ def verify_token(
         if "expired" in error_msg or "expir" in error_msg:
             return False, "Token has expired"
         return False, f"Invalid token: {str(e)}"
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         return False, f"Token verification failed: {str(e)}"
-
 
 # =============================================================================
 # EXPORTS
@@ -234,3 +251,8 @@ __all__ = [
     "create_token",
     "verify_token",
 ]
+
+# Alias for backward compat
+def decode_access_token(token: str, secret_key: str = "", algorithm: str = "HS256"):
+    """Alias for decode_token — backward compatibility."""
+    return decode_token(token, secret_key=secret_key, algorithm=algorithm)

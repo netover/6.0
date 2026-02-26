@@ -19,6 +19,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+import asyncio
+
 import structlog
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -29,7 +31,6 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin/config", tags=["configuration"])
 
-
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration."""
 
@@ -37,14 +38,12 @@ class ConfigUpdateRequest(BaseModel):
     data: dict[str, Any]
     create_backup: bool = True
 
-
 class ConfigReloadResponse(BaseModel):
     """Response for config reload."""
 
     status: str
     configs_loaded: list[str]
     errors: list[str] = []
-
 
 @router.get("/all")
 async def get_all_configs():
@@ -71,14 +70,13 @@ async def get_all_configs():
             "hot_reload_active": manager.observer is not None,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get configs: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.get("/{config_name}")
 async def get_config(config_name: str, section: str = None):
@@ -112,14 +110,13 @@ async def get_config(config_name: str, section: str = None):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get config %s: %s", config_name, e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.post("/{config_name}/update")
 async def update_config(config_name: str, request: ConfigUpdateRequest):
@@ -177,14 +174,13 @@ async def update_config(config_name: str, request: ConfigUpdateRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to update config %s: %s", config_name, e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.get("/status")
 async def get_config_status():
@@ -211,14 +207,13 @@ async def get_config_status():
             "total_configs": len(configs_loaded),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get config status: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.post("/reload")
 async def reload_all_configs():
@@ -243,7 +238,7 @@ async def reload_all_configs():
                     configs_loaded.append(name)
                 else:
                     errors.append(f"Config file not found: {name}")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 errors.append(f"Failed to reload {name}: {str(e)}")
 
         status = "success" if not errors else "partial"
@@ -255,7 +250,7 @@ async def reload_all_configs():
             "total_loaded": len(configs_loaded),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -264,7 +259,6 @@ async def reload_all_configs():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.get("/backups")
 async def list_config_backups():
@@ -284,7 +278,7 @@ async def list_config_backups():
         backups = []
 
         for backup_file in backup_dir.glob("*.toml.bak"):
-            stat = backup_file.stat()
+            stat = await asyncio.to_thread(backup_file.stat)
 
             backups.append(
                 {
@@ -305,7 +299,7 @@ async def list_config_backups():
             "backup_dir": str(backup_dir),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -314,7 +308,6 @@ async def list_config_backups():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 
 @router.post("/backups/{filename}/restore")
 async def restore_config_backup(filename: str):
@@ -367,10 +360,10 @@ async def restore_config_backup(filename: str):
             f"{int(datetime.now(timezone.utc).timestamp())}.toml.bak"
         )
         )
-        shutil.copy2(config_file, current_backup)
+        await asyncio.to_thread(shutil.copy2, config_file, current_backup)
 
         # Restore from backup
-        shutil.copy2(backup_file, config_file)
+        await asyncio.to_thread(shutil.copy2, backup_file, config_file)
 
         # Trigger hot reload
         await manager.reload_config_file(config_file)
@@ -385,7 +378,7 @@ async def restore_config_backup(filename: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

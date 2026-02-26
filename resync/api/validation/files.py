@@ -16,7 +16,6 @@ from .common import (
     ValidationPatterns,
 )
 
-
 class FileType(str, Enum):
     """Allowed file types."""
 
@@ -29,7 +28,6 @@ class FileType(str, Enum):
     ARCHIVE = "archive"
     OTHER = "other"
 
-
 class ProcessingStatus(str, Enum):
     """File processing status."""
 
@@ -38,7 +36,6 @@ class ProcessingStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
 
 class FileUploadRequest(BaseValidatedModel):
     """File upload request validation."""
@@ -217,7 +214,6 @@ class FileUploadRequest(BaseValidatedModel):
                     )
         return values
 
-
 class FileChunkUploadRequest(BaseValidatedModel):
     """Chunked file upload request validation."""
 
@@ -278,7 +274,6 @@ class FileChunkUploadRequest(BaseValidatedModel):
             if abs(v - expected_size) > NumericConstraints.MAX_CHUNK_SIZE:
                 raise ValueError("File size doesn't match expected size from chunks")
         return v
-
 
 class FileUpdateRequest(BaseValidatedModel):
     """File update request validation."""
@@ -372,7 +367,6 @@ class FileUpdateRequest(BaseValidatedModel):
                 raise ValueError(f"Tag contains malicious content: {tag}")
         return v
 
-
 class FileProcessingRequest(BaseValidatedModel):
     """File processing request validation."""
 
@@ -458,7 +452,6 @@ class FileProcessingRequest(BaseValidatedModel):
                         f"Configuration value contains malicious content for key '{key}'"
                     )
         return v
-
 
 class RAGUploadRequest(BaseValidatedModel):
     """RAG (Retrieval-Augmented Generation) file upload request."""
@@ -549,7 +542,6 @@ class RAGUploadRequest(BaseValidatedModel):
                 )
         return v
 
-
 # File response models
 class FileInfo(BaseValidatedModel):
     """File information response."""
@@ -568,7 +560,6 @@ class FileInfo(BaseValidatedModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-
 
 __all__ = [
     "FileUploadRequest",

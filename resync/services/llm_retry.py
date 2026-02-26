@@ -38,7 +38,6 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class LLMCircuitBreaker:
     """
     Circuit breaker para LLM providers.
@@ -186,10 +185,8 @@ class LLMCircuitBreaker:
             "available": self.is_available(provider),
         }
 
-
 # Global circuit breaker instance
 circuit_breaker = LLMCircuitBreaker()
-
 
 async def call_llm_with_retry_and_fallback(
     primary_provider: Callable,
@@ -278,7 +275,7 @@ async def call_llm_with_retry_and_fallback(
 
                     return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             last_exception = e
             circuit_breaker.record_failure(provider_name)
 
@@ -302,7 +299,6 @@ async def call_llm_with_retry_and_fallback(
     )
     raise last_exception
 
-
 def get_circuit_breaker_status() -> dict[str, Any]:
     """
     Obtém status de todos circuit breakers.
@@ -319,7 +315,6 @@ def get_circuit_breaker_status() -> dict[str, Any]:
         "total": len(providers),
         "any_open": any(circuit_breaker.state.get(p) == "open" for p in providers),
     }
-
 
 # Exemplo de uso:
 """

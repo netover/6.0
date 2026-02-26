@@ -10,11 +10,9 @@ logger = structlog.get_logger(__name__)
 _JOB_EXECUTION_HISTORY_LIMIT = 2000
 _METRICS_HISTORY_LIMIT = 5000
 
-
 def _cutoff_from_days(days: int) -> datetime:
     safe_days = max(1, int(days or 1))
     return datetime.now(timezone.utc) - timedelta(days=safe_days)
-
 
 async def fetch_job_history(
     *,
@@ -69,7 +67,6 @@ async def fetch_job_history(
         }
         for row in rows
     ]
-
 
 async def fetch_workstation_metrics(
     *,
@@ -133,7 +130,6 @@ async def fetch_workstation_metrics(
         for row in rows
     ]
 
-
 async def fetch_job_execution_history(
     db: Any,
     job_name: str | None = None,
@@ -174,7 +170,6 @@ async def fetch_job_execution_history(
         for row in rows
     ]
     return job_history
-
 
 async def fetch_workstation_metrics_history(
     db: Any, workstation: str | None = None
@@ -218,35 +213,151 @@ async def fetch_workstation_metrics_history(
     ]
     return metrics_history
 
+async def detect_degradation(
+    metrics_history: list[dict[str, Any]] | None = None,
+    *,
+    cpu_threshold: float = 85.0,
+    memory_threshold: float = 90.0,
+    disk_threshold: float = 90.0,
+    min_points: int = 10,
+) -> dict[str, Any]:
+    """Detect simple degradation signals from workstation metrics.
 
-async def detect_degradation(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until analytical implementation returns."""
+    This is a lightweight, deterministic implementation intended for verbose mode.
+    It avoids LLM calls and provides stable signals for downstream steps.
+    """
     await asyncio.sleep(0)
-    _ = (args, kwargs)
-    return {}
 
+    history = metrics_history or []
+    if len(history) < min_points:
+        return {"degradation_detected": False, "reason": "insufficient_data"}
 
-async def correlate_metrics(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until analytical implementation returns."""
+    # Metrics are ordered DESC by timestamp in fetch_workstation_metrics; reverse for trend
+    ordered = list(reversed(history))
+
+    def _last_n_avg(key: str, n: int = 10) -> float:
+        vals = [float(x.get(key, 0.0) or 0.0) for x in ordered[-n:]]
+        return sum(vals) / max(1, len(vals))
+
+    avg_cpu = _last_n_avg("cpu_percent")
+    avg_mem = _last_n_avg("memory_percent")
+    avg_disk = _last_n_avg("disk_percent")
+
+    degraded = (avg_cpu >= cpu_threshold) or (avg_mem >= memory_threshold) or (
+        avg_disk >= disk_threshold
+    )
+
+    return {
+        "degradation_detected": degraded,
+        "signals": {
+            "avg_cpu_percent_last10": avg_cpu,
+            "avg_memory_percent_last10": avg_mem,
+            "avg_disk_percent_last10": avg_disk,
+        },
+        "thresholds": {
+            "cpu": cpu_threshold,
+            "memory": memory_threshold,
+            "disk": disk_threshold,
+        },
+    }
+async def correlate_metrics(
+    metrics_history: list[dict[str, Any]] | None = None,
+    *,
+    window: int = 50,
+) -> dict[str, Any]:
+    """Compute simple correlations between resource metrics.
+
+    Returns Pearson correlations for cpu/memory/disk across the latest window.
+    """
     await asyncio.sleep(0)
-    _ = (args, kwargs)
-    return {}
 
+    history = metrics_history or []
+    if len(history) < 3:
+        return {"correlation": {}, "reason": "insufficient_data"}
 
-async def predict_timeline(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until analytical implementation returns."""
+    ordered = list(reversed(history))[-window:]
+
+    def series(key: str) -> list[float]:
+        return [float(x.get(key, 0.0) or 0.0) for x in ordered]
+
+    def pearson(a: list[float], b: list[float]) -> float:
+        n = min(len(a), len(b))
+        if n < 3:
+            return 0.0
+        a = a[:n]
+        b = b[:n]
+        ma = sum(a) / n
+        mb = sum(b) / n
+        num = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+        da = sum((x - ma) ** 2 for x in a) ** 0.5
+        db = sum((y - mb) ** 2 for y in b) ** 0.5
+        if da == 0.0 or db == 0.0:
+            return 0.0
+        return num / (da * db)
+
+    cpu = series("cpu_percent")
+    mem = series("memory_percent")
+    disk = series("disk_percent")
+
+    return {
+        "correlation": {
+            "cpu_mem": pearson(cpu, mem),
+            "cpu_disk": pearson(cpu, disk),
+            "mem_disk": pearson(mem, disk),
+        },
+        "window_points": len(ordered),
+    }
+async def predict_timeline(
+    degradation: dict[str, Any] | None = None,
+    correlations: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Predict a coarse failure timeline.
+
+    This is a heuristic (non-ML) placeholder that provides a stable contract:
+    - If degradation is detected and correlations are strong, estimate sooner.
+    """
     await asyncio.sleep(0)
-    _ = (args, kwargs)
-    return {}
 
+    degradation = degradation or {}
+    correlations = correlations or {}
+    degraded = bool(degradation.get("degradation_detected", False))
+    corr = correlations.get("correlation", {}) if isinstance(correlations, dict) else {}
+    max_corr = max((abs(float(v)) for v in corr.values()), default=0.0)
 
-async def generate_recommendations(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """TODO: Verbose-mode placeholder until recommendation implementation returns."""
+    if not degraded:
+        return {"predicted_timeline_days": None, "confidence": 0.3}
+
+    # Strong correlation suggests systemic saturation; assume faster risk
+    if max_corr >= 0.8:
+        return {"predicted_timeline_days": 7, "confidence": 0.75}
+    if max_corr >= 0.5:
+        return {"predicted_timeline_days": 14, "confidence": 0.6}
+    return {"predicted_timeline_days": 28, "confidence": 0.5}
+async def generate_recommendations(
+    degradation: dict[str, Any] | None = None,
+    correlations: dict[str, Any] | None = None,
+    timeline: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Generate deterministic recommendations for verbose mode."""
     await asyncio.sleep(0)
-    _ = (args, kwargs)
-    return {}
 
+    degradation = degradation or {}
+    signals = degradation.get("signals", {}) if isinstance(degradation, dict) else {}
+    timeline = timeline or {}
 
+    recs: list[str] = []
+    if degradation.get("degradation_detected"):
+        recs.append("Validate workstation capacity (CPU/memory/disk) and check for contention.")
+        recs.append("Inspect top resource consumers and consider rescheduling heavy jobs off-peak.")
+        recs.append("Review recent changes (deploys/config) that correlate with the start of saturation.")
+    else:
+        recs.append("No strong degradation signals found; continue monitoring.")
+
+    days = timeline.get("predicted_timeline_days")
+    if isinstance(days, int):
+        recs.append(f"Suggested action window: within ~{days} days.")
+
+    return {"recommendations": recs, "signals": signals}
 async def notify_operators(*args: Any, **kwargs: Any) -> None:
     """No-op notification placeholder for verbose mode."""
     await asyncio.sleep(0)

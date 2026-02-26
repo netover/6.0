@@ -22,18 +22,15 @@ logger = logging.getLogger(__name__)
 
 PROGRAMMING_ERRORS = (TypeError, KeyError, AttributeError, IndexError)
 
-
 # =============================================================================
 # SCHEMAS PYDANTIC PARA TOOLS
 # =============================================================================
-
 
 class GetJobStatusInput(BaseModel):
     """Input para consulta de status de job."""
 
     job_name: str = Field(..., description="Nome do job TWS/HWA")
     workspace: str = Field(default="PROD", description="Workspace (PROD/TEST/DEV)")
-
 
 class GetJobStatusOutput(BaseModel):
     """Output de status de job."""
@@ -44,18 +41,15 @@ class GetJobStatusOutput(BaseModel):
     next_run: str | None = None
     workspace: str
 
-
 class GetJobLogsInput(BaseModel):
     """Input para obter logs de job."""
 
     job_name: str = Field(..., description="Nome do job")
     lines: int = Field(default=100, description="Número de linhas", ge=1, le=1000)
 
-
 # =============================================================================
 # TOOLS DECORADAS (Auto-registro + Validação)
 # =============================================================================
-
 
 @tool(
     permission=ToolPermission.READ_ONLY,
@@ -94,7 +88,7 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict[str, An
             "next_run": status_data.get("next_execution"),
             "workspace": workspace,
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting job status: %s", e, exc_info=True)
@@ -107,7 +101,6 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict[str, An
             "workspace": workspace,
             "error": str(e),
         }
-
 
 @tool(
     permission=ToolPermission.READ_ONLY,
@@ -148,12 +141,11 @@ async def get_failed_jobs(hours: int = 24) -> dict[str, Any]:
                 for j in jobs[:50]  # Limitar a 50 jobs
             ],
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting failed jobs: %s", e, exc_info=True)
         return {"count": 0, "hours": hours, "jobs": [], "error": str(e)}
-
 
 @tool(
     permission=ToolPermission.READ_ONLY,
@@ -183,12 +175,11 @@ async def get_job_logs(job_name: str, lines: int = 100) -> dict[str, Any]:
         log_content = first_job.get("logs") if isinstance(first_job, dict) else None
 
         return {"job_name": job_name, "lines": lines, "content": log_content or ""}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting job logs: %s", e, exc_info=True)
         return {"job_name": job_name, "lines": 0, "content": "", "error": str(e)}
-
 
 @tool(
     permission=ToolPermission.READ_ONLY,
@@ -238,12 +229,11 @@ async def get_system_health() -> dict[str, Any]:
                 "threshold": 10,
             },
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting system health: %s", e, exc_info=True)
         return {"status": "ERROR", "error": str(e)}
-
 
 @tool(
     permission=ToolPermission.READ_ONLY,
@@ -279,7 +269,7 @@ async def get_job_dependencies(job_name: str) -> dict[str, Any]:
             "predecessors": predecessors if isinstance(predecessors, list) else [],
             "successors": successors if isinstance(successors, list) else [],
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting job dependencies: %s", e, exc_info=True)
@@ -290,11 +280,9 @@ async def get_job_dependencies(job_name: str) -> dict[str, Any]:
             "error": str(e),
         }
 
-
 # =============================================================================
 # CONVERSOR: Pydantic → OpenAI Function Schema
 # =============================================================================
-
 
 def pydantic_to_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     """
@@ -314,11 +302,9 @@ def pydantic_to_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
         "required": schema.get("required", []),
     }
 
-
 # =============================================================================
 # GERADOR AUTOMÁTICO DE TOOLS PARA LLM
 # =============================================================================
-
 
 def get_llm_tools(
     user_role: UserRole | None = None, tags: list[str] | None = None
@@ -362,11 +348,9 @@ def get_llm_tools(
     )
     return llm_tools
 
-
 # =============================================================================
 # EXECUTOR CENTRALIZADO (Type-Safe)
 # =============================================================================
-
 
 async def execute_tool_call(
     tool_call,
@@ -431,10 +415,9 @@ async def execute_tool_call(
         )
 
         return {"success": True, "result": result}
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Tool execution failed: %s", e, exc_info=True)
         return {"error": str(e)}
-
 
 # =============================================================================
 # EXPORTS

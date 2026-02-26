@@ -59,7 +59,6 @@ logger = None  # Will be injected by dependency
 # v5.4.1: HybridRouter instance (singleton)
 _hybrid_router: HybridRouter | None = None
 
-
 class RagComponentsManager:
     """Singleton manager for RAG components to avoid global state issues."""
 
@@ -121,7 +120,7 @@ class RagComponentsManager:
                     )
                     if logger:
                         logger.info("Hybrid retriever initialized (BM25 + Vector)")
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     if logger:
                         logger.warning(
                             "Hybrid retriever not available, using standard: %s", e
@@ -130,7 +129,7 @@ class RagComponentsManager:
                 self._initialized = True
                 if logger:
                     logger.info("RAG components initialized successfully (lazy)")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if logger:
                     logger.error("Failed to initialize RAG components: %s", e)
                 self._embedding_service = None
@@ -145,21 +144,17 @@ class RagComponentsManager:
             self._ingest_service,
         )
 
-
 # Singleton instance
 _rag_manager = RagComponentsManager()
-
 
 async def _get_rag_components():
     """Lazy initialization of RAG components within async context"""
     return await _rag_manager.get_components()
 
-
 async def _get_or_create_session(session_id: str | None) -> ConversationContext:
     """Get or create conversation session for memory."""
     memory = get_conversation_memory()
     return await memory.get_or_create_session(session_id)
-
 
 async def _save_conversation_turn(
     session_id: str,
@@ -171,13 +166,12 @@ async def _save_conversation_turn(
     try:
         memory = get_conversation_memory()
         await memory.add_turn(session_id, user_message, assistant_response, metadata)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         if logger:
             logger.warning("Failed to save conversation turn: %s", e)
-
 
 @router.post("/chat", response_model=ChatMessageResponse)
 async def chat_message(
@@ -246,7 +240,7 @@ async def chat_message(
         if x_routing_mode:
             try:
                 force_mode = RoutingMode(x_routing_mode)
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid X-Routing-Mode: {x_routing_mode}",
@@ -366,13 +360,12 @@ async def chat_message(
             },
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger_instance.error("chat_message_error", error=str(e), user_id="test_user")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process chat message",
         ) from e
-
 
 @router.post("/chat/analyze", response_model=dict)
 async def analyze_message(
@@ -407,13 +400,12 @@ async def analyze_message(
             "suggested_routing": getattr(classification, "suggested_routing", None),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger_instance.error("analyze_message_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to analyze message",
         ) from e
-
 
 @router.get("/chat/history")
 async def chat_history(
@@ -435,7 +427,7 @@ async def chat_history(
                     "session_id": x_session_id,
                     "total_messages": len(context.messages),
                 }
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             logger_instance.debug("suppressed_exception", error=str(exc), exc_info=True)
 
     # Fallback
@@ -452,7 +444,6 @@ async def chat_history(
         "session_id": x_session_id,
         "total_messages": 0,
     }
-
 
 @router.delete("/chat/history")
 async def clear_chat_history(
@@ -473,7 +464,7 @@ async def clear_chat_history(
                 "message": "Chat history cleared successfully",
                 "session_id": x_session_id,
             }
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             logger.debug(
                 "suppressed_exception", error=str(exc), exc_info=True
             )  # was: pass
@@ -484,7 +475,6 @@ async def clear_chat_history(
 
     logger_instance.info("chat_history_cleared", user_id="test_user")
     return {"message": "Chat history cleared successfully"}
-
 
 @router.get("/chat/intents")
 async def list_supported_intents():

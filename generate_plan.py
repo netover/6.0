@@ -1,44 +1,72 @@
 """
-Global Mypy Plan Generator
-Gera o plano geral de remediação para todo o projeto Resync.
+Global Mypy Plan Generator.
+
+Generates the overall remediation plan for full mypy compliance
+across the entire Resync project, writing output atomically.
+
+Usage::
+
+    python generate_plan.py
+
+Reads ``mypy_global_report.txt`` (run ``mypy . 2>&1 | tee mypy_global_report.txt``
+first) and writes ``MYPY_REMEDIATION_PLAN.md``.
 """
 
+# All standard-library imports at module level (never inside functions)
+import os
 import sys
+import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Tuple
 
-
-def _parse_global_mypy_line(line: str) -> Tuple[str, str] | None:
+def _parse_global_mypy_line(line: str) -> tuple[str, str] | None:
     """
-    Extrai o domínio global e o caminho do ficheiro de uma linha de erro.
-    Retorna o tuplo (domain, filepath) ou None.
+    Extract the global domain and file path from a mypy error line.
+
+    Expected format: ``filepath:line:col: error: message``
+
+    Args:
+        line: Single line from mypy output.
+
+    Returns:
+        ``(domain, filepath)`` tuple, or ``None`` if line is not a
+        relevant error inside the ``resync/`` tree.
     """
     if "error:" not in line:
         return None
 
     parts = line.split(":")
 
-    # HARDENING (P2): Garante que existem dados suficientes na divisão do array
+    # Need at least: filepath:line:col:severity (4+ parts)
     if len(parts) < 4:
         return None
 
+    # Normalize path separators (handles Windows CI output)
     filepath = parts[0].replace("\\", "/")
     if not filepath.startswith("resync/"):
         return None
 
     path_parts = filepath.split("/")
     if len(path_parts) >= 2:
-        domain = f"{path_parts[0]}/{path_parts[1]}"
-        return (domain, filepath)
+        return (f"{path_parts[0]}/{path_parts[1]}", filepath)
 
     return None
 
+def _aggregate_errors(
+    report_file: Path,
+) -> tuple[dict[str, int], dict[str, int]]:
+    """
+    Aggregate mypy errors by domain and file, handling I/O failures.
 
-def _aggregate_errors(report_file: Path) -> Tuple[Dict[str, int], Dict[str, int]]:
-    """Agrega os erros globalmente lidando com eventuais falhas de I/O."""
-    domain_counts: Dict[str, int] = defaultdict(int)
-    file_counts: Dict[str, int] = defaultdict(int)
+    Args:
+        report_file: Path to mypy report file.
+
+    Returns:
+        ``(domain_counts, file_counts)`` — both default to zero for
+        unseen keys.
+    """
+    domain_counts: dict[str, int] = defaultdict(int)
+    file_counts: dict[str, int] = defaultdict(int)
 
     try:
         content = report_file.read_text(encoding="utf-8")
@@ -49,60 +77,84 @@ def _aggregate_errors(report_file: Path) -> Tuple[Dict[str, int], Dict[str, int]
                 domain_counts[domain] += 1
                 file_counts[filepath] += 1
     except OSError as e:
-        print(
-            f"ERROR: Falha ao ler o relatório {report_file.name}: {e}", file=sys.stderr
-        )
+        print(f"ERROR: Failed to read {report_file.name}: {e}", file=sys.stderr)
 
     return domain_counts, file_counts
 
+def _write_plan(domain_counts: dict[str, int], output_file: Path) -> bool:
+    """
+    Write the Markdown remediation plan atomically.
 
-def _write_plan(domain_counts: Dict[str, int], output_file: Path) -> bool:
-    """Escreve o plano no ficheiro Markdown lidando com erros de I/O de escrita."""
+    Uses ``tempfile`` + ``os.fsync`` + ``Path.replace`` to guarantee that
+    the destination is either the old version or the fully-written new
+    version — never a partial write.
+
+    Args:
+        domain_counts: Mapping of domain path → error count.
+        output_file:   Destination ``.md`` file.
+
+    Returns:
+        ``True`` on success, ``False`` if an I/O error occurred.
+    """
     sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)
 
     plan_lines = [
         "# MYPY REMEDIATION PLAN",
         "",
-        "This is the strict tracking file for achieving 100% mypy compliance.",
+        "Strict tracking file for achieving 100% mypy compliance.",
         "",
         "## Domain Groups",
         "",
     ]
 
     if not sorted_domains:
-        plan_lines.append("Nenhum erro encontrado! O projeto está 100% complacente.")
+        plan_lines.append("No errors found — project is 100% compliant.")
     else:
         for i, (domain, count) in enumerate(sorted_domains, 1):
-            plan_lines.append(f"- [ ] STEP {i}: Fix `{domain}/` ({count} erros)")
+            plan_lines.append(f"- [ ] STEP {i}: Fix `{domain}/` ({count} errors)")
 
+    content = "\n".join(plan_lines)
+
+    tmp_path: Path | None = None  # pre-initialize so except block is safe
     try:
-        # write_text abre, escreve e fecha o ficheiro em segurança, numa única linha
-        output_file.write_text("\n".join(plan_lines), encoding="utf-8")
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=output_file.parent,
+            delete=False,
+            suffix=".tmp",
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())  # Flush to OS before atomic rename
+
+        tmp_path.replace(output_file)  # POSIX-atomic on same filesystem
         return True
+
     except OSError as e:
-        print(
-            f"ERROR: Falha ao guardar o plano {output_file.name}: {e}", file=sys.stderr
-        )
+        print(f"ERROR: Failed to save {output_file.name}: {e}", file=sys.stderr)
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
         return False
 
-
 def generate_plan() -> None:
-    """Função principal de orquestração do gerador global."""
+    """Main orchestration entry point."""
     report_file = Path("mypy_global_report.txt")
     output_file = Path("MYPY_REMEDIATION_PLAN.md")
 
     if not report_file.exists():
-        print(f"Relatório '{report_file.name}' não encontrado.")
+        print(f"Report '{report_file.name}' not found.")
+        print("Run:  mypy . 2>&1 | tee mypy_global_report.txt")
         return
 
     domain_counts, _ = _aggregate_errors(report_file)
 
-    # Confirmação visual de sucesso garantida apenas se o I/O for concluído sem erros
     if _write_plan(domain_counts, output_file):
         print(
-            f"✅ Plano gerado com sucesso em '{output_file.absolute()}' ({len(domain_counts)} steps)."
+            f"Plan generated → '{output_file.absolute()}' "
+            f"({len(domain_counts)} domain(s))."
         )
-
 
 if __name__ == "__main__":
     generate_plan()

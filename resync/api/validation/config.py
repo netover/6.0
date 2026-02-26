@@ -8,7 +8,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 class ValidationMode(str, Enum):
     """Validation strictness modes."""
 
@@ -17,7 +16,6 @@ class ValidationMode(str, Enum):
     PERMISSIVE = "permissive"
     DISABLED = "disabled"
 
-
 class SanitizationLevel(str, Enum):
     """Input sanitization levels."""
 
@@ -25,7 +23,6 @@ class SanitizationLevel(str, Enum):
     MODERATE = "moderate"
     PERMISSIVE = "permissive"
     NONE = "none"
-
 
 class ValidationConfigModel(BaseModel):
     """Main validation configuration model."""
@@ -211,7 +208,6 @@ class ValidationConfigModel(BaseModel):
                 unique_types.append(mime_type)
         return unique_types
 
-
 class AgentValidationConfig(BaseModel):
     """Agent-specific validation configuration."""
 
@@ -244,7 +240,6 @@ class AgentValidationConfig(BaseModel):
         extra="forbid",
     )
 
-
 class ChatValidationConfig(BaseModel):
     """Chat-specific validation configuration."""
 
@@ -273,7 +268,6 @@ class ChatValidationConfig(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-
 
 class SecurityValidationConfig(BaseModel):
     """Security-specific validation configuration."""
@@ -317,7 +311,6 @@ class SecurityValidationConfig(BaseModel):
         extra="forbid",
     )
 
-
 class RateLimitConfig(BaseModel):
     """Rate limiting configuration."""
 
@@ -350,7 +343,6 @@ class RateLimitConfig(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-
 
 class ValidationSettings:
     """Validation settings manager."""
@@ -402,7 +394,7 @@ class ValidationSettings:
 
                 self._config = ValidationConfigModel(**config_dict)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 raise ValueError(
                     f"Failed to load validation config from {self.config_file}: {e}"
                 ) from e
@@ -516,10 +508,8 @@ class ValidationSettings:
         """Get maximum validation errors to return."""
         return self._config.max_validation_errors if self._config else 50
 
-
 # Global validation settings instance
 _validation_settings: ValidationSettings | None = None
-
 
 def get_validation_settings(
     config_file: str | Path | None = None,
@@ -540,7 +530,6 @@ def get_validation_settings(
 
     return _validation_settings
 
-
 def set_validation_settings(settings: ValidationSettings) -> None:
     """
     Set global validation settings instance.
@@ -550,7 +539,6 @@ def set_validation_settings(settings: ValidationSettings) -> None:
     """
     global _validation_settings
     _validation_settings = settings
-
 
 __all__ = [
     "ValidationMode",

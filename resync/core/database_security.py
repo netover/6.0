@@ -16,10 +16,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class DatabaseSecurityError(Exception):
     """Security-related database operation error."""
-
 
 class DatabaseInputValidator:
     """
@@ -344,7 +342,6 @@ class DatabaseInputValidator:
 
         return sanitized.strip()
 
-
 class DatabaseAuditor:
     """
     Audit logging for database operations.
@@ -401,7 +398,6 @@ class DatabaseAuditor:
 
         logger.warning("database_security_violation", extra=log_entry)
 
-
 class SecureQueryBuilder:
     """
     Secure query builder with built-in injection prevention.
@@ -447,9 +443,22 @@ class SecureQueryBuilder:
         else:
             columns_str = "*"
 
-        # Build base query
-        query = f"SELECT {columns_str} FROM {validated_table}"
-        params = {}
+        # Build base query safely using SQLAlchemy primitives.
+        # Note: table/column names cannot be bound parameters, so we rely on
+        # strict identifier validation (DatabaseInputValidator) and then build
+        # the statement via SQLAlchemy's table()/column() helpers (no f-string SQL).
+        from sqlalchemy import select, text  # local import to keep module lightweight
+        from sqlalchemy.sql import table, column
+        
+        tbl = table(validated_table)
+        if columns:
+            cols = [column(c) for c in validated_columns]
+            stmt = select(*cols).select_from(tbl)
+        else:
+            stmt = select(text("*")).select_from(tbl)
+        
+        query = str(stmt)
+        params: dict[str, Any] = {}
 
         # Add WHERE clause if provided
         if where_clause:
@@ -512,7 +521,6 @@ class SecureQueryBuilder:
 
         return query, params
 
-
 # Convenience functions for common operations
 def validate_database_inputs(
     table_name: str, limit: int | str | None = None, columns: list[str] | None = None
@@ -544,7 +552,6 @@ def validate_database_inputs(
         ]
 
     return validated
-
 
 def log_database_access(
     operation: str,

@@ -38,14 +38,12 @@ _UNRECOVERABLE_EXCEPTIONS = (
 )
 _PROGRAMMING_ERRORS = (TypeError, AttributeError, NameError)
 
-
 class TWSClientState(str, Enum):
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
     ERROR = "error"
     CIRCUIT_OPEN = "circuit_open"
-
 
 class TWSClientConfig(BaseSettings):
     model_config = SettingsConfigDict(
@@ -84,7 +82,6 @@ class TWSClientConfig(BaseSettings):
     def get_password(self) -> str:
         return self.password.get_secret_value()
 
-
 @dataclass
 class TWSClientMetrics:
     total_requests: int = 0
@@ -96,7 +93,6 @@ class TWSClientMetrics:
     last_success: datetime | None = None
     last_failure: datetime | None = None
     last_error: str | None = None
-
 
 class OptimizedTWSClientAdapter:
     """Compatibility adapter over OptimizedTWSClient real API."""
@@ -149,7 +145,6 @@ class OptimizedTWSClientAdapter:
         streams = await self._inner.query_jobstreams(limit=50)
         return {"streams": streams}
 
-
 class UnifiedTWSClient:
     def __init__(self, config: TWSClientConfig | None = None):
         self.config = config or TWSClientConfig.from_settings()
@@ -200,7 +195,7 @@ class UnifiedTWSClient:
                 self._client = OptimizedTWSClientAdapter(raw)
                 await self._verify_connection()
                 self._state = TWSClientState.CONNECTED
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 self._client = None
                 self._state = TWSClientState.ERROR
                 self._metrics.last_error = str(e)
@@ -217,7 +212,7 @@ class UnifiedTWSClient:
             )
         except asyncio.TimeoutError as e:
             raise TWSTimeoutError("Connection verification timed out") from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, _UNRECOVERABLE_EXCEPTIONS):
                 raise
             if isinstance(e, httpx.HTTPStatusError):
@@ -252,7 +247,7 @@ class UnifiedTWSClient:
                 return await TimeoutManager.with_timeout(
                     func(), self.config.read_timeout
                 )
-            except Exception:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                 retries += 1
                 raise
 
@@ -271,7 +266,7 @@ class UnifiedTWSClient:
             self._metrics.circuit_breaker_trips += 1
             self._state = TWSClientState.CIRCUIT_OPEN
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, _UNRECOVERABLE_EXCEPTIONS + _PROGRAMMING_ERRORS):
                 raise
             self._metrics.failed_requests += 1
@@ -320,7 +315,7 @@ class UnifiedTWSClient:
             return True
         except _PROGRAMMING_ERRORS:
             raise
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             return False
 
     def _require_client(self) -> OptimizedTWSClientAdapter:
@@ -357,11 +352,9 @@ class UnifiedTWSClient:
             "last_error": self._metrics.last_error,
         }
 
-
 _tws_client_instance: UnifiedTWSClient | None = None
 # Eagerly initialised — never None — eliminates TOCTOU race on first concurrent access
 _tws_client_lock: asyncio.Lock = asyncio.Lock()
-
 
 async def get_tws_client() -> UnifiedTWSClient:
     global _tws_client_instance
@@ -373,7 +366,6 @@ async def get_tws_client() -> UnifiedTWSClient:
                 _tws_client_instance = client
     return _tws_client_instance
 
-
 async def reset_tws_client() -> None:
     global _tws_client_instance
     async with _tws_client_lock:
@@ -381,11 +373,9 @@ async def reset_tws_client() -> None:
             await _tws_client_instance.disconnect()
             _tws_client_instance = None
 
-
 @asynccontextmanager
 async def tws_client_context() -> AsyncIterator[UnifiedTWSClient]:
     yield await get_tws_client()
-
 
 class MockTWSClient(UnifiedTWSClient):
     def __init__(self, responses: dict[str, Any] | None = None):
@@ -446,18 +436,15 @@ class MockTWSClient(UnifiedTWSClient):
     def get_calls(self) -> list[tuple[str, tuple[Any, ...], dict[str, Any]]]:
         return self._calls
 
-
 async def use_mock_tws_client(responses: dict[str, Any] | None = None) -> None:
     global _tws_client_instance
     async with _tws_client_lock:
         _tws_client_instance = MockTWSClient(responses)
 
-
 def get_mock_tws_client() -> MockTWSClient | None:
     if isinstance(_tws_client_instance, MockTWSClient):
         return _tws_client_instance
     return None
-
 
 __all__ = [
     "UnifiedTWSClient",

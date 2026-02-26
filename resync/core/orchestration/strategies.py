@@ -7,26 +7,23 @@ Defines how steps are executed (Sequential, Parallel, etc.).
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Set
 
 from resync.core.orchestration.schemas import StepConfig, WorkflowConfig
 
 logger = logging.getLogger(__name__)
-
 
 class ExecutionStrategy(ABC):
     """Abstract base class for execution strategies."""
 
     @abstractmethod
     async def plan_execution(
-        self, config: WorkflowConfig, completed_steps: Set[str]
-    ) -> List[List[StepConfig]]:
+        self, config: WorkflowConfig, completed_steps: set[str]
+    ) -> list[list[StepConfig]]:
         """
         Determine which steps can run next.
         Returns a list of batches, where each batch is a list of steps that can run in parallel.
         """
         pass
-
 
 class SequentialStrategy(ExecutionStrategy):
     """
@@ -34,8 +31,8 @@ class SequentialStrategy(ExecutionStrategy):
     """
 
     async def plan_execution(
-        self, config: WorkflowConfig, completed_steps: Set[str]
-    ) -> List[List[StepConfig]]:
+        self, config: WorkflowConfig, completed_steps: set[str]
+    ) -> list[list[StepConfig]]:
         """
         Finds the first step that hasn't run and whose dependencies are met.
         Returns it as a single-item batch.
@@ -71,15 +68,14 @@ class SequentialStrategy(ExecutionStrategy):
             return [next_steps]
         return []
 
-
 class ParallelStrategy(ExecutionStrategy):
     """
     Executes all ready steps in parallel.
     """
 
     async def plan_execution(
-        self, config: WorkflowConfig, completed_steps: Set[str]
-    ) -> List[List[StepConfig]]:
+        self, config: WorkflowConfig, completed_steps: set[str]
+    ) -> list[list[StepConfig]]:
         """
         Finds ALL steps that haven't run and whose dependencies are met.
         Returns them as a single batch.
@@ -102,7 +98,6 @@ class ParallelStrategy(ExecutionStrategy):
         if ready_steps:
             return [ready_steps]
         return []
-
 
 class StrategyFactory:
     """Factory to get strategy by name."""

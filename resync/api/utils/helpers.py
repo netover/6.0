@@ -12,16 +12,13 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 def generate_uuid() -> str:
     """Generate a new UUID4 string"""
     return str(uuid.uuid4())
 
-
 def get_current_timestamp() -> str:
     """Get current timestamp in ISO format"""
     return datetime.now(timezone.utc).isoformat()
-
 
 def calculate_file_hash(file_path: Path) -> str:
     """Calculate SHA256 hash of a file"""
@@ -31,7 +28,6 @@ def calculate_file_hash(file_path: Path) -> str:
             sha256.update(chunk)
     return sha256.hexdigest()
 
-
 def safe_json_loads(data: str) -> dict[str, Any] | None:
     """Safely parse JSON string"""
     try:
@@ -39,14 +35,12 @@ def safe_json_loads(data: str) -> dict[str, Any] | None:
     except (json.JSONDecodeError, TypeError):
         return None
 
-
 def safe_json_dumps(data: Any) -> str:
     """Safely serialize to JSON string"""
     try:
         return json.dumps(data, default=str)
     except (TypeError, ValueError):
         return "{}"
-
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable format"""
@@ -56,7 +50,6 @@ def format_file_size(size_bytes: int) -> str:
             return f"{size:.1f}{_unit}"
         size = size / 1024.0
     return f"{size:.1f}TB"
-
 
 def extract_text_from_filename(filename: str) -> str:
     """Extract text content indicator based on file type."""
@@ -74,7 +67,6 @@ def extract_text_from_filename(filename: str) -> str:
         return f"code:{stem}"
     return stem
 
-
 def create_pagination_info(
     total_items: int, limit: int, offset: int, current_page: int | None = None
 ) -> dict[str, Any]:
@@ -90,25 +82,22 @@ def create_pagination_info(
         "has_previous": current_page > 1,
     }
 
-
 def mask_sensitive_data(data: str, mask_char: str = "*") -> str:
     """Mask sensitive data in strings"""
     if len(data) <= 4:
         return mask_char * len(data)
     return data[:2] + mask_char * (len(data) - 4) + data[-2:]
 
-
 def validate_redis_connection(redis_client) -> bool:
     """Validate Redis connection"""
     try:
         redis_client.ping()
         return True
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Redis connection error: %s", str(e), exc_info=True)
         return False
-
 
 def create_error_response(
     error_type: str,
@@ -129,7 +118,6 @@ def create_error_response(
         response["error"]["details"] = details
     return response
 
-
 def create_success_response(
     data: Any, message: str | None = None, metadata: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -141,16 +129,13 @@ def create_success_response(
         response["metadata"] = metadata
     return response
 
-
 def normalize_agent_name(name: str) -> str:
     """Normalize agent name for consistent storage/retrieval"""
     return name.lower().strip().replace(" ", "_")
 
-
 def generate_correlation_id() -> str:
     """Generate correlation ID for request tracing"""
     return f"req_{uuid.uuid4().hex[:8]}"
-
 
 def parse_user_agent(user_agent: str) -> dict[str, str]:
     """Parse user agent string to extract browser, OS, and device info."""

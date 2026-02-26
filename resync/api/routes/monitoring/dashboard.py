@@ -7,7 +7,6 @@
 #   - Zero dependências externas
 #   - Integrado com métricas existentes do Resync
 
-
 import asyncio
 import logging
 import time
@@ -22,7 +21,6 @@ from fastapi.responses import JSONResponse
 from resync.api.security import decode_token
 
 logger = logging.getLogger(__name__)
-
 
 def _verify_ws_admin(websocket: WebSocket) -> bool:
     """Verify admin authentication for WebSocket connection.
@@ -51,16 +49,14 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
             roles = [roles_claim]
 
         return "admin" in roles
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
         return False
-
 
 # Configurações do rolling buffer
 HISTORY_WINDOW_SECONDS = 2 * 60 * 60  # 2 horas
 SAMPLE_INTERVAL_SECONDS = 5  # Amostragem a cada 5s
 MAX_SAMPLES = HISTORY_WINDOW_SECONDS // SAMPLE_INTERVAL_SECONDS  # 1440 amostras
-
 
 @dataclass
 class MetricSample:
@@ -123,7 +119,6 @@ class MetricSample:
     rag_hybrid_queries: int = 0
     rag_cache_hit_ratio: float = 0.0
     rag_chat_turns: int = 0
-
 
 @dataclass
 class DashboardMetricsStore:
@@ -440,13 +435,11 @@ class DashboardMetricsStore:
             return 0
         return round(((current - previous) / previous) * 100, 1)
 
-
 # Singleton do store
 _metrics_store: DashboardMetricsStore | None = None
 _collector_task: asyncio.Task | None = None
 # P1 fix: Module-level lock prevents TOCTOU race (safe on Python 3.10+)
 _collector_lock: asyncio.Lock = asyncio.Lock()
-
 
 def get_metrics_store() -> DashboardMetricsStore:
     """Obtém o store singleton."""
@@ -454,7 +447,6 @@ def get_metrics_store() -> DashboardMetricsStore:
     if _metrics_store is None:
         _metrics_store = DashboardMetricsStore()
     return _metrics_store
-
 
 async def collect_metrics_sample() -> MetricSample:
     """Coleta uma amostra das métricas atuais do sistema."""
@@ -572,13 +564,12 @@ async def collect_metrics_sample() -> MetricSample:
             rag_chat_turns=snapshot.get("rag", {}).get("chat_turns", 0),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Erro ao coletar métricas: %s", e)
         return MetricSample(
             timestamp=time.time(),
             datetime_str=datetime.now(timezone.utc).strftime("%H:%M:%S"),
         )
-
 
 async def metrics_collector_loop():
     """Loop de coleta de métricas em background."""
@@ -591,11 +582,10 @@ async def metrics_collector_loop():
         except asyncio.CancelledError:
             logger.info("Metrics collector loop cancelled")
             raise  # Must re-raise for proper shutdown
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Erro no collector loop: %s", e)
 
         await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
-
 
 async def _start_metrics_collector_async() -> None:
     """Start collector under lock to avoid duplicate background tasks."""
@@ -605,7 +595,6 @@ async def _start_metrics_collector_async() -> None:
         if _collector_task is None or _collector_task.done():
             _collector_task = asyncio.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
-
 
 def start_metrics_collector():
     """Inicia o coletor de métricas em background."""
@@ -624,9 +613,8 @@ def start_metrics_collector():
             loop.create_task(_start_metrics_collector_async())
         except RuntimeError:
             logger.warning("Event loop não disponível, collector será iniciado depois")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Unexpected error starting metrics collector: %s", e)
-
 
 def stop_metrics_collector():
     """Para o coletor de métricas."""
@@ -637,13 +625,11 @@ def stop_metrics_collector():
         logger.info("Dashboard metrics collector parado")
     _collector_task = None
 
-
 # =====================================
 # FastAPI Router
 # =====================================
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
-
 
 @router.get("/current")
 async def get_current_metrics():
@@ -655,7 +641,6 @@ async def get_current_metrics():
     """
     store = get_metrics_store()
     return JSONResponse(content=await store.get_current_metrics())
-
 
 @router.get("/history")
 async def get_metrics_history(minutes: int = 120):
@@ -672,13 +657,11 @@ async def get_metrics_history(minutes: int = 120):
     store = get_metrics_store()
     return JSONResponse(content=await store.get_history(minutes))
 
-
 @router.get("/alerts")
 async def get_active_alerts():
     """Retorna alertas ativos do sistema."""
     store = get_metrics_store()
     return JSONResponse(content=await store.get_alerts())
-
 
 @router.get("/health")
 async def monitoring_health():
@@ -697,13 +680,11 @@ async def monitoring_health():
         }
     )
 
-
 # WebSocket para atualizações em tempo real
 MAX_WS_CONNECTIONS = 200
 # P1 fix: Use set for O(1) add/remove/membership instead of O(n) list
 connected_clients: set[WebSocket] = set()
 _clients_lock = asyncio.Lock()
-
 
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket) -> None:
@@ -753,7 +734,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
     except asyncio.CancelledError:
         logger.info("monitoring_ws_cancelled")
         raise  # Must re-raise CancelledError for proper shutdown
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("WebSocket error: %s", e)
     finally:
         # P0-05: Guaranteed cleanup regardless of exit path

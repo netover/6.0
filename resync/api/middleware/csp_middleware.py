@@ -13,7 +13,6 @@ from resync.csp_validation import CSPValidationError, process_csp_report
 
 logger = logging.getLogger(__name__)
 
-
 class CSPMiddleware(BaseHTTPMiddleware):
     """
     Middleware that implements Content Security Policy (CSP) with nonce generation.
@@ -190,17 +189,16 @@ class CSPMiddleware(BaseHTTPMiddleware):
                 logger.warning("Invalid CSP violation report: %s", e)
                 # We still return 200 to avoid giving attackers information
                 return
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Error processing CSP violation report: %s", e)
                 # We still return 200 to avoid giving attackers information
                 return
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("Error processing CSP violation report: %s", e)
-
 
 def create_csp_middleware(app) -> CSPMiddleware:
     """

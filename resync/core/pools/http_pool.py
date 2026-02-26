@@ -20,7 +20,6 @@ from resync.core.pools.base_pool import ConnectionPool, ConnectionPoolConfig
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
 
-
 class HTTPConnectionPool(ConnectionPool[httpx.AsyncClient]):
     """HTTP connection pool for external API calls."""
 
@@ -62,7 +61,7 @@ class HTTPConnectionPool(ConnectionPool[httpx.AsyncClient]):
             logger.info(
                 f"HTTP connection pool '{self.config.pool_name}' initialized with {self.config.min_size}-{self.config.max_size} connections"
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -89,7 +88,7 @@ class HTTPConnectionPool(ConnectionPool[httpx.AsyncClient]):
 
             yield self._client
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             await self.increment_stat("pool_misses")
             logger.error("Failed to get HTTP connection: %s", e)
             raise TWSConnectionError(f"Failed to acquire HTTP connection: {e}") from e

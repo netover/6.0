@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 # v5.9.5: Added authentication
 router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
 
-
 # Configuration
 ENV_FILE_PATH = (
     Path(__file__).resolve().parent.parent.parent.parent.parent.parent
@@ -41,7 +40,6 @@ ENV_EXAMPLE_PATH = (
     / "config"
     / "database.env.example"
 )
-
 
 class VariableCategory(str, Enum):
     """Categories of environment variables."""
@@ -56,7 +54,6 @@ class VariableCategory(str, Enum):
     RAG = "rag"
     SYSTEM = "system"
 
-
 class EnvironmentVariable(BaseModel):
     """Model for an environment variable."""
 
@@ -69,12 +66,10 @@ class EnvironmentVariable(BaseModel):
     default_value: str | None = None
     validation_pattern: str | None = None
 
-
 class EnvironmentVariableUpdate(BaseModel):
     """Model for updating an environment variable."""
 
     value: str
-
 
 class EnvironmentConfig(BaseModel):
     """Complete environment configuration."""
@@ -82,7 +77,6 @@ class EnvironmentConfig(BaseModel):
     variables: dict[str, EnvironmentVariable]
     last_modified: str | None = None
     env_file_exists: bool = False
-
 
 # Define all configurable environment variables
 ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
@@ -413,7 +407,6 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
     ),
 }
 
-
 def _mask_sensitive_value(value: str) -> str:
     """Mask sensitive values for display."""
     if not value:
@@ -421,7 +414,6 @@ def _mask_sensitive_value(value: str) -> str:
     if len(value) <= 8:
         return "*" * len(value)
     return value[:4] + "*" * (len(value) - 8) + value[-4:]
-
 
 def _load_env_file() -> dict[str, str]:
     """Load environment variables from .env file."""
@@ -438,7 +430,6 @@ def _load_env_file() -> dict[str, str]:
                     env_vars[key.strip()] = value
 
     return env_vars
-
 
 def _save_env_file(env_vars: dict[str, str]) -> None:
     """Save environment variables to .env file."""
@@ -477,7 +468,6 @@ def _save_env_file(env_vars: dict[str, str]) -> None:
                 f.write(f"{key}={value}\n")
 
     logger.info("Environment file saved: %s", ENV_FILE_PATH)
-
 
 @router.get("/environment", tags=["Admin Environment"])
 async def get_environment_config():
@@ -522,7 +512,6 @@ async def get_environment_config():
         "categories": [c.value for c in VariableCategory],
     }
 
-
 @router.get("/environment/category/{category}", tags=["Admin Environment"])
 async def get_environment_by_category(category: VariableCategory):
     """Get environment variables by category."""
@@ -548,7 +537,6 @@ async def get_environment_by_category(category: VariableCategory):
         "category": category.value,
         "variables": result,
     }
-
 
 @router.get("/environment/{variable_name}", tags=["Admin Environment"])
 async def get_environment_variable(variable_name: str):
@@ -580,7 +568,6 @@ async def get_environment_variable(variable_name: str):
         if os.getenv(variable_name)
         else ("file" if file_vars.get(variable_name) else "default"),
     }
-
 
 @router.put("/environment/{variable_name}", tags=["Admin Environment"])
 async def update_environment_variable(
@@ -655,7 +642,6 @@ async def update_environment_variable(
         else None,
     }
 
-
 @router.post("/environment/bulk-update", tags=["Admin Environment"])
 async def bulk_update_environment(updates: dict[str, str]):
     """
@@ -704,7 +690,6 @@ async def bulk_update_environment(updates: dict[str, str]):
         ),
     }
 
-
 @router.delete("/environment/{variable_name}", tags=["Admin Environment"])
 async def delete_environment_variable(variable_name: str):
     """
@@ -741,7 +726,6 @@ async def delete_environment_variable(variable_name: str):
         "message": f"Variable {variable_name} removed from .env file",
     }
 
-
 @router.get("/environment/file/raw", tags=["Admin Environment"])
 async def get_raw_env_file():
     """
@@ -768,7 +752,6 @@ async def get_raw_env_file():
             ENV_FILE_PATH.stat().st_mtime
         ).isoformat(),
     }
-
 
 @router.post("/environment/file/raw", tags=["Admin Environment"])
 async def save_raw_env_file(content: dict[str, str]):
@@ -798,7 +781,6 @@ async def save_raw_env_file(content: dict[str, str]):
         "path": str(ENV_FILE_PATH),
         "message": ".env file saved successfully",
     }
-
 
 @router.get("/environment/export", tags=["Admin Environment"])
 async def export_environment():
@@ -837,7 +819,6 @@ async def export_environment():
             ".env"
         ),
     }
-
 
 @router.post("/environment/validate", tags=["Admin Environment"])
 async def validate_environment():

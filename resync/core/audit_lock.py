@@ -20,7 +20,6 @@ from resync.settings import settings
 
 logger = structlog.get_logger(__name__)
 
-
 def _redact_url_credentials(url: str) -> str:
     """Redact credentials from a URL for safe logging.
 
@@ -35,7 +34,6 @@ def _redact_url_credentials(url: str) -> str:
     # Match pattern user:password@host or just :password@host or just user:@host
     redacted = re.sub(r"(://)([^:@]+:[^@]+)(@)", r"\1***:***\3", url)
     return redacted
-
 
 class DistributedAuditLock:
     """
@@ -201,7 +199,7 @@ class DistributedAuditLock:
         except ValueError as e:
             logger.error("Value error in audit lock cleanup: %s", e)
             raise AuditError(f"Value error in audit lock cleanup: {e}") from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.critical(
                 "Unexpected critical error cleaning up expired audit locks.",
                 exc_info=True,
@@ -209,7 +207,6 @@ class DistributedAuditLock:
             raise AuditError(
                 "Unexpected critical error during audit lock cleanup"
             ) from e
-
 
 class AuditLockContext:
     """
@@ -308,7 +305,7 @@ class AuditLockContext:
         except ValueError as e:
             logger.error("Value error during lock release: %s", e)
             raise AuditError(f"Value error during lock release: {e}") from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Unexpected error during lock release", error=str(e))
             logger.error(
                 "lock_details",
@@ -320,7 +317,6 @@ class AuditLockContext:
     async def release(self) -> None:
         """Manually release the lock."""
         await self._release_lock()
-
 
 @asynccontextmanager
 async def distributed_audit_lock(
@@ -341,7 +337,6 @@ async def distributed_audit_lock(
     lock = DistributedAuditLock()
     async with await lock.acquire(memory_id, timeout):
         yield
-
 
 def get_audit_lock() -> DistributedAuditLock:
     """

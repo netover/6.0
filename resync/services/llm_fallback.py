@@ -76,11 +76,9 @@ from resync.core.resilience import (
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # ENUMS & CONFIGURATION
 # =============================================================================
-
 
 class LLMProvider(str, Enum):
     """Supported LLM providers."""
@@ -93,7 +91,6 @@ class LLMProvider(str, Enum):
     LITELLM = "litellm"
     OLLAMA = "ollama"  # v5.2.3.21: Local Ollama provider
 
-
 class FallbackReason(str, Enum):
     """Reason for falling back to another model."""
 
@@ -102,7 +99,6 @@ class FallbackReason(str, Enum):
     ERROR = "error"
     CIRCUIT_OPEN = "circuit_open"
     COST = "cost_optimization"
-
 
 @dataclass
 class ModelConfig:
@@ -126,7 +122,6 @@ class ModelConfig:
     num_ctx: int = 4096  # Context window size
     num_thread: int = 4  # CPU threads (match physical cores)
     supports_json_mode: bool = True  # Native JSON output support
-
 
 @dataclass
 class LLMFallbackConfig:
@@ -183,7 +178,6 @@ class LLMFallbackConfig:
             ollama_num_thread=getattr(settings, "ollama_num_thread", 4),
         )
 
-
 @dataclass
 class LLMMetrics:
     """Metrics for LLM service."""
@@ -206,7 +200,6 @@ class LLMMetrics:
     last_request: datetime | None = None
     last_error: str | None = None
 
-
 @dataclass
 class LLMResponse:
     """Response from LLM service."""
@@ -221,11 +214,9 @@ class LLMResponse:
     fallback_reason: FallbackReason | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-
 # =============================================================================
 # LLM SERVICE
 # =============================================================================
-
 
 class LLMService:
     """
@@ -512,7 +503,7 @@ class LLMService:
             raise LLMTimeoutError(
                 f"LLM call timed out after {model_config.timeout_seconds}s"
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             error_str = str(e).lower()
             if "rate" in error_str and "limit" in error_str:
                 raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
@@ -665,7 +656,7 @@ class LLMService:
                     model=current_model,
                 )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 last_error = e
                 fallback_reason = FallbackReason.ERROR
                 self._metrics.fallback_reasons["error"] = (
@@ -780,7 +771,7 @@ class LLMService:
                     yield chunk
                 return  # Success, exit generator
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 last_error = e
                 logger.warning(
                     "llm_stream_error_falling_back",
@@ -840,7 +831,7 @@ class LLMService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("llm_stream_failed", model=model_config.name, error=str(e))
             raise
 
@@ -962,16 +953,13 @@ class LLMService:
         """Get status of all circuit breakers."""
         return {name: cb.state.value for name, cb in self._circuit_breakers.items()}
 
-
 # =============================================================================
 # SINGLETON & ACCESS
 # =============================================================================
 
-
 _llm_service_instance: LLMService | None = None
 # Eagerly initialised — never None — eliminates TOCTOU race on lock init
 _llm_service_lock: asyncio.Lock = asyncio.Lock()
-
 
 async def get_llm_service() -> LLMService:
     """
@@ -989,12 +977,10 @@ async def get_llm_service() -> LLMService:
 
     return _llm_service_instance
 
-
 def reset_llm_service() -> None:
     """Reset the singleton LLM service (for testing)."""
     global _llm_service_instance
     _llm_service_instance = None
-
 
 def configure_llm_service(config: LLMFallbackConfig) -> None:
     """

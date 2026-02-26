@@ -23,7 +23,6 @@ from resync.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-
 class FileIngestor(IFileIngestor):
     """
     Concrete implementation of IFileIngestor.
@@ -36,36 +35,64 @@ class FileIngestor(IFileIngestor):
 
     async def save_uploaded_file(self, file_name: str, file_content: Any) -> Path:
         """
-        Saves an uploaded file to the RAG directory with security hardening.
+        Save an uploaded file to the RAG upload directory with security hardening.
+
+        Security/Performance:
+            - Prevent path traversal by normalizing to a basename
+            - Enforce a maximum upload size (default: 10 MiB)
+            - Use `asyncio.to_thread()` for blocking disk I/O
+            - Ensure the resolved destination stays within the configured upload_dir
         """
         # Security: Prevent path traversal by taking only the filename
         safe_name = os.path.basename(file_name)
-        if not safe_name:
+        if not safe_name or safe_name in {".", ".."}:
             raise ValueError("Invalid filename")
 
         upload_dir = Path(self.settings.upload_dir).resolve()
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        destination = upload_dir / safe_name
+        destination = (upload_dir / safe_name)
 
-        # Ensure destination is within upload_dir
-        if not str(destination.resolve()).startswith(str(upload_dir)):
+        # Security: Ensure destination is within upload_dir (robust against prefix tricks)
+        destination_resolved = destination.resolve()
+        if not destination_resolved.is_relative_to(upload_dir):
             raise ValueError("Potential path traversal attack detected")
 
+        # Security: Limit upload size to mitigate DoS via oversized files
+        default_max_bytes = 10 * 1024 * 1024  # 10 MiB
+        max_bytes_env = os.getenv("RAG_MAX_UPLOAD_BYTES") or os.getenv("APP_RAG_MAX_UPLOAD_BYTES")
         try:
-            # Use asyncio.to_thread to avoid blocking event loop
-            # with synchronous I/O
-            def _save():
-                with open(destination, "wb") as buffer:
-                    shutil.copyfileobj(file_content, buffer)
+            max_upload_bytes = int(max_bytes_env) if max_bytes_env else int(
+                getattr(self.settings, "rag_max_upload_bytes", default_max_bytes)
+            )
+        except (TypeError, ValueError):
+            max_upload_bytes = default_max_bytes
+
+        if max_upload_bytes <= 0:
+            # Fail-safe: do not allow "unlimited" via misconfiguration
+            max_upload_bytes = default_max_bytes
+
+        try:
+            def _save() -> None:
+                bytes_written = 0
+                with open(destination_resolved, "wb") as buffer:
+                    while True:
+                        chunk = file_content.read(1024 * 1024)  # 1 MiB
+                        if not chunk:
+                            break
+                        bytes_written += len(chunk)
+                        if bytes_written > max_upload_bytes:
+                            raise ValueError("File too large")
+                        buffer.write(chunk)
 
             await asyncio.to_thread(_save)
 
-            logger.info("file_saved", extra={"path": str(destination)})
-            return destination
-        except Exception as e:
+            logger.info("file_saved", extra={"path": str(destination_resolved), "bytes_written_max": max_upload_bytes})
+            return destination_resolved
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
-                "failed_to_save_file", extra={"error": str(e), "path": str(destination)}
+                "failed_to_save_file",
+                extra={"error": str(e), "path": str(destination_resolved)},
             )
             raise
 
@@ -104,7 +131,7 @@ class FileIngestor(IFileIngestor):
                 extra={"path": str(file_path), "chunks": chunks_count},
             )
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(
                 "ingestion_failed", extra={"error": str(e), "path": str(file_path)}
             )
@@ -118,5 +145,5 @@ class FileIngestor(IFileIngestor):
             if hasattr(self.ingest_service.store, "close"):
                 await self.ingest_service.store.close()
             logger.info("file_ingestor_shutdown_successfully")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("file_ingestor_shutdown_failed", extra={"error": str(e)})

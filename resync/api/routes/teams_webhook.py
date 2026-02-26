@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database.session import get_db
 from resync.core.teams_permissions import TeamsPermissionsManager
@@ -25,11 +25,9 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/teams", tags=["Teams Webhook"])
 
-
 # =============================================================================
 # MODELS
 # =============================================================================
-
 
 class TeamsMessageFrom(BaseModel):
     """Informações do remetente."""
@@ -39,13 +37,11 @@ class TeamsMessageFrom(BaseModel):
     aadObjectId: str | None = None
     userPrincipalName: str | None = None
 
-
 class TeamsConversation(BaseModel):
     """Informações da conversa."""
 
     id: str
     name: str | None = None
-
 
 class TeamsMessage(BaseModel):
     """Mensagem recebida do Teams."""
@@ -60,18 +56,15 @@ class TeamsMessage(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-
 class TeamsResponse(BaseModel):
     """Resposta para o Teams."""
 
     type: str = "message"
     text: str
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
 
 def extract_user_email(message: TeamsMessage) -> str:
     """
@@ -87,24 +80,21 @@ def extract_user_email(message: TeamsMessage) -> str:
     name = message.from_.name.lower().replace(" ", ".")
     return f"{name}@teams.unknown"
 
-
 async def get_agent_manager():
     """Dependency: retorna Agent Manager."""
     from resync.core.agent_manager import get_agent_manager as get_am
 
     return get_am()
 
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
-
 
 @router.post("/webhook", response_model=TeamsResponse)
 async def teams_outgoing_webhook_endpoint(
     request: Request,
     authorization: str | None = Header(None),
-    db: Session = Depends(get_db),
+    _db: AsyncSession = Depends(get_db),
 ):
     """
     **Endpoint principal do Teams Outgoing Webhook.**
@@ -178,7 +168,7 @@ async def teams_outgoing_webhook_endpoint(
     # Parse mensagem
     try:
         message = TeamsMessage.model_validate_json(body_bytes)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("teams_webhook_invalid_message_format", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -222,7 +212,7 @@ async def teams_outgoing_webhook_endpoint(
 
         return TeamsResponse(text=answer)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error(
             "teams_webhook_processing_error",
             error=str(e),
@@ -240,7 +230,6 @@ Desculpe {user_name}, ocorreu um erro ao processar sua mensagem.
 Por favor, tente novamente ou entre em contato com o suporte."""
 
         return TeamsResponse(text=error_msg)
-
 
 @router.get("/webhook/health")
 async def teams_webhook_health():

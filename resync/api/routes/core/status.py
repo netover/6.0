@@ -19,7 +19,6 @@ _status_store = {
     "jobs": [],
 }
 
-
 def get_system_metrics() -> dict:
     """Get basic system metrics."""
     try:
@@ -37,7 +36,6 @@ def get_system_metrics() -> dict:
             "disk_percent": 0,
         }
 
-
 async def check_database_health() -> tuple[bool, str | None]:
     """Check database connectivity."""
     try:
@@ -49,12 +47,11 @@ async def check_database_health() -> tuple[bool, str | None]:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True, None
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return False, str(e)
-
 
 async def check_redis_health() -> tuple[bool, str | None]:
     """Check Redis connectivity."""
@@ -66,12 +63,11 @@ async def check_redis_health() -> tuple[bool, str | None]:
             await redis.ping()
             return True, None
         return True, "Redis not configured (optional)"
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return False, str(e)
-
 
 @router.get("/liveness")
 async def liveness_probe():
@@ -81,7 +77,6 @@ async def liveness_probe():
     Use for: livenessProbe in k8s deployment.
     """
     return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
-
 
 @router.get("/readiness")
 async def readiness_probe(response: Response, logger_instance=Depends(get_logger)):
@@ -135,7 +130,6 @@ async def readiness_probe(response: Response, logger_instance=Depends(get_logger
         response.status_code = 503  # Service Unavailable
 
     return result
-
 
 @router.get("/health/detailed")
 async def detailed_health_check(
@@ -201,7 +195,6 @@ async def detailed_health_check(
         "checks": checks,
     }
 
-
 @router.get("/status", response_model=SystemStatusResponse)
 async def get_system_status(logger_instance=Depends(get_logger)):
     """Get system status including workstations and jobs"""
@@ -230,7 +223,7 @@ async def get_system_status(logger_instance=Depends(get_logger)):
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -238,7 +231,6 @@ async def get_system_status(logger_instance=Depends(get_logger)):
         return SystemStatusResponse(
             workstations=[], jobs=[], timestamp=datetime.now(timezone.utc).isoformat()
         )
-
 
 @router.post("/status/workstation")
 async def register_workstation(

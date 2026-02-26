@@ -7,7 +7,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 # --- Password Validation Context ---
 password_hasher = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
 class LoginRequest(BaseModel):
     """Request model for login operations."""
 
@@ -25,7 +24,6 @@ class LoginRequest(BaseModel):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
 
-
 class UserCreate(BaseModel):
     """User create."""
 
@@ -37,7 +35,6 @@ class UserCreate(BaseModel):
         ..., min_length=8, json_schema_extra={"example": "securepassword123!"}
     )
 
-
 class UserResponse(BaseModel):
     """Response model for user operations."""
 
@@ -46,12 +43,10 @@ class UserResponse(BaseModel):
     email: EmailStr
     created_at: datetime
 
-
 class TokenRequest(BaseModel):
     """Request model for token operations."""
 
     refresh_token: str = Field(...)
-
 
 class OAuthToken(BaseModel):
     """Token model for authentication."""

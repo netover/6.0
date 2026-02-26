@@ -19,7 +19,7 @@ new_add_error = """async def add_error_sample(self, error: Exception) -> None:
         try:
             snapshot = runtime_metrics.get_snapshot()
             tws_status = snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
-        except Exception: pass
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError): pass
 
         sample = MetricSample(
             timestamp=now_wall, datetime_str=dt_str, collection_error=error_msg,
@@ -65,13 +65,13 @@ new_collect = """async def collect_metrics_sample() -> None:
         subscribers = await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
         if subscribers == 0: logger.debug("Nenhum subscriber no canal de broadcast")
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Erro na coleta: %s", e)
         try:
             await _metrics_store.add_error_sample(e)
             current = await _metrics_store.get_current_metrics()
             await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.debug("Falha ao persistir/broadcast amostra de erro")
     finally:
         # Libera o lock explicitamente após a coleta
@@ -88,7 +88,7 @@ new_uptime = """async def get_global_uptime(self) -> float:
             await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
             raw = await redis.get(REDIS_KEY_START_TIME)
             return now - float(raw or now)
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.debug("Falha ao obter uptime global do Redis")
             return 0.0"""
 content = re.sub(uptime_pattern, new_uptime, content, flags=re.DOTALL)

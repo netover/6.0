@@ -11,7 +11,7 @@ import asyncio
 import logging
 import traceback
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -29,7 +29,6 @@ from resync.core.orchestration.schemas import StepConfig, WorkflowConfig
 from resync.core.orchestration.strategies import StrategyFactory
 
 logger = logging.getLogger(__name__)
-
 
 class OrchestrationRunner:
     """
@@ -243,11 +242,14 @@ class OrchestrationRunner:
                                 batch_failed = True
 
                     if batch_failed:
-                        # By default, stop on failure?
-                        # Or strategy determines?
-                        # For now, break loop
+                        # By default, stop on failure? Or strategy determines.
                         logger.error("Batch execution failed. Stopping workflow.")
-                        await exec_repo.update_status(execution_id, "failed")
+                        await exec_repo.update_status(
+                            execution_id,
+                            "failed",
+                            completed_at=datetime.now(timezone.utc),
+                            meta_data_update={"reason": "Step validation failed"},
+                        )
 
                         await self.event_bus.publish(
                             OrchestrationEvent(
@@ -279,18 +281,26 @@ class OrchestrationRunner:
                     )
                 )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error(f"Execution loop error: {e}", exc_info=True)
-                await exec_repo.update_status(execution_id, "failed")
-                # TODO: Save error details to execution record if schema supported it (it does: error metadata?)
+                await exec_repo.update_status(
+                    execution_id,
+                    "failed",
+                    completed_at=datetime.now(timezone.utc),
+                    meta_data_update={
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "error_trace": traceback.format_exc(),
+                    },
+                )
 
     async def _run_step(
         self,
         step_repo: OrchestrationStepRunRepository,
         step_run_id: UUID,
         step_config: StepConfig,
-        context: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Execute a single step wrapper.
         Updates DB status and calls adapter.
@@ -325,9 +335,39 @@ class OrchestrationRunner:
             }
 
             # Execute via adapter
-            result = await self.agent_adapter.execute_step(
-                step_config, input_data, context
-            )
+
+            retry_cfg = step_config.retry_config or {}
+            max_retries = int(retry_cfg.get("max_retries", 0))
+            delay_seconds = float(retry_cfg.get("delay_seconds", 0))
+            attempt = 0
+            last_exc: Exception | None = None
+
+            while True:
+                try:
+                    # Enforce per-step timeout to prevent stuck executions
+                    result = await asyncio.wait_for(
+                        self.agent_adapter.execute_step(step_config, input_data, context),
+                        timeout=float(step_config.timeout_seconds),
+                    )
+                    break
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    last_exc = exc
+                    if attempt >= max_retries:
+                        raise
+                    backoff = delay_seconds * (2**attempt) if delay_seconds > 0 else 0.0
+                    attempt += 1
+                    logger.warning(
+                        "step_retrying",
+                        extra={
+                            "step_id": step_config.id,
+                            "attempt": attempt,
+                            "max_retries": max_retries,
+                            "backoff_seconds": backoff,
+                            "error_type": type(exc).__name__,
+                        },
+                    )
+                    if backoff > 0:
+                        await asyncio.sleep(backoff)
 
             end_time = datetime.now(timezone.utc)
             latency = int((end_time - start_time).total_seconds() * 1000)
@@ -337,6 +377,7 @@ class OrchestrationRunner:
                 "completed",
                 output=result.get("output"),  # Assuming output is JSON serializable
                 latency_ms=latency,
+                retry_count=attempt,
             )
 
             await self.event_bus.publish(
@@ -351,13 +392,12 @@ class OrchestrationRunner:
 
             return {"status": "completed", "output": result.get("output")}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error(f"Step {step_config.id} execution failed: {e}")
             end_time = datetime.now(timezone.utc)
             latency = int((end_time - start_time).total_seconds() * 1000)
 
             state = "failed"
-            # TODO: handle retries here or in runner loop?
 
             await step_repo.update_status(
                 step_run_id,
@@ -365,6 +405,7 @@ class OrchestrationRunner:
                 error_message=str(e),
                 error_trace=traceback.format_exc(),
                 latency_ms=latency,
+                retry_count=attempt,
             )
 
             await self.event_bus.publish(

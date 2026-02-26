@@ -3,14 +3,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-
 class SystemHealthStatus(str, enum.Enum):
     """Overall system health status enumeration."""
 
     OK = "ok"
     WARNING = "warning"
     CRITICAL = "critical"
-
 
 class HealthStatus(enum.Enum):
     """Health status indicators with color coding."""
@@ -19,7 +17,6 @@ class HealthStatus(enum.Enum):
     DEGRADED = "degraded"  # Yellow - Some components experiencing issues
     UNHEALTHY = "unhealthy"  # Red - Critical components failing
     UNKNOWN = "unknown"  # Gray - Component status unavailable
-
 
 class ComponentType(enum.Enum):
     """Types of system components for health monitoring."""
@@ -36,7 +33,6 @@ class ComponentType(enum.Enum):
     CONNECTION_POOL = "connection_pool"
     OTHER = "other"
 
-
 @dataclass
 class ComponentHealth:
     """Health status of an individual system component."""
@@ -51,7 +47,6 @@ class ComponentHealth:
     metadata: dict[str, Any] = field(default_factory=dict)
     error_count: int = 0
     warning_count: int = 0
-
 
 @dataclass
 class HealthCheckResult:
@@ -70,7 +65,6 @@ class HealthCheckResult:
     def status(self) -> HealthStatus:
         """Alias for overall_status for backwards compatibility."""
         return self.overall_status
-
 
 @dataclass
 class HealthCheckConfig:
@@ -118,7 +112,6 @@ class HealthCheckConfig:
     history_compression_enabled: bool = False  # Enable compression for old entries
     history_retention_days: int = 7  # Maximum days to retain history
 
-
 @dataclass
 class HealthStatusHistory:
     """Historical record of health status changes."""
@@ -135,7 +128,6 @@ class HealthStatusHistory:
         """Alias for overall_status for backwards compatibility."""
         return self.overall_status
 
-
 class HealthCheckError(Exception):
     """Exception raised when health check fails."""
 
@@ -144,7 +136,6 @@ class HealthCheckError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(f"Health check failed for {component}: {message}")
-
 
 def get_status_color(status: HealthStatus) -> str:
     """Get the color associated with a health status."""
@@ -156,7 +147,6 @@ def get_status_color(status: HealthStatus) -> str:
     }
     return color_map.get(status, "⚪")
 
-
 def get_status_description(status: HealthStatus) -> str:
     """Get human-readable description of health status."""
     description_map = {
@@ -166,7 +156,6 @@ def get_status_description(status: HealthStatus) -> str:
         HealthStatus.UNKNOWN: "Component status unavailable",
     }
     return description_map.get(status, "Unknown status")
-
 
 @dataclass
 class RecoveryResult:

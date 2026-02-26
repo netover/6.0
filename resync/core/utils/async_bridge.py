@@ -18,10 +18,9 @@ Design principles
 import asyncio
 import logging
 from collections.abc import Coroutine
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
-
 
 def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
     """Run an async coroutine from synchronous code.
@@ -42,11 +41,10 @@ def run_sync(coro: Coroutine[Any, Any, Any]) -> Any:
         "Convert caller to async and `await` coroutine instead."
     )
 
-
 def fire_and_forget(
     coro: Coroutine[Any, Any, Any],
     *,
-    logger: Optional[Any] = None,
+    logger: Any | None = None,
     name: str | None = None,
 ) -> None:
     """Schedule a coroutine without awaiting it.
@@ -61,7 +59,7 @@ def fire_and_forget(
     def _done(t: asyncio.Task) -> None:
         try:
             t.result()
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             if logger is not None:
@@ -70,7 +68,7 @@ def fire_and_forget(
                         "background_task_failed",
                         extra={"task": name or str(t), "error": str(exc)},
                     )
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
                     logger.debug(
                         "suppressed_exception", exc_info=True, extra={"error": str(exc)}
                     )

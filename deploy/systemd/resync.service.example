@@ -1,0 +1,41 @@
+[Unit]
+Description=Resync Session Agent (FastAPI) - Gunicorn/Uvicorn
+After=network.target
+
+[Service]
+Type=simple
+# Run as a dedicated unprivileged user (recommended)
+User=resync
+Group=resync
+WorkingDirectory=/opt/resync
+
+# Load environment variables (create this file)
+EnvironmentFile=-/etc/resync/resync.env
+
+# Security hardening (safe defaults)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/resync /var/log/resync
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Increase file descriptor limit for WebSockets
+LimitNOFILE=65535
+
+# Graceful shutdown: allow time for Gunicorn graceful_timeout
+KillSignal=SIGTERM
+TimeoutStopSec=90
+
+# Restart policy
+Restart=on-failure
+RestartSec=2
+
+# Start Gunicorn as process manager for Uvicorn workers.
+# IMPORTANT: uvicorn.workers is deprecated; use uvicorn-worker package.
+ExecStart=/opt/resync/.venv/bin/gunicorn -c deploy/gunicorn_conf.py resync.main:app
+
+[Install]
+WantedBy=multi-user.target

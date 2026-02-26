@@ -48,13 +48,11 @@ __all__ = [
     "list_consumed_jobs_runs",
 ]
 
-
 router = APIRouter(
     prefix="/tws",
     tags=["tws"],
     dependencies=[Depends(require_role("operator"))],
 )
-
 
 @router.get("/engine/info", summary="Get engine information")
 async def engine_info(
@@ -62,7 +60,6 @@ async def engine_info(
 ) -> Any:
     """Return basic engine information."""
     return await client.get_engine_info()
-
 
 @router.get("/engine/config", summary="Get engine configuration")
 async def engine_config(
@@ -72,7 +69,6 @@ async def engine_config(
     """Retrieve the engine configuration. Optionally filter by key."""
     return await client.get_engine_configuration(key)
 
-
 @router.get("/model/user", summary="List model users")
 async def list_users(
     client: OptimizedTWSClient = Depends(get_client),
@@ -80,14 +76,12 @@ async def list_users(
     """List users defined in the model."""
     return await client.list_users()
 
-
 @router.get("/model/group", summary="List model groups")
 async def list_groups(
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
     """List groups defined in the model."""
     return await client.list_groups()
-
 
 @router.get("/model/jobdefinition", summary="Query job definitions")
 async def query_jobdefinitions(
@@ -99,7 +93,6 @@ async def query_jobdefinitions(
     """Search job definitions with optional query, folder and limit."""
     return await client.query_jobdefinitions(q, folder, limit)
 
-
 @router.get("/model/jobdefinition/{jobdef_id}", summary="Get job definition")
 async def get_jobdefinition(
     jobdef_id: str,
@@ -107,7 +100,6 @@ async def get_jobdefinition(
 ) -> Any:
     """Retrieve a single job definition by its identifier."""
     return await client.get_jobdefinition(jobdef_id)
-
 
 @router.get("/model/jobstream", summary="Query job streams")
 async def query_jobstreams(
@@ -119,7 +111,6 @@ async def query_jobstreams(
     """Search job streams with optional query, folder and limit."""
     return await client.query_jobstreams(q, folder, limit)
 
-
 @router.get("/model/jobstream/{jobstream_id}", summary="Get job stream")
 async def get_jobstream(
     jobstream_id: str,
@@ -127,7 +118,6 @@ async def get_jobstream(
 ) -> Any:
     """Retrieve a single job stream by its identifier."""
     return await client.get_jobstream(jobstream_id)
-
 
 @router.get("/model/workstation", summary="Query workstations")
 async def query_workstations(
@@ -138,7 +128,6 @@ async def query_workstations(
     """Search workstations with optional query and limit."""
     return await client.query_workstations(q, limit)
 
-
 @router.get("/model/workstation/{workstation_id}", summary="Get workstation")
 async def get_workstation(
     workstation_id: str,
@@ -146,7 +135,6 @@ async def get_workstation(
 ) -> Any:
     """Retrieve a specific workstation definition."""
     return await client.get_workstation(workstation_id)
-
 
 # -------------------------------------------------------------------------
 # Current plan routes – Jobs
@@ -165,14 +153,12 @@ async def list_current_plan_jobs(
     """
     return await client.query_current_plan_jobs(q, folder, status, limit)
 
-
 @router.get("/plan/current/job/count", summary="Count current plan jobs")
 async def count_current_plan_jobs(
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
     """Return the number of jobs present in the current plan."""
     return await client.get_current_plan_job_count()
-
 
 @router.get("/plan/current/job/issues", summary="List current plan job issues")
 async def current_plan_job_issues(
@@ -181,14 +167,12 @@ async def current_plan_job_issues(
     """Return issues detected in the current plan jobs."""
     return await client.get_current_plan_job_issues()
 
-
 @router.get("/plan/current/job/joblog", summary="Retrieve current plan job logs")
 async def current_plan_job_joblog(
     client: OptimizedTWSClient = Depends(get_client),
 ) -> Any:
     """Retrieve combined job logs for the current plan."""
     return await client.get_current_plan_job_joblog()
-
 
 @router.get("/plan/current/job/{job_id}", summary="Get current plan job details")
 async def get_current_plan_job(
@@ -197,7 +181,6 @@ async def get_current_plan_job(
 ) -> Any:
     """Retrieve details about a specific job in the current plan."""
     return await client.get_current_plan_job(job_id)
-
 
 @router.get(
     "/plan/current/job/{job_id}/predecessors",
@@ -211,7 +194,6 @@ async def get_current_plan_job_predecessors(
     """Return the predecessors of a job in the current plan."""
     return await client.get_current_plan_job_predecessors(job_id, depth)
 
-
 @router.get(
     "/plan/current/job/{job_id}/successors",
     summary="Get current plan job successors",
@@ -224,7 +206,6 @@ async def get_current_plan_job_successors(
     """Return the successors of a job in the current plan."""
     return await client.get_current_plan_job_successors(job_id, depth)
 
-
 @router.get(
     "/plan/current/job/{job_id}/model",
     summary="Get current plan job model",
@@ -236,7 +217,6 @@ async def get_current_plan_job_model(
     """Return the underlying model of a job in the current plan."""
     return await client.get_current_plan_job_model(job_id)
 
-
 @router.get(
     "/plan/current/job/{job_id}/model/description",
     summary="Get current plan job model description",
@@ -247,7 +227,6 @@ async def get_current_plan_job_model_description(
 ) -> Any:
     """Return the model description of a job in the current plan."""
     return await client.get_current_plan_job_model_description(job_id)
-
 
 # -------------------------------------------------------------------------
 # Current plan routes – Job Streams
@@ -262,7 +241,6 @@ async def list_current_plan_jobstreams(
     """List or search job streams in the current plan."""
     return await client.query_current_plan_jobstreams(q, folder, limit)
 
-
 @router.get(
     "/plan/current/jobstream/count",
     summary="Count current plan job streams",
@@ -272,7 +250,6 @@ async def count_current_plan_jobstreams(
 ) -> Any:
     """Return the number of job streams present in the current plan."""
     return await client.get_current_plan_jobstream_count()
-
 
 @router.get(
     "/plan/current/jobstream/{jobstream_id}",
@@ -284,7 +261,6 @@ async def get_current_plan_jobstream(
 ) -> Any:
     """Retrieve details about a specific job stream in the current plan."""
     return await client.get_current_plan_jobstream(jobstream_id)
-
 
 @router.get(
     "/plan/current/jobstream/{jobstream_id}/predecessors",
@@ -298,7 +274,6 @@ async def get_current_plan_jobstream_predecessors(
     """Return the predecessors of a job stream in the current plan."""
     return await client.get_current_plan_jobstream_predecessors(jobstream_id, depth)
 
-
 @router.get(
     "/plan/current/jobstream/{jobstream_id}/successors",
     summary="Get current plan job stream successors",
@@ -311,7 +286,6 @@ async def get_current_plan_jobstream_successors(
     """Return the successors of a job stream in the current plan."""
     return await client.get_current_plan_jobstream_successors(jobstream_id, depth)
 
-
 @router.get(
     "/plan/current/jobstream/{jobstream_id}/model/description",
     summary="Get current plan job stream model description",
@@ -322,7 +296,6 @@ async def get_current_plan_jobstream_model_description(
 ) -> Any:
     """Return the model description of a job stream in the current plan."""
     return await client.get_current_plan_jobstream_model_description(jobstream_id)
-
 
 # -------------------------------------------------------------------------
 # Current plan routes – Resources & Folders
@@ -336,7 +309,6 @@ async def list_current_plan_resources(
     """List or search resources in the current plan."""
     return await client.query_current_plan_resources(q, limit)
 
-
 @router.get(
     "/plan/current/resource/{resource_id}",
     summary="Get current plan resource details",
@@ -347,7 +319,6 @@ async def get_current_plan_resource(
 ) -> Any:
     """Retrieve details about a resource in the current plan."""
     return await client.get_current_plan_resource(resource_id)
-
 
 @router.get(
     "/plan/current/folder/objects-count",
@@ -362,7 +333,6 @@ async def current_plan_folder_objects_count(
     current plan. If no folder is provided the root folder is used.
     """
     return await client.get_current_plan_folder_objects_count(folder)
-
 
 # -------------------------------------------------------------------------
 # Current plan routes – Consumed jobs

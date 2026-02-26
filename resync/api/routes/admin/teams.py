@@ -31,11 +31,9 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # REQUEST/RESPONSE MODELS
 # =============================================================================
-
 
 class TeamsConfigResponse(BaseModel):
     """Teams configuration response."""
@@ -52,7 +50,6 @@ class TeamsConfigResponse(BaseModel):
     webhook_configured: bool
     webhook_masked: str
 
-
 class TeamsConfigUpdate(BaseModel):
     """Teams configuration update request."""
 
@@ -65,7 +62,6 @@ class TeamsConfigUpdate(BaseModel):
     job_status_filters: list[str] | None = None
     notification_types: list[str] | None = None
     rate_limit_enabled: bool | None = None
-
 
 class NotificationRequest(BaseModel):
     """Request to send a Teams notification."""
@@ -80,7 +76,6 @@ class NotificationRequest(BaseModel):
     additional_data: dict[str, Any] = Field(default_factory=dict)
     actions: list[dict[str, str]] = Field(default_factory=list)
 
-
 class NotificationResponse(BaseModel):
     """Response from notification send."""
 
@@ -88,7 +83,6 @@ class NotificationResponse(BaseModel):
     message: str
     notification_id: str | None = None
     timestamp: str
-
 
 class TeamsHealthResponse(BaseModel):
     """Teams integration health check response."""
@@ -104,7 +98,6 @@ class TeamsHealthResponse(BaseModel):
     last_check: str
     statistics: dict[str, Any]
 
-
 class TeamsStatsResponse(BaseModel):
     """Teams notification statistics."""
 
@@ -115,7 +108,6 @@ class TeamsStatsResponse(BaseModel):
     success_rate: float
     last_notification: str | None = None
 
-
 class TestNotificationResponse(BaseModel):
     """Response from test notification."""
 
@@ -123,11 +115,9 @@ class TestNotificationResponse(BaseModel):
     message: str
     response_time_ms: float
 
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
-
 
 @router.get("/config", response_model=TeamsConfigResponse)
 async def get_teams_config():
@@ -152,7 +142,6 @@ async def get_teams_config():
         webhook_configured=bool(config.webhook_url),
         webhook_masked=integration._mask_webhook_url(config.webhook_url),
     )
-
 
 @router.put("/config", response_model=TeamsConfigResponse)
 async def update_teams_config(update: TeamsConfigUpdate):
@@ -200,7 +189,6 @@ async def update_teams_config(update: TeamsConfigUpdate):
         webhook_masked=integration._mask_webhook_url(config.webhook_url),
     )
 
-
 @router.post("/enable")
 async def enable_teams_integration():
     """Enable Teams integration."""
@@ -217,7 +205,6 @@ async def enable_teams_integration():
 
     return {"status": "enabled", "message": "Teams integration enabled successfully"}
 
-
 @router.post("/disable")
 async def disable_teams_integration():
     """Disable Teams integration."""
@@ -226,7 +213,6 @@ async def disable_teams_integration():
     logger.info("teams_integration_disabled")
 
     return {"status": "disabled", "message": "Teams integration disabled"}
-
 
 @router.post("/notifications", response_model=NotificationResponse)
 async def send_notification(request: NotificationRequest):
@@ -270,13 +256,12 @@ async def send_notification(request: NotificationRequest):
             notification_id=f"teams_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("notification_send_error", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send notification. Check server logs for details.",
         ) from e
-
 
 @router.post("/test", response_model=TestNotificationResponse)
 async def send_test_notification():
@@ -327,7 +312,7 @@ async def send_test_notification():
             response_time_ms=round(response_time, 2),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         response_time = (time.time() - start_time) * 1000
         logger.error("test_notification_error", error=str(e))  # type: ignore[call-arg]
         return TestNotificationResponse(
@@ -340,7 +325,6 @@ async def send_test_notification():
         # Restore original state
         integration.config.enabled = was_enabled
 
-
 @router.get("/health", response_model=TeamsHealthResponse)
 async def check_teams_health():
     """
@@ -352,7 +336,6 @@ async def check_teams_health():
     health = await integration.health_check()
 
     return TeamsHealthResponse(**health)
-
 
 @router.get("/stats", response_model=TeamsStatsResponse)
 async def get_teams_stats():
@@ -372,7 +355,6 @@ async def get_teams_stats():
         success_rate=stats.get("success_rate", 100.0),
     )
 
-
 @router.post("/stats/reset")
 async def reset_teams_stats():
     """Reset Teams notification statistics."""
@@ -387,7 +369,6 @@ async def reset_teams_stats():
     logger.info("teams_stats_reset")
 
     return {"status": "success", "message": "Statistics reset successfully"}
-
 
 @router.post("/alert")
 async def send_quick_alert(
@@ -416,7 +397,6 @@ async def send_quick_alert(
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
-
 @router.get("/filters")
 async def get_notification_filters():
     """Get available notification filters and their current settings."""
@@ -434,7 +414,6 @@ async def get_notification_filters():
             "system",
         ],
     }
-
 
 @router.put("/filters")
 async def update_notification_filters(

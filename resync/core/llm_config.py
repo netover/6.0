@@ -9,7 +9,7 @@ Version: 6.1.2
 """
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Python 3.11+ baseline: stdlib tomllib is always available.
 import tomllib
@@ -17,7 +17,6 @@ import tomllib
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
-
 
 class LLMConfig:
     """
@@ -34,7 +33,7 @@ class LLMConfig:
         model = config.get_model_for_task("analysis")
     """
 
-    _instance: Optional["LLMConfig"] = None
+    _instance: "LLMConfig" | None = None
     _config: dict[str, Any] = {}
 
     def __init__(self):
@@ -67,7 +66,7 @@ class LLMConfig:
                 default_model=self._config.get("llm", {}).get("default_model"),
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("llm_config_load_failed", error=str(e), exc_info=True)
@@ -205,7 +204,6 @@ class LLMConfig:
         self._load_config()
         logger.info("llm_config_reloaded")
 
-
 def get_llm_config() -> LLMConfig:
     """
     Get global LLM configuration instance.
@@ -229,7 +227,6 @@ def get_llm_config() -> LLMConfig:
         LLMConfig._instance = LLMConfig()
 
     return LLMConfig._instance
-
 
 def get_model_for_specialist(specialist_type: str) -> str:
     """
@@ -260,7 +257,6 @@ def get_model_for_specialist(specialist_type: str) -> str:
 
     config = get_llm_config()
     return config.get_model(task_type)
-
 
 # Auto-reload on config file change (for hot reload)
 def _on_llm_config_change(event):

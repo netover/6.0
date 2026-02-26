@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-
 @dataclass
 class IdempotencyRecord:
     """Registro de idempotency armazenado"""
@@ -51,7 +50,6 @@ class IdempotencyRecord:
             ),
             request_metadata=data.get("request_metadata", {}),
         )
-
 
 @dataclass
 class RequestContext:

@@ -23,7 +23,6 @@ from pydantic import BaseModel, Field
 # INTENT CLASSIFICATION
 # =============================================================================
 
-
 class Intent(str, Enum):
     """User intent categories."""
 
@@ -33,7 +32,6 @@ class Intent(str, Enum):
     ACTION = "action"
     GENERAL = "general"
     UNKNOWN = "unknown"
-
 
 class RouterOutput(BaseModel):
     """
@@ -53,7 +51,6 @@ class RouterOutput(BaseModel):
     reasoning: str | None = Field(
         default=None, description="Brief explanation of the classification"
     )
-
 
 class EntityExtractionOutput(BaseModel):
     """Structured output for entity extraction."""
@@ -75,11 +72,9 @@ class EntityExtractionOutput(BaseModel):
         description="Time reference mentioned (today, yesterday, last hour, etc.)",
     )
 
-
 # =============================================================================
 # TROUBLESHOOTING
 # =============================================================================
-
 
 class SymptomAnalysis(BaseModel):
     """Analysis of a single symptom."""
@@ -92,7 +87,6 @@ class SymptomAnalysis(BaseModel):
         default=None, description="Related system component"
     )
 
-
 class CauseHypothesis(BaseModel):
     """Hypothesis about root cause."""
 
@@ -103,7 +97,6 @@ class CauseHypothesis(BaseModel):
     verification_steps: list[str] = Field(
         default_factory=list, description="Steps to verify this hypothesis"
     )
-
 
 class DiagnosisOutput(BaseModel):
     """
@@ -124,11 +117,9 @@ class DiagnosisOutput(BaseModel):
         default_factory=list, description="Recommended actions"
     )
 
-
 # =============================================================================
 # HALLUCINATION GRADING
 # =============================================================================
-
 
 class HallucinationGrade(BaseModel):
     """
@@ -149,11 +140,9 @@ class HallucinationGrade(BaseModel):
         description="List of claims that are not supported by context",
     )
 
-
 # =============================================================================
 # ACTION APPROVAL
 # =============================================================================
-
 
 class ActionRequest(BaseModel):
     """Request for an action that requires approval."""
@@ -170,7 +159,6 @@ class ActionRequest(BaseModel):
         default=True, description="Whether the action requires human approval"
     )
 
-
 class ApprovalResponse(BaseModel):
     """Response from human approval."""
 
@@ -180,11 +168,9 @@ class ApprovalResponse(BaseModel):
         default=None, description="Additional comments from approver"
     )
 
-
 # =============================================================================
 # SYNTHESIS
 # =============================================================================
-
 
 class SynthesisInput(BaseModel):
     """Input for response synthesis."""
@@ -196,11 +182,9 @@ class SynthesisInput(BaseModel):
     )
     language: str = Field(default="pt", description="Output language")
 
-
 # =============================================================================
 # AGENT STATE
 # =============================================================================
-
 
 class AgentStateModel(BaseModel):
     """
@@ -244,11 +228,9 @@ class AgentStateModel(BaseModel):
 
     model_config = {"use_enum_values": True}
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     # Intent

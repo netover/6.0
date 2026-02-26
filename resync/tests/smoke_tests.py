@@ -277,7 +277,7 @@ class SmokeTestRunner:
                     error=str(e),
                 )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 duration_ms = (time.perf_counter() - start) * 1000
                 last_error = e
                 if attempt <= retries:

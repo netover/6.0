@@ -17,7 +17,6 @@ from resync.core.health.health_models import ComponentHealth
 
 logger = structlog.get_logger(__name__)
 
-
 class ComponentCacheManager:
     """
     Manages caching of component health results.
@@ -291,7 +290,6 @@ class ComponentCacheManager:
         self._cache_misses = 0
         self._cache_evictions = 0
         logger.debug("cache_stats_reset")
-
 
 class ComponentCacheConfig:
     """

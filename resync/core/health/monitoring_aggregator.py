@@ -12,7 +12,6 @@ from resync.core.health.health_models import (
 )
 from resync.core.health.unified_health_service import UnifiedHealthService
 
-
 @dataclass
 class ComponentHealthSummary:
     """Summary of health status for a specific component type."""
@@ -44,7 +43,6 @@ class ComponentHealthSummary:
             return HealthStatus.UNKNOWN
         return HealthStatus.HEALTHY
 
-
 @dataclass
 class OverallHealthStatus:
     """Overall health status of the entire system."""
@@ -68,7 +66,6 @@ class OverallHealthStatus:
         """Check if the overall system is considered healthy."""
         return self.status == HealthStatus.HEALTHY
 
-
 @dataclass
 class HealthReport:
     """Comprehensive health report containing all health check data."""
@@ -80,7 +77,6 @@ class HealthReport:
     trends: dict[str, Any] = field(default_factory=dict)
     alerts: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 class HealthMonitoringAggregator:
     """
@@ -157,7 +153,7 @@ class HealthMonitoringAggregator:
         Aggregate health data by component type.
 
         Returns:
-            Dict[ComponentType, ComponentHealthSummary]: Summary for each component type
+            dict[ComponentType, ComponentHealthSummary]: Summary for each component type
         """
         # Get fresh health data if cache is stale
         if self._should_refresh_cache():

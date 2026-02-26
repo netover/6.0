@@ -12,7 +12,6 @@ from resync.knowledge.kg_store.store import PostgresGraphStore
 
 logger = logging.getLogger(__name__)
 
-
 class PostgresSubgraphRetriever:
     def __init__(self, store: PostgresGraphStore | None = None):
         self.store = store or PostgresGraphStore()

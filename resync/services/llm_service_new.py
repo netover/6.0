@@ -71,7 +71,6 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-
 def _coerce_secret(value: Any) -> str | None:
     """Accept str or pydantic SecretStr; return plain str or None."""
     if value is None:
@@ -81,7 +80,6 @@ def _coerce_secret(value: Any) -> str | None:
     # pydantic SecretStr compatibility
     get_secret = getattr(value, "get_secret_value", None)
     return get_secret() if callable(get_secret) else str(value)
-
 
 class LLMService:
     """Service for interacting with LLM APIs through OpenAI-compatible endpoints."""
@@ -212,7 +210,7 @@ class LLMService:
                     "request_id": getattr(exc, "request_id", None),
                 },
             ) from exc
-        except Exception as exc:  # pylint
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:  # pylint
             # Re-raise critical system exceptions and programming errors
             if isinstance(
                 exc,

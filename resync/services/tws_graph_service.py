@@ -47,7 +47,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 @dataclass
 class GraphCacheEntry:
     """Cache entry for a graph."""
@@ -55,7 +54,6 @@ class GraphCacheEntry:
     graph: nx.DiGraph
     created_at: float
     scope: str
-
 
 class TwsGraphService:
     """
@@ -283,7 +281,7 @@ class TwsGraphService:
                     graph.add_node(succ_id, type="jobstream")
                     graph.add_edge(jobstream_id, succ_id, relation="DEPENDS_ON")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning(
                 "jobstream_graph_build_failed",
                 jobstream_id=jobstream_id,
@@ -322,7 +320,7 @@ class TwsGraphService:
 
         try:
             return nx.dag_longest_path(graph)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("critical_path_error", error=str(e))
             return []
 
@@ -374,7 +372,7 @@ class TwsGraphService:
                 "direct_successor_count": graph.out_degree(job_id),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("impact_analysis_error", job_id=job_id, error=str(e))
             return {
                 "job_id": job_id,
@@ -436,7 +434,7 @@ class TwsGraphService:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("critical_jobs_error", error=str(e))
             return []
 
@@ -864,13 +862,11 @@ class TwsGraphService:
             relation_type=relation_type,
         )
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _graph_service: TwsGraphService | None = None
-
 
 def get_graph_service(tws_client: Any = None) -> TwsGraphService:
     """Get or create the singleton TwsGraphService instance."""
@@ -883,12 +879,10 @@ def get_graph_service(tws_client: Any = None) -> TwsGraphService:
 
     return _graph_service
 
-
 async def build_job_graph(job_id: str, tws_client: Any = None) -> nx.DiGraph:
     """Convenience function to build a job dependency graph."""
     service = get_graph_service(tws_client)
     return await service.get_dependency_graph(job_id)
-
 
 def analyze_job_impact(graph: nx.DiGraph, job_id: str) -> dict[str, Any]:
     """Convenience function to analyze job impact."""

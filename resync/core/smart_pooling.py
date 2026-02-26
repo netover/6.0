@@ -23,7 +23,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class SmartPoolConfig:
     """Configuration for smart connection pooling."""
@@ -49,7 +48,6 @@ class SmartPoolConfig:
     max_connection_age: float = 3600.0  # 1 hour
     max_connection_uses: int = 100  # Reuse up to 100 times
     idle_timeout: float = 300.0  # 5 minutes
-
 
 @dataclass
 class ConnectionStats:
@@ -89,7 +87,6 @@ class ConnectionStats:
             or not self.is_healthy
         )
 
-
 @dataclass
 class PoolMetrics:
     """Comprehensive pool performance metrics."""
@@ -125,7 +122,6 @@ class PoolMetrics:
     def get_queue_ratio(self) -> float:
         """Get queue pressure ratio."""
         return self.queued_requests / max(1, self.total_requests)
-
 
 class SmartConnectionPool:
     """
@@ -182,7 +178,7 @@ class SmartConnectionPool:
         await self._initialize_connections()
 
         # Start health monitoring
-        self._health_monitor_task = await create_tracked_task(
+        self._health_monitor_task = create_tracked_task(
             self._health_monitor_loop(), name="health_monitor_loop"
         )
 
@@ -247,7 +243,7 @@ class SmartConnectionPool:
             latency = (time.time() - start_time) * 1000  # Convert to ms
             await self._record_success(connection_id, latency)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Record failure
             latency = (time.time() - start_time) * 1000
             await self._record_failure(str(e), latency)
@@ -303,7 +299,7 @@ class SmartConnectionPool:
             logger.debug("connection_created", connection_id=connection_id)
             return connection_id
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("connection_creation_failed", error=str(e))
             raise
 
@@ -407,7 +403,7 @@ class SmartConnectionPool:
                 # Immediately mark as idle
                 connection_id = f"conn_{self._connection_counter - 1}"
                 await self._release_connection(connection_id)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("initial_connection_creation_failed", error=str(e))
 
     async def _close_all_connections(self) -> None:
@@ -424,7 +420,7 @@ class SmartConnectionPool:
                 await asyncio.sleep(self.config.health_check_interval)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("health_monitor_error", error=str(e))
                 await asyncio.sleep(self.config.health_check_interval)
 
@@ -444,7 +440,7 @@ class SmartConnectionPool:
                 else:
                     self._connection_stats[connection_id].health_check_failures += 1
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "health_check_failed", connection_id=connection_id, error=str(e)
                 )

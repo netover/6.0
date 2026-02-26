@@ -47,7 +47,6 @@ __all__ = [
     "get_database_connection",
 ]
 
-
 logger = logging.getLogger(__name__)
 
 cache_router = APIRouter()
@@ -60,13 +59,11 @@ security = HTTPBasic()
 security_dependency = Depends(security)
 tws_client_dependency = Depends(get_tws_client)
 
-
 class CacheInvalidationResponse(BaseModel):
     """Response model for cache invalidation operations."""
 
     status: str
     detail: str
-
 
 class CacheStats(BaseModel):
     """Cache stats."""
@@ -75,7 +72,6 @@ class CacheStats(BaseModel):
     misses: int
     hit_rate: float
     size: int
-
 
 class ConnectionPoolValidator:
     """Validates connection pool settings for database connections."""
@@ -117,7 +113,6 @@ class ConnectionPoolValidator:
         )
         return True
 
-
 def get_redis_connection() -> Redis | None:
     """
     Get a Redis connection using connection pooling and validation.
@@ -140,13 +135,12 @@ def get_redis_connection() -> Redis | None:
     except (ConnectionError, TimeoutError) as e:
         logger.error("Failed to connect to Redis: %s", e)
         return None
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Unexpected error when connecting to Redis: %s", e)
         return None
-
 
 class RedisCacheManager:
     """
@@ -173,7 +167,7 @@ class RedisCacheManager:
             else:
                 logger.debug("Cache miss for key: %s", key)
             return value
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -196,7 +190,7 @@ class RedisCacheManager:
             self.redis_client.setex(key, expire, value)
             logger.debug("Set cache key: %s with expire: %s", key, expire)
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -217,7 +211,7 @@ class RedisCacheManager:
             deleted = self.redis_client.delete(key)
             logger.debug("Deleted cache key: %s, count: %s", key, deleted)
             return bool(deleted)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -258,7 +252,7 @@ class RedisCacheManager:
 
             logger.debug("Cleared %s keys matching pattern: %s", total_deleted, pattern)
             return total_deleted
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -282,10 +276,8 @@ class RedisCacheManager:
 
         return CacheStats(hits=hits, misses=misses, hit_rate=hit_rate, size=size)
 
-
 # Global Redis cache manager instance
 redis_manager: RedisCacheManager | None = None
-
 
 def validate_connection_pool() -> bool:
     """
@@ -304,7 +296,6 @@ def validate_connection_pool() -> bool:
         return False
 
     return ConnectionPoolValidator.validate_connection_pool(min_conn, max_conn, timeout)
-
 
 async def verify_admin_credentials(
     creds: HTTPBasicCredentials = security_dependency,
@@ -352,7 +343,6 @@ async def verify_admin_credentials(
         )
 
     logger.info("Successful admin authentication for user: %s", creds.username)
-
 
 @cache_router.post(
     "/invalidate",
@@ -434,7 +424,7 @@ async def invalidate_tws_cache(
     except HTTPException:
         # Re-raise HTTP exceptions as-is
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -443,7 +433,6 @@ async def invalidate_tws_cache(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to invalidate cache due to server error.",
         ) from e
-
 
 @cache_router.get("/stats", summary="Get cache statistics", response_model=CacheStats)
 async def get_cache_stats(
@@ -476,7 +465,6 @@ async def get_cache_stats(
     )
 
     return stats
-
 
 def get_database_connection(
     min_connections: int = 1, max_connections: int = 10, timeout: float = 30.0

@@ -26,7 +26,6 @@ from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
 
-
 class IncidentSeverity(Enum):
     """Incident severity levels."""
 
@@ -68,7 +67,6 @@ class IncidentSeverity(Enum):
             return NotImplemented
         return self.level < other.level
 
-
 class IncidentStatus(Enum):
     """Incident lifecycle status."""
 
@@ -79,7 +77,6 @@ class IncidentStatus(Enum):
     RECOVERY = "recovery"
     LESSONS_LEARNED = "lessons_learned"
     CLOSED = "closed"
-
 
 class IncidentCategory(Enum):
     """Incident categories for classification."""
@@ -93,7 +90,6 @@ class IncidentCategory(Enum):
     THIRD_PARTY_COMPROMISE = "third_party_compromise"
     PHYSICAL_SECURITY = "physical_security"
     OTHER = "other"
-
 
 @dataclass
 class Incident:
@@ -209,7 +205,6 @@ class Incident:
             "custom_fields": self.custom_fields,
         }
 
-
 @dataclass
 class ResponseAction:
     """Automated response action."""
@@ -231,7 +226,6 @@ class ResponseAction:
     def can_execute(self, incident: Incident) -> bool:
         """Check if action can be executed for incident."""
         return incident.severity >= self.severity_threshold
-
 
 @dataclass
 class ResponsePlaybook:
@@ -279,7 +273,6 @@ class ResponsePlaybook:
             return self.lessons_learned_steps
         return []
 
-
 @dataclass
 class IncidentResponseConfig:
     """Configuration for incident response system."""
@@ -309,7 +302,6 @@ class IncidentResponseConfig:
     # Learning and improvement
     enable_learning: bool = True
     review_incidents_after_days: int = 30
-
 
 class IncidentDetector:
     """Component for detecting security incidents."""
@@ -418,7 +410,6 @@ class IncidentDetector:
                 return incident
 
         return None
-
 
 class IncidentResponder:
     """Component for executing automated incident response."""
@@ -554,7 +545,7 @@ class IncidentResponder:
                     }
                 )
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Failed to execute action %s: %s", action.action_id, e)
                 executed_actions.append(
                     {
@@ -607,7 +598,6 @@ class IncidentResponder:
         )
 
         return result
-
 
 class NotificationManager:
     """Component for managing incident notifications."""
@@ -698,7 +688,6 @@ Please review and take appropriate action.
                     type=notification_type,
                     message_preview=message[:100] + "...",
                 )
-
 
 class IncidentResponseEngine:
     """
@@ -1125,7 +1114,7 @@ class IncidentResponseEngine:
                 await self._check_for_incident()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Incident detection worker error: %s", e)
 
     async def _escalation_worker(self) -> None:
@@ -1157,7 +1146,7 @@ class IncidentResponseEngine:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Escalation worker error: %s", e)
 
     async def _cleanup_worker(self) -> None:
@@ -1184,13 +1173,11 @@ class IncidentResponseEngine:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Cleanup worker error: %s", e)
-
 
 # Global incident response engine instance (lazy-initialized)
 _incident_response_engine: IncidentResponseEngine | None = None
-
 
 def _get_incident_response_engine_instance() -> IncidentResponseEngine:
     """Get or create the incident response engine (lazy init)."""
@@ -1199,10 +1186,8 @@ def _get_incident_response_engine_instance() -> IncidentResponseEngine:
         _incident_response_engine = IncidentResponseEngine()
     return _incident_response_engine
 
-
 # Backward compatibility alias
 incident_response_engine: IncidentResponseEngine | None = None  # type: ignore[assignment]
-
 
 class IncidentResponse:
     """Basic incident response class for compatibility."""
@@ -1213,7 +1198,6 @@ class IncidentResponse:
     async def log_incident(self, incident_type: str, details: dict):
         """Log an incident."""
         return await self.engine.process_security_event(details)
-
 
 async def get_incident_response_engine(
     tg: asyncio.TaskGroup | None = None,

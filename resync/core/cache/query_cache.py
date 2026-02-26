@@ -24,14 +24,12 @@ from .advanced_cache import get_advanced_cache_manager
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # PRE-COMPILED REGEX PATTERNS (Performance optimization)
 # =============================================================================
 # Compiled once at module load, not on every call
 _FROM_PATTERN = re.compile(r"\bfrom\s+(\w+)", re.IGNORECASE)
 _JOIN_PATTERN = re.compile(r"\bjoin\s+(\w+)", re.IGNORECASE)
-
 
 @lru_cache(maxsize=1024)
 def _extract_table_names(sql: str) -> frozenset[str]:
@@ -52,7 +50,6 @@ def _extract_table_names(sql: str) -> frozenset[str]:
         tables.add(match.group(1).lower())
 
     return frozenset(tables)
-
 
 @dataclass
 class QueryFingerprint:
@@ -90,7 +87,6 @@ class QueryFingerprint:
             frozen = _extract_table_names(self.sql)
             object.__setattr__(self, "_table_names", set(frozen))
         return self._table_names
-
 
 @dataclass
 class QueryExecutionStats:
@@ -133,7 +129,6 @@ class QueryExecutionStats:
         # Cap at 24 hours
         return min(base_ttl, 86400)
 
-
 @dataclass
 class QueryResult:
     """Cached query result with metadata."""
@@ -160,7 +155,6 @@ class QueryResult:
         if isinstance(self.data, list):
             self.row_count = len(self.data)
 
-
 @dataclass
 class TableChangeTracker:
     """Track changes to database tables for cache invalidation."""
@@ -181,7 +175,6 @@ class TableChangeTracker:
         """Get change frequency (changes per hour)."""
         age_hours = (time.time() - self.last_change_timestamp) / 3600
         return self.change_count / max(1, age_hours)
-
 
 class QueryCacheManager:
     """
@@ -289,7 +282,7 @@ class QueryCacheManager:
             self._update_cache_stats(hit=False, execution_time=execution_time)
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("Query execution failed: %s", e)
             self._update_cache_stats(
                 hit=False, execution_time=time.time() - start_time, error=True
@@ -416,7 +409,7 @@ class QueryCacheManager:
                     return cached
                 # Result invalidated due to table changes
                 await self.cache_manager.invalidate(cache_key, cascade=False)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("Cache retrieval error for %s: %s", cache_key, e)
 
         return None
@@ -619,10 +612,8 @@ class QueryCacheManager:
         if total > 0:
             self.cache_hit_ratio = self.total_queries_cached / total
 
-
 # Global query cache manager instance
 _query_cache_manager_instance: QueryCacheManager | None = None
-
 
 class _LazyQueryCacheManager:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -640,14 +631,11 @@ class _LazyQueryCacheManager:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 query_cache_manager = _LazyQueryCacheManager()
-
 
 def get_query_cache_manager_sync() -> QueryCacheManager:
     """Return the singleton instance synchronously."""
     return query_cache_manager.get_instance()
-
 
 async def get_query_cache_manager() -> QueryCacheManager:
     """Get the global query cache manager instance."""

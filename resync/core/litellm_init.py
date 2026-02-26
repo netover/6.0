@@ -16,7 +16,6 @@ from resync.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class LiteLLMMetrics:
     """Class to manage LiteLLM operational metrics in a thread-safe manner."""
 
@@ -49,7 +48,6 @@ class LiteLLMMetrics:
                 "init_fail_reason": self.init_fail_reason.copy(),
                 "cost_calc_fail": self.cost_calc_fail,
             }
-
 
 class LiteLLMManager:
     """Thread-safe LiteLLM Router manager."""
@@ -165,10 +163,8 @@ class LiteLLMManager:
             self._metrics.increment_cost_calc_fail()
             return 0.0
 
-
 # Singleton manager instance
 __LITELLM_MANAGER_instance: LiteLLMManager | None = None
-
 
 class _LazyLiteLLMManager:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -186,14 +182,11 @@ class _LazyLiteLLMManager:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 _LITELLM_MANAGER = _LazyLiteLLMManager()
-
 
 def get__LITELLM_MANAGER() -> LiteLLMManager:
     """Return the singleton instance (preferred over using the proxy directly)."""
     return _LITELLM_MANAGER.get_instance()
-
 
 @runtime_checkable
 class RouterLike(Protocol):
@@ -201,7 +194,6 @@ class RouterLike(Protocol):
 
     def completion(self, *args, **kwargs):  # type: ignore
         """LiteLLM router completion method."""
-
 
 def _set_env(name: str, value: str | None, *, overwrite: bool = False) -> bool:
     """
@@ -218,7 +210,6 @@ def _set_env(name: str, value: str | None, *, overwrite: bool = False) -> bool:
         os.environ[name] = value  # type: ignore[arg-type]
         return True
     return False
-
 
 def _apply_env_from_settings(*, overwrite: bool = False) -> dict[str, bool]:
     """
@@ -259,7 +250,6 @@ def _apply_env_from_settings(*, overwrite: bool = False) -> dict[str, bool]:
         logger.debug("LLM env set: %s", ", ".join(set_vars))
     return changed
 
-
 # Compatibility functions maintaining original public API
 def get_litellm_router() -> RouterLike | None:
     """
@@ -267,13 +257,11 @@ def get_litellm_router() -> RouterLike | None:
     """
     return _LITELLM_MANAGER.get_router()
 
-
 def reset_litellm_router() -> None:
     """
     Reset the singleton (useful for tests).
     """
     _LITELLM_MANAGER.reset_router()
-
 
 def initialize_litellm(*, overwrite_env: bool = False) -> RouterLike | None:
     """
@@ -287,13 +275,11 @@ def initialize_litellm(*, overwrite_env: bool = False) -> RouterLike | None:
 
     return _LITELLM_MANAGER.get_router()
 
-
 def calculate_completion_cost(completion_response: Any) -> float:
     """
     Calculate response cost using LiteLLM. Return 0.0 if unavailable/error.
     """
     return _LITELLM_MANAGER.calculate_completion_cost(completion_response)
-
 
 def get_litellm_metrics() -> dict[str, Any]:
     """

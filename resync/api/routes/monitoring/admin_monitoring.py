@@ -24,13 +24,11 @@ from resync.api.security import decode_token
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-
 class WebSocketRuntimeConfig(BaseModel):
     """Runtime validated websocket config."""
 
     interval_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
     max_connections: int = Field(default=100, ge=1, le=5000)
-
 
 class SystemMetrics(BaseModel):
     """System-level metrics."""
@@ -46,7 +44,6 @@ class SystemMetrics(BaseModel):
     network_recv_mb: float
     uptime_seconds: float
 
-
 class ApplicationMetrics(BaseModel):
     """Application-level metrics."""
 
@@ -57,7 +54,6 @@ class ApplicationMetrics(BaseModel):
     active_connections: int
     cache_hit_rate: float
 
-
 class ServiceHealth(BaseModel):
     """Health of a service."""
 
@@ -66,7 +62,6 @@ class ServiceHealth(BaseModel):
     latency_ms: float | None = None
     last_check: str
     error_message: str | None = None
-
 
 class MonitoringDashboard(BaseModel):
     """Complete monitoring dashboard data."""
@@ -77,14 +72,12 @@ class MonitoringDashboard(BaseModel):
     services: list[ServiceHealth]
     alerts: list[dict[str, Any]]
 
-
 class RequestStats(BaseModel):
     """Request counters maintained in memory."""
 
     request_times_seconds: list[float] = Field(default_factory=list)
     error_count: int = 0
     total_requests: int = 0
-
 
 class WebSocketHub:
     """Concurrency-safe registry of websocket clients."""
@@ -113,12 +106,10 @@ class WebSocketHub:
         async with self._lock:
             return len(self._clients)
 
-
 _metrics_history: list[dict[str, Any]] = []
 _start_time = time.time()
 _stats = RequestStats()
 _stats_lock = asyncio.Lock()
-
 
 def _load_ws_runtime_config() -> WebSocketRuntimeConfig:
     """Load websocket runtime parameters from environment."""
@@ -131,10 +122,8 @@ def _load_ws_runtime_config() -> WebSocketRuntimeConfig:
         logger.warning("invalid_admin_monitoring_ws_config: %s", exc)
         return WebSocketRuntimeConfig()
 
-
 _WS_CONFIG = _load_ws_runtime_config()
 _WS_HUB = WebSocketHub(max_connections=_WS_CONFIG.max_connections)
-
 
 def _verify_ws_admin(websocket: WebSocket) -> bool:
     """Return True when websocket bearer token has admin role."""
@@ -154,10 +143,9 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
         else:
             roles = [str(roles_claim)]
         return "admin" in roles
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.debug("websocket_auth_failed: %s", type(exc).__name__)
         return False
-
 
 async def _collect_system_metrics() -> SystemMetrics:
     """Collect system metrics in worker threads to avoid loop blocking."""
@@ -177,7 +165,6 @@ async def _collect_system_metrics() -> SystemMetrics:
         network_recv_mb=round(net.bytes_recv / (1024**2), 2),
         uptime_seconds=round(time.time() - _start_time, 0),
     )
-
 
 async def _collect_active_alerts() -> list[dict[str, Any]]:
     """Collect active alerts using non-blocking thread offload."""
@@ -204,7 +191,6 @@ async def _collect_active_alerts() -> list[dict[str, Any]]:
             }
         )
     return alerts
-
 
 async def _collect_application_metrics() -> ApplicationMetrics:
     """Collect application metrics from in-memory counters."""
@@ -234,7 +220,6 @@ async def _collect_application_metrics() -> ApplicationMetrics:
         cache_hit_rate=85.5,
     )
 
-
 def _collect_services_health() -> list[ServiceHealth]:
     """Collect static service health placeholders."""
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -253,7 +238,6 @@ def _collect_services_health() -> list[ServiceHealth]:
         ),
     ]
 
-
 async def _build_dashboard() -> MonitoringDashboard:
     """Build dashboard payload shared by REST and websocket endpoints."""
     return MonitoringDashboard(
@@ -264,7 +248,6 @@ async def _build_dashboard() -> MonitoringDashboard:
         alerts=await _collect_active_alerts(),
     )
 
-
 @router.get(
     "/monitoring/dashboard", response_model=MonitoringDashboard, tags=["Monitoring"]
 )
@@ -272,12 +255,10 @@ async def get_monitoring_dashboard() -> MonitoringDashboard:
     """Return complete monitoring dashboard data."""
     return await _build_dashboard()
 
-
 @router.get("/monitoring/system", response_model=SystemMetrics, tags=["Monitoring"])
 async def get_system_metrics() -> SystemMetrics:
     """Return current system metrics."""
     return await _collect_system_metrics()
-
 
 @router.get(
     "/monitoring/application", response_model=ApplicationMetrics, tags=["Monitoring"]
@@ -286,7 +267,6 @@ async def get_application_metrics() -> ApplicationMetrics:
     """Return application metrics."""
     return await _collect_application_metrics()
 
-
 @router.get(
     "/monitoring/services", response_model=list[ServiceHealth], tags=["Monitoring"]
 )
@@ -294,12 +274,10 @@ async def get_services_health() -> list[ServiceHealth]:
     """Return service health payload."""
     return _collect_services_health()
 
-
 @router.get("/monitoring/alerts", tags=["Monitoring"])
 async def get_active_alerts() -> dict[str, list[dict[str, Any]]]:
     """Return active alerts."""
     return {"alerts": await _collect_active_alerts()}
-
 
 @router.get("/monitoring/metrics/history", tags=["Monitoring"])
 async def get_metrics_history(
@@ -311,7 +289,6 @@ async def get_metrics_history(
         "history": _metrics_history[-minutes:],
         "interval_seconds": interval_seconds,
     }
-
 
 @router.websocket("/monitoring/ws")
 async def monitoring_websocket(websocket: WebSocket) -> None:
@@ -338,11 +315,10 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
             await asyncio.sleep(_WS_CONFIG.interval_seconds)
     except WebSocketDisconnect:
         logger.info("monitoring websocket disconnected")
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.exception("monitoring websocket error", extra={"error": str(exc)})
     finally:
         await _WS_HUB.disconnect(websocket)
-
 
 @router.get("/monitoring/summary", tags=["Monitoring"])
 async def get_monitoring_summary() -> dict[str, Any]:
@@ -374,7 +350,6 @@ async def get_monitoring_summary() -> dict[str, Any]:
         "active_alerts": len(alerts),
         "uptime_hours": round(system.uptime_seconds / 3600, 1),
     }
-
 
 @router.post("/monitoring/record-request", tags=["Monitoring"])
 async def record_request(

@@ -35,7 +35,6 @@ GRAY_ZONE_MAX = 0.35  # Above this distance = clear miss
 _reranker_model: Any = None
 _reranker_available: bool | None = None
 
-
 @dataclass
 class RerankerResult:
     """Result of cross-encoder reranking."""
@@ -44,7 +43,6 @@ class RerankerResult:
     is_similar: bool  # Whether queries are semantically similar
     latency_ms: float  # Time taken for reranking
     model_used: str  # Model name used
-
 
 def is_reranker_available() -> bool:
     """Check if cross-encoder model is available."""
@@ -65,7 +63,6 @@ def is_reranker_available() -> bool:
         )
 
     return _reranker_available
-
 
 def get_reranker_model() -> Any:
     """
@@ -97,11 +94,10 @@ def get_reranker_model() -> Any:
 
         return _reranker_model
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Failed to load cross-encoder model: %s", e)
         _reranker_available = False
         return None
-
 
 def preload_reranker() -> bool:
     """
@@ -121,10 +117,9 @@ def preload_reranker() -> bool:
         _ = model.predict([("test query", "test document")])
         logger.info("Cross-encoder model warmed up")
         return True
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.warning("Failed to warm up cross-encoder: %s", e)
         return False
-
 
 def rerank_pair(query: str, cached_query: str) -> RerankerResult:
     """
@@ -178,7 +173,7 @@ def rerank_pair(query: str, cached_query: str) -> RerankerResult:
             model_used=RERANKER_MODEL,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.error("Reranking failed: %s", e)
         # On error, assume similar (don't block cache hits)
         return RerankerResult(
@@ -187,7 +182,6 @@ def rerank_pair(query: str, cached_query: str) -> RerankerResult:
             latency_ms=(time.perf_counter() - start) * 1000,
             model_used="error_fallback",
         )
-
 
 def should_rerank(distance: float) -> bool:
     """
@@ -206,7 +200,6 @@ def should_rerank(distance: float) -> bool:
     """
     return GRAY_ZONE_MIN <= distance <= GRAY_ZONE_MAX
 
-
 def get_reranker_info() -> dict[str, Any]:
     """Get information about the reranker model."""
     return {
@@ -217,7 +210,6 @@ def get_reranker_info() -> dict[str, Any]:
         "gray_zone_min": GRAY_ZONE_MIN,
         "gray_zone_max": GRAY_ZONE_MAX,
     }
-
 
 def update_reranker_config(
     threshold: float | None = None,
@@ -262,7 +254,6 @@ def update_reranker_config(
         "gray_zone_min": GRAY_ZONE_MIN,
         "gray_zone_max": GRAY_ZONE_MAX,
     }
-
 
 __all__ = [
     "RerankerResult",

@@ -21,7 +21,6 @@ from .base_health_checker import BaseHealthChecker
 
 logger = structlog.get_logger(__name__)
 
-
 class DatabaseHealthChecker(BaseHealthChecker):
     """
     Health checker for database connections and connection pools.
@@ -160,7 +159,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                 metadata=pool_metadata,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             response_time = (time.time() - start_time) * 1000
 
             logger.error("database_health_check_failed", error=str(e))

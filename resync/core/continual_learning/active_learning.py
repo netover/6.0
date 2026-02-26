@@ -14,11 +14,9 @@ from resync.core.database.repositories import FeedbackStore
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Enums and Data Classes for Active Learning
 # ============================================================================
-
 
 class ReviewStatus(str, Enum):
     """Status of a review item."""
@@ -27,7 +25,6 @@ class ReviewStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     SKIPPED = "skipped"
-
 
 class ReviewReason(str, Enum):
     """Reasons for requiring review."""
@@ -38,7 +35,6 @@ class ReviewReason(str, Enum):
     HALLUCINATION_DETECTED = "hallucination_detected"
     USER_FEEDBACK = "user_feedback"
     MANUAL_REQUEST = "manual_request"
-
 
 @dataclass
 class ReviewItem:
@@ -52,7 +48,6 @@ class ReviewItem:
     status: ReviewStatus = ReviewStatus.PENDING
     metadata: dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class ActiveLearningDecision:
     """Decision from active learning check."""
@@ -62,7 +57,6 @@ class ActiveLearningDecision:
     confidence_scores: dict[str, float]
     suggested_action: str = "proceed_normally"
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 class ActiveLearningManager:
     """Manager for active learning workflow."""
@@ -134,7 +128,6 @@ class ActiveLearningManager:
         logger.info("Added to review queue: %s", review_id)
         return review_id
 
-
 async def check_for_review(
     query: str,
     response: str,
@@ -151,10 +144,8 @@ async def check_for_review(
         entities_found={},
     )
 
-
 # Singleton instance
 _active_learning_manager: ActiveLearningManager | None = None
-
 
 def get_active_learning_manager() -> ActiveLearningManager:
     """Get or create active learning manager singleton."""
@@ -162,7 +153,6 @@ def get_active_learning_manager() -> ActiveLearningManager:
     if _active_learning_manager is None:
         _active_learning_manager = ActiveLearningManager()
     return _active_learning_manager
-
 
 __all__ = [
     "ActiveLearner",
@@ -175,7 +165,6 @@ __all__ = [
     "check_for_review",
     "get_active_learning_manager",
 ]
-
 
 class ActiveLearner:
     """Active Learner - PostgreSQL Backend."""
@@ -237,9 +226,7 @@ class ActiveLearner:
         """Check if we should request a label based on uncertainty."""
         return uncertainty_score >= threshold
 
-
 _instance: ActiveLearner | None = None
-
 
 def get_active_learner() -> ActiveLearner:
     """Get the singleton ActiveLearner instance."""

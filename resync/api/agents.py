@@ -13,7 +13,6 @@ agents_router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-
 @agents_router.get("/all")
 async def list_all_agents(
     request: Request,
@@ -38,7 +37,6 @@ async def list_all_agents(
         }
         for agent in agents
     ]
-
 
 @agents_router.get("/{agent_id}")
 async def get_agent_details(

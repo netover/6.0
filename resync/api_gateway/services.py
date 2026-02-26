@@ -27,7 +27,6 @@ from resync.models.tws import (
     WorkstationStatus,
 )
 
-
 class ITWSService(Protocol):
     """Protocol for TWS service operations."""
 
@@ -51,7 +50,6 @@ class ITWSService(Protocol):
     def get_job_status_batch(self, job_ids: list[str]) -> dict[str, JobStatus | None]:
         """Get the status of multiple jobs in a batch."""
 
-
 class IAgentService(Protocol):
     """Protocol for agent service operations."""
 
@@ -63,7 +61,6 @@ class IAgentService(Protocol):
     def get_all_agents(self) -> list[Any]:
         """Get all agents."""
 
-
 class IKnowledgeService(Protocol):
     """Protocol for knowledge service operations."""
 
@@ -74,7 +71,6 @@ class IKnowledgeService(Protocol):
     @abstractmethod
     def get_relevant_context(self, user_query: str) -> str:
         """Get relevant context for a user query."""
-
 
 class TWSService:
     """Concrete implementation of TWS service."""
@@ -100,7 +96,7 @@ class TWSService:
             await self.cache.set(cache_key, result.model_dump(), ttl_seconds=30)
 
             return result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -129,7 +125,7 @@ class TWSService:
             )
 
             return result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -158,7 +154,7 @@ class TWSService:
             )
 
             return result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -187,7 +183,7 @@ class TWSService:
             )
 
             return result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -232,7 +228,7 @@ class TWSService:
                     )
 
             return results
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -242,7 +238,6 @@ class TWSService:
                 component="tws_service",
             )
             raise
-
 
 class AgentService:
     """Concrete implementation of agent service."""
@@ -255,7 +250,7 @@ class AgentService:
         """Get an agent by ID."""
         try:
             return await self.agent_manager.get_agent(agent_id)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -270,7 +265,7 @@ class AgentService:
         """Get all agents."""
         try:
             return await self.agent_manager.get_all_agents()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -280,7 +275,6 @@ class AgentService:
                 component="agent_service",
             )
             raise
-
 
 class KnowledgeService:
     """Concrete implementation of knowledge service."""
@@ -295,7 +289,7 @@ class KnowledgeService:
         """Search for similar issues in the knowledge graph."""
         try:
             return await self.knowledge_graph.search_similar_issues(query, limit=limit)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -310,7 +304,7 @@ class KnowledgeService:
         """Get relevant context for a user query."""
         try:
             return await self.knowledge_graph.get_relevant_context(user_query)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -320,7 +314,6 @@ class KnowledgeService:
                 component="knowledge_service",
             )
             raise
-
 
 class ServiceFactory:
     """Factory for creating service instances with proper dependency injection."""

@@ -17,7 +17,6 @@ cache_latency = Histogram(
 )
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class CacheMetrics:
     """Tracks cache performance metrics."""
@@ -51,7 +50,6 @@ class CacheMetrics:
         total = self.total_gets
         hits = self.l1_hits + self.l2_hits
         return hits / total if total > 0 else 0.0
-
 
 class L1Cache:
     """
@@ -127,7 +125,6 @@ class L1Cache:
         """Get current size of L1 cache."""
         return sum((len(shard) for shard in self.shards))
 
-
 class CacheHierarchy:
     """
     Two-tier cache hierarchy with L1 (in-memory) and L2 (Redis-backed).
@@ -179,7 +176,7 @@ class CacheHierarchy:
                 value_str = json.dumps(value, default=str)
                 encoded = base64.b64encode(value_str.encode()).decode()
                 return {"__encrypted__": True, "data": encoded}
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning(
                     "encryption_failed: error=%s, value_type=%s",
                     str(e),
@@ -201,7 +198,7 @@ class CacheHierarchy:
                 encoded = value.get("data", "")
                 decoded = base64.b64decode(encoded.encode()).decode()
                 return json.loads(decoded)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("decryption_failed: error=%s", str(e))
         return value
 
@@ -309,9 +306,7 @@ class CacheHierarchy:
         """Async context manager exit."""
         await self.stop()
 
-
 cache_hierarchy: CacheHierarchy | None = None
-
 
 def get_cache_hierarchy() -> CacheHierarchy:
     """Get or create global cache hierarchy instance."""

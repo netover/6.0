@@ -312,7 +312,7 @@ class TestSQLInjectionMiddleware:
             # Should not raise exception
             try:
                 run_sync(middleware._analyze_request_for_sql_injection(request))
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 pytest.fail(f"Safe input was blocked: {safe_input} - {e}")
 
     def test_request_data_extraction(self, mock_request):

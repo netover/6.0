@@ -24,11 +24,9 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # DATA MODELS
 # =============================================================================
-
 
 @dataclass
 class ResolvedEntity:
@@ -42,7 +40,6 @@ class ResolvedEntity:
     confidence: float = 1.0
     resolution_method: str = "exact"  # exact, embedding, new
 
-
 @dataclass
 class EntityMergeLog:
     """Log entry for entity merges (audit trail)."""
@@ -54,11 +51,9 @@ class EntityMergeLog:
     resolution_method: str
     confidence: float
 
-
 # =============================================================================
 # ENTITY RESOLVER
 # =============================================================================
-
 
 class EntityResolver:
     """
@@ -317,7 +312,7 @@ class EntityResolver:
                 entity_type
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("embedding_search_error", error=str(e))
             return None
 
@@ -344,8 +339,6 @@ class EntityResolver:
                 }
 
         return best_match
-
-
 
     @staticmethod
     def _cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -527,11 +520,9 @@ class EntityResolver:
             for entry in self._merge_log
         ]
 
-
 # =============================================================================
 # SPECIALIZED RESOLVERS
 # =============================================================================
-
 
 class JobResolver(EntityResolver):
     """
@@ -592,7 +583,6 @@ class JobResolver(EntityResolver):
         # Uppercase and strip
         return job_name.upper().strip()
 
-
 class ErrorCodeResolver(EntityResolver):
     """
     Specialized resolver for TWS Error Codes.
@@ -652,11 +642,9 @@ class ErrorCodeResolver(EntityResolver):
 
         return code
 
-
 # =============================================================================
 # FACTORY FUNCTION
 # =============================================================================
-
 
 def create_entity_resolver(
     embedding_service: Any | None = None,
@@ -678,7 +666,6 @@ def create_entity_resolver(
         enable_embedding_fallback=embedding_service is not None,
     )
 
-
 def create_job_resolver(
     embedding_service: Any | None = None,
     similarity_threshold: float = 0.92,
@@ -689,7 +676,6 @@ def create_job_resolver(
         similarity_threshold=similarity_threshold,
         enable_embedding_fallback=embedding_service is not None,
     )
-
 
 def create_error_resolver(
     embedding_service: Any | None = None,

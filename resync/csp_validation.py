@@ -5,7 +5,7 @@ import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -85,7 +85,6 @@ DANGEROUS_PATTERNS_COMPILED = [
     re.compile(pattern, re.IGNORECASE) for pattern in DANGEROUS_PATTERNS
 ]
 
-
 @dataclass
 class CSPReport:
     """Dataclass for structured CSP report validation."""
@@ -104,7 +103,7 @@ class CSPReport:
     effective_directive: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Optional["CSPReport"]:
+    def from_dict(cls, data: dict[str, Any]) -> "CSPReport" | None:
         """Create CSPReport instance from dictionary data."""
         try:
             # Extract nested csp-report if present
@@ -177,10 +176,8 @@ class CSPReport:
         # Validate disposition
         return not (self.disposition and self.disposition not in ["enforce", "report"])
 
-
 class CSPValidationError(Exception):
     """Custom exception for CSP validation errors."""
-
 
 def validate_csp_report(body: bytes) -> bool:
     """
@@ -208,7 +205,6 @@ def validate_csp_report(body: bytes) -> bool:
         return csp_report.validate()
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
         return False
-
 
 def _is_safe_uri(uri: str, is_blocked_uri: bool = False) -> bool:
     """
@@ -256,7 +252,6 @@ def _is_safe_uri(uri: str, is_blocked_uri: bool = False) -> bool:
     # Block localhost variations
     return hostname.lower() not in ["localhost", "[::1]"]
 
-
 def _is_safe_directive_value(value: str) -> bool:
     """
     Validate that a CSP directive value is safe.
@@ -277,7 +272,6 @@ def _is_safe_directive_value(value: str) -> bool:
     # Block dangerous patterns
     return all(not pattern.search(value) for pattern in DANGEROUS_PATTERNS_COMPILED)
 
-
 def sanitize_csp_report(
     report_data: dict[str, Any],
 ) -> dict[str, str | int | float | None]:
@@ -288,7 +282,7 @@ def sanitize_csp_report(
         report_data: Raw CSP report data
 
     Returns:
-        Dict[str, Any]: Sanitized report data
+        dict[str, Any]: Sanitized report data
     """
     sanitized: dict[str, str | int | float | None] = {}
 
@@ -340,7 +334,6 @@ def sanitize_csp_report(
 
     return sanitized
 
-
 @asynccontextmanager
 def csp_report_context(request: "Request") -> "Request":
     """
@@ -359,7 +352,6 @@ def csp_report_context(request: "Request") -> "Request":
         # Post-processing cleanup if needed
         pass
 
-
 async def process_csp_report(
     request: "Request",
     *,
@@ -374,7 +366,7 @@ async def process_csp_report(
                      when the caller has already streamed the request body).
 
     Returns:
-        Dict[str, Any]: Processing result
+        dict[str, Any]: Processing result
 
     Raises:
         CSPValidationError: If the report is invalid
@@ -399,12 +391,11 @@ async def process_csp_report(
 
     except json.JSONDecodeError as e:
         raise CSPValidationError(f"Invalid JSON in CSP report: {str(e)}") from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise CSPValidationError(f"Error processing CSP report: {str(e)}") from e
-
 
 # Backward compatibility function
 def validate_csp_report_legacy(body: bytes) -> bool:

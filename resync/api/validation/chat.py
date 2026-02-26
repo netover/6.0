@@ -14,7 +14,6 @@ from .common import (
     ValidationPatterns,
 )
 
-
 class MessageType(str, Enum):
     """Valid message types."""
 
@@ -26,7 +25,6 @@ class MessageType(str, Enum):
     STREAM = "stream"
     INFO = "info"
 
-
 class MessageStatus(str, Enum):
     """Message status values."""
 
@@ -35,7 +33,6 @@ class MessageStatus(str, Enum):
     READ = "read"
     FAILED = "failed"
     PENDING = "pending"
-
 
 class ChatMessage(BaseValidatedModel):
     """Chat message validation model."""
@@ -147,7 +144,6 @@ class ChatMessage(BaseValidatedModel):
                 sanitized_metadata[key] = value
         return sanitized_metadata
 
-
 class WebSocketMessage(BaseValidatedModel):
     """WebSocket message validation model."""
 
@@ -229,7 +225,6 @@ class WebSocketMessage(BaseValidatedModel):
             raise ValueError("Metadata is too large for WebSocket message")
         return v
 
-
 class ChatSession(BaseValidatedModel):
     """Chat session validation model."""
 
@@ -274,7 +269,6 @@ class ChatSession(BaseValidatedModel):
         extra="forbid",
         validate_assignment=True,
     )
-
 
 class ChatHistoryRequest(BaseValidatedModel):
     """Chat history request validation model."""
@@ -348,7 +342,6 @@ class ChatHistoryRequest(BaseValidatedModel):
             raise ValueError("Search query contains potentially malicious content")
         return v
 
-
 class MessageReaction(BaseValidatedModel):
     """Message reaction validation model."""
 
@@ -384,7 +377,6 @@ class MessageReaction(BaseValidatedModel):
         if len(v) <= 3 and v.isalnum():
             return v
         raise ValueError("Invalid reaction format")
-
 
 class ChatExportRequest(BaseValidatedModel):
     """Chat export request validation model."""

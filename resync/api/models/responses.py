@@ -5,11 +5,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 def _utc_now_iso8601() -> str:
     """Generate UTC timestamp in ISO 8601 format with 'Z' suffix."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
 
 # NOVO MODELO ADICIONADO
 class HealthCheckResponse(BaseModel):
@@ -38,7 +36,6 @@ class HealthCheckResponse(BaseModel):
         }
     )
 
-
 # RFC 7807 Problem Details models
 class ProblemDetail(BaseModel):
     """RFC 7807 Problem Details response model."""
@@ -63,7 +60,6 @@ class ProblemDetail(BaseModel):
         }
     )
 
-
 class ValidationErrorDetail(BaseModel):
     """Detailed validation error information."""
 
@@ -82,7 +78,6 @@ class ValidationErrorDetail(BaseModel):
             }
         }
     )
-
 
 class ValidationProblemDetail(ProblemDetail):
     """Problem Details with validation errors."""
@@ -109,7 +104,6 @@ class ValidationProblemDetail(ProblemDetail):
         }
     )
 
-
 class SuccessResponse(BaseModel):
     """Standard success response."""
 
@@ -126,7 +120,6 @@ class SuccessResponse(BaseModel):
             }
         }
     )
-
 
 class PaginatedResponse(BaseModel):
     """Paginated response with metadata."""
@@ -149,7 +142,6 @@ class PaginatedResponse(BaseModel):
         }
     )
 
-
 # Factory functions
 def create_problem_detail(
     type_uri: str,
@@ -162,7 +154,6 @@ def create_problem_detail(
     return ProblemDetail(
         type=type_uri, title=title, status=status, detail=detail, instance=instance
     )
-
 
 def create_validation_problem_detail(
     title: str,
@@ -181,11 +172,9 @@ def create_validation_problem_detail(
         errors=errors,
     )
 
-
 def create_success_response(message: str, data: Any | None = None) -> SuccessResponse:
     """Create a SuccessResponse instance."""
     return SuccessResponse(success=True, message=message, data=data)
-
 
 def create_paginated_response(
     items: list[Any],
@@ -214,7 +203,6 @@ def create_paginated_response(
         total_pages=total_pages,
     )
 
-
 # Response helpers
 def error_response(
     status_code: int, message: str, details: Any | None = None
@@ -226,7 +214,6 @@ def error_response(
         "timestamp": _utc_now_iso8601(),
     }
 
-
 def success_response(message: str, data: Any | None = None) -> dict[str, Any]:
     """Create a standardized success response."""
     return {
@@ -235,7 +222,6 @@ def success_response(message: str, data: Any | None = None) -> dict[str, Any]:
         "data": data,
         "timestamp": _utc_now_iso8601(),
     }
-
 
 def paginated_response(
     items: list[Any], total: int, page: int, page_size: int

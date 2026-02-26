@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from typing import Union
 
-
 def safe_write_file(
     filepath: Union[str, Path],
     content: Union[str, bytes],
@@ -57,7 +56,7 @@ def safe_write_file(
         # Atomic replace
         os.replace(temp_path, path)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Cleanup temp file on failure
         if temp_path.exists():
             try:
@@ -69,7 +68,6 @@ def safe_write_file(
         # mkstemp keeps the file descriptor open, but os.fdopen closes it.
         # If it wasn't closed by fdopen, we'd need to close it here.
         pass
-
 
 def backup_and_replace(
     filepath: Union[str, Path],

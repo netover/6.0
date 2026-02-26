@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Any])
 ExceptionTypes = type[Exception] | list[type[Exception]]
 
-
 def log_retry_attempt(retry_state: RetryCallState) -> None:
     """Log information about the retry attempt."""
     if retry_state.outcome is not None:
@@ -59,7 +58,6 @@ def log_retry_attempt(retry_state: RetryCallState) -> None:
                 retry_state.seconds_since_start,
                 getattr(retry_state.fn, "__qualname__", str(retry_state.fn)),
             )
-
 
 def http_retry(
     max_attempts: int = 3,
@@ -113,7 +111,6 @@ def http_retry(
         reraise=True,
     )
 
-
 def database_retry(
     max_attempts: int = 5,
     min_wait: float = 0.1,
@@ -158,7 +155,6 @@ def database_retry(
         reraise=True,
     )
 
-
 def external_service_retry(
     max_attempts: int = 3,
     max_delay: float = 30.0,
@@ -201,7 +197,6 @@ def external_service_retry(
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-
 
 def retry_on_result(
     result_checker: Callable[[Any], bool],

@@ -16,7 +16,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class MetricType(str, Enum):
     """Types of metrics."""
 
@@ -25,7 +24,6 @@ class MetricType(str, Enum):
     HISTOGRAM = "histogram"
     SUMMARY = "summary"
 
-
 @dataclass
 class MetricValue:
     """A single metric measurement."""
@@ -33,7 +31,6 @@ class MetricValue:
     value: float
     timestamp: float = field(default_factory=time.time)
     labels: dict[str, str] = field(default_factory=dict)
-
 
 @dataclass
 class Metric:
@@ -73,7 +70,6 @@ class Metric:
             "values_count": len(self.values),
         }
 
-
 class Counter:
     """A counter that only increases."""
 
@@ -105,7 +101,6 @@ class Counter:
         """Return counter with specific labels (for compatibility)."""
         return _LabeledCounter(self, kwargs)
 
-
 class _LabeledCounter:
     """Counter with pre-set labels."""
 
@@ -115,7 +110,6 @@ class _LabeledCounter:
 
     def inc(self, amount: float = 1):
         self._counter.inc(amount, self._labels)
-
 
 class Gauge:
     """A gauge that can go up or down."""
@@ -160,7 +154,6 @@ class Gauge:
         """Return gauge with specific labels."""
         return _LabeledGauge(self, kwargs)
 
-
 class _LabeledGauge:
     """Gauge with pre-set labels."""
 
@@ -176,7 +169,6 @@ class _LabeledGauge:
 
     def dec(self, amount: float = 1):
         self._gauge.dec(amount, self._labels)
-
 
 class Histogram:
     """A histogram for measuring distributions."""
@@ -226,7 +218,6 @@ class Histogram:
         """Context manager for timing operations."""
         return _HistogramTimer(self)
 
-
 class _LabeledHistogram:
     """Histogram with pre-set labels."""
 
@@ -239,7 +230,6 @@ class _LabeledHistogram:
 
     def time(self) -> "_HistogramTimer":
         return _HistogramTimer(self._histogram, self._labels)
-
 
 class _HistogramTimer:
     """Context manager for timing."""
@@ -256,7 +246,6 @@ class _HistogramTimer:
     def __exit__(self, *args):
         duration = time.time() - self._start
         self._histogram.observe(duration, self._labels)
-
 
 class MetricsRegistry:
     """Central registry for all metrics."""
@@ -316,10 +305,8 @@ class MetricsRegistry:
 
         return result
 
-
 # Global registry
 registry = MetricsRegistry()
-
 
 def create_counter(
     name: str, description: str = "", labels: list[str] | None = None
@@ -329,7 +316,6 @@ def create_counter(
     registry.register(counter)
     return counter
 
-
 def create_gauge(
     name: str, description: str = "", labels: list[str] | None = None
 ) -> Gauge:
@@ -337,7 +323,6 @@ def create_gauge(
     gauge = Gauge(name, description, labels)
     registry.register(gauge)
     return gauge
-
 
 def create_histogram(
     name: str,

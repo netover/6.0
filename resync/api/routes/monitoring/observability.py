@@ -36,11 +36,9 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/observability", tags=["Admin - Observability"])
 
-
 # =============================================================================
 # RESPONSE MODELS
 # =============================================================================
-
 
 class LangFuseStatusResponse(BaseModel):
     """LangFuse status response."""
@@ -49,7 +47,6 @@ class LangFuseStatusResponse(BaseModel):
     configured: bool
     connected: bool
     host: str | None = None
-
 
 class EvidentlyStatusResponse(BaseModel):
     """Evidently status response."""
@@ -61,7 +58,6 @@ class EvidentlyStatusResponse(BaseModel):
     last_check: str | None = None
     reports_count: int = 0
 
-
 class ObservabilityStatusResponse(BaseModel):
     """Combined observability status."""
 
@@ -71,14 +67,12 @@ class ObservabilityStatusResponse(BaseModel):
     service_name: str
     service_version: str
 
-
 class SetupResponse(BaseModel):
     """Response from observability setup."""
 
     langfuse: bool
     evidently: bool
     message: str
-
 
 class DriftCheckResponse(BaseModel):
     """Response from drift check."""
@@ -90,7 +84,6 @@ class DriftCheckResponse(BaseModel):
     current_size: int
     error: str | None = None
 
-
 class DriftReportSummary(BaseModel):
     """Summary of a drift report."""
 
@@ -98,13 +91,11 @@ class DriftReportSummary(BaseModel):
     timestamp: str
     drift_detected: bool
 
-
 class DriftReportsResponse(BaseModel):
     """Response with list of drift reports."""
 
     reports: list[DriftReportSummary]
     total: int
-
 
 class LangFuseStatsResponse(BaseModel):
     """LangFuse statistics response."""
@@ -117,7 +108,6 @@ class LangFuseStatsResponse(BaseModel):
     total_cost_usd: float = 0.0
     avg_latency_ms: float = 0.0
 
-
 class EvidentlyStatsResponse(BaseModel):
     """Evidently statistics response."""
 
@@ -128,11 +118,9 @@ class EvidentlyStatsResponse(BaseModel):
     reports_count: int
     config: dict[str, Any]
 
-
 # =============================================================================
 # STATUS ENDPOINTS
 # =============================================================================
-
 
 @router.get("/status", response_model=ObservabilityStatusResponse)
 async def get_status():
@@ -168,7 +156,6 @@ async def get_status():
         service_version=status.get("service", {}).get("version", "unknown"),
     )
 
-
 @router.post("/setup", response_model=SetupResponse)
 async def initialize_observability():
     """
@@ -184,7 +171,7 @@ async def initialize_observability():
             evidently=results.get("evidently", False),
             message="Observability setup completed",
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -194,11 +181,9 @@ async def initialize_observability():
             detail="Internal server error. Check server logs for details.",
         ) from e
 
-
 # =============================================================================
 # LANGFUSE ENDPOINTS
 # =============================================================================
-
 
 @router.get("/langfuse/stats", response_model=LangFuseStatsResponse)
 async def get_langfuse_stats():
@@ -229,16 +214,14 @@ async def get_langfuse_stats():
                 "avg_latency_ms": tracer_stats.get("avg_duration_ms", 0.0),
             }
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         logger.debug("langfuse_stats_error", error=str(e))
 
     return LangFuseStatsResponse(**stats)
 
-
 # =============================================================================
 # EVIDENTLY ENDPOINTS
 # =============================================================================
-
 
 @router.get("/evidently/stats", response_model=EvidentlyStatsResponse)
 async def get_evidently_stats():
@@ -267,7 +250,6 @@ async def get_evidently_stats():
         reports_count=stats.get("reports_count", 0),
         config=stats.get("config", {}),
     )
-
 
 @router.post("/evidently/check", response_model=DriftCheckResponse)
 async def run_drift_check():
@@ -304,7 +286,6 @@ async def run_drift_check():
         current_size=result.get("current_size", 0),
     )
 
-
 @router.get("/evidently/reports", response_model=DriftReportsResponse)
 async def list_drift_reports(
     limit: int = Query(50, ge=1, le=200),
@@ -332,11 +313,9 @@ async def list_drift_reports(
         total=len(reports),
     )
 
-
 # =============================================================================
 # CONFIGURATION ENDPOINTS
 # =============================================================================
-
 
 @router.get("/config")
 async def get_config():

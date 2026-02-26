@@ -26,7 +26,6 @@ __all__ = [
     "FEEDBACK_NEUTRAL",
 ]
 
-
 class RAGFeedbackStore:
     """RAG Feedback Store - PostgreSQL Backend."""
 
@@ -129,7 +128,7 @@ class RAGFeedbackStore:
                 is_positive=rating > 0,
             )
             return True
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.warning("record_feedback_failed", doc_id=doc_id)
             return False
 
@@ -169,19 +168,17 @@ class RAGFeedbackStore:
                 "backend": "postgresql",
                 "initialized": self._initialized,
             }
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             return {
                 "total_feedback_records": 0,
                 "backend": "postgresql",
                 "initialized": self._initialized,
             }
 
-
 # Alias for backward compatibility
 FeedbackStore = RAGFeedbackStore
 
 _instance: RAGFeedbackStore | None = None
-
 
 def get_rag_feedback_store() -> RAGFeedbackStore:
     """Get the singleton RAGFeedbackStore instance."""
@@ -189,7 +186,6 @@ def get_rag_feedback_store() -> RAGFeedbackStore:
     if _instance is None:
         _instance = RAGFeedbackStore()
     return _instance
-
 
 # Alias for backward compatibility
 get_feedback_store = get_rag_feedback_store

@@ -20,14 +20,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import aiofiles
 import structlog
 import yaml
 
 logger = structlog.get_logger(__name__)
-
 
 class ConfigSource(Enum):
     """Configuration source types"""
@@ -37,14 +36,12 @@ class ConfigSource(Enum):
     FILE = "file"
     DEFAULT = "default"
 
-
 class RestartRequirement(Enum):
     """Whether a config change requires restart"""
 
     NONE = "none"  # Hot-reload supported
     GRACEFUL = "graceful"  # Can wait for restart
     IMMEDIATE = "immediate"  # Should restart ASAP
-
 
 @dataclass
 class ConfigValue:
@@ -59,7 +56,6 @@ class ConfigValue:
     modified_by: str | None = None
     description: str = ""
 
-
 @dataclass
 class ConfigSection:
     """A section of related configurations"""
@@ -67,7 +63,6 @@ class ConfigSection:
     name: str
     description: str
     values: dict[str, ConfigValue] = field(default_factory=dict)
-
 
 @dataclass
 class ConfigChangeEvent:
@@ -81,7 +76,6 @@ class ConfigChangeEvent:
     user: str | None = None
     restart_required: RestartRequirement = RestartRequirement.NONE
 
-
 class ConfigManager:
     """
     Unified Configuration Manager
@@ -93,7 +87,7 @@ class ConfigManager:
     - Restart requirement signaling
     """
 
-    _instance: Optional["ConfigManager"] = None
+    _instance: "ConfigManager" | None = None
     _initialized: bool = False
 
     def __new__(cls) -> "ConfigManager":
@@ -278,7 +272,7 @@ class ConfigManager:
                     content = await f.read()
                     data = json.loads(content) if content.strip() else {}
                     self._flatten_config(data, self._file_config, "")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Failed to load admin config", error=str(e))
 
         # Load redis strategy YAML
@@ -289,7 +283,7 @@ class ConfigManager:
                     data = yaml.safe_load(content) if content.strip() else None
                     if data:
                         self._flatten_config(data, self._file_config, "redis.")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Failed to load redis strategy", error=str(e))
 
         # Load agents config YAML
@@ -300,7 +294,7 @@ class ConfigManager:
                     data = yaml.safe_load(content) if content.strip() else None
                     if data:
                         self._flatten_config(data, self._file_config, "agents.")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.warning("Failed to load agents config", error=str(e))
 
     def _flatten_config(self, data: dict, target: dict, prefix: str) -> None:
@@ -432,7 +426,7 @@ class ConfigManager:
         for listener in self._change_listeners:
             try:
                 listener(event)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("Config change listener failed", error=str(e))
 
         logger.info(
@@ -518,10 +512,8 @@ class ConfigManager:
         if listener in self._change_listeners:
             self._change_listeners.remove(listener)
 
-
 # Singleton access
 _config_manager: ConfigManager | None = None
-
 
 async def get_config_manager() -> ConfigManager:
     """Get or create the configuration manager singleton"""
@@ -530,7 +522,6 @@ async def get_config_manager() -> ConfigManager:
         _config_manager = ConfigManager()
         await _config_manager.initialize()
     return _config_manager
-
 
 def get_config(key: str, default: Any = None) -> Any:
     """Quick access to get a config value (sync)"""

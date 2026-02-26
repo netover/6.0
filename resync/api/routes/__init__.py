@@ -21,7 +21,6 @@ __all__ = [
     "get_all_routers",
 ]
 
-
 def get_all_routers() -> list[tuple["APIRouter", str, list[str]]]:
     """Get all routers with their prefixes and tags."""
     from .admin.main import admin_router

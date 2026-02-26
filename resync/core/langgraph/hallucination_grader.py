@@ -57,11 +57,9 @@ from resync.settings import settings
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # PYDANTIC MODELS FOR STRUCTURED OUTPUT
 # =============================================================================
-
 
 class GradeHallucinations(BaseModel):
     """
@@ -84,7 +82,6 @@ class GradeHallucinations(BaseModel):
         default="", description="Brief explanation of the grading decision"
     )
 
-
 class GradeAnswer(BaseModel):
     """
     Binary score for answer relevance assessment.
@@ -100,11 +97,9 @@ class GradeAnswer(BaseModel):
         description="Brief explanation of why the answer does/doesn't address the question",
     )
 
-
 # =============================================================================
 # GRADING RESULT DATACLASS
 # =============================================================================
-
 
 class GradeDecision(str, Enum):
     """Decision outcomes from the grading process."""
@@ -113,7 +108,6 @@ class GradeDecision(str, Enum):
     NOT_GROUNDED = "not_grounded"  # Hallucination detected
     NOT_USEFUL = "not_useful"  # Grounded but doesn't answer question
     ERROR = "error"  # Grading failed
-
 
 @dataclass
 class HallucinationGradeResult:
@@ -161,11 +155,9 @@ class HallucinationGradeResult:
             "error": self.error,
         }
 
-
 # =============================================================================
 # PROMPTS
 # =============================================================================
-
 
 HALLUCINATION_GRADER_SYSTEM_PROMPT = """Você é um avaliador especializado em verificar se uma resposta de IA está fundamentada em fatos recuperados.
 
@@ -188,7 +180,6 @@ Responda com:
 - confidence: sua confiança de 0.0 a 1.0
 - reasoning: breve explicação da sua decisão"""
 
-
 HALLUCINATION_GRADER_USER_TEMPLATE = """Conjunto de fatos recuperados:
 {documents}
 
@@ -196,7 +187,6 @@ Resposta gerada pelo LLM:
 {generation}
 
 A resposta está fundamentada nos fatos? Avalie cuidadosamente."""
-
 
 ANSWER_GRADER_SYSTEM_PROMPT = """Você é um avaliador que verifica se uma resposta de IA realmente responde à pergunta do usuário.
 
@@ -209,7 +199,6 @@ Responda com:
 - binary_score: "yes" se a resposta resolve a pergunta, "no" se não resolve
 - reasoning: breve explicação"""
 
-
 ANSWER_GRADER_USER_TEMPLATE = """Pergunta do usuário:
 {question}
 
@@ -218,11 +207,9 @@ Resposta gerada:
 
 A resposta resolve adequadamente a pergunta do usuário?"""
 
-
 # =============================================================================
 # HALLUCINATION GRADER CLASS
 # =============================================================================
-
 
 class HallucinationGrader:
     """
@@ -366,7 +353,7 @@ class HallucinationGrader:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             latency_ms = (time.time() - start_time) * 1000
             logger.error("hallucination_grade_error", error=str(e))
 
@@ -417,7 +404,7 @@ Responda em JSON com o formato:
                 # Parse JSON response
                 return self._parse_hallucination_response(response)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 if attempt == self.max_retries:
                     raise
                 logger.warning(
@@ -465,7 +452,7 @@ Responda em JSON com o formato:
 
             return self._parse_answer_response(response)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.error("answer_grade_error", error=str(e))
             return GradeAnswer(
                 binary_score="yes",
@@ -489,7 +476,7 @@ Responda em JSON com o formato:
                 confidence=float(data.get("confidence", 0.8)),
                 reasoning=data.get("reasoning", ""),
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -531,7 +518,7 @@ Responda em JSON com o formato:
                 binary_score=score,
                 reasoning=data.get("reasoning", ""),
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -580,15 +567,12 @@ Responda em JSON com o formato:
             "model": self.model,
         }
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
-
 # Module-level grader instance (lazy initialization)
 _default_grader: HallucinationGrader | None = None
-
 
 def get_hallucination_grader() -> HallucinationGrader:
     """Get or create the default hallucination grader instance."""
@@ -596,7 +580,6 @@ def get_hallucination_grader() -> HallucinationGrader:
     if _default_grader is None:
         _default_grader = HallucinationGrader()
     return _default_grader
-
 
 async def grade_hallucination(
     documents: list[str] | str,
@@ -629,7 +612,6 @@ async def grade_hallucination(
         question=question,
     )
 
-
 async def is_response_grounded(
     documents: list[str] | str,
     generation: str,
@@ -647,11 +629,9 @@ async def is_response_grounded(
     result = await grade_hallucination(documents, generation)
     return result.is_grounded
 
-
 # =============================================================================
 # LANGGRAPH NODE
 # =============================================================================
-
 
 async def hallucination_check_node(state: dict[str, Any]) -> dict[str, Any]:
     """
@@ -725,7 +705,6 @@ async def hallucination_check_node(state: dict[str, Any]) -> dict[str, Any]:
 
     return state
 
-
 def get_hallucination_route(state: dict[str, Any]) -> str:
     """
     Routing function for conditional edge after hallucination check.
@@ -745,11 +724,9 @@ def get_hallucination_route(state: dict[str, Any]) -> str:
 
     return "output"
 
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
-
 
 __all__ = [
     # Classes

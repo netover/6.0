@@ -15,7 +15,6 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class HealthCheckRetry:
     """
     Provides retry functionality with exponential backoff for health checks.
@@ -51,7 +50,7 @@ class HealthCheckRetry:
         for attempt in range(max_retries):
             try:
                 return await func()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 last_exception = e
 
                 if attempt == max_retries - 1:

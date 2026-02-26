@@ -34,7 +34,6 @@ from .shared_utils import create_job_status_notification
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # CONSTANTS
 # =============================================================================
@@ -61,11 +60,9 @@ SEVERITY_EMOJI = {
 RATE_LIMIT_REQUESTS = 4
 RATE_LIMIT_PERIOD = 1.0
 
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-
 
 @dataclass
 class TeamsConfig:
@@ -92,7 +89,6 @@ class TeamsConfig:
     retry_min_wait: float = 2.0
     retry_max_wait: float = 10.0
 
-
 @dataclass
 class TeamsNotification:
     """Structure for Teams notification data."""
@@ -107,11 +103,9 @@ class TeamsNotification:
     additional_data: dict[str, Any] = field(default_factory=dict)
     actions: list[dict[str, str]] = field(default_factory=list)
 
-
 # =============================================================================
 # RATE LIMITER
 # =============================================================================
-
 
 class RateLimiter:
     """Simple token bucket rate limiter for Teams API."""
@@ -143,11 +137,9 @@ class RateLimiter:
             else:
                 self.tokens -= 1
 
-
 # =============================================================================
 # TEAMS INTEGRATION SERVICE
 # =============================================================================
-
 
 class TeamsIntegration:
     """Microsoft Teams integration service with enhanced features."""
@@ -301,7 +293,7 @@ class TeamsIntegration:
             raise NotificationError(
                 f"Network error sending Teams notification: {e}"
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             self._stats["notifications_failed"] += 1
             logger.error(
                 "teams_notification_unexpected_error",
@@ -454,7 +446,7 @@ class TeamsIntegration:
                 await self.send_notification(notification)
             except NotificationError as e:
                 logger.error("job_status_notification_failed", error=str(e))
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 logger.error("job_status_notification_unexpected_error", error=str(e))
 
     async def learn_from_conversation(
@@ -484,7 +476,7 @@ class TeamsIntegration:
                 logger.debug("conversation_stored_in_knowledge_graph")
         except ImportError:
             logger.debug("knowledge_graph_not_available")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("knowledge_graph_storage_failed", error=str(e))
 
     async def send_alert(
@@ -530,7 +522,7 @@ class TeamsIntegration:
                     allow_redirects=True,
                 ) as response:
                     status["webhook_accessible"] = response.status in [200, 405, 400]
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 status["webhook_accessible"] = False
                 status["webhook_error"] = str(e)[:100]
                 logger.warning(
@@ -561,13 +553,11 @@ class TeamsIntegration:
         await self._close_session()
         logger.info("teams_integration_service_shutdown", stats=self._stats)
 
-
 # =============================================================================
 # GLOBAL INSTANCE
 # =============================================================================
 
 _teams_integration: TeamsIntegration | None = None
-
 
 def get_teams_integration() -> TeamsIntegration:
     """Get global Teams integration instance."""
@@ -576,14 +566,12 @@ def get_teams_integration() -> TeamsIntegration:
         _teams_integration = TeamsIntegration()
     return _teams_integration
 
-
 async def shutdown_teams_integration() -> None:
     """Shutdown global Teams integration instance."""
     global _teams_integration
     if _teams_integration is not None:
         await _teams_integration.shutdown()
         _teams_integration = None
-
 
 async def send_teams_alert(
     title: str,

@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import shutil
 import tempfile
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -38,9 +39,7 @@ router = APIRouter(
 
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
-
 # ── Response Models ─────────────────────────────────────────────────────────
-
 
 class IngestResponse(BaseModel):
     """Response from document ingestion."""
@@ -56,7 +55,6 @@ class IngestResponse(BaseModel):
     total_time_s: float = Field(default=0, description="Total pipeline time")
     error: str | None = Field(default=None, description="Error details if failed")
 
-
 class BatchIngestRequest(BaseModel):
     """Request to ingest multiple files by path."""
 
@@ -68,7 +66,6 @@ class BatchIngestRequest(BaseModel):
         default=False, description="Delete existing chunks before re-ingesting"
     )
 
-
 class BatchIngestResponse(BaseModel):
     """Response from batch ingestion."""
 
@@ -76,7 +73,6 @@ class BatchIngestResponse(BaseModel):
     succeeded: int
     failed: int
     results: list[IngestResponse]
-
 
 class ConverterStatusResponse(BaseModel):
     """Converter health and capabilities."""
@@ -87,9 +83,7 @@ class ConverterStatusResponse(BaseModel):
     table_extraction: bool
     ocr_available: bool
 
-
 # ── Helper ──────────────────────────────────────────────────────────────────
-
 
 def _get_pipeline():
     """Lazy-load the pipeline to avoid importing heavy deps at module load."""
@@ -101,9 +95,7 @@ def _get_pipeline():
     store = get_vector_store()
     return DocumentIngestionPipeline(embedder, store)
 
-
 # ── Endpoints ───────────────────────────────────────────────────────────────
-
 
 @router.post(
     "",
@@ -151,7 +143,7 @@ async def ingest_document(
             while chunk := await file.read(8192):
                 await tmp_file.write(chunk)
 
-        file_size = tmp_path.stat().st_size
+        file_size = (await asyncio.to_thread(tmp_path.stat)).st_size
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
@@ -190,7 +182,6 @@ async def ingest_document(
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-
 @router.post(
     "/batch",
     response_model=BatchIngestResponse,
@@ -212,7 +203,6 @@ async def ingest_batch(request: BatchIngestRequest):
     # Every requested path must be inside KNOWLEDGE_DOCS_ROOT.
     from resync.settings import get_settings as _get_settings
     _docs_root = Path(_get_settings().KNOWLEDGE_DOCS_ROOT).resolve()
-
 
     for fp in request.file_paths:
         path = Path(fp).resolve()
@@ -296,7 +286,6 @@ async def ingest_batch(request: BatchIngestRequest):
         failed=failed,
         results=results,
     )
-
 
 @router.get(
     "/status",
