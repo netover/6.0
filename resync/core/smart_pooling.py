@@ -244,6 +244,11 @@ class SmartConnectionPool:
             await self._record_success(connection_id, latency)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Record failure
             latency = (time.time() - start_time) * 1000
             await self._record_failure(str(e), latency)
@@ -300,6 +305,11 @@ class SmartConnectionPool:
             return connection_id
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("connection_creation_failed", error=str(e))
             raise
 
@@ -404,6 +414,11 @@ class SmartConnectionPool:
                 connection_id = f"conn_{self._connection_counter - 1}"
                 await self._release_connection(connection_id)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("initial_connection_creation_failed", error=str(e))
 
     async def _close_all_connections(self) -> None:
@@ -421,6 +436,11 @@ class SmartConnectionPool:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("health_monitor_error", error=str(e))
                 await asyncio.sleep(self.config.health_check_interval)
 
@@ -441,6 +461,11 @@ class SmartConnectionPool:
                     self._connection_stats[connection_id].health_check_failures += 1
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "health_check_failed", connection_id=connection_id, error=str(e)
                 )

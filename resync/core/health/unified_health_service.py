@@ -144,6 +144,11 @@ class UnifiedHealthService:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if isinstance(e, asyncio.CancelledError):
                     break
                 logger.error("health_monitoring_error", error=str(e))
@@ -198,6 +203,11 @@ class UnifiedHealthService:
                             try:
                                 components[name] = task.result()
                             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                                import sys as _sys
+                                from resync.core.exception_guard import maybe_reraise_programming_error
+                                _exc_type, _exc, _tb = _sys.exc_info()
+                                maybe_reraise_programming_error(_exc, _tb)
+
                                 if isinstance(e, asyncio.CancelledError):
                                     raise
                                 components[name] = self._create_error_health(
@@ -213,6 +223,11 @@ class UnifiedHealthService:
                     timeout=self.config.timeout_seconds,
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if isinstance(e, asyncio.CancelledError):
                     raise
                 logger.error("comprehensive_health_check_group_error", error=str(e))
@@ -257,6 +272,11 @@ class UnifiedHealthService:
             return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.error("comprehensive_health_check_failed", error=str(e))
@@ -291,6 +311,11 @@ class UnifiedHealthService:
             logger.warning("health_check_timeout", component=name)
             return self._create_error_health(name, "Check timeout")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

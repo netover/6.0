@@ -276,6 +276,11 @@ async def call_llm_with_retry_and_fallback(
                     return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             last_exception = e
             circuit_breaker.record_failure(provider_name)
 

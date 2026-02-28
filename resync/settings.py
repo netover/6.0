@@ -14,14 +14,10 @@ Settings are organized into logical groups:
 
 v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 """
-# ruff: noqa: E501
-
 from __future__ import annotations
 
-import logging  # [P3-07 FIX] Module-level import (no longer needed in function)
 import threading  # [P1-07 FIX] For thread-safe singleton
 from collections.abc import Iterator, Mapping
-from functools import cached_property  # [P2-07 FIX] For computed properties
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -112,6 +108,26 @@ class Settings(BaseSettings, SettingsValidators):
         description="Nível de logging",
     )
 
+    # When enabled, re-raise programming errors (TypeError/KeyError/AttributeError/IndexError)
+    # that are caught by broad exception handlers, to fail fast in staging/canary.
+    # Default is False for backward compatibility.
+    strict_exception_handling: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("STRICT_EXCEPTION_HANDLING"),
+        description="Re-levanta erros de programação capturados por handlers amplos (fail-fast)",
+    )
+
+
+
+    # When enabled, export a higher-cardinality metric label ("site" = file:line) for
+    # programming errors caught by broad exception handlers. Useful to locate hotspots
+    # quickly in staging/canary; keep disabled in production to avoid label explosion.
+    programming_error_metrics_detailed_site: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("PROGRAMMING_ERROR_METRICS_DETAILED_SITE"),
+        description="Métrica detalhada (site=file:linha) para erros de programação capturados (staging/canary)",
+    )
+
     # ============================================================================
     # CONNECTION POOLS (PostgreSQL) - v6.0 adjusted for single VM
     # For Docker/K8s: increase via environment variables
@@ -134,8 +150,9 @@ class Settings(BaseSettings, SettingsValidators):
         repr=False,
     )
 
+    # NOTE: Default intentionally has NO credentials. In production, set DATABASE_URL.
     database_url: SecretStr = Field(
-        default=SecretStr("postgresql+asyncpg://resync:resync@localhost:5432/resync"),
+        default=SecretStr("postgresql+asyncpg://localhost:5432/resync"),
         validation_alias=AliasChoices("DATABASE_URL", "APP_DATABASE_URL"),
         description="URL de conexão com banco de dados PostgreSQL",
         repr=False,
@@ -258,6 +275,36 @@ class Settings(BaseSettings, SettingsValidators):
         default=8.0,
         gt=0,
         description="Timeout para Ollama em segundos (agressivo para fallback rápido)",
+    )
+
+    # ---------------------------------------------------------------------
+    # LLM Context Management (History Compaction)
+    # ---------------------------------------------------------------------
+
+    llm_compact_history_enabled: bool = Field(
+        default=True,
+        description="Se true, compacta/resume histórico quando próximo do limite de contexto (protege estabilidade/latência)",
+    )
+
+    llm_context_safety_margin_tokens: int = Field(
+        default=512,
+        ge=0,
+        le=8192,
+        description="Margem de segurança em tokens para evitar estourar a janela de contexto (inclui overhead e variação de tokenização)",
+    )
+
+    llm_compact_history_min_recent_messages: int = Field(
+        default=6,
+        ge=0,
+        le=100,
+        description="Quantidade mínima de mensagens mais recentes para manter sem compactação",
+    )
+
+    llm_compact_history_summary_max_tokens: int = Field(
+        default=800,
+        ge=0,
+        le=8192,
+        description="Tamanho máximo (em tokens estimados) do resumo do histórico compactado",
     )
 
     # Fallback cloud model quando Ollama falha
@@ -804,9 +851,12 @@ class Settings(BaseSettings, SettingsValidators):
         exclude=True,
         repr=False,
     )
-    jwt_algorithm: str = Field(
+    jwt_algorithm: Literal["HS256", "HS384", "HS512"] = Field(
         default="HS256",
-        description="Algorithm for JWT token signing",
+        description=(
+            "Algorithm for JWT token signing. HMAC-only by default; "
+            "asymmetric algorithms require different key handling."
+        ),
     )
     jwt_leeway_seconds: int = Field(
         default=60,
@@ -823,10 +873,11 @@ class Settings(BaseSettings, SettingsValidators):
         description="Access token expiration time in minutes",
     )
 
-    metrics_api_key_hash: str = Field(
-        default="",
+    metrics_api_key_hash: SecretStr = Field(
+        default=SecretStr(""),
         description="SHA-256 hash of the API key for workstation metrics collection",
         exclude=True,
+        repr=False,
     )
 
     # Debug mode
@@ -1257,14 +1308,36 @@ class Settings(BaseSettings, SettingsValidators):
 
     @property
     def DEBUG(self) -> bool:
-        """Legacy alias: True when environment == DEVELOPMENT."""
-        env = self.environment
-        return env == Environment.DEVELOPMENT
+        """Legacy alias for the `debug` flag.
+
+        Historically this returned True when environment==DEVELOPMENT, ignoring the
+        explicit `debug` setting. For clarity and configurability, this now mirrors
+        `self.debug`.
+        """
+        return self.debug
 
     @property
     def REDIS_URL(self) -> str:
-        """Legacy alias for redis_url."""
+        """Legacy alias for redis_url (DEPRECATED).
+
+        This returns the Redis URL in plaintext for backward compatibility.
+        Prefer accessing `settings.redis_url` (SecretStr) and calling
+        `.get_secret_value()` explicitly.
+        """
+        import warnings
+
+        warnings.warn(
+            "settings.REDIS_URL exposes credentials in plaintext. "
+            "Prefer settings.redis_url.get_secret_value() explicitly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.redis_url.get_secret_value()
+
+    @property
+    def redis_url_secret(self) -> SecretStr:
+        """Safe access to the Redis URL without automatic SecretStr unwrap."""
+        return self.redis_url
 
     @property
     def LLM_ENDPOINT(self) -> str | None:
@@ -1272,7 +1345,7 @@ class Settings(BaseSettings, SettingsValidators):
         return self.llm_endpoint
 
     @property
-    def LLM_API_KEY(self) -> Any:
+    def LLM_API_KEY(self) -> SecretStr | None:
         """Legacy alias for llm_api_key."""
         return self.llm_api_key
 
@@ -1362,14 +1435,9 @@ class Settings(BaseSettings, SettingsValidators):
         env = self.environment
         return 400 if env == Environment.PRODUCTION else 0
 
-    # [P2-07 FIX] Use cached_property for computed values that don't change
-    @cached_property
+    @property
     def AGENT_CONFIG_PATH(self) -> Path:
-        """Legacy alias computed from base_dir.
-        
-        [P2-07 FIX] Cached to avoid Path computation on every access.
-        Thread-safe: cached_property uses instance dict, protected by GIL.
-        """
+        """Legacy alias computed from base_dir."""
         return self.base_dir / "config" / "agents.json"
 
     @property
@@ -1402,14 +1470,9 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for agent_model_name."""
         return self.agent_model_name
 
-    # [P2-07 FIX] Use cached_property for computed values that don't change
-    @cached_property
+    @property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
-        """Legacy alias exposing cache hierarchy configuration object.
-
-        [P2-07 FIX] Cached to avoid reconstructing the same object on every access.
-        Thread-safe: cached_property uses instance dict, protected by GIL.
-        """
+        """Legacy alias exposing cache hierarchy configuration object."""
         return CacheHierarchyConfig(
             l1_max_size=self.cache_hierarchy_l1_max_size,
             l2_ttl_seconds=self.cache_hierarchy_l2_ttl,
@@ -1825,12 +1888,28 @@ class _TeamsConfigProxy(Mapping[str, Any]):
         "max_response_length": "teams_outgoing_webhook_max_response_length",
     }
 
+    # Keys whose values are secrets and must not be unwrapped implicitly.
+    _SECRET_KEYS: ClassVar[frozenset[str]] = frozenset({"security_token"})
+
     def __getitem__(self, key: str) -> Any:
         if key not in self._KEY_MAP:
             raise KeyError(key)
         s = get_settings()
         value = getattr(s, self._KEY_MAP[key])
-        return value.get_secret_value() if isinstance(value, SecretStr) else value
+        # IMPORTANT: do NOT unwrap SecretStr automatically.
+        return value
+
+    def get_secret(self, key: str) -> str:
+        """Explicitly unwrap a secret key.
+
+        This is the only supported way to access secret values.
+        """
+        if key not in self._SECRET_KEYS:
+            raise KeyError(f"{key!r} is not a secret key")
+        value = self[key]
+        if isinstance(value, SecretStr):
+            return value.get_secret_value()
+        return str(value)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self._KEY_MAP)
@@ -1839,7 +1918,13 @@ class _TeamsConfigProxy(Mapping[str, Any]):
         return len(self._KEY_MAP)
 
     def __repr__(self) -> str:
-        safe = {k: ("***" if k == "security_token" else self[k]) for k in self}
+        safe: dict[str, object] = {}
+        for k in self:
+            try:
+                v = self[k]
+                safe[k] = "**********" if isinstance(v, SecretStr) else v
+            except Exception:  # noqa: BLE001
+                safe[k] = "<unavailable>"
         return repr(safe)
 
     def get(self, key: str, default: Any = None) -> Any:

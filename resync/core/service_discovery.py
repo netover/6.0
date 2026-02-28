@@ -553,6 +553,11 @@ class ConsulBackend(DiscoveryBackendInterface):
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "consul_register_failed",
@@ -575,6 +580,11 @@ class ConsulBackend(DiscoveryBackendInterface):
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "consul_deregister_failed", service=service_name, error=str(e)
@@ -630,6 +640,11 @@ class ConsulBackend(DiscoveryBackendInterface):
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "consul_discover_failed", service=service_name, error=str(e)
@@ -649,6 +664,11 @@ class ConsulBackend(DiscoveryBackendInterface):
         except asyncio.CancelledError:
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("consul_health_failed", error=str(e))
             return False
 
@@ -727,6 +747,11 @@ class KubernetesBackend(DiscoveryBackendInterface):
         except asyncio.CancelledError:
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("k8s_discover_failed", service=service_name, error=str(e))
             return []
 
@@ -745,6 +770,11 @@ class KubernetesBackend(DiscoveryBackendInterface):
         except asyncio.CancelledError:
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("k8s_health_failed", error=str(e))
             return False
 
@@ -975,6 +1005,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _inc_counter(_prom_errors, error_type="registration_exception")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
@@ -1022,6 +1057,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _inc_counter(_prom_errors, error_type="deregistration_exception")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
@@ -1117,6 +1157,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="discovery_exception").inc()
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error("discovery_exception", service=service_name, error=str(e))
@@ -1328,6 +1373,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 elapsed = time.monotonic() - start
                 _prom_health_check_duration.labels(
                     service_name=sd.service_name
@@ -1381,6 +1431,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="discovery_worker_error").inc()
                 logger.error("discovery_worker_error", error=str(e), exc_info=True)
 
@@ -1421,6 +1476,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="health_worker_error").inc()
                 logger.error("health_worker_error", error=str(e), exc_info=True)
 
@@ -1444,6 +1504,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="backend_health_worker_error").inc()
                 logger.error("backend_health_worker_error", error=str(e), exc_info=True)
 
@@ -1472,6 +1537,11 @@ class ServiceDiscoveryManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="metrics_worker_error").inc()
                 logger.error("metrics_worker_error", error=str(e), exc_info=True)
 

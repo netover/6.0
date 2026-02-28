@@ -110,6 +110,11 @@ async def init_domain_singletons(app: FastAPI) -> None:
         await initialize_database()
         logger.info("database_schema_initialized")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error(
             "database_schema_init_failed",
             error=str(exc),
@@ -132,6 +137,11 @@ async def init_domain_singletons(app: FastAPI) -> None:
         try:
             tws = get_tws_client_singleton()  # type: ignore
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # FIX P0-03: Original code re-imported the factory but never called it,
             # leaving `tws` unbound. Now we fall back to MockTWSClient explicitly so
             # `tws` is always assigned before use below.
@@ -247,6 +257,11 @@ async def _safe_close(obj: object, label: str) -> None:
     except asyncio.CancelledError:
         raise  # never swallow cancellation
     except (TypeError, AttributeError, NameError) as prog_err:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Programming errors indicate a real bug — surface them in dev.
         _s = get_settings()
         if getattr(_s, "is_development", False):
@@ -258,6 +273,11 @@ async def _safe_close(obj: object, label: str) -> None:
             detail=str(prog_err),
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # During shutdown, runtime errors are non-fatal. Re-raising would
         # abort remaining shutdown steps and leak resources.
         logger.warning(
@@ -311,7 +331,7 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 
         await close_rag_client_singleton()
         logger.info("rag_client_closed")
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    except (OSError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
             "rag_client_close_error", error=type(exc).__name__, detail=str(exc)
         )
@@ -321,22 +341,32 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     if cm is not None:
         await _safe_close(cm, "connection_manager")
 
-    # 7. TWS client (external connection)
+
+    # 7. WebSocket pool manager (global singleton)
+    try:
+        from resync.core.websocket_pool_manager import shutdown_websocket_pool_manager
+
+        await shutdown_websocket_pool_manager()
+        logger.info("websocket_pool_manager_closed")
+    except (OSError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        logger.warning(
+            "websocket_pool_manager_close_error", error=type(exc).__name__, detail=str(exc)
+        )
+
+    # 8. TWS client (external connection)
     tws = getattr(st, STATE_TWS_CLIENT, None)
     if tws is not None:
         await _safe_close(tws, "tws_client")
 
-    # 8. Redis client: close last (infrastructure)
+    # 9. Redis client: close last (infrastructure)
     try:
         from resync.core.redis_init import close_redis_client
 
         await close_redis_client()
         logger.info("redis_client_closed")
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    except (OSError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
-            "redis_client_close_error",
-            error=type(exc).__name__,
-            detail="Internal server error. Check server logs for details.",
+            "redis_client_close_error", error=type(exc).__name__, detail=str(exc)
         )
 
     logger.info("domain_singletons_shutdown_completed")

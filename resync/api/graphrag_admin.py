@@ -48,6 +48,11 @@ async def get_graphrag_stats():
     try:
         return await graphrag.get_stats()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to get GraphRAG stats: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
@@ -93,6 +98,11 @@ async def invalidate_discovery_cache(request: CacheInvalidationRequest):
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to invalidate cache: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
@@ -154,6 +164,11 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to trigger discovery: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
@@ -183,6 +198,11 @@ async def reset_validation_stats():
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to reset stats: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
@@ -350,6 +370,11 @@ async def update_config(request: ConfigUpdateRequest):
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to update config: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,

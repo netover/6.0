@@ -246,6 +246,11 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
                 ) from e
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Unexpected error
             startup_logger.error(
                 "redis_unexpected_error",
@@ -449,6 +454,11 @@ async def validate_all_settings() -> "Settings":
         # Re-raise validation errors as-is
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Catch any unexpected errors
         error_msg = f"Unexpected validation error: {type(e).__name__}"
         startup_logger.error(

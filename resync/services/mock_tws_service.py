@@ -100,6 +100,11 @@ class MockTWSClient:
             self.mock_data = {}
             # Don't raise here to allow the service to continue with empty data
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "Unexpected error loading mock data from %s: %s",
                 mock_data_path,
@@ -171,6 +176,11 @@ class MockTWSClient:
                 try:
                     workstations.append(WorkstationStatus(**ws))
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning(
                         "Failed to create WorkstationStatus from data: %s", e
                     )
@@ -194,6 +204,11 @@ class MockTWSClient:
                 try:
                     jobs.append(JobStatus(**job))
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Failed to create JobStatus from data: %s", e)
         return jobs
 
@@ -214,6 +229,11 @@ class MockTWSClient:
                 try:
                     critical_jobs.append(CriticalJob(**job))
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Failed to create CriticalJob from data: %s", e)
         return critical_jobs
 

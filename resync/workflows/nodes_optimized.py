@@ -127,6 +127,11 @@ def _safe_float(v: Any) -> float | None:
             return None
         return float(v)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -225,6 +230,11 @@ async def fetch_job_history(
             if rows:
                 return rows
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "fetch_job_history_db_failed", job_name=job_name, error=str(e)
             )
@@ -233,6 +243,11 @@ async def fetch_job_history(
         try:
             return await fetch_job_history_from_tws(tws_client, job_name, limit)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "fetch_job_history_tws_failed", job_name=job_name, error=str(e)
             )
@@ -284,6 +299,11 @@ async def fetch_workstation_metrics(
             )
         return list(reversed(out))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning(
             "fetch_workstation_metrics_db_failed",
             workstation=workstation,
@@ -381,6 +401,11 @@ async def detect_degradation(
             msg = await llm.ainvoke(prompt)
             details["llm"] = getattr(msg, "content", str(msg))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("detect_degradation_llm_failed", error=str(e))
 
     return {
@@ -471,6 +496,11 @@ async def correlate_metrics(
             msg = await llm.ainvoke(prompt)
             corr_details["llm"] = getattr(msg, "content", str(msg))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("correlate_metrics_llm_failed", error=str(e))
 
     return {
@@ -607,6 +637,11 @@ async def predict_timeline(
             msg = await llm.ainvoke(prompt)
             details["llm"] = getattr(msg, "content", str(msg))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("predict_timeline_llm_failed", error=str(e))
 
     return {
@@ -660,6 +695,11 @@ async def generate_recommendations(
                 }
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("generate_recommendations_llm_failed", error=str(e))
 
     return {"recommendations": recs, "actions": actions}
@@ -723,6 +763,11 @@ async def notify_operators(
                 timestamp=_utcnow().isoformat(),
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             errors.append(f"teams:{e}")
             logger.warning("notify_operators_teams_failed", error=str(e))
 

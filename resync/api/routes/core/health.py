@@ -138,6 +138,11 @@ async def get_health_summary(
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -147,6 +152,11 @@ async def get_health_summary(
         try:
             _get_runtime_metrics().health_check_with_auto_enable.increment()
         except (AttributeError, ImportError) as metrics_e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Log metrics failure but don't fail the health check
             logger.warning(
                 "Failed to increment health check metrics: %s", metrics_e, exc_info=True
@@ -225,6 +235,11 @@ async def get_core_health() -> CoreHealthResponse:
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -301,6 +316,11 @@ async def get_detailed_health(
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -363,6 +383,11 @@ async def readiness_probe() -> dict[str, Any]:
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -426,6 +451,11 @@ async def liveness_probe() -> dict[str, Any]:
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -487,6 +517,11 @@ async def recover_component(component_name: str) -> dict[str, Any]:
         # Re-raise HTTPException to preserve the original status code and detail
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
@@ -566,6 +601,11 @@ async def get_redis_health() -> dict[str, Any]:
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise

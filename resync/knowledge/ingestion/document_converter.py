@@ -153,6 +153,11 @@ def _docling_convert_worker(
             "metadata": metadata,
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         output = {
             "status": "error",
             "error": f"{type(e).__name__}: {str(e)}",
@@ -174,6 +179,11 @@ def _plaintext_fallback(file_path: str) -> dict:
             "metadata": {"title": Path(file_path).stem, "fallback": True},
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         return {
             "status": "error",
             "error": str(e),

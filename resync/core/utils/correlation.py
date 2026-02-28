@@ -125,6 +125,11 @@ def with_correlation(
                 return result
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if include_timing and start_time:
                     elapsed_ms = (time.perf_counter() - start_time) * 1000
                     log.error(
@@ -200,6 +205,11 @@ def with_correlation_sync(
                 return result
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 log.error(
                     f"Error in {operation_name}",
                     error=str(e),
@@ -285,6 +295,11 @@ async def cache_error_handler(
                     correlation_id=correlation_id,
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass
@@ -294,6 +309,11 @@ async def cache_error_handler(
         raise
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         ctx.error = e
         ctx.success = False
 
@@ -317,6 +337,11 @@ async def cache_error_handler(
                     correlation_id=correlation_id,
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass

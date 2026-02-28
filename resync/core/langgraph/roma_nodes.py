@@ -33,6 +33,11 @@ async def atomizer_node(state: RomaState) -> dict[str, Any]:
         payload = json.loads(response)
         is_atomic = bool(payload.get("is_atomic", False))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("roma_atomizer_fallback", error=str(e))
         is_atomic = False
 
@@ -59,6 +64,11 @@ async def planner_node(state: RomaState) -> dict[str, Any]:
             SubTask.model_validate(item) for item in parsed if isinstance(item, dict)
         ]
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("roma_planner_fallback", error=str(e))
         tasks = [
             SubTask(
@@ -90,6 +100,11 @@ async def executor_node(state: RomaState) -> dict[str, Any]:
             )
             results.append({"task_id": task.id, "status": "done", "output": output})
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("roma_executor_task_failed", task_id=task.id, error=str(e))
             results.append({"task_id": task.id, "status": "failed", "output": str(e)})
 

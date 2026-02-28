@@ -368,6 +368,11 @@ class InputSanitizer:
                 return float(raw_value)
             return value_type(raw_value)  # type: ignore[call-arg]
         except (ValueError, TypeError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # [P1-02] NUNCA logar raw_value — pode conter segredos (DB_PASSWORD, JWT_SECRET)
             # repr() escapa \n, \r, ANSI codes; [:200] limita tamanho
             InputSanitizer._get_logger().warning(

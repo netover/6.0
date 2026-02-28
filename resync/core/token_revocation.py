@@ -41,6 +41,11 @@ async def is_jti_revoked(jti: str) -> bool:
         val = await redis.get(key)
         return val is not None
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Fail-open on infra errors to avoid full outage.
         logger.warning("token_revocation_check_failed", error=str(e))
         return False
@@ -66,4 +71,9 @@ async def revoke_jti(jti: str, exp_unix: int | None = None) -> None:
             # default 1 hour if exp not known
             await redis.set(key, "1", ex=3600)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("token_revocation_store_failed", error=str(e))

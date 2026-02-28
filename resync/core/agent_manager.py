@@ -260,6 +260,11 @@ def _discover_tools() -> dict[str, Any]:
             "analyze_tws_failures": tws_troubleshooting_tool.analyze_failures,
         }
     except (ImportError, AttributeError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("tool_discovery_failed", error=str(exc))
         return {}
 

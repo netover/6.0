@@ -218,9 +218,50 @@ class SettingsValidators:
                 # Do not include the full URL in the error message as it may contain credentials
                 raise ValueError("Redis URL missing hostname")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Mask the URL in the error message
             redacted = _redact_sensitive(val)
             raise ValueError(f"Invalid Redis URL format: {redacted}") from e
+        return v
+
+    @field_validator("database_url")
+    @classmethod
+    def validate_database_url(cls, v: SecretStr | str, info: ValidationInfo) -> SecretStr | str:
+        """Validate Postgres database URL.
+
+        - Requires postgresql scheme.
+        - In production, forbids insecure defaults (localhost and known demo creds).
+        """
+        val = v.get_secret_value() if isinstance(v, SecretStr) else v
+        if not val:
+            raise ValueError("DATABASE_URL must not be empty")
+        if not val.startswith(("postgresql://", "postgresql+asyncpg://")):
+            raise ValueError(
+                "DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'."
+            )
+        try:
+            parsed = urlparse(val)
+            if not parsed.scheme:
+                raise ValueError("DATABASE_URL missing scheme")
+            # Accept URLs without hostname only for unix sockets; otherwise require hostname
+            if parsed.hostname is None and not parsed.path:
+                raise ValueError("DATABASE_URL missing hostname")
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
+            redacted = _redact_sensitive(val)
+            raise ValueError(f"Invalid DATABASE_URL format: {redacted}") from e
+
+        return v
+
+    @field_validator("metrics_api_key_hash")
+    @classmethod
+    def validate_metrics_api_key_hash(
+        cls, v: SecretStr, info: ValidationInfo
+    ) -> SecretStr:
+        """Ensure metrics API key hash is configured in production."""
         return v
 
     @field_validator("admin_password")
@@ -712,6 +753,22 @@ class SettingsValidators:
             if admin_pw and len(admin_pw.get_secret_value()) < min_pw_len:
                 errors.append(
                     f"admin_password length < MIN_ADMIN_PASSWORD_LENGTH ({min_pw_len})"
+                )
+
+
+            # Database URL must not use insecure defaults in production
+            db_url = getattr(self, "database_url")
+            raw_db = db_url.get_secret_value() if isinstance(db_url, SecretStr) else str(db_url)
+            if "localhost" in raw_db or "127.0.0.1" in raw_db:
+                errors.append("database_url (DATABASE_URL) must not use localhost in production")
+            if "resync:resync@" in raw_db:
+                errors.append("database_url (DATABASE_URL) must not use default credentials in production")
+
+            # Metrics API key hash must be configured in production
+            metrics_hash = getattr(self, "metrics_api_key_hash", None)
+            if not metrics_hash or not metrics_hash.get_secret_value():
+                errors.append(
+                    "metrics_api_key_hash (APP_METRICS_API_KEY_HASH) must be set in production"
                 )
 
         # 7. TWS credentials when not in mock mode

@@ -50,6 +50,11 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
 
         return "admin" in roles
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
         return False
 
@@ -565,6 +570,11 @@ async def collect_metrics_sample() -> MetricSample:
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Erro ao coletar métricas: %s", e)
         return MetricSample(
             timestamp=time.time(),
@@ -583,6 +593,11 @@ async def metrics_collector_loop():
             logger.info("Metrics collector loop cancelled")
             raise  # Must re-raise for proper shutdown
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Erro no collector loop: %s", e)
 
         await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
@@ -614,6 +629,11 @@ def start_metrics_collector():
         except RuntimeError:
             logger.warning("Event loop não disponível, collector será iniciado depois")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Unexpected error starting metrics collector: %s", e)
 
 def stop_metrics_collector():
@@ -735,6 +755,11 @@ async def websocket_metrics(websocket: WebSocket) -> None:
         logger.info("monitoring_ws_cancelled")
         raise  # Must re-raise CancelledError for proper shutdown
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("WebSocket error: %s", e)
     finally:
         # P0-05: Guaranteed cleanup regardless of exit path

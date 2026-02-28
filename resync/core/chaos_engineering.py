@@ -140,6 +140,11 @@ class ChaosEngineer:
                     try:
                         results.append(t.result())
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         if isinstance(e, asyncio.CancelledError):
                             raise
                         results.append(e)
@@ -227,6 +232,11 @@ class ChaosEngineer:
 
                         operations += 1
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         if isinstance(e, asyncio.CancelledError):
                             raise
                         errors += 1
@@ -288,6 +298,11 @@ class ChaosEngineer:
                             anomalies.append(f"Agent operation failed: {result!s}")
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     errors += 1
                     anomalies.append(f"Manager init {worker_id}: {e!s}")
 
@@ -322,6 +337,11 @@ class ChaosEngineer:
             if "total_agents" not in metrics:
                 raise ValueError("Metrics missing total_agents")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             raise RuntimeError(f"Metrics operation failed: {e}") from None
 
     async def _audit_db_failure_injection(self) -> ChaosTestResult:
@@ -357,16 +377,26 @@ class ChaosEngineer:
                         f"{len(result) - successful_inserts}"
                     )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 errors += 1
                 anomalies.append(f"Batch insert failed: {e!s}")
 
             try:
-                audit_manager = get_audit_log_manager()
-                metrics = audit_manager.get_audit_metrics()
+                audit_manager = await get_audit_log_manager()
+                metrics = await audit_manager.get_audit_metrics()
                 if "total_records" not in metrics:
                     anomalies.append("Audit metrics missing total_records")
                 operations += 1
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 errors += 1
                 anomalies.append(f"Metrics retrieval failed: {e!s}")
 
@@ -378,6 +408,11 @@ class ChaosEngineer:
                 )
                 operations += sweep_result.get("total_processed", 0)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 errors += 1
                 anomalies.append(f"Auto sweep failed: {e!s}")
 
@@ -425,6 +460,11 @@ class ChaosEngineer:
                                 f"Cache growing too large at {i}: {metrics['size']}"
                             )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     errors += 1
                     anomalies.append(f"Large object storage failed at {i}: {e!s}")
 
@@ -479,6 +519,11 @@ class ChaosEngineer:
                         if not isinstance(metrics, dict):
                             anomalies.append(f"Metrics not dict at iteration {i}")
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         errors += 1
                         if "network failure" not in str(e):
                             anomalies.append(
@@ -524,6 +569,11 @@ class ChaosEngineer:
                                 await cache.set("test_key", "test_value")
                                 anomalies.append("Cache set should have failed")
                             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                                import sys as _sys
+                                from resync.core.exception_guard import maybe_reraise_programming_error
+                                _exc_type, _exc, _tb = _sys.exc_info()
+                                maybe_reraise_programming_error(_exc, _tb)
+
                                 # Expected failure — chaos testing validates this path
                                 logger.debug("chaos_cache_expected_failure",
                                              error=type(exc).__name__)
@@ -540,6 +590,11 @@ class ChaosEngineer:
                                 manager.get_detailed_metrics()
                                 operations += 1
                             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                                import sys as _sys
+                                from resync.core.exception_guard import maybe_reraise_programming_error
+                                _exc_type, _exc, _tb = _sys.exc_info()
+                                maybe_reraise_programming_error(_exc, _tb)
+
                                 errors += 1
                                 if "import failure" not in str(e):
                                     anomalies.append(
@@ -552,13 +607,18 @@ class ChaosEngineer:
                             side_effect=Exception("Simulated DB failure"),
                         ):
                             try:
-                                audit_manager = get_audit_log_manager()
-                                metrics = audit_manager.get_audit_metrics()
+                                audit_manager = await get_audit_log_manager()
+                                metrics = await audit_manager.get_audit_metrics()
                                 if "error" not in metrics:
                                     anomalies.append(
                                         "Audit DB should have reported error"
                                     )
                             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                                import sys as _sys
+                                from resync.core.exception_guard import maybe_reraise_programming_error
+                                _exc_type, _exc, _tb = _sys.exc_info()
+                                maybe_reraise_programming_error(_exc, _tb)
+
                                 errors += 1
                                 if "DB failure" not in str(e):
                                     anomalies.append(
@@ -566,6 +626,11 @@ class ChaosEngineer:
                                     )
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     errors += 1
                     anomalies.append(
                         f"Component {component} isolation test failed: {e!s}"
@@ -677,6 +742,11 @@ class FuzzingEngine:
                         }
                     )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     duration = time.time() - scenario_start
                     results.append(
                         {
@@ -751,6 +821,11 @@ class FuzzingEngine:
                         results["errors"].append(f"Key {key!r}: value mismatch")
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     results["failed"] += 1
                     results["errors"].append(f"Key {key!r}: {e!s}")
         finally:
@@ -802,6 +877,11 @@ class FuzzingEngine:
                             results["errors"].append(f"Value {i}: retrieval failed")
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     results["failed"] += 1
                     results["errors"].append(f"Value {i}: {e!s}")
         finally:
@@ -831,6 +911,11 @@ class FuzzingEngine:
                         results["errors"].append(f"TTL {ttl!r}: immediate expiration")
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     results["failed"] += 1
                     results["errors"].append(f"TTL {ttl!r}: {e!s}")
         finally:
@@ -895,6 +980,11 @@ class FuzzingEngine:
                 AgentConfig(**config_data)  # type: ignore[arg-type]
                 results["passed"] += 1
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 results["failed"] += 1
                 results["errors"].append(f"Config {i}: {e!s}")
 
@@ -933,6 +1023,11 @@ class FuzzingEngine:
                     results["failed"] += 1
                     results["errors"].append(f"Record {i}: unexpected failure")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if i == 0:
                     results["failed"] += 1
                     results["errors"].append(f"Record {i}: {e!s}")

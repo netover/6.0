@@ -42,6 +42,11 @@ try:
 
     LANGFUSE_AVAILABLE = True
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    import sys as _sys
+    from resync.core.exception_guard import maybe_reraise_programming_error
+    _exc_type, _exc, _tb = _sys.exc_info()
+    maybe_reraise_programming_error(_exc, _tb)
+
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     observe = None
@@ -241,6 +246,11 @@ class LangFuseTracer:
                 )
                 logger.info("langfuse_tracer_initialized")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("langfuse_tracer_init_failed", error=str(e))
 
         self._initialized = True
@@ -301,6 +311,11 @@ class LangFuseTracer:
                 )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             trace.complete(error=str(e))
             trace.error_type = type(e).__name__
             raise
@@ -375,6 +390,11 @@ class LangFuseTracer:
                 model=trace.model,
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "langfuse_trace_failed", error=str(e), trace_id=trace.trace_id
             )

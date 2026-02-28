@@ -196,6 +196,11 @@ class UnifiedTWSClient:
                 await self._verify_connection()
                 self._state = TWSClientState.CONNECTED
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 self._client = None
                 self._state = TWSClientState.ERROR
                 self._metrics.last_error = str(e)
@@ -213,6 +218,11 @@ class UnifiedTWSClient:
         except asyncio.TimeoutError as e:
             raise TWSTimeoutError("Connection verification timed out") from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, _UNRECOVERABLE_EXCEPTIONS):
                 raise
             if isinstance(e, httpx.HTTPStatusError):
@@ -267,6 +277,11 @@ class UnifiedTWSClient:
             self._state = TWSClientState.CIRCUIT_OPEN
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, _UNRECOVERABLE_EXCEPTIONS + _PROGRAMMING_ERRORS):
                 raise
             self._metrics.failed_requests += 1

@@ -1414,6 +1414,11 @@ class AdvancedChunker:
 
                 return chunks
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Semantic chunking failed: %s", e)
 
         # Fallback to size-based

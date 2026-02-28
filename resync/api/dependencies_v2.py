@@ -6,6 +6,7 @@ v5.3.20: Added asyncio.Lock() to prevent race conditions during lazy initializat
 """
 
 import asyncio
+import threading
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -59,34 +60,55 @@ _tws_store_lock: asyncio.Lock | None = None
 _context_store_lock: asyncio.Lock | None = None
 _metrics_store_lock: asyncio.Lock | None = None
 _feedback_store_lock: asyncio.Lock | None = None
+_locks_init_lock = threading.Lock()
 
 def _get_tws_store_lock() -> asyncio.Lock:
     global _tws_store_lock
-    if _tws_store_lock is None:
-        asyncio.get_running_loop()
-        _tws_store_lock = asyncio.Lock()
+    if _tws_store_lock is not None:
+        return _tws_store_lock
+    # Ensure we're in an async context with a running loop before creating primitives.
+    asyncio.get_running_loop()
+    with _locks_init_lock:
+        if _tws_store_lock is None:
+            _tws_store_lock = asyncio.Lock()
     return _tws_store_lock
+
 
 def _get_context_store_lock() -> asyncio.Lock:
     global _context_store_lock
-    if _context_store_lock is None:
-        asyncio.get_running_loop()
-        _context_store_lock = asyncio.Lock()
+    if _context_store_lock is not None:
+        return _context_store_lock
+    # Ensure we're in an async context with a running loop before creating primitives.
+    asyncio.get_running_loop()
+    with _locks_init_lock:
+        if _context_store_lock is None:
+            _context_store_lock = asyncio.Lock()
     return _context_store_lock
+
 
 def _get_metrics_store_lock() -> asyncio.Lock:
     global _metrics_store_lock
-    if _metrics_store_lock is None:
-        asyncio.get_running_loop()
-        _metrics_store_lock = asyncio.Lock()
+    if _metrics_store_lock is not None:
+        return _metrics_store_lock
+    # Ensure we're in an async context with a running loop before creating primitives.
+    asyncio.get_running_loop()
+    with _locks_init_lock:
+        if _metrics_store_lock is None:
+            _metrics_store_lock = asyncio.Lock()
     return _metrics_store_lock
+
 
 def _get_feedback_store_lock() -> asyncio.Lock:
     global _feedback_store_lock
-    if _feedback_store_lock is None:
-        asyncio.get_running_loop()
-        _feedback_store_lock = asyncio.Lock()
+    if _feedback_store_lock is not None:
+        return _feedback_store_lock
+    # Ensure we're in an async context with a running loop before creating primitives.
+    asyncio.get_running_loop()
+    with _locks_init_lock:
+        if _feedback_store_lock is None:
+            _feedback_store_lock = asyncio.Lock()
     return _feedback_store_lock
+
 
 # ============================================================================
 # Store Singletons
@@ -184,6 +206,11 @@ async def cleanup_dependencies():
             await _tws_store.close()
             logger.info("TWSStore closed successfully")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Error closing TWSStore: %s", e)
         _tws_store = None
 

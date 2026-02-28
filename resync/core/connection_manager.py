@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 LOCK_TIMEOUT_SECONDS = 5.0
 
 class ConnectionManager:
+    """Core connection manager (client_id-based).
+
+    NOTE: The API websocket handlers define an AgentConnectionManager for agent_id-based routing.
+    Prefer importing from resync.core.connection_manager for core usage.
+    """
+
     """
     Manages active WebSocket connections for real-time updates.
     Enhanced with connection pooling and monitoring capabilities.
@@ -65,6 +71,11 @@ class ConnectionManager:
         try:
             await websocket.close()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
@@ -113,6 +124,11 @@ class ConnectionManager:
             else:
                 logger.error("Runtime error sending to client %s: %s", client_id, e)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.error("Unexpected error sending to client %s: %s", client_id, e)

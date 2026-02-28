@@ -192,6 +192,11 @@ def pearson_corr(x: list[float], y: list[float]) -> float | None:
         try:
             return float(_np.corrcoef(_np.array(x), _np.array(y))[0, 1])
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "NumPy correlation failed, falling back to manual", error=str(e)
             )
@@ -225,6 +230,11 @@ def _duration_seconds(start: Any, end: Any) -> float | None:
     try:
         return max(0.0, (end - start).total_seconds())
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Failed to calculate duration between timestamps", error=str(e))
         return None
 
@@ -283,6 +293,11 @@ async def _fetch_job_history_query(
             )
         return list(reversed(out))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.exception(
             "Failed to fetch job history from DB", error=str(e), job_name=job_name
         )
@@ -350,6 +365,11 @@ async def fetch_job_history_from_tws(
                 out.append(mapped)
         return out
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.exception(
             "Failed to fetch job history from TWS", error=str(e), job_name=job_name
         )

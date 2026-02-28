@@ -194,6 +194,11 @@ async def tws_status_node(state: ParallelState) -> dict[str, Any]:
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         logger.error(
             "parallel_node_error", node=source_name, error=str(e), exc_info=True
@@ -274,6 +279,11 @@ async def rag_search_node(state: ParallelState) -> dict[str, Any]:
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         logger.error(
             "parallel_node_error", node=source_name, error=str(e), exc_info=True
@@ -364,6 +374,11 @@ async def log_cache_node(state: ParallelState) -> dict[str, Any]:
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         # Log cache errors are non-critical
         logger.debug("parallel_node_error", node=source_name, error=str(e))
@@ -415,6 +430,11 @@ def metrics_node(state: ParallelState) -> dict[str, Any]:
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         # Metrics errors are non-critical
         logger.debug("parallel_node_error", node=source_name, error=str(e))
@@ -608,6 +628,11 @@ Responda de forma estruturada e acionável."""
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("response_generation_failed", error=str(e), exc_info=True)
 
         # Fallback response using raw data

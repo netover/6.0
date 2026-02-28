@@ -118,6 +118,11 @@ async def _get_llm_analysis(
         # Return None to indicate a non-critical failure for this memory
         return None
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.critical("unexpected_error_in_llm_analysis", error=str(e), exc_info=True)
         # Encapsulate unexpected errors in a domain-specific one
         raise LLMError("Failed to get LLM analysis for memory audit") from e
@@ -156,6 +161,11 @@ async def _perform_action_on_memory(
         except ImportError:
             logger.debug("continual_learning_module_not_available")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("continual_learning_pipeline_error", error=str(e))
         # === END CONTINUAL LEARNING INTEGRATION ===
 
@@ -187,6 +197,11 @@ async def _perform_action_on_memory(
         except ImportError:
             logger.debug("continual_learning_module_not_available")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("continual_learning_pipeline_error", error=str(e))
         # === END CONTINUAL LEARNING INTEGRATION ===
 
@@ -258,6 +273,11 @@ async def _store_flagged_memories(flagged: list[dict[str, Any]]) -> None:
                 priority=1,  # High priority for flagged items
             )
         except (DatabaseError, AttributeError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "failed_to_enqueue_flagged_memory",
                 memory_id=str(mem.get("id")),
@@ -317,6 +337,11 @@ async def analyze_memory(
             )
             return None
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Catch unexpected errors to prevent crashing the batch
             logger.error(
                 "unexpected_error_analyzing_memory",
@@ -331,6 +356,11 @@ async def _cleanup_locks() -> None:
     try:
         await audit_lock.cleanup_expired_locks(max_age=60)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

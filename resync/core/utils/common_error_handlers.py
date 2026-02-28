@@ -35,6 +35,11 @@ def handle_parsing_errors(
             try:
                 return func(*args, **kwargs)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("%s: %s", error_message, e)
                 from ..exceptions import ParsingError
 
@@ -60,6 +65,11 @@ def handle_llm_errors(
             try:
                 return func(*args, **kwargs)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("%s: %s", error_message, e, exc_info=True)
                 from ..exceptions import LLMError
 
@@ -87,6 +97,11 @@ def handle_api_errors(
             try:
                 return func(*args, **kwargs)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("%s: %s", error_message, e, exc_info=True)
                 raise exception_class(f"{error_message}: {e}") from e
 
@@ -141,6 +156,11 @@ def retry_on_exception(
                     try:
                         return await func(*args, **cleaned_kwargs)
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         # Resolve lazy exceptions if callable
                         allowed_exceptions = (
                             exceptions() if callable(exceptions) else exceptions
@@ -182,6 +202,11 @@ def retry_on_exception(
                 try:
                     return func(*args, **kwargs)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     # Resolve lazy exceptions if callable
                     allowed_exceptions = (
                         exceptions() if callable(exceptions) else exceptions
@@ -226,6 +251,11 @@ def log_and_handle_exception(
             try:
                 return func(*args, **kwargs)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.log(log_level, f"{message}: {e}", exc_info=True)
                 raise exception_class(f"{message}: {e}") from e
 

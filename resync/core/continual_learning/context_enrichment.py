@@ -310,6 +310,11 @@ class ContextEnricher:
                         )
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Error getting job context for %s: %s", job_name, e)
 
         return context_parts
@@ -340,6 +345,11 @@ class ContextEnricher:
                     )
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Error getting error context for %s: %s", error_code, e)
 
         return context_parts
@@ -373,6 +383,11 @@ class ContextEnricher:
                     context_parts.append(f"Jobs após {job_name}: {', '.join(jobs)}")
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Error getting dependency context for %s: %s", job_name, e)
 
         return context_parts
@@ -415,6 +430,11 @@ class ContextEnricher:
                     downstream = await kg.get_downstream_jobs(entity_id, max_depth=1)
                     context.dependents = list(downstream) if downstream else []
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass

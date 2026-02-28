@@ -166,6 +166,11 @@ async def _handle_agent_interaction(
                 metadata={"agent_id": agent_id_str},
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Failed to persist user message: %s", e)
 
         # Route via HybridRouter (single source of truth)
@@ -232,6 +237,11 @@ async def _handle_agent_interaction(
                 },
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Failed to persist assistant message: %s", e)
 
         # Schedule the IA Auditor to run in the background
@@ -243,6 +253,11 @@ async def _handle_agent_interaction(
         task.add_done_callback(_bg_tasks.discard)
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Error in agent interaction: %s", e, exc_info=True)
         await send_error_message(
             websocket,
@@ -304,9 +319,45 @@ async def _message_processing_loop(
     agent_id: SafeAgentID,
     session_id: str,
 ) -> None:
-    """Main loop for receiving and processing messages from the client."""
+    """Main loop for receiving and processing messages from the client.
+
+    Resilience/DoS hardening:
+    - Enforces inactivity timeout using settings.ws_connection_timeout.
+    - Enforces maximum connection duration using settings.ws_max_connection_duration.
+    - Avoids logging full user payloads (PII/secrets) by truncating to 200 chars.
+    """
+    from resync.settings import get_settings
+
+    settings = get_settings()
+    inactivity_timeout = float(settings.ws_connection_timeout)
+    max_duration = float(settings.ws_max_connection_duration)
+    started_at = time.monotonic()
+
     while True:
-        raw_data = await websocket.receive_text()
+        # Enforce max connection duration (defense-in-depth against leaked connections)
+        if (time.monotonic() - started_at) > max_duration:
+            await send_error_message(
+                websocket,
+                "Sessão expirada por tempo máximo de conexão.",
+                str(agent_id),
+                session_id,
+            )
+            raise WebSocketDisconnect(code=1001, reason="Max connection duration exceeded")
+
+        try:
+            raw_data = await asyncio.wait_for(
+                websocket.receive_text(), timeout=inactivity_timeout
+            )
+        except asyncio.TimeoutError:
+            # Inactivity timeout: close to free server resources
+            await send_error_message(
+                websocket,
+                "Conexão encerrada por inatividade.",
+                str(agent_id),
+                session_id,
+            )
+            raise WebSocketDisconnect(code=1001, reason="Inactivity timeout")
+
         logger.info("Received message for agent '%s': %s...", agent_id, raw_data[:200])
 
         validation = await _validate_input(raw_data, agent_id, websocket)
@@ -332,6 +383,12 @@ async def websocket_endpoint(
     Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
     """
     # Verify token before accepting connection - FAIL CLOSED
+    # Prefer Authorization header (avoids leaking tokens via query strings).
+    # Backward-compat: still accept `?token=` for older clients.
+    if token is None:
+        auth_header = websocket.headers.get("authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token = auth_header.split(" ", 1)[1].strip() or None
     try:
         from resync.api.auth.service import get_auth_service
 
@@ -392,6 +449,12 @@ async def websocket_endpoint(
             agent_id_str,
             session_id,
         )
+    finally:
+        # Guarantee WebSocket is closed, even after unexpected errors
+        try:
+            await websocket.close()
+        except (RuntimeError, WebSocketDisconnect, ConnectionError, OSError):
+            pass  # Already closed or broken — safe to ignore
 
 async def _validate_input(
     raw_data: str, agent_id: SafeAgentID, websocket: WebSocket

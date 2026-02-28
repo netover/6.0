@@ -437,6 +437,11 @@ class MonitoringDataCollector:
                 except (IndexError, ValueError, OSError):
                     continue
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("data_cleanup_error", error=str(e))
 
         return deleted_count
@@ -527,6 +532,11 @@ class DriftDetector:
             return drift_detected, drift_score, report
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("data_drift_detection_error", error=str(e))
             return False, 0.0, None
 
@@ -588,6 +598,11 @@ class DriftDetector:
             return drift_detected, drift_score, report
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("prediction_drift_detection_error", error=str(e))
             return False, 0.0, None
 
@@ -655,6 +670,11 @@ class DriftDetector:
             return drift_detected, drift_score, report
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("target_drift_detection_error", error=str(e))
             return False, 0.0, None
 
@@ -682,6 +702,11 @@ class DriftDetector:
                     except OSError:
                         continue
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("report_cleanup_error", error=str(e))
 
         return deleted_count
@@ -780,6 +805,11 @@ class AIMonitoringService:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("scheduler_error", error=str(e))
                 await asyncio.sleep(60)  # Wait before retry
 
@@ -901,6 +931,11 @@ class AIMonitoringService:
             self.drift_detector.cleanup_old_reports()
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("monitoring_run_error", error=str(e))
             results["error"] = str(e)
 
@@ -923,6 +958,11 @@ class AIMonitoringService:
             # Set nice level (lower priority)
             os.nice(limits.nice_level)
         except (OSError, AttributeError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug(
                 "suppressed_exception", error=str(e), exc_info=True
             )  # was: pass
@@ -933,6 +973,11 @@ class AIMonitoringService:
                 mem_limit = limits.max_memory_mb * 1024 * 1024
                 resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
             except (ValueError, AttributeError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("suppressed_exception", error=str(exc), exc_info=True)
 
     def _create_alert(

@@ -90,6 +90,11 @@ class FileIngestor(IFileIngestor):
             logger.info("file_saved", extra={"path": str(destination_resolved), "bytes_written_max": max_upload_bytes})
             return destination_resolved
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "failed_to_save_file",
                 extra={"error": str(e), "path": str(destination_resolved)},
@@ -114,7 +119,7 @@ class FileIngestor(IFileIngestor):
 
             # 2. Ingest into knowledge graph
             # We use a default tenant and graph version for now
-            mtime = os.path.getmtime(file_path)
+            mtime = await asyncio.to_thread(os.path.getmtime, file_path)
             ts_iso = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
 
             chunks_count = await self.ingest_service.ingest_document_advanced(
@@ -132,6 +137,11 @@ class FileIngestor(IFileIngestor):
             )
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "ingestion_failed", extra={"error": str(e), "path": str(file_path)}
             )
@@ -146,4 +156,9 @@ class FileIngestor(IFileIngestor):
                 await self.ingest_service.store.close()
             logger.info("file_ingestor_shutdown_successfully")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("file_ingestor_shutdown_failed", extra={"error": str(e)})

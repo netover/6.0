@@ -578,6 +578,11 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             return test_result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Control testing failed for %s: %s", control_id, e)
             control.mark_tested(False)
             return {"success": False, "error": str(e)}
@@ -858,6 +863,11 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Control testing worker error: %s", e)
 
     async def _monitoring_worker(self) -> None:
@@ -887,6 +897,11 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Monitoring worker error: %s", e)
 
     async def _reporting_worker(self) -> None:
@@ -912,6 +927,11 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Reporting worker error: %s", e)
 
     def _generate_recommendations(self, report: dict[str, Any]) -> list[str]:

@@ -174,6 +174,11 @@ async def get_realtime_health():
         if not redis_health.get("healthy"):
             overall_healthy = False
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         services.append(
             ServiceHealth(
                 name="redis",
@@ -208,6 +213,11 @@ async def get_realtime_health():
         if not db_health.get("healthy"):
             overall_healthy = False
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         services.append(
             ServiceHealth(
                 name="database",
@@ -240,6 +250,11 @@ async def get_realtime_health():
         if not is_healthy:
             overall_healthy = False
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         services.append(
             ServiceHealth(
                 name="tws",
@@ -276,6 +291,11 @@ async def get_realtime_health():
         if all_open:
             overall_healthy = False
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         services.append(
             ServiceHealth(
                 name="llm",
@@ -324,6 +344,11 @@ async def get_resilience_status():
         response["open_breakers"] = cb_health.get("open_breakers", 0)
         response["critical_open"] = cb_health.get("critical_open", 0)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Failed to get circuit breaker health", extra={"error": str(e)})
     try:
         from resync.core.redis_strategy import get_redis_strategy_status
@@ -331,6 +356,11 @@ async def get_resilience_status():
         redis_status = get_redis_strategy_status()
         response["redis_strategy"] = redis_status
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Failed to get redis strategy", extra={"error": str(e)})
         response["redis_strategy"] = {"enabled": False, "error": str(e)}
     return response
@@ -371,6 +401,11 @@ async def list_circuit_breakers():
                     )
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "Failed to get breaker %s", name, extra={"error": str(e)}
                 )
@@ -423,6 +458,11 @@ async def reset_circuit_breaker(name: str):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -454,6 +494,11 @@ async def update_resilience_config(config: ResilienceConfigRequest):
             "restart_required": manager.requires_restart(),
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -476,6 +521,11 @@ async def get_chunking_config():
             extract_metadata=manager.get("rag.extract_metadata", True),
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return ChunkingConfig(
@@ -518,6 +568,11 @@ async def update_chunking_config(config: ChunkingConfig):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -579,6 +634,11 @@ async def _run_reindex(
         job.status = "completed"
         job.completed_at = datetime.now(timezone.utc)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         job.status = "failed"
         job.error = str(e)
         job.completed_at = datetime.now(timezone.utc)
@@ -619,6 +679,11 @@ async def toggle_maintenance_mode(request: MaintenanceModeRequest):
             else "Maintenance mode disabled",
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -673,6 +738,11 @@ async def restore_from_backup(request: RestoreRequest):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -693,6 +763,11 @@ async def check_restart_required():
             "urgency": manager.get_restart_requirement().value,
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return {"restart_required": False, "error": str(e)}
@@ -729,6 +804,11 @@ async def stream_logs(file: str = "app.log", lines: int = 100):
                     else:
                         await asyncio.sleep(0.5)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             yield f"data: Error: {e}\n\n"
 
     return StreamingResponse(
@@ -764,6 +844,11 @@ async def get_all_config():
             "pending_restarts": list(manager.get_pending_restarts()),
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -796,6 +881,11 @@ async def update_config(key: str, value: Any):
             detail="Invalid request. Check server logs for details.",
         ) from e
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(

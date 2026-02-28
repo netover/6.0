@@ -95,6 +95,11 @@ def get_reranker_model() -> Any:
         return _reranker_model
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to load cross-encoder model: %s", e)
         _reranker_available = False
         return None
@@ -118,6 +123,11 @@ def preload_reranker() -> bool:
         logger.info("Cross-encoder model warmed up")
         return True
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Failed to warm up cross-encoder: %s", e)
         return False
 
@@ -174,6 +184,11 @@ def rerank_pair(query: str, cached_query: str) -> RerankerResult:
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Reranking failed: %s", e)
         # On error, assume similar (don't block cache hits)
         return RerankerResult(

@@ -262,6 +262,11 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
                 await client.execute_command("FT._LIST")
                 result["search"] = True
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug(
                     "suppressed_exception", extra={"error": str(exc)}, exc_info=True
                 )
@@ -269,6 +274,11 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
             try:
                 await client.execute_command("JSON.DEBUG", "MEMORY", "__test__")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if "unknown command" not in str(exc).lower():
                     result["json"] = True
 
@@ -293,6 +303,11 @@ async def close_all_pools() -> None:
             await pool.disconnect()
             logger.info("Closed Redis pool", extra={"db": db.name})
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "Error closing Redis pool", extra={"db": db.name, "error": str(e)}
             )
@@ -337,6 +352,11 @@ async def redis_health_check(
             )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         result["error"] = str(e)
         logger.error(
             "Redis health check failed", extra={"db": db.name, "error": str(e)}

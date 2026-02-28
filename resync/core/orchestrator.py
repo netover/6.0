@@ -196,6 +196,11 @@ class ServiceOrchestrator:
                 # Respect cooperative cancellation — never swallow it.
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 last_exc = exc
                 if attempt == max_attempts - 1:
                     logger.error(

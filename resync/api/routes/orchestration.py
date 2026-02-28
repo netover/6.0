@@ -81,6 +81,11 @@ async def create_config(
         if not isinstance(steps_list, list):
             raise ValueError("Steps must be a list or dict with 'steps' key")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         raise HTTPException(status_code=400, detail=str(e))
 
     config = await repo.create(
@@ -126,6 +131,11 @@ async def execute_workflow(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Execution start failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -231,6 +241,11 @@ async def websocket_execute(
     except WebSocketDisconnect:
         logger.info("websocket_disconnected", trace_id=trace_id)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("websocket_error", error=str(e), trace_id=trace_id)
         # P2-36 fix: Safe close - wrap in try/except to prevent masking original error
         try:

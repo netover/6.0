@@ -22,6 +22,7 @@ Usage:
 """
 
 import asyncio
+import threading
 import copy
 import hashlib
 from collections.abc import Callable
@@ -139,11 +140,16 @@ class TWSAPICache:
     """
 
     _instance: "TWSAPICache | None" = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls) -> "TWSAPICache":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+        if cls._instance is not None:
+            return cls._instance
+        # Thread-safe singleton initialization (multi-threaded servers).
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
         return cls._instance
 
     def __init__(self) -> None:
@@ -311,15 +317,13 @@ class TWSAPICache:
             return value, is_cached, age_seconds
 
         # Get or create lock for this key.
-        if key not in self._locks:
-            self._locks[key] = asyncio.Lock()
-            self._lock_refcounts[key] = 0
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        self._lock_refcounts.setdefault(key, 0)
 
         # Track the number of coroutines that are interested in this lock (both
         # waiters and the current holder). This avoids deleting the lock while
         # other tasks are still queued on it.
         self._lock_refcounts[key] += 1
-        lock = self._locks[key]
 
         try:
             async with lock:
@@ -383,6 +387,11 @@ class TWSAPICache:
                         category=category.value,
                     )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     self._stats.refresh_failures += 1
                     self._metric_refresh_failures.labels(category=category.value).inc()
                     logger.warning(

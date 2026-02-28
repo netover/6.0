@@ -282,6 +282,11 @@ class TwsGraphService:
                     graph.add_edge(jobstream_id, succ_id, relation="DEPENDS_ON")
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "jobstream_graph_build_failed",
                 jobstream_id=jobstream_id,
@@ -321,6 +326,11 @@ class TwsGraphService:
         try:
             return nx.dag_longest_path(graph)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("critical_path_error", error=str(e))
             return []
 
@@ -373,6 +383,11 @@ class TwsGraphService:
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("impact_analysis_error", job_id=job_id, error=str(e))
             return {
                 "job_id": job_id,
@@ -435,6 +450,11 @@ class TwsGraphService:
             return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("critical_jobs_error", error=str(e))
             return []
 

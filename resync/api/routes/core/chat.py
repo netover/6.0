@@ -18,6 +18,7 @@ intent classification and complexity analysis.
 """
 
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -54,7 +55,9 @@ from resync.knowledge.retrieval.retriever import RagRetriever
 from resync.knowledge.store.pgvector_store import get_vector_store
 
 router = APIRouter()
-logger = None  # Will be injected by dependency
+import logging
+
+logger = logging.getLogger(__name__)
 
 # v5.4.1: HybridRouter instance (singleton)
 _hybrid_router: HybridRouter | None = None
@@ -69,6 +72,11 @@ class RagComponentsManager:
     _retriever = None
     _ingest_service = None
     _hybrid_retriever = None
+
+    # Protects lazy creation of the asyncio.Lock itself (avoids TOCTOU).
+    import threading as _threading
+    _lock_create_lock = _threading.Lock()
+    _lock: "asyncio.Lock | None" = None
 
     def __new__(cls) -> "RagComponentsManager":
         if cls._instance is None:
@@ -86,10 +94,13 @@ class RagComponentsManager:
             )
 
         # v5.7.1 FIX: Thread-safe initialization
-        if not hasattr(self, "_lock"):
+        if self._lock is None:
             import asyncio
+            asyncio.get_running_loop()
+            with self._lock_create_lock:
+                if self._lock is None:
+                    self._lock = asyncio.Lock()
 
-            self._lock = asyncio.Lock()
 
         async with self._lock:
             if self._initialized:
@@ -121,6 +132,11 @@ class RagComponentsManager:
                     if logger:
                         logger.info("Hybrid retriever initialized (BM25 + Vector)")
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     if logger:
                         logger.warning(
                             "Hybrid retriever not available, using standard: %s", e
@@ -130,6 +146,11 @@ class RagComponentsManager:
                 if logger:
                     logger.info("RAG components initialized successfully (lazy)")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if logger:
                     logger.error("Failed to initialize RAG components: %s", e)
                 self._embedding_service = None
@@ -167,6 +188,11 @@ async def _save_conversation_turn(
         memory = get_conversation_memory()
         await memory.add_turn(session_id, user_message, assistant_response, metadata)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -361,6 +387,11 @@ async def chat_message(
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger_instance.error("chat_message_error", error=str(e), user_id="test_user")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -401,6 +432,11 @@ async def analyze_message(
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger_instance.error("analyze_message_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -411,11 +447,19 @@ async def analyze_message(
 async def chat_history(
     query_params: ChatHistoryQuery = Depends(),
     x_session_id: str | None = Header(None, alias="X-Session-ID"),
-    # Temporarily disabled authentication for testing
-    # current_user: dict = Depends(get_current_user)
+    current_user: dict[str, Any] | None = Depends(get_current_user),
     logger_instance=Depends(get_logger),
 ):
     """Get chat history for the current session."""
+    if not current_user:
+        from fastapi import HTTPException, status
+
+        logger_instance.warning("unauthorized_chat_history_access")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
     # v5.4.1: Try to get from memory first
     if x_session_id:
         try:
@@ -428,6 +472,11 @@ async def chat_history(
                     "total_messages": len(context.messages),
                 }
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger_instance.debug("suppressed_exception", error=str(exc), exc_info=True)
 
     # Fallback
@@ -465,7 +514,12 @@ async def clear_chat_history(
                 "session_id": x_session_id,
             }
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-            logger.debug(
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            logger_instance.debug(
                 "suppressed_exception", error=str(exc), exc_info=True
             )  # was: pass
 

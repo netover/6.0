@@ -156,6 +156,11 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
         span_processor = BatchSpanProcessor(otlp_exporter)
         tracer_provider.add_span_processor(span_processor)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Failed to setup OTLP exporter: %s", e)
 
     # Set global tracer provider
@@ -185,6 +190,11 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
         except ImportError:
             pass
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("FastAPI instrumentation failed: %s", e)
 
     # SQLAlchemy
@@ -196,6 +206,11 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
     except ImportError:
         pass
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("SQLAlchemy instrumentation failed: %s", e)
 
     # Redis
@@ -207,6 +222,11 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
     except ImportError:
         pass
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Redis instrumentation failed: %s", e)
 
     # HTTPX
@@ -218,6 +238,11 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
     except ImportError:
         pass
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("HTTPX instrumentation failed: %s", e)
 
 def get_tracer(name: str = __name__) -> Any:
@@ -308,6 +333,11 @@ def set_span_status_error(message: str) -> None:
         if getattr(span, "set_status", None):
             span.set_status(Status(StatusCode.ERROR, message))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -405,6 +435,11 @@ def setup_prometheus_metrics(app: FastAPI) -> None:
             "Install with: pip install prometheus-fastapi-instrumentator"
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -427,4 +462,9 @@ def shutdown_telemetry() -> None:
             provider.shutdown()
         logger.info("OpenTelemetry shutdown complete")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Error during telemetry shutdown: %s", e)

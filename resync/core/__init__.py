@@ -48,6 +48,11 @@ class CorrelationIdFilter(logging.Filter):
                 if correlation_id:
                     record.correlation_id = correlation_id
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("suppressed_exception: %s", str(exc), exc_info=True)
         return True
 
@@ -250,6 +255,11 @@ def _validate_environment() -> None:
                 "Environment validation failed - system may not be secure",
             )
     except (ImportError, AttributeError, OSError, RuntimeError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         try:
             log = _get_logger()
             log.warning("Environment validation failed: %s", e)

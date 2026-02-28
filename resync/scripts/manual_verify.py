@@ -252,6 +252,11 @@ async def test_settings_validation() -> bool:
         print("\nSettings validation PASSED.")
         return True
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         print(f"\nSettings validation FAILED: {e}")
         return False
 
@@ -283,6 +288,11 @@ async def main() -> int:
     try:
         await test_dashboard_redis_integration()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         print(f"test_dashboard_redis_integration FAILED: {e}")
         success = False
 
@@ -290,6 +300,11 @@ async def main() -> int:
     try:
         await test_workflows_history()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         print(f"test_workflows_history FAILED: {e}")
         success = False
 

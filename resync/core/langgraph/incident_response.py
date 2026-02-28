@@ -215,6 +215,11 @@ async def enrichment_node(state: IncidentState) -> dict:
                 similar_resolutions.append(incident["resolution"])
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("historical_search_failed", error=str(e))
         # Fallback: try generic RAG search
         try:
@@ -234,6 +239,11 @@ async def enrichment_node(state: IncidentState) -> dict:
                     }
                 )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e2:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("rag_search_failed", error=str(e2))
 
     # 2. Get current system metrics
@@ -242,6 +252,11 @@ async def enrichment_node(state: IncidentState) -> dict:
 
         current_metrics = await get_current_metrics(component)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("metrics_fetch_failed", error=str(e))
         current_metrics = {"cpu": "N/A", "memory": "N/A", "connections": "N/A"}
 
@@ -367,6 +382,11 @@ JSON:"""
             }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("llm_analysis_failed", error=str(e))
         analysis = {
             "summary": f"Erro {error_type} detectado no componente {component}.",
@@ -523,6 +543,11 @@ async def send_notification_node(state: IncidentState) -> dict:
                 await send_teams_message(teams_card)
                 logger.info("teams_notification_sent")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("teams_notification_failed", error=str(e))
 
     # Update trace
@@ -677,6 +702,11 @@ async def handle_incident(
         return result
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("incident_handling_failed", error=str(e))
         return {
             "error": error,

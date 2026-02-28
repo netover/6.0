@@ -370,6 +370,11 @@ class EnhancedSecurityValidator:
 
             validated_email = validate_email(email)[1]  # Returns (name, email)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("exception_caught", error=str(e), exc_info=True)
             return InputValidationResult(
                 is_valid=False,
@@ -472,6 +477,11 @@ class EnhancedSecurityValidator:
                     security_context=context,
                 )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("exception_caught", error=str(e), exc_info=True)
             return InputValidationResult(
                 is_valid=False,
@@ -524,6 +534,11 @@ class EnhancedSecurityValidator:
         except JWTError as e:
             return False, None, f"Token validation failed: {str(e)}"
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("exception_caught", error=str(e), exc_info=True)
             return False, None, f"Unexpected error: {str(e)}"
 
@@ -818,6 +833,11 @@ class EnhancedSecurityValidator:
                 # Try to hash with passlib
                 return pwd_context.hash(truncated_password)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # CRITICAL SECURITY: Never fall back to plain text
                 logger.error("Password hashing failed: %s", e)
                 raise RuntimeError(
@@ -861,6 +881,11 @@ class EnhancedSecurityValidator:
             try:
                 return pwd_context.verify(truncated_password, hashed_password)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Password verification failed: %s", e)
                 return False
 

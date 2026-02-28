@@ -200,6 +200,11 @@ class DistributedAuditLock:
             logger.error("Value error in audit lock cleanup: %s", e)
             raise AuditError(f"Value error in audit lock cleanup: {e}") from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.critical(
                 "Unexpected critical error cleaning up expired audit locks.",
                 exc_info=True,
@@ -306,6 +311,11 @@ class AuditLockContext:
             logger.error("Value error during lock release: %s", e)
             raise AuditError(f"Value error during lock release: {e}") from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Unexpected error during lock release", error=str(e))
             logger.error(
                 "lock_details",

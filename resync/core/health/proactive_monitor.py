@@ -130,6 +130,11 @@ class ProactiveHealthMonitor:
             self._add_to_monitoring_history(results)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("proactive_health_checks_failed", error=str(e))
             results["error"] = str(e)
 
@@ -173,6 +178,11 @@ class ProactiveHealthMonitor:
                 return basic_metrics
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("connection_pool_health_check_failed", error=str(e))
 
         return {"error": "Unable to check connection pool health"}
@@ -211,6 +221,11 @@ class ProactiveHealthMonitor:
                         ),
                     }
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error("exception_caught", error=str(e), exc_info=True)
                     results[name] = {"error": str(e)}
 
@@ -271,6 +286,11 @@ class ProactiveHealthMonitor:
                 )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("predictive_analysis_failed", error=str(e))
 
         return alerts
@@ -315,6 +335,11 @@ class ProactiveHealthMonitor:
                         )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("auto_recovery_execution_failed", error=str(e))
 
         return actions

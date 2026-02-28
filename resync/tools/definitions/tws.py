@@ -81,6 +81,11 @@ class TWSStatusTool(TWSToolReadOnly):
                 "Erro ao processar os dados de status do TWS."
             ) from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, PROGRAMMING_ERRORS):
                 raise
             logger.error("Unexpected error in TWSStatusTool: %s", e, exc_info=True)
@@ -146,6 +151,11 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
                 "Falha de comunicação com o TWS ao analisar as falhas."
             ) from e
         except (ValueError, AttributeError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "Data or processing error in TWSTroubleshootingTool: %s",
                 e,
@@ -155,6 +165,11 @@ class TWSTroubleshootingTool(TWSToolReadOnly):
                 "Erro ao processar os dados de falhas do TWS."
             ) from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, PROGRAMMING_ERRORS):
                 raise
             logger.error(

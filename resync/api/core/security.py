@@ -1,10 +1,9 @@
-# pylint
-# mypy
 from datetime import datetime, timedelta, timezone
 from typing import Any
 import bcrypt
 import logging
 import uuid
+import asyncio
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
@@ -27,8 +26,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
             hashed_password = hashed_password.encode("utf-8")
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password)
     except (ValueError, TypeError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("password_verification_failed", exc_info=exc)
         return False
+
+
+async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
+    """Async wrapper for verify_password() to avoid blocking the event loop."""
+    return await asyncio.to_thread(verify_password, plain_password, hashed_password)
+
+async def get_password_hash_async(password: str) -> str:
+    """Async wrapper for get_password_hash() to avoid blocking the event loop."""
+    return await asyncio.to_thread(get_password_hash, password)
 
 def get_password_hash(password: str) -> str:
     """Generate a secure cryptographic hash of the password using bcrypt."""
@@ -81,11 +94,11 @@ def decode_access_token(token: str) -> dict | None:
 
 verify_token = decode_access_token
 
-def check_permissions(required_permissions: list, user_permissions: list) -> bool:
+def check_permissions(required_permissions: list[str], user_permissions: list[str]) -> bool:
     """Check if user has required permissions."""
     return all((perm in user_permissions for perm in required_permissions))
 
-def require_permissions(required_permissions: list):
+def require_permissions(required_permissions: list[str]):
     """FastAPI dependency to check user permissions."""
     from fastapi import Depends, HTTPException, status
 
@@ -100,7 +113,7 @@ def require_permissions(required_permissions: list):
 
     return permission_checker
 
-def require_role(required_roles: list):
+def require_role(required_roles: list[str]):
     """FastAPI dependency to check user role."""
     from fastapi import Depends, HTTPException, status
 
@@ -109,7 +122,7 @@ def require_role(required_roles: list):
         if user_role not in required_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{user_role}' not authorized",
+                detail="Insufficient role privileges",
             )
         return current_user
 

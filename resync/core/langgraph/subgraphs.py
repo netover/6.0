@@ -131,6 +131,11 @@ JSON:"""
                 "confidence": data.get("confidence", 0.5),
             }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("diagnose_error", error=str(e))
 
     return {"symptoms": [problem], "possible_causes": [], "confidence": 0.3}
@@ -147,6 +152,11 @@ async def _research_node(state: DiagnosticSubgraphState) -> dict:
         results = await rag.search(query=query, limit=5)
         return {"documentation_context": results.get("results", [])}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("research_error", error=str(e))
         return {"documentation_context": []}
 
@@ -183,6 +193,11 @@ JSON:"""
                 "recommendations": data.get("recommendations", []),
             }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("synthesis_error", error=str(e))
 
     return {"recommendations": ["Investigate logs manually"]}
@@ -275,6 +290,11 @@ async def _fetch_tws_status(state: ParallelFetchState) -> dict:
             ]
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         return {
             "parallel_results": [
                 {
@@ -311,6 +331,11 @@ async def _fetch_rag_context(state: ParallelFetchState) -> dict:
             ]
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         return {
             "parallel_results": [
                 {
@@ -344,6 +369,11 @@ def _fetch_logs(state: ParallelFetchState) -> dict:
             ]
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         return {
             "parallel_results": [
                 {
@@ -500,6 +530,11 @@ async def _execute_action_node(state: ApprovalState) -> dict:
         return {"execution_result": result}
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         return {"execution_result": {"status": "error", "error": str(e)}}
 
 def _check_approval(state: ApprovalState) -> str:

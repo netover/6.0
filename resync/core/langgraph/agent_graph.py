@@ -257,6 +257,11 @@ def _get_router_cache() -> SemanticCache | None:
                         default_ttl=3600,
                     )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("router_cache_init_failed", error=str(e))
                     return None
         except RuntimeError:
@@ -275,6 +280,11 @@ def _get_router_cache() -> SemanticCache | None:
                             default_ttl=3600,
                         )
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         logger.warning("router_cache_init_failed", error=str(e))
                         return None
 
@@ -309,6 +319,11 @@ async def async_init_router_cache() -> SemanticCache | None:
                     default_ttl=3600,
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("router_cache_init_failed", error=str(e))
                 return None
 
@@ -327,6 +342,11 @@ def _get_knowledge_graph_or_stub() -> Any:
 
         return RAGClient()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -464,6 +484,11 @@ async def router_node(state: AgentState) -> AgentState:
                 return state
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Graceful degradation - continue to LLM if cache fails
             logger.warning("router_cache_check_error", error=str(e))
 
@@ -510,12 +535,22 @@ async def router_node(state: AgentState) -> AgentState:
                     # Increment metric
                     _metric_inc(runtime_metrics.router_cache_sets)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as cache_err:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     # Non-critical - log and continue
                     logger.warning("router_cache_store_error", error=str(cache_err))
         else:
             state = _fallback_router(state)
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("router_llm_failed", error=str(e))
         state = _fallback_router(state)
 
@@ -566,6 +601,11 @@ async def document_kg_context_node(state: AgentState) -> AgentState:
         )
         state["doc_kg_context"] = ctx or ""
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("document_kg_context_skipped", error=str(e))
         state["doc_kg_context"] = ""
     return state
@@ -717,6 +757,11 @@ async def plan_executor_node(state: AgentState) -> AgentState:
         step["error"] = None
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         step["completed"] = False
         step["error"] = str(e)
         if step.get("on_failure") == "abort":
@@ -1070,6 +1115,11 @@ async def status_handler_node(state: AgentState) -> AgentState:
         state["tool_output"] = json.dumps(status, ensure_ascii=False, default=str)
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("status_handler_error", error=str(e))
         state["error"] = str(e)
         state["raw_data"] = {"error": str(e)}
@@ -1136,6 +1186,11 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
                 }
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Não bloquear troubleshooting se orquestração falhar
             enriched_context["orchestrator_error"] = str(e)
 
@@ -1179,6 +1234,11 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
         state = await _fallback_troubleshoot(state, job_name, message)
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("troubleshoot_error", error=str(e))
         state["error"] = str(e)
         state["raw_data"] = {"error": str(e)}
@@ -1257,6 +1317,11 @@ Resposta:"""
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("query_error", error=str(e))
         state["error"] = str(e)
         state["response"] = "Não foi possível buscar na documentação."
@@ -1306,6 +1371,11 @@ async def action_handler_node(state: AgentState) -> AgentState:
                     "approved_by": approval.get("approver"),
                 }
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 state["error"] = str(e)
                 state["raw_data"] = {"error": str(e)}
         else:
@@ -1356,6 +1426,11 @@ async def general_handler_node(state: AgentState) -> AgentState:
         state["raw_data"] = {"response": response}
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("general_handler_error", error=str(e))
         state["response"] = "Olá! Como posso ajudar com o TWS hoje?"
 
@@ -1482,6 +1557,11 @@ async def hallucination_check_node(state: AgentState) -> AgentState:
             state["hallucination_retry_count"] = retry_count + 1
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("hallucination_check_error", error=str(e))
         state["is_grounded"] = True  # Assume grounded on error
 
@@ -1798,6 +1878,11 @@ class FallbackGraph:
                 full_state = await hallucination_check_node(full_state)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("fallback_error", error=str(e))
             full_state["error"] = str(e)
             full_state["response"] = f"Erro: {str(e)}"
@@ -1859,6 +1944,11 @@ async def stream_agent_response(
             yield event
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

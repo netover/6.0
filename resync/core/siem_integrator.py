@@ -289,6 +289,11 @@ class SplunkConnector(SIEMConnector):
             return False
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions and programming errors (bugs)
             if isinstance(
                 e,
@@ -359,6 +364,11 @@ class SplunkConnector(SIEMConnector):
                 return 0
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -382,6 +392,11 @@ class SplunkConnector(SIEMConnector):
                 return {"status": "error", "http_status": response.status}
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -420,6 +435,11 @@ class ELKConnector(SIEMConnector):
             return False
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions and programming errors
             if isinstance(
                 e,
@@ -492,6 +512,11 @@ class ELKConnector(SIEMConnector):
                 return 0
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -519,6 +544,11 @@ class ELKConnector(SIEMConnector):
                 return {"status": "error", "http_status": response.status}
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -638,6 +668,11 @@ class SIEMIntegrator:
             return True
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(
                 e,
@@ -778,6 +813,11 @@ class SIEMIntegrator:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -801,6 +841,11 @@ class SIEMIntegrator:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -830,6 +875,11 @@ class SIEMIntegrator:
                         logger.warning("Failed to send events to %s", name)
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     # Re-raise critical system exceptions
                     if isinstance(
                         e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -875,6 +925,11 @@ class SIEMIntegrator:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)

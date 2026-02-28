@@ -95,12 +95,140 @@ def _count_tokens(text: str) -> int:
             enc = tiktoken.get_encoding("cl100k_base")
             return len(enc.encode(text))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # tiktoken encoding failed — fall back to word-count estimate
             import logging as _logging
             _logging.getLogger(__name__).debug(
                 "tiktoken_encoding_failed fallback=word_count error=%s", exc
             )
     return int(len(text.split()) * 1.3)
+
+
+
+def _estimate_message_tokens(message: dict[str, str]) -> int:
+    """Estimate token usage for a single chat message.
+
+    Uses `_count_tokens` (tiktoken when available) and adds a small overhead.
+
+    Note:
+        Exact tokenization depends on the model/tokenizer. This is a conservative
+        estimate to keep requests within the context window.
+    """
+    content = message.get("content", "")
+    return _count_tokens(content) + 4
+
+
+def _estimate_messages_tokens(messages: list[dict[str, str]]) -> int:
+    return sum(_estimate_message_tokens(m) for m in messages)
+
+
+def _compact_removed_messages_to_summary(
+    removed: list[dict[str, str]],
+    max_summary_tokens: int,
+) -> str:
+    """Create a compact summary of removed messages without calling an LLM.
+
+    This keeps latency predictable and avoids recursion.
+    """
+    if not removed or max_summary_tokens <= 0:
+        return ""
+
+    # Rule-of-thumb: ~4 characters per token on common text.
+    char_budget = max(256, max_summary_tokens * 4)
+
+    lines_out: list[str] = []
+    used = 0
+    for msg in removed:
+        role = msg.get("role", "?")
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+
+        snippet = content
+        for sep in (". ", "! ", "? ", "\n"):
+            if sep in snippet:
+                snippet = snippet.split(sep, 1)[0]
+                break
+
+        snippet = snippet[:240].strip()
+        line = f"- ({role}) {snippet}"
+        lines_out.append(line)
+        used += len(line) + 1
+        if used >= char_budget:
+            break
+
+    summary = "\n".join(lines_out)
+    if len(summary) > char_budget:
+        summary = summary[: char_budget - 3] + "..."
+
+    return summary
+
+
+def _compact_messages_for_context(
+    messages: list[dict[str, str]],
+    *,
+    max_context_tokens: int,
+    reserved_output_tokens: int,
+    safety_margin_tokens: int,
+    min_recent_messages: int,
+    summary_max_tokens: int,
+) -> list[dict[str, str]]:
+    """Compact older chat history to fit within the context window.
+
+    Preserves system messages and the most recent `min_recent_messages` non-system
+    messages. Older messages are replaced by a single deterministic summary.
+
+    This avoids backend-side implicit truncation and reduces latency spikes when
+    prompts grow too large.
+    """
+    if max_context_tokens <= 0:
+        return messages
+
+    budget = max_context_tokens - max(0, reserved_output_tokens) - max(0, safety_margin_tokens)
+    if budget <= 0:
+        return messages
+
+    if _estimate_messages_tokens(messages) <= budget:
+        return messages
+
+    system_msgs = [m for m in messages if m.get("role") == "system"]
+    non_system = [m for m in messages if m.get("role") != "system"]
+    if not non_system:
+        return messages
+
+    min_recent = max(1, int(min_recent_messages))
+    keep_tail = non_system[-min_recent:] if len(non_system) > min_recent else non_system[:]
+    removed = non_system[: max(0, len(non_system) - len(keep_tail))]
+
+    summary_body = _compact_removed_messages_to_summary(removed, summary_max_tokens)
+
+    def build(keep: list[dict[str, str]]) -> list[dict[str, str]]:
+        out: list[dict[str, str]] = []
+        out.extend(system_msgs)
+        if summary_body:
+            out.append(
+                {
+                    "role": "system",
+                    "content": ("Resumo do histórico anterior (compactado):\n"
+                        f"{summary_body}\n\n"
+                        "Use este resumo como contexto. Se faltar detalhes, peça ao usuário."),
+                }
+            )
+        out.extend(keep)
+        return out
+
+    compacted = build(keep_tail)
+
+    # If still too large, progressively drop oldest kept messages, but never drop the last one.
+    while _estimate_messages_tokens(compacted) > budget and len(keep_tail) > 1:
+        keep_tail = keep_tail[1:]
+        compacted = build(keep_tail)
+
+    return compacted
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +368,11 @@ class LLMService:
                 },
             ) from exc
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(
                 exc,
                 (SystemExit, KeyboardInterrupt, ImportError, AttributeError, TypeError),
@@ -503,6 +636,11 @@ class LLMService:
             logger.warning("Max tool iterations (%s) reached", max_tool_iterations)
             return "Sorry, I reached the tool iteration limit. Please rephrase your question more specifically."
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(
                 e,
                 (
@@ -565,6 +703,30 @@ class LLMService:
             if presence_penalty is None
             else presence_penalty
         )
+        # -----------------------------------------------------------------
+        # Context window protection: compact older history when near limit
+        # -----------------------------------------------------------------
+        try:
+            from resync.settings import get_settings
+
+            cfg = get_settings()
+            if getattr(cfg, "llm_compact_history_enabled", True):
+                base_url = str(getattr(cfg, "llm_endpoint", "") or "")
+                is_ollama = bool(getattr(cfg, "ollama_enabled", False)) or "11434" in base_url
+                if is_ollama:
+                    messages = _compact_messages_for_context(
+                        messages,
+                        max_context_tokens=int(getattr(cfg, "ollama_num_ctx", 4096)),
+                        reserved_output_tokens=int(max_tokens or 0),
+                        safety_margin_tokens=int(getattr(cfg, "llm_context_safety_margin_tokens", 512)),
+                        min_recent_messages=int(getattr(cfg, "llm_compact_history_min_recent_messages", 6)),
+                        summary_max_tokens=int(getattr(cfg, "llm_compact_history_summary_max_tokens", 800)),
+                    )
+        except (SystemExit, KeyboardInterrupt, asyncio.CancelledError):
+            raise
+        except Exception as _compact_exc:
+            logger.debug("llm_context_compaction_failed", extra={"error": str(_compact_exc)})
+
         logger.info("Generating LLM response with model: %s", self.model)
         try:
             if stream:
@@ -614,6 +776,11 @@ class LLMService:
                 },
             ) from exc
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(
                 exc,
                 (
@@ -658,6 +825,30 @@ class LLMService:
             Chunks of generated response
         """
         logger.info("Generating streaming LLM response with model: %s", self.model)
+        # -----------------------------------------------------------------
+        # Context window protection (streaming): compact older history when near limit
+        # -----------------------------------------------------------------
+        try:
+            from resync.settings import get_settings
+
+            cfg = get_settings()
+            if getattr(cfg, "llm_compact_history_enabled", True):
+                base_url = str(getattr(cfg, "llm_endpoint", "") or "")
+                is_ollama = bool(getattr(cfg, "ollama_enabled", False)) or "11434" in base_url
+                if is_ollama:
+                    messages = _compact_messages_for_context(
+                        messages,
+                        max_context_tokens=int(getattr(cfg, "ollama_num_ctx", 4096)),
+                        reserved_output_tokens=int(max_tokens or 0),
+                        safety_margin_tokens=int(getattr(cfg, "llm_context_safety_margin_tokens", 512)),
+                        min_recent_messages=int(getattr(cfg, "llm_compact_history_min_recent_messages", 6)),
+                        summary_max_tokens=int(getattr(cfg, "llm_compact_history_summary_max_tokens", 800)),
+                    )
+        except (SystemExit, KeyboardInterrupt, asyncio.CancelledError):
+            raise
+        except Exception as _compact_exc:
+            logger.debug("llm_context_compaction_failed", extra={"error": str(_compact_exc)})
+
         try:
             response = await self._chat_completion(
                 operation="chat_completion_stream",
@@ -696,6 +887,11 @@ class LLMService:
                 },
             ) from exc
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(
                 exc,
                 (
@@ -763,6 +959,11 @@ class LLMService:
                         agent_id,
                     )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
                 ):
@@ -772,7 +973,7 @@ class LLMService:
             system_message = f"You are {agent_name}, {agent_description}. Respond in a helpful and professional manner in Brazilian Portuguese. Be concise and provide accurate information."
         messages: list[dict[str, str]] = [{"role": "system", "content": system_message}]
         if conversation_history:
-            messages.extend(conversation_history[-5:])
+            messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
         if LANGFUSE_INTEGRATION:
             tracer = get_tracer()
@@ -826,7 +1027,7 @@ class LLMService:
                 {"role": "system", "content": formatted["system"]}
             ]
             if conversation_history:
-                messages.extend(conversation_history[-3:])
+                messages.extend(conversation_history)
             messages.append({"role": "user", "content": formatted["user"]})
         else:
             system_message = None
@@ -841,6 +1042,11 @@ class LLMService:
                             extra={"prompt_id": prompt.id},
                         )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     if isinstance(
                         e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
                     ):
@@ -854,7 +1060,7 @@ class LLMService:
                 {"role": "system", "content": system_message}
             ]
             if conversation_history:
-                messages.extend(conversation_history[-3:])
+                messages.extend(conversation_history)
             messages.append({"role": "user", "content": query})
         response = await self.generate_response(messages, max_tokens=1000)
         self_rag_sample_rate = float(os.getenv("SELF_RAG_SAMPLE_RATE", "0.0"))
@@ -877,6 +1083,11 @@ class LLMService:
                 )
                 logger.info("self_rag_regenerated", extra={"query": query[:50]})
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("self_rag_regeneration_failed", extra={"error": str(e)})
         else:
             logger.debug("self_rag_grounded", extra={"query": query[:50]})
@@ -927,6 +1138,11 @@ class LLMService:
             is_grounded = reflection.strip().upper().startswith("YES")
             return (is_grounded, reflection.strip())
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("hallucination_check_failed", extra={"error": str(e)})
             return (True, "check_failed")
 
@@ -972,6 +1188,11 @@ class LLMService:
                 "request_id": getattr(exc, "request_id", None),
             }
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(
                 exc,
                 (

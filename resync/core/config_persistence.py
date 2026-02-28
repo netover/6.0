@@ -92,6 +92,11 @@ class ConfigPersistenceManager:
         try:
             return await asyncio.to_thread(self._load_config_sync)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -121,6 +126,11 @@ class ConfigPersistenceManager:
                 self._save_config_sync, section, data, create_backup
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to save configuration: %s", e, exc_info=True)
             raise ConfigPersistenceError(f"Failed to save config: {e}") from e
 
@@ -175,6 +185,11 @@ class ConfigPersistenceManager:
                     shutil.copy2(backup_file, self.config_file)
                     logger.info("Configuration restored from backup after failure")
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as restore_error:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error("Failed to restore backup: %s", restore_error)
             raise
 
@@ -210,6 +225,11 @@ class ConfigPersistenceManager:
                 old_backup.unlink()
                 logger.debug("Removed old backup: %s", old_backup)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to remove old backup %s: %s", old_backup, e)
 
     async def get_section(self, section: str) -> dict[str, Any]:
@@ -272,6 +292,11 @@ class ConfigPersistenceManager:
         try:
             await asyncio.to_thread(self._restore_backup_sync, backup_file)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to restore backup: %s", e, exc_info=True)
             raise ConfigPersistenceError(f"Failed to restore backup: {e}") from e
 

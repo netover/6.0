@@ -122,6 +122,11 @@ class RAGIntegrationService:
             logger.warning("pgvector not configured: %s", e)
             self.use_mock = True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -189,6 +194,11 @@ class RAGIntegrationService:
                     "Ingested document %s with %s chunks", file_id, chunks_count
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 doc.status = "failed"
                 doc.metadata["error"] = str(e)
                 logger.error("Failed to ingest document %s: %s", file_id, e)
@@ -236,6 +246,11 @@ class RAGIntegrationService:
 
             return results
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Search failed: %s", e)
             return []
 
@@ -370,6 +385,11 @@ class RAGIntegrationService:
                     try:
                         path.unlink()
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         logger.warning("Failed to delete file %s: %s", path, e)
 
             await asyncio.to_thread(_delete_files)

@@ -284,6 +284,11 @@ class RAGTool(_BaseTool):
                 results = asyncio.run(retriever.retrieve(query, top_k=top_k))
             return {"results": results}
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             return {"results": [], "error": str(exc)}
 
 
@@ -304,6 +309,11 @@ class JobLogTool(_BaseTool):
                 "trend": "stable",
             }
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             return {"error": str(exc), "period_days": days}
 
 

@@ -234,6 +234,11 @@ class UnifiedConfigManager:
             await self._apply_config_changes(config_name, new_config)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -256,6 +261,11 @@ class UnifiedConfigManager:
                     if inspect.isawaitable(result):
                         await result
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 
     async def _apply_config_changes(self, config_name: str, new_config: dict):
@@ -275,6 +285,11 @@ class UnifiedConfigManager:
             logger.info("Config changes applied: %s", config_name)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -361,6 +376,11 @@ class UnifiedConfigManager:
 
             logger.info("AI config applied to runtime")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.exception("ai_config_apply_failed", extra={"error": str(exc)})
 
     def _apply_monitoring_config(self, config: dict) -> None:
@@ -374,6 +394,11 @@ class UnifiedConfigManager:
 
             logger.info("Monitoring config applied to runtime")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.exception("monitoring_config_apply_failed", extra={"error": str(exc)})
 
     def _apply_system_config(self, config: dict) -> None:

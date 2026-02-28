@@ -17,7 +17,7 @@ Versão: 5.2
 
 import asyncio
 import contextlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import structlog
@@ -215,6 +215,11 @@ class ProactiveMonitoringManager:
             try:
                 await self._status_store.save_event(event)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("failed_to_save_event", error=str(e))
 
         # Se for um ABEND, notifica Teams e tenta encontrar solução
@@ -275,6 +280,11 @@ class ProactiveMonitoringManager:
                 db.close()
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -339,6 +349,11 @@ class ProactiveMonitoringManager:
                 )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("solution_suggestion_error", error=str(e))
 
     async def _pattern_detection_loop(self) -> None:
@@ -365,6 +380,11 @@ class ProactiveMonitoringManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("pattern_detection_error", error=str(e))
                 await asyncio.sleep(60)  # Wait before retry
 
@@ -402,7 +422,8 @@ class ProactiveMonitoringManager:
                 now = datetime.now(timezone.utc)
                 next_run = now.replace(hour=3, minute=0, second=0, microsecond=0)
                 if next_run <= now:
-                    next_run = next_run.replace(day=now.day + 1)
+                    # Add one day safely (avoids end-of-month ValueError)
+                    next_run = next_run + timedelta(days=1)
 
                 wait_seconds = (next_run - now).total_seconds()
                 await asyncio.sleep(wait_seconds)
@@ -414,6 +435,11 @@ class ProactiveMonitoringManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("cleanup_error", error=str(e))
                 await asyncio.sleep(3600)  # Wait 1h before retry
 

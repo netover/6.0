@@ -142,6 +142,11 @@ async def get_checkpointer() -> AsyncPostgresSaver | None:
             return _checkpointer_instance
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("checkpointer_init_failed", error=str(e))
             return None
 
@@ -155,6 +160,11 @@ def close_checkpointer() -> None:
             _checkpointer_instance = None
             logger.info("checkpointer_closed")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("checkpointer_close_error", error=str(e))
 
 @asynccontextmanager

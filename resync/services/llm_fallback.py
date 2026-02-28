@@ -504,6 +504,11 @@ class LLMService:
                 f"LLM call timed out after {model_config.timeout_seconds}s"
             ) from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             error_str = str(e).lower()
             if "rate" in error_str and "limit" in error_str:
                 raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
@@ -657,6 +662,11 @@ class LLMService:
                 )
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 last_error = e
                 fallback_reason = FallbackReason.ERROR
                 self._metrics.fallback_reasons["error"] = (
@@ -772,6 +782,11 @@ class LLMService:
                 return  # Success, exit generator
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 last_error = e
                 logger.warning(
                     "llm_stream_error_falling_back",
@@ -832,6 +847,11 @@ class LLMService:
                     yield chunk.choices[0].delta.content
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("llm_stream_failed", model=model_config.name, error=str(e))
             raise
 

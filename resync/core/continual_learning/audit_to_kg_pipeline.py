@@ -383,6 +383,11 @@ class AuditToKGPipeline:
                 added += 1
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "failed_to_add_triplet",
                     subject=triplet.subject,
@@ -452,6 +457,11 @@ class AuditToKGPipeline:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("failed_to_get_error_patterns", error=str(e))
 
         return patterns
@@ -482,6 +492,11 @@ class AuditToKGPipeline:
                     # For now, return False (no known issues)
                     pass
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass

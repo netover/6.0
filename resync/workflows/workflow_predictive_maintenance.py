@@ -119,6 +119,11 @@ async def get_checkpointer() -> Any | None:
             return _checkpointer_instance
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("postgres_checkpointer_init_failed", error=str(e))
             return None
 
@@ -131,6 +136,11 @@ async def close_checkpointer() -> None:
             await _checkpointer_pool.close()
             logger.info("postgres_checkpointer_closed")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("postgres_checkpointer_close_failed", error=str(e))
         finally:
             _checkpointer_pool = None
@@ -255,6 +265,11 @@ async def _fetch_data_node_impl(
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.fetch_data_failed", error=str(e))
@@ -296,6 +311,11 @@ async def analyze_degradation_node(
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.analyze_degradation_failed", error=str(e))
@@ -340,6 +360,11 @@ async def correlate_node(
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.correlate_failed", error=str(e))
@@ -383,6 +408,11 @@ async def predict_node(
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.predict_failed", error=str(e))
@@ -433,6 +463,11 @@ async def recommend_node(
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
             raise
         logger.error("predictive_maintenance.recommend_failed", error=str(e))
@@ -521,6 +556,11 @@ async def _execute_actions_node_impl(
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
             logger.error(
@@ -752,6 +792,11 @@ async def run_predictive_maintenance(
             job_name=job_name, lookback_days=lookback_days, workflow_id=workflow_id
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("invalid_workflow_request", job_name=job_name[:20], error=str(e))
         raise ValueError(f"Invalid parameters: {e}")
 
@@ -871,6 +916,11 @@ async def approve_workflow(
             user_id=user_id,
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("invalid_approval_request", workflow_id=workflow_id, error=str(e))
         raise ValueError(f"Invalid parameters: {e}")
 

@@ -283,6 +283,11 @@ class QueryCacheManager:
             return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Query execution failed: %s", e)
             self._update_cache_stats(
                 hit=False, execution_time=time.time() - start_time, error=True
@@ -410,6 +415,11 @@ class QueryCacheManager:
                 # Result invalidated due to table changes
                 await self.cache_manager.invalidate(cache_key, cascade=False)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Cache retrieval error for %s: %s", cache_key, e)
 
         return None

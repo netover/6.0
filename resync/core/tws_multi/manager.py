@@ -74,6 +74,11 @@ class TWSInstanceManager:
 
                 logger.info("Loaded %s TWS instances", len(self._instances))
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error loading instances: %s", e)
         else:
             # Create default instances
@@ -261,6 +266,11 @@ class TWSInstanceManager:
             raise IntegrationError(f"Health check failed: {response.status_code}")
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             instance.status = TWSInstanceStatus.ERROR
             instance.error_count += 1
             instance.last_error = str(e)
@@ -313,6 +323,11 @@ class TWSInstanceManager:
                 }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             return {
                 "success": False,
                 "error": str(e),

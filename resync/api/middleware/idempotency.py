@@ -201,6 +201,11 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # Re-lançar exceções HTTP sem modificação
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Para outras exceções, log e re-lança
             logger.error(
                 "Unexpected error in idempotency middleware",
@@ -307,6 +312,11 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -381,6 +391,11 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -418,6 +433,11 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     UnicodeDecodeError,
                     AttributeError,
                 ) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     # Body not JSON-decodable (or not available). This is expected in some cases.
                     logger.debug("suppressed_exception", error=str(exc), exc_info=True)
 
@@ -425,6 +445,11 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             return {"message": "Response cached", "status_code": response.status_code}
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

@@ -364,6 +364,11 @@ class TWSBackgroundPoller:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 self._errors_count += 1
                 logger.error(
                     "polling_error",
@@ -435,6 +440,11 @@ class TWSBackgroundPoller:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -778,6 +788,11 @@ class TWSBackgroundPoller:
                     # P1 fix: Run sync handler in thread pool and await the result
                     await asyncio.to_thread(handler, event)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "event_handler_error",
                     error=str(e),
@@ -794,6 +809,11 @@ class TWSBackgroundPoller:
                     # P1 fix: Run sync handler in thread pool and await the result
                     await asyncio.to_thread(handler, snapshot)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("snapshot_handler_error", error=str(e))
 
     async def _persist_snapshot(self, snapshot: SystemSnapshot) -> None:
@@ -802,6 +822,11 @@ class TWSBackgroundPoller:
             try:
                 await self.status_store.save_snapshot(snapshot)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("snapshot_persistence_error", error=str(e))
 
     # =========================================================================

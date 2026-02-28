@@ -314,6 +314,11 @@ class RAGServiceClient:
         try:
             data = await self.search(query=query, limit=5)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("rag_get_relevant_context_failed", error=str(exc))
             return None
 

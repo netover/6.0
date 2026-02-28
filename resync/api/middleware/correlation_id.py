@@ -56,6 +56,11 @@ try:
 
     LANGFUSE_AVAILABLE = True
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    import sys as _sys
+    from resync.core.exception_guard import maybe_reraise_programming_error
+    _exc_type, _exc, _tb = _sys.exc_info()
+    maybe_reraise_programming_error(_exc, _tb)
+
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
     logger.warning("langfuse_context_unavailable", reason=type(exc).__name__)
@@ -126,6 +131,11 @@ class CorrelationIdMiddleware:
                         user_id_hash=hashed_user[:8],  # Log only prefix for privacy
                     )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Langfuse context updates are best-effort — log at debug level
                 logger.debug("langfuse_context_update_failed", error=type(e).__name__)
 
@@ -157,6 +167,11 @@ class CorrelationIdMiddleware:
                 # Already reset — this is expected in some scenarios
                 pass
             except (TypeError, AttributeError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Programming error — log with stack trace for debugging
                 logger.warning(
                     "request_id_reset_programming_error",
@@ -169,6 +184,11 @@ class CorrelationIdMiddleware:
             except LookupError:
                 pass
             except (TypeError, AttributeError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "trace_id_reset_programming_error",
                     error_type=type(e).__name__,
@@ -180,6 +200,11 @@ class CorrelationIdMiddleware:
             except LookupError:
                 pass
             except (TypeError, AttributeError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "correlation_id_reset_programming_error",
                     error_type=type(e).__name__,

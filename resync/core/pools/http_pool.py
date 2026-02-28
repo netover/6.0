@@ -62,6 +62,11 @@ class HTTPConnectionPool(ConnectionPool[httpx.AsyncClient]):
                 f"HTTP connection pool '{self.config.pool_name}' initialized with {self.config.min_size}-{self.config.max_size} connections"
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -89,6 +94,11 @@ class HTTPConnectionPool(ConnectionPool[httpx.AsyncClient]):
             yield self._client
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             await self.increment_stat("pool_misses")
             logger.error("Failed to get HTTP connection: %s", e)
             raise TWSConnectionError(f"Failed to acquire HTTP connection: {e}") from e

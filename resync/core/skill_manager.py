@@ -221,6 +221,11 @@ class SkillManager:
                 "skill_frontmatter_yaml_error", file=str(file_path), error=str(e)
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "error_parsing_skill_frontmatter", file=str(file_path), error=str(e)
             )
@@ -271,6 +276,11 @@ class SkillManager:
             with open(skill_file, "r", encoding="utf-8") as f:
                 content = f.read()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("skill_read_error", skill=skill_name, error=str(e))
             return None
 
@@ -339,6 +349,11 @@ class SkillManager:
                     encoding="utf-8",
                 )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("skill_read_error_async", skill=skill_name, error=str(e))
             return None
 

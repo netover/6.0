@@ -123,6 +123,11 @@ async def a2a_events_endpoint(
                 try:
                     yield f"data: {json.dumps(event)}\n\n"
                 except (TypeError, ValueError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("event_serialization_failed", error=str(e))
                     continue
         except asyncio.CancelledError:
@@ -131,6 +136,11 @@ async def a2a_events_endpoint(
             logger.debug("sse_stream_cancelled_by_client")
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("event_stream_error", error=str(e))
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

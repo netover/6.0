@@ -182,6 +182,11 @@ async def submit_feedback(request: SubmitFeedbackRequest):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         # Don't re-raise programming errors - let them propagate to global handler
         logger.error("Failed to collect feedback: %s", e, exc_info=True)
@@ -227,6 +232,11 @@ async def get_patterns(agent_name: str):
                         data = json.loads(await f.read())
                         patterns.append(PatternResponse(**data))
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -239,6 +249,11 @@ async def get_patterns(agent_name: str):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get patterns: %s", e, exc_info=True)
         raise HTTPException(
@@ -296,6 +311,11 @@ async def list_improvements(status: str | None = None):
 
                         improvements.append(ImprovementResponse(**data))
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -308,6 +328,11 @@ async def list_improvements(status: str | None = None):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to list improvements: %s", e, exc_info=True)
         raise HTTPException(
@@ -371,6 +396,11 @@ async def test_improvement(suggestion_id: str):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to test improvement: %s", e, exc_info=True)
         raise HTTPException(
@@ -451,6 +481,11 @@ async def approve_improvement(
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to approve improvement: %s", e, exc_info=True)
         raise HTTPException(
@@ -494,6 +529,11 @@ async def reject_improvement(suggestion_id: str):
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to reject improvement: %s", e, exc_info=True)
         raise HTTPException(
@@ -551,6 +591,11 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
                         else:
                             negative += 1
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -575,6 +620,11 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

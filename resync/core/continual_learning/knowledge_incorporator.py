@@ -260,6 +260,11 @@ class KnowledgeIncorporator:
                 results["doc_ids"].append(doc_id)
                 results["success"] += 1
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 results["failed"] += 1
                 results["errors"].append(
                     {
@@ -303,6 +308,11 @@ class KnowledgeIncorporator:
             logger.info("incorporated_document_removed", doc_id=doc_id)
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("remove_incorporated_error", doc_id=doc_id, error=str(e))
             return False
 

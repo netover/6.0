@@ -266,6 +266,11 @@ class SecureAuthenticator:
             redis = get_redis_client()
             await redis.delete(f"{self._redis_prefix}:{sanitized_ip}")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Non-fatal: if Redis is down, lockout TTL will expire naturally
             logger.debug("redis_lockout_clear_failed", error=str(exc))
 
@@ -301,6 +306,11 @@ class SecureAuthenticator:
             )
             return is_locked, remaining_minutes
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("redis_lockout_check_failed", error=str(exc))
             return False, 0
     # Removed: _record_failed_attempt is now part of _check_and_record_attempt
@@ -392,41 +402,41 @@ class SecureAuthenticator:
             return is_locked, remaining_minutes, attempt_count
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0, 0
 
 # Global authenticator singleton (lazy init; thread-safe)
 # Using threading.Lock for thread-safety across event loops (TASK-013)
 _authenticator: SecureAuthenticator | None = None
-_authenticator_init_lock: threading.Lock | None = None
+_authenticator_init_lock: threading.Lock = threading.Lock()
 
-def _get_authenticator_lock() -> threading.Lock:
-    """Get or create the authenticator initialization lock."""
-    global _authenticator_init_lock
-    if _authenticator_init_lock is None:
-        _authenticator_init_lock = threading.Lock()
-    return _authenticator_init_lock
 
 async def get_authenticator() -> SecureAuthenticator:
-    """Return a lazily-initialized SecureAuthenticator (thread-safe).
+    """Return a lazily-initialized SecureAuthenticator without blocking the event loop.
 
-    Uses threading.Lock instead of asyncio.Lock for thread-safety
-    across multiple event loops (gunicorn --preload scenario).
+    Notes:
+        - Uses a process-wide threading.Lock for safety in multi-threaded servers.
+        - Offloads the lock acquisition and initialization to a worker thread to
+          avoid blocking the asyncio event loop.
     """
     global _authenticator
 
-    # Fast path: already initialized
     if _authenticator is not None:
         return _authenticator
 
-    # Slow path: thread-safe initialization
-    lock = _get_authenticator_lock()
-    with lock:
-        # Double-check (another thread may have initialized)
-        if _authenticator is None:
-            _authenticator = SecureAuthenticator()
+    def _init() -> SecureAuthenticator:
+        global _authenticator
+        with _authenticator_init_lock:
+            if _authenticator is None:
+                _authenticator = SecureAuthenticator()
+        return _authenticator
 
-    return _authenticator
+    return await asyncio.to_thread(_init)
 
 async def verify_admin_credentials(
     request: Request,
@@ -532,6 +542,11 @@ async def verify_admin_credentials(
         raise
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Generic handler - no sensitive data in error
         logger.error(
             "auth_unexpected_error",
@@ -648,7 +663,7 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
     response_data = LoginResponse(
         success=True,
         message="Login successful",
-        token=TokenResponse(access_token=access_token),
+        token=None  # token is only in HttpOnly cookie,
     )
 
     response = JSONResponse(content=response_data.model_dump())
@@ -695,11 +710,18 @@ async def logout(request: Request) -> Response:
                     "token_revoked_on_logout",
                     extra={"jti": payload["jti"], "ip": client_ip},
                 )
-        except Exception as e:
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            raise
+        except (ValueError, TypeError, KeyError, RuntimeError, OSError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Log but don't fail - token may already be invalid
             logger.warning(
                 "token_revocation_failed",
-                extra={"error": str(e), "ip": client_ip},
+                extra={"error": type(e).__name__, "ip": client_ip},
             )
 
     logger.info("logout_requested", extra={"ip": client_ip})
@@ -734,32 +756,3 @@ async def verify_token(
         Token verification status
     """
     return {"valid": True, "username": username, "message": "Token is valid"}
-    return {"valid": True, "username": username, "message": "Token is valid"}
-
-
-    # Clear cookie with SameSite (must match set_cookie)
-    response.delete_cookie(
-        key="access_token",
-        path="/",
-        samesite="strict",
-    )
-
-    return response
-
-@router.get("/verify")
-async def verify_token(
-    username: str | None = Depends(verify_admin_credentials),
-) -> dict[str, Any]:
-    """
-    Verify JWT token validity.
-
-    Args:
-        username: Username from verified token
-
-    Returns:
-        Token verification status
-    """
-    return {"valid": True, "username": username, "message": "Token is valid"}
-    return {"valid": True, "username": username, "message": "Token is valid"}
-
-

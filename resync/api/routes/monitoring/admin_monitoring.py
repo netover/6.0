@@ -144,6 +144,11 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
             roles = [str(roles_claim)]
         return "admin" in roles
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("websocket_auth_failed: %s", type(exc).__name__)
         return False
 
@@ -316,6 +321,11 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("monitoring websocket disconnected")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.exception("monitoring websocket error", extra={"error": str(exc)})
     finally:
         await _WS_HUB.disconnect(websocket)

@@ -79,6 +79,11 @@ def _try_load_joblib(path: str):
         )
         return index
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("bm25_index_joblib_load_failed", extra={"error": str(e)})
         raise
 
@@ -398,6 +403,11 @@ class BM25Index:
                 logger.error("bm25_index_save_timeout", extra={"path": path})
                 return False
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "bm25_index_save_failed", extra={"error": str(e), "path": path}
             )
@@ -450,6 +460,11 @@ class BM25Index:
                 if os.path.exists(lock_path):
                     os.remove(lock_path)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as cleanup_error:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "bm25_index_cleanup_failed", extra={"error": str(cleanup_error)}
                 )
@@ -458,6 +473,11 @@ class BM25Index:
             logger.error("bm25_index_oom_using_empty", extra={"path": path})
             return cls()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "bm25_index_load_failed_unknown",
                 extra={"error": str(e), "error_type": type(e).__name__, "path": path},
@@ -767,6 +787,11 @@ class HybridRetriever:
                 )
                 return
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "BM25 index load failed, will rebuild", extra={"error": str(e)}
             )
@@ -792,6 +817,11 @@ class HybridRetriever:
             else:
                 logger.warning("No documents found for BM25 indexing")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to build BM25 index: %s", e)
 
     async def _save_index_async(self, path: str) -> None:
@@ -808,6 +838,11 @@ class HybridRetriever:
                 else:
                     logger.warning("BM25 index persist failed (non-critical)")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("BM25 index async save failed: %s", e)
 
     def _reciprocal_rank_fusion(
@@ -886,6 +921,11 @@ class HybridRetriever:
                 timeout=timeout,
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("Vector search failed: %s", e)
@@ -909,6 +949,11 @@ class HybridRetriever:
                 hits.append(doc)
             return hits
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("BM25 search failed: %s", e)
             return []
 
@@ -1001,6 +1046,11 @@ class HybridRetriever:
             logger.warning("Retrieval timeout", query=query[:50])
             return []
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Retrieval failed", error=str(e))
             return []
 

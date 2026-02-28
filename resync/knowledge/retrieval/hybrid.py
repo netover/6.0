@@ -421,6 +421,11 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             return intent
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("llm_classification_failed", error=str(e))
             return None
 
@@ -439,6 +444,11 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
                 logger.warning("llm_service_not_available")
                 return None
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("llm_service_initialization_failed", error=str(exc))
                 return None
         return self._llm
@@ -563,6 +573,11 @@ class HybridRAG:
             except ImportError:
                 logger.warning("LLM service not available")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("llm_service_initialization_failed", error=str(exc))
                 return None
         return self._llm
@@ -612,6 +627,11 @@ class HybridRAG:
             except ImportError:
                 logger.debug("continual_learning_module_not_available")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("context_enrichment_error", error=str(e))
         # === END Context Enrichment ===
 
@@ -708,6 +728,11 @@ class HybridRAG:
                 except ImportError:
                     logger.debug("continual_learning_module_not_available")
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("active_learning_check_error", error=str(e))
             # === END Active Learning Check ===
 
@@ -798,6 +823,11 @@ class HybridRAG:
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("rag_query_failed", error=str(e))
             return {"error": str(e), "documents": []}
 
@@ -850,6 +880,11 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
             return all_queries
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("query_expansion_failed", error=str(e))
             return [query]
 
@@ -980,6 +1015,11 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("fusion_rag_failed", error=str(e))
             # Fallback to standard RAG
             return await self._execute_rag_query(query_text, entities)
@@ -1040,6 +1080,11 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 timeout=30.0,
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("response_generation_failed", error=str(e))
             return self._format_results_as_text(results)
 

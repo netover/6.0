@@ -432,6 +432,11 @@ class CrossEncoderReranker:
             return None
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("failed_to_load_cross_encoder", error=str(e))
             self._available = False
             return None
@@ -515,6 +520,11 @@ class CrossEncoderReranker:
             return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("cross_encoder_reranking_failed", error=str(e))
             if top_k is not None:
                 return candidates[:top_k]
@@ -539,6 +549,11 @@ class CrossEncoderReranker:
             logger.info("cross_encoder_warmed_up")
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("cross_encoder_warmup_failed", error=str(e))
             return False
 

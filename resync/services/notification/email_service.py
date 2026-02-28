@@ -46,6 +46,11 @@ class EmailService:
             template = self.template_env.get_template(template_name)
             return await template.render_async(**context)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "email_template_render_error", template=template_name, error=str(e)
             )
@@ -111,6 +116,11 @@ class EmailService:
                     )
                     msg.attach(part)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error("email_attachment_error", path=str(path), error=str(e))
         else:
             # Simple message
@@ -123,6 +133,11 @@ class EmailService:
             logger.info("email_sent", recipient=to_email, subject=subject)
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("email_send_failed", recipient=to_email, error=str(e))
             return False
 
@@ -145,6 +160,11 @@ class EmailService:
 
                 server.send_message(msg)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise to be caught by the async wrapper
             raise e
 

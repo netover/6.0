@@ -92,6 +92,11 @@ def _get_model() -> "SentenceTransformer | None":
             return None
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to load embedding model: %s", e)
             return None
 
@@ -174,6 +179,11 @@ def generate_embedding(
             return embedding.tolist()
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Embedding generation failed: %s", e)
             if not use_fallback:
                 raise EmbeddingModelError(f"Failed to generate embedding: {e}") from e
@@ -221,6 +231,11 @@ def generate_embeddings_batch(
             return embeddings.tolist()
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Batch embedding failed: %s", e)
 
     # Fallback: generate individually

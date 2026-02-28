@@ -595,6 +595,11 @@ class RAGOnlyHandler(BaseHandler):
             return self._general_response(classification)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("RAG search failed: %s", e)
             return self._general_response(classification)
 
@@ -698,6 +703,11 @@ class AgenticHandler(BaseHandler):
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Agentic handler error: %s", e)
             return f"Erro ao processar a solicitação: {e}"
 
@@ -917,6 +927,11 @@ PERGUNTA DO USUÁRIO:
                 return response
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Parallel sub-agent failed: %s", e)
 
         # Single job or fallback
@@ -956,6 +971,11 @@ PERGUNTA DO USUÁRIO:
                     )
                     self.last_tools_used.append("specialist_team")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team analysis failed: %s", e)
 
         # v6.0: Optionally run specialist team for complex analysis
@@ -974,6 +994,11 @@ PERGUNTA DO USUÁRIO:
                     )
                     self.last_tools_used.append("specialist_team")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team analysis failed: %s", e)
 
         # Quando for chamar o agente, passe a skill
@@ -1076,6 +1101,11 @@ class DiagnosticHandler(BaseHandler):
                     )
                     self.last_tools_used.append("specialist_team")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team diagnostic failed: %s", e)
 
             # v6.0: Run specialist team for diagnostic context (best-effort)
@@ -1095,6 +1125,11 @@ class DiagnosticHandler(BaseHandler):
                     )
                     self.last_tools_used.append("specialist_team")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team diagnostic failed: %s", e)
 
             result = await diagnose_problem(
@@ -1140,6 +1175,11 @@ class DiagnosticHandler(BaseHandler):
             logger.warning("LangGraph not available, using fallback")
             return self._manual_troubleshooting(message, classification)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Diagnostic handler error: %s", e)
             return self._manual_troubleshooting(message, classification)
 
@@ -1219,6 +1259,11 @@ class DiagnosticHandler(BaseHandler):
                 for rec in history["recommendations"][:2]:
                     response_parts.append(f"• {rec}")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug(
                 "suppressed_exception", error=str(exc), exc_info=True
             )  # was: pass
@@ -1317,6 +1362,11 @@ class HybridRouter:
                 handler.last_tools_used if hasattr(handler, "last_tools_used") else []
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Handler error: %s", e)
             response = f"Erro ao processar: {e}"
             tools_used = []
@@ -1345,6 +1395,11 @@ class HybridRouter:
                 message=message,
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("failed_to_record_routing_metric", error=str(e))
 
         return result

@@ -137,6 +137,11 @@ class LLMFactory:
             logger.error("llm_api_error", error=str(e))
             raise LLMError(f"API error: {str(e)}") from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("llm_unexpected_error", error=str(e))
             raise LLMError(f"Unexpected error: {str(e)}") from e
 

@@ -166,8 +166,11 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         async with factory() as session:
             try:
                 yield session
-                await session.commit()
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+            except asyncio.CancelledError:
+                # Do not swallow cancellations; let the server shut down promptly.
+                raise
+            except Exception:
+                # Roll back so the connection is clean for pool reuse.
                 await session.rollback()
                 raise
     finally:

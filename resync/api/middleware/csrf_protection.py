@@ -29,7 +29,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         """
         # Skip for safe methods
         if request.method in ["GET", "HEAD", "OPTIONS"]:
-            return await call_next(request)
+            response = await call_next(request)
+            # Issue CSRF token on first safe-method response if not already set
+            if self.cookie_name not in request.cookies:
+                new_token = self._generate_csrf_token()
+                response.set_cookie(
+                    key=self.cookie_name,
+                    value=new_token,
+                    httponly=False,  # JS must read this for X-CSRF-Token header
+                    secure=True,
+                    samesite="strict",
+                    max_age=3600,
+                )
+            return response
 
         # Skip for public endpoints
         if self._is_public_endpoint(request.url.path):
@@ -47,7 +59,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 "CSRF token validation failed",
                 extra={
-                    "ip": request.client.host,
+                    "ip": request.client.host if request.client else "unknown",
                     "path": request.url.path,
                     "user_agent": request.headers.get("user-agent"),
                 },
@@ -62,7 +74,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             response.set_cookie(
                 key=self.cookie_name,
                 value=new_token,
-                httponly=True,
+                httponly=False,  # JS must read this for X-CSRF-Token header
                 secure=True,
                 samesite="strict",
                 max_age=3600,

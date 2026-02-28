@@ -252,6 +252,11 @@ class AdvancedCacheManager:
             self.redis_enabled = True
             logger.info("Redis integration enabled for advanced caching")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Redis not available for caching: %s", e)
             self.redis_enabled = False
 
@@ -340,6 +345,11 @@ class AdvancedCacheManager:
                 self._record_miss(time.time() - start_time)
                 return value
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Failed to fetch data for key %s: %s", key, e)
                 self._record_miss(time.time() - start_time)
                 raise
@@ -494,6 +504,11 @@ class AdvancedCacheManager:
                 logger.debug("Warmed cache key: %s", key)
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "Failed to warm cache key %s: %s",
                     key_config.get("key", "unknown"),
@@ -581,6 +596,11 @@ class AdvancedCacheManager:
             if value_json:
                 return json.loads(value_json)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Redis get error for key %s: %s", key, e)
 
         return None
@@ -594,6 +614,11 @@ class AdvancedCacheManager:
             value_json = json.dumps(value)
             await self.redis_client.set(key, value_json, ex=ttl)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Redis set error for key %s: %s", key, e)
 
     def _calculate_ttl(self, key: str, value: Any) -> int:
@@ -701,6 +726,11 @@ class AdvancedCacheManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Cache cleanup error: %s", e)
 
     async def _warming_loop(self) -> None:
@@ -729,6 +759,11 @@ class AdvancedCacheManager:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Cache warming error: %s", e)
 
 # Global cache manager instance

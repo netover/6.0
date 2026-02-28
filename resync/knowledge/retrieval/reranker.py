@@ -101,6 +101,11 @@ def get_cross_encoder() -> "CrossEncoder | None":
         return _cross_encoder_model
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to load RAG cross-encoder: %s", e)
         _cross_encoder_available = False
         return None
@@ -124,6 +129,11 @@ def preload_cross_encoder() -> bool:
         logger.info("RAG cross-encoder model warmed up")
         return True
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Failed to warm up RAG cross-encoder: %s", e)
         return False
 
@@ -221,6 +231,11 @@ async def rerank_documents(
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Cross-encoder reranking failed: %s", e)
         # Fallback: return original documents
         return RerankResult(

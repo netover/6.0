@@ -99,6 +99,11 @@ async def _call_llm(
         return response.choices[0].message.content
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -308,6 +313,11 @@ class BaseSpecialist:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             processing_time = int((time.time() - start_time) * 1000)
             logger.error(
                 "specialist_processing_error",
@@ -378,6 +388,11 @@ class JobAnalystAgent(BaseSpecialist):
                 if log:
                     results.append(f"Log for {job}:\n{log[:500]}...")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Could not get log for %s: %s", job, e)
 
         # Lookup error codes
@@ -387,6 +402,11 @@ class JobAnalystAgent(BaseSpecialist):
                 if info:
                     results.append(f"Error {code}: {info}")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Could not lookup %s: %s", code, e)
 
         return "\n\n".join(results)
@@ -427,6 +447,11 @@ class DependencySpecialist(BaseSpecialist):
                     results.append(f"Successors of {job}: {', '.join(succs)}")
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Could not get dependencies for %s: %s", job, e)
 
         return "\n".join(results)
@@ -462,6 +487,11 @@ class ResourceSpecialist(BaseSpecialist):
                 if status:
                     results.append(f"Status of {ws}: {status}")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("Could not get status for %s: %s", ws, e)
 
         return "\n".join(results)
@@ -501,6 +531,11 @@ class KnowledgeSpecialist(BaseSpecialist):
                 return "Relevant documentation:\n" + "\n".join(docs)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("Knowledge search failed: %s", e)
 
         return ""
@@ -679,6 +714,11 @@ class TWSSpecialistTeam:
                 resp = await spec.process(query, context)
                 responses.append(resp)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 responses.append(
                     SpecialistResponse(
                         specialist_type=spec.specialist_type,

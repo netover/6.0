@@ -115,6 +115,11 @@ async def db_engine(test_database_url):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
 
     yield engine

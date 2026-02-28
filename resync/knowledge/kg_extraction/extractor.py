@@ -124,6 +124,11 @@ class KGExtractor:
                     for c in c_concepts:
                         c.properties = {**c.properties, "doc_id": doc_id, "chunk_id": chunk_id}
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning(
                         "kg_extract_concepts_failed",
                         error=str(e), doc_id=doc_id, chunk_id=chunk_id
@@ -153,6 +158,11 @@ class KGExtractor:
                         )
                         c_edges = []
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning(
                         "kg_extract_edges_failed",
                         error=str(e), doc_id=doc_id, chunk_id=chunk_id

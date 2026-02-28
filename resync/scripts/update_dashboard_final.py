@@ -66,6 +66,11 @@ new_collect = """async def collect_metrics_sample() -> None:
         if subscribers == 0: logger.debug("Nenhum subscriber no canal de broadcast")
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Erro na coleta: %s", e)
         try:
             await _metrics_store.add_error_sample(e)

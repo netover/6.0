@@ -28,13 +28,21 @@ def _unwrap_secret(value: object) -> str:
     secret exposure via ``str(value)``.
     """
     if isinstance(value, str):
-        return value
+        secret = value.strip()
+        if not secret:
+            raise ValueError("JWT secret key must be non-empty")
+        return secret
+
     get_secret_value = getattr(value, "get_secret_value", None)
     if callable(get_secret_value):
         secret = get_secret_value()
         if not isinstance(secret, str):
             raise TypeError("Secret value must be a str")
+        secret = secret.strip()
+        if not secret:
+            raise ValueError("JWT secret key must be non-empty")
         return secret
+
     raise TypeError("JWT secret key must be str or SecretStr-like")
 
 
@@ -168,12 +176,12 @@ def create_token(
 
     secret_key = _unwrap_secret(secret_key)
 
-    # Add timing claims
+    # Add timing claims (only if not already set by caller)
     now = time.time()
-    to_encode["iat"] = int(now)
+    to_encode.setdefault("iat", int(now))
 
     if expires_in is not None:
-        to_encode["exp"] = int(now + expires_in)
+        to_encode.setdefault("exp", int(now + expires_in))
 
     jwt_module = jwt
     if jwt_module is None:
@@ -235,6 +243,11 @@ def verify_token(
             return False, "Token has expired"
         return False, f"Invalid token: {str(e)}"
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         return False, f"Token verification failed: {str(e)}"
 
 # =============================================================================

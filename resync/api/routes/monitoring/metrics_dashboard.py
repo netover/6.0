@@ -66,6 +66,11 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
             roles = [roles_claim]
         return "admin" in roles
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
         return False
 
@@ -289,6 +294,11 @@ async def _collect_process_metrics(
             memory_mb = float(process.memory_info().rss / (1024 * 1024))
             cpu_percent = float(process.cpu_percent())
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("psutil_process_metrics_failed", extra={"error": str(exc)})
 
     active_connections = 0
@@ -296,6 +306,11 @@ async def _collect_process_metrics(
         connections = await asyncio.to_thread(psutil.net_connections, "inet")
         active_connections = len(connections)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("psutil_net_connections_failed", extra={"error": str(exc)})
 
     return (memory_mb, cpu_percent, active_connections)
@@ -396,6 +411,11 @@ async def get_dashboard_metrics(
             is_warming=bool(warmer.is_warming),
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("warming_stats_unavailable", extra={"error": str(exc)})
     return dashboard_metrics
 
@@ -500,6 +520,11 @@ async def trigger_cache_warming(
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -558,10 +583,20 @@ async def metrics_health() -> dict[str, Any]:
     try:
         health["components"]["cache"] = "available"
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         health["components"]["cache"] = f"unavailable: {e}"
     try:
         health["components"]["router"] = "available"
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         health["components"]["router"] = f"unavailable: {e}"
     try:
         from resync.knowledge.retrieval.reranker import get_reranker_info
@@ -571,10 +606,20 @@ async def metrics_health() -> dict[str, Any]:
             "available" if info["enabled"] else "disabled"
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         health["components"]["reranker"] = f"unavailable: {e}"
     try:
         health["components"]["validators"] = "available"
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         health["components"]["validators"] = f"unavailable: {e}"
     unavailable = [
         c for c, s in health["components"].items() if "unavailable" in str(s)
@@ -660,6 +705,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("metrics_ws_client_disconnected")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.exception("metrics_ws_unhandled_error", extra={"error": str(exc)})
     finally:
         await manager.disconnect(websocket)

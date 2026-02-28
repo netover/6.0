@@ -41,6 +41,11 @@ try:
 
     LANGFUSE_AVAILABLE = True
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    import sys as _sys
+    from resync.core.exception_guard import maybe_reraise_programming_error
+    _exc_type, _exc, _tb = _sys.exc_info()
+    maybe_reraise_programming_error(_exc, _tb)
+
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     logger.warning(
@@ -249,6 +254,11 @@ class PromptManager:
                     )
                     logger.info("langfuse_client_initialized")
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("langfuse_init_failed", error=str(e))
 
             # Load prompts
@@ -417,11 +427,21 @@ Se houver erros, explique o que pode ter acontecido.""",
                             file=yaml_file.name,
                         )
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         logger.warning(
                             "invalid_prompt_in_yaml", file=yaml_file.name, error=str(e)
                         )
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("yaml_load_failed", file=yaml_file.name, error=str(e))
 
     def _sync_from_langfuse(self) -> None:
@@ -439,6 +459,11 @@ Se houver erros, explique o que pode ter acontecido.""",
             logger.debug("langfuse_sync_placeholder")
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("langfuse_sync_failed", error=str(e))
 
     # =========================================================================
@@ -627,6 +652,11 @@ Se houver erros, explique o que pode ter acontecido.""",
             # LangFuse SDK prompt creation would go here
             logger.debug("langfuse_prompt_sync", prompt_id=config.id)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "langfuse_prompt_sync_failed", prompt_id=config.id, error=str(e)
             )

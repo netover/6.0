@@ -127,6 +127,11 @@ async def _load_config() -> dict[str, Any]:
 
         return merged
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("config_load_failed", exc_info=True, extra={"error": str(e)})
         return DEFAULT_CONFIG.copy()
 
@@ -149,6 +154,11 @@ async def _save_config(config: dict[str, Any]) -> None:
 
         await asyncio.to_thread(_write)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         raise HTTPException(
@@ -315,6 +325,11 @@ async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
             content = "".join(dq)
         return {"file": file, "content": content}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to read log file. Check server logs for details.",
@@ -354,6 +369,11 @@ async def create_backup() -> dict[str, str]:
             await f.write(json.dumps(backup_data, indent=2))
         return {"created": [backup_file.name], "count": len(backup_data)}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("backup_failed", exc_info=True, extra={"error": str(exc)})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -423,6 +443,11 @@ async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
         ]
         return {"records": records, "count": len(records)}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("audit_query_failed", exc_info=True, extra={"error": str(exc)})
         return {"records": [], "error": str(exc)}
 

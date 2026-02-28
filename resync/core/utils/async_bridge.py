@@ -60,6 +60,11 @@ def fire_and_forget(
         try:
             t.result()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             if logger is not None:
@@ -69,6 +74,11 @@ def fire_and_forget(
                         extra={"task": name or str(t), "error": str(exc)},
                     )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", exc_info=True, extra={"error": str(exc)}
                     )

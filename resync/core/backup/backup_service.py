@@ -260,6 +260,11 @@ class BackupService:
                     schedules=len(self._schedules),
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("backup_metadata_load_failed", error=str(e))
 
     def _save_metadata(self) -> None:
@@ -276,10 +281,19 @@ class BackupService:
 
             logger.debug("backup_metadata_saved")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("backup_metadata_save_failed", error=str(e))
+
+async def _save_metadata_async(self) -> None:
+    """Save metadata without blocking the event loop."""
+    await asyncio.to_thread(self._save_metadata)
 
     async def create_database_backup(
         self,
@@ -400,6 +414,11 @@ class BackupService:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             backup.status = BackupStatus.FAILED
             backup.error = str(e)
             backup.completed_at = datetime.now(timezone.utc)
@@ -410,7 +429,7 @@ class BackupService:
             if filepath.exists():
                 filepath.unlink()
 
-        self._save_metadata()
+        await self._save_metadata_async()
         return backup
 
     def create_config_backup(
@@ -507,6 +526,11 @@ class BackupService:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             backup.status = BackupStatus.FAILED
             backup.error = str(e)
             backup.completed_at = datetime.now(timezone.utc)
@@ -594,13 +618,18 @@ class BackupService:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             backup.status = BackupStatus.FAILED
             backup.error = str(e)
             backup.completed_at = datetime.now(timezone.utc)
 
             logger.error("full_backup_failed", backup_id=backup_id, error=str(e))
 
-        self._save_metadata()
+        await self._save_metadata_async()
         return backup
 
     def list_backups(
@@ -669,6 +698,11 @@ class BackupService:
                 if resolved.exists():
                     return resolved
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "backup_filepath_validation_failed",
                     backup_id=backup_id,
@@ -840,6 +874,11 @@ class BackupService:
             return next_run
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -914,6 +953,11 @@ class BackupService:
                             await self.cleanup_old_backups(schedule.retention_days)
 
                         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                            import sys as _sys
+                            from resync.core.exception_guard import maybe_reraise_programming_error
+                            _exc_type, _exc, _tb = _sys.exc_info()
+                            maybe_reraise_programming_error(_exc, _tb)
+
                             logger.error(
                                 "scheduled_backup_failed",
                                 schedule_id=schedule.id,
@@ -925,7 +969,7 @@ class BackupService:
                         schedule.next_run = self._calculate_next_run(
                             schedule.cron_expression
                         )
-                        self._save_metadata()
+                        await self._save_metadata_async()
 
                 # Check every minute
                 await asyncio.sleep(60)
@@ -933,6 +977,11 @@ class BackupService:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("scheduler_error", error=str(e))
                 await asyncio.sleep(60)
 
@@ -1024,6 +1073,11 @@ class BackupService:
             return backup
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("rag_index_backup_failed", backup_id=backup_id, error=str(e))
             return None
 
@@ -1066,6 +1120,11 @@ class BackupService:
             return True
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("rag_restore_failed", backup_id=backup_id, error=str(e))
             return False
 

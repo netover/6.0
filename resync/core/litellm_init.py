@@ -112,6 +112,11 @@ class LiteLLMManager:
                 raise
             return None
         except (ValueError, TypeError, KeyError, AttributeError) as err:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Configuration or programming errors should always fail fast
             logger.error(
                 "Failed to initialize LiteLLM due to configuration error: %s", err
@@ -157,6 +162,11 @@ class LiteLLMManager:
         try:
             return float(completion_cost(completion_response=completion_response))
         except (ValueError, TypeError, KeyError) as err:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "Could not calculate completion cost: %s", err, exc_info=False
             )

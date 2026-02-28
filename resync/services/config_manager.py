@@ -273,6 +273,11 @@ class ConfigManager:
                     data = json.loads(content) if content.strip() else {}
                     self._flatten_config(data, self._file_config, "")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to load admin config", error=str(e))
 
         # Load redis strategy YAML
@@ -284,6 +289,11 @@ class ConfigManager:
                     if data:
                         self._flatten_config(data, self._file_config, "redis.")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to load redis strategy", error=str(e))
 
         # Load agents config YAML
@@ -295,6 +305,11 @@ class ConfigManager:
                     if data:
                         self._flatten_config(data, self._file_config, "agents.")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to load agents config", error=str(e))
 
     def _flatten_config(self, data: dict, target: dict, prefix: str) -> None:
@@ -427,6 +442,11 @@ class ConfigManager:
             try:
                 listener(event)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Config change listener failed", error=str(e))
 
         logger.info(

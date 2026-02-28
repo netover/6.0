@@ -9,6 +9,7 @@ import asyncio
 import inspect
 import logging
 import os
+import threading
 import socket
 from collections.abc import Awaitable
 from contextlib import suppress
@@ -121,31 +122,37 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
     global _REDIS_CLIENT  # pylint
 
     if _REDIS_CLIENT is None:
-        lazy = os.getenv("RESYNC_REDIS_LAZY_INIT", "0").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        if not lazy:
-            raise RuntimeError(
-                "Redis client not initialized. Ensure "
-                "RedisInitializer.initialize() runs "
-                "during application startup (lifespan). To allow lazy init (legacy), "
-                "set RESYNC_REDIS_LAZY_INIT=1."
-            )
+        # Lazy init is supported only for legacy/dev scripts. In async servers,
+        # concurrent calls may happen (e.g., via threadpool). Guard with a lock.
+        with _REDIS_CLIENT_INIT_LOCK:
+            if _REDIS_CLIENT is None:
+                lazy = os.getenv("RESYNC_REDIS_LAZY_INIT", "0").strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                }
+                if not lazy:
+                    raise RuntimeError(
+                        "Redis client not initialized. Ensure "
+                        "RedisInitializer.initialize() runs "
+                        "during application startup (lifespan). To allow lazy init (legacy), "
+                        "set RESYNC_REDIS_LAZY_INIT=1."
+                    )
 
-        # Legacy path (scripts/dev only)
-        _url = getattr(settings, "redis_url", None)
-        url = (
-            _resolve_redis_url(_url)
-            if _url is not None
-            else os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        )
+                # Legacy path (scripts/dev only)
+                _url = getattr(settings, "redis_url", None)
+                url = (
+                    _resolve_redis_url(_url)
+                    if _url is not None
+                    else os.getenv("REDIS_URL", "redis://localhost:6379/0")
+                )
 
-        _REDIS_CLIENT = redis.from_url(url, encoding="utf-8", decode_responses=True)
-        logger.warning(
-            "Initialized Redis client via lazy init (RESYNC_REDIS_LAZY_INIT=1)."
-        )
+                _REDIS_CLIENT = redis.from_url(
+                    url, encoding="utf-8", decode_responses=True
+                )
+                logger.warning(
+                    "Initialized Redis client via lazy init (RESYNC_REDIS_LAZY_INIT=1)."
+                )
 
     return _REDIS_CLIENT
 
@@ -160,6 +167,11 @@ async def close_redis_client() -> None:
         try:
             await _REDIS_CLIENT.close()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("redis_close_error_ignored", error=str(exc))  # best-effort on shutdown
         _REDIS_CLIENT = None
 

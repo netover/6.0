@@ -83,6 +83,11 @@ class ManagedResource[T]:
                     f"lifetime: {lifetime:.2f}s"
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error closing resource %s: %s", self.resource_id, e)
                 raise
 
@@ -100,6 +105,11 @@ class ManagedResource[T]:
                     f"lifetime: {lifetime:.2f}s"
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error closing resource %s: %s", self.resource_id, e)
                 raise
 
@@ -129,6 +139,11 @@ class DatabaseConnectionResource(ManagedResource[Any]):
                     if inspect.isawaitable(close_result):
                         await close_result
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing database connection: %s", e)
             raise
 
@@ -150,6 +165,11 @@ class FileResource(ManagedResource[Any]):
                     if inspect.isawaitable(close_result):
                         await close_result
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing file handle: %s", e)
             raise
 
@@ -159,6 +179,11 @@ class FileResource(ManagedResource[Any]):
             if hasattr(self.file_handle, "close"):
                 self.file_handle.close()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing file handle synchronously: %s", e)
             raise
 
@@ -180,6 +205,11 @@ class NetworkSocketResource(ManagedResource[Any]):
                     if inspect.isawaitable(close_result):
                         await close_result
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing network socket: %s", e)
             raise
 
@@ -253,6 +283,11 @@ class ResourcePool[T]:
                     if inspect.isawaitable(close_result):
                         await close_result
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing resource %s: %s", resource_id, e)
 
     async def acquire(
@@ -426,6 +461,11 @@ class BatchResourceManager:
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error cleaning up batch resource %s: %s", resource_id, e)
 
         self.resources.clear()

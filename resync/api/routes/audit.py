@@ -211,6 +211,11 @@ def get_flagged_memories(
 
         return memories
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         log_audit_event(
             action="retrieve_flagged_memories_error",
             user_id=user_id,
@@ -449,6 +454,11 @@ def get_audit_metrics(
 
         return metrics
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         log_audit_event(
             action="retrieve_audit_metrics_error",
             user_id=user_id,
@@ -505,6 +515,11 @@ def get_audit_logs(
         # For now, return an empty list as a placeholder
         return []
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         log_audit_event(
             action="retrieve_audit_logs_error",
             user_id=current_user_id,
@@ -578,6 +593,11 @@ async def create_audit_log(
             # For now, we'll just return the data that was provided
             return audit_data
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -603,6 +623,11 @@ async def create_audit_log(
     try:
         cached = await manager.get_cached_response(idempotency_key, request_fingerprint)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Map semantic conflicts to 409
         from resync.core.idempotency.exceptions import IdempotencyConflictError
 

@@ -379,6 +379,11 @@ class ApplicationFactory:
                         trusted_hosts=proxy_trusted,
                     )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Fail closed in production: better to crash than accept spoofed headers.
             if self.settings.is_production:
                 logger.critical("proxy_middleware_setup_failed_prod", error=str(e))
@@ -400,6 +405,11 @@ class ApplicationFactory:
             self.app.state.limiter = limiter
             self.app.add_middleware(SlowAPIMiddleware)
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # [P1-01] Rate limiting must not silently fail open in production.
             if self.settings.is_production:
                 logger.critical("rate_limiting_setup_failed_prod", error=str(e))
@@ -427,6 +437,31 @@ class ApplicationFactory:
             allow_origin_regex=allow_origin_regex,
             log_violations=cors_policy.log_violations,
         )
+
+        # 2.5) CSRF protection (production-only; requires SECRET_KEY)
+        # Only meaningful for cookie-auth / browser clients; safe no-op for pure token APIs.
+        if self.settings.is_production:
+            try:
+                from pydantic import SecretStr
+                from resync.api.middleware.csrf_protection import CSRFMiddleware
+
+                sk = getattr(self.settings, "secret_key", None)
+                secret_value = (
+                    sk.get_secret_value()
+                    if isinstance(sk, SecretStr)
+                    else str(sk or "")
+                )
+                if secret_value:
+                    self.app.add_middleware(CSRFMiddleware, secret_key=secret_value)
+                    logger.info("csrf_middleware_registered")
+                else:
+                    logger.warning("csrf_middleware_skipped", reason="no_secret_key")
+            except ImportError as e:
+                logger.warning("csrf_middleware_not_available", error=str(e))
+            except (RuntimeError, OSError, ValueError) as e:
+                # Fail closed in production: better to crash than ship without CSRF.
+                logger.critical("csrf_middleware_setup_failed_prod", error=str(e))
+                raise
 
         # 3) CSP (production-only)
         if self.settings.is_production:

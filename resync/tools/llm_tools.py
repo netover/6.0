@@ -89,6 +89,11 @@ async def get_job_status(job_name: str, workspace: str = "PROD") -> dict[str, An
             "workspace": workspace,
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting job status: %s", e, exc_info=True)
@@ -142,6 +147,11 @@ async def get_failed_jobs(hours: int = 24) -> dict[str, Any]:
             ],
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting failed jobs: %s", e, exc_info=True)
@@ -176,6 +186,11 @@ async def get_job_logs(job_name: str, lines: int = 100) -> dict[str, Any]:
 
         return {"job_name": job_name, "lines": lines, "content": log_content or ""}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting job logs: %s", e, exc_info=True)
@@ -230,6 +245,11 @@ async def get_system_health() -> dict[str, Any]:
             },
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting system health: %s", e, exc_info=True)
@@ -270,6 +290,11 @@ async def get_job_dependencies(job_name: str) -> dict[str, Any]:
             "successors": successors if isinstance(successors, list) else [],
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
         logger.error("Error getting job dependencies: %s", e, exc_info=True)
@@ -416,6 +441,11 @@ async def execute_tool_call(
 
         return {"success": True, "result": result}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Tool execution failed: %s", e, exc_info=True)
         return {"error": str(e)}
 

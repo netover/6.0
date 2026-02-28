@@ -619,6 +619,11 @@ class RedisLongTermStore(LongTermMemoryStore):
                 )
                 logger.info("Redis long-term memory store connected")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Redis connection failed: %s", e)
                 raise
 
@@ -652,6 +657,11 @@ class RedisLongTermStore(LongTermMemoryStore):
                 return DeclarativeMemory.from_dict(parsed)
             return ProceduralMemory.from_dict(parsed)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to parse memory %s: %s", memory_id, e)
             return None
 
@@ -899,6 +909,11 @@ class MemoryExtractor:
                     )
                     memories.append(memory)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Failed to create declarative memory: %s", e)
 
             # Process procedural memories
@@ -915,6 +930,11 @@ class MemoryExtractor:
                     )
                     memories.append(memory)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Failed to create procedural memory: %s", e)
 
             logger.info(f"Extracted {len(memories)} memories from session {session_id}")
@@ -924,6 +944,11 @@ class MemoryExtractor:
             logger.error("Failed to parse LLM response as JSON: %s", e)
             return []
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Memory extraction failed: %s", e)
             return []
 
@@ -977,6 +1002,11 @@ class LongTermMemoryManager:
                 logger.info("Using Redis for long-term memory")
                 return self._store
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Redis not available for LTM: %s", e)
 
         # Fallback to in-memory

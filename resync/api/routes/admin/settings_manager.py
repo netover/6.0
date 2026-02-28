@@ -8,9 +8,11 @@ from the Settings class, organized by logical sections.
 v5.9.9: Complete settings management for admin UI.
 """
 
+import asyncio
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -73,6 +75,20 @@ SETTINGS_SCHEMA = {
                 "warning": "Nunca ativar em produção",
                 "hot_reload": False,
                 "restart_reason": "Debug mode afeta middlewares e error handlers",
+            },
+            "strict_exception_handling": {
+                "type": "boolean",
+                "label": "Fail-fast (Staging/Canary)",
+                "description": "Re-levanta erros de programação capturados por handlers amplos. Ative apenas em staging/canary.",
+                "warning": "Pode derrubar requests ao expor bugs mascarados. Use em canary primeiro.",
+                "hot_reload": True,
+            },
+            "programming_error_metrics_detailed_site": {
+                "type": "boolean",
+                "label": "Métrica detalhada de erros (site=file:linha)",
+                "description": "Inclui label site=file:linha na métrica de erros de programação capturados. Use apenas em staging/canary (cardinalidade alta).",
+                "warning": "Pode aumentar muito a cardinalidade de séries no dashboard Prometheus-compatível. Mantenha OFF em produção.",
+                "hot_reload": True,
             },
             "log_level": {
                 "type": "select",
@@ -1036,6 +1052,144 @@ SETTINGS_SCHEMA = {
         },
     },
 }
+# =============================================================================
+# SCHEMA AUTO-EXTENSION
+# =============================================================================
+
+def _infer_field_schema(key: str, field: Any) -> dict[str, Any]:
+    """Infer a UI schema entry from a Pydantic Settings field.
+
+    We keep this conservative: default hot_reload=False to avoid runtime surprises.
+    """
+    from typing import get_origin, get_args, Literal
+    ann = field.annotation
+    origin = get_origin(ann)
+
+    # Secret-like fields (SecretStr, SecretBytes) -> password input
+    if hasattr(ann, "__name__") and ann.__name__ in {"SecretStr", "SecretBytes"}:
+        return {"type": "password", "label": key.replace("_", " ").title(), "hot_reload": False}
+
+    # Literal -> select
+    if origin is Literal:
+        options = [str(v) for v in get_args(ann)]
+        return {"type": "select", "options": options, "label": key.replace("_", " ").title(), "hot_reload": False}
+
+    # bool / int / float / list[str] / Path
+    if ann is bool:
+        return {"type": "boolean", "label": key.replace("_", " ").title(), "hot_reload": False}
+    if ann in (int, float):
+        return {"type": "number", "label": key.replace("_", " ").title(), "hot_reload": False}
+    if origin in (list, tuple, set):
+        return {"type": "textarea", "label": key.replace("_", " ").title(), "hot_reload": False}
+    if getattr(ann, "__name__", "") == "Path":
+        return {"type": "text", "label": key.replace("_", " ").title(), "hot_reload": False}
+
+    # default
+    return {"type": "text", "label": key.replace("_", " ").title(), "hot_reload": False}
+
+
+def _select_group_for_setting_key(key: str) -> str:
+    """Map a setting key to an existing UI group.
+
+    Groups are aligned with the UI recommendation:
+      - server: WebSocket + HTTP pool
+      - cache: cache hierarchy / robust cache
+      - tws: Teams/TWS
+      - cors: Security/Network (CORS)
+    Everything else goes to 'advanced'.
+    """
+    if key.startswith(("ws_", "http_pool_")):
+        return "server"
+    if key.startswith(("cache_", "robust_cache_")):
+        return "cache"
+    if key.startswith("tws_"):
+        return "tws"
+    if key.startswith("cors_"):
+        return "cors"
+    if key.startswith("redis_"):
+        return "redis"
+    if key.startswith(("db_", "database_")):
+        return "database"
+    if key.startswith("langfuse_"):
+        return "langfuse"
+    if key.startswith(("ollama_",)):
+        return "ollama"
+    if key.startswith(("llm_", "litellm_")):
+        return "llm"
+    if key.startswith("hybrid_"):
+        return "hybrid_retriever"
+    if key.startswith("rate_limit_") or key.startswith("rate_limiting_"):
+        return "rate_limiting"
+    if key.startswith("upload_"):
+        return "uploads"
+    if key.startswith("backup_"):
+        return "backup"
+    if key.startswith("enterprise_"):
+        return "enterprise"
+    if key.startswith("security_") or key.startswith("jwt_") or key.startswith("auth_"):
+        return "security"
+    return "advanced"
+
+
+def _extend_settings_schema_with_all_settings() -> None:
+    """Ensure the Admin UI exposes *all* Settings keys.
+
+    Any Settings fields not present in SETTINGS_SCHEMA will be added to a
+    conservative 'advanced' group or inferred group based on prefix.
+
+    This is safe by default:
+      - hot_reload defaults to False (restart required) unless already specified.
+      - Secret values remain masked by existing API logic.
+    """
+    try:
+        from resync.settings import Settings
+    except Exception:
+        return
+
+    all_keys = list(getattr(Settings, "model_fields", {}).keys())
+    if not all_keys:
+        return
+
+    # Ensure Advanced group exists
+    if "advanced" not in SETTINGS_SCHEMA:
+        SETTINGS_SCHEMA["advanced"] = {
+            "title": "Advanced",
+            "icon": "fa-sliders",
+            "description": "Configurações avançadas (auto-geradas) para cobrir todos os campos do Settings.",
+            "fields": {},
+        }
+
+    existing = set()
+    for grp in SETTINGS_SCHEMA.values():
+        existing.update(grp.get("fields", {}).keys())
+
+    for key in all_keys:
+        if key in existing:
+            continue
+
+        group_key = _select_group_for_setting_key(key)
+        if group_key not in SETTINGS_SCHEMA:
+            group_key = "advanced"
+
+        field = Settings.model_fields.get(key)
+        if field is None:
+            continue
+
+        entry = _infer_field_schema(key, field)
+
+        # A few safe hot-reload knobs (read at runtime frequently)
+        if key in {"ws_connection_timeout", "strict_exception_handling", "programming_error_metrics_detailed_site"}:
+            entry["hot_reload"] = True
+
+        # Provide minimal descriptions for some secret-ish keys
+        if entry.get("type") == "password":
+            entry.setdefault("description", "Campo sensível: será armazenado como override e exibido mascarado.")
+            entry.setdefault("hot_reload", False)
+
+        SETTINGS_SCHEMA[group_key]["fields"][key] = entry
+
+
+_extend_settings_schema_with_all_settings()
 
 # =============================================================================
 # REQUEST/RESPONSE MODELS
@@ -1058,25 +1212,89 @@ class BulkSettingsUpdate(BaseModel):
 # HELPER FUNCTIONS
 # =============================================================================
 
-def _load_overrides() -> dict[str, Any]:
-    """Load settings overrides from JSON file."""
+def _load_overrides_sync() -> dict[str, Any]:
+    """Load settings overrides from JSON file (blocking)."""
     if SETTINGS_OVERRIDE_PATH.exists():
         try:
             with SETTINGS_OVERRIDE_PATH.open("r", encoding="utf-8") as f:
                 return json.load(f)
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to load settings overrides: %s", e)
     return {}
 
-def _save_overrides(overrides: dict[str, Any]) -> None:
-    """Save settings overrides to JSON file."""
+
+async def _load_overrides() -> dict[str, Any]:
+    """Load settings overrides without blocking the event loop."""
+    return await asyncio.to_thread(_load_overrides_sync)
+
+
+def _save_overrides_sync(overrides: dict[str, Any]) -> None:
+    """Save settings overrides to JSON file (blocking).
+
+    Resilience/Security:
+    - Atomic write via temp file + os.replace (prevents partial writes)
+    - Restrictive permissions (0o600) for secrets-at-rest defense in depth
+    """
     try:
         SETTINGS_OVERRIDE_PATH.parent.mkdir(parents=True, exist_ok=True)
         overrides["_last_modified"] = datetime.now(timezone.utc).isoformat()
-        with SETTINGS_OVERRIDE_PATH.open("w", encoding="utf-8") as f:
-            json.dump(overrides, f, indent=2, ensure_ascii=False, default=str)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
+
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            prefix="settings_override_",
+            suffix=".json",
+            dir=str(SETTINGS_OVERRIDE_PATH.parent),
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(overrides, f, indent=2, ensure_ascii=False, default=str)
+                f.flush()
+                os.fsync(f.fileno())
+            os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, SETTINGS_OVERRIDE_PATH)
+        finally:
+            if os.path.exists(tmp_path) and tmp_path != str(SETTINGS_OVERRIDE_PATH):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+        # Ensure target file permissions (in case it pre-existed)
+        try:
+            os.chmod(SETTINGS_OVERRIDE_PATH, 0o600)
+        except OSError:
+            pass
+
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to save settings overrides: %s", e)
@@ -1085,9 +1303,15 @@ def _save_overrides(overrides: dict[str, Any]) -> None:
             detail="Failed to save settings. Check server logs for details.",
         ) from None
 
-def _get_current_value(settings: Settings, key: str) -> Any:
+
+async def _save_overrides(overrides: dict[str, Any]) -> None:
+    """Save settings overrides without blocking the event loop."""
+    await asyncio.to_thread(_save_overrides_sync, overrides)
+
+
+
+def _get_current_value(settings: Settings, key: str, overrides: dict[str, Any]) -> Any:
     """Get current value for a setting, checking overrides first."""
-    overrides = _load_overrides()
     if key in overrides:
         return overrides[key]
 
@@ -1100,10 +1324,9 @@ def _get_current_value(settings: Settings, key: str) -> Any:
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return None
 
-def _get_all_settings_values(settings: Settings) -> dict[str, dict[str, Any]]:
+def _get_all_settings_values(settings: Settings, overrides: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Get all current settings values organized by section."""
     result = {}
-    overrides = _load_overrides()
 
     for section_key, section in SETTINGS_SCHEMA.items():
         section_values = {}
@@ -1152,8 +1375,8 @@ async def get_all_settings() -> dict[str, Any]:
     values (passwords, API keys) masked.
     """
     settings = get_settings()
-    values = _get_all_settings_values(settings)
-    overrides = _load_overrides()
+    overrides = await _load_overrides()
+    values = _get_all_settings_values(settings, overrides)
 
     return {
         "values": values,
@@ -1181,7 +1404,7 @@ async def get_section_settings(section_key: str) -> dict[str, Any]:
     settings = get_settings()
     section = SETTINGS_SCHEMA[section_key]
     values = {}
-    overrides = _load_overrides()
+    overrides = await _load_overrides()
 
     for field_key in section["fields"]:
         if field_key in overrides:
@@ -1250,14 +1473,14 @@ async def update_setting(update: SettingUpdate) -> dict[str, Any]:
             detail=f"Setting '{update.key}' is read-only",
         )
 
+    overrides = await _load_overrides()
+
     # Get old value
-    old_value = _get_current_value(settings, update.key)
+    old_value = _get_current_value(settings, update.key, overrides)
 
     # Save to overrides
-    overrides = _load_overrides()
     overrides[update.key] = update.value
-    _save_overrides(overrides)
-
+    await _save_overrides(overrides)
     # Also update environment variable for immediate effect on some settings
     env_key = f"APP_{update.key.upper()}"
     os.environ[env_key] = str(update.value)
@@ -1268,6 +1491,11 @@ async def update_setting(update: SettingUpdate) -> dict[str, Any]:
             clear_settings_cache()
             logger.info("Setting hot-reloaded: %s = %s", update.key, update.value)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Could not clear settings cache: %s", e)
     else:
         logger.info(
@@ -1302,7 +1530,7 @@ async def bulk_update_settings(update: BulkSettingsUpdate) -> dict[str, Any]:
     """
     from resync.settings import clear_settings_cache
 
-    overrides = _load_overrides()
+    overrides = await _load_overrides()
     updated = []
     errors = []
     requires_restart = []
@@ -1343,13 +1571,17 @@ async def bulk_update_settings(update: BulkSettingsUpdate) -> dict[str, Any]:
                 {"key": key, "reason": restart_reason or "Requer restart"}
             )
 
-    _save_overrides(overrides)
-
+    await _save_overrides(overrides)
     # Clear settings cache to force reload on next access
     try:
         clear_settings_cache()
         logger.info("Settings cache cleared after updating %s settings", len(updated))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("Could not clear settings cache: %s", e)
 
     return {
@@ -1387,7 +1619,7 @@ async def reset_setting(key: str) -> dict[str, Any]:
     Args:
         key: The setting key to reset.
     """
-    overrides = _load_overrides()
+    overrides = await _load_overrides()
 
     if key not in overrides:
         raise HTTPException(
@@ -1396,8 +1628,7 @@ async def reset_setting(key: str) -> dict[str, Any]:
         )
 
     del overrides[key]
-    _save_overrides(overrides)
-
+    await _save_overrides(overrides)
     # Remove from environment
     env_key = f"APP_{key.upper()}"
     if env_key in os.environ:
@@ -1415,12 +1646,11 @@ async def reset_all_settings() -> dict[str, Any]:
 
     Clears all overrides, reverting to defaults from Settings class.
     """
-    overrides = _load_overrides()
+    overrides = await _load_overrides()
     count = len([k for k in overrides if not k.startswith("_")])
 
     # Clear overrides file
-    _save_overrides({"_last_modified": datetime.now(timezone.utc).isoformat()})
-
+    await _save_overrides({"_last_modified": datetime.now(timezone.utc).isoformat()})
     return {
         "success": True,
         "reset_count": count,
@@ -1435,7 +1665,8 @@ async def export_settings() -> dict[str, Any]:
     Sensitive values are masked.
     """
     settings = get_settings()
-    values = _get_all_settings_values(settings)
+    overrides = await _load_overrides()
+    values = _get_all_settings_values(settings, overrides)
 
     return {
         "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -1461,7 +1692,7 @@ async def import_settings(data: dict[str, Any]) -> dict[str, Any]:
             detail="Invalid import format: missing 'settings' key",
         )
 
-    overrides = _load_overrides()
+    overrides = await _load_overrides()
     imported = 0
 
     for section_key, section_values in data["settings"].items():
@@ -1476,8 +1707,7 @@ async def import_settings(data: dict[str, Any]) -> dict[str, Any]:
                 overrides[key] = value
                 imported += 1
 
-    _save_overrides(overrides)
-
+    await _save_overrides(overrides)
     return {
         "success": True,
         "imported_count": imported,

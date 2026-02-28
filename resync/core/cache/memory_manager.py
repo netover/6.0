@@ -15,6 +15,11 @@ try:
     from resync.core.metrics import runtime_metrics
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:
 
+    import sys as _sys
+    from resync.core.exception_guard import maybe_reraise_programming_error
+    _exc_type, _exc, _tb = _sys.exc_info()
+    maybe_reraise_programming_error(_exc, _tb)
+
     class _DummyRuntimeMetrics:
         """_ dummy runtime metrics."""
 
@@ -237,6 +242,11 @@ class CacheMemoryManager:
                     )
                     return False
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             runtime_metrics.create_correlation_id(
                 {
                     "component": "cache_memory_manager",
@@ -349,6 +359,11 @@ class CacheMemoryManager:
             )
             return bytes_freed
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error during eviction: %s", str(e), exc_info=True)
             log_with_correlation(
                 logging.ERROR, f"Error during eviction: {e}", correlation_id
@@ -407,6 +422,11 @@ class CacheMemoryManager:
                 return 0.0
             return total_memory / (1024 * 1024)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.warning("Failed to estimate cache memory usage: %s", e)
@@ -439,6 +459,11 @@ class CacheMemoryManager:
 try:
     from resync.core.metrics import log_with_correlation
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    import sys as _sys
+    from resync.core.exception_guard import maybe_reraise_programming_error
+    _exc_type, _exc, _tb = _sys.exc_info()
+    maybe_reraise_programming_error(_exc, _tb)
+
     logger.error("Failed to import log_with_correlation: %s", str(e), exc_info=True)
 
     def log_with_correlation(

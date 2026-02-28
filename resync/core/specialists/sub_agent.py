@@ -196,6 +196,11 @@ class SubAgent:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("sub_agent_error", agent_id=self.agent_id, error=str(e))
             return SubAgentResult(
                 agent_id=self.agent_id,
@@ -279,6 +284,11 @@ class SubAgent:
                 for agent in agents:
                     tasks.append(tg.create_task(execute_with_semaphore(agent)))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # TaskGroup usually raises ExceptionGroup, but we catch broad exception here for safety
             logger.error("parallel_execution_error", error=str(e))
 

@@ -282,6 +282,11 @@ class OrchestrationRunner:
                 )
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(f"Execution loop error: {e}", exc_info=True)
                 await exec_repo.update_status(
                     execution_id,
@@ -351,6 +356,11 @@ class OrchestrationRunner:
                     )
                     break
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     last_exc = exc
                     if attempt >= max_retries:
                         raise
@@ -393,6 +403,11 @@ class OrchestrationRunner:
             return {"status": "completed", "output": result.get("output")}
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(f"Step {step_config.id} execution failed: {e}")
             end_time = datetime.now(timezone.utc)
             latency = int((end_time - start_time).total_seconds() * 1000)

@@ -313,6 +313,11 @@ class TestSQLInjectionMiddleware:
             try:
                 run_sync(middleware._analyze_request_for_sql_injection(request))
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 pytest.fail(f"Safe input was blocked: {safe_input} - {e}")
 
     def test_request_data_extraction(self, mock_request):

@@ -208,6 +208,11 @@ async def create_database_backup(
         )
         return BackupResponse.from_backup_info(backup)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("create_database_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=500,
@@ -231,6 +236,11 @@ async def create_config_backup(request: CreateBackupRequest):
         )
         return BackupResponse.from_backup_info(backup)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("create_config_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=500,
@@ -250,6 +260,11 @@ async def create_full_backup(request: CreateBackupRequest):
         backup = await service.create_full_backup(description=request.description)
         return BackupResponse.from_backup_info(backup)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("create_full_backup_failed", error=str(e))  # type: ignore[call-arg]
         raise HTTPException(
             status_code=500,

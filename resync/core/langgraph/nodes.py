@@ -122,6 +122,11 @@ class RouterNode(BaseNode):
             try:
                 intent, confidence = await self._classify_with_llm(message)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("router_llm_failed", error=str(e))
                 if self.config.fallback_to_keywords:
                     intent, confidence = self._classify_with_keywords(message)
@@ -368,6 +373,11 @@ class ToolNode(BaseNode):
             except asyncio.TimeoutError:
                 last_error = f"Tool {self.config.tool_name} timed out after {self.config.timeout_seconds}s"
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 last_error = str(e)
 
             retry_count += 1
@@ -580,6 +590,11 @@ class HumanApprovalNode(BaseNode):
                 json.dumps(request.to_dict()),
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("approval_persistence_failed", error=str(e))
             raise RuntimeError(f"Failed to persist approval request: {e}")
 

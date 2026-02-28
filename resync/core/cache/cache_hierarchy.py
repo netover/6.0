@@ -177,6 +177,11 @@ class CacheHierarchy:
                 encoded = base64.b64encode(value_str.encode()).decode()
                 return {"__encrypted__": True, "data": encoded}
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "encryption_failed: error=%s, value_type=%s",
                     str(e),
@@ -199,6 +204,11 @@ class CacheHierarchy:
                 decoded = base64.b64decode(encoded.encode()).decode()
                 return json.loads(decoded)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("decryption_failed: error=%s", str(e))
         return value
 

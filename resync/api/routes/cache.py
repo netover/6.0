@@ -339,6 +339,11 @@ def validate_connection_pool() -> bool:
         max_conn = settings.redis_max_connections
         timeout = settings.redis_timeout
     except (TypeError, ValueError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Error parsing Redis connection settings: %s", e)
         return False
 

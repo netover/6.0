@@ -270,6 +270,11 @@ class DistributedTracingManager:
             self._instrumented = True
             logger.info("Auto-instrumentation completed")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to setup auto-instrumentation: %s", e)
 
     @contextlib.contextmanager
@@ -295,6 +300,11 @@ class DistributedTracingManager:
             try:
                 yield span
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.record_exception(e)  # Record exception here
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 raise

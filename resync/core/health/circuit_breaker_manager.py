@@ -91,6 +91,11 @@ class CircuitBreakerManager:
             return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Update statistics
             await self._update_breaker_stats(breaker_name, success=False)
 
@@ -144,6 +149,11 @@ class CircuitBreakerManager:
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "failed_to_get_circuit_breaker_status",
                 breaker_name=breaker_name,
@@ -205,6 +215,11 @@ class CircuitBreakerManager:
             return True
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "circuit_breaker_reset_failed", breaker_name=breaker_name, error=str(e)
             )
@@ -240,6 +255,11 @@ class CircuitBreakerManager:
                 if state == "open":
                     open_breakers.append(breaker_name)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "failed_to_check_circuit_breaker_state",
                     breaker_name=breaker_name,

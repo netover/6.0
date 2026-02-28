@@ -316,6 +316,11 @@ class EmbeddingRouter:
                     self._intent_embeddings[intent] = list(data[intent.value])
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("cache_load_failed: %s", e)
             return False
 
@@ -335,6 +340,11 @@ class EmbeddingRouter:
             np.savez(cache_file, **data)
             logger.info("intent_embeddings_cached")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("cache_save_failed: %s", e)
 
     async def classify(
@@ -452,6 +462,11 @@ Respond with ONLY the intent name, nothing else."""
                     )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("llm_fallback_failed: %s", e)
 
         # Default to general

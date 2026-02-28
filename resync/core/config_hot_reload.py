@@ -205,6 +205,11 @@ class ConfigManager:
                 await f.write(json.dumps(self._config, indent=2, default=str))
             logger.info("Configuration saved")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to save config: %s", e)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -293,6 +298,11 @@ class ConfigManager:
                     if inspect.isawaitable(result):
                         await result
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error notifying subscriber: %s", e)
 
     def get_all(self) -> dict[str, Any]:

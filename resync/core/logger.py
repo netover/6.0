@@ -146,21 +146,52 @@ def log_audit_event(
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
-    # Also persist the audit event to the database for long-term storage
-    try:
-        from resync.core.audit_log import get_audit_log_manager
+    # Schedule async DB persist without blocking the caller.
+    # get_audit_log_manager() is a coroutine (async factory); we fire-and-forget
+    # it via asyncio.ensure_future when a running loop is available.
+    async def _persist() -> None:
+        try:
+            from resync.core.audit_log import get_audit_log_manager
 
-        audit_manager = get_audit_log_manager()
-        audit_manager.log_audit_event(
-            action=action,
-            user_id=user_id,
-            details=sanitized_details,
-            correlation_id=correlation_id,
-            source_component="main",
-            severity=severity,
-        )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        logger.error("Failed to persist audit event to database: %s", e, exc_info=True)
+            audit_manager = await get_audit_log_manager()
+            await audit_manager.log_audit_event(
+                action=action,
+                user_id=user_id,
+                details=sanitized_details,
+                correlation_id=correlation_id,
+                source_component="main",
+                severity=severity,
+            )
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            # Use stdlib logger to avoid re-entrancy with structlog during teardown
+            logging.getLogger(__name__).error(
+                "Failed to persist audit event to database: %s", e, exc_info=True
+            )
+
+    import asyncio as _asyncio
+
+    try:
+        loop = _asyncio.get_running_loop()
+        loop.create_task(_persist())
+    except RuntimeError:
+        # No running event loop (e.g. called from a sync CLI context).
+        # Best-effort: run in a thread-isolated loop so we don't block.
+        import threading
+
+        def _run_sync() -> None:
+            try:
+                _asyncio.run(_persist())
+            except Exception as e:
+                logging.getLogger(__name__).error(
+                    "Failed to persist audit event (thread): %s", e
+                )
+
+        threading.Thread(target=_run_sync, daemon=True).start()
 
 def _sanitize_audit_details(details: dict[str, Any]) -> dict[str, Any]:
     """

@@ -55,6 +55,61 @@ class AuditLog:
         """Search audit entries."""
         return await self._db.search_actions(**kwargs)
 
+    async def log_audit_event(
+        self,
+        action: str,
+        user_id: str = "system",
+        details: dict | None = None,
+        correlation_id: str | None = None,
+        source_component: str = "main",
+        severity: str = "INFO",
+    ) -> AuditEntry:
+        """Persist an audit event to the database.
+
+        This is the async entry-point used by log_audit_event_async() in logger.py
+        and by any caller that has already awaited get_audit_log_manager().
+        """
+        return await self._db.log_action(
+            action,
+            user_id=user_id,
+            details=details or {},
+            correlation_id=correlation_id,
+            source_component=source_component,
+            severity=severity,
+        )
+
+    async def get_audit_metrics(self) -> dict:
+        """Return basic audit metrics (total records, pending, etc.).
+
+        Delegates to AuditDB if the method exists there; otherwise builds
+        a lightweight summary so callers in chaos_engineering.py can rely on
+        the ``total_records`` key always being present.
+        """
+        try:
+            if hasattr(self._db, "get_audit_metrics"):
+                return await asyncio.to_thread(self._db.get_audit_metrics)  # type: ignore[attr-defined]
+        except Exception as exc:
+            # Never swallow cancellations: it breaks graceful shutdown/timeouts.
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            pass
+
+        # Fallback: derive metrics from the recent-entries count.
+        try:
+            recent = await self._db.get_recent_actions(limit=1000)
+            return {
+                "total_records": len(recent),
+                "source": "fallback",
+            }
+        except Exception as exc:
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            return {
+                "total_records": 0,
+                "error": str(exc),
+                "source": "fallback",
+            }
+
 
 _instance: AuditLog | None = None
 _instance_lock = asyncio.Lock()

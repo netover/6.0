@@ -167,6 +167,11 @@ class HealthMonitoringSubject:
                 task = create_tracked_task(method(event), name="method")
                 tasks.append(task)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "error_getting_observer_method",
                     observer_type=type(observer).__name__,
@@ -178,6 +183,11 @@ class HealthMonitoringSubject:
             try:
                 await asyncio.gather(*tasks, return_exceptions=True)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "error_notifying_observers",
                     method=method_name,

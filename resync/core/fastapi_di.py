@@ -89,6 +89,11 @@ def get_redis_client():
 
         return _get_redis_client()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
@@ -104,12 +109,12 @@ def get_teams_integration():
 
     return _get()
 
-def get_audit_queue():
-    """Return the AuditQueue singleton."""
+async def get_audit_queue():
+    """Return the AuditQueue singleton (async — the factory is a coroutine)."""
 
     from resync.core.audit_queue import get_audit_queue as _get
 
-    return _get()
+    return await _get()
 
 async def get_file_ingestor(request: Request):
     """RAG file-ingestor dependency.
@@ -123,6 +128,11 @@ async def get_file_ingestor(request: Request):
 
         return _get(request)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(

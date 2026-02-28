@@ -1,8 +1,15 @@
 import asyncio
 import contextlib
 import json
+
+try:
+    import orjson  # type: ignore
+except Exception:  # pragma: no cover
+    orjson = None  # type: ignore
+
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -75,6 +82,10 @@ class WebSocketPoolManager:
         self._initialized = False
         self._shutdown = False
 
+        # Do NOT rely on GIL atomicity; protect shared snapshot state for sync readers.
+        self._health_lock: threading.Lock = threading.Lock()
+        self._cached_health_ok: bool = True
+
         # Number of accepts currently in-flight. This prevents thundering-herd
         # accept/close storms when many clients connect concurrently.
         self._pending_accepts: int = 0
@@ -96,6 +107,8 @@ class WebSocketPoolManager:
             self._cleanup_task = create_tracked_task(
                 self._cleanup_loop(), name="cleanup_loop"
             )
+
+        await self._recompute_health_snapshot()
 
         logger.info("WebSocket pool manager initialized")
         runtime_metrics.record_gauge("websocket_pool.initialized", 1)
@@ -126,9 +139,15 @@ class WebSocketPoolManager:
             try:
                 await asyncio.sleep(_get_settings().WS_POOL_CLEANUP_INTERVAL)
                 await self._cleanup_connections()
+                await self._recompute_health_snapshot()
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error in WebSocket cleanup loop: %s", e)
 
     async def _cleanup_connections(self) -> None:
@@ -172,6 +191,11 @@ class WebSocketPoolManager:
                                 f"max: {max_duration}s)"
                             )
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         logger.error(
                             "Error checking connection duration for %s: %s",
                             client_id,
@@ -188,6 +212,11 @@ class WebSocketPoolManager:
             try:
                 await self._remove_connection_safe(client_id)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error removing connection during cleanup: %s", e)
 
         # Record cleanup metrics (after cleanup completes)
@@ -207,6 +236,11 @@ class WebSocketPoolManager:
             try:
                 await self._remove_connection_safe(client_id)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error closing WebSocket connection %s: %s", client_id, e)
 
     async def connect(self, websocket: WebSocket, client_id: str) -> None:
@@ -257,6 +291,11 @@ class WebSocketPoolManager:
                 if old_conn.websocket.client_state != WebSocketState.DISCONNECTED:
                     await old_conn.websocket.close(code=1000)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("old_ws_close_failed", client_id=client_id, error=str(e))
 
         if reject:
@@ -329,42 +368,39 @@ class WebSocketPoolManager:
         await self._remove_connection(client_id)
 
     async def _remove_connection(self, client_id: str) -> None:
-        """Internal method to remove a connection - acquires lock."""
+        """Internal method to remove a connection.
+
+        Stability fix:
+        - Updates pool stats under a single lock acquisition (avoids TOCTOU/races).
+        - Closes the WebSocket outside the lock to prevent head-of-line blocking.
+        """
         async with self._lock:
-            if client_id not in self.connections:
+            conn_info = self.connections.pop(client_id, None)
+            if conn_info is None:
                 return
-            conn_info = self.connections.pop(client_id)
-            is_healthy = conn_info.is_healthy
+
+            # Update statistics atomically with the removal.
+            if conn_info.is_healthy:
+                self.stats.healthy_connections = max(0, self.stats.healthy_connections - 1)
+            else:
+                self.stats.unhealthy_connections = max(0, self.stats.unhealthy_connections - 1)
+
+            self.stats.active_connections = len(self.connections)
 
         # Close WebSocket OUTSIDE the lock
         try:
             if conn_info.websocket.client_state != WebSocketState.DISCONNECTED:
                 await conn_info.websocket.close()
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            logger.error("Error closing WebSocket for %s: %s", client_id, e)
-
-        # Update statistics
-        async with self._lock:
-            if is_healthy:
-                self.stats.healthy_connections = max(
-                    0, self.stats.healthy_connections - 1
-                )
-            else:
-                self.stats.unhealthy_connections = max(
-                    0, self.stats.unhealthy_connections - 1
-                )
-            self.stats.active_connections = len(self.connections)
+        except asyncio.CancelledError:
+            raise
+        except (WebSocketDisconnect, ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("Error closing WebSocket for %s: %s", client_id, exc)
 
         logger.info("WebSocket connection removed: %s", client_id)
-        logger.info(
-            "Total active WebSocket connections: %s", self.stats.active_connections
-        )
+        logger.info("Total active WebSocket connections: %s", self.stats.active_connections)
 
-        # Record disconnection metrics
         runtime_metrics.record_counter("websocket_pool.connections_closed", 1)
-        runtime_metrics.record_gauge(
-            "websocket_pool.active_connections", self.stats.active_connections
-        )
+        runtime_metrics.record_gauge("websocket_pool.active_connections", self.stats.active_connections)
 
     async def send_personal_message(self, message: str, client_id: str) -> bool:
         """Send a message to a specific client.
@@ -424,12 +460,27 @@ class WebSocketPoolManager:
             )
             await self._remove_connection(client_id)
             return False
+        except asyncio.TimeoutError:
+            logger.warning(
+                "WebSocket broadcast send timed out for client %s (timeout=%ss) — removing connection",
+                client_id,
+                self._send_timeout_seconds,
+            )
+            conn_info.mark_error()
+            await self._remove_connection(client_id)
+            return False
+
         except (WebSocketDisconnect, ConnectionError) as e:
             logger.warning("Connection issue sending message to %s: %s", client_id, e)
             conn_info.mark_error()
             await self._remove_connection(client_id)
             return False
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Unexpected error sending message to %s: %s", client_id, e)
             conn_info.mark_error()
             return False
@@ -501,11 +552,21 @@ class WebSocketPoolManager:
             return False
 
         try:
-            await conn_info.websocket.send_text(message)
+            await asyncio.wait_for(conn_info.websocket.send_text(message), timeout=self._send_timeout_seconds)
             conn_info.update_activity()
             conn_info.message_count += 1
             conn_info.bytes_sent += len(message.encode("utf-8"))
             return True
+
+        except asyncio.TimeoutError:
+            logger.warning(
+                "WebSocket broadcast send timed out for client %s (timeout=%ss) — removing connection",
+                client_id,
+                self._send_timeout_seconds,
+            )
+            conn_info.mark_error()
+            await self._remove_connection(client_id)
+            return False
 
         except (WebSocketDisconnect, ConnectionError) as e:
             logger.warning("Connection issue during broadcast to %s: %s", client_id, e)
@@ -521,8 +582,13 @@ class WebSocketPoolManager:
                 return False
             logger.error("Runtime error during broadcast to %s: %s", client_id, e)
             return False
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except asyncio.CancelledError:
+            raise
+        except (OSError, RuntimeError, TimeoutError, ConnectionError, ValueError) as e:
             logger.error("Unexpected error during broadcast to %s: %s", client_id, e)
+            return False
+        except Exception as e:
+            logger.exception("Unexpected non-runtime error during broadcast to %s", client_id)
             return False
 
     async def broadcast_json(self, data: dict[str, Any]) -> int:
@@ -585,9 +651,19 @@ class WebSocketPoolManager:
             await conn_info.websocket.send_json(data)
             conn_info.update_activity()
             conn_info.message_count += 1
-            json_str = json.dumps(data)
+            json_str = (orjson.dumps(data).decode('utf-8') if orjson is not None else json.dumps(data))
             conn_info.bytes_sent += len(json_str.encode("utf-8"))
             return True
+
+        except asyncio.TimeoutError:
+            logger.warning(
+                "WebSocket broadcast send timed out for client %s (timeout=%ss) — removing connection",
+                client_id,
+                self._send_timeout_seconds,
+            )
+            conn_info.mark_error()
+            await self._remove_connection(client_id)
+            return False
 
         except (WebSocketDisconnect, ConnectionError) as e:
             logger.warning(
@@ -612,6 +688,11 @@ class WebSocketPoolManager:
             logger.error("Runtime error during JSON broadcast to %s: %s", client_id, e)
             return False
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "Unexpected error during JSON broadcast to %s: %s", client_id, e
             )
@@ -629,52 +710,35 @@ class WebSocketPoolManager:
         """Get WebSocket pool statistics."""
         return self.stats
 
+    async def _recompute_health_snapshot(self) -> None:
+        """Compute and store a cached health boolean for sync readers.
+
+        Do NOT rely on CPython GIL "atomicity". This remains safe for
+        free-threaded builds. Writers run in the event loop; readers are sync.
+        """
+        async with self._lock:
+            if self._shutdown:
+                ok = False
+            else:
+                unhealthy_ratio = self.stats.unhealthy_connections / max(
+                    1, self.stats.active_connections
+                )
+                ok = unhealthy_ratio <= 0.5
+
+        # Publish snapshot for sync callers.
+        with self._health_lock:
+            self._cached_health_ok = ok
+
     def health_check(self) -> bool:
-        """Perform health check on the WebSocket pool.
-        
-        NOTE: This is a sync method so it cannot acquire the async lock.
-        We take a snapshot of connections dict (atomic in CPython due to GIL)
-        to avoid iteration over a mutating dict.
+        """Return last computed health snapshot.
+
+        This is synchronous and safe even without the GIL because it reads a
+        cached boolean protected by a threading.Lock.
         """
         if self._shutdown:
             return False
-
-        try:
-            # Check if we have too many unhealthy connections
-            unhealthy_ratio = self.stats.unhealthy_connections / max(
-                1, self.stats.active_connections
-            )
-            if unhealthy_ratio > 0.5:  # More than 50% unhealthy connections
-                logger.warning(
-                    "WebSocket pool unhealthy: "
-                    f"{unhealthy_ratio:.1%} connections are unhealthy"
-                )
-                return False
-
-            # P3-10 fix: snapshot to avoid iterating a mutating dict
-            connections_snapshot = dict(self.connections)
-            stale_connections = 0
-            current_time = datetime.now(timezone.utc)
-
-            for _client_id, conn_info in connections_snapshot.items():
-                time_since_activity = (
-                    current_time - conn_info.last_activity
-                ).total_seconds()
-                if time_since_activity > _get_settings().WS_CONNECTION_TIMEOUT * 2:
-                    stale_connections += 1
-
-            if stale_connections > 0:
-                logger.warning(
-                    "WebSocket pool has %s stale connections", stale_connections
-                )
-
-            return (
-                stale_connections < self.stats.active_connections * 0.1
-            )  # Less than 10% stale
-
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            logger.error("WebSocket pool health check failed: %s", e)
-            return False
+        with self._health_lock:
+            return bool(self._cached_health_ok)
 
 # Global WebSocket pool manager instance
 _websocket_pool_manager: WebSocketPoolManager | None = None

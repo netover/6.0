@@ -550,6 +550,11 @@ class LogAggregator:
                 return {"error": f"Elasticsearch query failed: {response.status}"}
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -581,6 +586,11 @@ class LogAggregator:
                 else:
                     logger.warning("Kibana connection failed: %s", response.status)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -612,6 +622,11 @@ class LogAggregator:
                             f"{dashboard.title}: {response.status}"
                         )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -740,6 +755,11 @@ class LogAggregator:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -789,6 +809,11 @@ class LogAggregator:
                     self._process_log_line(line, source_config)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -866,6 +891,11 @@ class LogAggregator:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -924,6 +954,11 @@ class LogAggregator:
                     self.metrics["indexing_errors"] += len(batch)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise
@@ -948,6 +983,11 @@ class LogAggregator:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 # Re-raise critical system exceptions
                 if isinstance(
                     e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)
@@ -994,6 +1034,11 @@ class LogAggregator:
                                     )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise critical system exceptions
             if isinstance(e, (SystemExit, KeyboardInterrupt, asyncio.CancelledError)):
                 raise

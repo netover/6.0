@@ -332,6 +332,11 @@ class EncryptedAuditTrail:
             try:
                 self.chain_hash = chain_file.read_text().strip()
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to load chain hash: %s", e)
                 self.chain_hash = ""
 
@@ -341,6 +346,11 @@ class EncryptedAuditTrail:
             try:
                 self.block_counter = int(counter_file.read_text().strip())
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to load block counter: %s", e)
                 self.block_counter = 0
 
@@ -562,6 +572,11 @@ class EncryptedAuditTrail:
                     results["issues_found"].extend(full_check["issues"])
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("exception_caught", error=str(e), exc_info=True)
             results["integrity_status"] = "error"
             results["issues_found"].append(f"verification_error: {str(e)}")
@@ -821,6 +836,11 @@ class EncryptedAuditTrail:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Flush worker error: %s", e)
 
     async def _archival_worker(self) -> None:
@@ -834,6 +854,11 @@ class EncryptedAuditTrail:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Archival worker error: %s", e)
 
     async def _verification_worker(self) -> None:
@@ -852,6 +877,11 @@ class EncryptedAuditTrail:
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Verification worker error: %s", e)
 
 # Global encrypted audit trail instance (lazy-initialized)

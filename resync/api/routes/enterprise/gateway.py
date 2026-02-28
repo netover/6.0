@@ -403,6 +403,11 @@ class APIGateway:
             return processed_response
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             self.metrics["requests_failed"] += 1
             logger.error("Request processing error: %s", e, exc_info=True)
             return self._create_error_response(500, "Internal server error")
@@ -789,6 +794,11 @@ class APIGateway:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Cleanup worker error: %s", e)
 
     async def _health_check_worker(self) -> None:
@@ -808,6 +818,11 @@ class APIGateway:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Health check worker error: %s", e)
 
     async def _metrics_worker(self) -> None:
@@ -830,6 +845,11 @@ class APIGateway:
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Metrics worker error: %s", e)
 
     def get_metrics(self) -> dict[str, Any]:

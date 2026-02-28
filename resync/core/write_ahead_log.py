@@ -136,6 +136,11 @@ class WriteAheadLog:
                 try:
                     await self._file_handle.close()
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Error closing WAL file handle: %s", e)
 
             # Open or create the log file in append mode using aiofiles
@@ -167,6 +172,11 @@ class WriteAheadLog:
                     try:
                         await self._file_handle.close()
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         logger.warning(
                             "Error closing WAL file handle during rotation: %s", e
                         )
@@ -228,6 +238,11 @@ class WriteAheadLog:
 
                 return True
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Failed to log operation to WAL: %s", e)
                 return False
 
@@ -278,6 +293,11 @@ class WriteAheadLog:
                             f"{line_num} in {log_file_path}: {e}"
                         )
                     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
                         logger.error(
                             "Error processing line %s in %s: %s",
                             line_num,
@@ -288,6 +308,11 @@ class WriteAheadLog:
         except FileNotFoundError:
             logger.info("WAL file not found: %s", log_file_path)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error reading WAL file %s: %s", log_file_path, e)
 
         return entries
@@ -339,6 +364,11 @@ class WriteAheadLog:
 
                     replayed_count += 1
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error(
                         "Error replaying WAL entry for key %s: %s", entry.key, e
                     )
@@ -364,6 +394,11 @@ class WriteAheadLog:
                     wal_file.unlink()
                     logger.info("Removed old WAL file: %s", wal_file)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error("Failed to remove old WAL file %s: %s", wal_file, e)
 
     async def close(self):
@@ -372,4 +407,9 @@ class WriteAheadLog:
             try:
                 await self._file_handle.close()
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error closing WAL file handle: %s", e)

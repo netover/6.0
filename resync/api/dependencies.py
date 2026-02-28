@@ -169,6 +169,11 @@ async def get_current_user(
         # Re-raise auth errors - these are expected "not authenticated" cases
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # BUG FIX: Log and re-raise infrastructure errors instead of silently swallowing them
         # This prevents masking serious issues like Redis unavailability or token parsing errors
         logger.error("Authentication infrastructure error", error=str(e), exc_info=True)

@@ -346,6 +346,11 @@ class ResourceManager:
                             if inspect.isawaitable(close_result):
                                 await close_result
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error("Error cleaning up resource %s: %s", resource_id, e)
                 finally:
                     if resource_id in self.active_resources:

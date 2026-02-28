@@ -160,6 +160,11 @@ class DatabaseHealthChecker(BaseHealthChecker):
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             response_time = (time.time() - start_time) * 1000
 
             logger.error("database_health_check_failed", error=str(e))

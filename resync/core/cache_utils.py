@@ -152,6 +152,11 @@ class EnhancedCacheManager:
             logger.debug("Cache warmed: %s", key)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -179,12 +184,21 @@ class EnhancedCacheManager:
             cursor = 0
             deleted_count = 0
 
+            # Use SCAN to avoid blocking Redis. Prefer UNLINK (async delete) to
+            # reduce latency spikes on large values.
             while True:
                 cursor, keys = await self.redis.scan(cursor, match=pattern, count=100)
 
                 if keys:
-                    await self.redis.delete(*keys)
+                    if hasattr(self.redis, "unlink"):
+                        # UNLINK is non-blocking for Redis main thread.
+                        await self.redis.unlink(*keys)
+                    else:
+                        await self.redis.delete(*keys)
                     deleted_count += len(keys)
+
+                    # Yield control to avoid monopolizing the event loop on large scans.
+                    await asyncio.sleep(0)
 
                 if cursor == 0:
                     break
@@ -197,6 +211,11 @@ class EnhancedCacheManager:
             )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "Failed to invalidate pattern %s: %s", pattern, e, exc_info=True
             )
@@ -218,6 +237,11 @@ class EnhancedCacheManager:
         try:
             await self.redis.delete(*patterns)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Failed to batch-delete cache keys: %s", e)
 
         logger.info("Invalidated job cache for: %s", job_name)
@@ -234,6 +258,11 @@ class EnhancedCacheManager:
             redis_info = await self.redis.info("stats")
             keyspace_info = await self.redis.info("keyspace")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to get Redis info: %s", e)
             redis_info = {}
             keyspace_info = {}
@@ -313,6 +342,11 @@ async def warmup_cache_on_startup():
         await cache_manager.warm_cache()
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Failed to warm cache on startup: %s", e, exc_info=True)
         # Não falhar o startup por causa do cache warming
 

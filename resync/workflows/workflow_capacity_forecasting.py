@@ -221,6 +221,11 @@ async def generate_report_node(state: CapacityForecastState) -> CapacityForecast
         await asyncio.to_thread(_write_report, report_path, report_content)
         state["report_url"] = report_path
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("report_generation_failed", error=str(e))
         state["error"] = f"Failed to generate report: {str(e)}"
 

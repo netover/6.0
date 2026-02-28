@@ -145,7 +145,20 @@ async def teams_outgoing_webhook_endpoint(
         )
 
     # Valida assinatura HMAC
-    security_token = config.get("security_token")
+    # NOTE: security_token is a secret and must be unwrapped explicitly.
+    security_token = None
+    if hasattr(config, "get_secret"):
+        try:
+            security_token = config.get_secret("security_token")
+        except KeyError:
+            security_token = None
+    if security_token is None:
+        # Backward-compat (older config proxies may expose SecretStr directly)
+        token_val = config.get("security_token")
+        if hasattr(token_val, "get_secret_value"):
+            security_token = token_val.get_secret_value()
+        else:
+            security_token = token_val
 
     if not security_token:
         logger.error("teams_webhook_no_security_token_configured")

@@ -294,6 +294,11 @@ class TeamsIntegration:
                 f"Network error sending Teams notification: {e}"
             ) from e
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             self._stats["notifications_failed"] += 1
             logger.error(
                 "teams_notification_unexpected_error",
@@ -447,6 +452,11 @@ class TeamsIntegration:
             except NotificationError as e:
                 logger.error("job_status_notification_failed", error=str(e))
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("job_status_notification_unexpected_error", error=str(e))
 
     async def learn_from_conversation(
@@ -477,6 +487,11 @@ class TeamsIntegration:
         except ImportError:
             logger.debug("knowledge_graph_not_available")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("knowledge_graph_storage_failed", error=str(e))
 
     async def send_alert(
@@ -523,6 +538,11 @@ class TeamsIntegration:
                 ) as response:
                     status["webhook_accessible"] = response.status in [200, 405, 400]
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 status["webhook_accessible"] = False
                 status["webhook_error"] = str(e)[:100]
                 logger.warning(

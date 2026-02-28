@@ -149,6 +149,11 @@ class SemanticCache:
             try:
                 await redis_client.ping()
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 self._memory_only = True
                 self._redis_stack_available = False
                 self._initialized = True
@@ -172,6 +177,11 @@ class SemanticCache:
             self._initialized = True
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to initialize SemanticCache: %s", e)
             self._redis_stack_available = False  # Force fallback if init fails
             self._initialized = True  # Mark as initialized to allow fallback
@@ -355,6 +365,11 @@ class SemanticCache:
             return result
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Cache lookup failed: %s", e)
             self._stats["errors"] += 1
             return CacheResult(hit=False)
@@ -474,6 +489,11 @@ class SemanticCache:
                     entry=best_entry,
                 )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Fallback search encountered error: %s", e)
             self._enter_memory_only("fallback_search_failed")
             return await self._search_memory(query, embedding, user_id)
@@ -579,6 +599,11 @@ class SemanticCache:
             return False
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to set cache entry: %s", e)
             self._stats["errors"] += 1
             self._enter_memory_only("set_failed")
@@ -627,6 +652,11 @@ class SemanticCache:
             deleted = await client.delete(f"{self.KEY_PREFIX}{query_hash}")
             return bool(deleted)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to invalidate cache entry: %s", e)
             self._enter_memory_only("invalidate_failed")
             return bool(await self._memory_invalidate_query(query))
@@ -645,6 +675,11 @@ class SemanticCache:
                     count += 1
             return count
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to invalidate pattern: %s", e)
             self._enter_memory_only("invalidate_pattern_failed")
             return await self._memory_invalidate_pattern(pattern)
@@ -667,6 +702,11 @@ class SemanticCache:
             self._stats = {k: 0 for k in self._stats}
             return True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to clear cache: %s", e)
             self._enter_memory_only("clear_failed")
             async with self._memory_lock:
@@ -755,6 +795,11 @@ class SemanticCache:
                 "rerank_rejections": self._stats["rerank_rejections"],
             }
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to get stats: %s", e)
             self._enter_memory_only("get_stats_failed")
             return await self.get_stats()
@@ -849,6 +894,11 @@ class SemanticCache:
                 return None
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Intent cache check failed: %s", e)
             return None
 
@@ -906,6 +956,11 @@ class SemanticCache:
             return success
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Intent cache store failed: %s", e)
             return False
 

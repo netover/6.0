@@ -98,6 +98,11 @@ def _safe_json_loads(data: str | bytes, context: str) -> dict | list | None:
             data = data.decode()
         return json_loads(data)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("JSON corrompido (%s): %s", context, e)
         return None
 
@@ -293,12 +298,22 @@ class DashboardMetricsStore:
                 try:
                     prev_requests = _safe_int(task_req.result())
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug("metric_task_result_error", task="req", error=str(exc))
 
             if task_time and task_time.done() and not task_time.cancelled():
                 try:
                     prev_walltime = _safe_float(task_time.result())
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug("metric_task_result_error", task="time", error=str(exc))
 
             time_delta = (
@@ -320,6 +335,11 @@ class DashboardMetricsStore:
             sample = sample_builder(max(0.0, rps))
             await self.add_sample(sample)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Falha ao calcular RPS; usando 0 (%s)", type(e).__name__)
             sample = sample_builder(0.0)
             await self.add_sample(sample)
@@ -339,6 +359,11 @@ class DashboardMetricsStore:
                 snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
             )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("Failed to get TWS status: %s", e)
 
         sample = MetricSample(
@@ -368,6 +393,11 @@ class DashboardMetricsStore:
                 pipe.ltrim(REDIS_KEY_ALERTS, 0, 19)
             await pipe.execute()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Falha ao persistir amostra no Redis (%s)", type(e).__name__)
 
     def _compute_alerts(self, sample: MetricSample) -> list[dict[str, Any]]:
@@ -412,6 +442,11 @@ class DashboardMetricsStore:
             self._cached_start_time = float(raw)
             return now - self._cached_start_time
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.exception(
                 "Erro ao obter uptime global do Redis (%s)", type(e).__name__
             )
@@ -434,6 +469,11 @@ class DashboardMetricsStore:
 
             return self._format_metrics_dict(data, alerts)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Erro ao obter métricas (%s)", type(e).__name__)
             return self._empty_response("error")
 
@@ -477,6 +517,11 @@ class DashboardMetricsStore:
                 "sample_count": len(samples),
             }
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Erro ao obter histórico (%s)", type(e).__name__)
             return self._empty_history()
 
@@ -632,6 +677,11 @@ class WebSocketManager:
         try:
             await pubsub.unsubscribe(REDIS_CH_BROADCAST)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("PubSub unsubscribe failed: %s", e)
 
         close_fn = getattr(pubsub, "close", None)
@@ -641,6 +691,11 @@ class WebSocketManager:
                 if inspect.isawaitable(maybe_awaitable):
                     await maybe_awaitable
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("PubSub close failed: %s", e)
 
     async def _pubsub_listener(self) -> None:
@@ -731,6 +786,11 @@ def _verify_ws_admin(websocket: WebSocket) -> str | None:
 
         return username
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("WebSocket authentication failed: %s", type(e).__name__)
         return None
 
@@ -796,6 +856,11 @@ async def collect_metrics_sample() -> None:
         # during graceful shutdown. A bare `except Exception` would swallow it.
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Erro na coleta (%s)", type(e).__name__)
         try:
             store = get_metrics_store()
@@ -810,6 +875,11 @@ async def collect_metrics_sample() -> None:
         try:
             await lock.release()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as lock_error:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("Lock release failed (possibly expired): %s", lock_error)
 
 async def metrics_collector_loop() -> None:
@@ -818,6 +888,11 @@ async def metrics_collector_loop() -> None:
         redis = _get_redis()
         await redis.ping()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.exception(
             "Redis não disponível, encerrando collector (%s)", type(e).__name__
         )

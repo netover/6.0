@@ -363,6 +363,11 @@ class MultiProviderEmbeddingService(Embedder):
             try:
                 return await self._embed_with_litellm(texts, timeout=timeout)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "LiteLLM_embedding_failed",
                     error=str(e),
@@ -425,6 +430,11 @@ class MultiProviderEmbeddingService(Embedder):
                     break
 
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     if attempt < self._retry_attempts - 1:
                         # Exponential backoff with jitter to prevent thundering herd
                         base_delay = 2**attempt
