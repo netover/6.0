@@ -544,6 +544,7 @@ class ApplicationFactory:
             ("resync.api.routes.audit", "router", "audit_router"),
             ("resync.api.routes.cache", "router", "cache_router"),
             ("resync.api.routes.cors_monitoring", "router", "cors_monitor_router"),
+            ("resync.api.routes.feedback_submit", "router", "feedback_submit_router"),
             ("resync.api.routes.performance", "router", "performance_router"),
         ]
 
