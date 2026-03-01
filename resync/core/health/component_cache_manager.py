@@ -301,7 +301,7 @@ class ComponentCacheConfig:
     - Performance tuning parameters
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize cache configuration with default values."""
         # Default expiry times for different component types
         self.default_expiry_seconds = 300  # 5 minutes

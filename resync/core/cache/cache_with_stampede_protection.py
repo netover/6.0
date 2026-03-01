@@ -15,7 +15,7 @@ T = TypeVar("T")
 class CacheEntry:
     """Represents a cache entry with metadata."""
 
-    def __init__(self, value: Any, expiry: float, is_loading: bool = False):
+    def __init__(self, value: Any, expiry: float, is_loading: bool = False) -> None:
         self.value = value
         self.expiry = expiry
         self.is_loading = is_loading

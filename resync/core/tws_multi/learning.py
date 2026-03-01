@@ -16,7 +16,7 @@ __all__ = ["TWSLearningStore", "get_tws_learning_store"]
 class TWSLearningStore:
     """TWS Learning Store - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._store = FeedbackStore()
         self._initialized = False

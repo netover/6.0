@@ -20,7 +20,7 @@ __all__ = ["AuditQueue", "AsyncAuditQueue", "IAuditQueue", "get_audit_queue"]
 class AuditQueue:
     """Audit Queue - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._repo = AuditQueueRepository()
         self._initialized = False

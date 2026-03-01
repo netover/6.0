@@ -666,7 +666,7 @@ async def create_audit_log(
 class AuditLogger:
     """Basic audit logger implementation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.records = []
 
     def log_action(self, action: AuditAction, details: dict = None):

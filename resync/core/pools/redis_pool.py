@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class RedisPool:
     """Connection pool for redis resources."""
 
-    def __init__(self, url: str | None = None):
+    def __init__(self, url: str | None = None) -> None:
         self._url = url
         self._client = None
 

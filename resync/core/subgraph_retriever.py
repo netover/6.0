@@ -1,7 +1,7 @@
 """
 Subgraph Retrieval for GraphRAG
 
-Retrieves structured knowledge subgraphs from Neo4j/Apache AGE instead of
+Retrieves structured knowledge subgraphs from the configured Postgres knowledge graph store instead of
 unstructured text chunks. Provides rich contextual relationships for LLM reasoning.
 
 Author: Resync Team
@@ -66,7 +66,7 @@ class SubgraphRetriever:
             return self.cache[cache_key]
 
         try:
-            # Build Cypher query based on parameters
+            # Build graph query query based on parameters
             cypher = self._build_job_context_query(
                 job_name=job_name,
                 depth=depth,
@@ -75,7 +75,16 @@ class SubgraphRetriever:
             )
 
             # Execute query
-            result = await self.kg.execute_cypher(cypher, {"job_name": job_name})
+            # Legacy legacy-query querying removed; use get_subgraph if backend supports it.
+            if hasattr(self.kg, "get_subgraph"):
+                subgraph = await self.kg.get_subgraph(
+                    seed_node_ids=[job_name],
+                    max_depth=max_depth,
+                    max_edges=max_edges,
+                )
+                return {"job": job_name, "subgraph": subgraph}
+            logger.warning("subgraph_backend_missing_get_subgraph")
+            return {"job": job_name, "subgraph": {"nodes": [], "edges": []}}
 
             # Structure the result
             context = self._structure_job_context(result)
@@ -105,7 +114,7 @@ class SubgraphRetriever:
     def _build_job_context_query(
         self, job_name: str, depth: int, include_history: bool, include_solutions: bool
     ) -> str:
-        """Build Cypher query for job context."""
+        """Build graph query query for job context."""
 
         # Base query - job and dependencies
         query_parts = [
@@ -253,7 +262,7 @@ class SubgraphRetriever:
 
         return "\n".join(lines)
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear subgraph cache."""
         self.cache.clear()
         logger.info("Subgraph cache cleared")

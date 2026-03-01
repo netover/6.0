@@ -1429,6 +1429,7 @@ class ServiceDiscoveryManager:
                         tg.create_task(self._run_with_sem(self._disc_sem, _refresh))
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1474,6 +1475,7 @@ class ServiceDiscoveryManager:
                     _prom_service_circuit_open.labels(service_name=svc).set(opened)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1502,6 +1504,7 @@ class ServiceDiscoveryManager:
                         tg.create_task(_check())
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1535,6 +1538,7 @@ class ServiceDiscoveryManager:
                 )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

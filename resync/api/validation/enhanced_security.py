@@ -1,7 +1,6 @@
 # pylint
 """Enhanced security validation with async context managers and improved type hints."""
 
-from __future__ import annotations
 
 import hmac
 import ipaddress
@@ -95,6 +94,8 @@ SUSPICIOUS_PATTERNS: list[Pattern] = [
 
 class SecurityLevel(str, Enum):
     """Security levels for different contexts."""
+
+
 
     LOW = "low"
     MEDIUM = "medium"

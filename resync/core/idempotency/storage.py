@@ -10,7 +10,7 @@ from resync.core.idempotency.models import IdempotencyRecord
 class IdempotencyStorage:
     """Abstração de armazenamento para o sistema de idempotency"""
 
-    def __init__(self, redis_client: Redis | None):
+    def __init__(self, redis_client: Redis | None) -> None:
         self.redis = redis_client
 
     def _ensure_redis(self) -> Redis:
@@ -59,7 +59,7 @@ class IdempotencyStorage:
             data = record.to_dict()
             serialized_data = json.dumps(data, default=str)
             redis = self._ensure_redis()
-            success = await redis.setex(key, ttl_seconds, serialized_data)
+            success = await redis.set(key, serialized_data, ex=ttl_seconds, nx=True)
             return bool(success)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys

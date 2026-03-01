@@ -56,7 +56,7 @@ class L1Cache:
     In-memory L1 cache with LRU eviction using cachetools and sharded asyncio.Lock protection.
     """
 
-    def __init__(self, max_size: int = 1000, num_shards: int = 16):
+    def __init__(self, max_size: int = 1000, num_shards: int = 16) -> None:
         """
         Initialize L1 cache.
         """

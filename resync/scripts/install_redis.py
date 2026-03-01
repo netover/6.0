@@ -302,7 +302,7 @@ def test_redis() -> None:
     except FileNotFoundError:
         print("redis-cli não encontrado. Redis pode não estar instalado.")
 
-def main():
+def main() -> None:
     global REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
 
     parser = argparse.ArgumentParser(description="Redis Setup for Resync")

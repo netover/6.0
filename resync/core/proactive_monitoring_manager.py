@@ -37,7 +37,7 @@ class ProactiveMonitoringManager:
     - Agendar tarefas periódicas
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._initialized = False
         self._running = False
 
@@ -378,6 +378,7 @@ class ProactiveMonitoringManager:
                     )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -433,6 +434,7 @@ class ProactiveMonitoringManager:
                     logger.info("scheduled_cleanup_completed", deleted=deleted)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

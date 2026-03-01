@@ -24,7 +24,7 @@ class HealthCheckerFactory:
     Provides dependency injection and centralized management of all health checkers.
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the health checker factory.
 

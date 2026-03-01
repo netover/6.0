@@ -57,7 +57,7 @@ class AuditEntry:
     signature: str = ""  # HMAC signature
     encryption_key_id: str = ""  # Key used for encryption
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Generate hash after initialization."""
         self._generate_hash()
 
@@ -205,7 +205,7 @@ class EncryptedAuditConfig:
 class KeyManager:
     """Secure key management for audit encryption."""
 
-    def __init__(self, config: EncryptedAuditConfig):
+    def __init__(self, config: EncryptedAuditConfig) -> None:
         self.config = config
         self.keys: dict[str, EncryptionKey] = {}
         self.active_key_id: str | None = None
@@ -289,7 +289,7 @@ class EncryptedAuditTrail:
     - Efficient search capabilities
     """
 
-    def __init__(self, config: EncryptedAuditConfig | None = None):
+    def __init__(self, config: EncryptedAuditConfig | None = None) -> None:
         self.config = config or EncryptedAuditConfig()
 
         # Core components
@@ -834,6 +834,7 @@ class EncryptedAuditTrail:
                 await asyncio.sleep(self.config.flush_interval_seconds)
                 await self._flush_pending_entries()
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -852,6 +853,7 @@ class EncryptedAuditTrail:
                 # Implementation would move old .audit files
                 # to compressed .tar.gz archives
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -875,6 +877,7 @@ class EncryptedAuditTrail:
                         )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

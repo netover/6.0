@@ -29,7 +29,7 @@ __all__ = [
 class RAGFeedbackStore:
     """RAG Feedback Store - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._store = PGFeedbackStore()
         self._initialized = False

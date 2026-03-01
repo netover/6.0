@@ -590,6 +590,7 @@ async def metrics_collector_loop():
             sample = await collect_metrics_sample()
             await store.add_sample(sample)
         except asyncio.CancelledError:
+            raise
             logger.info("Metrics collector loop cancelled")
             raise  # Must re-raise for proper shutdown
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -611,7 +612,7 @@ async def _start_metrics_collector_async() -> None:
             _collector_task = asyncio.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
 
-def start_metrics_collector():
+def start_metrics_collector() -> None:
     """Inicia o coletor de métricas em background."""
     global _collector_task
 
@@ -752,6 +753,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("monitoring_ws_disconnected")
     except asyncio.CancelledError:
+        raise
         logger.info("monitoring_ws_cancelled")
         raise  # Must re-raise CancelledError for proper shutdown
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:

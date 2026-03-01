@@ -280,7 +280,7 @@ class IntentClassifier:
     # Class-level cache for compiled regex patterns
     _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
 
-    def __init__(self, llm_classifier: Callable | None = None):
+    def __init__(self, llm_classifier: Callable | None = None) -> None:
         """
         Initialize the classifier.
 
@@ -467,7 +467,7 @@ class Handler(Protocol):
 class BaseHandler(ABC):
     """Base class for all handlers."""
 
-    def __init__(self, agent_manager: Any = None, skill_manager: Any = None):
+    def __init__(self, agent_manager: Any = None, skill_manager: Any = None) -> None:
         self.agent_manager = agent_manager
         self.skill_manager = skill_manager
         self.last_tools_used: list[str] = []
@@ -644,7 +644,7 @@ class AgenticHandler(BaseHandler):
     Controlled by tool_call_limit and max_steps.
     """
 
-    def __init__(self, agent_manager: Any = None, skill_manager: Any = None):
+    def __init__(self, agent_manager: Any = None, skill_manager: Any = None) -> None:
         super().__init__(agent_manager)
         self.skill_manager = skill_manager
         self.tool_call_limit = 10

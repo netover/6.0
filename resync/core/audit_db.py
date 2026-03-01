@@ -26,7 +26,7 @@ __all__ = [
 class AuditDB:
     """Audit Database - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._repo = AuditEntryRepository()
         self._initialized = False
@@ -203,7 +203,7 @@ async def log_audit_action(action: str, **kwargs) -> AuditEntry:
         db.initialize()
     return await db.log_action(action, **kwargs)
 
-def get_db_connection():
+def get_db_connection() -> None:
     """Legacy function - returns None, use AuditDB class instead."""
     logger.warning("get_db_connection is deprecated, use AuditDB class")
     return

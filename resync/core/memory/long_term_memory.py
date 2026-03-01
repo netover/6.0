@@ -192,7 +192,7 @@ class DeclarativeMemory:
     updated_at: datetime = field(default_factory=datetime.now)
     expires_at: datetime | None = None  # None = never expires
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.id:
             self.id = self._generate_id()
 
@@ -317,7 +317,7 @@ class ProceduralMemory:
     updated_at: datetime = field(default_factory=datetime.now)
     last_observed: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.id:
             self.id = self._generate_id()
 
@@ -467,7 +467,7 @@ class InMemoryLongTermStore(LongTermMemoryStore):
     WARNING: Data is lost on restart.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._memories: dict[str, Memory] = {}
         self._user_index: dict[str, set[str]] = {}  # user_id -> memory_ids
 

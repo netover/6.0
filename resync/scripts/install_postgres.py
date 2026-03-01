@@ -674,7 +674,7 @@ def run_migrations() -> None:
         '    python -c "from resync.core.database import engine; from resync.core.database.models import *; import resync.core.database.models_registry; from resync.core.database.schema import Base; Base.metadata.create_all(engine)"'
     )
 
-def main():
+def main() -> None:
     global DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 
     parser = argparse.ArgumentParser(description="PostgreSQL Setup for Resync")

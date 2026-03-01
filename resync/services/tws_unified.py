@@ -1,6 +1,5 @@
 """Unified TWS Client Access Module."""
 
-from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -97,6 +96,7 @@ class TWSClientMetrics:
 class OptimizedTWSClientAdapter:
     """Compatibility adapter over OptimizedTWSClient real API."""
 
+
     def __init__(self, inner: Any) -> None:
         self._inner = inner
 
@@ -146,7 +146,7 @@ class OptimizedTWSClientAdapter:
         return {"streams": streams}
 
 class UnifiedTWSClient:
-    def __init__(self, config: TWSClientConfig | None = None):
+    def __init__(self, config: TWSClientConfig | None = None) -> None:
         self.config = config or TWSClientConfig.from_settings()
         self._client: OptimizedTWSClientAdapter | None = None
         self._state = TWSClientState.DISCONNECTED
@@ -393,7 +393,7 @@ async def tws_client_context() -> AsyncIterator[UnifiedTWSClient]:
     yield await get_tws_client()
 
 class MockTWSClient(UnifiedTWSClient):
-    def __init__(self, responses: dict[str, Any] | None = None):
+    def __init__(self, responses: dict[str, Any] | None = None) -> None:
         self.config = TWSClientConfig()
         self._client = None
         self._state = TWSClientState.CONNECTED

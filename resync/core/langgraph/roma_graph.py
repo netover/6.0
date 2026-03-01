@@ -1,7 +1,6 @@
 # pylint
 """ROMA orchestration graph using LangGraph StateGraph."""
 
-from __future__ import annotations
 
 from typing import Any
 
@@ -28,6 +27,7 @@ except ImportError:
 
 def route_atomizer(state: RomaState) -> str:
     """Route atomic requests directly to aggregator, others to planner."""
+
     return "aggregator" if state.get("is_atomic") else "planner"
 
 def create_roma_graph() -> Any:

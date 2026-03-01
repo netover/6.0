@@ -39,7 +39,7 @@ class GlobalExceptionHandlerMiddleware:
     buffering streaming responses.
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -227,7 +227,7 @@ async def resync_exception_handler(request: Request, exc: Exception) -> JSONResp
 class ErrorContext:
     """Context manager for managing error context including correlation IDs."""
 
-    def __init__(self, request: Request | None = None):
+    def __init__(self, request: Request | None = None) -> None:
         self.request = request
         self.correlation_id = None
 

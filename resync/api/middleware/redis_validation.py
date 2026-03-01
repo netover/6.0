@@ -53,7 +53,7 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
     - CRITICAL: Retorna 503 se Redis down
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
         self._strategy = None
 

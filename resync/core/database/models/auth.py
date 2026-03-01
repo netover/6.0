@@ -122,7 +122,7 @@ class User(Base):
         return []
 
     @permissions.setter
-    def permissions(self, value: list[str]):
+    def permissions(self, value: list[str]) -> None:
         """Set permissions from list."""
         import json
 
@@ -236,7 +236,7 @@ class AuditLog(Base):
         return {}
 
     @details.setter
-    def details(self, value: dict):
+    def details(self, value: dict) -> None:
         """Set details from dict."""
         import json
 

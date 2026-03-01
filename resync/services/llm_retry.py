@@ -111,7 +111,7 @@ class LLMCircuitBreaker:
         # half_open: permite tentativas limitadas
         return True
 
-    def record_success(self, provider: str):
+    def record_success(self, provider: str) -> None:
         """
         Registra sucesso.
 
@@ -137,7 +137,7 @@ class LLMCircuitBreaker:
             # Reset failure counter em sucesso
             self.failures[provider] = 0
 
-    def record_failure(self, provider: str):
+    def record_failure(self, provider: str) -> None:
         """
         Registra falha.
 

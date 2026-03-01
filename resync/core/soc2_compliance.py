@@ -232,7 +232,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
     - Risk assessment and management
     """
 
-    def __init__(self, config: SOC2ComplianceConfig | None = None):
+    def __init__(self, config: SOC2ComplianceConfig | None = None) -> None:
         self.config = config or SOC2ComplianceConfig()
 
         # Control management
@@ -861,6 +861,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
                         await self.test_control(control.control_id)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -895,6 +896,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
                 await self.record_processing_check(integrity_check)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -925,6 +927,7 @@ class SOC2ComplianceManager(BaseSOC2ComplianceManager):
                 )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

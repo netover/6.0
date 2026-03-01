@@ -118,6 +118,7 @@ def _on_task_done(task: asyncio.Task[Any]) -> None:
         exc = task.exception()
     except asyncio.CancelledError:
         # Race: in rare cases exception() may raise CancelledError
+        raise
         return
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         logger.exception(
@@ -276,6 +277,7 @@ async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[st
             try:
                 exc = t.exception()
             except asyncio.CancelledError:
+                raise
                 cancelled += 1
                 continue
             if exc is not None:
@@ -405,6 +407,7 @@ if __name__ == "__main__":
                     print("Working...")
                     await asyncio.sleep(1)
             except asyncio.CancelledError:
+                raise
                 print("Task cancelled, cleaning up...")
                 raise
 

@@ -103,7 +103,7 @@ class CircuitBreaker:
     # still collect breakers that are no longer referenced elsewhere).
     _registry: ClassVar[weakref.WeakSet["CircuitBreaker"]] = weakref.WeakSet()
 
-    def __init__(self, config: CircuitBreakerConfig):
+    def __init__(self, config: CircuitBreakerConfig) -> None:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
         self.metrics = CircuitBreakerMetrics()

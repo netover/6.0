@@ -62,7 +62,7 @@ class ConnectionPoolConfig:
 class ConnectionPool(ABC, Generic[T]):
     """Abstract base class for connection pools."""
 
-    def __init__(self, config: ConnectionPoolConfig):
+    def __init__(self, config: ConnectionPoolConfig) -> None:
         self.config = config
         self._initialized = False
         self._shutdown = False

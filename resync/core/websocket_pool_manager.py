@@ -141,6 +141,7 @@ class WebSocketPoolManager:
                 await self._cleanup_connections()
                 await self._recompute_health_snapshot()
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

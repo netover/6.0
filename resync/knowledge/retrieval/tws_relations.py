@@ -208,8 +208,8 @@ class TWSRelation:
             "tenant_id": self.tenant_id,
         }
 
-    # NOTE: to_cypher() method removed in v5.9.3
-    # Apache AGE was never implemented; graph now uses NetworkX on-demand
+    # NOTE: to_query() method removed in v5.9.3
+    # Legacy graph-db integrations were removed; graph now uses NetworkX on-demand
 
     def to_sql(self, table_name: str = "kg_relations") -> tuple[str, list[Any]]:
         """Gera query SQL preparada e parâmetros para inserir a relação."""
@@ -383,7 +383,7 @@ class TWSQueryPatterns:
 class TWSRelationBuilder:
     """Builder para criar relações TWS de forma fluente."""
 
-    def __init__(self, tenant_id: str | None = None):
+    def __init__(self, tenant_id: str | None = None) -> None:
         self.tenant_id = tenant_id
         self._relations: list[TWSRelation] = []
 

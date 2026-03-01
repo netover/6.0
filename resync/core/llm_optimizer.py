@@ -36,7 +36,7 @@ class TWS_LLMOptimizer:
     - TWS-specific template matching
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the TWS LLM optimizer."""
         self.prompt_cache = AsyncTTLCache(ttl_seconds=3600)
         self.response_cache = AsyncTTLCache(ttl_seconds=300)

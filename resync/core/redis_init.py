@@ -203,7 +203,7 @@ class RedisInitializer:
     end
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # P0 fix: Initialize lock eagerly to prevent race condition
         # Lock is still lazily bound to event loop but with proper initialization
         self._lock: asyncio.Lock = asyncio.Lock()

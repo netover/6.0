@@ -110,7 +110,7 @@ class TeamsNotification:
 class RateLimiter:
     """Simple token bucket rate limiter for Teams API."""
 
-    def __init__(self, max_requests: int, period: float):
+    def __init__(self, max_requests: int, period: float) -> None:
         self.max_requests = max_requests
         self.period = period
         self.tokens: float = float(max_requests)
@@ -144,7 +144,7 @@ class RateLimiter:
 class TeamsIntegration:
     """Microsoft Teams integration service with enhanced features."""
 
-    def __init__(self, config: TeamsConfig | None = None):
+    def __init__(self, config: TeamsConfig | None = None) -> None:
         self.config = config or self._load_config_from_settings()
         self.session: aiohttp.ClientSession | None = None
         self._session_lock = asyncio.Lock()

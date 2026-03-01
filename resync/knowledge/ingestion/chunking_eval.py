@@ -580,7 +580,7 @@ class ChunkingEvalPipeline:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         
-        def _save():
+        def _save() -> None:
             with open(path, "wb") as f:
                 f.write(orjson.dumps(report.to_dict(), option=orjson.OPT_INDENT_2))
                 

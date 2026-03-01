@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -1143,7 +1145,9 @@ def _extend_settings_schema_with_all_settings() -> None:
     """
     try:
         from resync.settings import Settings
-    except Exception:
+    except Exception as e:
+        if isinstance(e, asyncio.CancelledError):
+            raise
         return
 
     all_keys = list(getattr(Settings, "model_fields", {}).keys())

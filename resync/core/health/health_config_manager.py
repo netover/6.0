@@ -26,7 +26,7 @@ class HealthCheckConfigurationManager:
     - Providing configuration validation and defaults
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the configuration manager.
 

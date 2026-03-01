@@ -21,7 +21,7 @@ class AgentAdapter:
     Adapter to execute orchestration steps using system agents.
     """
 
-    def __init__(self, skill_manager: Any = None):
+    def __init__(self, skill_manager: Any = None) -> None:
         self.agent_manager = get_agent_manager()
         self._skill_manager = skill_manager
         self._router: HybridRouter | None = None

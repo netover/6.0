@@ -23,7 +23,7 @@ logger = structlog.get_logger(__name__)
 class TeamsNotificationManager:
     """Gerencia notificações proativas para o Teams."""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session) -> None:
         self.db = db_session
         self._rate_limit_cache: dict[str, list[datetime]] = {}
         self._config_cache: TeamsNotificationConfig | None = None

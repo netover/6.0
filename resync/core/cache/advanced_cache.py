@@ -134,7 +134,7 @@ class InvalidationRule:
 class CacheDependencyGraph:
     """Graph for managing cache dependencies and cascade invalidation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.dependencies: dict[str, set[str]] = defaultdict(
             set
         )  # key -> dependents  # type: ignore[annotation-unchecked]
@@ -724,6 +724,7 @@ class AdvancedCacheManager:
                         )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -757,6 +758,7 @@ class AdvancedCacheManager:
                             )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

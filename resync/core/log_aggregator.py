@@ -124,7 +124,7 @@ class LogParser:
     compiled_pattern: re.Pattern | None = None
     field_mappings: dict[str, str] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Compile the regex pattern."""
         self.compiled_pattern = re.compile(self.pattern, re.MULTILINE | re.DOTALL)
 
@@ -255,7 +255,7 @@ class LogAggregator:
     - Performance monitoring and optimization
     """
 
-    def __init__(self, config: LogAggregatorConfig | None = None):
+    def __init__(self, config: LogAggregatorConfig | None = None) -> None:
         self.config = config or LogAggregatorConfig()
 
         # Core components
@@ -753,6 +753,7 @@ class LogAggregator:
                             self._collect_from_network(source_config)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -889,6 +890,7 @@ class LogAggregator:
                     await self._index_log_batch(batch)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -981,6 +983,7 @@ class LogAggregator:
                     await self._cleanup_old_indices()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

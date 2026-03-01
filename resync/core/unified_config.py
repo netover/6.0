@@ -21,8 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-import toml
-
+import tomllib
 try:
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
@@ -40,7 +39,7 @@ logger = structlog.get_logger(__name__)
 class ConfigChangeEvent:
     """Event for configuration changes."""
 
-    def __init__(self, section: str, old_value: Any, new_value: Any):
+    def __init__(self, section: str, old_value: Any, new_value: Any) -> None:
         self.section = section
         self.old_value = old_value
         self.new_value = new_value
@@ -49,11 +48,11 @@ class ConfigChangeEvent:
 class ConfigFileHandler(FileSystemEventHandler):
     """File system event handler for config changes."""
 
-    def __init__(self, config_manager: "UnifiedConfigManager"):
+    def __init__(self, config_manager: "UnifiedConfigManager") -> None:
         self.config_manager = config_manager
         self.last_modified = {}
 
-    def on_modified(self, event):
+    def on_modified(self, event) -> None:
         """Handle file modification events."""
         if event.is_directory:
             return
@@ -101,7 +100,7 @@ class UnifiedConfigManager:
         "llm": CONFIG_DIR / "llm.toml",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize unified config manager."""
         self.configs: dict[str, dict] = {}
         self.persistence_managers: dict[str, ConfigPersistenceManager] = {}
@@ -124,7 +123,7 @@ class UnifiedConfigManager:
 
         logger.info("UnifiedConfigManager initialized")
 
-    def start_hot_reload(self):
+    def start_hot_reload(self) -> None:
         """Start file watcher for hot reload."""
         if self.observer:
             logger.warning("Hot reload already started")
@@ -170,7 +169,7 @@ class UnifiedConfigManager:
             self.reload_config_file(file_path), self._loop
         )
 
-        def _done_callback(fut):
+        def _done_callback(fut) -> None:
             try:
                 fut.result()
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:  # pragma: no cover
@@ -178,7 +177,7 @@ class UnifiedConfigManager:
 
         future.add_done_callback(_done_callback)
 
-    def stop_hot_reload(self):
+    def stop_hot_reload(self) -> None:
         """Stop file watcher."""
         if self.observer:
             self.observer.stop()
@@ -216,7 +215,7 @@ class UnifiedConfigManager:
             # Load new config
             async with aiofiles.open(file_path) as f:
                 content = await f.read()
-                new_config = toml.loads(content)
+                new_config = tomllib.loads(content)
             # Get old config
             old_config = self.configs.get(config_name, {})
 
@@ -300,7 +299,7 @@ class UnifiedConfigManager:
                 exc_info=True,
             )
 
-    def _apply_graphrag_config(self, config: dict):
+    def _apply_graphrag_config(self, config: dict) -> None:
         """Apply GraphRAG configuration changes."""
         from resync.core.event_driven_discovery import DiscoveryConfig
         from resync.core.smart_cache_validator import CacheValidationConfig
@@ -413,7 +412,7 @@ class UnifiedConfigManager:
             logger.info("system_config_received_noop", fields=list(system_updates.keys()))
         logger.info("System config applied to runtime")
 
-    def _apply_llm_config(self, config: dict):
+    def _apply_llm_config(self, config: dict) -> None:
         """Apply LLM configuration changes."""
         from resync.core.llm_config import get_llm_config
 
@@ -429,12 +428,12 @@ class UnifiedConfigManager:
             default_model=llm.get("default_model"),
         )
 
-    def register_change_callback(self, config_name: str, callback: Callable):
+    def register_change_callback(self, config_name: str, callback: Callable) -> None:
         """
         Register callback for config changes.
 
         Example:
-            def on_graphrag_change(event):
+            def on_graphrag_change(event) -> None:
                 print(f"GraphRAG config changed: {event.section}")
 
             manager.register_change_callback("graphrag", on_graphrag_change)
@@ -531,7 +530,7 @@ async def initialize_config_system():
 
     logger.info("Configuration system initialized with hot reload")
 
-def shutdown_config_system():
+def shutdown_config_system() -> None:
     """
     Shutdown configuration system.
 

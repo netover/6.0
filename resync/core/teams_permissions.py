@@ -14,7 +14,7 @@ logger = structlog.get_logger(__name__)
 class TeamsPermissionsManager:
     """Gerencia permissões de usuários do Teams webhook."""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session) -> None:
         self.db = db_session
 
     def check_user_permission(

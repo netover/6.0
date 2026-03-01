@@ -127,42 +127,52 @@ class EnhancedCacheManager:
             f"{failures} failed"
         )
 
-    async def _warm_single_key(self, key: str, fetcher: Callable):
-        """Aquece uma única chave."""
-        try:
-            # Verificar se já está em cache
-            exists = await self.redis.exists(key)
-            if exists:
-                logger.debug("Cache key already exists, skipping: %s", key)
-                return
+async def _warm_single_key(self, key: str, fetcher: Callable[..., object]) -> None:
+    """Warm a single cache key.
 
-            # Buscar dados
-            if inspect.iscoroutinefunction(fetcher):
-                data = await fetcher()
-            else:
-                data = await asyncio.to_thread(fetcher)
-                if inspect.isawaitable(data):
-                    data = await data
+    Uses atomic Redis `SET ... NX EX` to avoid TOCTOU races under concurrency.
+    """
+    try:
+        # Buscar dados
+        if inspect.iscoroutinefunction(fetcher):
+            data = await fetcher()
+        else:
+            data = await asyncio.to_thread(fetcher)
+            if inspect.isawaitable(data):
+                data = await data
 
-            # Armazenar no cache
-            import json
+        # Armazenar no cache
+        import json
 
-            await self.redis.setex(key, 3600, json.dumps(data))  # TTL: 1 hora
+        # Atomic write: only set if not exists (NX) with TTL (EX).
+        ok = await self.redis.set(key, json.dumps(data), ex=3600, nx=True)
+        if not ok:
+            logger.debug("Cache key already existed, skipping: %s", key)
+            return
 
-            logger.debug("Cache warmed: %s", key)
+        logger.debug("Cache warmed: %s", key)
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
 
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Failed to warm cache key %s: %s", key, e, exc_info=True)
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
+        # Re-raise programming errors — these are bugs, not runtime failures
+        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-
+        logger.error("Failed to warm cache key %s: %s", key, e, exc_info=True)
+        raise
     async def invalidate_pattern(self, pattern: str):
         """
         Invalida cache por pattern.
@@ -282,7 +292,7 @@ class EnhancedCacheManager:
             "keyspace": keyspace_info,
         }
 
-    def register_warmer(self, key: str, fetcher: Callable):
+    def register_warmer(self, key: str, fetcher: Callable) -> None:
         """
         Registra um warmer para execução automática.
 

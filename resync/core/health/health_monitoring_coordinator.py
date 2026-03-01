@@ -24,7 +24,7 @@ class HealthMonitoringCoordinator:
     and integration with the broader health monitoring ecosystem.
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the health monitoring coordinator.
 
@@ -73,6 +73,7 @@ class HealthMonitoringCoordinator:
                 await health_check_func()
                 await asyncio.sleep(self.config.check_interval_seconds)
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

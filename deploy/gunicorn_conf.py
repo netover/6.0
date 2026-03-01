@@ -18,8 +18,10 @@ Environment variables (override in .env or shell):
                            Set to your load-balancer IP(s) in production.
                            Use "*" ONLY in trusted internal networks.
 """
-
 from __future__ import annotations
+
+import asyncio
+
 
 import multiprocessing
 import os
@@ -76,5 +78,7 @@ def child_exit(server: object, worker: object) -> None:  # pragma: no cover
     try:
         from prometheus_client import multiprocess  # type: ignore
         multiprocess.mark_process_dead(getattr(worker, "pid", 0))
-    except Exception:
+    except Exception as e:
+        if isinstance(e, asyncio.CancelledError):
+            raise
         return

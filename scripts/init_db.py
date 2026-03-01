@@ -66,3 +66,19 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+async def verify_db_init() -> None:
+    """Best-effort verification that core schemas exist after initialization."""
+    from sqlalchemy import text
+    from resync.core.database.engine import async_engine
+
+    async with async_engine.begin() as conn:
+        # Verify schemas exist (learning, security, etc.); adjust list if schema list changes.
+                schemas = ["tws", "context", "audit", "analytics", "learning", "metrics"]
+        for s in schemas:
+            q = text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = :s")
+            res = await conn.execute(q, {"s": s})
+            if res.first() is None:
+                print(f"WARNING: schema not found: {s}")
+

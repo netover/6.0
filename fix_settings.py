@@ -16,6 +16,7 @@ Raises:
 
 WARNING: Operates on source files.  Run from a clean git working tree.
 """
+import asyncio
 
 import os
 import shutil
@@ -111,7 +112,9 @@ def _apply_smtp_fix() -> None:
         backup.unlink(missing_ok=True)  # remove backup only after success
         print("Settings updated successfully.")
 
-    except Exception:
+    except Exception as e:
+        if isinstance(e, asyncio.CancelledError):
+            raise
         if backup.exists():
             shutil.copy2(backup, _TARGET)
         if tmp_path is not None and tmp_path.exists():

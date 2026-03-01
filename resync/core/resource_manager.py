@@ -14,9 +14,11 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any, Generic, Self, TypeVar, cast
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 @dataclass
 class ResourceInfo:
@@ -32,7 +34,7 @@ class ResourceInfo:
         """Get the lifetime of the resource in seconds."""
         return (datetime.now(timezone.utc) - self.created_at).total_seconds()
 
-class ManagedResource[T]:
+class ManagedResource(Generic[T]):
     """
     Base class for managed resources with automatic cleanup.
 
@@ -45,7 +47,7 @@ class ManagedResource[T]:
         self.created_at = datetime.now(timezone.utc)
         self._closed = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         logger.debug(
             "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
@@ -57,7 +59,7 @@ class ManagedResource[T]:
         await self.close()
         return False
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         """Sync context manager entry."""
         logger.debug(
             "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
@@ -124,7 +126,7 @@ class ManagedResource[T]:
 class DatabaseConnectionResource(ManagedResource[Any]):
     """Managed database connection resource."""
 
-    def __init__(self, connection: Any, resource_id: str = "db_connection"):
+    def __init__(self, connection: Any, resource_id: str = "db_connection") -> None:
         super().__init__(resource_id, "database_connection")
         self.connection = connection
 
@@ -150,7 +152,7 @@ class DatabaseConnectionResource(ManagedResource[Any]):
 class FileResource(ManagedResource[Any]):
     """Managed file resource."""
 
-    def __init__(self, file_handle: Any, resource_id: str = "file"):
+    def __init__(self, file_handle: Any, resource_id: str = "file") -> None:
         super().__init__(resource_id, "file")
         self.file_handle = file_handle
 
@@ -190,7 +192,7 @@ class FileResource(ManagedResource[Any]):
 class NetworkSocketResource(ManagedResource[Any]):
     """Managed network socket resource."""
 
-    def __init__(self, socket: Any, resource_id: str = "socket"):
+    def __init__(self, socket: Any, resource_id: str = "socket") -> None:
         super().__init__(resource_id, "network_socket")
         self.socket = socket
 
@@ -261,7 +263,7 @@ def managed_file_sync(file_path: str, mode: str = "r") -> Iterator[Any]:
         if file_handle:
             file_handle.close()
 
-class ResourcePool[T]:
+class ResourcePool(Generic[T]):
     """
     Generic resource pool with automatic cleanup and leak detection.
     """
@@ -410,7 +412,7 @@ class ResourcePool[T]:
             },
         }
 
-async def resource_scope[T](
+async def resource_scope(
     pool: ResourcePool,
     resource_type: str,
     factory: Callable[[], T],
@@ -430,7 +432,7 @@ class BatchResourceManager:
     Manager for batch resource operations with automatic cleanup.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.resources: list[tuple[str, Any, Callable | None]] = []
 
     def add_resource(
@@ -470,7 +472,7 @@ class BatchResourceManager:
 
         self.resources.clear()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         return self
 

@@ -135,7 +135,7 @@ class SmartConnectionPool:
     - Adaptive scaling signals
     """
 
-    def __init__(self, config: SmartPoolConfig | None = None):
+    def __init__(self, config: SmartPoolConfig | None = None) -> None:
         self.config = config or SmartPoolConfig()
 
         # Connection storage
@@ -434,6 +434,7 @@ class SmartConnectionPool:
                 await self._perform_health_checks()
                 await asyncio.sleep(self.config.health_check_interval)
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

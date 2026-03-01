@@ -159,7 +159,7 @@ class APIGateway:
     - Monitoring and observability
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
 
         # Core components

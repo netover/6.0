@@ -69,7 +69,7 @@ class Alert:
 class TWSMonitor:
     """TWS monitoring and alerting system."""
 
-    def __init__(self, tws_client: ITWSClient):
+    def __init__(self, tws_client: ITWSClient) -> None:
         """Initialize TWS monitor.
 
         Args:
@@ -153,6 +153,7 @@ class TWSMonitor:
 
                 await asyncio.sleep(max(float(self.sample_interval_seconds), 0.1))
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

@@ -303,7 +303,7 @@ class SecurityDashboardConfig:
 class MetricCollector:
     """Component for collecting security metrics from various sources."""
 
-    def __init__(self, config: SecurityDashboardConfig):
+    def __init__(self, config: SecurityDashboardConfig) -> None:
         self.config = config
         self.metrics: dict[str, SecurityMetric] = {}
 
@@ -498,7 +498,7 @@ class MetricCollector:
 class AlertManager:
     """Component for managing security alerts."""
 
-    def __init__(self, config: SecurityDashboardConfig):
+    def __init__(self, config: SecurityDashboardConfig) -> None:
         self.config = config
         self.alert_rules: dict[str, AlertRule] = {}
         self.active_alerts: dict[str, dict[str, Any]] = {}
@@ -745,7 +745,7 @@ class SecurityDashboard:
     - Integration APIs for external tools
     """
 
-    def __init__(self, config: SecurityDashboardConfig | None = None):
+    def __init__(self, config: SecurityDashboardConfig | None = None) -> None:
         self.config = config or SecurityDashboardConfig()
 
         # Core components
@@ -1044,6 +1044,7 @@ class SecurityDashboard:
                 self._collect_system_metrics()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1087,6 +1088,7 @@ class SecurityDashboard:
                     self._handle_triggered_alert(alert)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1152,6 +1154,7 @@ class SecurityDashboard:
                     )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

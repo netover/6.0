@@ -368,7 +368,7 @@ def get_tool_catalog() -> ToolCatalog:
 class ApprovalRequiredError(Exception):
     """Raised when a tool requires HITL approval."""
 
-    def __init__(self, message: str, approval_id: str, trace: ToolExecutionTrace):
+    def __init__(self, message: str, approval_id: str, trace: ToolExecutionTrace) -> None:
         super().__init__(message)
         self.approval_id = approval_id
         self.trace = trace

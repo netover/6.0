@@ -75,7 +75,7 @@ class HATEOASResponse(BaseModel):
 class LinkBuilder:
     """Construtor de links HATEOAS."""
 
-    def __init__(self, base_url: str = ""):
+    def __init__(self, base_url: str = "") -> None:
         """Inicializa o builder.
 
         Args:

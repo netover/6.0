@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 class EmailService:
     """Service to send emails using SMTP with template support."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = get_settings()
         self.enabled = self.settings.smtp_enabled
         self.template_env = self._init_template_env()

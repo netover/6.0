@@ -66,7 +66,7 @@ class EndpointPattern:
     - Method wildcard: "/health" (matches any method)
     """
 
-    def __init__(self, pattern: str):
+    def __init__(self, pattern: str) -> None:
         self.pattern = pattern
         self.regex = self._compile_pattern(pattern)
 
@@ -101,7 +101,7 @@ class EndpointPattern:
 class RedisStrategyConfig:
     """Parsed configuration for Redis strategy."""
 
-    def __init__(self, config_dict: dict):
+    def __init__(self, config_dict: dict) -> None:
         # Startup config
         startup = config_dict.get("startup", {})
         self.startup_fail_fast: bool = startup.get("fail_fast", True)
@@ -200,7 +200,7 @@ class RedisStrategy:
             raise HTTPException(503)
     """
 
-    def __init__(self, config_path: str = "config/redis_strategy.yaml"):
+    def __init__(self, config_path: str = "config/redis_strategy.yaml") -> None:
         """
         Initialize strategy with configuration file.
 

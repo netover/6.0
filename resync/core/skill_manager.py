@@ -80,7 +80,7 @@ class SkillManager:
         # ou obter de EnterpriseState
     """
 
-    def __init__(self, skills_dir: str | None = None):
+    def __init__(self, skills_dir: str | None = None) -> None:
         # 1) Override por env
         env_dir = os.getenv("RESYNC_SKILLS_DIR")
 

@@ -434,7 +434,7 @@ def get_rag_service() -> RAGIntegrationService:
 
     return _rag_service
 
-def reset_rag_service():
+def reset_rag_service() -> None:
     """Reset RAG service (for testing)."""
     global _rag_service
     _rag_service = None

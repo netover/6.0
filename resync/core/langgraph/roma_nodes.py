@@ -1,7 +1,6 @@
 # ruff: noqa: E501
 """ROMA graph nodes built with LLMFactory and resilient parsing."""
 
-from __future__ import annotations
 
 import json
 from typing import Any
@@ -14,6 +13,7 @@ logger = get_logger(__name__)
 
 async def atomizer_node(state: RomaState) -> dict[str, Any]:
     """Detect whether the user query is atomic or needs decomposition."""
+
     query = state.get("user_query", "").strip()
     if not query:
         return {

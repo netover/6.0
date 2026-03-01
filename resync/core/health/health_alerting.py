@@ -26,7 +26,7 @@ class HealthAlerting:
     - Tracking alert history and patterns
     """
 
-    def __init__(self, alert_enabled: bool = True):
+    def __init__(self, alert_enabled: bool = True) -> None:
         """
         Initialize the health alerting system.
 
@@ -155,7 +155,7 @@ class HealthReporting:
     - Formatting health data for different outputs
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the health reporting system."""
         self._report_cache: dict[str, Any] | None = None
         self._last_report_time: datetime | None = None
@@ -329,7 +329,7 @@ class HealthStatusAggregator:
     - Identifying patterns and correlations in health data
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the health status aggregator."""
         self._aggregation_cache: dict[str, any] | None = None
         self._last_aggregation: datetime | None = None

@@ -508,7 +508,7 @@ class AnomalyDetectionEngine:
     - Performance optimized for high-throughput
     """
 
-    def __init__(self, config: MLModelConfig | None = None):
+    def __init__(self, config: MLModelConfig | None = None) -> None:
         self.config = config or MLModelConfig()
 
         if not SKLEARN_AVAILABLE:
@@ -682,6 +682,7 @@ class AnomalyDetectionEngine:
                 self._cleanup_history()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -702,6 +703,7 @@ class AnomalyDetectionEngine:
                     self._update_models()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

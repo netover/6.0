@@ -54,7 +54,7 @@ class PostgresGraphStore:
     _pool: asyncpg.Pool | None = None
     _pool_lock: asyncio.Lock | None = None
 
-    def __init__(self, database_url: str | None = None):
+    def __init__(self, database_url: str | None = None) -> None:
         if not ASYNCPG_AVAILABLE:
             raise RuntimeError("asyncpg is required. pip install asyncpg")
         self._database_url = database_url or CFG.database_url

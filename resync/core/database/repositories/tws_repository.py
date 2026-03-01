@@ -387,7 +387,7 @@ class TWSStore:
     tws_status_store.py but backed by PostgreSQL.
     """
 
-    def __init__(self, session_factory: async_sessionmaker | None = None):
+    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
         self.snapshots = TWSSnapshotRepository(session_factory)
         self.jobs = TWSJobStatusRepository(session_factory)
         self.events = TWSEventRepository(session_factory)

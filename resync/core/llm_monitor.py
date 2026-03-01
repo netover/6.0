@@ -48,7 +48,7 @@ class LLMCostMonitor:
     - Model performance metrics
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize LLM cost monitor."""
         self.usage_stats = LLMUsageStats()
         # Bounded to prevent unbounded memory growth in long-running processes.
@@ -217,7 +217,7 @@ class StreamingLLMResponse:
     Streaming LLM response for long outputs (troubleshooting).
     """
 
-    def __init__(self, prompt: str, model: str, max_tokens: int = 1000):
+    def __init__(self, prompt: str, model: str, max_tokens: int = 1000) -> None:
         """Initialize streaming response."""
         self.prompt = prompt
         self.model = model

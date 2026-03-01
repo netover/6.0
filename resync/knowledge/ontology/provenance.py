@@ -179,7 +179,7 @@ class ProvenanceRecord:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Generate record ID if not provided."""
         if not self.record_id:
             hash_input = (
@@ -233,7 +233,7 @@ class ProvenanceTracker:
     - Export provenance for auditing
     """
 
-    def __init__(self, max_records: int = 5000):
+    def __init__(self, max_records: int = 5000) -> None:
         """Initialize ProvenanceTracker."""
         import collections
         self._max_records = max_records

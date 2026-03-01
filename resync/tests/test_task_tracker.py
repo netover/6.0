@@ -105,7 +105,7 @@ async def test_background_task_decorator_tracks_and_names_function():
 
     await t
 
-    def assert_removed():
+    def assert_removed() -> None:
         assert "worker" not in get_task_names()
         assert get_task_count() == len(before_names)
 
@@ -120,6 +120,7 @@ async def test_cancel_all_tasks_cancels_running_tasks_and_reports_stats():
             await never.wait()
         except asyncio.CancelledError:
             # simulate small cleanup
+            raise
             await asyncio.sleep(0.05)
             raise
 

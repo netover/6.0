@@ -510,7 +510,7 @@ class QueryClassificationCache:
     v5.2.3.24: Prevents redundant pattern matching for repeated queries.
     """
 
-    def __init__(self, max_size: int = 1000, ttl_seconds: int = 3600):
+    def __init__(self, max_size: int = 1000, ttl_seconds: int = 3600) -> None:
         """
         Initialize cache.
 

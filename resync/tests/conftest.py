@@ -59,7 +59,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest.fixture(scope="session")
-def app():
+def app() -> None:
     """Create a test application instance."""
     # v5.8.0: Use unified app from app_factory
     from resync.app_factory import ApplicationFactory
@@ -289,12 +289,12 @@ def admin_auth_headers(admin_user_data) -> dict:
 
 
 @pytest.fixture
-def mock_httpx():
+def mock_httpx() -> None:
     """
     Mock external HTTP requests using RESPX.
 
     Usage:
-        def test_external_api(mock_httpx):
+        def test_external_api(mock_httpx) -> None:
             mock_httpx.get("https://api.example.com/data").respond(
                 json={"key": "value"}
             )
@@ -317,7 +317,7 @@ def frozen_time():
     Freeze time for deterministic testing.
 
     Usage:
-        def test_with_frozen_time(frozen_time):
+        def test_with_frozen_time(frozen_time) -> None:
             with frozen_time("2024-01-15 10:00:00"):
                 # Time is frozen
                 pass
@@ -339,7 +339,7 @@ def frozen_time():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_environment():
+def cleanup_environment() -> None:
     """Clean up environment after each test."""
     yield
     # Reset any global state if needed
@@ -349,7 +349,7 @@ def cleanup_environment():
 # the cache between tests, env var changes between tests are silently ignored,
 # causing test-order-dependent failures.
 @pytest.fixture(autouse=True)
-def _clear_settings_cache():
+def _clear_settings_cache() -> None:
     """Auto-clear lru_cache on get_settings() before every test for isolation."""
     try:
         from resync.settings import get_settings
@@ -369,7 +369,7 @@ def _clear_settings_cache():
 # =============================================================================
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure custom pytest markers."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"

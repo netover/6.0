@@ -65,7 +65,7 @@ class EventBus:
     Supports subscription tracking to prevent memory leaks.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._subscribers: dict[EventType, list[Subscription]] = {}
         self._global_subscribers: dict[str, Subscription] = {}
 

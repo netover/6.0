@@ -413,6 +413,7 @@ async def websocket_handler(
         logger.info("WebSocket disconnected for agent %s", agent_id)
     except asyncio.CancelledError:
         # P0-06 fix: Must re-raise CancelledError for proper shutdown
+        raise
         logger.info("WebSocket cancelled for agent %s", agent_id)
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:

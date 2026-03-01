@@ -13,7 +13,7 @@ from datetime import timezone
 class IncidentRunbook:
     """Base class for incident response runbooks"""
 
-    def __init__(self, title: str, description: str):
+    def __init__(self, title: str, description: str) -> None:
         self.title = title
         self.description = description
         self.created_at = datetime.datetime.now(timezone.utc)
@@ -30,7 +30,7 @@ class TWSConnectionFailureRunbook(IncidentRunbook):
     Description: Handles incidents where the Resync system cannot connect to TWS/HWA
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title="TWS Connection Failure",
             description="Handles incidents where the Resync system cannot connect to TWS/HWA",
@@ -97,7 +97,7 @@ class HighErrorRateRunbook(IncidentRunbook):
     Description: Handles incidents where the system experiences elevated error rates
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title="High Error Rate",
             description="Handles incidents where the system experiences elevated error rates",
@@ -164,7 +164,7 @@ class PerformanceDegradationRunbook(IncidentRunbook):
     Description: Handles incidents where system performance is degraded
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title="Performance Degradation",
             description="Handles incidents where system performance is degraded",
@@ -231,7 +231,7 @@ class SecurityIncidentRunbook(IncidentRunbook):
     Description: Handles security-related incidents like unauthorized access or suspicious activity
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title="Security Incident",
             description="Handles security-related incidents like unauthorized access or suspicious activity",
@@ -296,7 +296,7 @@ class DataConsistencyRunbook(IncidentRunbook):
     Description: Handles incidents where data consistency issues are detected
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title="Data Consistency Issue",
             description="Handles incidents where data consistency issues are detected",
@@ -358,11 +358,11 @@ class RunbookRegistry:
     Registry for managing incident response runbooks
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.runbooks: dict[str, IncidentRunbook] = {}
         self._register_default_runbooks()
 
-    def _register_default_runbooks(self):
+    def _register_default_runbooks(self) -> None:
         """Register default runbooks"""
         self.register_runbook("tws_connection_failure", TWSConnectionFailureRunbook())
         self.register_runbook("high_error_rate", HighErrorRateRunbook())
@@ -372,7 +372,7 @@ class RunbookRegistry:
         self.register_runbook("security_incident", SecurityIncidentRunbook())
         self.register_runbook("data_consistency", DataConsistencyRunbook())
 
-    def register_runbook(self, name: str, runbook: IncidentRunbook):
+    def register_runbook(self, name: str, runbook: IncidentRunbook) -> None:
         """Register an incident response runbook"""
         self.runbooks[name] = runbook
 

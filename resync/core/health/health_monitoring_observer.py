@@ -296,7 +296,7 @@ class AlertingHealthObserver(HealthMonitorObserver):
 class MetricsHealthObserver(HealthMonitorObserver):
     """Observer that collects health metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the metrics observer."""
         self._status_changes: list[dict[str, Any]] = []
         self._check_durations: list[dict[str, Any]] = []

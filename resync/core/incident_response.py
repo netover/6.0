@@ -306,7 +306,7 @@ class IncidentResponseConfig:
 class IncidentDetector:
     """Component for detecting security incidents."""
 
-    def __init__(self, config: IncidentResponseConfig):
+    def __init__(self, config: IncidentResponseConfig) -> None:
         self.config = config
         self.detection_rules: list[dict[str, Any]] = []
 
@@ -414,7 +414,7 @@ class IncidentDetector:
 class IncidentResponder:
     """Component for executing automated incident response."""
 
-    def __init__(self, config: IncidentResponseConfig):
+    def __init__(self, config: IncidentResponseConfig) -> None:
         self.config = config
         self.response_actions: dict[str, ResponseAction] = {}
 
@@ -607,7 +607,7 @@ class IncidentResponder:
 class NotificationManager:
     """Component for managing incident notifications."""
 
-    def __init__(self, config: IncidentResponseConfig):
+    def __init__(self, config: IncidentResponseConfig) -> None:
         self.config = config
 
     async def notify_incident_detected(self, incident: Incident) -> None:
@@ -707,7 +707,7 @@ class IncidentResponseEngine:
     - Continuous learning and improvement
     """
 
-    def __init__(self, config: IncidentResponseConfig | None = None):
+    def __init__(self, config: IncidentResponseConfig | None = None) -> None:
         self.config = config or IncidentResponseConfig()
 
         # Core components
@@ -1118,6 +1118,7 @@ class IncidentResponseEngine:
                 await asyncio.sleep(30)  # Check every 30 seconds
                 await self._check_for_incident()
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1155,6 +1156,7 @@ class IncidentResponseEngine:
                                 break
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -1187,6 +1189,7 @@ class IncidentResponseEngine:
                     )
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

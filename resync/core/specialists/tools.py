@@ -94,7 +94,7 @@ class ToolCatalog:
             cls._instance._tools = {}  # type: ignore
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Already initialized in __new__
         pass
 

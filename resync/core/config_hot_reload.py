@@ -66,10 +66,10 @@ class ConfigChange:
 class ConfigFileHandler(FileSystemEventHandler):
     """Handles file system events for config files."""
 
-    def __init__(self, callback: Callable):
+    def __init__(self, callback: Callable) -> None:
         self.callback = callback
 
-    def on_modified(self, event):
+    def on_modified(self, event) -> None:
         if isinstance(event, FileModifiedEvent):
             # Watchdog runs in a background thread, so we need to schedule the callback
             # on the event loop safely.
@@ -142,7 +142,7 @@ class ConfigManager:
 
         logger.info("ConfigManager started", extra={"config_dir": str(self.config_dir)})
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the configuration manager."""
         if self._observer:
             self._observer.stop()
@@ -151,7 +151,7 @@ class ConfigManager:
 
         logger.info("ConfigManager stopped")
 
-    def _start_watching(self):
+    def _start_watching(self) -> None:
         """Start watching config files for changes."""
         if self._watching:
             return
@@ -279,11 +279,11 @@ class ConfigManager:
             await self._load_config()
             await self._notify_subscribers()
 
-    def subscribe(self, callback: Callable):
+    def subscribe(self, callback: Callable) -> None:
         """Subscribe to configuration changes."""
         self._subscribers.add(callback)
 
-    def unsubscribe(self, callback: Callable):
+    def unsubscribe(self, callback: Callable) -> None:
         """Unsubscribe from configuration changes."""
         self._subscribers.discard(callback)
 

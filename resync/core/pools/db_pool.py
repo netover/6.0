@@ -21,7 +21,7 @@ class DatabasePool:
     Uses SQLAlchemy's built-in connection pooling.
     """
 
-    def __init__(self, pool_size: int = 10):
+    def __init__(self, pool_size: int = 10) -> None:
         """
         Initialize. Pool size is configured via SQLAlchemy engine settings.
         """

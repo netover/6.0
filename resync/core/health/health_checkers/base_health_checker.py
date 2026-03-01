@@ -30,7 +30,7 @@ class BaseHealthChecker(ABC):
     health checkers must implement.
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the health checker.
 

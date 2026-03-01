@@ -257,7 +257,7 @@ class EnrichedChunk:
     metadata: ChunkMetadata
     sha256: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.sha256:
             self.sha256 = hashlib.sha256(self.content.encode("utf-8")).hexdigest()[:16]
 
@@ -1090,7 +1090,7 @@ class AdvancedChunker:
         chunks = chunker.chunk_document(text, source="manual.md")
     """
 
-    def __init__(self, config: ChunkingConfig | None = None):
+    def __init__(self, config: ChunkingConfig | None = None) -> None:
         self.config = config or ChunkingConfig()
         self._semantic_chunker: SemanticChunker | None = None
 

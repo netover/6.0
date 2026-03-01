@@ -14,8 +14,7 @@ _SUBPROCESS_TIMEOUT = 300  # 5 minutes max per tool
 
 
 def run_tool(command: list[str]) -> str:
-    """
-    Run an external command and return combined stdout+stderr.
+    """Run an external command and return combined stdout+stderr.
 
     Args:
         command: Command and arguments as list.
@@ -24,13 +23,13 @@ def run_tool(command: list[str]) -> str:
         Combined stdout and stderr output.
     """
     print(f"Running: {' '.join(command)}")
-   (
+    result = subprocess.run(
         command,
- result = subprocess.run        capture_output=True,
+        capture_output=True,
         text=True,
-        timeout=_SUBPROCESS_TIMEOUT,  # P1-01: prevent CI hang
+        timeout=_SUBPROCESS_TIMEOUT,
     )
-    return result.stdout + "\n" + result.stderr
+    return (result.stdout or "") + "\n" + (result.stderr or "")
 
 
 def run_ruff_fix(target_dir: str) -> None:

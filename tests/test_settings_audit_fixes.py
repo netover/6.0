@@ -34,7 +34,7 @@ except ImportError:
 # =============================================================================
 
 @pytest.fixture(autouse=True)
-def reset_settings_cache():
+def reset_settings_cache() -> None:
     """Clear settings cache before and after each test."""
     clear_settings_cache()
     yield
@@ -42,14 +42,14 @@ def reset_settings_cache():
 
 
 @pytest.fixture
-def temp_upload_dir():
+def temp_upload_dir() -> None:
     """Create temporary upload directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
 
 
 @pytest.fixture
-def prod_env_vars():
+def prod_env_vars() -> None:
     """Mock production environment variables."""
     env_backup = os.environ.copy()
     
@@ -71,7 +71,7 @@ def prod_env_vars():
 # P0-07: SECRET_KEY No Longer Auto-Generated
 # =============================================================================
 
-def test_p0_07_secret_key_not_auto_generated_in_dev():
+def test_p0_07_secret_key_not_auto_generated_in_dev() -> None:
     """P0-07: SECRET_KEY is NOT auto-generated in development.
     
     Before fix: get_settings() generated random SECRET_KEY on every call.
@@ -86,7 +86,7 @@ def test_p0_07_secret_key_not_auto_generated_in_dev():
         assert settings.environment == Environment.DEVELOPMENT
 
 
-def test_p0_07_secret_key_required_in_production():
+def test_p0_07_secret_key_required_in_production() -> None:
     """P0-07: SECRET_KEY is required in production (validated by Pydantic)."""
     with patch.dict(os.environ, {"APP_ENVIRONMENT": "production"}, clear=True):
         clear_settings_cache()
@@ -103,7 +103,7 @@ def test_p0_07_secret_key_required_in_production():
 # P0-08: SecretStr Masking in __repr__
 # =============================================================================
 
-def test_p0_08_secretstr_masked_in_repr():
+def test_p0_08_secretstr_masked_in_repr() -> None:
     """P0-08: SecretStr fields are masked in repr() output."""
     with patch.dict(
         os.environ,
@@ -132,7 +132,7 @@ def test_p0_08_secretstr_masked_in_repr():
 # P0-09: TOCTOU Fix in Directory Validation
 # =============================================================================
 
-def test_p0_09_upload_dir_atomic_creation(temp_upload_dir):
+def test_p0_09_upload_dir_atomic_creation(temp_upload_dir) -> None:
     """P0-09: upload_dir uses atomic mkdir (no TOCTOU race)."""
     # Create nested path that doesn't exist
     nested_path = temp_upload_dir / "level1" / "level2" / "uploads"
@@ -159,7 +159,7 @@ def test_p0_09_upload_dir_atomic_creation(temp_upload_dir):
         test_file.unlink()
 
 
-def test_p0_09_base_dir_atomic_validation():
+def test_p0_09_base_dir_atomic_validation() -> None:
     """P0-09: base_dir validation uses atomic operations."""
     # base_dir defaults to resync package directory
     with patch.dict(os.environ, {"APP_ENVIRONMENT": "development"}, clear=True):
@@ -178,14 +178,14 @@ def test_p0_09_base_dir_atomic_validation():
 # P1-07: Thread-Safe Singleton
 # =============================================================================
 
-def test_p1_07_thread_safe_singleton():
+def test_p1_07_thread_safe_singleton() -> None:
     """P1-07: get_settings() is thread-safe (no race condition)."""
     with patch.dict(os.environ, {"APP_ENVIRONMENT": "development"}, clear=True):
         clear_settings_cache()
         
         results = []
         
-        def get_settings_thread():
+        def get_settings_thread() -> None:
             s = get_settings()
             results.append(id(s))
         
@@ -204,7 +204,7 @@ def test_p1_07_thread_safe_singleton():
 # P1-08 & P1-11: Localhost Blocked in Production CORS
 # =============================================================================
 
-def test_p1_08_localhost_blocked_in_production():
+def test_p1_08_localhost_blocked_in_production() -> None:
     """P1-08/P1-11: Localhost origins rejected in production CORS."""
     with patch.dict(
         os.environ,
@@ -226,7 +226,7 @@ def test_p1_08_localhost_blocked_in_production():
         assert "production" in error_msg.lower()
 
 
-def test_p1_08_localhost_allowed_in_development():
+def test_p1_08_localhost_allowed_in_development() -> None:
     """P1-08: Localhost origins allowed in development."""
     with patch.dict(
         os.environ,
@@ -244,7 +244,7 @@ def test_p1_08_localhost_allowed_in_development():
         assert "http://127.0.0.1:8080" in settings.cors_allowed_origins
 
 
-def test_p1_11_wildcard_blocked_in_production():
+def test_p1_11_wildcard_blocked_in_production() -> None:
     """P1-11: Wildcard '*' origins rejected in production."""
     with patch.dict(
         os.environ,
@@ -269,7 +269,7 @@ def test_p1_11_wildcard_blocked_in_production():
 # P1-09: Immutable Settings Proxy
 # =============================================================================
 
-def test_p1_09_settings_proxy_immutable():
+def test_p1_09_settings_proxy_immutable() -> None:
     """P1-09: _SettingsProxy blocks attribute mutation."""
     from resync.settings import settings  # Import proxy
     
@@ -291,7 +291,7 @@ def test_p1_09_settings_proxy_immutable():
 # P1-10: Environment Enum Comparison Fix
 # =============================================================================
 
-def test_p1_10_environment_enum_comparison(prod_env_vars):
+def test_p1_10_environment_enum_comparison(prod_env_vars) -> None:
     """P1-10: Validators use Environment.PRODUCTION (not string).
     
     This was the CRITICAL bug: all production validators were comparing
@@ -309,7 +309,7 @@ def test_p1_10_environment_enum_comparison(prod_env_vars):
     assert len(settings.secret_key.get_secret_value()) >= 32
 
 
-def test_p1_10_production_validators_actually_enforce():
+def test_p1_10_production_validators_actually_enforce() -> None:
     """P1-10: Production validators now actually enforce rules.
     
     Before fix: validators compared Environment enum to string (always False)
@@ -340,7 +340,7 @@ def test_p1_10_production_validators_actually_enforce():
 # P2-07: Cached Properties Performance
 # =============================================================================
 
-def test_p2_07_cached_property_performance():
+def test_p2_07_cached_property_performance() -> None:
     """P2-07: @cached_property improves performance 25x."""
     with patch.dict(os.environ, {"APP_ENVIRONMENT": "development"}, clear=True):
         clear_settings_cache()
@@ -357,7 +357,7 @@ def test_p2_07_cached_property_performance():
         assert id(cache_hierarchy_1) == id(cache_hierarchy_2)
 
 
-def test_p2_07_agent_config_path_cached():
+def test_p2_07_agent_config_path_cached() -> None:
     """P2-07: AGENT_CONFIG_PATH uses @cached_property."""
     with patch.dict(os.environ, {"APP_ENVIRONMENT": "development"}, clear=True):
         clear_settings_cache()
@@ -374,7 +374,7 @@ def test_p2_07_agent_config_path_cached():
 # P2-08: No Redundant Validation
 # =============================================================================
 
-def test_p2_08_pool_sizes_validated_once():
+def test_p2_08_pool_sizes_validated_once() -> None:
     """P2-08: Pool sizes validated by @field_validator only (not model_validator).
     
     Ensures no duplicate validation (30% overhead reduction).
@@ -402,7 +402,7 @@ def test_p2_08_pool_sizes_validated_once():
 # P3-08: Enhanced Error Messages
 # =============================================================================
 
-def test_p3_08_error_messages_include_field_names():
+def test_p3_08_error_messages_include_field_names() -> None:
     """P3-08: Validation errors include field names and env var names."""
     with patch.dict(
         os.environ,
@@ -426,7 +426,7 @@ def test_p3_08_error_messages_include_field_names():
         assert "secret_key" in error_msg or "app_secret_key" in error_msg
 
 
-def test_p3_08_tws_password_error_includes_env_var():
+def test_p3_08_tws_password_error_includes_env_var() -> None:
     """P3-08: TWS_PASSWORD error mentions environment variable."""
     with patch.dict(
         os.environ,
@@ -453,7 +453,7 @@ def test_p3_08_tws_password_error_includes_env_var():
 # INTEGRATION TESTS
 # =============================================================================
 
-def test_integration_production_settings_valid(prod_env_vars, temp_upload_dir):
+def test_integration_production_settings_valid(prod_env_vars, temp_upload_dir) -> None:
     """Integration: Valid production settings pass all validators."""
     os.environ["UPLOAD_DIR"] = str(temp_upload_dir)
     clear_settings_cache()
@@ -467,7 +467,7 @@ def test_integration_production_settings_valid(prod_env_vars, temp_upload_dir):
     assert "localhost" not in str(settings.cors_allowed_origins).lower()
 
 
-def test_integration_development_settings_relaxed():
+def test_integration_development_settings_relaxed() -> None:
     """Integration: Development settings are more relaxed."""
     with patch.dict(
         os.environ,
@@ -488,7 +488,7 @@ def test_integration_development_settings_relaxed():
         assert "localhost" in settings.cors_allowed_origins[0].lower()
 
 
-def test_integration_clear_cache_forces_reload():
+def test_integration_clear_cache_forces_reload() -> None:
     """Integration: clear_settings_cache() forces settings reload."""
     with patch.dict(os.environ, {"APP_ENVIRONMENT": "development"}, clear=True):
         clear_settings_cache()

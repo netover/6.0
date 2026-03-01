@@ -1,6 +1,5 @@
 """Common utilities for health checkers to reduce duplicated logic."""
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass
@@ -17,6 +16,7 @@ from resync.core.health.health_models import (
 @dataclass(frozen=True)
 class ThresholdConfig:
     """Thresholds and messages for health checks."""
+
 
     warning: float
     critical: float

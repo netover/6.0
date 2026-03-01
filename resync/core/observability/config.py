@@ -187,7 +187,7 @@ def get_langfuse_client():
     """Get the LangFuse client."""
     return _langfuse_client
 
-def shutdown_langfuse():
+def shutdown_langfuse() -> None:
     """Shutdown LangFuse client gracefully."""
     global _langfuse_client
 
@@ -224,7 +224,7 @@ class EvidentlyMonitor:
     - Feature statistics
     """
 
-    def __init__(self, config: EvidentlyConfig):
+    def __init__(self, config: EvidentlyConfig) -> None:
         self.config = config
         self._reference_data: list[dict[str, Any]] = []
         self._current_data: list[dict[str, Any]] = []

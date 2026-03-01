@@ -399,7 +399,7 @@ def get_auth_service() -> AuthService:
                 _auth_service = AuthService()
     return _auth_service
 
-def reset_auth_service():
+def reset_auth_service() -> None:
     """Reset auth service (for testing)."""
     global _auth_service
     _auth_service = None

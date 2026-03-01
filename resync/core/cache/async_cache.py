@@ -28,7 +28,7 @@ import contextlib
 import logging
 from dataclasses import dataclass
 from time import time
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 from resync.core.metrics import runtime_metrics
 from resync.core.task_tracker import track_task
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 @dataclass(slots=True)
-class CacheEntry[T]:
+class CacheEntry(Generic[T]):
     """
     Memory-efficient cache entry using type parameters (PEP 695).
     """
@@ -259,6 +259,7 @@ class AsyncTTLCache:
                 await asyncio.sleep(self.cleanup_interval)
                 await self._remove_expired_entries()
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

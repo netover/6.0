@@ -29,7 +29,7 @@ class CORSOperation(str, Enum):
 class CORSMonitor:
     """Monitor and log CORS-related activities."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.violations = deque(maxlen=1000)
         self.allowed_origins = set()
         self.blocked_origins = set()

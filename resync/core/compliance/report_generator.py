@@ -45,7 +45,7 @@ class ComplianceReportGenerator:
     - Integration with existing compliance monitoring systems
     """
 
-    def __init__(self, soc2_manager=None):
+    def __init__(self, soc2_manager=None) -> None:
         """
         Initialize the compliance report generator.
 

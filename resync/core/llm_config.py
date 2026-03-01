@@ -36,11 +36,11 @@ class LLMConfig:
     _instance: "LLMConfig" | None = None
     _config: dict[str, Any] = {}
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize LLM config."""
         self._load_config()
 
-    def _load_config(self):
+    def _load_config(self) -> None:
         """Load LLM configuration from TOML file using standard tomllib."""
         try:
             # Resolved dynamically relative to the project structure
@@ -204,7 +204,7 @@ class LLMConfig:
             "retry", {"max_attempts": 3, "base_backoff": 1.0, "max_backoff": 10.0}
         )
 
-    def reload(self):
+    def reload(self) -> None:
         """Reload configuration from file (hot reload support)."""
         self._load_config()
         logger.info("llm_config_reloaded")
@@ -264,7 +264,7 @@ def get_model_for_specialist(specialist_type: str) -> str:
     return config.get_model(task_type)
 
 # Auto-reload on config file change (for hot reload)
-def _on_llm_config_change(event):
+def _on_llm_config_change(event) -> None:
     """Called by UnifiedConfigManager when llm.toml changes."""
     config = get_llm_config()
     config.reload()

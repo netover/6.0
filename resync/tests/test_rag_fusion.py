@@ -78,7 +78,7 @@ class TestQueryExpansion:
 class TestReciprocalRankFusion:
     """Test RRF merging logic."""
 
-    def test_rrf_merges_multiple_result_sets(self, hybrid_rag):
+    def test_rrf_merges_multiple_result_sets(self, hybrid_rag) -> None:
         """Test that RRF correctly merges and ranks documents."""
         results_list = [
             # Result set 1
@@ -108,12 +108,12 @@ class TestReciprocalRankFusion:
         assert "doc1" in top_ids
         assert "doc2" in top_ids
 
-    def test_rrf_handles_empty_results(self, hybrid_rag):
+    def test_rrf_handles_empty_results(self, hybrid_rag) -> None:
         """Test RRF with empty result sets."""
         fused = hybrid_rag._reciprocal_rank_fusion([])
         assert fused == []
 
-    def test_rrf_uses_content_hash_for_missing_ids(self, hybrid_rag):
+    def test_rrf_uses_content_hash_for_missing_ids(self, hybrid_rag) -> None:
         """Test that RRF uses content hash when document ID is missing."""
         results_list = [
             [{"content": "same content"}],

@@ -151,7 +151,7 @@ class AutoScalingConfig:
 class AutoScalingManager:
     """Intelligent auto-scaling manager for connection pools."""
 
-    def __init__(self, config: AutoScalingConfig | None = None):
+    def __init__(self, config: AutoScalingConfig | None = None) -> None:
         self.config = config or AutoScalingConfig()
         self.load_metrics = LoadMetrics()
         self.current_connections = 10  # Default starting point
@@ -369,7 +369,7 @@ class AdvancedConnectionPoolManager:
     - Performance optimization
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize advanced connection pool manager."""
         self.traditional_manager: ConnectionPoolManager | None = None
         self.smart_pool: SmartConnectionPool | None = None

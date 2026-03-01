@@ -140,7 +140,7 @@ class QueryResult:
     row_count: int = 0
     execution_stats: QueryExecutionStats | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Calculate result hash and row count after initialization."""
         # Calculate hash of result for change detection using BLAKE2b
         result_str = str(

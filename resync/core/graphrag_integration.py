@@ -151,13 +151,13 @@ class GraphRAGIntegration:
 
         return stats
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear GraphRAG caches."""
         if self.subgraph_retriever:
             self.subgraph_retriever.clear_cache()
             logger.info("GraphRAG cache cleared")
 
-    def reset_validation_stats(self):
+    def reset_validation_stats(self) -> None:
         """Reset cache validation statistics."""
         if self.cache_validator:
             self.cache_validator.reset_stats()

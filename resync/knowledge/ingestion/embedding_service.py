@@ -64,7 +64,7 @@ class EmbeddingConfig:
     # Provider-specific options - use empty dict instead of None
     extra_params: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure extra_params is never None
         if self.extra_params is None:
             self.extra_params = {}

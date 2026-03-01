@@ -46,7 +46,7 @@ class ServiceScope:
     ensuring complete isolation between concurrent requests.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._services: dict[type, Any] = {}
         self._token = None
 
@@ -97,7 +97,7 @@ class DIContainer:
             user_svc = await container.get(IUserService)  # Same instance in this scope
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._factories: dict[type, tuple[Callable, ServiceLifetime]] = {}
         self._singletons: dict[type, Any] = {}
         self._locks: dict[type, asyncio.Lock] = {}

@@ -25,7 +25,7 @@ class CircuitBreakerManager:
     - Providing circuit breaker statistics and insights
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the circuit breaker manager."""
         self._circuit_breakers: dict[str, Any] = {}
         self._breaker_stats: dict[str, dict[str, Any]] = {}

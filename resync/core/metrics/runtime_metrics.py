@@ -33,7 +33,7 @@ class RuntimeMetricsCollector:
     - Agent operations
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize all metrics."""
         # API Metrics
         self.api_requests_total = create_counter(

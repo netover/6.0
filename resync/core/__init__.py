@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 class CorrelationIdFilter(logging.Filter):
     """Logging filter to inject correlation_id into all log records."""
 
-    def __init__(self, correlation_id_getter=None):
+    def __init__(self, correlation_id_getter=None) -> None:
         super().__init__()
         self.correlation_id_getter = correlation_id_getter
 
@@ -85,7 +85,7 @@ class CoreBootManager:
     """Hardened boot manager for core components with lifecycle tracking and
     health validation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._components: dict[str, Any] = {}
         self._boot_times: dict[str, float] = {}
         self._health_status: dict[str, dict[str, Any]] = {}
@@ -172,7 +172,7 @@ class EnvironmentDetector:
     """Detect and validate execution environment for security and
     compatibility."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._validation_cache = {}
         self._last_validation = 0
 

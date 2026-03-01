@@ -385,6 +385,7 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
+        raise
         print(f"\n{Colors.YELLOW}Interrupted by user{Colors.RESET}")
         sys.exit(130)
     except Exception as e:

@@ -333,7 +333,7 @@ class LLMService:
         ),
     }
 
-    def __init__(self, config: LLMFallbackConfig | None = None):
+    def __init__(self, config: LLMFallbackConfig | None = None) -> None:
         """
         Initialize LLM service.
 

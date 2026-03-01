@@ -347,7 +347,7 @@ class RateLimitConfig(BaseModel):
 class ValidationSettings:
     """Validation settings manager."""
 
-    def __init__(self, config_file: str | Path | None = None):
+    def __init__(self, config_file: str | Path | None = None) -> None:
         """
         Initialize validation settings.
 

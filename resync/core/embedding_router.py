@@ -262,7 +262,7 @@ class EmbeddingRouter:
                 raise
         return self._embedding_model
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Pre-compute embeddings for all intent examples."""
         if self._initialized:
             return

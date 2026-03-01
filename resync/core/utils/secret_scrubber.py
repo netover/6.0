@@ -74,7 +74,7 @@ SCRUBBED_PLACEHOLDER = "***SCRUBBED***"
 class SecretScrubber:
     """Secret scrubber with configurable patterns."""
 
-    def __init__(self, additional_patterns: list[str] | None = None):
+    def __init__(self, additional_patterns: list[str] | None = None) -> None:
         """
         Initialize scrubber with optional additional patterns.
 

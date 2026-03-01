@@ -213,7 +213,7 @@ class SIEMConfiguration:
 class SIEMConnector(ABC):
     """Abstract base class for SIEM connectors."""
 
-    def __init__(self, config: SIEMConfiguration):
+    def __init__(self, config: SIEMConfiguration) -> None:
         self.config = config
         self.status = SIEMStatus.DISCONNECTED
         self.last_connection_attempt = 0
@@ -569,7 +569,7 @@ class SIEMIntegrator:
     - Failover and redundancy
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
         self.connectors: dict[str, SIEMConnector] = {}
         self.event_queue: asyncio.Queue = asyncio.Queue(maxsize=10000)
@@ -811,6 +811,7 @@ class SIEMIntegrator:
                     await self._flush_events()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -839,6 +840,7 @@ class SIEMIntegrator:
                     await self._flush_events()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -923,6 +925,7 @@ class SIEMIntegrator:
                         logger.info("Attempting to reset circuit breaker for %s", name)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -940,7 +943,7 @@ class SIEMIntegrator:
 class EventCorrelationEngine:
     """Engine for correlating security events."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.rules: list[dict[str, Any]] = []
         self.alerts_generated = 0
 
@@ -997,7 +1000,7 @@ class EventCorrelationEngine:
 class EventEnrichmentEngine:
     """Engine for enriching security events with additional context."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.enrichers: list[Callable[[SIEMEvent], Awaitable[None]]] = []
 
     def enrich_event(self, event: SIEMEvent) -> None:
@@ -1019,7 +1022,7 @@ class EventEnrichmentEngine:
 class SIEMCircuitBreaker:
     """Circuit breaker for SIEM connections."""
 
-    def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 300):
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 300) -> None:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.failure_counts: dict[str, int] = {}

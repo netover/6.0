@@ -1,6 +1,5 @@
 """Pydantic schemas for Document KG extraction."""
 
-from __future__ import annotations
 
 from typing import Any, Literal
 

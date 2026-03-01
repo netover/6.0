@@ -44,6 +44,8 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi import Path as FastApiPath
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -363,8 +365,10 @@ async def restore_config_backup(
                     temp_restore.write_bytes(src.read())
                 shutil.copy2(config_file, current_backup)
                 temp_restore.replace(config_file)  # atomic on POSIX (rename(2))
-            except Exception:
+            except Exception as e:
                 # [P1-02] Always clean orphaned temp file
+                if isinstance(e, asyncio.CancelledError):
+                    raise
                 with contextlib.suppress(OSError):
                     temp_restore.unlink(missing_ok=True)
                 raise

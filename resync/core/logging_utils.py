@@ -15,7 +15,7 @@ class SecretRedactor(logging.Filter):
     API keys, tokens, etc. from log messages and structured log data.
     """
 
-    def __init__(self, name: str = ""):
+    def __init__(self, name: str = "") -> None:
         """
         Initialize the SecretRedactor filter.
 

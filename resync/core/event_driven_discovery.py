@@ -21,30 +21,15 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-def load_config_from_file():
+def load_config_from_file() -> dict[str, Any]:
     """Load GraphRAG configuration from TOML file."""
     try:
-        from pathlib import Path
-
-        import toml
-
-        config_file = Path(__file__).parent.parent.parent / "config" / "graphrag.toml"
-
-        if config_file.exists():
-            config = toml.load(config_file)
-            return config.get("graphrag", {})
-        logger.warning("GraphRAG config file not found: %s", config_file)
-        return {}
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
-        logger.error("Failed to load GraphRAG config: %s", e, exc_info=True)
+        from resync.settings import get_settings
+        from resync.core.config_loader import load_toml
+        settings = get_settings()
+        cfg = load_toml(getattr(settings, 'graphrag_config_path', 'config/graphrag.toml'))
+        return cfg.get('graphrag', {}) if isinstance(cfg, dict) else {}
+    except Exception:
         return {}
 
 class DiscoveryConfig:
@@ -94,7 +79,7 @@ class DiscoveryConfig:
     )
 
     @classmethod
-    def reload_from_file(cls):
+    def reload_from_file(cls) -> None:
         """Reload configuration from file."""
         cls._config = load_config_from_file()
 
@@ -147,7 +132,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 }}
 """)
 
-    def __init__(self, llm_service, knowledge_graph, tws_client, redis_client=None):
+    def __init__(self, llm_service, knowledge_graph, tws_client, redis_client=None) -> None:
         """
         Initialize event-driven discovery.
 
@@ -460,66 +445,24 @@ Return ONLY valid JSON (no markdown, no preamble):
             return stored
 
     async def _has_known_solution(self, job_name: str, error_code: int) -> bool:
-        """Check if error pattern already exists in graph."""
-        try:
-            # Query knowledge graph
-            cypher = """
-            MATCH (j:Job {name: $job_name})-[:FAILED_WITH]->(e:Error {return_code: $error_code})
-            OPTIONAL MATCH (e)-[:SOLVED_BY]->(s:Solution)
-            RETURN count(s) as solution_count
-            """
+        """Check if error pattern already exists.
 
-            result = await self.kg.execute_cypher(
-                cypher, {"job_name": job_name, "error_code": error_code}
-            )
-
-            return bool(result and result[0].get("solution_count", 0) > 0)
-
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Failed to check known solutions: %s", e)
-            return False
+        Legacy legacy-query/legacy-graph-db querying was removed. The Postgres graph store does not support
+        legacy-query-style queries. Until a native lookup API is added, return False to allow discovery.
+        """
+        _ = (job_name, error_code)
+        return False
 
     async def _count_recent_failures(self, job_name: str, days: int = 7) -> int:
-        """Count how many times job failed in last N days."""
-        try:
-            # Query knowledge graph or TWS history
-            cypher = """
-            MATCH (j:Job {name: $job_name})-[:HAS_EXECUTION]->(e:Execution)
-            WHERE (e.status = 'FAILED' OR e.status = 'ABEND')
-              AND e.timestamp > datetime() - duration({days: $days})
-            RETURN count(e) as failure_count
-            """
+        """Count recent failures.
 
-            result = await self.kg.execute_cypher(
-                cypher, {"job_name": job_name, "days": days}
-            )
+        Legacy legacy-query/legacy-graph-db querying was removed. This should be backed by a structured execution
+        history store; returning 0 avoids false triggering in the conceptual build.
+        """
+        _ = (job_name, days)
+        return 0
 
-            if result:
-                return result[0].get("failure_count", 0)
-
-            return 0
-
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
-            # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
-            logger.error("Failed to count failures: %s", e)
-            return 0
-
-    def _reset_counters_if_needed(self):
+    def _reset_counters_if_needed(self) -> None:
         """Reset daily/hourly counters if time period elapsed."""
         now = datetime.now(timezone.utc)
 

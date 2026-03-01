@@ -364,7 +364,7 @@ class JobAnalystAgent(BaseSpecialist):
 
     specialist_type = SpecialistType.JOB_ANALYST
 
-    def __init__(self, config: SpecialistConfig | None = None, **kwargs):
+    def __init__(self, config: SpecialistConfig | None = None, **kwargs) -> None:
         super().__init__(config, **kwargs)
         self.job_log_tool = JobLogTool()
         self.error_code_tool = ErrorCodeTool()
@@ -420,7 +420,7 @@ class DependencySpecialist(BaseSpecialist):
 
     specialist_type = SpecialistType.DEPENDENCY
 
-    def __init__(self, config: SpecialistConfig | None = None, **kwargs):
+    def __init__(self, config: SpecialistConfig | None = None, **kwargs) -> None:
         super().__init__(config, **kwargs)
         self.dependency_tool = DependencyGraphTool()
 
@@ -465,7 +465,7 @@ class ResourceSpecialist(BaseSpecialist):
 
     specialist_type = SpecialistType.RESOURCE
 
-    def __init__(self, config: SpecialistConfig | None = None, **kwargs):
+    def __init__(self, config: SpecialistConfig | None = None, **kwargs) -> None:
         super().__init__(config, **kwargs)
         self.workstation_tool = WorkstationTool()
         self.calendar_tool = CalendarTool()

@@ -36,7 +36,7 @@ class SOC2ComplianceManager:
     This is a shared version used to break circular dependencies.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Basic initialization - full implementation in soc2_compliance.py
         self.config = None
         self.controls = {}

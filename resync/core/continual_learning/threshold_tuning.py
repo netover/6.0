@@ -100,7 +100,7 @@ class AuditResult:
 class AuditToKGPipeline:
     """Pipeline to push audit data to knowledge graph."""
 
-    def __init__(self, kg_client: Any = None):
+    def __init__(self, kg_client: Any = None) -> None:
         """Initialize pipeline."""
         self._kg_client = kg_client
         self._buffer: list[AuditLogEntry] = []
@@ -119,7 +119,7 @@ class AuditToKGPipeline:
 class ThresholdTuningManager:
     """Manager for threshold tuning operations."""
 
-    def __init__(self, tuner: "ThresholdTuner | None" = None):
+    def __init__(self, tuner: "ThresholdTuner | None" = None) -> None:
         """Initialize manager."""
         self._tuner = tuner or get_threshold_tuner()
         self._configs: dict[str, ThresholdConfig] = {}
@@ -192,7 +192,7 @@ __all__ = [
 class ThresholdTuner:
     """Threshold Tuner - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._store = FeedbackStore()
         self._initialized = False

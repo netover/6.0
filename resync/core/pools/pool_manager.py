@@ -27,7 +27,7 @@ class PoolManager:
     Manages database and other connection pools.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the pool manager."""
         self._db_pool: DatabasePool | None = None
         self._initialized = False

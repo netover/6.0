@@ -33,7 +33,7 @@ class KnowledgeGraphWrapper:
     Delegates all operations to TwsGraphService.
     """
 
-    def __init__(self, service: TwsGraphService | None = None):
+    def __init__(self, service: TwsGraphService | None = None) -> None:
         self._service = service or get_graph_service()
 
     def set_tws_client(self, tws_client: Any):

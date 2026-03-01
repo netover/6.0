@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 router = APIRouter(tags=["A2A Protocol"])
 
-def check_a2a_enabled():
+def check_a2a_enabled() -> None:
     """Verify if the A2A protocol is enabled in settings."""
     if not settings.a2a_enabled:
         raise HTTPException(
@@ -133,6 +133,7 @@ async def a2a_events_endpoint(
         except asyncio.CancelledError:
             # P2-34 fix: Always re-raise CancelledError for proper cleanup
             # This ensures client disconnects and task cancellations propagate correctly
+            raise
             logger.debug("sse_stream_cancelled_by_client")
             raise
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:

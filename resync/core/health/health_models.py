@@ -131,7 +131,7 @@ class HealthStatusHistory:
 class HealthCheckError(Exception):
     """Exception raised when health check fails."""
 
-    def __init__(self, component: str, message: str, status_code: str | None = None):
+    def __init__(self, component: str, message: str, status_code: str | None = None) -> None:
         self.component = component
         self.message = message
         self.status_code = status_code
@@ -170,7 +170,7 @@ class RecoveryResult:
     error_details: str | None = None
     recovery_time_ms: float | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Set timestamp if not provided."""
         if self.timestamp is None:
             self.timestamp = datetime.now(timezone.utc)

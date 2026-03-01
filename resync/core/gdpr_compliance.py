@@ -190,7 +190,7 @@ class GDPRComplianceConfig:
 class DataAnonymizer:
     """Handles data anonymization and pseudonymization."""
 
-    def __init__(self, config: GDPRComplianceConfig):
+    def __init__(self, config: GDPRComplianceConfig) -> None:
         self.config = config
         self._salt = os.environ.get(
             "GDPR_ANONYMIZATION_SALT", "gdpr_compliance_salt_2024"
@@ -269,7 +269,7 @@ class DataAnonymizer:
 class GDPRDataEncryptor:
     """Handles encryption/decryption of sensitive GDPR data."""
 
-    def __init__(self, config: GDPRComplianceConfig):
+    def __init__(self, config: GDPRComplianceConfig) -> None:
         self.config = config
         self._current_key: bytes | None = None
         self._key_created_at = 0
@@ -343,7 +343,7 @@ class GDPRComplianceManager:
     - Breach detection and notification
     """
 
-    def __init__(self, config: GDPRComplianceConfig | None = None):
+    def __init__(self, config: GDPRComplianceConfig | None = None) -> None:
         self.config = config or GDPRComplianceConfig()
 
         # Core components
@@ -769,6 +769,7 @@ class GDPRComplianceManager:
                 logger.debug("GDPR cleanup cycle completed")
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -791,6 +792,7 @@ class GDPRComplianceManager:
                 self._check_audit_compliance()
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -817,6 +819,7 @@ class GDPRComplianceManager:
                         await self._send_breach_notification(breach)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

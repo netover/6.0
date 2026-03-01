@@ -31,7 +31,7 @@ class BaseRepository(Generic[ModelT]):
 
     Example:
         class TWSJobRepository(BaseRepository[TWSJobStatus]):
-            def __init__(self, session_factory):
+            def __init__(self, session_factory) -> None:
                 super().__init__(TWSJobStatus, session_factory)
     """
 

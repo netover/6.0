@@ -379,7 +379,7 @@ class WriteAheadLog:
         )
         return replayed_count
 
-    def cleanup_old_logs(self, retention_hours: int = 24):
+    def cleanup_old_logs(self, retention_hours: int = 24) -> None:
         """
         Clean up old WAL files based on retention policy.
 

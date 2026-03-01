@@ -184,6 +184,7 @@ class SubAgent:
             )
 
         except asyncio.CancelledError:
+            raise
             return SubAgentResult(
                 agent_id=self.agent_id,
                 status=SubAgentStatus.CANCELLED,

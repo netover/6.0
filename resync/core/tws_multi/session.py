@@ -65,13 +65,13 @@ class TWSSession:
             "last_action": self.last_action,
         }
 
-    def record_activity(self, action: str):
+    def record_activity(self, action: str) -> None:
         """Record user activity."""
         self.last_activity = datetime.now(timezone.utc)
         self.actions_count += 1
         self.last_action = action
 
-    def set_view(self, view: str, filters: dict[str, Any] | None = None):
+    def set_view(self, view: str, filters: dict[str, Any] | None = None) -> None:
         """Update current view and filters."""
         self.current_view = view
         if filters:
@@ -88,7 +88,7 @@ class SessionManager:
     Manages all active sessions across TWS instances.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sessions: dict[str, TWSSession] = {}
         self._user_sessions: dict[str, list[str]] = {}  # user_id -> [session_ids]
         self._instance_sessions: dict[
@@ -143,7 +143,7 @@ class SessionManager:
         session_ids = self._instance_sessions.get(instance_id, [])
         return [self._sessions[sid] for sid in session_ids if sid in self._sessions]
 
-    def close_session(self, session_id: str):
+    def close_session(self, session_id: str) -> None:
         """Close a session."""
         session = self._sessions.get(session_id)
         if not session:
@@ -168,7 +168,7 @@ class SessionManager:
 
         logger.info("Session closed: %s", session_id)
 
-    def cleanup_inactive_sessions(self):
+    def cleanup_inactive_sessions(self) -> None:
         """Clean up inactive sessions."""
         inactive = [
             sid for sid, session in self._sessions.items() if not session.is_active

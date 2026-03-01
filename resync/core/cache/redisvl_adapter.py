@@ -32,7 +32,7 @@ class ResyncVectorizer(BaseVectorizer):
     instance from embedding_model.py.
     """
 
-    def __init__(self, model_name: str = "local-resync"):
+    def __init__(self, model_name: str = "local-resync") -> None:
         """Initialize the vectorizer using our existing model geometry."""
         dims = get_embedding_dimension()
         # Note: In newer RedisVL, dims might be passed differently or inferred

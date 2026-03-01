@@ -169,8 +169,10 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             except asyncio.CancelledError:
                 # Do not swallow cancellations; let the server shut down promptly.
                 raise
-            except Exception:
+            except Exception as e:
                 # Roll back so the connection is clean for pool reuse.
+                if isinstance(e, asyncio.CancelledError):
+                    raise
                 await session.rollback()
                 raise
     finally:

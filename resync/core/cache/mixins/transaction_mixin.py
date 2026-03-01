@@ -29,13 +29,13 @@ class CacheTransactionMixin:
         self._transaction_log = []
         self._in_transaction = False
 
-    def begin_transaction(self):
+    def begin_transaction(self) -> None:
         """Begin a new transaction."""
         self._transaction_log = []
         self._in_transaction = True
         logger.debug("Cache transaction started")
 
-    def _log_operation(self, operation: str, key: str, old_value: Any = None):
+    def _log_operation(self, operation: str, key: str, old_value: Any = None) -> None:
         """Log an operation for potential rollback."""
         if self._in_transaction:
             self._transaction_log.append(

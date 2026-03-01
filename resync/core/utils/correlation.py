@@ -265,7 +265,7 @@ async def cache_error_handler(
 
     # Context for tracking results
     class ErrorContext:
-        def __init__(self):
+        def __init__(self) -> None:
             self.result = default_value
             self.success = False
             self.error: Exception | None = None
@@ -356,7 +356,7 @@ class OperationContext:
     Used with cache_error_handler to track results across the context.
     """
 
-    def __init__(self, default_value: Any = None):
+    def __init__(self, default_value: Any = None) -> None:
         self.result = default_value
         self.success = False
         self.error: Exception | None = None

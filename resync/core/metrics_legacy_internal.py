@@ -424,7 +424,7 @@ class RuntimeMetrics:
             self._t0 = _now_perf()
             return self.correlation_id
 
-        def __exit__(self, exc_type, exc_val, exc_tb):
+        def __exit__(self, exc_type, exc_val, exc_tb) -> None:
             dur = _now_perf() - self._t0
             # registrar duração no histogram genérico
             # (opcionalmente reutilize um hist dedicado)

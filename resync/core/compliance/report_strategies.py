@@ -702,7 +702,7 @@ class RecommendationsStrategy(ReportStrategy):
 class ReportGenerator:
     """Facade for generating complete compliance reports using strategies."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.strategies = {
             "control_compliance": ControlComplianceStrategy(),
             "criteria_scores": CriteriaScoresStrategy(),

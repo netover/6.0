@@ -128,7 +128,7 @@ class PromptTemplate:
         message = template.compile(user_name="John", context="TWS status")
     """
 
-    def __init__(self, config: PromptConfig):
+    def __init__(self, config: PromptConfig) -> None:
         self.config = config
         self._compiled_cache: dict[str, str] = {}
 
@@ -215,7 +215,7 @@ class PromptManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the prompt manager."""
         if self._initialized:
             return

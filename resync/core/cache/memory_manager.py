@@ -27,13 +27,13 @@ except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, 
             class _Metric:
                 """_ metric."""
 
-                def increment(self, *args, **kwargs):
+                def increment(self, *args, **kwargs) -> None:
                     """No‑op increment for missing metrics."""
 
-                def observe(self, *args, **kwargs):
+                def observe(self, *args, **kwargs) -> None:
                     """No‑op observe for missing metrics."""
 
-                def set(self, *args, **kwargs):
+                def set(self, *args, **kwargs) -> None:
                     """No‑op set for missing metrics."""
 
                 @property
@@ -57,7 +57,7 @@ class CacheEntry:
     ``last_accessed_at`` for backwards compatibility with existing code.
     """
 
-    def __init__(self, data: Any, timestamp: float, ttl: float):
+    def __init__(self, data: Any, timestamp: float, ttl: float) -> None:
         self.data = data
         self.created_at: float = timestamp
         self.last_accessed_at: float = timestamp

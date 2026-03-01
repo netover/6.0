@@ -411,7 +411,7 @@ class SessionHistoryRepository(TimestampedRepository[SessionHistory]):
 class UserBehaviorStore:
     """Unified User Behavior Store facade."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None):
+    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
         self.profiles = UserProfileRepository(session_factory)
         self.sessions = SessionHistoryRepository(session_factory)
 
@@ -564,7 +564,7 @@ class ActiveLearningRepository(BaseRepository[ActiveLearningCandidate]):
 class FeedbackStore:
     """Unified Feedback/Learning Store facade."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None):
+    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
         self.feedback = FeedbackRepository(session_factory)
         self.thresholds = LearningThresholdRepository(session_factory)
         self.active_learning = ActiveLearningRepository(session_factory)
@@ -633,7 +633,7 @@ class MetricDataPointRepository(TimestampedRepository[MetricDataPoint]):
 class MetricAggregationRepository(BaseRepository[MetricAggregation]):
     """Repository for pre-aggregated metrics."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None):
+    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
         super().__init__(MetricAggregation, session_factory)
 
 class MetricsStore:

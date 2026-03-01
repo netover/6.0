@@ -68,7 +68,7 @@ except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, 
 class CorrelationIdMiddleware:
     """ASGI middleware that injects correlation and request IDs."""
 
-    def __init__(self, app: ASGIApp, header_name: str = "X-Correlation-ID"):
+    def __init__(self, app: ASGIApp, header_name: str = "X-Correlation-ID") -> None:
         self.app = app
         self.header_name = header_name
 

@@ -10,7 +10,7 @@ logger = structlog.get_logger(__name__)
 class TeamsWebhookHandler:
     """Processa mensagens recebidas do Teams."""
 
-    def __init__(self, agent_manager, permissions_manager):
+    def __init__(self, agent_manager, permissions_manager) -> None:
         self.agent_manager = agent_manager
         self.permissions_manager = permissions_manager
 

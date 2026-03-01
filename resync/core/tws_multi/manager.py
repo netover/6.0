@@ -39,7 +39,7 @@ class TWSInstanceManager:
         MAZ → tws.maz.com:31116
     """
 
-    def __init__(self, config_path: Path | None = None):
+    def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or Path("config/tws_instances.json")
 
         # Instance storage
@@ -57,7 +57,7 @@ class TWSInstanceManager:
         # Load saved instances
         self._load_instances()
 
-    def _load_instances(self):
+    def _load_instances(self) -> None:
         """Load instances from configuration file."""
         if self.config_path.exists():
             try:
@@ -84,7 +84,7 @@ class TWSInstanceManager:
             # Create default instances
             self._create_default_instances()
 
-    def _create_default_instances(self):
+    def _create_default_instances(self) -> None:
         """Create default example instances."""
         defaults = [
             TWSInstanceConfig(
@@ -133,7 +133,7 @@ class TWSInstanceManager:
         self._save_instances()
         logger.info("Created default TWS instances")
 
-    def _save_instances(self):
+    def _save_instances(self) -> None:
         """Save instances to configuration file."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -363,7 +363,7 @@ class TWSInstanceManager:
         instance.active_sessions += 1
         return session
 
-    def close_session(self, session_id: str):
+    def close_session(self, session_id: str) -> None:
         """Close an operator session."""
         session = self._session_manager.get_session(session_id)
         if session:

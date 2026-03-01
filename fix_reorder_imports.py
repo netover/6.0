@@ -13,6 +13,7 @@ This module is imported by ``fix_logger_final.py`` and
 P0-02: Uses atomic write (temp-file + fsync + rename) so the target
 file is never left in a partially-written state.
 """
+import asyncio
 
 import os
 import shutil
@@ -134,8 +135,10 @@ def reorder_python_file(filename: str) -> None:
         backup.unlink(missing_ok=True)
         print(f"Reordered: {filename}")
 
-    except Exception:
+    except Exception as e:
         # Restore from backup on any failure
+        if isinstance(e, asyncio.CancelledError):
+            raise
         if backup.exists():
             shutil.copy2(backup, path)
         if tmp_path is not None and tmp_path.exists():

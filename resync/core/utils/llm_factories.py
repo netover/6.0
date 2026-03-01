@@ -223,7 +223,7 @@ class LLMProvider:
 class OpenAIProvider(LLMProvider):
     """Provider for OpenAI models."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "gpt-4o")
         self.api_base = kwargs.get("api_base", "https://api.openai.com/v1")
@@ -231,7 +231,7 @@ class OpenAIProvider(LLMProvider):
 class OllamaProvider(LLMProvider):
     """Provider for Ollama models."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "mistral")
         self.api_base = kwargs.get("api_base", "http://localhost:11434/v1")
@@ -239,7 +239,7 @@ class OllamaProvider(LLMProvider):
 class AnthropicProvider(LLMProvider):
     """Provider for Anthropic models."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "claude-3-opus-20240229")
         self.api_base = kwargs.get("api_base", "https://api.anthropic.com/v1")
@@ -247,7 +247,7 @@ class AnthropicProvider(LLMProvider):
 class DefaultLLMProvider(LLMProvider):
     """Default provider for LLM calls."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "gpt-4o")
         self.api_base = kwargs.get("api_base", getattr(settings, "LLM_ENDPOINT", None))

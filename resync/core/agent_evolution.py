@@ -270,7 +270,7 @@ class PatternDetector:
        - RECOVERY_* jobs expected to fail sometimes (retry logic)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.storage_path = Path("data/agent_patterns")
         self.storage_path.mkdir(parents=True, exist_ok=True)
 

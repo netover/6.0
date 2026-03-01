@@ -87,7 +87,7 @@ except ImportError:
     CONSOLE_AVAILABLE = False
 
     class ConsoleSpanProcessor:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
 from resync.core.structured_logger import get_logger
@@ -102,13 +102,13 @@ class _NoOpSpan:
     def is_valid(self):
         return False
 
-    def set_attribute(self, *args, **kwargs):
+    def set_attribute(self, *args, **kwargs) -> None:
         return None
 
-    def record_exception(self, *args, **kwargs):
+    def record_exception(self, *args, **kwargs) -> None:
         return None
 
-    def set_status(self, *args, **kwargs):
+    def set_status(self, *args, **kwargs) -> None:
         return None
 
 logger = get_logger(__name__)
@@ -119,7 +119,7 @@ current_span_id: ContextVar[str | None] = ContextVar("current_span_id", default=
 class IntelligentSampler(Sampler):
     """Adaptive sampling strategy."""
 
-    def __init__(self, base_sample_rate: float = 0.1, max_sample_rate: float = 1.0):
+    def __init__(self, base_sample_rate: float = 0.1, max_sample_rate: float = 1.0) -> None:
         self.base_sample_rate = base_sample_rate
         self.max_sample_rate = max_sample_rate
         self.error_count = 0
@@ -199,7 +199,7 @@ class TraceConfiguration:
 class DistributedTracingManager:
     """Main distributed tracing manager."""
 
-    def __init__(self, config: TraceConfiguration | None = None):
+    def __init__(self, config: TraceConfiguration | None = None) -> None:
         self.config = config or TraceConfiguration()
         self.tracer_provider: TracerProvider | None = None
         self.tracer: trace.Tracer | None = None
@@ -278,7 +278,7 @@ class DistributedTracingManager:
             logger.error("Failed to setup auto-instrumentation: %s", e)
 
     @contextlib.contextmanager
-    def trace_context(self, operation_name: str, **attributes):
+    def trace_context(self, operation_name: str, **attributes) -> None:
         """Context manager for creating trace spans."""
         start_time = time.perf_counter()
         if not getattr(self, "tracer", None):

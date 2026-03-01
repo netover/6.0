@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, Field
 

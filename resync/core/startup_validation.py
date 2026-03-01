@@ -38,7 +38,7 @@ RECOMMENDED_ENV_VARS = {
 class ConfigurationValidationError(Exception):
     """Raised when configuration validation fails."""
 
-    def __init__(self, message: str, details: dict[str, Any] | None = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
@@ -57,7 +57,7 @@ class DependencyUnavailableError(Exception):
 class StartupError(Exception):
     """Raised for general startup errors."""
 
-    def __init__(self, message: str, details: dict[str, Any] | None = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         self.message = message
         self.details = details or {}
         super().__init__(self.message)

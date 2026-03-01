@@ -16,7 +16,7 @@ try:
         Use this for import-time Limiter instances to avoid side effects.
         """
 
-        def __init__(self, uri: str, **options):
+        def __init__(self, uri: str, **options) -> None:
             # Temporarily block Thread.start during initialization
             # This ensures NO thread is ever spawned, even for a microsecond.
             # We use a localized patch valid only for this block.
@@ -28,7 +28,7 @@ try:
             # Ensure timer is dead
             self.timer = None
 
-        def start_expiry_timer(self):
+        def start_expiry_timer(self) -> None:
             # No-op: Do not start cleanup thread.
             pass
 

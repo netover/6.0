@@ -75,7 +75,7 @@ class AggregatedMetric:
 class LightweightMetricsStore:
     """Lightweight Metrics Store - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._store = MetricsStore()
         self._initialized = False

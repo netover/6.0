@@ -27,6 +27,8 @@ import tempfile
 
 import aiofiles
 import structlog
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 

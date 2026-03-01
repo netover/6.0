@@ -169,7 +169,7 @@ __all__ = [
 class ActiveLearner:
     """Active Learner - PostgreSQL Backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize - uses PostgreSQL."""
         self._store = FeedbackStore()
         self._initialized = False

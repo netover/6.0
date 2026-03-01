@@ -33,7 +33,7 @@ import logging
 import os
 import re
 import unicodedata
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias
 
 from fastapi import Path
 from pydantic import Field
@@ -48,11 +48,9 @@ if TYPE_CHECKING:
 
 # [P2-04] type statement (PEP 695) suporta recursão nativa em Python 3.12+
 # Em Python 3.14 é a forma canônica e resolve corretamente em runtime
-type SanitizedValue = (
-    str | int | float | bool | dict[str, SanitizedValue] | list[SanitizedValue]
+SanitizedValue: TypeAlias = (
+    str | int | float | bool | dict[str, "SanitizedValue"] | list["SanitizedValue"]
 )
-
-
 # =============================================================================
 # CUSTOM EXCEPTIONS (v6.1.0 — agora integradas ao fluxo via raise_on_error)
 # =============================================================================

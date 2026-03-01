@@ -51,7 +51,7 @@ class UnifiedHealthService:
     - Proactive monitoring capabilities
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the unified health service.
 
@@ -142,6 +142,7 @@ class UnifiedHealthService:
                 await self.perform_comprehensive_health_check()
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

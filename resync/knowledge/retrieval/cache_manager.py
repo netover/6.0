@@ -49,7 +49,7 @@ class CacheStats:
     avg_load_time_ms: float = 0.0
     _load_times: list = field(default_factory=list)
 
-    def record_load(self, duration_ms: float):
+    def record_load(self, duration_ms: float) -> None:
         """Record a cache load operation."""
         self.load_count += 1
         self.last_load = datetime.now(timezone.utc)
@@ -59,7 +59,7 @@ class CacheStats:
             self._load_times = self._load_times[-100:]
         self.avg_load_time_ms = sum(self._load_times) / len(self._load_times)
 
-    def record_invalidation(self):
+    def record_invalidation(self) -> None:
         """Record a cache invalidation."""
         self.invalidation_count += 1
         self.last_invalidation = datetime.now(timezone.utc)
@@ -93,7 +93,7 @@ class KGCacheManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize cache manager."""
         if hasattr(self, "_initialized"):
             return
@@ -277,6 +277,7 @@ class KGCacheManager:
                 await self.refresh(force=True)
 
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

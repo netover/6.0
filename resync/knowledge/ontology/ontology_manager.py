@@ -273,7 +273,7 @@ class OntologyManager:
         )
         return instance
 
-    def _load_ontology(self):
+    def _load_ontology(self) -> None:
         """Load ontology from YAML file."""
         if not self.ontology_path.exists():
             logger.warning(
@@ -326,7 +326,7 @@ class OntologyManager:
             logger.error("ontology_load_error", error=str(e))
             raise
 
-    def _build_alias_map(self):
+    def _build_alias_map(self) -> None:
         """Build mapping from aliases to canonical entity type names."""
         if not self.ontology:
             return
@@ -336,7 +336,7 @@ class OntologyManager:
             for alias in et.all_aliases:
                 self._alias_map[alias.lower()] = canonical
 
-    def _compile_patterns(self):
+    def _compile_patterns(self) -> None:
         """Pre-compile regex patterns for performance."""
         if not self.ontology:
             return

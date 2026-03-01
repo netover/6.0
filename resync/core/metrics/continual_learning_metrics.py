@@ -109,7 +109,7 @@ class ContinualLearningMetrics:
             # ... process query ...
     """
 
-    def __init__(self, store: LightweightMetricsStore | None = None):
+    def __init__(self, store: LightweightMetricsStore | None = None) -> None:
         """
         Initialize metrics collector.
 

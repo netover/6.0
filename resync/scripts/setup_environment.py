@@ -300,7 +300,7 @@ def verify_setup() -> None:
     else:
         print("⚠️  Ambiente virtual não criado")
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Setup Completo para Resync")
     parser.add_argument(
         "--skip-db", action="store_true", help="Pula configuração de banco de dados"

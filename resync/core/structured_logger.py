@@ -283,7 +283,7 @@ def get_logger(name: str | None = None):
 # ============================================================================
 
 class LoggerAdapter:
-    def __init__(self, logger: structlog.BoundLogger):
+    def __init__(self, logger: structlog.BoundLogger) -> None:
         self.logger = logger
 
     def debug(self, event: str, **kwargs) -> None:
@@ -311,7 +311,7 @@ def get_logger_adapter(name: str | None = None) -> LoggerAdapter:
     return LoggerAdapter(get_logger(name))
 
 class PerformanceLogger:
-    def __init__(self, logger: structlog.BoundLogger):
+    def __init__(self, logger: structlog.BoundLogger) -> None:
         self.logger = logger
 
     def log_request(

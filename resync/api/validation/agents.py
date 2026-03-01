@@ -1,6 +1,5 @@
 """Agent validation models with strict validation rules."""
 
-from __future__ import annotations
 
 from enum import Enum
 from typing import Annotated, Any
@@ -12,6 +11,8 @@ from .common import NumericConstraints, StringConstraints, ValidationPatterns
 
 class AgentType(str, Enum):
     """Valid agent types."""
+
+
 
     LOCAL_SCRIPT = "local_script"
     EXTERNAL_API = "external_api"

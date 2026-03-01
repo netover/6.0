@@ -117,7 +117,7 @@ class EnterpriseManager:
         await enterprise.audit.log(...)
     """
 
-    def __init__(self, config: EnterpriseConfig | None = None):
+    def __init__(self, config: EnterpriseConfig | None = None) -> None:
         self.config = config or EnterpriseConfig()
         self._initialized = False
         self._status: dict[EnterprisePhase, EnterpriseStatus] = {}
@@ -455,6 +455,7 @@ class EnterpriseManager:
                     # Check for anomalies
                     pass  # Implementation depends on metrics source
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -473,6 +474,7 @@ class EnterpriseManager:
                     # Check for recovery opportunities
                     pass  # Implementation depends on health checks
             except asyncio.CancelledError:
+                raise
                 break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys

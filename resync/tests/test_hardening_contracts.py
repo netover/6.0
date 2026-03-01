@@ -28,7 +28,7 @@ class _FakeManager:
         self._span = span
 
     @contextmanager
-    def trace_context(self, operation_name: str, **attributes):
+    def trace_context(self, operation_name: str, **attributes) -> None:
         try:
             yield self._span
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:

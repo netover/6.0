@@ -47,7 +47,7 @@ class BaseNode(ABC):
 
     name: str = "base_node"
 
-    def __init__(self, name: str | None = None):
+    def __init__(self, name: str | None = None) -> None:
         if name:
             self.name = name
 
@@ -82,7 +82,7 @@ class RouterConfig:
     # Keyword patterns (for fallback)
     keyword_patterns: dict[str, list[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.keyword_patterns is None:
             self.keyword_patterns = {
                 "status": ["status", "estado", "workstation", "online", "offline"],
@@ -210,7 +210,7 @@ class LLMNodeConfig:
     include_history: bool = True
     max_history_messages: int = 5
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.prompt_variables is None:
             self.prompt_variables = {}
 
@@ -429,7 +429,7 @@ class ValidationConfig:
     error_field: str = "error"
     retry_on_error: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.required_fields is None:
             self.required_fields = ["response"]
 

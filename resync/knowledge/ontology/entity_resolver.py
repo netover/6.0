@@ -449,7 +449,7 @@ class EntityResolver:
             "entity_registered", canonical_id=canonical_id, entity_id=entity_id
         )
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all caches."""
         self._entity_cache.clear()
         self._embedding_cache.clear()

@@ -114,7 +114,7 @@ def get_rag_config() -> RAGConfig:
         _config = RAGConfig.from_env()
     return _config
 
-def reset_rag_config():
+def reset_rag_config() -> None:
     """Reset configuration (for testing)."""
     global _config
     _config = None

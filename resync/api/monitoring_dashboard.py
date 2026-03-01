@@ -259,7 +259,7 @@ class MetricSample:
 class DashboardMetricsStore:
     """Store de métricas persistido no Redis para consistência global."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cached_start_time: float | None = None
 
     async def compute_rate_and_add_sample(
@@ -713,6 +713,7 @@ class WebSocketManager:
                         break
                     await self._handle_pubsub_message(message)
             except asyncio.CancelledError:
+                raise
                 logger.info("WebSocketManager Pub/Sub listener cancelado")
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
