@@ -79,28 +79,12 @@ class SubgraphRetriever:
             if hasattr(self.kg, "get_subgraph"):
                 subgraph = await self.kg.get_subgraph(
                     seed_node_ids=[job_name],
-                    max_depth=max_depth,
-                    max_edges=max_edges,
+                    max_depth=depth,
+                    max_edges=100,
                 )
                 return {"job": job_name, "subgraph": subgraph}
             logger.warning("subgraph_backend_missing_get_subgraph")
             return {"job": job_name, "subgraph": {"nodes": [], "edges": []}}
-
-            # Structure the result
-            context = self._structure_job_context(result)
-
-            # Cache for 1 hour
-            self.cache[cache_key] = context
-
-            logger.info(
-                "Subgraph retrieved",
-                job_name=job_name,
-                dependencies=len(context.get("dependencies", [])),
-                errors=len(context.get("errors", [])),
-                solutions=len(context.get("solutions", [])),
-            )
-
-            return context
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys

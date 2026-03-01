@@ -25,7 +25,7 @@ import asyncio
 import threading
 import copy
 import hashlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -158,6 +158,10 @@ class TWSAPICache:
 
         self._cache: dict[str, CacheEntry] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        # Guards creation/deletion of per-key locks across threads.
+        self._locks_guard = threading.Lock()
+        # Keys currently being refreshed in background (SWR de-duplication).
+        self._refresh_in_progress: set[str] = set()
         # Reference counts for per-key locks.
         #
         # We keep a counter of how many tasks are either holding *or waiting for*
@@ -284,7 +288,7 @@ class TWSAPICache:
     async def get_or_fetch(
         self,
         key: str,
-        fetch_func: Callable,
+        fetch_func: Callable[[], Awaitable[Any]],
         category: CacheCategory = CacheCategory.DEFAULT,
     ) -> tuple[Any, bool, float]:
         """
@@ -316,14 +320,16 @@ class TWSAPICache:
 
             return value, is_cached, age_seconds
 
-        # Get or create lock for this key.
-        lock = self._locks.setdefault(key, asyncio.Lock())
-        self._lock_refcounts.setdefault(key, 0)
+        # Get or create lock for this key atomically (thread-safe).
+        with self._locks_guard:
+            lock = self._locks.setdefault(key, asyncio.Lock())
+            self._lock_refcounts.setdefault(key, 0)
 
         # Track the number of coroutines that are interested in this lock (both
         # waiters and the current holder). This avoids deleting the lock while
         # other tasks are still queued on it.
-        self._lock_refcounts[key] += 1
+        with self._locks_guard:
+            self._lock_refcounts[key] += 1
 
         try:
             async with lock:
@@ -342,15 +348,16 @@ class TWSAPICache:
         finally:
             # Decrement refcount and cleanup only when no other coroutine is
             # waiting/holding this lock.
-            self._lock_refcounts[key] = self._lock_refcounts.get(key, 1) - 1
-            if self._lock_refcounts[key] <= 0:
-                self._locks.pop(key, None)
-                self._lock_refcounts.pop(key, None)
+            with self._locks_guard:
+                self._lock_refcounts[key] = self._lock_refcounts.get(key, 1) - 1
+                if self._lock_refcounts[key] <= 0:
+                    self._locks.pop(key, None)
+                    self._lock_refcounts.pop(key, None)
 
     async def _background_refresh(
         self,
         key: str,
-        fetch_func: Callable[[], Any],
+        fetch_func: Callable[[], Awaitable[Any]],
         category: CacheCategory,
     ) -> None:
         """
@@ -361,19 +368,15 @@ class TWSAPICache:
         # Create a refresh lock key to prevent duplicate background refreshes
         refresh_lock_key = f"_refresh_{key}"
 
-        if refresh_lock_key not in self._locks:
-            self._locks[refresh_lock_key] = asyncio.Lock()
-            self._lock_refcounts[refresh_lock_key] = 0
-
-        self._lock_refcounts[refresh_lock_key] += 1
-        lock = self._locks[refresh_lock_key]
+        with self._locks_guard:
+            if key in self._refresh_in_progress:
+                return
+            self._refresh_in_progress.add(key)
+            lock = self._locks.setdefault(refresh_lock_key, asyncio.Lock())
+            self._lock_refcounts.setdefault(refresh_lock_key, 0)
+            self._lock_refcounts[refresh_lock_key] += 1
 
         try:
-            # Try to acquire lock without blocking
-            if lock.locked():
-                # Another refresh is already in progress, skip
-                return
-
             async with lock:
                 try:
                     # Fetch fresh data
@@ -402,12 +405,14 @@ class TWSAPICache:
                     )
         finally:
             # Cleanup refresh lock
-            self._lock_refcounts[refresh_lock_key] = (
-                self._lock_refcounts.get(refresh_lock_key, 1) - 1
-            )
-            if self._lock_refcounts[refresh_lock_key] <= 0:
-                self._locks.pop(refresh_lock_key, None)
-                self._lock_refcounts.pop(refresh_lock_key, None)
+            with self._locks_guard:
+                self._refresh_in_progress.discard(key)
+                self._lock_refcounts[refresh_lock_key] = (
+                    self._lock_refcounts.get(refresh_lock_key, 1) - 1
+                )
+                if self._lock_refcounts[refresh_lock_key] <= 0:
+                    self._locks.pop(refresh_lock_key, None)
+                    self._lock_refcounts.pop(refresh_lock_key, None)
 
     def clear(self) -> None:
         """Clear all cache entries."""
@@ -445,12 +450,17 @@ class TWSAPICache:
 # =============================================================================
 
 _tws_cache: TWSAPICache | None = None
+_tws_cache_lock = threading.Lock()
 
 def get_tws_cache() -> TWSAPICache:
     """Get singleton cache instance."""
     global _tws_cache
-    if _tws_cache is None:
-        _tws_cache = TWSAPICache()
+    if _tws_cache is not None:
+        return _tws_cache
+
+    with _tws_cache_lock:
+        if _tws_cache is None:
+            _tws_cache = TWSAPICache()
     return _tws_cache
 
 # =============================================================================

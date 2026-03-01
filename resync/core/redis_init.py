@@ -13,7 +13,7 @@ import threading
 import socket
 from collections.abc import Awaitable
 from contextlib import suppress
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any
 
 from resync.core.task_tracker import create_tracked_task
 
@@ -52,14 +52,14 @@ logger = logging.getLogger(__name__)
 async def _ensure_awaitable_bool(result: Awaitable[bool] | bool) -> bool:
     """Normalize redis methods that may return bool or awaitable bool."""
     if inspect.isawaitable(result):
-        return await cast(Awaitable[bool], result)
-    return cast(bool, result)
+        return await result
+    return result
 
 async def _ensure_awaitable_str(result: Awaitable[str] | str) -> str:
     """Normalize redis eval that may return str or awaitable str."""
     if inspect.isawaitable(result):
-        return await cast(Awaitable[str], result)
-    return cast(str, result)
+        return await result
+    return result
 
 def _resolve_redis_url(url_value: object) -> str:
     """Normalize redis url value from str/SecretStr-like objects."""
@@ -93,6 +93,7 @@ class RedisInitError(RuntimeError):
     """Erro de inicialização do Redis."""
 
 _REDIS_CLIENT: "redis.Redis" | None = None  # type: ignore
+_REDIS_CLIENT_INIT_LOCK = threading.Lock()
 
 _IDEMPOTENCY_MANAGER: "IdempotencyManager" | None = None
 
@@ -172,7 +173,9 @@ async def close_redis_client() -> None:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.debug("redis_close_error_ignored", error=str(exc))  # best-effort on shutdown
+            logger.debug(
+                "redis_close_error_ignored: %s", str(exc)
+            )  # best-effort on shutdown
         _REDIS_CLIENT = None
 
 def get_idempotency_manager() -> "IdempotencyManager":
@@ -209,7 +212,7 @@ class RedisInitializer:
         self._lock: asyncio.Lock = asyncio.Lock()
         self._initialized = False
         self._client: redis.Redis | None = None  # type: ignore
-        self._health_task: asyncio.Task | None = None
+        self._health_task: asyncio.Task[Any] | None = None
 
     @property
     def lock(self) -> asyncio.Lock:

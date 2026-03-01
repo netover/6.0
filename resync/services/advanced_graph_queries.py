@@ -39,7 +39,7 @@ import threading
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from enum import Enum
 from typing import Any
 
 import networkx as nx

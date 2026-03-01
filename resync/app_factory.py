@@ -29,6 +29,7 @@ from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Re
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 from starlette.types import Scope
 
+from resync.core.security.rate_limiter_v2 import RateLimitMiddleware
 from resync.core.structured_logger import configure_structured_logging, get_logger
 
 if TYPE_CHECKING:

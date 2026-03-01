@@ -20,7 +20,7 @@ class JsonRpcRequest(BaseModel):
 
     jsonrpc: str = "2.0"
     method: str
-    params: Optional[dict[str, Any]] = None
+    params: dict[str, Any] | None = None
     id: Any | None = None
 
 class JsonRpcResponse(BaseModel):
@@ -28,7 +28,7 @@ class JsonRpcResponse(BaseModel):
 
     jsonrpc: str = "2.0"
     result: Any | None = None
-    error: Optional[dict[str, Any]] = None
+    error: dict[str, Any] | None = None
     id: Any | None = None
 
 class AgentCapabilities(BaseModel):
