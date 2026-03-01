@@ -21,6 +21,7 @@ __all__ = [
     "get_connection_pool_manager",
 ]
 
+
 class PoolManager:
     """
     Pool Manager - PostgreSQL Backend.
@@ -63,8 +64,10 @@ class PoolManager:
             "initialized": self._initialized,
         }
 
+
 _instance: PoolManager | None = None
 _instance_lock = threading.Lock()
+
 
 def get_pool_manager() -> PoolManager:
     """Get the singleton PoolManager instance."""
@@ -77,11 +80,13 @@ def get_pool_manager() -> PoolManager:
             _instance = PoolManager()
     return _instance
 
+
 async def initialize_pool_manager() -> PoolManager:
     """Initialize and return the PoolManager."""
     manager = get_pool_manager()
     await manager.initialize()
     return manager
+
 
 # Aliases for backward compatibility
 ConnectionPoolManager = PoolManager

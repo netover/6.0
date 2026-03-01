@@ -17,6 +17,7 @@ from resync.core.database.models.orchestration import (
     OrchestrationStepRun,
 )
 
+
 class OrchestrationExecutionRepository:
     """
     Repository for orchestration execution data access.
@@ -77,18 +78,14 @@ class OrchestrationExecutionRepository:
     async def get_by_id(self, execution_id: UUID) -> OrchestrationExecution | None:
         """Get execution by ID."""
         result = await self._session.execute(
-            select(OrchestrationExecution).where(
-                OrchestrationExecution.id == execution_id
-            )
+            select(OrchestrationExecution).where(OrchestrationExecution.id == execution_id)
         )
         return result.scalar_one_or_none()
 
     async def get_by_trace_id(self, trace_id: str) -> OrchestrationExecution | None:
         """Get execution by trace ID."""
         result = await self._session.execute(
-            select(OrchestrationExecution).where(
-                OrchestrationExecution.trace_id == trace_id
-            )
+            select(OrchestrationExecution).where(OrchestrationExecution.trace_id == trace_id)
         )
         return result.scalar_one_or_none()
 
@@ -120,7 +117,7 @@ class OrchestrationExecutionRepository:
 
         if meta_data_update:
             current = await self.get_by_id(execution_id)
-            merged_meta = dict(getattr(current, 'meta_data', {}) or {}) if current else {}
+            merged_meta = dict(getattr(current, "meta_data", {}) or {}) if current else {}
             merged_meta.update(meta_data_update)
             values["meta_data"] = merged_meta
 
@@ -214,6 +211,7 @@ class OrchestrationExecutionRepository:
         )
         return list(result.scalars().all())
 
+
 class OrchestrationStepRunRepository:
     """Repository for step run data access."""
 
@@ -261,7 +259,7 @@ class OrchestrationStepRunRepository:
 
         if meta_data_update:
             current = await self.get_by_id(step_run_id)
-            merged_meta = dict(getattr(current, 'meta_data', {}) or {}) if current else {}
+            merged_meta = dict(getattr(current, "meta_data", {}) or {}) if current else {}
             merged_meta.update(meta_data_update)
             values["meta_data"] = merged_meta
 

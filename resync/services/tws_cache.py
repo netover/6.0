@@ -38,6 +38,7 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
+
 class CacheCategory(Enum):
     """Cache categories with different TTLs."""
 
@@ -46,6 +47,7 @@ class CacheCategory(Enum):
     STATIC_STRUCTURE = "static"  # 1 hour
     GRAPH = "graph"  # 5 minutes
     DEFAULT = "default"  # 60 seconds
+
 
 # Default TTLs per category (can be overridden by settings)
 DEFAULT_TTLS: dict[CacheCategory, int] = {
@@ -66,6 +68,7 @@ DEFAULT_STALE_WINDOWS: dict[CacheCategory, int] = {
     CacheCategory.GRAPH: 600,  # Serve stale for 10min after 5min TTL
     CacheCategory.DEFAULT: 120,  # Serve stale for 2min after 1min TTL
 }
+
 
 @dataclass
 class CacheEntry:
@@ -104,6 +107,7 @@ class CacheEntry:
         """Get age in seconds."""
         return (datetime.now(timezone.utc) - self.fetched_at).total_seconds()
 
+
 @dataclass
 class CacheStats:
     """Cache statistics with SWR metrics."""
@@ -127,6 +131,7 @@ class CacheStats:
         total = self.hits + self.stale_hits + self.misses
         effective_hits = self.hits + self.stale_hits
         return effective_hits / total if total > 0 else 0.0
+
 
 class TWSAPICache:
     """
@@ -273,9 +278,7 @@ class TWSAPICache:
             value["_fetched_at"] = datetime.now(timezone.utc).isoformat()
 
         ttl = self._get_ttl(category)
-        stale_window = self._stale_windows.get(
-            category, self._stale_windows[CacheCategory.DEFAULT]
-        )
+        stale_window = self._stale_windows.get(category, self._stale_windows[CacheCategory.DEFAULT])
 
         self._cache[key] = CacheEntry(
             value=value,
@@ -314,9 +317,7 @@ class TWSAPICache:
 
             # If stale, trigger background refresh (fire-and-forget)
             if is_stale:
-                create_tracked_task(
-                    self._background_refresh(key, fetch_func, category)
-                )
+                create_tracked_task(self._background_refresh(key, fetch_func, category))
 
             return value, is_cached, age_seconds
 
@@ -389,9 +390,19 @@ class TWSAPICache:
                         key=key[:50],  # Truncate for logging
                         category=category.value,
                     )
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                except (
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    RuntimeError,
+                    TimeoutError,
+                    ConnectionError,
+                ) as e:
                     import sys as _sys
                     from resync.core.exception_guard import maybe_reraise_programming_error
+
                     _exc_type, _exc, _tb = _sys.exc_info()
                     maybe_reraise_programming_error(_exc, _tb)
 
@@ -445,12 +456,14 @@ class TWSAPICache:
             "stale_windows": {k.value: v for k, v in self._stale_windows.items()},
         }
 
+
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _tws_cache: TWSAPICache | None = None
 _tws_cache_lock = threading.Lock()
+
 
 def get_tws_cache() -> TWSAPICache:
     """Get singleton cache instance."""
@@ -463,9 +476,11 @@ def get_tws_cache() -> TWSAPICache:
             _tws_cache = TWSAPICache()
     return _tws_cache
 
+
 # =============================================================================
 # DECORATOR
 # =============================================================================
+
 
 def tws_cache(
     category: CacheCategory = CacheCategory.DEFAULT,
@@ -503,9 +518,11 @@ def tws_cache(
 
     return decorator
 
+
 # =============================================================================
 # RESPONSE WRAPPER
 # =============================================================================
+
 
 def enrich_response_with_cache_meta(
     data: Any,
@@ -541,10 +558,6 @@ def enrich_response_with_cache_meta(
             "cached": is_cached,
             "age_seconds": round(age_seconds, 1),
             "fetched_at": fetched_at,
-            "freshness": "live"
-            if age_seconds < 2
-            else "recent"
-            if age_seconds < 10
-            else "cached",
+            "freshness": "live" if age_seconds < 2 else "recent" if age_seconds < 10 else "cached",
         },
     }
