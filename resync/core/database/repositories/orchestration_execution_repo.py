@@ -260,7 +260,7 @@ class OrchestrationStepRunRepository:
         values = {"status": status}
 
         if meta_data_update:
-            current = await self.get_by_id(execution_id)
+            current = await self.get_by_id(step_run_id)
             merged_meta = dict(getattr(current, 'meta_data', {}) or {}) if current else {}
             merged_meta.update(meta_data_update)
             values["meta_data"] = merged_meta
