@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import and_, delete, func, select, text, update
+from sqlalchemy import and_, delete, func, inspect, select, text, update
 from sqlalchemy.exc import ResourceClosedError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
@@ -48,6 +48,8 @@ class BaseRepository(Generic[ModelT]):
         self.model = model
         self._session_factory = session_factory
         self._initialized = False
+        # P0-23 FIX: Cache column names for safe dynamic lookup
+        self._valid_columns = set(inspect(model).columns.keys())
 
     @asynccontextmanager
     async def _get_session(self):
@@ -72,8 +74,10 @@ class BaseRepository(Generic[ModelT]):
         async with self._get_session() as session:
             instance = self.model(**kwargs)
             session.add(instance)
+            # P1-21 FIX: Use flush() instead of refresh() to avoid N+1
+            # With expire_on_commit=False, ID is set during flush
+            await session.flush()
             await session.commit()
-            await session.refresh(instance)
             return instance
 
     async def create_many(self, items: list[dict[str, Any]]) -> list[ModelT]:
@@ -86,13 +90,16 @@ class BaseRepository(Generic[ModelT]):
         Returns:
             List of created model instances
         """
+        if not items:
+            return []
+            
         async with self._get_session() as session:
-            instances = [self.model(**item) for item in items]
-            session.add_all(instances)
+            # P1-21 FIX: Use bulk insert with PostgreSQL RETURNING
+            from sqlalchemy import insert
+            stmt = insert(self.model).values(items).returning(self.model)
+            result = await session.execute(stmt)
             await session.commit()
-            for instance in instances:
-                await session.refresh(instance)
-            return instances
+            return list(result.scalars().all())
 
     async def get_by_id(self, id: int) -> ModelT | None:
         """
@@ -132,7 +139,8 @@ class BaseRepository(Generic[ModelT]):
         async with self._get_session() as session:
             query = select(self.model)
 
-            if order_by and hasattr(self.model, order_by):
+            # P0-23 FIX: Use cached column names instead of hasattr
+            if order_by and order_by in self._valid_columns:
                 order_field = getattr(self.model, order_by)
                 query = query.order_by(
                     order_field.desc() if desc else order_field.asc()
@@ -140,6 +148,7 @@ class BaseRepository(Generic[ModelT]):
 
             query = query.limit(limit).offset(offset)
             result = await session.execute(query)
+            # P1-22 Note: With expire_on_commit=False, instances remain usable
             return list(result.scalars().all())
 
     async def find(
@@ -166,16 +175,17 @@ class BaseRepository(Generic[ModelT]):
         async with self._get_session() as session:
             query = select(self.model)
 
-            # Apply filters
-            conditions = []
-            for field, value in filters.items():
-                if hasattr(self.model, field):
-                    conditions.append(getattr(self.model, field) == value)
+            # P0-23 FIX: Use cached column names instead of hasattr
+            conditions = [
+                getattr(self.model, field) == value
+                for field, value in filters.items()
+                if field in self._valid_columns
+            ]
 
             if conditions:
                 query = query.where(and_(*conditions))
 
-            if order_by and hasattr(self.model, order_by):
+            if order_by and order_by in self._valid_columns:
                 order_field = getattr(self.model, order_by)
                 query = query.order_by(
                     order_field.desc() if desc else order_field.asc()

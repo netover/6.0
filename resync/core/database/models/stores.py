@@ -80,10 +80,11 @@ class TWSSnapshot(Base):
     workstation_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships
-    # lazy="raise" força erro se acessar sem eager loading (previne N+1 queries)
+    # P2-44 FIX: Use lazy="selectin" instead of lazy="raise"
+    # selectin provides efficient eager loading without breaking generic repositories
     job_statuses: Mapped[list["TWSJobStatus"]] = relationship(
         back_populates="snapshot",
-        lazy="raise",  # Força uso de selectinload() para prevenir N+1
+        lazy="selectin",
     )
 
 class TWSJobStatus(Base):
@@ -117,10 +118,10 @@ class TWSJobStatus(Base):
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
     # Relationships
-    # lazy="raise" força erro se acessar sem eager loading (previne N+1 queries)
+    # P2-44 FIX: Use lazy="selectin" instead of lazy="raise"
     snapshot: Mapped[TWSSnapshot | None] = relationship(
         back_populates="job_statuses",
-        lazy="raise",  # Força uso de joinedload() para prevenir N+1
+        lazy="selectin",
     )
 
 class TWSWorkstationStatus(Base):
