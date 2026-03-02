@@ -15,9 +15,12 @@ No Global State:
     to enable full DI in tests without monkey-patching the module.
 """
 
+import asyncio
 import hashlib
+import inspect  # compatibility shim
 import importlib  # [P3-01] Modern Python 3 API for dynamic imports
 import os
+import warnings
 from typing import TYPE_CHECKING, Any
 
 import orjson  # [P2-02] top-level import — not per-request
@@ -26,6 +29,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from slowapi.errors import RateLimitExceeded
+from starlette.requests import ClientDisconnect
 from starlette.responses import (
     FileResponse,
     HTMLResponse,
@@ -34,6 +38,24 @@ from starlette.responses import (
 )  # [P3-01] FileResponse from starlette.responses
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 from starlette.types import Scope
+
+
+# Suppress known third-party warnings on Python 3.14+ that are outside repository code.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*Core Pydantic V1 functionality isn't compatible with Python 3\.14.*",
+    category=UserWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r".*asyncio\.iscoroutinefunction.*",
+    category=DeprecationWarning,
+)
+
+
+# Python 3.14 compatibility: avoid deprecated asyncio.iscoroutinefunction path used by slowapi.
+if hasattr(asyncio, "iscoroutinefunction"):
+    asyncio.iscoroutinefunction = inspect.iscoroutinefunction  # type: ignore[assignment]
 
 from resync.core.security.rate_limiter_v2 import RateLimitMiddleware
 from resync.core.structured_logger import configure_structured_logging, get_logger
@@ -836,7 +858,7 @@ class ApplicationFactory:
         # DoS from browser extensions.
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
-        async def csp_violation_report(request: Request) -> JSONResponse:
+        async def csp_violation_report(request: Request) -> Response:
             """
             Handle CSP violation reports with stream-based payload validation.
 
@@ -849,20 +871,39 @@ class ApplicationFactory:
             chunks: list[bytes] = []
 
             try:
-                async for chunk in request.stream():
-                    body_size += len(chunk)
-                    if body_size > _MAX_CSP_PAYLOAD_SIZE:
-                        logger.warning(
-                            "csp_report_payload_rejected",
-                            size=body_size,
-                            max_allowed=_MAX_CSP_PAYLOAD_SIZE,
-                            client_host=request.client.host if request.client else "unknown",
-                        )
-                        return JSONResponse(
-                            {"status": "ignored", "reason": "payload_too_large"},
-                            status_code=413,
-                        )
-                    chunks.append(chunk)
+                async with asyncio.timeout(5.0):
+                    async for chunk in request.stream():
+                        body_size += len(chunk)
+                        if body_size > _MAX_CSP_PAYLOAD_SIZE:
+                            logger.warning(
+                                "csp_report_payload_rejected",
+                                size=body_size,
+                                max_allowed=_MAX_CSP_PAYLOAD_SIZE,
+                                client_host=request.client.host if request.client else "unknown",
+                            )
+                            return JSONResponse(
+                                {"status": "ignored", "reason": "payload_too_large"},
+                                status_code=413,
+                            )
+                        chunks.append(chunk)
+            except TimeoutError:
+                logger.warning(
+                    "csp_report_stream_timeout",
+                    client_host=request.client.host if request.client else "unknown",
+                )
+                return JSONResponse(
+                    {"status": "ignored", "reason": "stream_timeout"},
+                    status_code=408,
+                )
+            except ClientDisconnect:
+                logger.warning(
+                    "csp_report_client_disconnect",
+                    client_host=request.client.host if request.client else "unknown",
+                )
+                return JSONResponse(
+                    {"status": "ignored", "reason": "client_disconnected"},
+                    status_code=400,
+                )
             except (
                 OSError,
                 ValueError,
@@ -870,7 +911,6 @@ class ApplicationFactory:
                 KeyError,
                 AttributeError,
                 RuntimeError,
-                TimeoutError,
                 ConnectionError,
             ) as e:  # noqa: BLE001
                 logger.error("csp_report_stream_error", error=str(e))
@@ -905,7 +945,24 @@ class ApplicationFactory:
                 )
 
             # [P2-03] process_csp_report captured at registration time (closure)
-            return await process_csp_report(request, report_data=report_data)
+            result = await process_csp_report(request, report_data=report_data)
+
+            report = result.get("report", {}) if isinstance(result, dict) else {}
+            csp_report = (
+                report.get("csp-report", {})
+                if isinstance(report, dict) and "csp-report" in report
+                else report
+            )
+            if isinstance(csp_report, dict):
+                logger.warning(
+                    "csp_violation",
+                    blocked_uri=csp_report.get("blocked-uri", "unknown"),
+                    violated_directive=csp_report.get("violated-directive", "unknown"),
+                    effective_directive=csp_report.get("effective-directive", "unknown"),
+                    script_sample=csp_report.get("script-sample", "none"),
+                )
+
+            return Response(status_code=204)
 
         logger.info("special_endpoints_registered")
 

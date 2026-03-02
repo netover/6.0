@@ -49,7 +49,7 @@ class RedisHealthMonitor:
 
         try:
             # Check Redis configuration
-            if not settings.REDIS_URL:
+            if not settings.redis_url.get_secret_value():
                 return ComponentHealth(
                     name="redis",
                     component_type=ComponentType.REDIS,
@@ -64,7 +64,7 @@ class RedisHealthMonitor:
             from redis.exceptions import TimeoutError as RedisTimeoutError
 
             try:
-                redis_client = redis_async.from_url(settings.REDIS_URL)
+                redis_client = redis_async.from_url(settings.redis_url.get_secret_value())
 
                 # Test connectivity with ping
                 await redis_client.ping()
@@ -95,7 +95,7 @@ class RedisHealthMonitor:
                         "used_memory": redis_info.get("used_memory_human"),
                         "uptime_seconds": redis_info.get("uptime_in_seconds"),
                         "test_key_result": value.decode() if value else None,
-                        "redis_url_configured": bool(settings.REDIS_URL),
+                        "redis_url_configured": bool(settings.redis_url.get_secret_value()),
                     },
                 )
 

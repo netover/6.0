@@ -53,7 +53,7 @@ class DistributedAuditLock:
         """
         self.redis_url: str = str(
             redis_url
-            or getattr(settings, "REDIS_URL", "redis://localhost:6379/1")
+            or settings.redis_url.get_secret_value()
             or "redis://localhost:6379/1"
         )
         self.client: AsyncRedis | None = None

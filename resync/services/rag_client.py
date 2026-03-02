@@ -86,7 +86,7 @@ class RAGServiceClient:
 
         # Bulkhead: cap concurrent in-flight requests to the RAG service.
         self._max_concurrency: int = _safe_int_env("RAG_MAX_CONCURRENCY", 10)
-        self._sem = asyncio.Semaphore(self._max_concurrency)
+        self._sem_instance: asyncio.Semaphore | None = None
 
         # Validate URL shape early (fail-fast) — but allow empty URL in dev/test
         # when the feature is not used (calls will raise ConfigurationError).
@@ -126,6 +126,13 @@ class RAGServiceClient:
             max_retries=self.max_retries,
             max_concurrency=self._max_concurrency,
         )
+
+    @property
+    def _sem(self) -> asyncio.Semaphore:
+        """Lazily create semaphore in async runtime context."""
+        if self._sem_instance is None:
+            self._sem_instance = asyncio.Semaphore(self._max_concurrency)
+        return self._sem_instance
 
     def _ensure_configured(self) -> None:
         if not self.rag_service_url:

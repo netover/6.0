@@ -312,11 +312,11 @@ class OptimizedTWSClient:
                 # Parse response body
                 content_type = (response.headers.get("content-type") or "").lower()
                 if "application/json" in content_type or "+json" in content_type:
-                    return response.json()
+                    return await asyncio.to_thread(response.json)
                 if content_type.startswith("text/"):
                     return response.text
                 try:
-                    return response.json()
+                    return await asyncio.to_thread(response.json)
                 except ValueError:
                     # JSON decode failed
                     return response.text

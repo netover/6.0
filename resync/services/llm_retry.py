@@ -27,6 +27,13 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 import structlog
+from httpx import RequestError
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    InternalServerError,
+    RateLimitError,
+)
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
@@ -37,6 +44,18 @@ from tenacity import (
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
+
+
+TRANSIENT_EXCEPTIONS = (
+    TimeoutError,
+    ConnectionError,
+    asyncio.TimeoutError,
+    RequestError,
+    APIConnectionError,
+    RateLimitError,
+    InternalServerError,
+    APITimeoutError,
+)
 
 class LLMCircuitBreaker:
     """
@@ -243,7 +262,7 @@ async def call_llm_with_retry_and_fallback(
         try:
             # Retry com exponential backoff
             async for attempt in AsyncRetrying(
-                retry=retry_if_exception_type((Exception,)),
+                retry=retry_if_exception_type(TRANSIENT_EXCEPTIONS),
                 stop=stop_after_attempt(max_retries),
                 wait=wait_exponential(
                     multiplier=1,  # 1s, 2s, 4s, 8s...
@@ -275,12 +294,7 @@ async def call_llm_with_retry_and_fallback(
 
                     return result
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
+        except TRANSIENT_EXCEPTIONS as e:
             last_exception = e
             circuit_breaker.record_failure(provider_name)
 

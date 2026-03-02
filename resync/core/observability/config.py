@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -141,6 +142,10 @@ def setup_langfuse() -> bool:
         logger.info("langfuse_disabled", reason="not configured")
         return False
 
+    if sys.version_info >= (3, 14):
+        logger.warning("langfuse_not_available", hint="python314_compatibility")
+        return False
+
     try:
         from langfuse import Langfuse
 
@@ -162,7 +167,7 @@ def setup_langfuse() -> bool:
         )
         return True
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    except ImportError as exc:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -456,7 +461,7 @@ class EvidentlyMonitor:
                 if file_time < cutoff:
                     os.remove(filepath)
                     logger.debug("old_report_deleted", filename=filename)
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            except (OSError, ValueError) as exc:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()

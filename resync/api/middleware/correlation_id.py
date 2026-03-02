@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import time
 import uuid
+import sys
 from typing import Any
 
 from starlette.datastructures import MutableHeaders
@@ -51,19 +52,19 @@ from resync.core.structured_logger import get_logger
 logger = get_logger(__name__)
 
 # Try to import Langfuse context
-try:
-    from langfuse.decorators import langfuse_context
-
-    LANGFUSE_AVAILABLE = True
-except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-    import sys as _sys
-    from resync.core.exception_guard import maybe_reraise_programming_error
-    _exc_type, _exc, _tb = _sys.exc_info()
-    maybe_reraise_programming_error(_exc, _tb)
-
+if sys.version_info >= (3, 14):
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
-    logger.warning("langfuse_context_unavailable", reason=type(exc).__name__)
+    logger.warning("langfuse_context_unavailable", reason="Python314Compatibility")
+else:
+    try:
+        from langfuse.decorators import langfuse_context
+
+        LANGFUSE_AVAILABLE = True
+    except ImportError as exc:
+        LANGFUSE_AVAILABLE = False
+        langfuse_context = None
+        logger.warning("langfuse_context_unavailable", reason=type(exc).__name__)
 
 class CorrelationIdMiddleware:
     """ASGI middleware that injects correlation and request IDs."""

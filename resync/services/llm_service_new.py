@@ -153,7 +153,7 @@ class LLMService:
                 getattr(settings, "llm_max_concurrency", None)
                 or os.getenv("LLM_MAX_CONCURRENCY", "8")
             )
-            self._sem = asyncio.Semaphore(self._max_concurrency)
+            self._sem_instance: asyncio.Semaphore | None = None
 
             # Retry with exponential backoff + jitter (only for transient errors).
             self._retry = RetryWithBackoff(

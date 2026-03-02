@@ -163,8 +163,6 @@ class RagComponentsManager:
             self._retriever,
             self._ingest_service,
         )
-            self._ingest_service,
-        )
 
 
 # Singleton instance
