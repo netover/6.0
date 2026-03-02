@@ -505,7 +505,7 @@ class SecureQueryBuilder:
         # Add LIMIT if provided
         if limit:
             validated_limit = DatabaseInputValidator.validate_limit(limit)
-            query += " LIMIT ?"
+            query += " LIMIT :limit"
             params["limit"] = validated_limit
 
         return query, params

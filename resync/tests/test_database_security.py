@@ -197,7 +197,7 @@ class TestSecureQueryBuilder:
             table="audit_log", columns=["id", "user_query"], limit=10
         )
 
-        expected_query = "SELECT id, user_query FROM audit_log LIMIT ?"
+        expected_query = "SELECT id, user_query FROM audit_log LIMIT :limit"
         assert query == expected_query
         assert params == {"limit": 10}
 
@@ -207,7 +207,7 @@ class TestSecureQueryBuilder:
             table="audit_log", where_clause="status = :status", limit=50
         )
 
-        expected_query = "SELECT * FROM audit_log WHERE status = :status LIMIT ?"
+        expected_query = "SELECT * FROM audit_log WHERE status = :status LIMIT :limit"
         assert query == expected_query
         assert params == {"limit": 50}
 
@@ -217,7 +217,7 @@ class TestSecureQueryBuilder:
             table="audit_log", order_by="created_at DESC", limit=25
         )
 
-        expected_query = "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?"
+        expected_query = "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT :limit"
         assert query == expected_query
         assert params == {"limit": 25}
 
