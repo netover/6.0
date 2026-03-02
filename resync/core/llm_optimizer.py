@@ -25,7 +25,6 @@ llm_api_breaker = pybreaker.CircuitBreaker(
 
 logger = logging.getLogger(__name__)
 
-
 class TWS_LLMOptimizer:
     """
     TWS-optimized LLM integration with caching and model routing.
@@ -37,7 +36,7 @@ class TWS_LLMOptimizer:
     - TWS-specific template matching
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the TWS LLM optimizer."""
         self.prompt_cache = AsyncTTLCache(ttl_seconds=3600)
         self.response_cache = AsyncTTLCache(ttl_seconds=300)
@@ -89,7 +88,7 @@ class TWS_LLMOptimizer:
 
         return "custom"
 
-    def _select_model(self, query: str, context: dict) -> str:
+    async def _select_model(self, query: str, context: dict) -> str:
         """
         Select appropriate model based on query complexity and availability.
 
@@ -130,7 +129,12 @@ class TWS_LLMOptimizer:
                         return self.model_routing["troubleshooting"]
                     if any("gpt-4" in model for model in self.model_routing.values()):
                         return self.model_routing["complex"]
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     # Log model selection error and fall back to normal selection
                     logger.debug("GPT-4 model selection failed, using fallback: %s", e)
 
@@ -138,18 +142,21 @@ class TWS_LLMOptimizer:
             if not is_complex and "local" in settings.ENVIRONMENT.lower():
                 # Prioritize local Ollama models for non-complex queries in local environments
                 try:
-                    # Check if Ollama is available
+                    # Check if Ollama is available (async I/O to avoid blocking the event loop)
                     import httpx
 
-                    with httpx.Client(timeout=5.0) as client:
-                        response = client.get(
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        response = await client.get(
                             f"{settings.LLM_ENDPOINT}/api/tags"
                         )  # Assuming Ollama endpoint
                         if response.status_code == 200:
-                            return (
-                                "ollama/mistral"  # Use local model for simple queries
-                            )
-                except Exception as e:
+                            return "ollama/mistral"  # Use local model for simple queries
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     # Log Ollama availability check error and continue with normal selection
                     logger.debug(
                         "Ollama availability check failed, using fallback: %s", e
@@ -211,7 +218,7 @@ class TWS_LLMOptimizer:
                 prompt = query
 
         # Select appropriate model
-        model = self._select_model(query, context)
+        model = await self._select_model(query, context)
 
         # Get response with circuit breaker protection
         start_time = time.time()
@@ -250,7 +257,12 @@ class TWS_LLMOptimizer:
                 success=True,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             response_time = time.time() - start_time
             # Track failed request
             await llm_cost_monitor.track_request(
@@ -322,7 +334,7 @@ class TWS_LLMOptimizer:
 
             return full_response
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.error("Error in LLM streaming", exc_info=True)
             # Fallback to original method (which now also uses LiteLLM)
             result = await call_llm(prompt, model=model, max_tokens=1000)
@@ -342,10 +354,8 @@ class TWS_LLMOptimizer:
             "response_cache": self.response_cache.get_metrics(),
         }
 
-
 # Global instance (lazy loaded)
 _tws_llm_optimizer: TWS_LLMOptimizer | None = None
-
 
 def get_llm_optimizer() -> TWS_LLMOptimizer:
     """Get the singleton instance of TWS_LLMOptimizer."""
@@ -353,7 +363,6 @@ def get_llm_optimizer() -> TWS_LLMOptimizer:
     if _tws_llm_optimizer is None:
         _tws_llm_optimizer = TWS_LLMOptimizer()
     return _tws_llm_optimizer
-
 
 def __getattr__(name: str) -> Any:
     """Module-level getattr to support lazy loading of tws_llm_optimizer."""

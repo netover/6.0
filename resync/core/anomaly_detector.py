@@ -31,7 +31,7 @@ try:
     from sklearn.svm import OneClassSVM
 
     SKLEARN_AVAILABLE = True
-except Exception:  # pragma: no cover
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover
     # Allow the module to be imported without scikit-learn; runtime code will fail fast
     IsolationForest = None  # type: ignore[assignment]
     StandardScaler = None  # type: ignore[assignment]
@@ -41,7 +41,6 @@ except Exception:  # pragma: no cover
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
-
 
 @dataclass
 class AnomalyMetrics:
@@ -86,7 +85,6 @@ class AnomalyMetrics:
 
         return np.array(features).reshape(1, -1)
 
-
 @dataclass
 class AnomalyScore:
     """Anomaly detection result with scoring."""
@@ -110,7 +108,6 @@ class AnomalyScore:
             "timestamp": self.timestamp,
             "metrics": self.metrics.__dict__ if self.metrics else None,
         }
-
 
 @dataclass
 class MLModelConfig:
@@ -140,7 +137,6 @@ class MLModelConfig:
     # Performance tuning
     batch_size: int = 100
     max_memory_mb: int = 500
-
 
 class IsolationForestDetector:
     """Isolation Forest based anomaly detector."""
@@ -196,7 +192,12 @@ class IsolationForestDetector:
                 metrics=metrics,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Isolation Forest detection error: %s", e)
             return AnomalyScore(
                 is_anomaly=False,
@@ -241,7 +242,12 @@ class IsolationForestDetector:
                 len(self.training_data),
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Isolation Forest training error: %s", e)
             self.is_trained = False
 
@@ -281,7 +287,6 @@ class IsolationForestDetector:
     def add_training_sample(self, metrics: AnomalyMetrics) -> None:
         """Add sample to training data."""
         self.training_data.append(metrics)
-
 
 class OneClassSVMDetector:
     """One-Class SVM based anomaly detector."""
@@ -333,7 +338,12 @@ class OneClassSVMDetector:
                 metrics=metrics,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("One-Class SVM detection error: %s", e)
             return AnomalyScore(
                 is_anomaly=False,
@@ -371,7 +381,12 @@ class OneClassSVMDetector:
                 "One-Class SVM model trained with %s samples", len(self.training_data)
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("One-Class SVM training error: %s", e)
             self.is_trained = False
 
@@ -409,7 +424,6 @@ class OneClassSVMDetector:
     def add_training_sample(self, metrics: AnomalyMetrics) -> None:
         """Add sample to training data."""
         self.training_data.append(metrics)
-
 
 class EnsembleAnomalyDetector:
     """Ensemble anomaly detector combining multiple ML models."""
@@ -482,7 +496,6 @@ class EnsembleAnomalyDetector:
         for detector in self.detectors.values():
             detector.add_training_sample(metrics)
 
-
 class AnomalyDetectionEngine:
     """
     Main anomaly detection engine with real-time processing.
@@ -495,7 +508,7 @@ class AnomalyDetectionEngine:
     - Performance optimized for high-throughput
     """
 
-    def __init__(self, config: MLModelConfig | None = None):
+    def __init__(self, config: MLModelConfig | None = None) -> None:
         self.config = config or MLModelConfig()
 
         if not SKLEARN_AVAILABLE:
@@ -669,8 +682,14 @@ class AnomalyDetectionEngine:
                 self._cleanup_history()
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Processing loop error: %s", e)
 
     async def _training_loop(self) -> None:
@@ -684,8 +703,14 @@ class AnomalyDetectionEngine:
                     self._update_models()
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Training loop error: %s", e)
 
     def _process_batch(self) -> None:
@@ -718,7 +743,12 @@ class AnomalyDetectionEngine:
             self.last_model_update = time.time()
             logger.info("ML models updated with new training data")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -800,11 +830,9 @@ class AnomalyDetectionEngine:
 
         return False
 
-
 # Global anomaly detection engine instance
 # (lazy-initialized to avoid crash without sklearn)
 _anomaly_detection_engine: AnomalyDetectionEngine | None = None
-
 
 def _get_anomaly_detection_engine() -> AnomalyDetectionEngine:
     """Get or create the anomaly detection engine (lazy init)."""
@@ -813,10 +841,8 @@ def _get_anomaly_detection_engine() -> AnomalyDetectionEngine:
         _anomaly_detection_engine = AnomalyDetectionEngine()
     return _anomaly_detection_engine
 
-
 # Backward compatibility alias
 anomaly_detection_engine: AnomalyDetectionEngine | None = None  # type: ignore[assignment]
-
 
 async def get_anomaly_detection_engine() -> AnomalyDetectionEngine:
     """Get the global anomaly detection engine instance."""

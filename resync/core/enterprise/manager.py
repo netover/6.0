@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-
 class EnterprisePhase(Enum):
     """Enterprise module phases."""
 
@@ -45,7 +44,6 @@ class EnterprisePhase(Enum):
     COMPLIANCE = "compliance"  # gdpr, encrypted_audit, siem
     OBSERVABILITY = "observability"  # log_aggregator, anomaly_detector
     RESILIENCE = "resilience"  # chaos_engineering, service_discovery
-
 
 @dataclass
 class EnterpriseStatus:
@@ -58,7 +56,6 @@ class EnterpriseStatus:
     last_check: datetime | None = None
     error: str | None = None
     components: dict[str, bool] = field(default_factory=dict)
-
 
 @dataclass
 class EnterpriseConfig:
@@ -107,7 +104,6 @@ class EnterpriseConfig:
     anomaly_sensitivity: float = 0.95
     anomaly_check_interval_seconds: int = 60
 
-
 class EnterpriseManager:
     """
     Central manager for all enterprise modules.
@@ -121,7 +117,7 @@ class EnterpriseManager:
         await enterprise.audit.log(...)
     """
 
-    def __init__(self, config: EnterpriseConfig | None = None):
+    def __init__(self, config: EnterpriseConfig | None = None) -> None:
         self.config = config or EnterpriseConfig()
         self._initialized = False
         self._status: dict[EnterprisePhase, EnterpriseStatus] = {}
@@ -269,7 +265,12 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to initialize essential modules", error=str(e))
             status.error = str(e)
 
@@ -308,7 +309,12 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to initialize compliance modules", error=str(e))
             status.error = str(e)
 
@@ -339,7 +345,12 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to initialize observability modules", error=str(e))
             status.error = str(e)
 
@@ -370,7 +381,12 @@ class EnterpriseManager:
             status.initialized = True
             status.healthy = True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to initialize resilience modules", error=str(e))
             status.error = str(e)
 
@@ -439,8 +455,14 @@ class EnterpriseManager:
                     # Check for anomalies
                     pass  # Implementation depends on metrics source
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Anomaly monitoring error", error=str(e))
 
     async def _auto_recovery_loop(self) -> None:
@@ -452,8 +474,14 @@ class EnterpriseManager:
                     # Check for recovery opportunities
                     pass  # Implementation depends on health checks
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Auto-recovery monitoring error", error=str(e))
 
     # =========================================================================
@@ -588,10 +616,8 @@ class EnterpriseManager:
                 details=details or {},
             )
 
-
 # Global instance
 _enterprise_manager: EnterpriseManager | None = None
-
 
 async def get_enterprise_manager(
     tg: asyncio.TaskGroup | None = None,
@@ -608,13 +634,12 @@ async def get_enterprise_manager(
             from resync.core.enterprise.config import load_enterprise_config
 
             config = load_enterprise_config()
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             config = EnterpriseConfig()  # Use defaults
 
         _enterprise_manager = EnterpriseManager(config)
         await _enterprise_manager.initialize(tg=tg)
     return _enterprise_manager
-
 
 async def shutdown_enterprise_manager() -> None:
     """Shutdown the enterprise manager."""

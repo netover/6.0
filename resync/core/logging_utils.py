@@ -7,7 +7,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class SecretRedactor(logging.Filter):
     """
     A logging filter that redacts sensitive information from log records.
@@ -16,7 +15,7 @@ class SecretRedactor(logging.Filter):
     API keys, tokens, etc. from log messages and structured log data.
     """
 
-    def __init__(self, name: str = ""):
+    def __init__(self, name: str = "") -> None:
         """
         Initialize the SecretRedactor filter.
 
@@ -186,6 +185,11 @@ class SecretRedactor(logging.Filter):
 
                 redacted = re.sub(pattern, replace_match, redacted, flags=re.IGNORECASE)
             except (ReError, TypeError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug(
                     "suppressed_exception: %s", exc, exc_info=True
                 )  # was: pass

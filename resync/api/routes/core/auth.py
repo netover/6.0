@@ -33,6 +33,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from resync.api.core import security as jwt_security
+from resync.api.core.security import decode_access_token
 from resync.api.routes.core.ip_utils import (
     get_trusted_client_ip,
     sanitize_ip_for_redis_key,
@@ -40,6 +41,7 @@ from resync.api.routes.core.ip_utils import (
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.redis_init import get_redis_client
 from resync.core.structured_logger import get_logger
+from resync.core.token_revocation import revoke_jti
 from resync.settings import settings
 
 logger = get_logger(__name__)
@@ -73,7 +75,6 @@ except ImportError:
 
 _DEVELOPMENT_FALLBACK_SECRET: str | None = None
 
-
 def _get_dev_fallback_secret() -> str:
     """Generate a secure random fallback secret for development only."""
     global _DEVELOPMENT_FALLBACK_SECRET
@@ -82,7 +83,6 @@ def _get_dev_fallback_secret() -> str:
 
         _DEVELOPMENT_FALLBACK_SECRET = os.urandom(32).hex()
     return _DEVELOPMENT_FALLBACK_SECRET
-
 
 def _is_secret_key_secure(secret: str | None) -> bool:
     if not secret:
@@ -94,7 +94,6 @@ def _is_secret_key_secure(secret: str | None) -> bool:
         "dev-secret-key-change-me-in-production-minimum-32-chars",
     }
     return secret not in known_insecure and secret != _get_dev_fallback_secret()
-
 
 def _get_configured_secret_key() -> str | None:
     """Fetch the configured JWT secret key as a raw string (never masked).
@@ -111,7 +110,6 @@ def _get_configured_secret_key() -> str | None:
     if hasattr(key, "get_secret_value"):
         return key.get_secret_value()
     return str(key)
-
 
 def get_jwt_secret_key() -> str:
     """Resolve JWT secret key.
@@ -143,7 +141,6 @@ def get_jwt_secret_key() -> str:
         "auth_secret_key_insecure_nonprod", extra={"length": len(configured)}
     )
     return configured
-
 
 class SecureAuthenticator:
     """Authenticator resistant to timing attacks with secure key derivation."""
@@ -268,9 +265,14 @@ class SecureAuthenticator:
         try:
             redis = get_redis_client()
             await redis.delete(f"{self._redis_prefix}:{sanitized_ip}")
-        except Exception:
-            # Non-fatal: if Redis is down, we just can't clear the lockout
-            pass
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            # Non-fatal: if Redis is down, lockout TTL will expire naturally
+            logger.debug("redis_lockout_clear_failed", error=str(exc))
 
         logger.info(
             "auth_success",
@@ -290,37 +292,27 @@ class SecureAuthenticator:
             - HMAC-SHA256 for rainbow table resistance
         """
         auth_key = self._get_auth_key()
-        return hmac.new(auth_key, credential.encode("utf-8"), hashlib.sha256).digest()
+        return hmac.digest(auth_key, credential.encode("utf-8"), hashlib.sha256)
 
     async def _check_lockout_state(self, ip: str) -> tuple[bool, int]:
-        """Check if IP is locked out and return remaining time."""
+        """Check if IP is locked out and return remaining minutes.
+
+        Uses the same atomic Lua path as `_check_and_record_attempt` (with success=True),
+        avoiding TOCTOU races between Redis calls.
+        """
         try:
-            redis = get_redis_client()
-            key = f"{self._redis_prefix}:{ip}"
+            is_locked, remaining_minutes, _ = await self._check_and_record_attempt(
+                ip, success=True
+            )
+            return is_locked, remaining_minutes
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
 
-            now = time.time()
-            cutoff = now - self._lockout_duration_seconds
-
-            # Remove old attempts
-            await redis.zremrangebyscore(key, "-inf", cutoff)
-
-            # Get current attempt count
-            attempt_count = await redis.zcard(key)
-
-            if attempt_count >= self._max_attempts:
-                # Calculate remaining time from the oldest attempt still in window
-                oldest = await redis.zrange(key, 0, 0, withscores=True)
-                if oldest:
-                    _, ts = oldest[0]
-                    remaining = int((ts + self._lockout_duration_seconds - now) / 60)
-                    return True, max(1, remaining)
-                return True, 1
-
+            logger.error("redis_lockout_check_failed", error=str(exc))
             return False, 0
-        except Exception as e:
-            logger.error("redis_lockout_check_failed", error=str(e))
-            return False, 0
-
     # Removed: _record_failed_attempt is now part of _check_and_record_attempt
     # to prevent TOCTOU race conditions
 
@@ -357,7 +349,7 @@ class SecureAuthenticator:
             local success = ARGV[5] == 'true'
 
             -- Remove old attempts
-            redis.call('ZREMRANGEBYSCORE', key, 0, cutoff)
+            redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
 
             -- Count recent attempts
             local count = redis.call('ZCARD', key)
@@ -377,7 +369,8 @@ class SecureAuthenticator:
 
             -- Record failed attempt (only if not success)
             if not success and is_locked == 0 then
-                redis.call('ZADD', key, now, tostring(now))
+                local nonce = ARGV[6]
+                redis.call('ZADD', key, now, tostring(now) .. ':' .. nonce)
                 redis.call('EXPIRE', key, lockout_duration * 2)
                 count = count + 1
             end
@@ -394,6 +387,7 @@ class SecureAuthenticator:
                 str(self._max_attempts),
                 str(self._lockout_duration_seconds),
                 str(success),
+                secrets.token_hex(8),
             )
 
             is_locked = bool(result[0])
@@ -409,48 +403,44 @@ class SecureAuthenticator:
 
             return is_locked, remaining_minutes, attempt_count
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0, 0
-
 
 # Global authenticator singleton (lazy init; thread-safe)
 # Using threading.Lock for thread-safety across event loops (TASK-013)
 _authenticator: SecureAuthenticator | None = None
-_authenticator_init_lock: threading.Lock | None = None
-
-
-def _get_authenticator_lock() -> threading.Lock:
-    """Get or create the authenticator initialization lock."""
-    global _authenticator_init_lock
-    if _authenticator_init_lock is None:
-        _authenticator_init_lock = threading.Lock()
-    return _authenticator_init_lock
+_authenticator_init_lock: threading.Lock = threading.Lock()
 
 
 async def get_authenticator() -> SecureAuthenticator:
-    """Return a lazily-initialized SecureAuthenticator (thread-safe).
+    """Return a lazily-initialized SecureAuthenticator without blocking the event loop.
 
-    Uses threading.Lock instead of asyncio.Lock for thread-safety
-    across multiple event loops (gunicorn --preload scenario).
+    Notes:
+        - Uses a process-wide threading.Lock for safety in multi-threaded servers.
+        - Offloads the lock acquisition and initialization to a worker thread to
+          avoid blocking the asyncio event loop.
     """
     global _authenticator
 
-    # Fast path: already initialized
     if _authenticator is not None:
         return _authenticator
 
-    # Slow path: thread-safe initialization
-    lock = _get_authenticator_lock()
-    with lock:
-        # Double-check (another thread may have initialized)
-        if _authenticator is None:
-            _authenticator = SecureAuthenticator()
+    def _init() -> SecureAuthenticator:
+        global _authenticator
+        with _authenticator_init_lock:
+            if _authenticator is None:
+                _authenticator = SecureAuthenticator()
+        return _authenticator
 
-    return _authenticator
+    return await asyncio.to_thread(_init)
 
-
-def verify_admin_credentials(
+async def verify_admin_credentials(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> str | None:
@@ -553,7 +543,12 @@ def verify_admin_credentials(
     except HTTPException:
         raise
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Generic handler - no sensitive data in error
         logger.error(
             "auth_unexpected_error",
@@ -569,11 +564,9 @@ def verify_admin_credentials(
             headers={"WWW-Authenticate": "Bearer"},
         )
     finally:
-        # Constant-time delay (TASK-007) - always execute
-        import time
-
-        time.sleep(0.050)
-
+        # P0-01 fix: Use asyncio.sleep() instead of time.sleep() to avoid
+        # blocking the event loop. Maintains constant-time defense (TASK-007).
+        await asyncio.sleep(0.050)
 
 def create_access_token(
     data: dict[str, Any], expires_delta: timedelta | None = None
@@ -584,7 +577,6 @@ def create_access_token(
     return jwt_security.create_access_token(
         subject=data.get("sub", ""), expires_delta=expires_delta
     )
-
 
 async def authenticate_admin(username: str, password: str) -> bool:
     """
@@ -604,18 +596,15 @@ async def authenticate_admin(username: str, password: str) -> bool:
     )
     return is_valid
 
-
 # =============================================================================
 # AUTH ENDPOINTS
 # =============================================================================
-
 
 class LoginRequest(BaseModel):
     """Login request model."""
 
     username: str
     password: str
-
 
 class TokenResponse(BaseModel):
     """Token response model."""
@@ -624,14 +613,12 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int = ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
-
 class LoginResponse(BaseModel):
     """Login response model."""
 
     success: bool
     message: str
     token: TokenResponse | None = None
-
 
 @router.post("/login")
 @rate_limit_auth
@@ -678,7 +665,7 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
     response_data = LoginResponse(
         success=True,
         message="Login successful",
-        token=TokenResponse(access_token=access_token),
+        token=None  # token is only in HttpOnly cookie,
     )
 
     response = JSONResponse(content=response_data.model_dump())
@@ -696,26 +683,55 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
 
     return response
 
-
 @router.post("/logout")
 async def logout(request: Request) -> Response:
     """
     Logout user (invalidate token) and clear secure cookie.
 
-    Note: For stateless JWT, this is primarily for client-side token cleanup.
-    Server-side token blacklisting would require additional infrastructure.
+    This endpoint:
+    1. Revokes the JWT token on the server side by adding JTI to Redis blacklist
+    2. Clears the access_token cookie from the client
+
+    This ensures that even if a token was stolen, it cannot be used after logout.
 
     Returns:
         Success message with cookie cleared
     """
     # Use trusted client IP (TASK-003)
     client_ip = get_trusted_client_ip(request)
+
+    # P1-15: Revoke token server-side to prevent token reuse after logout
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            payload = decode_access_token(token)
+            if payload and payload.get("jti"):
+                exp = payload.get("exp")
+                await revoke_jti(payload["jti"], exp)
+                logger.info(
+                    "token_revoked_on_logout",
+                    extra={"jti": payload["jti"], "ip": client_ip},
+                )
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            raise
+        except (ValueError, TypeError, KeyError, RuntimeError, OSError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            # Log but don't fail - token may already be invalid
+            logger.warning(
+                "token_revocation_failed",
+                extra={"error": type(e).__name__, "ip": client_ip},
+            )
+
     logger.info("logout_requested", extra={"ip": client_ip})
 
     response = JSONResponse(
         content={
             "success": True,
-            "message": "Logout successful. Please discard your token.",
+            "message": "Logout successful. Token has been invalidated.",
         }
     )
 
@@ -727,7 +743,6 @@ async def logout(request: Request) -> Response:
     )
 
     return response
-
 
 @router.get("/verify")
 async def verify_token(

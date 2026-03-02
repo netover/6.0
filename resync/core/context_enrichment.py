@@ -26,7 +26,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class EnrichmentType(str, Enum):
     """Types of context enrichment."""
 
@@ -36,7 +35,6 @@ class EnrichmentType(str, Enum):
     RESOURCE_CONTEXT = "resource_context"
     TEMPORAL_CONTEXT = "temporal_context"
     ERROR_CONTEXT = "error_context"
-
 
 @dataclass
 class EnrichmentResult:
@@ -62,7 +60,6 @@ class EnrichmentResult:
             "entities_found": self.entities_found,
             "metadata": self.metadata,
         }
-
 
 class ContextEnricher:
     """
@@ -157,7 +154,12 @@ class ContextEnricher:
                 from resync.core.tws_multi.learning import TWSLearningStore
 
                 self._learning_stores[instance_id] = TWSLearningStore()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Could not load learning store: %s", e)
                 return None
         return self._learning_stores[instance_id]
@@ -169,7 +171,12 @@ class ContextEnricher:
                 from resync.knowledge.retrieval.graph import get_kg_instance
 
                 self._kg = await get_kg_instance()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Could not load knowledge graph: %s", e)
                 return None
         return self._kg
@@ -389,7 +396,12 @@ class ContextEnricher:
                     context_snippets.append(context)
                     enrichments.append(EnrichmentType.RESOURCE_CONTEXT)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("KG enrichment failed for %s: %s", job_name, e)
                 continue
 
@@ -400,7 +412,12 @@ class ContextEnricher:
         try:
             resources = await kg.get_jobs_using_resource(job_name)
             return resources if resources else []
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -482,10 +499,8 @@ class ContextEnricher:
             },
         }
 
-
 # Global instance
 _enricher: ContextEnricher | None = None
-
 
 def get_context_enricher() -> ContextEnricher:
     """Get the global context enricher instance."""
@@ -494,11 +509,9 @@ def get_context_enricher() -> ContextEnricher:
         _enricher = ContextEnricher()
     return _enricher
 
-
 # =========================================================================
 # CONVENIENCE FUNCTIONS
 # =========================================================================
-
 
 async def enrich_query(
     query: str,
@@ -512,7 +525,6 @@ async def enrich_query(
     enricher = get_context_enricher()
     result = await enricher.enrich_query(query, instance_id)
     return result.enriched_query
-
 
 async def enrich_query_with_details(
     query: str,

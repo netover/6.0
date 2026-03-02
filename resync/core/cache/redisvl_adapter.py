@@ -8,11 +8,11 @@ embedding models and rerankers.
 """
 
 import logging
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Optional
 
 try:
     from redisvl.utils.vectorize import BaseVectorizer
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     # Support environments where redisvl is unavailable/incompatible (e.g. pydantic v1 on py3.14)
     BaseVectorizer = object
 
@@ -24,7 +24,6 @@ from resync.core.cache.embedding_model import (
 
 logger = logging.getLogger(__name__)
 
-
 class ResyncVectorizer(BaseVectorizer):
     """
     Adapter that allows RedisVL to use our local embedding model.
@@ -33,7 +32,7 @@ class ResyncVectorizer(BaseVectorizer):
     instance from embedding_model.py.
     """
 
-    def __init__(self, model_name: str = "local-resync"):
+    def __init__(self, model_name: str = "local-resync") -> None:
         """Initialize the vectorizer using our existing model geometry."""
         dims = get_embedding_dimension()
         # Note: In newer RedisVL, dims might be passed differently or inferred
@@ -46,7 +45,7 @@ class ResyncVectorizer(BaseVectorizer):
         preprocess: Optional[Callable[..., Any]] = None,
         as_buffer: bool = False,
         **kwargs,
-    ) -> List[float]:
+    ) -> list[float]:
         """Generate embedding for a single text."""
         if preprocess:
             text = preprocess(text)
@@ -61,12 +60,12 @@ class ResyncVectorizer(BaseVectorizer):
 
     def embed_many(
         self,
-        texts: List[str],
+        texts: list[str],
         preprocess: Optional[Callable[..., Any]] = None,
         batch_size: int = 10,
         as_buffer: bool = False,
         **kwargs,
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """Generate embeddings for a batch of texts."""
         if preprocess:
             texts = [preprocess(t) for t in texts]

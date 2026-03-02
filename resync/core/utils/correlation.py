@@ -5,7 +5,7 @@ import functools
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Callable, Optional, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, ParamSpec, TypeVar
 
 import structlog
 
@@ -31,7 +31,6 @@ Usage:
         result = await self._internal_get(key)
 """
 
-
 if TYPE_CHECKING:
     from collections.abc import Awaitable
 
@@ -39,7 +38,6 @@ logger = structlog.get_logger(__name__)
 
 P = ParamSpec("P")
 T = TypeVar("T")
-
 
 def generate_correlation_id(prefix: str = "") -> str:
     """
@@ -57,7 +55,6 @@ def generate_correlation_id(prefix: str = "") -> str:
     if prefix:
         return f"{prefix}_{base_id}_{timestamp}"
     return f"{base_id}_{timestamp}"
-
 
 def with_correlation(
     operation_name: str,
@@ -127,7 +124,12 @@ def with_correlation(
 
                 return result
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if include_timing and start_time:
                     elapsed_ms = (time.perf_counter() - start_time) * 1000
                     log.error(
@@ -147,7 +149,6 @@ def with_correlation(
         return wrapper
 
     return decorator
-
 
 def with_correlation_sync(
     operation_name: str,
@@ -203,7 +204,12 @@ def with_correlation_sync(
 
                 return result
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 log.error(
                     f"Error in {operation_name}",
                     error=str(e),
@@ -215,17 +221,16 @@ def with_correlation_sync(
 
     return decorator
 
-
 @asynccontextmanager
 async def cache_error_handler(
     operation: str,
-    correlation_id: Optional[str] = None,
+    correlation_id: str | None = None,
     *,
     default_value: Any = None,
     reraise: bool = False,
     log_level: str = "error",
     record_health: bool = True,
-    health_service: Optional[Any] = None,
+    health_service: Any | None = None,
 ):
     """
     Async context manager for unified cache error handling.
@@ -260,10 +265,10 @@ async def cache_error_handler(
 
     # Context for tracking results
     class ErrorContext:
-        def __init__(self):
+        def __init__(self) -> None:
             self.result = default_value
             self.success = False
-            self.error: Optional[Exception] = None
+            self.error: Exception | None = None
             self.start_time = time.perf_counter()
 
         def set_result(self, value: Any) -> None:
@@ -289,7 +294,12 @@ async def cache_error_handler(
                     latency_ms=ctx.elapsed_ms,
                     correlation_id=correlation_id,
                 )
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass
@@ -298,7 +308,12 @@ async def cache_error_handler(
         # Don't catch cancellation
         raise
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         ctx.error = e
         ctx.success = False
 
@@ -321,14 +336,18 @@ async def cache_error_handler(
                     error=str(e),
                     correlation_id=correlation_id,
                 )
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug(
                     "suppressed_exception", error=str(exc), exc_info=True
                 )  # was: pass
 
         if reraise:
             raise
-
 
 class OperationContext:
     """
@@ -337,10 +356,10 @@ class OperationContext:
     Used with cache_error_handler to track results across the context.
     """
 
-    def __init__(self, default_value: Any = None):
+    def __init__(self, default_value: Any = None) -> None:
         self.result = default_value
         self.success = False
-        self.error: Optional[Exception] = None
+        self.error: Exception | None = None
         self.start_time = time.perf_counter()
         self.metadata: dict[str, Any] = {}
 
@@ -358,12 +377,10 @@ class OperationContext:
         """Get elapsed time in milliseconds."""
         return (time.perf_counter() - self.start_time) * 1000
 
-
 # Convenience functions for common patterns
 
-
 def ensure_correlation_id(
-    correlation_id: Optional[str],
+    correlation_id: str | None,
     prefix: str = "",
 ) -> str:
     """
@@ -377,7 +394,6 @@ def ensure_correlation_id(
         str: Existing or newly generated correlation ID
     """
     return correlation_id or generate_correlation_id(prefix)
-
 
 __all__ = [
     "generate_correlation_id",

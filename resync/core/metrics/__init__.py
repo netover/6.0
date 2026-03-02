@@ -63,6 +63,7 @@ __all__ = [
     # Runtime metrics
     "RuntimeMetricsCollector",
     "runtime_metrics",
+    "get_runtime_metrics",
     # Continual Learning
     "ContinualLearningMetrics",
     "MetricNames",
@@ -71,3 +72,10 @@ __all__ = [
     # Logging
     "log_with_correlation",
 ]
+
+def get_runtime_metrics() -> RuntimeMetricsCollector:
+    """Return the singleton runtime metrics collector.
+
+    Kept for backward compatibility with older imports expecting a callable.
+    """
+    return runtime_metrics

@@ -7,11 +7,10 @@ from redis.asyncio import Redis
 from resync.core.idempotency.exceptions import IdempotencyStorageError
 from resync.core.idempotency.models import IdempotencyRecord
 
-
 class IdempotencyStorage:
     """Abstração de armazenamento para o sistema de idempotency"""
 
-    def __init__(self, redis_client: Redis | None):
+    def __init__(self, redis_client: Redis | None) -> None:
         self.redis = redis_client
 
     def _ensure_redis(self) -> Redis:
@@ -39,7 +38,12 @@ class IdempotencyStorage:
 
             record_dict = json.loads(cached_data)
             return IdempotencyRecord.from_dict(record_dict)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -55,9 +59,14 @@ class IdempotencyStorage:
             data = record.to_dict()
             serialized_data = json.dumps(data, default=str)
             redis = self._ensure_redis()
-            success = await redis.setex(key, ttl_seconds, serialized_data)
+            success = await redis.set(key, serialized_data, ex=ttl_seconds, nx=True)
             return bool(success)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -84,7 +93,12 @@ class IdempotencyStorage:
             redis = self._ensure_redis()
             result = await redis.set(key, serialized_data, nx=True, ex=ttl_seconds)
             return result is not None and bool(result)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise IdempotencyStorageError(
@@ -96,7 +110,12 @@ class IdempotencyStorage:
         try:
             redis = self._ensure_redis()
             return bool(await redis.exists(key))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -108,7 +127,12 @@ class IdempotencyStorage:
             redis = self._ensure_redis()
             deleted = await redis.delete(key)
             return deleted > 0
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

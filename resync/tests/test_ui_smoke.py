@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)
-def mock_io_bounds():
+def mock_io_bounds() -> None:
     """Bypass expensive startup tasks and I/O bounds for faster UI smoke testing."""
     import sys
     from unittest.mock import MagicMock

@@ -5,8 +5,8 @@ Manages task lifecycle, JSON-RPC routing, and agent delegation.
 
 import asyncio
 import uuid
-from datetime import datetime
-from typing import Any, Dict, Optional
+from datetime import datetime, timezone
+from typing import Any, Protocol
 
 import structlog
 from resync.models.a2a import JsonRpcRequest, JsonRpcResponse, TaskState
@@ -14,34 +14,42 @@ from resync.models.a2a import JsonRpcRequest, JsonRpcResponse, TaskState
 logger = structlog.get_logger(__name__)
 
 
+class AgentManagerProtocol(Protocol):
+    """Protocol for agent manager interface."""
+    
+    async def get_agent(self, agent_id: str) -> Any:
+        """Get agent by ID."""
+        ...
+
+
 class A2ATask:
     """Represents an A2A task in the system."""
 
     def __init__(
-        self, task_id: str, agent_id: str, method: str, params: Dict[str, Any]
+        self, task_id: str, agent_id: str, method: str, params: dict[str, Any]
     ):
         self.task_id = task_id
         self.agent_id = agent_id
         self.method = method
         self.params = params
         self.state = TaskState.SUBMITTED
-        self.created_at = datetime.now()
+        self.created_at = datetime.now(timezone.utc)
         self.updated_at = self.created_at
         self.result: Any = None
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
     def update_state(
         self, state: TaskState, result: Any = None, error: str | None = None
     ):
         """Update task state and timestamp."""
         self.state = state
-        self.updated_at = datetime.now()
+        self.updated_at = datetime.now(timezone.utc)
         if result is not None:
             self.result = result
         if error is not None:
             self.error = error
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert task to dictionary for responses."""
         return {
             "task_id": self.task_id,
@@ -58,10 +66,13 @@ class A2ATask:
 class A2AHandler:
     """Handles JSON-RPC requests and manages A2A task execution."""
 
-    def __init__(self, agent_manager: Any):
+    def __init__(self, agent_manager: AgentManagerProtocol):
         self.agent_manager = agent_manager
-        self._tasks: Dict[str, A2ATask] = {}
-        self._event_queue: asyncio.Queue = asyncio.Queue()
+        self._tasks: dict[str, A2ATask] = {}
+        self._tasks_lock = asyncio.Lock()
+        self._event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(
+            maxsize=1000
+        )
 
     async def handle_request(
         self, agent_id: str, request: JsonRpcRequest
@@ -69,7 +80,9 @@ class A2AHandler:
         """Process an incoming A2A JSON-RPC request."""
         task_id = str(uuid.uuid4())
         task = A2ATask(task_id, agent_id, request.method, request.params or {})
-        self._tasks[task_id] = task
+        
+        async with self._tasks_lock:
+            self._tasks[task_id] = task
 
         # Log submission
         logger.info(
@@ -94,7 +107,12 @@ class A2AHandler:
 
             return JsonRpcResponse(result=result, id=request.id)
 
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "a2a_task_failed",
                 agent_id=agent_id,
@@ -109,7 +127,7 @@ class A2AHandler:
             )
 
     async def _execute_method(
-        self, agent_id: str, method: str, params: Dict[str, Any]
+        self, agent_id: str, method: str, params: dict[str, Any]
     ) -> Any:
         """Internal dispatch for agent methods."""
         agent = await self.agent_manager.get_agent(agent_id)
@@ -121,16 +139,16 @@ class A2AHandler:
             message = params.get("message", "")
             return await agent.arun(message)
 
-        # If method matches a tool name, try to execute it via the agent's tools?
-        # For now, we'll support a generic 'execute_tool' or mapping
-
         # Fallback to direct tool-like call if possible (simplified for now)
         return await agent.arun(f"Execute action: {method} with params {params}")
 
     async def _publish_event(self, event_type: str, task: A2ATask):
         """Publish event to internal queue for SSE/WebSockets."""
         event = {"type": "a2a_event", "event": event_type, "task": task.to_dict()}
-        await self._event_queue.put(event)
+        try:
+            await asyncio.wait_for(self._event_queue.put(event), timeout=1.0)
+        except asyncio.TimeoutError:
+            logger.warning("Event queue full, dropping event", event_type=event_type)
 
     async def get_event_stream(self):
         """Generator for SSE events."""

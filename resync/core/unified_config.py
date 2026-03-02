@@ -21,8 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-import toml
-
+import tomllib
 try:
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
@@ -37,25 +36,23 @@ from resync.core.config_persistence import ConfigPersistenceManager
 
 logger = structlog.get_logger(__name__)
 
-
 class ConfigChangeEvent:
     """Event for configuration changes."""
 
-    def __init__(self, section: str, old_value: Any, new_value: Any):
+    def __init__(self, section: str, old_value: Any, new_value: Any) -> None:
         self.section = section
         self.old_value = old_value
         self.new_value = new_value
         self.timestamp = datetime.now(timezone.utc)
 
-
 class ConfigFileHandler(FileSystemEventHandler):
     """File system event handler for config changes."""
 
-    def __init__(self, config_manager: "UnifiedConfigManager"):
+    def __init__(self, config_manager: "UnifiedConfigManager") -> None:
         self.config_manager = config_manager
         self.last_modified = {}
 
-    def on_modified(self, event):
+    def on_modified(self, event) -> None:
         """Handle file modification events."""
         if event.is_directory:
             return
@@ -80,7 +77,6 @@ class ConfigFileHandler(FileSystemEventHandler):
         # the coroutine on the application's running event loop.
         self.config_manager._schedule_reload_from_thread(file_path)
 
-
 class UnifiedConfigManager:
     """
     Central configuration manager for ALL Resync configs.
@@ -104,7 +100,7 @@ class UnifiedConfigManager:
         "llm": CONFIG_DIR / "llm.toml",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize unified config manager."""
         self.configs: dict[str, dict] = {}
         self.persistence_managers: dict[str, ConfigPersistenceManager] = {}
@@ -127,7 +123,7 @@ class UnifiedConfigManager:
 
         logger.info("UnifiedConfigManager initialized")
 
-    def start_hot_reload(self):
+    def start_hot_reload(self) -> None:
         """Start file watcher for hot reload."""
         if self.observer:
             logger.warning("Hot reload already started")
@@ -173,15 +169,15 @@ class UnifiedConfigManager:
             self.reload_config_file(file_path), self._loop
         )
 
-        def _done_callback(fut):
+        def _done_callback(fut) -> None:
             try:
                 fut.result()
-            except Exception as exc:  # pragma: no cover
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:  # pragma: no cover
                 logger.error("hot_reload_failed", file_path=file_path, error=str(exc))
 
         future.add_done_callback(_done_callback)
 
-    def stop_hot_reload(self):
+    def stop_hot_reload(self) -> None:
         """Stop file watcher."""
         if self.observer:
             self.observer.stop()
@@ -219,7 +215,7 @@ class UnifiedConfigManager:
             # Load new config
             async with aiofiles.open(file_path) as f:
                 content = await f.read()
-                new_config = toml.loads(content)
+                new_config = tomllib.loads(content)
             # Get old config
             old_config = self.configs.get(config_name, {})
 
@@ -236,7 +232,12 @@ class UnifiedConfigManager:
             # Apply changes to runtime
             await self._apply_config_changes(config_name, new_config)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -258,7 +259,12 @@ class UnifiedConfigManager:
                     result = await asyncio.to_thread(callback, event)
                     if inspect.isawaitable(result):
                         await result
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 
     async def _apply_config_changes(self, config_name: str, new_config: dict):
@@ -277,7 +283,12 @@ class UnifiedConfigManager:
 
             logger.info("Config changes applied: %s", config_name)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -288,7 +299,7 @@ class UnifiedConfigManager:
                 exc_info=True,
             )
 
-    def _apply_graphrag_config(self, config: dict):
+    def _apply_graphrag_config(self, config: dict) -> None:
         """Apply GraphRAG configuration changes."""
         from resync.core.event_driven_discovery import DiscoveryConfig
         from resync.core.smart_cache_validator import CacheValidationConfig
@@ -327,32 +338,81 @@ class UnifiedConfigManager:
 
         logger.info("GraphRAG config applied to runtime")
 
-    def _apply_ai_config(self, config: dict):
-        """Apply AI configuration changes."""
-        # Update specialists config
-        _specialists = config.get("specialists", {})  # TODO: use specialists config
-        # This would update specialist manager settings
-        # Implementation depends on how specialists are initialized
+    def _apply_ai_config(self, config: dict) -> None:
+        """Apply AI configuration changes.
 
-        logger.info("AI config applied to runtime")
+        Currently supports hot-reloading specialist agent configuration.
+        """
+        try:
+            from resync.core.specialists.models import (
+                DEFAULT_SPECIALIST_CONFIGS,
+                DEFAULT_TEAM_CONFIG,
+                SpecialistConfig,
+                SpecialistType,
+            )
 
-    def _apply_monitoring_config(self, config: dict):
-        """Apply monitoring configuration changes."""
-        _monitoring = config.get("monitoring", {})  # TODO: use monitoring config
-        # Update monitoring settings
-        # This would call existing monitoring config update functions
+            specialists_cfg = config.get("specialists", {})
+            if isinstance(specialists_cfg, dict):
+                for key, updates in specialists_cfg.items():
+                    if not isinstance(updates, dict):
+                        continue
+                    try:
+                        spec_type = SpecialistType(key)
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+                        # Allow keys that already match enum values; ignore unknown entries
+                        continue
 
-        logger.info("Monitoring config applied to runtime")
+                    base = DEFAULT_SPECIALIST_CONFIGS.get(spec_type)
+                    if base is None:
+                        continue
 
-    def _apply_system_config(self, config: dict):
-        """Apply system configuration changes."""
-        _system = config.get("system", {})  # TODO: use system config
-        # Update system-wide settings
-        # Rate limits, timeouts, etc.
+                    merged = base.model_dump()
+                    merged.update(updates)
+                    DEFAULT_SPECIALIST_CONFIGS[spec_type] = SpecialistConfig(**merged)
 
+                # Keep team config pointing to the latest specialist map
+                DEFAULT_TEAM_CONFIG.specialists = DEFAULT_SPECIALIST_CONFIGS  # type: ignore[attr-defined]
+
+            logger.info("AI config applied to runtime")
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            logger.exception("ai_config_apply_failed", extra={"error": str(exc)})
+
+    def _apply_monitoring_config(self, config: dict) -> None:
+        """Apply monitoring configuration changes (hot reload)."""
+        try:
+            from resync.core.monitoring_config import update_monitoring_config
+
+            monitoring_updates = config.get("monitoring", {})
+            if isinstance(monitoring_updates, dict) and monitoring_updates:
+                update_monitoring_config(monitoring_updates)
+
+            logger.info("Monitoring config applied to runtime")
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            logger.exception("monitoring_config_apply_failed", extra={"error": str(exc)})
+
+    def _apply_system_config(self, config: dict) -> None:
+        """Apply system configuration changes.
+
+        Note: Core `Settings` are loaded via environment and are not intended
+        for mutation at runtime. This hook is reserved for future runtime-tunable
+        parameters (timeouts, rate-limits, etc.) that are implemented as globals.
+        """
+        system_updates = config.get("system", {})
+        if system_updates:
+            logger.info("system_config_received_noop", fields=list(system_updates.keys()))
         logger.info("System config applied to runtime")
 
-    def _apply_llm_config(self, config: dict):
+    def _apply_llm_config(self, config: dict) -> None:
         """Apply LLM configuration changes."""
         from resync.core.llm_config import get_llm_config
 
@@ -368,12 +428,12 @@ class UnifiedConfigManager:
             default_model=llm.get("default_model"),
         )
 
-    def register_change_callback(self, config_name: str, callback: Callable):
+    def register_change_callback(self, config_name: str, callback: Callable) -> None:
         """
         Register callback for config changes.
 
         Example:
-            def on_graphrag_change(event):
+            def on_graphrag_change(event) -> None:
                 print(f"GraphRAG config changed: {event.section}")
 
             manager.register_change_callback("graphrag", on_graphrag_change)
@@ -407,7 +467,6 @@ class UnifiedConfigManager:
             raise RuntimeError(f"No persistence manager for {config_name}")
 
         # Get current config
-        _cfg = self.configs.get(config_name, {})  # TODO: use returned config
         # Save to file
         await persistence.save_config(
             section=section, data=data, create_backup=create_backup
@@ -443,10 +502,8 @@ class UnifiedConfigManager:
         """Get all configurations."""
         return self.configs.copy()
 
-
 # Global instance
 _config_manager: UnifiedConfigManager | None = None
-
 
 def get_config_manager() -> UnifiedConfigManager:
     """Get global config manager instance."""
@@ -456,7 +513,6 @@ def get_config_manager() -> UnifiedConfigManager:
         _config_manager = UnifiedConfigManager()
 
     return _config_manager
-
 
 async def initialize_config_system():
     """
@@ -474,8 +530,7 @@ async def initialize_config_system():
 
     logger.info("Configuration system initialized with hot reload")
 
-
-def shutdown_config_system():
+def shutdown_config_system() -> None:
     """
     Shutdown configuration system.
 

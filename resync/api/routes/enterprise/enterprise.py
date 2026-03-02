@@ -20,18 +20,15 @@ from resync.core.enterprise import EnterpriseManager, get_enterprise_manager
 
 router = APIRouter(prefix="/enterprise", tags=["Enterprise"])
 
-
 # =============================================================================
 # Models
 # =============================================================================
-
 
 class EnterpriseStatusResponse(BaseModel):
     """Enterprise status response."""
 
     initialized: bool
     phases: dict[str, Any]
-
 
 class IncidentCreateRequest(BaseModel):
     """Request to create an incident."""
@@ -41,14 +38,12 @@ class IncidentCreateRequest(BaseModel):
     severity: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
     category: str = Field(default="operational")
 
-
 class IncidentResponse(BaseModel):
     """Incident response."""
 
     id: str | None = None
     created: bool
     message: str
-
 
 class AuditEventRequest(BaseModel):
     """Request to log an audit event."""
@@ -58,13 +53,11 @@ class AuditEventRequest(BaseModel):
     resource: str | None = None
     details: dict[str, Any] | None = None
 
-
 class AuditEventResponse(BaseModel):
     """Audit event response."""
 
     logged: bool
     message: str
-
 
 class SecurityEventRequest(BaseModel):
     """Request to send a security event."""
@@ -74,7 +67,6 @@ class SecurityEventRequest(BaseModel):
     source: str = Field(..., min_length=1, max_length=100)
     details: dict[str, Any] | None = None
 
-
 class HealthCheckResponse(BaseModel):
     """Health check response."""
 
@@ -82,21 +74,17 @@ class HealthCheckResponse(BaseModel):
     modules: dict[str, bool]
     timestamp: datetime
 
-
 # =============================================================================
 # Dependencies
 # =============================================================================
-
 
 async def get_enterprise() -> EnterpriseManager:
     """Dependency to get enterprise manager."""
     return await get_enterprise_manager()
 
-
 # =============================================================================
 # Endpoints
 # =============================================================================
-
 
 @router.get("/status", response_model=EnterpriseStatusResponse)
 async def get_status(
@@ -105,7 +93,6 @@ async def get_status(
     """Get enterprise modules status."""
     status = enterprise.get_status()
     return EnterpriseStatusResponse(**status)
-
 
 @router.get("/health", response_model=HealthCheckResponse)
 async def health_check(
@@ -119,11 +106,9 @@ async def health_check(
         timestamp=datetime.now(timezone.utc),
     )
 
-
 # =============================================================================
 # Incident Management
 # =============================================================================
-
 
 @router.post("/incidents", response_model=IncidentResponse)
 async def create_incident(
@@ -149,7 +134,6 @@ async def create_incident(
         created=incident_id is not None,
         message="Incident created" if incident_id else "Failed to create incident",
     )
-
 
 @router.get("/incidents")
 async def list_incidents(
@@ -179,11 +163,9 @@ async def list_incidents(
         "count": len(incidents),
     }
 
-
 # =============================================================================
 # Audit Logging
 # =============================================================================
-
 
 @router.post("/audit", response_model=AuditEventResponse)
 async def log_audit_event(
@@ -208,7 +190,6 @@ async def log_audit_event(
         logged=True,
         message="Audit event logged",
     )
-
 
 @router.get("/audit/logs")
 async def get_audit_logs(
@@ -242,11 +223,9 @@ async def get_audit_logs(
         "count": len(logs),
     }
 
-
 # =============================================================================
 # Security Events (SIEM)
 # =============================================================================
-
 
 @router.post("/security/events")
 async def send_security_event(
@@ -272,11 +251,9 @@ async def send_security_event(
         "message": "Security event sent to SIEM",
     }
 
-
 # =============================================================================
 # GDPR Compliance
 # =============================================================================
-
 
 @router.get("/gdpr/status")
 async def get_gdpr_status(
@@ -294,7 +271,6 @@ async def get_gdpr_status(
         "status": "compliant",
         "last_check": datetime.now(timezone.utc).isoformat(),
     }
-
 
 @router.post("/gdpr/erasure-request")
 async def create_erasure_request(
@@ -320,11 +296,9 @@ async def create_erasure_request(
         "message": "Erasure request created",
     }
 
-
 # =============================================================================
 # Runbooks
 # =============================================================================
-
 
 @router.get("/runbooks")
 async def list_runbooks(
@@ -345,7 +319,6 @@ async def list_runbooks(
         "runbooks": runbooks,
         "count": len(runbooks),
     }
-
 
 @router.post("/runbooks/{runbook_id}/execute")
 async def execute_runbook(
@@ -371,11 +344,9 @@ async def execute_runbook(
         "result": result,
     }
 
-
 # =============================================================================
 # Anomaly Detection
 # =============================================================================
-
 
 @router.get("/anomalies")
 async def get_anomalies(
@@ -399,11 +370,9 @@ async def get_anomalies(
         "period_hours": hours,
     }
 
-
 # =============================================================================
 # Service Discovery
 # =============================================================================
-
 
 @router.get("/services")
 async def list_services(
@@ -424,7 +393,6 @@ async def list_services(
         "services": services,
         "count": len(services),
     }
-
 
 @router.get("/services/{service_name}")
 async def get_service(

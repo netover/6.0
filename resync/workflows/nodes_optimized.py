@@ -29,15 +29,13 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 try:
     from resync.settings import get_settings
 
     _SETTINGS_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     get_settings = None  # type: ignore
     _SETTINGS_AVAILABLE = False
-
 
 # ---------------------------------------------------------------------------
 # Optional heavy deps (keep project runnable without data-science extras)
@@ -47,7 +45,7 @@ try:
     import numpy as _np  # type: ignore
 
     _NUMPY_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     _np = None  # type: ignore
     _NUMPY_AVAILABLE = False
 
@@ -55,7 +53,7 @@ try:
     import pandas as _pd  # type: ignore
 
     _PANDAS_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     _pd = None  # type: ignore
     _PANDAS_AVAILABLE = False
 
@@ -63,10 +61,9 @@ try:
     from scipy import stats as _scipy_stats  # type: ignore
 
     _SCIPY_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     _scipy_stats = None  # type: ignore
     _SCIPY_AVAILABLE = False
-
 
 try:
     from sqlalchemy import select
@@ -78,7 +75,7 @@ try:
     )
 
     _SQLA_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     # Keep import-time failures non-fatal for environments that run workflows
     # without DB connectivity.
     AsyncSession = Any  # type: ignore
@@ -87,34 +84,29 @@ except Exception:
     TWSWorkstationStatus = None  # type: ignore
     _SQLA_AVAILABLE = False
 
-
 try:
     from resync.core.teams_notifier import TeamsNotificationManager
 
     _TEAMS_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     TeamsNotificationManager = None  # type: ignore
     _TEAMS_AVAILABLE = False
-
 
 try:
     # This is our REST client for read-only TWS queries.
     from resync.services.tws_service import OptimizedTWSClient
 
     _TWS_CLIENT_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     OptimizedTWSClient = None  # type: ignore
     _TWS_CLIENT_AVAILABLE = False
-
 
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
 
-
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
-
 
 def _predictive_enabled() -> bool:
     """Central gate for predictive workflows.
@@ -126,30 +118,32 @@ def _predictive_enabled() -> bool:
         return False
     try:
         return bool(get_settings().enable_predictive_workflows)
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return False
-
 
 def _safe_float(v: Any) -> float | None:
     try:
         if v is None:
             return None
         return float(v)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         return None
-
 
 def _duration_seconds(start: datetime | None, end: datetime | None) -> float | None:
     if not start or not end:
         return None
     try:
         return max(0.0, (end - start).total_seconds())
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return None
-
 
 def _pearson_corr(x: list[float], y: list[float]) -> float | None:
     if len(x) != len(y) or len(x) < 3:
@@ -157,7 +151,7 @@ def _pearson_corr(x: list[float], y: list[float]) -> float | None:
     if _NUMPY_AVAILABLE:
         try:
             return float(_np.corrcoef(_np.array(x), _np.array(y))[0, 1])
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             return None
     # pure python fallback
     mx = sum(x) / len(x)
@@ -168,7 +162,6 @@ def _pearson_corr(x: list[float], y: list[float]) -> float | None:
     if denx == 0 or deny == 0:
         return None
     return num / (denx * deny)
-
 
 def _rolling_zscore(values: list[float], window: int = 10) -> list[float]:
     """Compute rolling z-score.
@@ -193,7 +186,6 @@ def _rolling_zscore(values: list[float], window: int = 10) -> list[float]:
             out.append((values[i] - mu) / sd)
     return out
 
-
 @dataclass
 class DegradationResult:
     detected: bool
@@ -201,11 +193,9 @@ class DegradationResult:
     severity: float
     details: dict[str, Any]
 
-
 # ---------------------------------------------------------------------------
 # 1) Fetch job history (DB first; fallback to TWS plan query)
 # ---------------------------------------------------------------------------
-
 
 async def fetch_job_history(
     *,
@@ -239,7 +229,12 @@ async def fetch_job_history(
             rows = await fetch_job_history_from_db(db, job_name, since, limit)
             if rows:
                 return rows
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "fetch_job_history_db_failed", job_name=job_name, error=str(e)
             )
@@ -247,13 +242,17 @@ async def fetch_job_history(
     if _TWS_CLIENT_AVAILABLE and tws_client is not None:
         try:
             return await fetch_job_history_from_tws(tws_client, job_name, limit)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning(
                 "fetch_job_history_tws_failed", job_name=job_name, error=str(e)
             )
 
     return []
-
 
 async def fetch_workstation_metrics(
     *,
@@ -299,7 +298,12 @@ async def fetch_workstation_metrics(
                 }
             )
         return list(reversed(out))
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning(
             "fetch_workstation_metrics_db_failed",
             workstation=workstation,
@@ -307,11 +311,9 @@ async def fetch_workstation_metrics(
         )
         return []
 
-
 # ---------------------------------------------------------------------------
 # 2) Detect degradation (statistical)
 # ---------------------------------------------------------------------------
-
 
 async def detect_degradation(
     *,
@@ -398,7 +400,12 @@ async def detect_degradation(
             )
             msg = await llm.ainvoke(prompt)
             details["llm"] = getattr(msg, "content", str(msg))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("detect_degradation_llm_failed", error=str(e))
 
     return {
@@ -408,11 +415,9 @@ async def detect_degradation(
         "details": details,
     }
 
-
 # ---------------------------------------------------------------------------
 # 3) Correlate metrics (pandas + optional LLM)
 # ---------------------------------------------------------------------------
-
 
 async def correlate_metrics(
     *,
@@ -490,7 +495,12 @@ async def correlate_metrics(
             )
             msg = await llm.ainvoke(prompt)
             corr_details["llm"] = getattr(msg, "content", str(msg))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("correlate_metrics_llm_failed", error=str(e))
 
     return {
@@ -500,11 +510,9 @@ async def correlate_metrics(
         "details": {**corr_details, "best": {"factor": best_key, "value": best_val}},
     }
 
-
 # ---------------------------------------------------------------------------
 # 4) Predict timeline (simple extrapolation + CI)
 # ---------------------------------------------------------------------------
-
 
 async def predict_timeline(
     *,
@@ -628,7 +636,12 @@ async def predict_timeline(
             )
             msg = await llm.ainvoke(prompt)
             details["llm"] = getattr(msg, "content", str(msg))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("predict_timeline_llm_failed", error=str(e))
 
     return {
@@ -638,11 +651,9 @@ async def predict_timeline(
         "details": details,
     }
 
-
 # ---------------------------------------------------------------------------
 # 5) Recommendations (heuristics + optional LLM)
 # ---------------------------------------------------------------------------
-
 
 async def generate_recommendations(
     *,
@@ -683,16 +694,19 @@ async def generate_recommendations(
                     "confidence": 0.55,
                 }
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug("generate_recommendations_llm_failed", error=str(e))
 
     return {"recommendations": recs, "actions": actions}
 
-
 # ---------------------------------------------------------------------------
 # 6) Notify operators (Teams, with placeholders for Email/Slack)
 # ---------------------------------------------------------------------------
-
 
 async def notify_operators(
     *,
@@ -748,7 +762,12 @@ async def notify_operators(
                 error_message=summary,
                 timestamp=_utcnow().isoformat(),
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             errors.append(f"teams:{e}")
             logger.warning("notify_operators_teams_failed", error=str(e))
 
@@ -763,11 +782,9 @@ async def notify_operators(
         "errors": errors,
     }
 
-
 # ---------------------------------------------------------------------------
 # Backwards compatible wrappers (state-dict style)
 # ---------------------------------------------------------------------------
-
 
 async def fetch_job_history_state(
     state: dict[str, Any], db: AsyncSession, days: int = 30
@@ -777,7 +794,6 @@ async def fetch_job_history_state(
     )
     return {**state, "job_history": history, "fetch_timestamp": _utcnow().isoformat()}
 
-
 async def fetch_workstation_metrics_state(
     state: dict[str, Any], db: AsyncSession, days: int = 30
 ) -> dict[str, Any]:
@@ -786,13 +802,11 @@ async def fetch_workstation_metrics_state(
     )
     return {**state, "workstation_metrics": metrics}
 
-
 async def detect_degradation_state(
     state: dict[str, Any], llm: Any | None = None
 ) -> dict[str, Any]:
     res = await detect_degradation(job_history=state.get("job_history", []), llm=llm)
     return {**state, "degradation": res}
-
 
 __all__ = [
     # explicit functions (used by workflows)

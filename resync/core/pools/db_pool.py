@@ -6,6 +6,8 @@ Provides database connection pooling using PostgreSQL/SQLAlchemy.
 
 import logging
 from contextlib import asynccontextmanager
+import threading
+from collections.abc import AsyncIterator
 from typing import Any
 
 from resync.core.database.engine import get_engine, get_session, get_session_factory
@@ -22,7 +24,7 @@ class DatabasePool:
     Uses SQLAlchemy's built-in connection pooling.
     """
 
-    def __init__(self, pool_size: int = 10):
+    def __init__(self, pool_size: int = 10) -> None:
         """
         Initialize. Pool size is configured via SQLAlchemy engine settings.
         """
@@ -45,13 +47,13 @@ class DatabasePool:
         self._initialized = False
 
     @asynccontextmanager
-    async def get_connection(self):
+    async def get_connection(self) -> AsyncIterator[Any]:
         """Get a database connection from the pool."""
         async with get_session() as session:
             yield session
 
     @asynccontextmanager
-    async def acquire(self):
+    async def acquire(self) -> AsyncIterator[Any]:
         """Alias for get_connection."""
         async with self.get_connection() as conn:
             yield conn
@@ -65,21 +67,24 @@ class DatabasePool:
                 "checked_in": pool.checkedin() if hasattr(pool, "checkedin") else 0,
                 "checked_out": pool.checkedout() if hasattr(pool, "checkedout") else 0,
                 "overflow": pool.overflow() if hasattr(pool, "overflow") else 0,
-                "invalid": pool.invalidatedcount()
-                if hasattr(pool, "invalidatedcount")
-                else 0,
+                "invalid": pool.invalidatedcount() if hasattr(pool, "invalidatedcount") else 0,
             }
         return {"status": "not_initialized"}
 
 
 _instance: DatabasePool | None = None
+_instance_lock = threading.Lock()
 
 
 def get_db_pool() -> DatabasePool:
     """Get the singleton DatabasePool instance."""
     global _instance
-    if _instance is None:
-        _instance = DatabasePool()
+    if _instance is not None:
+        return _instance
+
+    with _instance_lock:
+        if _instance is None:
+            _instance = DatabasePool()
     return _instance
 
 

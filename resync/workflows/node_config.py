@@ -9,7 +9,6 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 
-
 class LogLevel(Enum):
     """Verbosity levels for node execution."""
 
@@ -18,13 +17,11 @@ class LogLevel(Enum):
     VERBOSE = 3
     DEBUG = 4
 
-
 class NodeMode(Enum):
     """Legacy mode compatibility - deprecated."""
 
     VERBOSE = "verbose"
     OPTIMIZED = "optimized"
-
 
 @dataclass
 class NodeConfig:
@@ -87,10 +84,8 @@ class NodeConfig:
         """Check if debug logging is enabled."""
         return self.log_level.value >= LogLevel.DEBUG.value
 
-
 # Global configuration instance
 _config: NodeConfig | None = None
-
 
 def get_node_config() -> NodeConfig:
     """Get the global node configuration."""
@@ -98,7 +93,6 @@ def get_node_config() -> NodeConfig:
     if _config is None:
         _config = NodeConfig.from_env()
     return _config
-
 
 def configure_nodes(**kwargs) -> None:
     """

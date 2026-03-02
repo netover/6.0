@@ -16,7 +16,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class MetricType(str, Enum):
     """Types of metrics."""
 
@@ -25,7 +24,6 @@ class MetricType(str, Enum):
     HISTOGRAM = "histogram"
     SUMMARY = "summary"
 
-
 @dataclass
 class MetricValue:
     """A single metric measurement."""
@@ -33,7 +31,6 @@ class MetricValue:
     value: float
     timestamp: float = field(default_factory=time.time)
     labels: dict[str, str] = field(default_factory=dict)
-
 
 @dataclass
 class Metric:
@@ -44,7 +41,7 @@ class Metric:
     description: str = ""
     values: list[MetricValue] = field(default_factory=list)
 
-    def record(self, value: float, labels: dict[str, str] | None = None):
+    def record(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Record a new value."""
         self.values.append(
             MetricValue(
@@ -73,7 +70,6 @@ class Metric:
             "values_count": len(self.values),
         }
 
-
 class Counter:
     """A counter that only increases."""
 
@@ -86,7 +82,7 @@ class Counter:
         self._values: dict[tuple, float] = defaultdict(float)
         self._lock = Lock()
 
-    def inc(self, amount: float = 1, labels: dict[str, str] | None = None):
+    def inc(self, amount: float = 1, labels: dict[str, str] | None = None) -> None:
         """Increment the counter."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
@@ -105,17 +101,15 @@ class Counter:
         """Return counter with specific labels (for compatibility)."""
         return _LabeledCounter(self, kwargs)
 
-
 class _LabeledCounter:
     """Counter with pre-set labels."""
 
-    def __init__(self, counter: Counter, labels: dict[str, str]):
+    def __init__(self, counter: Counter, labels: dict[str, str]) -> None:
         self._counter = counter
         self._labels = labels
 
-    def inc(self, amount: float = 1):
+    def inc(self, amount: float = 1) -> None:
         self._counter.inc(amount, self._labels)
-
 
 class Gauge:
     """A gauge that can go up or down."""
@@ -129,19 +123,19 @@ class Gauge:
         self._values: dict[tuple, float] = defaultdict(float)
         self._lock = Lock()
 
-    def set(self, value: float, labels: dict[str, str] | None = None):
+    def set(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Set the gauge value."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             self._values[label_key] = value
 
-    def inc(self, amount: float = 1, labels: dict[str, str] | None = None):
+    def inc(self, amount: float = 1, labels: dict[str, str] | None = None) -> None:
         """Increment the gauge."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             self._values[label_key] += amount
 
-    def dec(self, amount: float = 1, labels: dict[str, str] | None = None):
+    def dec(self, amount: float = 1, labels: dict[str, str] | None = None) -> None:
         """Decrement the gauge."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
@@ -160,23 +154,21 @@ class Gauge:
         """Return gauge with specific labels."""
         return _LabeledGauge(self, kwargs)
 
-
 class _LabeledGauge:
     """Gauge with pre-set labels."""
 
-    def __init__(self, gauge: Gauge, labels: dict[str, str]):
+    def __init__(self, gauge: Gauge, labels: dict[str, str]) -> None:
         self._gauge = gauge
         self._labels = labels
 
-    def set(self, value: float):
+    def set(self, value: float) -> None:
         self._gauge.set(value, self._labels)
 
-    def inc(self, amount: float = 1):
+    def inc(self, amount: float = 1) -> None:
         self._gauge.inc(amount, self._labels)
 
-    def dec(self, amount: float = 1):
+    def dec(self, amount: float = 1) -> None:
         self._gauge.dec(amount, self._labels)
-
 
 class Histogram:
     """A histogram for measuring distributions."""
@@ -197,7 +189,7 @@ class Histogram:
         self._observations: dict[tuple, list[float]] = defaultdict(list)
         self._lock = Lock()
 
-    def observe(self, value: float, labels: dict[str, str] | None = None):
+    def observe(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Record an observation."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
@@ -226,25 +218,23 @@ class Histogram:
         """Context manager for timing operations."""
         return _HistogramTimer(self)
 
-
 class _LabeledHistogram:
     """Histogram with pre-set labels."""
 
-    def __init__(self, histogram: Histogram, labels: dict[str, str]):
+    def __init__(self, histogram: Histogram, labels: dict[str, str]) -> None:
         self._histogram = histogram
         self._labels = labels
 
-    def observe(self, value: float):
+    def observe(self, value: float) -> None:
         self._histogram.observe(value, self._labels)
 
     def time(self) -> "_HistogramTimer":
         return _HistogramTimer(self._histogram, self._labels)
 
-
 class _HistogramTimer:
     """Context manager for timing."""
 
-    def __init__(self, histogram: Histogram, labels: dict[str, str] | None = None):
+    def __init__(self, histogram: Histogram, labels: dict[str, str] | None = None) -> None:
         self._histogram = histogram
         self._labels = labels
         self._start: float = 0
@@ -253,10 +243,9 @@ class _HistogramTimer:
         self._start = time.time()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         duration = time.time() - self._start
         self._histogram.observe(duration, self._labels)
-
 
 class MetricsRegistry:
     """Central registry for all metrics."""
@@ -316,10 +305,8 @@ class MetricsRegistry:
 
         return result
 
-
 # Global registry
 registry = MetricsRegistry()
-
 
 def create_counter(
     name: str, description: str = "", labels: list[str] | None = None
@@ -329,7 +316,6 @@ def create_counter(
     registry.register(counter)
     return counter
 
-
 def create_gauge(
     name: str, description: str = "", labels: list[str] | None = None
 ) -> Gauge:
@@ -337,7 +323,6 @@ def create_gauge(
     gauge = Gauge(name, description, labels)
     registry.register(gauge)
     return gauge
-
 
 def create_histogram(
     name: str,

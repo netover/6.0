@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from fastapi import Request
 
-
 def _parse_trusted_proxy_count() -> int:
     """Parse trusted proxy count from environment.
 
@@ -36,10 +35,8 @@ def _parse_trusted_proxy_count() -> int:
     except ValueError:
         return 0
 
-
 # Cache the trusted proxy count
 _TRUSTED_PROXY_COUNT = _parse_trusted_proxy_count()
-
 
 def get_trusted_client_ip(request: Request) -> str:
     """Extract client IP with X-Forwarded-For spoofing protection.
@@ -91,7 +88,6 @@ def get_trusted_client_ip(request: Request) -> str:
 
     # Fallback: direct connection IP
     return request.client.host if request.client else "unknown"
-
 
 def sanitize_ip_for_redis_key(ip: str) -> str:
     """Sanitize IP address for Redis key usage.

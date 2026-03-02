@@ -23,7 +23,6 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class HealthCheckUtils:
     """
     Utility class providing common health check functionality.
@@ -60,7 +59,12 @@ class HealthCheckUtils:
         for attempt in range(max_retries):
             try:
                 return await func()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if attempt == max_retries - 1:
                     logger.error(
                         "function_execution_failed_after_retries",

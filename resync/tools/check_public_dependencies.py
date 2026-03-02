@@ -3,15 +3,13 @@ from __future__ import annotations
 import ast
 import os
 from dataclasses import dataclass
-from typing import Iterable, List
-
+from typing import Iterable
 
 @dataclass(frozen=True)
 class Violation:
     file: str
     line: int
     message: str
-
 
 def _is_any_annotation(node: ast.AST | None) -> bool:
     if node is None:
@@ -28,7 +26,6 @@ def _is_any_annotation(node: ast.AST | None) -> bool:
     if isinstance(node, ast.Tuple):
         return any(_is_any_annotation(elt) for elt in node.elts)
     return False
-
 
 def _iter_target_files(project_root: str) -> Iterable[str]:
     # Canonical public dependency providers:
@@ -51,9 +48,8 @@ def _iter_target_files(project_root: str) -> Iterable[str]:
             ):
                 yield os.path.join(root, name)
 
-
-def find_violations(project_root: str) -> List[Violation]:
-    violations: List[Violation] = []
+def find_violations(project_root: str) -> list[Violation]:
+    violations: list[Violation] = []
     for path in _iter_target_files(project_root):
         if not os.path.exists(path):
             continue
@@ -111,7 +107,6 @@ def find_violations(project_root: str) -> List[Violation]:
 
     return violations
 
-
 def main() -> int:
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     violations = find_violations(root)
@@ -121,7 +116,6 @@ def main() -> int:
     for v in violations:
         print(f"{v.file}:{v.line}: {v.message}")
     return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

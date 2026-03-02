@@ -67,11 +67,9 @@ except ImportError:
     StateGraph = None
     END = "END"
 
-
 # =============================================================================
 # STATE DEFINITIONS WITH REDUCERS
 # =============================================================================
-
 
 class DataSourceResult(TypedDict):
     """Result from a single data source."""
@@ -81,7 +79,6 @@ class DataSourceResult(TypedDict):
     latency_ms: float
     success: bool
     error: str | None
-
 
 class ParallelState(TypedDict, total=False):
     """
@@ -121,7 +118,6 @@ class ParallelState(TypedDict, total=False):
     # Errors
     errors: Annotated[list[str], operator.add]
 
-
 @dataclass
 class ParallelConfig:
     """Configuration for parallel execution."""
@@ -142,11 +138,9 @@ class ParallelConfig:
     # Aggregation
     min_sources_required: int = 1  # Minimum sources needed to generate response
 
-
 # =============================================================================
 # PARALLEL DATA FETCHING NODES
 # =============================================================================
-
 
 async def tws_status_node(state: ParallelState) -> dict[str, Any]:
     """
@@ -199,7 +193,12 @@ async def tws_status_node(state: ParallelState) -> dict[str, Any]:
             "errors": ["TWS status timeout after {latency_ms:.0f}ms"],
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         logger.error(
             "parallel_node_error", node=source_name, error=str(e), exc_info=True
@@ -216,7 +215,6 @@ async def tws_status_node(state: ParallelState) -> dict[str, Any]:
             ],
             "errors": [f"TWS status error: {str(e)}"],
         }
-
 
 async def rag_search_node(state: ParallelState) -> dict[str, Any]:
     """
@@ -280,7 +278,12 @@ async def rag_search_node(state: ParallelState) -> dict[str, Any]:
             "errors": ["RAG search timeout after {latency_ms:.0f}ms"],
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         logger.error(
             "parallel_node_error", node=source_name, error=str(e), exc_info=True
@@ -297,7 +300,6 @@ async def rag_search_node(state: ParallelState) -> dict[str, Any]:
             ],
             "errors": [f"RAG search error: {str(e)}"],
         }
-
 
 async def log_cache_node(state: ParallelState) -> dict[str, Any]:
     """
@@ -371,7 +373,12 @@ async def log_cache_node(state: ParallelState) -> dict[str, Any]:
             "errors": ["Log cache timeout after {latency_ms:.0f}ms"],
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         # Log cache errors are non-critical
         logger.debug("parallel_node_error", node=source_name, error=str(e))
@@ -386,7 +393,6 @@ async def log_cache_node(state: ParallelState) -> dict[str, Any]:
                 )
             ],
         }
-
 
 def metrics_node(state: ParallelState) -> dict[str, Any]:
     """
@@ -423,7 +429,12 @@ def metrics_node(state: ParallelState) -> dict[str, Any]:
             ]
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         latency_ms = (time.time() - start_time) * 1000
         # Metrics errors are non-critical
         logger.debug("parallel_node_error", node=source_name, error=str(e))
@@ -439,11 +450,9 @@ def metrics_node(state: ParallelState) -> dict[str, Any]:
             ],
         }
 
-
 # =============================================================================
 # AGGREGATOR NODE
 # =============================================================================
-
 
 def aggregator_node(state: ParallelState) -> dict[str, Any]:
     """
@@ -521,11 +530,9 @@ def aggregator_node(state: ParallelState) -> dict[str, Any]:
         },
     }
 
-
 # =============================================================================
 # RESPONSE GENERATION NODE
 # =============================================================================
-
 
 async def response_generator_node(state: ParallelState) -> dict[str, Any]:
     """
@@ -620,7 +627,12 @@ Responda de forma estruturada e acionável."""
             "response": response + performance_note,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("response_generation_failed", error=str(e), exc_info=True)
 
         # Fallback response using raw data
@@ -638,11 +650,9 @@ Responda de forma estruturada e acionável."""
             "errors": [str(e)],
         }
 
-
 # =============================================================================
 # GRAPH CONSTRUCTION
 # =============================================================================
-
 
 def create_parallel_troubleshoot_graph(
     config: ParallelConfig | None = None,
@@ -717,11 +727,9 @@ def create_parallel_troubleshoot_graph(
 
     return compiled
 
-
 # =============================================================================
 # FALLBACK IMPLEMENTATION
 # =============================================================================
-
 
 class FallbackParallelGraph:
     """
@@ -805,11 +813,9 @@ class FallbackParallelGraph:
         """Sync-compatible invoke."""
         return await self.ainvoke(state)
 
-
 # =============================================================================
 # INTEGRATION HELPER
 # =============================================================================
-
 
 async def parallel_troubleshoot(
     message: str,

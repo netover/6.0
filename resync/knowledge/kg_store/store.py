@@ -31,7 +31,6 @@ except ImportError:
     asyncpg = None
     ASYNCPG_AVAILABLE = False
 
-
 @dataclass(frozen=True)
 class KGNode:
     node_id: str
@@ -39,7 +38,6 @@ class KGNode:
     name: str
     aliases: list[str] | None = None
     properties: dict[str, Any] | None = None
-
 
 @dataclass(frozen=True)
 class KGEdge:
@@ -50,14 +48,13 @@ class KGEdge:
     evidence: dict[str, Any] | None = None
     edge_id: str | None = None
 
-
 class PostgresGraphStore:
     """Async Postgres store for nodes/edges with shared connection pool."""
 
     _pool: asyncpg.Pool | None = None
     _pool_lock: asyncio.Lock | None = None
 
-    def __init__(self, database_url: str | None = None):
+    def __init__(self, database_url: str | None = None) -> None:
         if not ASYNCPG_AVAILABLE:
             raise RuntimeError("asyncpg is required. pip install asyncpg")
         self._database_url = database_url or CFG.database_url
@@ -110,7 +107,12 @@ class PostgresGraphStore:
         if not self._pool_is_closed(PostgresGraphStore._pool):
             try:
                 await PostgresGraphStore._pool.close()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Failed to close connection pool: %s", e)
             finally:
                 PostgresGraphStore._pool = None

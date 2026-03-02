@@ -154,7 +154,6 @@ from resync.core.langgraph.templates import (
     render_template,
 )
 
-
 # Convenience function for quick diagnosis
 async def quick_diagnose(problem: str, job_name: str | None = None) -> dict:
     """
@@ -177,7 +176,6 @@ async def quick_diagnose(problem: str, job_name: str | None = None) -> dict:
             }
         )
     return {"error": "Diagnostic subgraph unavailable"}
-
 
 __all__ = [
     # Agent Graph

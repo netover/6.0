@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["ContextStore", "get_context_store"]
 
-
 class ContextStore:
     """Context Store - PostgreSQL Backend."""
 
@@ -194,9 +193,7 @@ class ContextStore:
             return True
         return False
 
-
 _instance: ContextStore | None = None
-
 
 def get_context_store() -> ContextStore:
     """Get the singleton ContextStore instance."""
@@ -204,7 +201,6 @@ def get_context_store() -> ContextStore:
     if _instance is None:
         _instance = ContextStore()
     return _instance
-
 
 async def initialize_context_store() -> ContextStore:
     """Initialize and return the ContextStore."""

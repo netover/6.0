@@ -1,0 +1,41 @@
+name: Security (SCA + SBOM)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install deps (for SBOM accuracy)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Dependency vulnerability scan (pip-audit)
+        uses: pypa/gh-action-pip-audit@v1.0.0
+        with:
+          inputs: requirements.txt
+
+      - name: Generate CycloneDX SBOM (python env)
+        run: |
+          python -m pip install cyclonedx-bom
+          cyclonedx-bom --format json --output sbom.cyclonedx.json environment
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cyclonedx.json

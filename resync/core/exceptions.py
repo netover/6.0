@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-
 class ErrorCode(str, Enum):
     """Códigos de erro padronizados da aplicação.
 
@@ -122,7 +121,6 @@ class ErrorCode(str, Enum):
     CONNECTION_ERROR = "CONNECTION_ERROR"
     WEBSOCKET_ERROR = "WEBSOCKET_ERROR"
 
-
 class ErrorSeverity(str, Enum):
     """Níveis de severidade para erros."""
 
@@ -130,7 +128,6 @@ class ErrorSeverity(str, Enum):
     ERROR = "error"  # Funcionalidade comprometida
     WARNING = "warning"  # Problema potencial
     INFO = "info"  # Informação
-
 
 class BaseAppException(Exception):
     """Exceção base para todas as exceções da aplicação.
@@ -211,11 +208,9 @@ class BaseAppException(Exception):
             f"correlation_id={self.correlation_id})"
         )
 
-
 # ============================================================================
 # EXCEÇÕES DE CLIENTE (4xx) - Erros causados pelo cliente
 # ============================================================================
-
 
 class ValidationError(BaseAppException):
     """Erro de validação de dados de entrada.
@@ -240,7 +235,6 @@ class ValidationError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class AuthenticationError(BaseAppException):
     """Erro de autenticação.
 
@@ -264,7 +258,6 @@ class AuthenticationError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class AuthorizationError(BaseAppException):
     """Erro de autorização.
 
@@ -287,7 +280,6 @@ class AuthorizationError(BaseAppException):
             severity=ErrorSeverity.WARNING,
             original_exception=original_exception,
         )
-
 
 class ResourceNotFoundError(BaseAppException):
     """Erro quando recurso não é encontrado.
@@ -321,7 +313,6 @@ class ResourceNotFoundError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class ResourceConflictError(BaseAppException):
     """Erro de conflito de recurso.
 
@@ -344,7 +335,6 @@ class ResourceConflictError(BaseAppException):
             severity=ErrorSeverity.WARNING,
             original_exception=original_exception,
         )
-
 
 class RateLimitError(BaseAppException):
     """Erro de limite de taxa excedido.
@@ -375,11 +365,9 @@ class RateLimitError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 # ============================================================================
 # EXCEÇÕES DE SERVIDOR (5xx) - Erros internos do servidor
 # ============================================================================
-
 
 class InternalError(BaseAppException):
     """Erro interno do servidor.
@@ -403,7 +391,6 @@ class InternalError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class IntegrationError(BaseAppException):
     """Erro de integração com serviço externo.
@@ -433,7 +420,6 @@ class IntegrationError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class ServiceUnavailableError(BaseAppException):
     """Erro de serviço indisponível.
@@ -467,7 +453,6 @@ class ServiceUnavailableError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class TWSError(BaseAppException):
     """Erro específico para falhas na integração com TWS.
 
@@ -490,7 +475,6 @@ class TWSError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class LLMOperationError(BaseAppException):
     """Erro específico para falhas em operações de LLM.
@@ -515,7 +499,6 @@ class LLMOperationError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class CircuitBreakerError(BaseAppException):
     """Erro quando circuit breaker está aberto.
@@ -547,7 +530,6 @@ class CircuitBreakerError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class TimeoutError(BaseAppException):
     """Erro de timeout.
 
@@ -577,11 +559,9 @@ class TimeoutError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 # ============================================================================
 # EXCEÇÕES ESPECÍFICAS DO DOMÍNIO
 # ============================================================================
-
 
 class ConfigurationError(BaseAppException):
     """Erro de configuração."""
@@ -609,7 +589,6 @@ class ConfigurationError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class InvalidConfigError(ConfigurationError):
     """Exceção para erros de dados de configuração inválidos."""
 
@@ -629,7 +608,6 @@ class InvalidConfigError(ConfigurationError):
             original_exception=original_exception,
         )
         self.error_code = ErrorCode.INVALID_CONFIGURATION
-
 
 class RedisError(BaseAppException):
     """Exceção base para erros relacionados ao Redis."""
@@ -651,7 +629,6 @@ class RedisError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class RedisInitializationError(RedisError):
     """Erro ao inicializar Redis."""
 
@@ -671,7 +648,6 @@ class RedisInitializationError(RedisError):
         self.error_code = ErrorCode.REDIS_INITIALIZATION_ERROR
         self.severity = ErrorSeverity.CRITICAL
 
-
 class RedisConnectionError(RedisInitializationError):
     """Erro de conexão ao Redis."""
 
@@ -690,7 +666,6 @@ class RedisConnectionError(RedisInitializationError):
         )
         self.error_code = ErrorCode.REDIS_CONNECTION_ERROR
 
-
 class RedisAuthError(RedisInitializationError):
     """Erro de autenticação Redis."""
 
@@ -708,7 +683,6 @@ class RedisAuthError(RedisInitializationError):
             original_exception=original_exception,
         )
         self.error_code = ErrorCode.REDIS_AUTH_ERROR
-
 
 class RedisTimeoutError(RedisInitializationError):
     """Timeout em operação Redis."""
@@ -733,7 +707,6 @@ class RedisTimeoutError(RedisInitializationError):
             original_exception=original_exception,
         )
         self.error_code = ErrorCode.REDIS_TIMEOUT_ERROR
-
 
 class AgentError(BaseAppException):
     """Exceção para erros relacionados à criação ou gerenciamento de agentes."""
@@ -761,7 +734,6 @@ class AgentError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class TWSConnectionError(IntegrationError):
     """Exceção para erros de conexão com a API do TWS."""
 
@@ -780,7 +752,6 @@ class TWSConnectionError(IntegrationError):
             original_exception=original_exception,
         )
         self.error_code = ErrorCode.TWS_CONNECTION_ERROR
-
 
 # Additional TWS-specific exceptions
 class TWSAuthenticationError(IntegrationError):
@@ -813,7 +784,6 @@ class TWSAuthenticationError(IntegrationError):
         # Substituir código de erro e status HTTP
         self.error_code = ErrorCode.TWS_AUTHENTICATION_ERROR
         self.status_code = 401
-
 
 class TWSTimeoutError(IntegrationError):
     """Exceção para timeouts em operações com o serviço TWS.
@@ -848,7 +818,6 @@ class TWSTimeoutError(IntegrationError):
         self.error_code = ErrorCode.TWS_TIMEOUT_ERROR
         self.status_code = 504
 
-
 class TWSRateLimitError(IntegrationError):
     """Exceção para rate limiting (429) retornado pelo TWS.
 
@@ -879,7 +848,6 @@ class TWSRateLimitError(IntegrationError):
         self.error_code = ErrorCode.TWS_RATE_LIMIT_ERROR
         self.status_code = 429
 
-
 class TWSBadRequestError(IntegrationError):
     """Exceção para erros de requisição inválida (400) retornados pelo TWS."""
 
@@ -902,7 +870,6 @@ class TWSBadRequestError(IntegrationError):
         )
         self.error_code = ErrorCode.TWS_BAD_REQUEST_ERROR
         self.status_code = 400
-
 
 class TWSServerError(IntegrationError):
     """Exceção para erros 5xx do TWS (incluindo 502/503/504 quando aplicável)."""
@@ -927,7 +894,6 @@ class TWSServerError(IntegrationError):
         )
         self.error_code = ErrorCode.TWS_SERVER_ERROR
         self.status_code = status_code
-
 
 class AgentExecutionError(BaseAppException):
     """Exceção para erros durante a execução de um agente de IA."""
@@ -955,7 +921,6 @@ class AgentExecutionError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class ToolExecutionError(BaseAppException):
     """Exceção para erros durante a execução de uma ferramenta (tool)."""
 
@@ -982,7 +947,6 @@ class ToolExecutionError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class ToolConnectionError(ToolExecutionError):
     """Exceção para erros de conexão dentro de uma ferramenta."""
 
@@ -1003,10 +967,8 @@ class ToolConnectionError(ToolExecutionError):
         )
         self.error_code = ErrorCode.CONNECTION_ERROR
 
-
 class ToolProcessingError(ToolExecutionError):
     """Exceção para erros de processamento de dados dentro de uma ferramenta."""
-
 
 class KnowledgeGraphError(BaseAppException):
     """Exceção para erros relacionados ao Knowledge Graph (ex: Mem0)."""
@@ -1028,7 +990,6 @@ class KnowledgeGraphError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class AuditError(BaseAppException):
     """Exceção para erros no sistema de auditoria (queue, lock, etc.)."""
 
@@ -1048,7 +1009,6 @@ class AuditError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class FileProcessingError(BaseAppException):
     """Exceção para erros durante o processamento de arquivos."""
@@ -1076,7 +1036,6 @@ class FileProcessingError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class LLMError(IntegrationError):
     """Exceção para erros na comunicação com o Large Language Model."""
 
@@ -1101,7 +1060,6 @@ class LLMError(IntegrationError):
             original_exception=original_exception,
         )
         self.error_code = ErrorCode.LLM_ERROR
-
 
 # Additional LLM-specific exceptions
 class LLMAuthenticationError(IntegrationError):
@@ -1137,7 +1095,6 @@ class LLMAuthenticationError(IntegrationError):
         self.error_code = ErrorCode.LLM_AUTHENTICATION_ERROR
         self.status_code = 401
 
-
 class LLMTimeoutError(IntegrationError):
     """Exceção para timeouts em chamadas ao serviço LLM.
 
@@ -1172,7 +1129,6 @@ class LLMTimeoutError(IntegrationError):
         self.error_code = ErrorCode.LLM_TIMEOUT_ERROR
         self.status_code = 504
 
-
 class LLMRateLimitError(RateLimitError):
     """Exceção para limites de taxa excedidos em provedores de LLM.
 
@@ -1205,7 +1161,6 @@ class LLMRateLimitError(RateLimitError):
         )
         self.error_code = ErrorCode.LLM_RATE_LIMIT_ERROR
 
-
 class ParsingError(BaseAppException):
     """Exceção para erros de parsing de dados (JSON, etc.)."""
 
@@ -1232,7 +1187,6 @@ class ParsingError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class NetworkError(BaseAppException):
     """Exceção para erros de rede genéricos."""
 
@@ -1252,7 +1206,6 @@ class NetworkError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class DatabaseError(BaseAppException):
     """Exceção para erros de interação com o banco de dados."""
@@ -1281,7 +1234,6 @@ class DatabaseError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class CacheError(BaseAppException):
     """Exceção para erros relacionados ao sistema de cache."""
 
@@ -1307,7 +1259,6 @@ class CacheError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class PoolExhaustedError(CacheError):
     """Exceção para quando o pool de conexões está esgotado."""
@@ -1337,7 +1288,6 @@ class PoolExhaustedError(CacheError):
             original_exception=original_exception,
         )
 
-
 class NotificationError(BaseAppException):
     """Exceção para erros durante o envio de notificações."""
 
@@ -1364,13 +1314,11 @@ class NotificationError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class NotFoundError(ResourceNotFoundError):
     """Exceção para quando um recurso não é encontrado.
 
     Alias para ResourceNotFoundError para compatibilidade.
     """
-
 
 class PerformanceError(BaseAppException):
     """Exceção para erros relacionados à performance do sistema."""
@@ -1404,7 +1352,6 @@ class PerformanceError(BaseAppException):
             original_exception=original_exception,
         )
 
-
 class HealthCheckError(BaseAppException):
     """Exceção para erros durante verificações de saúde do sistema."""
 
@@ -1430,7 +1377,6 @@ class HealthCheckError(BaseAppException):
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
-
 
 class CacheHealthCheckError(HealthCheckError):
     """Exceção quando health check do cache falha.
@@ -1465,14 +1411,12 @@ class CacheHealthCheckError(HealthCheckError):
             original_exception=original_exception,
         )
 
-
 # ============================================================================
 # COMPATIBILIDADE COM CÓDIGO LEGADO
 # ============================================================================
 
 # Alias para manter compatibilidade com código existente
 ResyncException = BaseAppException
-
 
 class BusinessError(BaseAppException):
     """Exception for business rule violations."""
@@ -1496,7 +1440,6 @@ class BusinessError(BaseAppException):
         )
         self.details.setdefault("component", component)
 
-
 class WebSocketError(BaseAppException):
     """Exception for WebSocket communication errors."""
 
@@ -1519,11 +1462,9 @@ class WebSocketError(BaseAppException):
         )
         self.details.setdefault("component", component)
 
-
 # ============================================================================
 # UTILITÁRIOS
 # ============================================================================
-
 
 def get_exception_by_error_code(error_code: ErrorCode) -> type[BaseAppException]:
     """Retorna a classe de exceção apropriada para um código de erro.
@@ -1571,7 +1512,6 @@ def get_exception_by_error_code(error_code: ErrorCode) -> type[BaseAppException]
     }
 
     return mapping.get(error_code, InternalError)
-
 
 # =============================================================================
 

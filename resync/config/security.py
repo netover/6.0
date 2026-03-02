@@ -10,7 +10,6 @@ from .enhanced_security import configure_enhanced_security
 
 logger = structlog.get_logger(__name__)
 
-
 def add_additional_security_headers(app: FastAPI) -> None:
     """
     Add security headers middleware to the application.

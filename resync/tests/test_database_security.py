@@ -39,7 +39,7 @@ from resync.core.database_security import (
 class TestDatabaseInputValidator:
     """Test cases for DatabaseInputValidator class."""
 
-    def test_validate_table_name_valid_cases(self):
+    def test_validate_table_name_valid_cases(self) -> None:
         """Test valid table names."""
         valid_tables = ["audit_log", "log", "events", "audit_queue"]
 
@@ -47,7 +47,7 @@ class TestDatabaseInputValidator:
             result = DatabaseInputValidator.validate_table_name(table)
             assert result == table, f"Valid table name rejected: {table}"
 
-    def test_validate_table_name_invalid_cases(self):
+    def test_validate_table_name_invalid_cases(self) -> None:
         """Test invalid table names."""
         invalid_cases = [
             ("", "Table name cannot be empty"),
@@ -61,7 +61,7 @@ class TestDatabaseInputValidator:
             with pytest.raises(DatabaseSecurityError, match=expected_error):
                 DatabaseInputValidator.validate_table_name(table)
 
-    def test_validate_column_name_valid_cases(self):
+    def test_validate_column_name_valid_cases(self) -> None:
         """Test valid column names."""
         valid_columns = ["id", "user_query", "agent_response", "timestamp"]
 
@@ -69,7 +69,7 @@ class TestDatabaseInputValidator:
             result = DatabaseInputValidator.validate_column_name(column)
             assert result == column, f"Valid column name rejected: {column}"
 
-    def test_validate_column_name_invalid_cases(self):
+    def test_validate_column_name_invalid_cases(self) -> None:
         """Test invalid column names."""
         invalid_cases = [
             ("", "Column name cannot be empty"),
@@ -82,7 +82,7 @@ class TestDatabaseInputValidator:
             with pytest.raises(DatabaseSecurityError, match=expected_error):
                 DatabaseInputValidator.validate_column_name(column)
 
-    def test_validate_string_input_valid_cases(self):
+    def test_validate_string_input_valid_cases(self) -> None:
         """Test valid string inputs."""
         valid_inputs = [
             "This is a valid string",
@@ -95,7 +95,7 @@ class TestDatabaseInputValidator:
             result = DatabaseInputValidator.validate_string_input(input_text)
             assert result == input_text, f"Valid string input rejected: {input_text}"
 
-    def test_validate_string_input_invalid_cases(self):
+    def test_validate_string_input_invalid_cases(self) -> None:
         """Test invalid string inputs."""
         invalid_cases = [
             (None, "String input cannot be None"),
@@ -110,7 +110,7 @@ class TestDatabaseInputValidator:
             with pytest.raises(DatabaseSecurityError, match=expected_error):
                 DatabaseInputValidator.validate_string_input(input_text)
 
-    def test_validate_numeric_input_valid_cases(self):
+    def test_validate_numeric_input_valid_cases(self) -> None:
         """Test valid numeric inputs."""
         valid_inputs = [
             (123, None, None),
@@ -126,7 +126,7 @@ class TestDatabaseInputValidator:
             )
             assert result == value, f"Valid numeric input rejected: {value}"
 
-    def test_validate_numeric_input_invalid_cases(self):
+    def test_validate_numeric_input_invalid_cases(self) -> None:
         """Test invalid numeric inputs."""
         invalid_cases = [
             (None, "Numeric input cannot be None"),
@@ -148,7 +148,7 @@ class TestDatabaseInputValidator:
             with pytest.raises(DatabaseSecurityError, match=expected_error):
                 DatabaseInputValidator.validate_numeric_input(*args)
 
-    def test_validate_limit_valid_cases(self):
+    def test_validate_limit_valid_cases(self) -> None:
         """Test valid limit values."""
         valid_limits = [1, 10, 100, 1000, 9999]
 
@@ -156,7 +156,7 @@ class TestDatabaseInputValidator:
             result = DatabaseInputValidator.validate_limit(limit)
             assert result == int(limit), f"Valid limit rejected: {limit}"
 
-    def test_validate_limit_invalid_cases(self):
+    def test_validate_limit_invalid_cases(self) -> None:
         """Test invalid limit values."""
         invalid_cases = [
             (0, "Limit must be positive"),
@@ -171,7 +171,7 @@ class TestDatabaseInputValidator:
             with pytest.raises(DatabaseSecurityError, match=expected_error):
                 DatabaseInputValidator.validate_limit(limit)
 
-    def test_sanitize_query_string(self):
+    def test_sanitize_query_string(self) -> None:
         """Test query string sanitization."""
         test_cases = [
             ("normal query", "normal query"),
@@ -191,7 +191,7 @@ class TestDatabaseInputValidator:
 class TestSecureQueryBuilder:
     """Test cases for SecureQueryBuilder class."""
 
-    def test_build_select_query_basic(self):
+    def test_build_select_query_basic(self) -> None:
         """Test basic SELECT query building."""
         query, params = SecureQueryBuilder.build_select_query(
             table="audit_log", columns=["id", "user_query"], limit=10
@@ -201,7 +201,7 @@ class TestSecureQueryBuilder:
         assert query == expected_query
         assert params == {"limit": 10}
 
-    def test_build_select_query_with_where(self):
+    def test_build_select_query_with_where(self) -> None:
         """Test SELECT query with WHERE clause."""
         query, params = SecureQueryBuilder.build_select_query(
             table="audit_log", where_clause="status = :status", limit=50
@@ -211,7 +211,7 @@ class TestSecureQueryBuilder:
         assert query == expected_query
         assert params == {"limit": 50}
 
-    def test_build_select_query_with_order(self):
+    def test_build_select_query_with_order(self) -> None:
         """Test SELECT query with ORDER BY clause."""
         query, params = SecureQueryBuilder.build_select_query(
             table="audit_log", order_by="created_at DESC", limit=25
@@ -221,12 +221,12 @@ class TestSecureQueryBuilder:
         assert query == expected_query
         assert params == {"limit": 25}
 
-    def test_build_select_query_invalid_table(self):
+    def test_build_select_query_invalid_table(self) -> None:
         """Test SELECT query with invalid table name."""
         with pytest.raises(DatabaseSecurityError, match="Table name not in whitelist"):
             SecureQueryBuilder.build_select_query(table="invalid_table", limit=10)
 
-    def test_build_select_query_invalid_column(self):
+    def test_build_select_query_invalid_column(self) -> None:
         """Test SELECT query with invalid column name."""
         with pytest.raises(DatabaseSecurityError, match="Column name not in whitelist"):
             SecureQueryBuilder.build_select_query(
@@ -254,7 +254,7 @@ class TestSQLInjectionMiddleware:
                 self.state = {}
 
         class MockUrl:
-            def __init__(self, path):
+            def __init__(self, path) -> None:
                 self.path = path
 
         class MockClient:
@@ -272,7 +272,7 @@ class TestSQLInjectionMiddleware:
 
         return app
 
-    def test_sql_injection_detection_patterns(self, mock_request):
+    def test_sql_injection_detection_patterns(self, mock_request) -> None:
         """Test SQL injection pattern detection."""
         injection_patterns = [
             ("'; DROP TABLE users; --", True),
@@ -295,7 +295,7 @@ class TestSQLInjectionMiddleware:
                 # Should not raise exception
                 run_sync(middleware._analyze_request_for_sql_injection(request))
 
-    def test_safe_requests_pass_through(self, mock_request):
+    def test_safe_requests_pass_through(self, mock_request) -> None:
         """Test that safe requests pass through middleware."""
         safe_inputs = [
             "normal_user_query",
@@ -312,10 +312,15 @@ class TestSQLInjectionMiddleware:
             # Should not raise exception
             try:
                 run_sync(middleware._analyze_request_for_sql_injection(request))
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 pytest.fail(f"Safe input was blocked: {safe_input} - {e}")
 
-    def test_request_data_extraction(self, mock_request):
+    def test_request_data_extraction(self, mock_request) -> None:
         """Test request data extraction for analysis."""
         request = mock_request(
             query_params={"id": "123"},
@@ -334,7 +339,7 @@ class TestSQLInjectionMiddleware:
         assert data["path.user_id"] == "456"
         assert data["header.user-agent"] == "Test Browser"
 
-    def test_security_stats(self):
+    def test_security_stats(self) -> None:
         """Test security statistics tracking."""
         middleware = DatabaseSecurityMiddleware(None, enabled=True)
 
@@ -350,7 +355,7 @@ class TestSQLInjectionMiddleware:
 class TestAuditRecordValidation:
     """Test cases for audit record validation."""
 
-    def test_validate_audit_record_valid_cases(self):
+    def test_validate_audit_record_valid_cases(self) -> None:
         """Test valid audit record inputs."""
         valid_records = [
             {
@@ -377,7 +382,7 @@ class TestAuditRecordValidation:
             assert result["user_query"] == record["user_query"]
             assert result["agent_response"] == record["agent_response"]
 
-    def test_validate_audit_record_invalid_cases(self):
+    def test_validate_audit_record_invalid_cases(self) -> None:
         """Test invalid audit record inputs."""
         invalid_cases = [
             # Missing required fields
@@ -447,7 +452,7 @@ class TestAuditRecordValidation:
 class TestDatabaseSecurityIntegration:
     """Integration tests for database security components."""
 
-    def test_validate_database_inputs_convenience_function(self):
+    def test_validate_database_inputs_convenience_function(self) -> None:
         """Test the convenience validation function."""
         # Valid inputs
         result = validate_database_inputs(
@@ -466,7 +471,7 @@ class TestDatabaseSecurityIntegration:
         with pytest.raises(DatabaseSecurityError):
             validate_database_inputs("audit_log", limit=0)
 
-    def test_middleware_factory_functions(self):
+    def test_middleware_factory_functions(self) -> None:
         """Test middleware factory functions."""
         from resync.api.middleware.database_security_middleware import (
             create_database_connection_security_middleware,
@@ -474,7 +479,7 @@ class TestDatabaseSecurityIntegration:
         )
 
         # Test security middleware factory
-        def app(scope, receive, send):
+        def app(scope, receive, send) -> None:
             return None
 
         security_middleware = create_database_security_middleware(app, enabled=True)
@@ -490,7 +495,7 @@ class TestDatabaseSecurityIntegration:
 class TestSQLInjectionAttackVectors:
     """Test comprehensive SQL injection attack vectors."""
 
-    def test_time_based_attacks(self):
+    def test_time_based_attacks(self) -> None:
         """Test time-based SQL injection attacks."""
         time_attacks = [
             "'; WAITFOR DELAY '00:00:05' --",
@@ -503,7 +508,7 @@ class TestSQLInjectionAttackVectors:
             with pytest.raises(DatabaseSecurityError):
                 DatabaseInputValidator.validate_string_input(attack)
 
-    def test_boolean_based_attacks(self):
+    def test_boolean_based_attacks(self) -> None:
         """Test boolean-based SQL injection attacks."""
         boolean_attacks = [
             "' OR '1'='1",
@@ -516,7 +521,7 @@ class TestSQLInjectionAttackVectors:
             with pytest.raises(DatabaseSecurityError):
                 DatabaseInputValidator.validate_string_input(attack)
 
-    def test_union_based_attacks(self):
+    def test_union_based_attacks(self) -> None:
         """Test UNION-based SQL injection attacks."""
         union_attacks = [
             "' UNION SELECT username, password FROM users --",
@@ -528,7 +533,7 @@ class TestSQLInjectionAttackVectors:
             with pytest.raises(DatabaseSecurityError):
                 DatabaseInputValidator.validate_string_input(attack)
 
-    def test_error_based_attacks(self):
+    def test_error_based_attacks(self) -> None:
         """Test error-based SQL injection attacks."""
         error_attacks = [
             "' AND 1=CONVERT(int, (SELECT @@version)) --",
@@ -540,7 +545,7 @@ class TestSQLInjectionAttackVectors:
             with pytest.raises(DatabaseSecurityError):
                 DatabaseInputValidator.validate_string_input(attack)
 
-    def test_stored_procedure_attacks(self):
+    def test_stored_procedure_attacks(self) -> None:
         """Test stored procedure SQL injection attacks."""
         sp_attacks = [
             "'; EXEC xp_cmdshell('dir') --",
@@ -557,7 +562,7 @@ class TestSQLInjectionAttackVectors:
 class TestDatabaseSecurityPerformance:
     """Performance tests for database security components."""
 
-    def test_validation_performance(self):
+    def test_validation_performance(self) -> None:
         """Test that validation doesn't impact performance significantly."""
         import time
 
@@ -575,7 +580,7 @@ class TestDatabaseSecurityPerformance:
         # Should complete 30,000 validations in under 1 second
         assert duration < 1.0, f"Validation too slow: {duration}s for 30,000 operations"
 
-    def test_middleware_performance(self):
+    def test_middleware_performance(self) -> None:
         """Test that middleware doesn't impact performance significantly."""
         import time
 

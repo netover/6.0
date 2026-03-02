@@ -1,16 +1,20 @@
-"""
-Teams Outgoing Webhook Public Endpoint.
+"""Teams Outgoing Webhook Public Endpoint.
 
 Este endpoint recebe mensagens do Microsoft Teams quando usuários mencionam o bot.
 Implementa validação HMAC, verificação de permissões e processamento de queries.
+
+Critical fixes applied:
+- P0-16: Fixed NameError (db vs _db) in permissions_manager initialization
+- P1-26: Added timeout to request.body() to prevent DoS
 """
 
+import asyncio
 from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database.session import get_db
 from resync.core.teams_permissions import TeamsPermissionsManager
@@ -25,11 +29,9 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/teams", tags=["Teams Webhook"])
 
-
 # =============================================================================
 # MODELS
 # =============================================================================
-
 
 class TeamsMessageFrom(BaseModel):
     """Informações do remetente."""
@@ -39,13 +41,11 @@ class TeamsMessageFrom(BaseModel):
     aadObjectId: str | None = None
     userPrincipalName: str | None = None
 
-
 class TeamsConversation(BaseModel):
     """Informações da conversa."""
 
     id: str
     name: str | None = None
-
 
 class TeamsMessage(BaseModel):
     """Mensagem recebida do Teams."""
@@ -60,18 +60,15 @@ class TeamsMessage(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-
 class TeamsResponse(BaseModel):
     """Resposta para o Teams."""
 
     type: str = "message"
     text: str
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
 
 def extract_user_email(message: TeamsMessage) -> str:
     """
@@ -87,24 +84,21 @@ def extract_user_email(message: TeamsMessage) -> str:
     name = message.from_.name.lower().replace(" ", ".")
     return f"{name}@teams.unknown"
 
-
 async def get_agent_manager():
     """Dependency: retorna Agent Manager."""
     from resync.core.agent_manager import get_agent_manager as get_am
 
     return get_am()
 
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
-
 
 @router.post("/webhook", response_model=TeamsResponse)
 async def teams_outgoing_webhook_endpoint(
     request: Request,
     authorization: str | None = Header(None),
-    db: Session = Depends(get_db),
+    _db: AsyncSession = Depends(get_db),
 ):
     """
     **Endpoint principal do Teams Outgoing Webhook.**
@@ -134,11 +128,37 @@ async def teams_outgoing_webhook_endpoint(
             detail="Teams webhook is currently disabled",
         )
 
-    # Lê corpo da requisição
-    body_bytes = await request.body()
+    # P1-26 fix: Lê corpo da requisição com timeout para prevenir DoS
+    try:
+        body_bytes = await asyncio.wait_for(
+            request.body(),
+            timeout=30.0  # 30 seconds timeout
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "teams_webhook_request_body_timeout",
+            hint="Client sent headers but no body within 30s"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Request body not received within timeout period",
+        )
 
     # Valida assinatura HMAC
-    security_token = config.get("security_token")
+    # NOTE: security_token is a secret and must be unwrapped explicitly.
+    security_token = None
+    if hasattr(config, "get_secret"):
+        try:
+            security_token = config.get_secret("security_token")
+        except KeyError:
+            security_token = None
+    if security_token is None:
+        # Backward-compat (older config proxies may expose SecretStr directly)
+        token_val = config.get("security_token")
+        if hasattr(token_val, "get_secret_value"):
+            security_token = token_val.get_secret_value()
+        else:
+            security_token = token_val
 
     if not security_token:
         logger.error("teams_webhook_no_security_token_configured")
@@ -178,7 +198,7 @@ async def teams_outgoing_webhook_endpoint(
     # Parse mensagem
     try:
         message = TeamsMessage.model_validate_json(body_bytes)
-    except Exception as e:
+    except ValidationError as e:
         logger.error("teams_webhook_invalid_message_format", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -201,7 +221,10 @@ async def teams_outgoing_webhook_endpoint(
     # Inicializa componentes
     try:
         agent_manager = await get_agent_manager()
-        permissions_manager = TeamsPermissionsManager(db)
+        
+        # P0-16 fix: Use _db instead of undefined 'db' variable
+        permissions_manager = TeamsPermissionsManager(_db)
+        
         handler = TeamsWebhookHandler(agent_manager, permissions_manager)
 
         # Processa mensagem
@@ -222,6 +245,8 @@ async def teams_outgoing_webhook_endpoint(
 
         return TeamsResponse(text=answer)
 
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.error(
             "teams_webhook_processing_error",
@@ -240,7 +265,6 @@ Desculpe {user_name}, ocorreu um erro ao processar sua mensagem.
 Por favor, tente novamente ou entre em contato com o suporte."""
 
         return TeamsResponse(text=error_msg)
-
 
 @router.get("/webhook/health")
 async def teams_webhook_health():

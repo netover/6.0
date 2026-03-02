@@ -38,11 +38,50 @@ from .global_utils import get_environment_tags, get_global_correlation_id
 agent_logger = structlog.get_logger("resync.agent_manager")
 logger = structlog.get_logger(__name__)
 
+# =============================================================================
+# CONSTANTS - Exception handling
+# =============================================================================
+
+# P0-2: Consolidated exception handling constants
+# Runtime exceptions that should be caught and handled gracefully
+RUNTIME_EXCEPTIONS = (
+    OSError,
+    TimeoutError,
+    ConnectionError,
+    ValueError,
+)
+
+# Programming errors that should be re-raised (bugs, not runtime failures)
+PROGRAMMING_EXCEPTIONS = (
+    TypeError,
+    KeyError,
+    AttributeError,
+    IndexError,
+    RuntimeError,
+)
+
+# All exceptions caught in handlers (for logging + fallback)
+ALL_CAUGHT_EXCEPTIONS = RUNTIME_EXCEPTIONS + PROGRAMMING_EXCEPTIONS
+
+# =============================================================================
+# CONSTANTS - Magic numbers and configuration
+# =============================================================================
+
+# P2-1: Extracted magic numbers for Agent LLM configuration
+DEFAULT_MAX_TOKENS: int = 1024
+DEFAULT_TEMPERATURE: float = 0.1
+DEFAULT_TIMEOUT_SECONDS: float = 30.0
+DEFAULT_MODEL: str = "ollama/qwen2.5:3b"
+
+# P2-1: Extracted magic numbers for UnifiedAgent history management
+DEFAULT_MAX_HISTORY: int = 100
+DEFAULT_TRIM_TO: int = 50
+DEFAULT_HISTORY_CACHE_SIZE: int = 1000
+DEFAULT_HISTORY_CONTEXT_SIZE: int = 10
 
 # =============================================================================
 # NATIVE AGENT IMPLEMENTATION (v5.2.3.24 — replaces Agno)
 # =============================================================================
-
 
 class Agent:
     """Lightweight LLM agent backed by LiteLLM.
@@ -61,7 +100,7 @@ class Agent:
         **kwargs: Any,
     ) -> None:
         self.tools = tools or []
-        self.model = model or "ollama/qwen2.5:3b"
+        self.model = model or DEFAULT_MODEL
         self.llm_model = self.model
         self.instructions = (
             instructions
@@ -105,19 +144,38 @@ class Agent:
             response = await litellm.acompletion(
                 model=self.model,
                 messages=messages,
-                max_tokens=1024,
-                temperature=0.1,
-                timeout=30.0,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                temperature=DEFAULT_TEMPERATURE,
+                timeout=DEFAULT_TIMEOUT_SECONDS,
             )
 
-            return response.choices[0].message.content
+            # P0-1: Verificar resposta vazia antes de acessar
+            # Type narrowing for LiteLLM response - the library types are incomplete
+            choices = getattr(response, "choices", None)
+            if not choices or not isinstance(choices, list) or len(choices) == 0:
+                agent_logger.error("empty_response_from_llm", agent=self.name)
+                return self._fallback_response(message)
+
+            # Safely access the first choice
+            first_choice = choices[0]
+            message_content = getattr(first_choice, "message", None)
+            if message_content is None:
+                agent_logger.error("empty_message_in_response", agent=self.name)
+                return self._fallback_response(message)
+
+            content = getattr(message_content, "content", None)
+            if content is None:
+                agent_logger.error("empty_content_in_message", agent=self.name)
+                return self._fallback_response(message)
+
+            return content
 
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
+        except PROGRAMMING_EXCEPTIONS as exc:
             # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
+            raise
+        except RUNTIME_EXCEPTIONS as exc:
             agent_logger.error("agent_arun_error", error=str(exc), agent=self.name)
             return self._fallback_response(message)
 
@@ -152,7 +210,7 @@ class Agent:
                     "ajudar com operações TWS. "
                     "(Nota: LLM temporariamente indisponível)"
                 )
-        except Exception as e:
+        except RUNTIME_EXCEPTIONS as e:
             agent_logger.error("fallback_response_error", error=str(e), agent=self.name)
             return (
                 "Ocorreu um erro inesperado ao tentar gerar uma resposta alternativa."
@@ -180,11 +238,9 @@ class Agent:
             "tools": [str(t) for t in self.tools] if self.tools else [],
         }
 
-
 # Backward compatibility aliases
 MockAgent = Agent
 AGNO_AVAILABLE = True
-
 
 # --- Pydantic models --------------------------------------------------------
 class AgentsConfig(BaseModel):
@@ -192,11 +248,9 @@ class AgentsConfig(BaseModel):
 
     agents: list[AgentConfig] = Field(default_factory=list)
 
-
 # =============================================================================
 # AGENT MANAGER
 # =============================================================================
-
 
 def _discover_tools() -> dict[str, Any]:
     """Return the map of tool-name -> callable for agent injection."""
@@ -206,9 +260,13 @@ def _discover_tools() -> dict[str, Any]:
             "analyze_tws_failures": tws_troubleshooting_tool.analyze_failures,
         }
     except (ImportError, AttributeError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.warning("tool_discovery_failed", error=str(exc))
         return {}
-
 
 class AgentManager:
     """Manages agent lifecycle: creation, caching, configuration, and tools.
@@ -230,12 +288,10 @@ class AgentManager:
         tws_client_factory: Callable[[], Any] | None = None,
     ) -> None:
         correlation_id = runtime_metrics.create_correlation_id(
-            {
-                "component": "agent_manager",
-                "operation": "init",
-                "global_correlation": get_global_correlation_id(),
-                "environment": get_environment_tags(),
-            }
+            "agent_manager_init",
+            component="agent_manager",
+            global_correlation=get_global_correlation_id(),
+            environment=get_environment_tags(),
         )
 
         try:
@@ -265,6 +321,7 @@ class AgentManager:
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
                     model_name="tongyi-deepresearch",
+                    max_rpm=None,
                 ),
                 AgentConfig(
                     id="tws-general",
@@ -279,14 +336,16 @@ class AgentManager:
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
                     model_name="openrouter-fallback",
+                    max_rpm=None,
                 ),
             ]
 
             self.tools: dict[str, Any] = _discover_tools()
             self._tws_client_factory = tws_client_factory
             self.tws_client: Any = None
-            self._tws_locks: dict[int, asyncio.Lock] = {}
-            self._agent_locks: dict[int, asyncio.Lock] = {}
+            # P1-1: Use int | None to allow fallback key for contexts without running loop
+            self._tws_locks: dict[int | None, asyncio.Lock] = {}
+            self._agent_locks: dict[int | None, asyncio.Lock] = {}
 
             runtime_metrics.record_health_check("agent_manager", "healthy")
             logger.info(
@@ -315,7 +374,18 @@ class AgentManager:
     # -----------------------------------------------------------------
 
     def _get_tws_lock(self) -> asyncio.Lock:
-        loop = asyncio.get_running_loop()
+        """P1-1: Get or create a lock for the current event loop.
+        
+        Includes fallback for contexts without running loop.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # Fallback for contexts without a running loop (e.g., during initialization)
+            if None not in self._tws_locks:
+                self._tws_locks[None] = asyncio.Lock()
+            return self._tws_locks[None]
+        
         loop_id = id(loop)
         lock = self._tws_locks.get(loop_id)
         if lock is None:
@@ -324,7 +394,18 @@ class AgentManager:
         return lock
 
     def _get_agent_lock(self) -> asyncio.Lock:
-        loop = asyncio.get_running_loop()
+        """P1-1: Get or create a lock for the current event loop.
+        
+        Includes fallback for contexts without running loop.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # Fallback for contexts without a running loop (e.g., during initialization)
+            if None not in self._agent_locks:
+                self._agent_locks[None] = asyncio.Lock()
+            return self._agent_locks[None]
+        
         loop_id = id(loop)
         lock = self._agent_locks.get(loop_id)
         if lock is None:
@@ -410,6 +491,7 @@ class AgentManager:
                         tools=agent_data.get("tools", []),
                         model_name=model_name,
                         memory=agent_data.get("memory", defaults.get("memory", True)),
+                        max_rpm=agent_data.get("max_rpm"),
                     )
                     loaded.append(config)
                     logger.debug(
@@ -424,7 +506,7 @@ class AgentManager:
                         agent=agent_data.get("id", "unknown"),
                         field=str(exc),
                     )
-                except Exception as exc:
+                except ALL_CAUGHT_EXCEPTIONS as exc:
                     logger.error(
                         "agent_config_parse_error",
                         agent=agent_data.get("id", "unknown"),
@@ -454,7 +536,7 @@ class AgentManager:
             )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
+        except ALL_CAUGHT_EXCEPTIONS as exc:
             logger.error(
                 "agent_config_load_error",
                 file=str(config_file),
@@ -522,10 +604,10 @@ class AgentManager:
             )
             return agent
 
-        except Exception as exc:
+        except PROGRAMMING_EXCEPTIONS as exc:
             # Re-raise programming errors — these are bugs, not runtime failures
-            if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-                raise
+            raise
+        except RUNTIME_EXCEPTIONS as exc:
             logger.error(
                 "agent_creation_failed",
                 agent_id=agent_id,
@@ -581,7 +663,7 @@ class AgentManager:
                     "tws_client_initialized",
                     client_type=type(self.tws_client).__name__,
                 )
-            except Exception as exc:
+            except RUNTIME_EXCEPTIONS as exc:
                 logger.warning("tws_client_init_failed", error=str(exc))
 
     async def get_tws_client(self) -> Any:
@@ -627,12 +709,17 @@ class AgentManager:
                 communication_modes=["json-rpc", "websocket"],
                 supports_streaming=True,
                 supports_events=True,
+                supports_push_notifications=False,
+                max_concurrent_tasks=10,
             ),
             contact=AgentContact(
                 endpoint=f"{base_url}/api/v1/a2a/{agent_id}/jsonrpc",
                 websocket_endpoint=f"ws://{base_url.split('://')[1]}/ws/{agent_id}",
                 auth_required=True,
+                protocol="A2A",
+                event_endpoint=None,
             ),
+            protocol_version="A2A-2024-11-05",
             metadata={"role": config.role, "model": config.model_name},
         )
 
@@ -647,14 +734,12 @@ class AgentManager:
                 cards.append(card)
         return cards
 
-
 # =============================================================================
 # MODULE-LEVEL STATE  (replaces singleton pattern)
 # =============================================================================
 
 _agent_manager: AgentManager | None = None
 _init_lock = threading.Lock()
-
 
 def initialize_agent_manager(
     settings_module: Any = settings,
@@ -671,7 +756,6 @@ def initialize_agent_manager(
             tws_client_factory=tws_client_factory,
         )
     return _agent_manager
-
 
 def get_agent_manager() -> AgentManager:
     """Return the module-level ``AgentManager``.
@@ -691,11 +775,9 @@ def get_agent_manager() -> AgentManager:
                 _agent_manager = AgentManager()
     return _agent_manager
 
-
 # =============================================================================
 # UNIFIED AGENT INTERFACE
 # =============================================================================
-
 
 class UnifiedAgent:
     """High-level chat interface with automatic intent routing.
@@ -710,8 +792,9 @@ class UnifiedAgent:
                                   conversation_id="sess-123")
     """
 
-    _MAX_HISTORY: int = 100
-    _TRIM_TO: int = 50
+    _MAX_HISTORY: int = DEFAULT_MAX_HISTORY
+    _TRIM_TO: int = DEFAULT_TRIM_TO
+    _HISTORY_CACHE_SIZE: int = DEFAULT_HISTORY_CACHE_SIZE
 
     def __init__(
         self,
@@ -723,11 +806,19 @@ class UnifiedAgent:
         self._manager = agent_manager or get_agent_manager()
         self._router = create_router(self._manager, skill_manager=skill_manager)
         # Per-conversation history with an LRU cache to prevent OOM
-        self._histories: LRUCache[str, list[dict[str, str]]] = LRUCache(maxsize=1000)
+        self._histories: LRUCache[str, list[dict[str, str]]] = LRUCache(maxsize=self._HISTORY_CACHE_SIZE)
+        # P0-3: Locks per conversation_id to prevent race conditions
+        self._history_locks: dict[str, asyncio.Lock] = {}
         logger.info(
             "unified_agent_initialized",
             skill_manager_enabled=skill_manager is not None,
         )
+
+    def _get_history_lock(self, conversation_id: str) -> asyncio.Lock:
+        """P0-3: Get or create a lock for the given conversation_id."""
+        if conversation_id not in self._history_locks:
+            self._history_locks[conversation_id] = asyncio.Lock()
+        return self._history_locks[conversation_id]
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
         if conversation_id not in self._histories:
@@ -749,28 +840,33 @@ class UnifiedAgent:
             use_llm_classification: Reserved for future use.
             conversation_id: Session key for history isolation.
         """
+        # P2-2: Parameter is intentionally reserved for future use
         _ = use_llm_classification
 
-        history = self._get_history(conversation_id)
-        context: dict[str, Any] = {}
-        if include_history and history:
-            context["history"] = history[-10:]
+        # P0-3: Use lock to prevent race conditions on history access
+        async with self._get_history_lock(conversation_id):
+            history = self._get_history(conversation_id)
+            context: dict[str, Any] = {}
+            if include_history and history:
+                context["history"] = history[-DEFAULT_HISTORY_CONTEXT_SIZE:]
 
-        result = await self._router.route(message, context=context)
+            result = await self._router.route(message, context=context)
 
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": result.response})
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": result.response})
 
-        if len(history) > self._MAX_HISTORY:
-            self._histories[conversation_id] = history[-self._TRIM_TO :]
+            if len(history) > self._MAX_HISTORY:
+                self._histories[conversation_id] = history[-self._TRIM_TO :]
 
+        # P1-2: Remove conversation_id from logs (sensitive data)
+        # Note: RoutingResult uses 'handler' not 'handler_name', and 'intent'/'confidence' directly
         logger.debug(
             "unified_agent_response",
-            handler=result.handler_name,
-            intent=result.classification.primary_intent.value,
-            confidence=result.classification.confidence,
+            handler=result.handler,
+            intent=result.intent,
+            confidence=result.confidence,
             processing_time_ms=result.processing_time_ms,
-            conversation_id=conversation_id,
+            # conversation_id removed for privacy
         )
 
         return result.response
@@ -808,11 +904,11 @@ class UnifiedAgent:
 
         return {
             "response": result.response,
-            "intent": result.classification.primary_intent.value,
-            "confidence": result.classification.confidence,
-            "handler": result.handler_name,
+            "intent": result.intent,
+            "confidence": result.confidence,
+            "handler": result.handler,
             "tools_used": result.tools_used,
-            "entities": result.classification.entities,
+            "entities": result.entities,
             "processing_time_ms": result.processing_time_ms,
             "tws_instance_id": tws_instance_id,
         }
@@ -831,13 +927,11 @@ class UnifiedAgent:
         """Access the underlying router for advanced usage."""
         return self._router
 
-
 # ---------------------------------------------------------------------------
 # Module-level UnifiedAgent (lazy, per-session safe)
 # ---------------------------------------------------------------------------
 
 _unified_agent: UnifiedAgent | None = None
-
 
 def get_unified_agent() -> UnifiedAgent:
     """Return (or create) the module-level ``UnifiedAgent``."""
@@ -846,11 +940,9 @@ def get_unified_agent() -> UnifiedAgent:
         _unified_agent = UnifiedAgent(get_agent_manager())
     return _unified_agent
 
-
 # ---------------------------------------------------------------------------
 # Module __getattr__ for backward-compat named imports
 # ---------------------------------------------------------------------------
-
 
 def __getattr__(name: str) -> Any:
     """Support ``from resync.core.agent_manager import agent_manager``
@@ -862,7 +954,6 @@ def __getattr__(name: str) -> Any:
     if name == "unified_agent":
         return get_unified_agent()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 # =============================================================================
 # EXPORTS
@@ -880,4 +971,36 @@ __all__ = [
     "get_agent_manager",
     "get_unified_agent",
     "initialize_agent_manager",
+    # Exported constants
+    "DEFAULT_MAX_TOKENS",
+    "DEFAULT_TEMPERATURE",
+    "DEFAULT_TIMEOUT_SECONDS",
+    "DEFAULT_MODEL",
+    "DEFAULT_MAX_HISTORY",
+    "DEFAULT_TRIM_TO",
+    "DEFAULT_HISTORY_CACHE_SIZE",
+    "RUNTIME_EXCEPTIONS",
+    "PROGRAMMING_EXCEPTIONS",
+    "ALL_CAUGHT_EXCEPTIONS",
 ]
+
+# =============================================================================
+# Module-level `unified_agent` singleton proxy
+# =============================================================================
+
+class _UnifiedAgentProxy:
+    """Lazy proxy: delegates all attribute access to the real UnifiedAgent.
+
+    This allows ``from resync.core.agent_manager import unified_agent``
+    to work without triggering initialization at import time.
+    """
+
+    def __getattr__(self, name: str):
+        return getattr(get_unified_agent(), name)
+
+    def __repr__(self) -> str:
+        return f"<UnifiedAgentProxy wrapping {get_unified_agent()!r}>"
+
+
+#: Module-level singleton used by ``resync.api.routes.core.chat``.
+unified_agent: "_UnifiedAgentProxy" = _UnifiedAgentProxy()

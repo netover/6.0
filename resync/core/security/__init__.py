@@ -39,17 +39,14 @@ from resync.core.security_main import (
 # API Key security constants
 _API_KEY_SECRET = secrets.token_bytes(32)
 
-
 def hash_api_key(api_key: str) -> str:
     """Hash an API key for secure storage."""
     return hashlib.sha256(api_key.encode()).hexdigest()
-
 
 def verify_api_key(api_key: str, hashed_key: str) -> bool:
     """Verify an API key against its hash using constant-time comparison."""
     computed_hash = hash_api_key(api_key)
     return hmac.compare_digest(computed_hash, hashed_key)
-
 
 async def verify_metrics_api_key(api_key: str) -> bool:
     """
@@ -67,7 +64,6 @@ async def verify_metrics_api_key(api_key: str) -> bool:
         return False
 
     return verify_api_key(api_key, settings.metrics_api_key_hash)
-
 
 def verify_admin_token(token: str) -> dict[str, Any] | None:
     """Verify an admin token and return payload if valid."""
@@ -92,7 +88,6 @@ def verify_admin_token(token: str) -> dict[str, Any] | None:
     except (JWTError, RuntimeError, ValueError):
         return None
 
-
 def generate_api_key(prefix: str = "rsk") -> tuple[str, str]:
     """Generate a new API key and its hash.
 
@@ -101,7 +96,6 @@ def generate_api_key(prefix: str = "rsk") -> tuple[str, str]:
     """
     key = f"{prefix}_{secrets.token_urlsafe(32)}"
     return key, hash_api_key(key)
-
 
 __all__ = [
     "DANGEROUS_CHARS_PATTERN",

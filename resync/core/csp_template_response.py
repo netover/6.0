@@ -5,7 +5,6 @@ from typing import Any
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-
 class CSPTemplateResponse(HTMLResponse):
     """
     Custom HTML response that includes CSP nonce in the template context.
@@ -58,7 +57,6 @@ class CSPTemplateResponse(HTMLResponse):
             media_type=media_type,
             background=background,
         )
-
 
 def create_csp_template_response(
     template_name: str,

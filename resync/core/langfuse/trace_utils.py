@@ -1,7 +1,6 @@
 import hashlib
 import uuid
 
-
 def normalize_trace_id(value: str) -> str:
     """
     Normalize a correlation ID into a valid W3C trace ID (32-char hex).
@@ -23,7 +22,6 @@ def normalize_trace_id(value: str) -> str:
 
     # Otherwise, hash it to get a stable 32-char hex
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
-
 
 def hash_user_id(user_id: str) -> str:
     """

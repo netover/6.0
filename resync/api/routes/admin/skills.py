@@ -7,8 +7,6 @@ plus admin-only reload capability.
 v6.0 - Part of Skills Orchestration refactoring.
 """
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
@@ -18,45 +16,40 @@ from resync.core.wiring import get_skill_manager
 
 router = APIRouter(prefix="/skills", tags=["Admin - Skills"])
 
-
 class SkillSummary(BaseModel):
     """Summary of a skill for listing."""
 
     name: str
     description: str
-    tags: List[str]
-    intents: List[str]
+    tags: list[str]
+    intents: list[str]
     version: str
-
 
 class SkillDetail(BaseModel):
     """Full skill details including content."""
 
     name: str
     description: str
-    tags: List[str]
-    intents: List[str]
-    tools_expected: List[str]
+    tags: list[str]
+    intents: list[str]
+    tools_expected: list[str]
     version: str
-    content: Optional[str] = None
+    content: str | None = None
     content_length: int = 0
-
 
 class SkillListResponse(BaseModel):
     """Response for skill list endpoint."""
 
-    skills: List[SkillSummary]
+    skills: list[SkillSummary]
     total: int
     skills_dir: str
-
 
 class ReloadResponse(BaseModel):
     """Response for reload endpoint."""
 
     status: str
     skills_count: int
-    skills: List[str]
-
+    skills: list[str]
 
 @router.get("/", response_model=SkillListResponse)
 async def list_skills(
@@ -87,7 +80,6 @@ async def list_skills(
         total=len(skills),
         skills_dir=str(skill_manager.skills_dir),
     )
-
 
 @router.get("/{skill_name}", response_model=SkillDetail)
 async def get_skill(
@@ -133,7 +125,6 @@ async def get_skill(
         content_length=content_length,
     )
 
-
 @router.post("/reload", response_model=ReloadResponse)
 async def reload_skills(
     logger_instance=Depends(get_logger),
@@ -160,7 +151,6 @@ async def reload_skills(
         skills_count=len(skills),
         skills=[s["name"] for s in skills],
     )
-
 
 @router.get("/intents/{intent}/skills")
 async def get_skills_for_intent(

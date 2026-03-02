@@ -167,6 +167,37 @@ python -m uvicorn resync.main:app --reload
 # Docs: http://localhost:8000/docs
 ```
 
+## 🧰 Execução em Produção (VM, sem Nginx)
+
+Para execução **direta na VM** (sem Nginx) recomendamos **Gunicorn + UvicornWorker** para gerenciamento de processos e estabilidade.
+
+### Recomendado (Gunicorn + UvicornWorker)
+
+> Ajuste o número de workers conforme CPU/latência. Em uma VM de **4 vCPU / 8 GB**, um ponto de partida seguro é **2 workers**.
+
+```bash
+gunicorn resync.main:app \
+  -k uvicorn.workers.UvicornWorker \
+  -w 2 \
+  --bind 0.0.0.0:8000 \
+  --graceful-timeout 30 \
+  --timeout 120 \
+  --keep-alive 5
+```
+
+### Alternativa (Uvicorn direto)
+
+```bash
+uvicorn resync.main:app \
+  --host 0.0.0.0 --port 8000 \
+  --workers 2 \
+  --timeout-keep-alive 5 \
+  --timeout-graceful-shutdown 30 \
+  --limit-concurrency 200
+```
+
+> Observação: em produção **não** use `--reload`.
+
 ### Configuração Docker
 
 ```bash

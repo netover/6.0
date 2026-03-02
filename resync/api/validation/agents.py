@@ -1,6 +1,5 @@
 """Agent validation models with strict validation rules."""
 
-from __future__ import annotations
 
 from enum import Enum
 from typing import Annotated, Any
@@ -10,16 +9,16 @@ from pydantic import StringConstraints as PydanticStringConstraints
 
 from .common import NumericConstraints, StringConstraints, ValidationPatterns
 
-
 class AgentType(str, Enum):
     """Valid agent types."""
+
+
 
     LOCAL_SCRIPT = "local_script"
     EXTERNAL_API = "external_api"
     DATABASE_QUERY = "database_query"
     TWS_SPECIALIST = "tws_specialist"
     GENERAL_ASSISTANT = "general_assistant"
-
 
 class AgentStatus(str, Enum):
     """Agent status values."""
@@ -29,7 +28,6 @@ class AgentStatus(str, Enum):
     MAINTENANCE = "maintenance"
     ERROR = "error"
 
-
 class ToolCategory(str, Enum):
     """Valid tool categories."""
 
@@ -38,7 +36,6 @@ class ToolCategory(str, Enum):
     API_TOOLS = "api_tools"
     UTILITY_TOOLS = "utility_tools"
     MONITORING_TOOLS = "monitoring_tools"
-
 
 class AgentConfig(BaseModel):
     """Agent configuration validation model."""
@@ -213,7 +210,6 @@ class AgentConfig(BaseModel):
                     )
         return values
 
-
 class AgentCreateRequest(AgentConfig):
     """Request model for creating a new agent."""
 
@@ -231,7 +227,6 @@ class AgentCreateRequest(AgentConfig):
                 if not values.get(field):
                     raise ValueError(f"Required field '{field}' is missing or empty")
         return values
-
 
 class AgentUpdateRequest(BaseModel):
     """Request model for updating an existing agent."""
@@ -352,7 +347,6 @@ class AgentUpdateRequest(BaseModel):
                 raise ValueError(f"Invalid tag format: {tag}")
         return v
 
-
 class AgentQueryParams(BaseModel):
     """Query parameters for agent-related endpoints."""
 
@@ -403,7 +397,6 @@ class AgentQueryParams(BaseModel):
         if len(v) != len(set(v)):
             raise ValueError("Duplicate tags found in list")
         return v
-
 
 class AgentBulkActionRequest(BaseModel):
     """Request model for bulk agent operations."""

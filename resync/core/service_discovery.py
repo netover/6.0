@@ -87,24 +87,20 @@ def _inc_counter(counter, **labels) -> None:
     if counter is not None:
         counter.labels(**labels).inc()
 
-
 def _set_gauge(gauge, value: float, **labels) -> None:
     """Safely set a gauge, no-op if not available."""
     if gauge is not None:
         gauge.labels(**labels).set(value)
-
 
 def _dec_gauge(gauge, **labels) -> None:
     """Safely decrement a gauge, no-op if not available."""
     if gauge is not None:
         gauge.labels(**labels).dec()
 
-
 def _observe_histogram(histogram, value: float, **labels) -> None:
     """Safely observe a histogram, no-op if not available."""
     if histogram is not None:
         histogram.labels(**labels).observe(value)
-
 
 def _remove_gauge(gauge, *label_values) -> None:
     """Safely remove a gauge metric, no-op if not available."""
@@ -113,7 +109,6 @@ def _remove_gauge(gauge, *label_values) -> None:
             gauge.remove(*label_values)
         except (KeyError, ValueError):
             pass  # Metric may not exist yet
-
 
 def _get_or_create_metric(factory, name: str, *args, **kwargs):
     """Create metric with fallback for missing prometheus_client."""
@@ -127,7 +122,6 @@ def _get_or_create_metric(factory, name: str, *args, **kwargs):
         if existing is None:
             raise
         return existing
-
 
 # Lazy-initialized metrics (created on first use)
 _prom_registrations = None
@@ -146,7 +140,6 @@ _prom_service_active_connections = None
 _prom_service_circuit_open = None
 _prom_instance_active_connections = None
 _prom_instance_circuit_open = None
-
 
 def _init_prometheus_metrics() -> None:
     """Initialize Prometheus metrics lazily (only when prometheus_client is available)."""
@@ -266,11 +259,9 @@ def _init_prometheus_metrics() -> None:
 # Enums
 # =============================================================================
 
-
 class DiscoveryBackend(str, Enum):
     CONSUL = "consul"
     KUBERNETES = "kubernetes"
-
 
 class ServiceStatus(str, Enum):
     HEALTHY = "healthy"
@@ -278,7 +269,6 @@ class ServiceStatus(str, Enum):
     MAINTENANCE = "maintenance"
     DRAINING = "draining"
     UNKNOWN = "unknown"
-
 
 class LoadBalancingStrategy(str, Enum):
     ROUND_ROBIN = "round_robin"
@@ -288,11 +278,9 @@ class LoadBalancingStrategy(str, Enum):
     LATENCY_BASED = "latency_based"
     GEOGRAPHIC = "geographic"  # placeholder fallback
 
-
 # =============================================================================
 # Settings
 # =============================================================================
-
 
 class ServiceDiscoveryConfig(BaseSettings):
     model_config = SettingsConfigDict(
@@ -349,7 +337,6 @@ class ServiceDiscoveryConfig(BaseSettings):
             out.add(DiscoveryBackend.CONSUL)
         return out
 
-
 def _make_limits(cfg: ServiceDiscoveryConfig) -> httpx.Limits:
     # httpx.Limits controls connection pool sizing
     # (max_connections, keepalive, expiry).
@@ -359,13 +346,11 @@ def _make_limits(cfg: ServiceDiscoveryConfig) -> httpx.Limits:
         keepalive_expiry=cfg.http_keepalive_expiry,
     )
 
-
 # =============================================================================
 # Host validation (IP or hostname)
 # =============================================================================
 
 _HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$")
-
 
 def _is_valid_hostname(host: str) -> bool:
     host = host.rstrip(".")
@@ -381,11 +366,9 @@ def _is_valid_hostname(host: str) -> bool:
             return False
     return True
 
-
 # =============================================================================
 # Models
 # =============================================================================
-
 
 class ServiceInstance(BaseModel):
     model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
@@ -445,7 +428,6 @@ class ServiceInstance(BaseModel):
             score -= min(20.0, float(self.consecutive_failures * 5))
         return max(0.0, score)
 
-
 class ServiceDefinition(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -479,11 +461,9 @@ class ServiceDefinition(BaseModel):
                 raise ValueError("health_check_path deve começar com '/'")
         return self
 
-
 # =============================================================================
 # Backend Interface
 # =============================================================================
-
 
 class DiscoveryBackendInterface(ABC):
     @abstractmethod
@@ -503,11 +483,9 @@ class DiscoveryBackendInterface(ABC):
     @abstractmethod
     async def close(self) -> None: ...
 
-
 # =============================================================================
 # Consul Backend
 # =============================================================================
-
 
 class ConsulBackend(DiscoveryBackendInterface):
     def __init__(
@@ -574,7 +552,12 @@ class ConsulBackend(DiscoveryBackendInterface):
                 return ok
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "consul_register_failed",
@@ -596,7 +579,12 @@ class ConsulBackend(DiscoveryBackendInterface):
                 return ok
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "consul_deregister_failed", service=service_name, error=str(e)
@@ -651,7 +639,12 @@ class ConsulBackend(DiscoveryBackendInterface):
                 return out
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
                     "consul_discover_failed", service=service_name, error=str(e)
@@ -670,15 +663,18 @@ class ConsulBackend(DiscoveryBackendInterface):
             return r.status_code == 200
         except asyncio.CancelledError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("consul_health_failed", error=str(e))
             return False
-
 
 # =============================================================================
 # Kubernetes Backend (optional discovery via Endpoints)
 # =============================================================================
-
 
 class KubernetesBackend(DiscoveryBackendInterface):
     def __init__(
@@ -750,7 +746,12 @@ class KubernetesBackend(DiscoveryBackendInterface):
             return out
         except asyncio.CancelledError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("k8s_discover_failed", service=service_name, error=str(e))
             return []
 
@@ -768,15 +769,18 @@ class KubernetesBackend(DiscoveryBackendInterface):
             return r.status_code == 200
         except asyncio.CancelledError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("k8s_health_failed", error=str(e))
             return False
-
 
 # =============================================================================
 # Service Discovery Manager
 # =============================================================================
-
 
 @injectable
 class ServiceDiscoveryManager:
@@ -1000,7 +1004,12 @@ class ServiceDiscoveryManager:
                 return ""
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _inc_counter(_prom_errors, error_type="registration_exception")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
@@ -1047,7 +1056,12 @@ class ServiceDiscoveryManager:
                 return False
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _inc_counter(_prom_errors, error_type="deregistration_exception")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
@@ -1142,7 +1156,12 @@ class ServiceDiscoveryManager:
                 return insts
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="discovery_exception").inc()
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error("discovery_exception", service=service_name, error=str(e))
@@ -1353,7 +1372,12 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 elapsed = time.monotonic() - start
                 _prom_health_check_duration.labels(
                     service_name=sd.service_name
@@ -1405,8 +1429,14 @@ class ServiceDiscoveryManager:
                         tg.create_task(self._run_with_sem(self._disc_sem, _refresh))
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="discovery_worker_error").inc()
                 logger.error("discovery_worker_error", error=str(e), exc_info=True)
 
@@ -1445,8 +1475,14 @@ class ServiceDiscoveryManager:
                     _prom_service_circuit_open.labels(service_name=svc).set(opened)
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="health_worker_error").inc()
                 logger.error("health_worker_error", error=str(e), exc_info=True)
 
@@ -1468,8 +1504,14 @@ class ServiceDiscoveryManager:
                         tg.create_task(_check())
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="backend_health_worker_error").inc()
                 logger.error("backend_health_worker_error", error=str(e), exc_info=True)
 
@@ -1496,8 +1538,14 @@ class ServiceDiscoveryManager:
                 )
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 _prom_errors.labels(error_type="metrics_worker_error").inc()
                 logger.error("metrics_worker_error", error=str(e), exc_info=True)
 
@@ -1520,13 +1568,36 @@ class ServiceDiscoveryManager:
             },
         }
 
-
 # =============================================================================
 # FastAPI Dependency (antidote)
 # =============================================================================
-
 
 async def get_service_discovery(
     sdm: ServiceDiscoveryManager = inject.me(),
 ) -> ServiceDiscoveryManager:
     return sdm
+
+
+# =============================================================================
+# Alias: startup.py uses get_service_discovery_manager(tg=...)
+# =============================================================================
+_sdm_instance: "ServiceDiscoveryManager | None" = None
+
+
+def get_service_discovery_manager(
+    tg: "asyncio.TaskGroup | None" = None,
+) -> "ServiceDiscoveryManager":
+    """Return (or lazily create) the singleton ServiceDiscoveryManager.
+
+    Args:
+        tg: Optional asyncio TaskGroup for background discovery tasks.
+
+    Returns:
+        The application-wide ServiceDiscoveryManager instance.
+    """
+    global _sdm_instance
+    if _sdm_instance is None:
+        _sdm_instance = ServiceDiscoveryManager()
+    if tg is not None and hasattr(_sdm_instance, "_task_group"):
+        _sdm_instance._task_group = tg  # type: ignore[attr-defined]
+    return _sdm_instance

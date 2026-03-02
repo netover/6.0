@@ -30,7 +30,6 @@ from resync.knowledge.store.feedback_store import (
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class RetrievalResult:
     """Enhanced retrieval result with feedback information."""
@@ -55,7 +54,6 @@ class RetrievalResult:
             "feedback_boost": self.feedback_boost,
             "has_feedback": self.has_feedback,
         }
-
 
 class FeedbackAwareRetriever(Retriever):
     """
@@ -347,7 +345,6 @@ class FeedbackAwareRetriever(Retriever):
         """Get feedback store statistics."""
         return await self.feedback_store.get_statistics()
 
-
 class AdaptiveFeedbackRetriever(FeedbackAwareRetriever):
     """
     Retriever with adaptive feedback weight based on feedback density.
@@ -399,7 +396,6 @@ class AdaptiveFeedbackRetriever(FeedbackAwareRetriever):
         return await super()._apply_feedback_reranking(
             hits, query, query_embedding, user_id
         )
-
 
 # Factory function
 def create_feedback_aware_retriever(

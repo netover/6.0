@@ -3,7 +3,6 @@
 from enum import Enum
 from typing import Any, Protocol
 
-
 class SOC2TrustServiceCriteria(Enum):
     """SOC 2 Trust Service Criteria."""
 
@@ -14,7 +13,6 @@ class SOC2TrustServiceCriteria(Enum):
     )
     CONFIDENTIALITY = "confidentiality"  # Information designated confidential protected
     PRIVACY = "privacy"  # Personal information collected, used, retained appropriately
-
 
 class SOC2ComplianceManagerProtocol(Protocol):
     """Protocol for SOC2 compliance manager."""
@@ -31,7 +29,6 @@ class SOC2ComplianceManagerProtocol(Protocol):
         """Update a compliance record."""
         ...
 
-
 class SOC2ComplianceManager:
     """
     Shared SOC 2 Type II compliance management class.
@@ -39,7 +36,7 @@ class SOC2ComplianceManager:
     This is a shared version used to break circular dependencies.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Basic initialization - full implementation in soc2_compliance.py
         self.config = None
         self.controls = {}

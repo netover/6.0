@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database.models.auth import User, UserRole
 
-
 class UserRepository:
     """
     Repository for user database operations.
@@ -272,9 +271,7 @@ class UserRepository:
 
         return True
 
-
 # Backward compatibility alias
 UserService = UserRepository
-
 
 __all__ = ["UserRepository", "UserService"]

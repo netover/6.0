@@ -23,7 +23,6 @@ from typing import Literal
 
 PromptStyle = Literal["document", "context", "source", "mentioned"]
 
-
 class OpinionBasedPromptFormatter:
     """
     Formats prompts using opinion-based/attribution techniques
@@ -336,11 +335,9 @@ INSTRUCTIONS:
             return f"qual {text}"
         return f"what {text}"
 
-
 # Convenience functions for quick usage
 
 _default_formatter = OpinionBasedPromptFormatter()
-
 
 def format_contextual_query(
     query: str,
@@ -372,7 +369,6 @@ def format_contextual_query(
         query=query, context=context, source_name=source, language=language
     )
 
-
 def format_question_with_attribution(
     question: str, source: str = "the context", language: str = "en"
 ) -> str:
@@ -398,7 +394,6 @@ def format_question_with_attribution(
     return _default_formatter.format_question(
         question=question, source=source, language=language
     )
-
 
 __all__ = [
     "OpinionBasedPromptFormatter",

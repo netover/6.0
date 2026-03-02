@@ -30,13 +30,11 @@ import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from resync.core.structured_logger import get_logger
 from resync.core.task_tracker import track_task
 
 logger = get_logger(__name__)
-
 
 @dataclass
 class CacheStats:
@@ -51,7 +49,7 @@ class CacheStats:
     avg_load_time_ms: float = 0.0
     _load_times: list = field(default_factory=list)
 
-    def record_load(self, duration_ms: float):
+    def record_load(self, duration_ms: float) -> None:
         """Record a cache load operation."""
         self.load_count += 1
         self.last_load = datetime.now(timezone.utc)
@@ -61,7 +59,7 @@ class CacheStats:
             self._load_times = self._load_times[-100:]
         self.avg_load_time_ms = sum(self._load_times) / len(self._load_times)
 
-    def record_invalidation(self):
+    def record_invalidation(self) -> None:
         """Record a cache invalidation."""
         self.invalidation_count += 1
         self.last_invalidation = datetime.now(timezone.utc)
@@ -80,7 +78,6 @@ class CacheStats:
             "avg_load_time_ms": round(self.avg_load_time_ms, 2),
         }
 
-
 class KGCacheManager:
     """
     Manages cache lifecycle for the Knowledge Graph.
@@ -88,7 +85,7 @@ class KGCacheManager:
     Provides TTL-based invalidation and background refresh.
     """
 
-    _instance: Optional["KGCacheManager"] = None
+    _instance: "KGCacheManager" | None = None
 
     def __new__(cls) -> "KGCacheManager":
         """Singleton pattern."""
@@ -96,7 +93,7 @@ class KGCacheManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize cache manager."""
         if hasattr(self, "_initialized"):
             return
@@ -105,8 +102,8 @@ class KGCacheManager:
         self._ttl_seconds: int = 300  # 5 minutes default
         self._last_refresh: datetime | None = None
         self._refresh_task: asyncio.Task | None = None
-        # Lazy initialised — avoids RuntimeError on module import or sync init
-        self._lock: asyncio.Lock | None = None
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        self._lock: asyncio.Lock = asyncio.Lock()
         self._stats = CacheStats()
         self._on_refresh_callbacks: list[Callable[[], Awaitable[None]]] = []
 
@@ -186,9 +183,6 @@ class KGCacheManager:
             self._stats.hit_count += 1
             return False
 
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-
         async with self._lock:
             # Double-check after acquiring lock
             if not force and not self.is_stale():
@@ -218,7 +212,12 @@ class KGCacheManager:
 
                 return True
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("cache_refresh_failed", error=str(e))
                 raise
 
@@ -226,8 +225,6 @@ class KGCacheManager:
         """
         Invalidate the cache, forcing next access to refresh.
         """
-        if self._lock is None:
-            self._lock = asyncio.Lock()
         async with self._lock:
             self._last_refresh = None
             self._stats.record_invalidation()
@@ -280,12 +277,17 @@ class KGCacheManager:
                 await self.refresh(force=True)
 
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("background_refresh_error", error=str(e))
                 # Continue loop even on error
                 await asyncio.sleep(60)  # Wait a bit before retrying
-
 
 # =============================================================================
 # SINGLETON ACCESS
@@ -293,14 +295,12 @@ class KGCacheManager:
 
 _cache_manager: KGCacheManager | None = None
 
-
 def get_cache_manager() -> KGCacheManager:
     """Get or create the singleton cache manager."""
     global _cache_manager
     if _cache_manager is None:
         _cache_manager = KGCacheManager()
     return _cache_manager
-
 
 async def start_cache_refresh_task(
     ttl_seconds: int = 300, auto_register_kg: bool = True
@@ -328,7 +328,6 @@ async def start_cache_refresh_task(
     cache.start_background_refresh()
 
     return cache
-
 
 async def stop_cache_refresh_task() -> None:
     """Stop the cache refresh background task."""

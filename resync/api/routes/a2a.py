@@ -1,6 +1,10 @@
 """A2A (Agent-to-Agent) Protocol Routes.
 
 Implements discovery and JSON-RPC communication for agents.
+
+Critical fixes applied:
+- P2-33: Strengthened agent_id regex to prevent trailing/leading hyphens
+- P2-34: Fixed CancelledError propagation in SSE stream
 """
 
 from __future__ import annotations
@@ -27,8 +31,7 @@ if TYPE_CHECKING:
 
 router = APIRouter(tags=["A2A Protocol"])
 
-
-def check_a2a_enabled():
+def check_a2a_enabled() -> None:
     """Verify if the A2A protocol is enabled in settings."""
     if not settings.a2a_enabled:
         raise HTTPException(
@@ -36,9 +39,11 @@ def check_a2a_enabled():
             detail="A2A Protocol is disabled",
         )
 
-
-AGENT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
-
+# P2-33 fix: Strengthen regex to reject trailing/leading hyphens/underscores
+# Start and end with alphanumeric, allow '_' and '-' only in the middle
+# Accepts: "agent", "agent123", "my_agent", "agent-v2"
+# Rejects: "-agent", "agent-", "__", "--", "agent--id"
+AGENT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
 
 def validate_agent_id(agent_id: str) -> str:
     """Validate agent_id format to prevent injection attacks."""
@@ -48,7 +53,6 @@ def validate_agent_id(agent_id: str) -> str:
             detail="Invalid agent_id format. Only alphanumeric, underscore, and hyphen allowed.",
         )
     return agent_id
-
 
 @router.get("/.well-known/agent.json", response_model=AgentCard)
 async def a2a_well_known_discovery(
@@ -65,7 +69,6 @@ async def a2a_well_known_discovery(
         )
     return card
 
-
 @router.get("/api/v1/a2a/agents", response_model=list[AgentCard])
 async def list_a2a_agents(
     request: Request,
@@ -75,7 +78,6 @@ async def list_a2a_agents(
     check_a2a_enabled()
     base_url = str(request.base_url).rstrip("/")
     return await agent_manager.export_a2a_cards(base_url=base_url)
-
 
 @router.get("/api/v1/a2a/{agent_id}/card", response_model=AgentCard)
 async def get_specific_agent_card(
@@ -95,9 +97,7 @@ async def get_specific_agent_card(
         )
     return card
 
-
 # --- JSON-RPC & SSE Implementation ---
-
 
 @router.post("/api/v1/a2a/{agent_id}/jsonrpc", response_model=JsonRpcResponse)
 async def agent_jsonrpc_endpoint(
@@ -109,7 +109,6 @@ async def agent_jsonrpc_endpoint(
     check_a2a_enabled()
     validate_agent_id(agent_id)
     return await a2a_handler.handle_request(agent_id, request_data)
-
 
 @router.get("/api/v1/a2a/events")
 async def a2a_events_endpoint(
@@ -124,11 +123,25 @@ async def a2a_events_endpoint(
                 try:
                     yield f"data: {json.dumps(event)}\n\n"
                 except (TypeError, ValueError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("event_serialization_failed", error=str(e))
                     continue
         except asyncio.CancelledError:
-            pass
-        except Exception as e:
+            # P2-34 fix: Always re-raise CancelledError for proper cleanup
+            # This ensures client disconnects and task cancellations propagate correctly
+            raise
+            logger.debug("sse_stream_cancelled_by_client")
+            raise
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("event_stream_error", error=str(e))
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

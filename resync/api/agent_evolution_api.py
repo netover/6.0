@@ -16,11 +16,19 @@ Author: Resync Team
 Version: 5.9.9
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
+
+import asyncio
+import json
+import os
+import tempfile
 
 import aiofiles
 import structlog
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 
@@ -41,18 +49,16 @@ JSON_FILE_GLOB = "*.json"
 AGENT_IMPROVEMENTS_DIR = Path("data/agent_improvements")
 SUGGESTION_NOT_FOUND_DETAIL = "Suggestion not found"
 
-
 # =============================================================================
 # Request/Response Models
 # =============================================================================
-
 
 class SubmitFeedbackRequest(BaseModel):
     """Request to submit feedback on agent output."""
 
     agent_name: str  # e.g., "job_analyst"
     task: str  # e.g., "analyze_job:PAYROLL_NIGHTLY"
-    output: dict  # Agent's output
+    output: dict[str, Any]  # Agent's output
     feedback_type: str  # "thumbs_up" | "thumbs_down"
     comment: str | None = None
     job_name: str | None = None
@@ -70,14 +76,12 @@ class SubmitFeedbackRequest(BaseModel):
         }
     )
 
-
 class FeedbackResponse(BaseModel):
     """Response after submitting feedback."""
 
     status: str
     feedback_id: str
     message: str
-
 
 class PatternResponse(BaseModel):
     """Pattern detection response."""
@@ -89,7 +93,6 @@ class PatternResponse(BaseModel):
     confidence: float
     examples: list[str]
     job_pattern: str | None = None
-
 
 class ImprovementResponse(BaseModel):
     """Improvement suggestion response."""
@@ -104,7 +107,6 @@ class ImprovementResponse(BaseModel):
     status: str
     created_at: str
 
-
 class TestResultResponse(BaseModel):
     """Sandbox test result response."""
 
@@ -115,7 +117,6 @@ class TestResultResponse(BaseModel):
     improvement_pct: float
     regressions_detected: list[str]
     safe_to_deploy: bool
-
 
 class PerformanceMetrics(BaseModel):
     """Agent performance metrics."""
@@ -128,11 +129,9 @@ class PerformanceMetrics(BaseModel):
     accuracy: float
     trend: str  # "improving" | "stable" | "degrading"
 
-
 # =============================================================================
 # Endpoints
 # =============================================================================
-
 
 @router.post(
     "/feedback",
@@ -184,14 +183,18 @@ async def submit_feedback(request: SubmitFeedbackRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         # Don't re-raise programming errors - let them propagate to global handler
         logger.error("Failed to collect feedback: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.get(
     "/{agent_name}/patterns",
@@ -221,9 +224,6 @@ async def get_patterns(agent_name: str):
         ]
     """
     try:
-        import json
-        from pathlib import Path
-
         pattern_dir = Path("data/agent_patterns")
         patterns = []
 
@@ -233,7 +233,12 @@ async def get_patterns(agent_name: str):
                     async with aiofiles.open(file_path) as f:
                         data = json.loads(await f.read())
                         patterns.append(PatternResponse(**data))
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -245,13 +250,17 @@ async def get_patterns(agent_name: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to get patterns: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.get(
     "/improvements",
@@ -289,8 +298,6 @@ async def list_improvements(status: str | None = None):
         ]
     """
     try:
-        import json
-
         improvements_dir = AGENT_IMPROVEMENTS_DIR
         improvements = []
 
@@ -305,7 +312,12 @@ async def list_improvements(status: str | None = None):
                             continue
 
                         improvements.append(ImprovementResponse(**data))
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -317,13 +329,17 @@ async def list_improvements(status: str | None = None):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to list improvements: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.post(
     "/improvements/{suggestion_id}/test",
@@ -381,13 +397,17 @@ async def test_improvement(suggestion_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to test improvement: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.post(
     "/improvements/{suggestion_id}/approve",
@@ -462,13 +482,17 @@ async def approve_improvement(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to approve improvement: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.post(
     "/improvements/{suggestion_id}/reject",
@@ -506,13 +530,17 @@ async def reject_improvement(suggestion_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # FIX: Let global exception handler deal with errors properly
         logger.error("Failed to reject improvement: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @router.get(
     "/{agent_name}/performance",
@@ -538,10 +566,6 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
         }
     """
     try:
-        import json
-        from datetime import datetime, timedelta
-        from pathlib import Path
-
         cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
         feedback_dir = Path("data/agent_feedback")
@@ -568,7 +592,12 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
                             positive += 1
                         else:
                             negative += 1
-                except Exception as exc:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.debug(
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
@@ -592,7 +621,12 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
             trend=trend,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -601,17 +635,12 @@ async def get_performance_metrics(agent_name: str, period_days: int = 30):
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
 
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
 
-
 async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
     """Load suggestion from disk."""
-    import json
-    from pathlib import Path
-
     safe_id = Path(suggestion_id).name
     if (
         not safe_id
@@ -630,15 +659,34 @@ async def _load_suggestion(suggestion_id: str) -> ImprovementSuggestion | None:
         async with aiofiles.open(file_path) as f:
             data = json.loads(await f.read())
             return ImprovementSuggestion(**data)
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         return None
 
-
-async def _save_suggestion(suggestion: ImprovementSuggestion):
+async def _save_suggestion(suggestion: ImprovementSuggestion) -> None:
     """Save suggestion to disk."""
     if not AGENT_IMPROVEMENTS_DIR.exists():
         AGENT_IMPROVEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
     file_path = AGENT_IMPROVEMENTS_DIR / f"{suggestion.id}.json"
-    async with aiofiles.open(file_path, "w") as f:
-        await f.write(suggestion.model_dump_json(indent=2))
+    content = suggestion.model_dump_json(indent=2)
+    await asyncio.to_thread(_atomic_write_text, file_path, content)
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+            suffix=".tmp",
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        tmp_path.replace(path)
+    except OSError:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise

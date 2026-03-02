@@ -28,7 +28,6 @@ from resync.knowledge.ingestion.advanced_chunking import (
     count_tokens,
 )
 
-
 def chunk_text(
     text: str, max_tokens: int = 512, overlap_tokens: int = 64
 ) -> Iterator[str]:
@@ -51,7 +50,6 @@ def chunk_text(
 
     # Use the new advanced chunker with recursive strategy
     yield from chunk_text_simple(text, max_tokens, overlap_tokens)
-
 
 def chunk_text_advanced(
     text: str,
@@ -93,7 +91,6 @@ def chunk_text_advanced(
 
     chunker = AdvancedChunker(config)
     return chunker.chunk_document(text, source, document_title)
-
 
 # Export for backward compatibility
 __all__ = [

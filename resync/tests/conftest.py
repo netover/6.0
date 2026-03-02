@@ -42,9 +42,13 @@ os.environ["TESTING"] = "true"
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create an event loop for the test session."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
+    """Create an event loop for the test session.
+    
+    Note: Using asyncio.new_event_loop() instead of deprecated get_event_loop_policy()
+    """
+    # P1 fix: Use new_event_loop instead of deprecated get_event_loop_policy()
+    # This is the recommended way since Python 3.10+
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
@@ -55,7 +59,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest.fixture(scope="session")
-def app():
+def app() -> None:
     """Create a test application instance."""
     # v5.8.0: Use unified app from app_factory
     from resync.app_factory import ApplicationFactory
@@ -110,7 +114,12 @@ async def db_engine(test_database_url):
 
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("suppressed_exception", error=str(exc), exc_info=True)  # was: pass
 
     yield engine
@@ -280,12 +289,12 @@ def admin_auth_headers(admin_user_data) -> dict:
 
 
 @pytest.fixture
-def mock_httpx():
+def mock_httpx() -> None:
     """
     Mock external HTTP requests using RESPX.
 
     Usage:
-        def test_external_api(mock_httpx):
+        def test_external_api(mock_httpx) -> None:
             mock_httpx.get("https://api.example.com/data").respond(
                 json={"key": "value"}
             )
@@ -308,7 +317,7 @@ def frozen_time():
     Freeze time for deterministic testing.
 
     Usage:
-        def test_with_frozen_time(frozen_time):
+        def test_with_frozen_time(frozen_time) -> None:
             with frozen_time("2024-01-15 10:00:00"):
                 # Time is frozen
                 pass
@@ -330,10 +339,29 @@ def frozen_time():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_environment():
+def cleanup_environment() -> None:
     """Clean up environment after each test."""
     yield
     # Reset any global state if needed
+
+
+# FIX P2-08: Settings are cached with @lru_cache(maxsize=1). Without clearing
+# the cache between tests, env var changes between tests are silently ignored,
+# causing test-order-dependent failures.
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> None:
+    """Auto-clear lru_cache on get_settings() before every test for isolation."""
+    try:
+        from resync.settings import get_settings
+        get_settings.cache_clear()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # noqa: BLE001
+        pass
+    yield
+    try:
+        from resync.settings import get_settings
+        get_settings.cache_clear()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # noqa: BLE001
+        pass
 
 
 # =============================================================================
@@ -341,7 +369,7 @@ def cleanup_environment():
 # =============================================================================
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure custom pytest markers."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"

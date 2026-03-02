@@ -14,7 +14,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 class SpecialistType(str, Enum):
     """Types of specialist agents."""
 
@@ -23,7 +22,6 @@ class SpecialistType(str, Enum):
     RESOURCE = "resource"
     KNOWLEDGE = "knowledge"
 
-
 class TeamExecutionMode(str, Enum):
     """Team execution modes for specialist coordination."""
 
@@ -31,7 +29,6 @@ class TeamExecutionMode(str, Enum):
     COLLABORATE = "collaborate"  # Agents work together iteratively
     ROUTE = "route"  # Single best agent handles query
     PARALLEL = "parallel"  # All agents run in parallel
-
 
 class SpecialistConfig(BaseModel):
     """Configuration for a specialist agent."""
@@ -56,7 +53,6 @@ class SpecialistConfig(BaseModel):
     )
 
     model_config = ConfigDict(use_enum_values=True)
-
 
 class SpecialistResponse(BaseModel):
     """Response from a single specialist agent."""
@@ -91,7 +87,6 @@ class SpecialistResponse(BaseModel):
         return self.error is None
 
     model_config = ConfigDict(use_enum_values=True)
-
 
 class TeamResponse(BaseModel):
     """Consolidated response from the specialist team."""
@@ -134,7 +129,6 @@ class TeamResponse(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-
 class TeamConfig(BaseModel):
     """Configuration for the specialist team."""
 
@@ -167,7 +161,6 @@ class TeamConfig(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-
 class QueryClassification(BaseModel):
     """Classification of a user query for routing."""
 
@@ -193,7 +186,6 @@ class QueryClassification(BaseModel):
     )
 
     model_config = ConfigDict(use_enum_values=True)
-
 
 # ============================================================================
 # DEFAULT CONFIGURATIONS

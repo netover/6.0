@@ -28,7 +28,6 @@ KNOWN_DOC_TYPES: set[str] = {
     "unknown",
 }
 
-
 def infer_doc_type(source: str) -> str:
     """Infer a document type from a source name or path.
 
@@ -60,7 +59,6 @@ def infer_doc_type(source: str) -> str:
         return "forum"
 
     return "unknown"
-
 
 def normalize_doc_type(doc_type: str | None) -> str:
     """Normalize doc_type to a known value."""

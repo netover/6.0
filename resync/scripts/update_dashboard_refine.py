@@ -46,7 +46,7 @@ new_add_error = """    async def add_error_sample(self, error: Exception) -> Non
         try:
             snapshot = runtime_metrics.get_snapshot()
             tws_status = snapshot.get("slo", {}).get("tws_connection_success_rate", 0) > 0.5
-        except Exception: pass
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError): pass
 
         sample = MetricSample(
             timestamp=now_wall, datetime_str=dt_str, collection_error=error_msg,
@@ -64,7 +64,7 @@ old_uptime = """    async def get_global_uptime(self) -> float:
             was_set = await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
             raw = await redis.get(REDIS_KEY_START_TIME)
             return now - float(raw or now)
-        except Exception: return 0.0"""
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError): return 0.0"""
 
 new_uptime = """    async def get_global_uptime(self) -> float:
         redis = get_redis_client()
@@ -73,7 +73,7 @@ new_uptime = """    async def get_global_uptime(self) -> float:
             await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
             raw = await redis.get(REDIS_KEY_START_TIME)
             return now - float(raw or now)
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.debug("Falha ao obter uptime global do Redis")
             return 0.0"""
 content = content.replace(old_uptime, new_uptime)
@@ -120,7 +120,6 @@ old_collect = """async def collect_metrics_sample() -> None:
     if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=8, nx=True):
         return
 
-
     try:
         snapshot = runtime_metrics.get_snapshot()"""
 
@@ -144,7 +143,7 @@ content = content.replace(old_collect, new_collect)
 # Original:
 #    try:
 #        ...
-#    except Exception as e:
+#    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
 #        ...
 #        await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
 

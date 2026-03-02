@@ -9,7 +9,6 @@ from pathlib import Path
 RAMP_FILE = Path("config/quality/coverage_ramp.json")
 COVERAGE_XML = Path("coverage.xml")
 
-
 def get_target(ramp: dict) -> float:
     today = date.today()
     target = float(ramp.get("default_min", 0.0))
@@ -18,7 +17,6 @@ def get_target(ramp: dict) -> float:
         if today >= start:
             target = max(target, float(milestone["min"]))
     return max(target, float(ramp.get("non_regression_floor", 0.0)))
-
 
 def main() -> int:
     ramp = json.loads(RAMP_FILE.read_text())
@@ -34,7 +32,6 @@ def main() -> int:
 
     print("Coverage ramp gate passed.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

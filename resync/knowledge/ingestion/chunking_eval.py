@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import orjson
 import structlog
+import asyncio
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -106,9 +108,7 @@ class EvalResult:
     retrieved_relevant: bool = False
     recall_at_k: float = 0.0
     mrr: float = 0.0
-    evaluated_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    evaluated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -120,9 +120,7 @@ class EvalResult:
             "retrieved_chunks": [
                 {
                     "chunk_id": c.chunk_id,
-                    "content": c.content[:200] + "..."
-                    if len(c.content) > 200
-                    else c.content,
+                    "content": c.content[:200] + "..." if len(c.content) > 200 else c.content,
                     "score": c.score,
                     "rank": c.rank,
                 }
@@ -175,9 +173,7 @@ class EvalReport:
     avg_mrr: float = 0.0
     rule_suggestions: list[RuleSuggestion] = field(default_factory=list)
     results: list[EvalResult] = field(default_factory=list)
-    evaluated_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    evaluated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -222,12 +218,7 @@ def detect_failure_slice(
     for chunk in retrieved_chunks:
         content = chunk.content.lower()
         if any((code in content for code in ["aws", "error", "code"])):
-            if not any(
-                (
-                    phrase in content
-                    for phrase in ["cause:", "solution:", "explanation:"]
-                )
-            ):
+            if not any((phrase in content for phrase in ["cause:", "solution:", "explanation:"])):
                 return (
                     FailureSlice.ERROR_CODE_INCOMPLETE,
                     "Error code without complete documentation",
@@ -256,10 +247,7 @@ def detect_failure_slice(
                 )
     if "exception" in expected_answer.lower() or "unless" in expected_answer.lower():
         for chunk in retrieved_chunks:
-            if (
-                "exception" not in chunk.content.lower()
-                and "unless" not in chunk.content.lower()
-            ):
+            if "exception" not in chunk.content.lower() and "unless" not in chunk.content.lower():
                 return (
                     FailureSlice.MISSING_EXCEPTION,
                     "Expected exception/condition not in retrieved chunks",
@@ -280,10 +268,7 @@ def detect_failure_slice(
             stripped = line.strip()
             if stripped and (stripped.startswith(("-", "•", "*")) or stripped[0].isdigit()):
                 if not any(
-                    (
-                        intro in content.lower()
-                        for intro in ["following", "these", "below", "steps"]
-                    )
+                    (intro in content.lower() for intro in ["following", "these", "below", "steps"])
                 ):
                     return (
                         FailureSlice.LIST_ITEM_ORPHANED,
@@ -316,48 +301,38 @@ FAILURE_SLICE_RULES: dict[FailureSlice, dict[str, Any]] = {
     FailureSlice.WRONG_SCOPE_VERSION: {
         "current_rule": "Index all content equally",
         "suggested_rule": (
-            "Add metadata filtering for environment/version; "
-            "boost non-deprecated content"
+            "Add metadata filtering for environment/version; boost non-deprecated content"
         ),
         "impact": "high",
     },
     FailureSlice.LOST_TABLE_HEADER: {
         "current_rule": "Split tables by rows",
         "suggested_rule": (
-            "Keep header + row groups together; add header context "
-            "to each row chunk"
+            "Keep header + row groups together; add header context to each row chunk"
         ),
         "impact": "high",
     },
     FailureSlice.REDUNDANT_OVERLAPS: {
         "current_rule": "Constant token overlap",
-        "suggested_rule": (
-            "Use structure-aware overlap at paragraph/heading "
-            "boundaries only"
-        ),
+        "suggested_rule": ("Use structure-aware overlap at paragraph/heading boundaries only"),
         "impact": "medium",
     },
     FailureSlice.NEEDS_CROSS_SECTION: {
         "current_rule": "Single chunk retrieval",
         "suggested_rule": (
-            "Enable hierarchical chunking; retrieve parent context "
-            "for cross-section queries"
+            "Enable hierarchical chunking; retrieve parent context for cross-section queries"
         ),
         "impact": "high",
     },
     FailureSlice.MISSING_PROCEDURE_STEP: {
         "current_rule": "Split procedures by token count",
-        "suggested_rule": (
-            "Keep complete procedures together; "
-            "split only at step boundaries"
-        ),
+        "suggested_rule": ("Keep complete procedures together; split only at step boundaries"),
         "impact": "high",
     },
     FailureSlice.CODE_WITHOUT_CONTEXT: {
         "current_rule": "Split code blocks independently",
         "suggested_rule": (
-            "Keep code + preceding explanation together; "
-            "add code summary to metadata"
+            "Keep code + preceding explanation together; add code summary to metadata"
         ),
         "impact": "medium",
     },
@@ -368,18 +343,12 @@ FAILURE_SLICE_RULES: dict[FailureSlice, dict[str, Any]] = {
     },
     FailureSlice.DEFINITION_TRUNCATED: {
         "current_rule": "Split at sentence boundaries",
-        "suggested_rule": (
-            "Detect definition patterns and keep complete; "
-            "include examples"
-        ),
+        "suggested_rule": ("Detect definition patterns and keep complete; include examples"),
         "impact": "medium",
     },
     FailureSlice.LIST_ITEM_ORPHANED: {
         "current_rule": "Split lists by items",
-        "suggested_rule": (
-            "Keep list intro + items together; "
-            "add intro context to each item"
-        ),
+        "suggested_rule": ("Keep list intro + items together; add intro context to each item"),
         "impact": "medium",
     },
 }
@@ -398,17 +367,16 @@ def generate_rule_suggestions(results: list[EvalResult]) -> list[RuleSuggestion]
                 failure_slice=slice_type,
                 current_rule=rule_info.get("current_rule", "Unknown"),
                 suggested_rule=rule_info.get("suggested_rule", "Review and adjust"),
-                rationale=(
-                    f"Detected in {result.query_id}: "
-                    f"{result.failure_description}"
-                ),
+                rationale=(f"Detected in {result.query_id}: {result.failure_description}"),
                 affected_queries=1,
                 estimated_impact=rule_info.get("impact", "medium"),
             )
         else:
             suggestions[slice_type].affected_queries += 1
             if suggestions[slice_type].affected_queries <= 3:
-                suggestions[slice_type].rationale += f" | {result.query_id}: {result.failure_description}"
+                suggestions[
+                    slice_type
+                ].rationale += f" | {result.query_id}: {result.failure_description}"
     return sorted(suggestions.values(), key=lambda s: s.affected_queries, reverse=True)
 
 
@@ -478,7 +446,22 @@ class ChunkingEvalPipeline:
                     )
                     for i, r in enumerate(raw_results)
                 ]
-            except Exception as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                RuntimeError,
+                TimeoutError,
+                ConnectionError,
+            ) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "eval_retrieve_failed",
                     extra={"query_id": query_id, "error": str(e)},
@@ -585,11 +568,11 @@ class ChunkingEvalPipeline:
         """Save evaluation report to JSON file asynchronously."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
-        def _save():
+
+        def _save() -> None:
             with open(path, "wb") as f:
                 f.write(orjson.dumps(report.to_dict(), option=orjson.OPT_INDENT_2))
-                
+
         await asyncio.to_thread(_save)
         logger.info("eval_report_saved", extra={"path": str(path)})
 
@@ -614,9 +597,7 @@ class ChunkingEvalPipeline:
                 expected_answer=item["expected_answer"],
                 actual_answer=item.get("actual_answer"),
                 failure_slice=FailureSlice(item.get("failure_slice", "unknown")),
-                failure_severity=FailureSeverity(
-                    item.get("failure_severity", "medium")
-                ),
+                failure_severity=FailureSeverity(item.get("failure_severity", "medium")),
                 failure_description=item.get("failure_description", ""),
                 relevant_chunk_ids=item.get("relevant_chunk_ids", []),
                 retrieved_relevant=item.get("retrieved_relevant", False),

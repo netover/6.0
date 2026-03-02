@@ -4,7 +4,6 @@ Métricas do sistema de idempotency.
 
 from dataclasses import dataclass
 
-
 @dataclass
 class IdempotencyMetrics:
     """Métricas do sistema de idempotency"""

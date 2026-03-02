@@ -9,7 +9,7 @@ from pydantic import StringConstraints as PydanticStringConstraints
 
 try:
     import email_validator as _email_validator  # noqa: F401
-except Exception:  # pragma: no cover - optional dependency
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover - optional dependency
     EMAIL_VALIDATOR_AVAILABLE = False
     EmailType = str
 else:
@@ -20,7 +20,6 @@ else:
 
 from .common import BaseValidatedModel
 
-
 class AuthProvider(str, Enum):
     """Supported authentication providers."""
 
@@ -29,14 +28,12 @@ class AuthProvider(str, Enum):
     OAUTH2 = "oauth2"
     SAML = "saml"
 
-
 class TokenType(str, Enum):
     """Token types."""
 
     ACCESS = "access"
     REFRESH = "refresh"
     API_KEY = "api_key"
-
 
 class UserRole(str, Enum):
     """User roles."""
@@ -45,7 +42,6 @@ class UserRole(str, Enum):
     USER = "user"
     GUEST = "guest"
     SERVICE = "service"
-
 
 class LoginRequest(BaseValidatedModel):
     """Login request validation model."""
@@ -126,7 +122,6 @@ class LoginRequest(BaseValidatedModel):
             raise ValueError("Password contains sequential characters")
         return v
 
-
 class TokenRequest(BaseValidatedModel):
     """Token request validation model."""
 
@@ -204,7 +199,6 @@ class TokenRequest(BaseValidatedModel):
             )
         return v
 
-
 class PasswordChangeRequest(BaseValidatedModel):
     """Password change request validation model."""
 
@@ -254,7 +248,6 @@ class PasswordChangeRequest(BaseValidatedModel):
         if new_password and v != new_password:
             raise ValueError("Passwords do not match")
         return v
-
 
 class UserRegistrationRequest(BaseValidatedModel):
     """User registration request validation model."""
@@ -384,7 +377,6 @@ class UserRegistrationRequest(BaseValidatedModel):
             raise ValueError("Password contains sequential characters")
         return v
 
-
 class TokenRefreshRequest(BaseValidatedModel):
     """Token refresh request validation model."""
 
@@ -397,7 +389,6 @@ class TokenRefreshRequest(BaseValidatedModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-
 
 class LogoutRequest(BaseValidatedModel):
     """Logout request validation model."""
@@ -413,7 +404,6 @@ class LogoutRequest(BaseValidatedModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-
 
 class APIKeyRequest(BaseValidatedModel):
     """API key request validation model."""
@@ -467,7 +457,6 @@ class APIKeyRequest(BaseValidatedModel):
             if not scope.replace(":", "").replace("-", "").replace("_", "").isalnum():
                 raise ValueError(f"Invalid scope format: {scope}")
         return v
-
 
 class MFARequest(BaseValidatedModel):
     """Multi-factor authentication request validation model."""

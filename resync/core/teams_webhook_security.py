@@ -8,7 +8,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 def verify_teams_hmac_signature(
     request_body: bytes, signature: str, security_token: str
 ) -> bool:
@@ -46,13 +45,17 @@ def verify_teams_hmac_signature(
 
         return is_valid
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("hmac_verification_error", error=str(e))
         return False
-
 
 def extract_bearer_token(authorization_header: str | None) -> str | None:
     """

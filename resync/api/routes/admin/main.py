@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 import aiofiles
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -34,7 +36,6 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 teams_integration_dependency = Depends(get_teams_integration)
 tws_client_dependency = Depends(get_tws_client)
 PRODUCTION_SETTINGS_FILE = "settings.production.toml"
-
 
 class TeamsConfigUpdate(BaseModel):
     """Teams configuration update model."""
@@ -62,7 +63,6 @@ class TeamsConfigUpdate(BaseModel):
         None, description="Types of notifications to send"
     )
 
-
 class AdminConfigResponse(BaseModel):
     """Admin configuration response model."""
 
@@ -78,7 +78,6 @@ class AdminConfigResponse(BaseModel):
         description="Last update timestamp",
     )
 
-
 class TeamsHealthResponse(BaseModel):
     """Teams integration health check response."""
 
@@ -90,9 +89,18 @@ class TeamsHealthResponse(BaseModel):
         description="Health check timestamp",
     )
 
-
-@admin_router.get("/", response_class=HTMLResponse, summary="Admin Dashboard")
-@admin_router.get("", response_class=HTMLResponse, summary="Admin Dashboard")
+@admin_router.get(
+    "/",
+    response_class=HTMLResponse,
+    summary="Admin Dashboard",
+    dependencies=[Depends(verify_admin_credentials)],
+)
+@admin_router.get(
+    "",
+    response_class=HTMLResponse,
+    summary="Admin Dashboard",
+    dependencies=[Depends(verify_admin_credentials)],
+)
 async def admin_dashboard(request: Request) -> HTMLResponse:
     """Serve the admin configuration dashboard.
 
@@ -107,7 +115,12 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
         templates_dir = Path(settings.BASE_DIR) / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
         return templates.TemplateResponse(request, "admin.html")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -116,7 +129,6 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to render admin dashboard",
         ) from e
-
 
 @admin_router.get(
     "/api-keys",
@@ -137,7 +149,12 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
         templates_dir = Path(settings.BASE_DIR) / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
         return templates.TemplateResponse(request, "api_keys_admin.html")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to render API keys admin page: %s", e, exc_info=True)
@@ -145,7 +162,6 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to render API keys admin page",
         ) from e
-
 
 @admin_router.get(
     "/config",
@@ -201,7 +217,12 @@ async def get_admin_config(
             last_updated=datetime.now(timezone.utc).isoformat(),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -210,7 +231,6 @@ async def get_admin_config(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get configuration. Check server logs for details.",
         ) from e
-
 
 @admin_router.put(
     "/config/teams",
@@ -286,7 +306,12 @@ async def update_teams_config(
             last_updated=datetime.now(timezone.utc).isoformat(),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -295,7 +320,6 @@ async def update_teams_config(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update configuration. Check server logs for details.",
         ) from e
-
 
 @admin_router.get(
     "/config/teams/health",
@@ -315,7 +339,12 @@ async def get_teams_health(
         return TeamsHealthResponse(
             status=health_status, timestamp=datetime.now(timezone.utc).isoformat()
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -324,7 +353,6 @@ async def get_teams_health(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get Teams health status. Check server logs for details.",
         ) from e
-
 
 @admin_router.post(
     "/config/teams/test-notification",
@@ -369,7 +397,12 @@ async def test_teams_notification(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -378,7 +411,6 @@ async def test_teams_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send test notification. Check server logs for details.",
         ) from e
-
 
 @admin_router.get(
     "/status",
@@ -404,7 +436,12 @@ async def get_admin_status(
                 else _conn_result
             )
             tws_status = "connected" if tws_connected else "disconnected"
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("exception_caught: %s", str(e), exc_info=True)
             tws_status = "error"
 
@@ -426,7 +463,12 @@ async def get_admin_status(
             "version": getattr(settings, "PROJECT_VERSION", "unknown"),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -436,11 +478,9 @@ async def get_admin_status(
             detail="Failed to get system status. Check server logs for details.",
         ) from e
 
-
 # ============================================================================
 # NEW ADMINISTRATIVE ENDPOINTS - Added for production readiness v5.1
 # ============================================================================
-
 
 class TWSConfigUpdate(BaseModel):
     """TWS configuration update model."""
@@ -455,7 +495,6 @@ class TWSConfigUpdate(BaseModel):
     monitored_instances: list[str] | None = Field(
         None, description="List of monitored TWS instances"
     )
-
 
 class SystemConfigUpdate(BaseModel):
     """System configuration update model."""
@@ -477,7 +516,6 @@ class SystemConfigUpdate(BaseModel):
     rate_limit_requests: int | None = Field(
         None, ge=1, description="Max requests per period"
     )
-
 
 @admin_router.put(
     "/config/tws",
@@ -519,7 +557,12 @@ async def update_tws_config(
         teams = get_teams_integration()
         return await get_admin_config(request, teams)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -528,7 +571,6 @@ async def update_tws_config(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update TWS configuration. Check server logs for details.",
         ) from e
-
 
 @admin_router.put(
     "/config/system",
@@ -572,7 +614,12 @@ async def update_system_config(
         teams = get_teams_integration()
         return await get_admin_config(request, teams)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -584,7 +631,6 @@ async def update_system_config(
                 "Check server logs for details."
             ),
         ) from e
-
 
 @admin_router.get(
     "/logs",
@@ -642,7 +688,12 @@ async def get_system_logs(
             "log_file": str(log_file),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -651,7 +702,6 @@ async def get_system_logs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve logs. Check server logs for details.",
         ) from e
-
 
 @admin_router.post(
     "/cache/clear",
@@ -683,7 +733,12 @@ async def clear_cache(
                     await redis_client.flushdb()
                     cleared.append("redis")
                     logger.info("Redis cache cleared")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Failed to clear Redis cache: %s", e)
 
         if cache_type in ("all", "memory"):
@@ -697,7 +752,12 @@ async def clear_cache(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -706,7 +766,6 @@ async def clear_cache(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to clear cache. Check server logs for details.",
         ) from e
-
 
 @admin_router.post(
     "/backup",
@@ -738,7 +797,12 @@ async def create_backup(request: Request) -> dict[str, Any]:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -747,7 +811,6 @@ async def create_backup(request: Request) -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create backup. Check server logs for details.",
         ) from e
-
 
 @admin_router.get(
     "/backups",
@@ -782,7 +845,12 @@ async def list_backups(request: Request) -> dict[str, Any]:
             "count": len(backup_info),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -791,7 +859,6 @@ async def list_backups(request: Request) -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list backups. Check server logs for details.",
         ) from e
-
 
 @admin_router.post(
     "/restore/{backup_filename}",
@@ -844,7 +911,12 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -854,11 +926,9 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
             detail="Failed to restore backup. Check server logs for details.",
         ) from e
 
-
 # ============================================================================
 # SYSTEM HEALTH & AUDIT ENDPOINTS - Added for admin dashboard integration
 # ============================================================================
-
 
 class ComponentHealth(BaseModel):
     """Individual component health status."""
@@ -873,7 +943,6 @@ class ComponentHealth(BaseModel):
         description="Last health check timestamp",
     )
 
-
 class SystemHealthResponse(BaseModel):
     """Complete system health response."""
 
@@ -885,7 +954,6 @@ class SystemHealthResponse(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="Health check timestamp",
     )
-
 
 @admin_router.get(
     "/health",
@@ -924,7 +992,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
             latency_ms=round(latency, 2),
             message="SQLite connected",
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         overall_healthy = False
         components["database"] = ComponentHealth(
             status="unhealthy",
@@ -952,7 +1025,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 status="degraded",
                 message="Redis not configured",
             )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         overall_healthy = False
         components["redis"] = ComponentHealth(
             status="unhealthy",
@@ -994,7 +1072,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 status="degraded",
                 message="LLM endpoint not configured",
             )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         components["llm"] = ComponentHealth(
             status="unhealthy",
             message=f"LLM error: {str(e)[:100]}",
@@ -1049,7 +1132,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                     status="degraded",
                     message="RAG not configured (pgvector or RAG_SERVICE_URL)",
                 )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         components["rag"] = ComponentHealth(
             status="degraded",
             message=f"RAG check failed: {str(e)[:50]}",
@@ -1070,7 +1158,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
             latency_ms=round(latency, 2),
             message="Enabled" if teams_enabled else "Disabled",
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         components["teams"] = ComponentHealth(
             status="degraded",
             message=f"Teams check failed: {str(e)[:50]}",
@@ -1095,7 +1188,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 status="degraded",
                 message="TWS not connected",
             )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         components["tws"] = ComponentHealth(
             status="degraded",
             message=f"TWS: {str(e)[:50]}",
@@ -1120,7 +1218,6 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
         components=components,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
-
 
 @admin_router.get(
     "/audit",
@@ -1174,7 +1271,12 @@ async def get_admin_audit_logs(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

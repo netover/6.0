@@ -6,6 +6,7 @@ This module provides utilities for collecting and managing performance metrics
 across different system components for health monitoring purposes.
 """
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -16,7 +17,6 @@ import structlog
 from resync.core.connection_pool_manager import get_advanced_connection_pool_manager
 
 logger = structlog.get_logger(__name__)
-
 
 class PerformanceMetricsCollector:
     """
@@ -32,9 +32,57 @@ class PerformanceMetricsCollector:
         self._last_collection_time: datetime | None = None
         self._cached_metrics: dict[str, Any] | None = None
 
+    async def get_system_performance_metrics_async(self) -> dict[str, Any]:
+        """Get current system performance metrics without blocking the event loop.
+
+        psutil.cpu_percent(interval=1) sleeps for 1 second to measure CPU usage.
+        Running it directly on the event loop would stall all in-flight coroutines.
+        We offload it to the default thread-pool executor via asyncio.to_thread().
+        """
+
+        def _blocking_collect() -> dict[str, Any]:
+            # cpu_percent(interval=1) blocks for 1 s — acceptable inside thread pool.
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            process = psutil.Process()
+            process_memory_mb = process.memory_info().rss / (1024**2)
+            return {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_used_gb": memory.used / (1024**3),
+                "memory_available_gb": memory.available / (1024**3),
+                "memory_total_gb": memory.total / (1024**3),
+                "process_memory_mb": process_memory_mb,
+                "timestamp": time.time(),
+                "collection_time": datetime.now(timezone.utc).isoformat(),
+            }
+
+        try:
+            return await asyncio.to_thread(_blocking_collect)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+                raise
+            logger.warning("failed_to_get_system_performance_metrics", error=str(e))
+            return {
+                "error": str(e),
+                "timestamp": time.time(),
+                "collection_time": datetime.now(timezone.utc).isoformat(),
+            }
+
     def get_system_performance_metrics(self) -> dict[str, Any]:
         """
         Get current system performance metrics.
+
+        .. deprecated::
+            Use ``get_system_performance_metrics_async()`` from an async context.
+            This synchronous version blocks the event loop due to
+            ``psutil.cpu_percent(interval=1)`` and should only be called from
+            non-async callers (e.g. CLI scripts).
 
         Returns:
             Dictionary containing system performance metrics
@@ -59,7 +107,12 @@ class PerformanceMetricsCollector:
                 "collection_time": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -83,7 +136,12 @@ class PerformanceMetricsCollector:
                 return await pool_manager.get_performance_metrics()
             return {"error": "Advanced connection pool manager not available"}
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -99,7 +157,7 @@ class PerformanceMetricsCollector:
         """
         try:
             # Collect system metrics
-            system_metrics = self.get_system_performance_metrics()
+            system_metrics = await self.get_system_performance_metrics_async()
 
             # Collect connection pool metrics
             pool_metrics = await self.get_connection_pool_metrics()
@@ -121,7 +179,12 @@ class PerformanceMetricsCollector:
 
             return comprehensive_metrics
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -234,7 +297,12 @@ class PerformanceMetricsCollector:
 
             return summary
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

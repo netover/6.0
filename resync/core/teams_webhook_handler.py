@@ -7,11 +7,10 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class TeamsWebhookHandler:
     """Processa mensagens recebidas do Teams."""
 
-    def __init__(self, agent_manager, permissions_manager):
+    def __init__(self, agent_manager, permissions_manager) -> None:
         self.agent_manager = agent_manager
         self.permissions_manager = permissions_manager
 
@@ -107,7 +106,12 @@ class TeamsWebhookHandler:
             answer = self._extract_answer(response)
             return self._format_response(answer, command_type, permission["role"])
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("query_processing_error", error=str(e))
             return f"❌ Erro ao processar solicitação: {str(e)[:200]}"
 
@@ -140,3 +144,8 @@ Olá {user_name}, você não tem permissão para executar comandos.
 Para obter permissões de execução, entre em contato com o administrador do sistema.
 
 _Você ainda pode fazer consultas normalmente!_"""
+
+async def send_teams_message(message: str, webhook_url: str = "", **kwargs) -> bool:
+    """Convenience wrapper: send a plain-text Teams message."""
+    handler = TeamsWebhookHandler(webhook_url=webhook_url or "")
+    return await handler.send_message(message, **kwargs)

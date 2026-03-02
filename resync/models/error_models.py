@@ -7,7 +7,6 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 class ErrorCategory(str, Enum):
     """Error category enumeration for consistent error classification."""
 
@@ -19,7 +18,6 @@ class ErrorCategory(str, Enum):
     EXTERNAL_SERVICE = "EXTERNAL_SERVICE"
     RATE_LIMIT = "RATE_LIMIT"
 
-
 class ErrorSeverity(str, Enum):
     """Error severity levels for prioritization and handling."""
 
@@ -27,7 +25,6 @@ class ErrorSeverity(str, Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
-
 
 class BaseErrorResponse(BaseModel):
     """Base error response model with common fields."""
@@ -62,7 +59,6 @@ class BaseErrorResponse(BaseModel):
         json_encoders={datetime: lambda v: v.isoformat()},
     )
 
-
 class ValidationErrorDetail(BaseModel):
     """Detailed validation error information."""
 
@@ -72,7 +68,6 @@ class ValidationErrorDetail(BaseModel):
     location: str | None = Field(
         None, description="Location of the field (body, query, path, header)"
     )
-
 
 class ValidationErrorResponse(BaseErrorResponse):
     """Error response model for validation errors with detailed field information."""
@@ -121,7 +116,6 @@ class ValidationErrorResponse(BaseErrorResponse):
             troubleshooting_hints=["Check field requirements", "Verify data types"],
             stack_trace=None,
         )
-
 
 class AuthenticationErrorResponse(BaseErrorResponse):
     """Error response model for authentication errors."""
@@ -188,7 +182,6 @@ class AuthenticationErrorResponse(BaseErrorResponse):
             ],
             stack_trace=None,
         )
-
 
 class AuthorizationErrorResponse(BaseErrorResponse):
     """Error response model for authorization errors."""
@@ -282,7 +275,6 @@ class AuthorizationErrorResponse(BaseErrorResponse):
             stack_trace=None,
         )
 
-
 class BusinessLogicErrorResponse(BaseErrorResponse):
     """Error response model for business logic errors."""
 
@@ -363,7 +355,6 @@ class BusinessLogicErrorResponse(BaseErrorResponse):
             stack_trace=None,
         )
 
-
 class SystemErrorResponse(BaseErrorResponse):
     """Error response model for system/internal errors."""
 
@@ -440,7 +431,6 @@ class SystemErrorResponse(BaseErrorResponse):
             stack_trace=None,
         )
 
-
 class ExternalServiceErrorResponse(BaseErrorResponse):
     """Error response model for external service errors."""
 
@@ -481,7 +471,6 @@ class ExternalServiceErrorResponse(BaseErrorResponse):
             http_status=http_status,
             stack_trace=None,
         )
-
 
 class RateLimitErrorResponse(BaseErrorResponse):
     """Error response model for rate limiting errors."""
@@ -543,7 +532,6 @@ class RateLimitErrorResponse(BaseErrorResponse):
             reset_time=reset_time,
             stack_trace=None,
         )
-
 
 # Export all error response models
 __all__ = [

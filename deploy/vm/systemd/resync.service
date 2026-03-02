@@ -1,0 +1,24 @@
+[Unit]
+Description=Resync FastAPI Service
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=resync
+Group=resync
+WorkingDirectory=/opt/resync
+EnvironmentFile=/etc/resync/resync.env
+ExecStart=/opt/resync/.venv/bin/gunicorn resync.main:app --bind 0.0.0.0:8000 --workers ${WEB_CONCURRENCY:-4} --worker-class uvicorn_worker.UvicornWorker --timeout ${GUNICORN_TIMEOUT:-60} --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT:-30} --keep-alive ${GUNICORN_KEEPALIVE:-5}
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/resync /var/log/resync
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

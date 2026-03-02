@@ -35,11 +35,9 @@ from .tools import (
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # TOOL REQUEST/RESPONSE
 # =============================================================================
-
 
 @dataclass
 class ToolRequest:
@@ -55,7 +53,6 @@ class ToolRequest:
 
     # Original position (for reordering)
     original_index: int = 0
-
 
 @dataclass
 class ToolResponse:
@@ -78,7 +75,6 @@ class ToolResponse:
     risk_level: RiskLevel = RiskLevel.LOW
     can_undo: bool = False
 
-
 class ExecutionStrategy(str, Enum):
     """Strategy for executing tool requests."""
 
@@ -86,11 +82,9 @@ class ExecutionStrategy(str, Enum):
     SERIAL = "serial"  # All tools run sequentially
     SMART = "smart"  # Read-only parallel, stateful serial
 
-
 # =============================================================================
 # PARALLEL EXECUTOR
 # =============================================================================
-
 
 class ParallelToolExecutor:
     """
@@ -250,7 +244,12 @@ class ParallelToolExecutor:
             try:
                 resp = await self._execute_single(req)
                 responses.append(resp)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 responses.append(
                     ToolResponse(
                         request_id=req.request_id,
@@ -341,7 +340,12 @@ class ParallelToolExecutor:
                 risk_level=risk_level,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             self.catalog.update_run_status(
                 run.run_id,
                 ToolRunStatus.ERROR,
@@ -368,14 +372,11 @@ class ParallelToolExecutor:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: func(**params))
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
-
 _executor: ParallelToolExecutor | None = None
-
 
 def get_parallel_executor() -> ParallelToolExecutor:
     """Get the global parallel executor instance."""
@@ -383,7 +384,6 @@ def get_parallel_executor() -> ParallelToolExecutor:
     if _executor is None:
         _executor = ParallelToolExecutor()
     return _executor
-
 
 async def execute_tools_parallel(
     tool_requests: list[dict[str, Any]],

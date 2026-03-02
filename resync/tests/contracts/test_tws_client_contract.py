@@ -21,7 +21,7 @@ from resync.settings import settings
 
 
 @pytest.fixture
-def isolated_settings():
+def isolated_settings() -> None:
     """Provide isolated settings for each test to avoid race conditions."""
     original_retry_total = settings.tws_retry_total
     original_backoff_base = settings.tws_retry_backoff_base

@@ -21,7 +21,6 @@ from .base_health_checker import BaseHealthChecker
 
 logger = structlog.get_logger(__name__)
 
-
 class RedisHealthChecker(BaseHealthChecker):
     """
     Health checker for Redis cache connectivity and performance.
@@ -113,7 +112,12 @@ class RedisHealthChecker(BaseHealthChecker):
                 )
             # No finally block needed as we don't close the shared pool
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             response_time = (time.time() - start_time) * 1000
             logger.error("redis_health_check_failed", error=str(e))
             return ComponentHealth(

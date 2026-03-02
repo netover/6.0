@@ -18,11 +18,9 @@ _user_id_ctx: ContextVar[str | None] = ContextVar("user_id", default=None)
 _request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
 _trace_id_ctx: ContextVar[str | None] = ContextVar("trace_id", default=None)
 
-
 # ============================================================================
 # CORRELATION ID
 # ============================================================================
-
 
 def set_correlation_id(correlation_id: str) -> Token[str | None]:
     """Define o Correlation ID para o contexto atual.
@@ -35,7 +33,6 @@ def set_correlation_id(correlation_id: str) -> Token[str | None]:
     """
     return _correlation_id_ctx.set(correlation_id)
 
-
 def get_correlation_id() -> str | None:
     """Obtém o Correlation ID do contexto atual.
 
@@ -43,7 +40,6 @@ def get_correlation_id() -> str | None:
         Correlation ID se disponível, None caso contrário
     """
     return _correlation_id_ctx.get()
-
 
 def get_or_create_correlation_id() -> str:
     """Obtém ou cria um novo Correlation ID.
@@ -59,7 +55,6 @@ def get_or_create_correlation_id() -> str:
         set_correlation_id(correlation_id)
     return correlation_id
 
-
 def reset_correlation_id(token: Token[str | None]) -> None:
     """Reseta o Correlation ID para o valor anterior.
 
@@ -68,16 +63,13 @@ def reset_correlation_id(token: Token[str | None]) -> None:
     """
     _correlation_id_ctx.reset(token)
 
-
 def clear_correlation_id() -> None:
     """Limpa o Correlation ID do contexto."""
     _correlation_id_ctx.set(None)
 
-
 # ============================================================================
 # USER ID
 # ============================================================================
-
 
 def set_user_id(user_id: str) -> Token[str | None]:
     """Define o User ID para o contexto atual.
@@ -90,7 +82,6 @@ def set_user_id(user_id: str) -> Token[str | None]:
     """
     return _user_id_ctx.set(user_id)
 
-
 def get_user_id() -> str | None:
     """Obtém o User ID do contexto atual.
 
@@ -99,11 +90,9 @@ def get_user_id() -> str | None:
     """
     return _user_id_ctx.get()
 
-
 def clear_user_id() -> None:
     """Limpa o User ID do contexto."""
     _user_id_ctx.set(None)
-
 
 def reset_user_id(token: Token[str | None]) -> None:
     """Reseta o User ID para o valor anterior.
@@ -113,11 +102,9 @@ def reset_user_id(token: Token[str | None]) -> None:
     """
     _user_id_ctx.reset(token)
 
-
 # ============================================================================
 # REQUEST ID
 # ============================================================================
-
 
 def set_request_id(request_id: str) -> Token[str | None]:
     """Define o Request ID para o contexto atual.
@@ -130,7 +117,6 @@ def set_request_id(request_id: str) -> Token[str | None]:
     """
     return _request_id_ctx.set(request_id)
 
-
 def get_request_id() -> str | None:
     """Obtém o Request ID do contexto atual.
 
@@ -138,7 +124,6 @@ def get_request_id() -> str | None:
         Request ID se disponível, None caso contrário
     """
     return _request_id_ctx.get()
-
 
 def get_or_create_request_id() -> str:
     """Obtém ou cria um novo Request ID.
@@ -152,11 +137,9 @@ def get_or_create_request_id() -> str:
         set_request_id(request_id)
     return request_id
 
-
 def clear_request_id() -> None:
     """Limpa o Request ID do contexto."""
     _request_id_ctx.set(None)
-
 
 def reset_request_id(token: Token[str | None]) -> None:
     """Reseta o Request ID para o valor anterior.
@@ -166,11 +149,9 @@ def reset_request_id(token: Token[str | None]) -> None:
     """
     _request_id_ctx.reset(token)
 
-
 # ============================================================================
 # TRACE ID
 # ============================================================================
-
 
 def set_trace_id(trace_id: str) -> Token[str | None]:
     """Define o Trace ID para o contexto atual.
@@ -183,7 +164,6 @@ def set_trace_id(trace_id: str) -> Token[str | None]:
     """
     return _trace_id_ctx.set(trace_id)
 
-
 def get_trace_id() -> str | None:
     """Obtém o Trace ID do contexto atual.
 
@@ -191,7 +171,6 @@ def get_trace_id() -> str | None:
         Trace ID se disponível, None caso contrário
     """
     return _trace_id_ctx.get()
-
 
 def get_or_create_trace_id() -> str:
     """Obtém ou cria um novo Trace ID.
@@ -211,7 +190,6 @@ def get_or_create_trace_id() -> str:
         set_trace_id(trace_id)
     return trace_id
 
-
 def reset_trace_id(token: Token[str | None]) -> None:
     """Reseta o Trace ID para o valor anterior.
 
@@ -220,16 +198,13 @@ def reset_trace_id(token: Token[str | None]) -> None:
     """
     _trace_id_ctx.reset(token)
 
-
 def clear_trace_id() -> None:
     """Limpa o Trace ID do contexto."""
     _trace_id_ctx.set(None)
 
-
 # ============================================================================
 # CONTEXT MANAGEMENT
 # ============================================================================
-
 
 def clear_context() -> None:
     """Limpa todo o contexto da requisição.
@@ -240,7 +215,6 @@ def clear_context() -> None:
     clear_user_id()
     clear_request_id()
     clear_trace_id()
-
 
 def get_context_dict() -> dict:
     """Retorna um dicionário com todo o contexto atual.
@@ -254,7 +228,6 @@ def get_context_dict() -> dict:
         "request_id": get_request_id(),
         "trace_id": get_trace_id(),
     }
-
 
 class RequestContext:
     """Context manager para gerenciar contexto de requisição.
@@ -318,7 +291,6 @@ class RequestContext:
             elif ctx_name == "trace_id":
                 reset_trace_id(token)
         return False
-
 
 __all__ = [
     # Correlation ID

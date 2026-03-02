@@ -19,7 +19,6 @@ from resync.core.logger import log_with_correlation
 
 logger = logging.getLogger(__name__)
 
-
 class CORSOperation(str, Enum):
     """Enum for different CORS operations."""
 
@@ -27,11 +26,10 @@ class CORSOperation(str, Enum):
     REQUEST = "request"
     VIOLATION = "violation"
 
-
 class CORSMonitor:
     """Monitor and log CORS-related activities."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.violations = deque(maxlen=1000)
         self.allowed_origins = set()
         self.blocked_origins = set()
@@ -168,7 +166,6 @@ class CORSMonitor:
         self.allowed_origins.clear()
         self.blocked_origins.clear()
 
-
 class CORSLogEntry(BaseModel):
     """Model for CORS log entries."""
 
@@ -183,7 +180,6 @@ class CORSLogEntry(BaseModel):
     is_violation: bool = False
     details: str | None = ""
 
-
 def monitor_cors() -> CORSMonitor:
     """
     Create and return a CORS monitor instance.
@@ -192,7 +188,6 @@ def monitor_cors() -> CORSMonitor:
         CORSMonitor instance for monitoring CORS activities
     """
     return CORSMonitor()
-
 
 class CORSMonitoringMiddleware:
     """
@@ -250,7 +245,12 @@ class CORSMonitoringMiddleware:
                         request.method,
                         request.headers.get("access-control-request-headers", ""),
                     )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("exception_caught", exc_info=True, extra={"error": str(e)})
                 self.cors_monitor.log_violation(
                     origin,

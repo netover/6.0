@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 @dataclass
 class CachedResponse:
     """
@@ -59,7 +58,6 @@ class CachedResponse:
     cache_lookup_ms: float = 0.0
     llm_call_ms: float = 0.0
     metadata: dict[str, Any] | None = None
-
 
 # TTL classification patterns
 _TTL_PATTERNS = {
@@ -109,7 +107,6 @@ _TTL_PATTERNS = {
     ],
 }
 
-
 def classify_ttl(query: str) -> int | None:
     """
     Classify query to determine appropriate TTL.
@@ -136,7 +133,6 @@ def classify_ttl(query: str) -> int | None:
 
     # Default: 24 hours
     return 86400
-
 
 async def cached_llm_call(
     query: str,
@@ -211,7 +207,12 @@ async def cached_llm_call(
                     },
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Cache lookup failed, proceeding to LLM: %s", e)
 
     # Cache miss or cache disabled - call LLM
@@ -220,13 +221,18 @@ async def cached_llm_call(
         response = await llm_func(*args, **kwargs)
         llm_call_ms = (time.perf_counter() - llm_start) * 1000
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("LLM call failed: %s", e)
         raise
 
     # Store in cache for future (async, don't wait)
     if cache_enabled and effective_ttl:
-        await create_tracked_task(
+        create_tracked_task(
             _store_in_cache(
                 query=query,
                 response=response,
@@ -261,7 +267,6 @@ async def cached_llm_call(
         },
     )
 
-
 async def _store_in_cache(
     query: str,
     response: str,
@@ -274,12 +279,16 @@ async def _store_in_cache(
         if cache is None:
             cache = await get_semantic_cache()
         await cache.set(query, response, ttl=ttl, metadata=metadata)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.warning("Failed to store response in cache: %s", e)
-
 
 def with_semantic_cache(
     query_param: str = "query",
@@ -338,7 +347,6 @@ def with_semantic_cache(
         return wrapper
 
     return decorator
-
 
 class CachedLLMService:
     """
@@ -449,7 +457,6 @@ class CachedLLMService:
         """Proxy all other attributes to wrapped service."""
         return getattr(self._service, name)
 
-
 # Convenience function for one-off cached calls
 async def query_with_cache(
     query: str,
@@ -485,10 +492,8 @@ async def query_with_cache(
     )
     return result.content
 
-
 # Backward compatibility alias
 LLMCacheWrapper = CachedLLMService
-
 
 __all__ = [
     "CachedResponse",

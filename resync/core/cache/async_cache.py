@@ -28,7 +28,7 @@ import contextlib
 import logging
 from dataclasses import dataclass
 from time import time
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 from resync.core.metrics import runtime_metrics
 from resync.core.task_tracker import track_task
@@ -42,9 +42,8 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 @dataclass(slots=True)
-class CacheEntry[T]:
+class CacheEntry(Generic[T]):
     """
     Memory-efficient cache entry using type parameters (PEP 695).
     """
@@ -52,7 +51,6 @@ class CacheEntry[T]:
     data: T
     timestamp: float
     ttl: float
-
 
 @dataclass(slots=True)
 class CacheStats:
@@ -75,7 +73,6 @@ class CacheStats:
     def total_operations(self) -> int:
         """Total number of operations."""
         return self.hits + self.misses + self.sets + self.deletes
-
 
 class AsyncTTLCache:
     """
@@ -262,8 +259,14 @@ class AsyncTTLCache:
                 await asyncio.sleep(self.cleanup_interval)
                 await self._remove_expired_entries()
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 if isinstance(e, asyncio.CancelledError):
                     break
                 logger.error("Error in cleanup loop: %s", e)
@@ -619,7 +622,6 @@ class AsyncTTLCache:
         """Context manager exit."""
         await self.stop()
 
-
 # Factory function for creating configured cache instances
 def create_cache(
     ttl_seconds: int = 60,
@@ -650,10 +652,8 @@ def create_cache(
         **kwargs,
     )
 
-
 # Backward compatibility alias
 ImprovedAsyncCache = AsyncTTLCache
-
 
 __all__ = [
     "AsyncTTLCache",

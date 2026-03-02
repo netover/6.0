@@ -28,11 +28,9 @@ import yaml
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # DATA MODELS
 # =============================================================================
-
 
 class ExtractionStrategy(str, Enum):
     """How to extract entities of this type."""
@@ -40,7 +38,6 @@ class ExtractionStrategy(str, Enum):
     LLM = "llm"  # Use LLM with ontology prompt
     REGEX = "regex"  # Use regex patterns only
     HYBRID = "hybrid"  # Combine LLM + regex
-
 
 @dataclass
 class ValidationRule:
@@ -51,7 +48,6 @@ class ValidationRule:
     max_value: int | None = None
     max_length: int | None = None
     allowed_values: list[str] | None = None
-
 
 @dataclass
 class PropertyDefinition:
@@ -79,7 +75,6 @@ class PropertyDefinition:
             validation_rules=validation_rules,
             extraction_patterns=data.get("extraction_patterns", []),
         )
-
 
 @dataclass
 class EntityTypeDefinition:
@@ -118,7 +113,6 @@ class EntityTypeDefinition:
         """Get all variations of this entity type name."""
         return [self.name, self.name.lower(), self.name.upper()] + self.aliases
 
-
 @dataclass
 class RelationshipTypeDefinition:
     """Definition of a relationship type."""
@@ -144,7 +138,6 @@ class RelationshipTypeDefinition:
             properties=properties,
         )
 
-
 @dataclass
 class OntologyMetadata:
     """Metadata about the ontology."""
@@ -155,7 +148,6 @@ class OntologyMetadata:
     description: str = ""
     author: str = ""
     last_updated: str = ""
-
 
 @dataclass
 class Ontology:
@@ -185,11 +177,9 @@ class Ontology:
                 return rt
         return None
 
-
 # =============================================================================
 # VALIDATION RESULT
 # =============================================================================
-
 
 @dataclass
 class ValidationError:
@@ -199,7 +189,6 @@ class ValidationError:
     error_type: str
     message: str
     value: Any = None
-
 
 @dataclass
 class ValidationResult:
@@ -223,11 +212,9 @@ class ValidationResult:
         """Add a validation warning."""
         self.warnings.append(ValidationError(property_name, error_type, message, value))
 
-
 # =============================================================================
 # ONTOLOGY MANAGER
 # =============================================================================
-
 
 class OntologyManager:
     """
@@ -286,7 +273,7 @@ class OntologyManager:
         )
         return instance
 
-    def _load_ontology(self):
+    def _load_ontology(self) -> None:
         """Load ontology from YAML file."""
         if not self.ontology_path.exists():
             logger.warning(
@@ -330,11 +317,16 @@ class OntologyManager:
                 relationship_types=len(relationship_types),
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("ontology_load_error", error=str(e))
             raise
 
-    def _build_alias_map(self):
+    def _build_alias_map(self) -> None:
         """Build mapping from aliases to canonical entity type names."""
         if not self.ontology:
             return
@@ -344,7 +336,7 @@ class OntologyManager:
             for alias in et.all_aliases:
                 self._alias_map[alias.lower()] = canonical
 
-    def _compile_patterns(self):
+    def _compile_patterns(self) -> None:
         """Pre-compile regex patterns for performance."""
         if not self.ontology:
             return
@@ -797,14 +789,11 @@ JSON:"""
 
         return None
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
-
 _ontology_manager: OntologyManager | None = None
-
 
 def get_ontology_manager() -> OntologyManager:
     """Get or create the singleton OntologyManager instance."""
@@ -813,26 +802,21 @@ def get_ontology_manager() -> OntologyManager:
         _ontology_manager = OntologyManager()
     return _ontology_manager
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
 
 def validate_job(job_data: dict[str, Any]) -> ValidationResult:
     """Convenience function to validate a Job entity."""
     return get_ontology_manager().validate_entity("Job", job_data)
 
-
 def validate_error_code(error_data: dict[str, Any]) -> ValidationResult:
     """Convenience function to validate an ErrorCode entity."""
     return get_ontology_manager().validate_entity("ErrorCode", error_data)
 
-
 def generate_job_extraction_prompt(text: str) -> str:
     """Convenience function to generate Job extraction prompt."""
     return get_ontology_manager().generate_extraction_prompt("Job", text)
-
 
 def normalize_status(status: str) -> str:
     """Convenience function to normalize job status."""

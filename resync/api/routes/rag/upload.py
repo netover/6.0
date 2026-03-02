@@ -27,7 +27,6 @@ file_dependency = File(...)
 file_ingestor_dependency = Depends(get_file_ingestor)
 router = APIRouter(prefix="/api/rag", tags=["rag"])
 
-
 @router.post("/upload", summary="Upload a document for RAG ingestion")
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -42,21 +41,29 @@ async def upload_document(
         raise HTTPException(status_code=401, detail="Authentication required")
     settings = get_settings()
     try:
-        contents = await file.read()
-        if len(contents) > settings.max_file_size:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "File too large. Maximum size is "
-                    f"{settings.max_file_size / (1024 * 1024):.1f}MB."
-                ),
-            )
+        # Streaming size check — never load entire file into memory
+        max_size = settings.max_file_size
+        body_size = 0
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MiB chunks
+            if not chunk:
+                break
+            body_size += len(chunk)
+            if body_size > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        "File too large. Maximum size is "
+                        f"{max_size / (1024 * 1024):.1f}MB."
+                    ),
+                )
+        total_size = body_size
         await file.seek(0)
         try:
             document_upload = DocumentUpload(
                 filename=file.filename or "",
                 content_type=file.content_type or "application/octet-stream",
-                size=len(contents),
+                size=total_size,
             )
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve)) from ve
@@ -86,7 +93,12 @@ async def upload_document(
         raise HTTPException(
             status_code=400, detail="Invalid request. Check server logs for details."
         ) from e
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("Failed to process uploaded file: %s", e, exc_info=True)

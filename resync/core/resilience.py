@@ -39,14 +39,12 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class CircuitBreakerState(Enum):
     """Estados possíveis do Circuit Breaker"""
 
     CLOSED = "closed"  # Funcionando normalmente
     OPEN = "open"  # Bloqueando chamadas
     HALF_OPEN = "half_open"  # Testando recuperação
-
 
 @dataclass(frozen=True)
 class CircuitBreakerConfig:
@@ -68,6 +66,18 @@ class CircuitBreakerConfig:
     exclude_exceptions: tuple[type[BaseException], ...] = ()
     name: str = "default"
 
+    def __post_init__(self) -> None:
+        """Validate configuration values at construction time."""
+        if self.failure_threshold < 1:
+            raise ValueError(
+                f"CircuitBreakerConfig.failure_threshold must be >= 1, "
+                f"got {self.failure_threshold!r}"
+            )
+        if self.recovery_timeout < 1:
+            raise ValueError(
+                f"CircuitBreakerConfig.recovery_timeout must be >= 1 second, "
+                f"got {self.recovery_timeout!r}"
+            )
 
 @dataclass
 class CircuitBreakerMetrics:
@@ -81,7 +91,6 @@ class CircuitBreakerMetrics:
     last_success_time: datetime | None = None
     state_changes: int = 0
 
-
 class CircuitBreaker:
     """
     Implementação do Circuit Breaker Pattern
@@ -94,13 +103,15 @@ class CircuitBreaker:
     # still collect breakers that are no longer referenced elsewhere).
     _registry: ClassVar[weakref.WeakSet["CircuitBreaker"]] = weakref.WeakSet()
 
-    def __init__(self, config: CircuitBreakerConfig):
+    def __init__(self, config: CircuitBreakerConfig) -> None:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
         self.metrics = CircuitBreakerMetrics()
-        # Lazy-init to avoid binding to an event loop
-        # during module import (gunicorn --preload).
-        self._lock: asyncio.Lock | None = None
+        # Python 3.10+ asyncio.Lock is NOT bound to any event loop at creation time,
+        # so eager initialisation is safe even under gunicorn --preload.
+        # This eliminates the lazy-init race where two concurrent coroutines could
+        # both see self._lock is None and each create a separate lock object.
+        self._lock: asyncio.Lock = asyncio.Lock()
 
         # Properties for compatibility with tests
         self.fail_max = config.failure_threshold
@@ -118,14 +129,7 @@ class CircuitBreaker:
         )
 
     def _get_lock(self) -> asyncio.Lock:
-        """Return the internal asyncio lock.
-
-        The lock is created lazily to avoid binding it to an event loop at
-        module import time (which can break under gunicorn --preload).
-        """
-        if self._lock is None:
-            asyncio.get_running_loop()
-            self._lock = asyncio.Lock()
+        """Return the internal asyncio lock (always eagerly initialised)."""
         return self._lock
 
     async def call(self, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
@@ -269,7 +273,6 @@ class CircuitBreaker:
             "state_changes": self.metrics.state_changes,
         }
 
-
 @dataclass(frozen=True)
 class RetryConfig:
     """Configuração para retry com backoff.
@@ -284,7 +287,6 @@ class RetryConfig:
     jitter: bool = True
     expected_exceptions: tuple[type[BaseException], ...] = (Exception,)
 
-
 @dataclass
 class RetryMetrics:
     """Métricas de retry"""
@@ -293,7 +295,6 @@ class RetryMetrics:
     successful_attempts: int = 0
     failed_attempts: int = 0
     total_retry_delay: float = 0.0
-
 
 class RetryWithBackoff:
     """
@@ -394,7 +395,6 @@ class RetryWithBackoff:
             ),
         }
 
-
 class TimeoutManager:
     """
     Gerenciador de timeouts para operações assíncronas
@@ -430,9 +430,7 @@ class TimeoutManager:
                 f"Operation timed out after {timeout_seconds} seconds"
             ) from exc
 
-
 # Decoradores para facilitar uso dos padrões
-
 
 def circuit_breaker(
     failure_threshold: int = 5,
@@ -469,7 +467,6 @@ def circuit_breaker(
         return wrapper  # type: ignore[return-value]
 
     return decorator
-
 
 def retry_with_backoff(
     max_retries: int = 3,
@@ -512,7 +509,6 @@ def retry_with_backoff(
 
     return decorator
 
-
 def with_timeout(timeout_seconds: float, timeout_exception: Exception | None = None):
     """
     Decorador para aplicar timeout
@@ -533,9 +529,7 @@ def with_timeout(timeout_seconds: float, timeout_exception: Exception | None = N
 
     return decorator
 
-
 # Funções utilitárias para monitoramento
-
 
 def get_all_circuit_breakers() -> dict[str, CircuitBreaker]:
     """Return all live circuit breaker instances.
@@ -546,14 +540,12 @@ def get_all_circuit_breakers() -> dict[str, CircuitBreaker]:
     """
     return {cb.config.name: cb for cb in CircuitBreaker._registry}
 
-
 def get_circuit_breaker_metrics() -> dict[str, dict[str, Any]]:
     """
     Retorna métricas de todos os circuit breakers
     """
     breakers = get_all_circuit_breakers()
     return {name: breaker.get_metrics() for name, breaker in breakers.items()}
-
 
 # Configurações padrão para diferentes tipos de serviço
 
@@ -568,7 +560,6 @@ DEFAULT_DATABASE_CONFIG = CircuitBreakerConfig(
 DEFAULT_EXTERNAL_API_CONFIG = CircuitBreakerConfig(
     failure_threshold=2, recovery_timeout=120, name="external_api"
 )
-
 
 class CircuitBreakerManager:
     """
@@ -615,7 +606,6 @@ class CircuitBreakerManager:
     def state(self, name: str) -> str:
         state = self.get(name).state
         return state.value  # "closed" | "open" | "half-open"
-
 
 async def retry_with_backoff_async(
     op: Callable[[], Awaitable[T]],

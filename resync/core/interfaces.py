@@ -6,7 +6,6 @@ from typing import Any, Protocol, runtime_checkable
 # Import model types for protocol type hints
 from resync.models.agents import AgentConfig
 
-
 @runtime_checkable
 class IKnowledgeGraph(Protocol):
     """
@@ -165,7 +164,6 @@ class IKnowledgeGraph(Protocol):
         """Gets the underlying database client (SQLite connection for ContextStore)."""
         ...
 
-
 @runtime_checkable
 class IFileIngestor(Protocol):
     """
@@ -180,7 +178,6 @@ class IFileIngestor(Protocol):
     def ingest_file(self, file_path: Path) -> bool:
         """Ingests a single file into the knowledge graph."""
         ...
-
 
 @runtime_checkable
 class IAgentManager(Protocol):
@@ -202,7 +199,6 @@ class IAgentManager(Protocol):
         """Retrieve the config for a single agent (async)."""
         ...
 
-
 @runtime_checkable
 class IConnectionManager(Protocol):
     """Interface for managing WebSocket connections."""
@@ -222,7 +218,6 @@ class IConnectionManager(Protocol):
     def send_personal_message(self, message: str, client_id: str) -> None:
         """Sends a message to a specific client."""
         ...
-
 
 @runtime_checkable
 class IAuditQueue(Protocol):
@@ -267,7 +262,6 @@ class IAuditQueue(Protocol):
     def get_audit_metrics_sync(self) -> dict[str, Any]:
         """Synchronously retrieves audit metrics."""
         ...
-
 
 @runtime_checkable
 class ITWSClient(Protocol):

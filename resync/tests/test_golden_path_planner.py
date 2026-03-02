@@ -18,7 +18,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def mock_io_bounds(monkeypatch):
+def mock_io_bounds(monkeypatch) -> None:
     """Bypass expensive models (SentenceTransformer) and LLM endpoints."""
     import resync.core.langgraph.agent_graph as agent_graph
     import resync.core.utils.llm as llm
@@ -108,7 +108,7 @@ async def test_router_preserves_max_verification_attempts(monkeypatch):
 # =============================================================================
 
 
-def test_kg_stub_has_both_interfaces():
+def test_kg_stub_has_both_interfaces() -> None:
     """KG stub must satisfy both RAGClient (search) and Orchestrator (get_relevant_context)."""
     from resync.core.langgraph.agent_graph import _get_knowledge_graph_or_stub
 
@@ -148,7 +148,7 @@ async def test_kg_stub_returns_empty_search():
 # =============================================================================
 
 
-def test_plan_templates_are_json_serializable():
+def test_plan_templates_are_json_serializable() -> None:
     """All plan templates must survive JSON round-trip (LangGraph persistence)."""
     from resync.core.langgraph.plan_templates import PLAN_TEMPLATES, create_plan
 
@@ -163,7 +163,7 @@ def test_plan_templates_are_json_serializable():
             assert step["error"] is None
 
 
-def test_create_plan_unknown_template_returns_empty():
+def test_create_plan_unknown_template_returns_empty() -> None:
     """Unknown template key should return plan with zero steps."""
     from resync.core.langgraph.plan_templates import create_plan
 
@@ -385,7 +385,7 @@ async def test_plan_executor_dependency_not_reached_when_action_executes():
 # =============================================================================
 
 
-def test_after_plan_executor_routes_to_rescue_on_troubleshoot_failure():
+def test_after_plan_executor_routes_to_rescue_on_troubleshoot_failure() -> None:
     """When troubleshoot plan fails, routing should go to llm_rescue."""
     from resync.core.langgraph.agent_graph import Intent, _after_plan_executor
 
@@ -399,7 +399,7 @@ def test_after_plan_executor_routes_to_rescue_on_troubleshoot_failure():
     assert _after_plan_executor(state) == "llm_rescue"
 
 
-def test_after_plan_executor_no_rescue_for_action():
+def test_after_plan_executor_no_rescue_for_action() -> None:
     """When action plan fails, routing should go to synthesizer (no rescue for actions)."""
     from resync.core.langgraph.agent_graph import Intent, _after_plan_executor
 
@@ -413,7 +413,7 @@ def test_after_plan_executor_no_rescue_for_action():
     assert _after_plan_executor(state) == "synthesizer"
 
 
-def test_after_plan_executor_no_double_rescue():
+def test_after_plan_executor_no_double_rescue() -> None:
     """Rescue must only fire once; second failure goes to synthesizer."""
     from resync.core.langgraph.agent_graph import Intent, _after_plan_executor
 
@@ -427,7 +427,7 @@ def test_after_plan_executor_no_double_rescue():
     assert _after_plan_executor(state) == "synthesizer"
 
 
-def test_after_plan_executor_loops_when_steps_remain():
+def test_after_plan_executor_loops_when_steps_remain() -> None:
     """If plan has remaining steps, executor should loop back."""
     from resync.core.langgraph.agent_graph import _after_plan_executor
 
@@ -439,7 +439,7 @@ def test_after_plan_executor_loops_when_steps_remain():
     assert _after_plan_executor(state) == "plan_executor"
 
 
-def test_after_plan_executor_synthesizes_when_plan_complete():
+def test_after_plan_executor_synthesizes_when_plan_complete() -> None:
     """If all steps done, routing goes to synthesizer."""
     from resync.core.langgraph.agent_graph import _after_plan_executor
 
@@ -675,21 +675,21 @@ async def test_output_critique_never_blocks_on_llm_error(monkeypatch):
 # =============================================================================
 
 
-def test_after_critique_refines_when_needed():
+def test_after_critique_refines_when_needed() -> None:
     from resync.core.langgraph.agent_graph import _after_critique
 
     state = {"needs_refinement": True, "critique_retries": 1}
     assert _after_critique(state) == "synthesizer"
 
 
-def test_after_critique_passes_when_satisfied():
+def test_after_critique_passes_when_satisfied() -> None:
     from resync.core.langgraph.agent_graph import _after_critique
 
     state = {"needs_refinement": False, "critique_retries": 0}
     assert _after_critique(state) == "hallucination_check"
 
 
-def test_after_critique_passes_when_retries_exhausted():
+def test_after_critique_passes_when_retries_exhausted() -> None:
     from resync.core.langgraph.agent_graph import _after_critique
 
     state = {"needs_refinement": True, "critique_retries": 2}
@@ -739,7 +739,7 @@ async def test_dkg_context_node_survives_import_failure(monkeypatch):
     assert result["doc_kg_context"] == ""
 
 
-def test_router_resets_doc_kg_context():
+def test_router_resets_doc_kg_context() -> None:
     """doc_kg_context should be reset between turns."""
 
     # The transient defaults in router_node reset doc_kg_context to ""
@@ -755,7 +755,7 @@ def test_router_resets_doc_kg_context():
 # =============================================================================
 
 
-def test_routing_v6_1_all_non_clarification_go_to_dkg():
+def test_routing_v6_1_all_non_clarification_go_to_dkg() -> None:
     """After DKG integration, all non-clarification intents go through DKG context first."""
     from resync.core.langgraph.agent_graph import Intent, _get_next_node_v6_1
 
@@ -772,7 +772,7 @@ def test_routing_v6_1_all_non_clarification_go_to_dkg():
         )
 
 
-def test_routing_v6_1_clarification_still_direct():
+def test_routing_v6_1_clarification_still_direct() -> None:
     """Clarification should still bypass DKG context."""
     from resync.core.langgraph.agent_graph import Intent, _get_next_node_v6_1
 
@@ -780,35 +780,35 @@ def test_routing_v6_1_clarification_still_direct():
     assert _get_next_node_v6_1(state) == "clarification"
 
 
-def test_after_dkg_context_routes_troubleshoot_to_planner():
+def test_after_dkg_context_routes_troubleshoot_to_planner() -> None:
     from resync.core.langgraph.agent_graph import Intent, _after_dkg_context
 
     state = {"intent": Intent.TROUBLESHOOT}
     assert _after_dkg_context(state) == "planner"
 
 
-def test_after_dkg_context_routes_status_to_planner():
+def test_after_dkg_context_routes_status_to_planner() -> None:
     from resync.core.langgraph.agent_graph import Intent, _after_dkg_context
 
     state = {"intent": Intent.STATUS}
     assert _after_dkg_context(state) == "planner"
 
 
-def test_after_dkg_context_routes_action_to_planner():
+def test_after_dkg_context_routes_action_to_planner() -> None:
     from resync.core.langgraph.agent_graph import Intent, _after_dkg_context
 
     state = {"intent": Intent.ACTION}
     assert _after_dkg_context(state) == "planner"
 
 
-def test_after_dkg_context_routes_query_to_handler():
+def test_after_dkg_context_routes_query_to_handler() -> None:
     from resync.core.langgraph.agent_graph import Intent, _after_dkg_context
 
     state = {"intent": Intent.QUERY}
     assert _after_dkg_context(state) == "query_handler"
 
 
-def test_after_dkg_context_routes_general_to_handler():
+def test_after_dkg_context_routes_general_to_handler() -> None:
     from resync.core.langgraph.agent_graph import Intent, _after_dkg_context
 
     state = {"intent": Intent.GENERAL}
@@ -820,7 +820,7 @@ def test_after_dkg_context_routes_general_to_handler():
 # =============================================================================
 
 
-def test_plan_templates_still_serializable_after_dkg():
+def test_plan_templates_still_serializable_after_dkg() -> None:
     """Ensure DKG changes did not break plan template serialization."""
     import json
 
@@ -837,7 +837,7 @@ def test_plan_templates_still_serializable_after_dkg():
 # =============================================================================
 
 
-def test_store_has_upsert_from_extraction():
+def test_store_has_upsert_from_extraction() -> None:
     """PostgresGraphStore must have upsert_from_extraction method."""
     from resync.knowledge.kg_store.store import PostgresGraphStore
 
@@ -851,7 +851,7 @@ def test_store_has_upsert_from_extraction():
 # =============================================================================
 
 
-def test_make_node_id_stable():
+def test_make_node_id_stable() -> None:
     """Node IDs should be deterministic and normalized."""
     from resync.knowledge.kg_extraction.normalizer import make_node_id
 
@@ -865,7 +865,7 @@ def test_make_node_id_stable():
     assert make_node_id("Job", "BATCH_001") == make_node_id("Job", "BATCH_001")
 
 
-def test_dedup_concepts_merges_aliases():
+def test_dedup_concepts_merges_aliases() -> None:
     """Dedup should merge aliases and properties from duplicates."""
     from resync.knowledge.kg_extraction.normalizer import dedup_concepts
     from resync.knowledge.kg_extraction.schemas import Concept
@@ -892,7 +892,7 @@ def test_dedup_concepts_merges_aliases():
     assert result[0].properties["doc_id"] == "b"  # Last write wins for properties
 
 
-def test_dedup_edges_keeps_max_weight():
+def test_dedup_edges_keeps_max_weight() -> None:
     """Dedup should keep the highest weight edge."""
     from resync.knowledge.kg_extraction.normalizer import dedup_edges
     from resync.knowledge.kg_extraction.schemas import Edge, Evidence
@@ -925,7 +925,7 @@ def test_dedup_edges_keeps_max_weight():
 # =============================================================================
 
 
-def test_extraction_result_defaults_empty():
+def test_extraction_result_defaults_empty() -> None:
     """ExtractionResult should default to empty lists."""
     from resync.knowledge.kg_extraction.schemas import ExtractionResult
 
@@ -934,7 +934,7 @@ def test_extraction_result_defaults_empty():
     assert result.edges == []
 
 
-def test_extraction_result_serializable():
+def test_extraction_result_serializable() -> None:
     """ExtractionResult should be JSON-serializable."""
     import json
 

@@ -10,7 +10,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 class CacheMetricsMixin:
     """
     Mixin providing metrics collection for cache.
@@ -27,7 +26,7 @@ class CacheMetricsMixin:
     _errors: int = 0
     _start_time: float = 0
 
-    def _init_metrics(self):
+    def _init_metrics(self) -> None:
         """Initialize metrics tracking."""
         self._hits = 0
         self._misses = 0
@@ -35,19 +34,19 @@ class CacheMetricsMixin:
         self._errors = 0
         self._start_time = time.time()
 
-    def _record_hit(self):
+    def _record_hit(self) -> None:
         """Record a cache hit."""
         self._hits += 1
 
-    def _record_miss(self):
+    def _record_miss(self) -> None:
         """Record a cache miss."""
         self._misses += 1
 
-    def _record_eviction(self, count: int = 1):
+    def _record_eviction(self, count: int = 1) -> None:
         """Record cache evictions."""
         self._evictions += count
 
-    def _record_error(self):
+    def _record_error(self) -> None:
         """Record an error."""
         self._errors += 1
 
@@ -88,7 +87,7 @@ class CacheMetricsMixin:
             "requests_per_second": round(total_requests / max(uptime, 1), 2),
         }
 
-    def reset_metrics(self):
+    def reset_metrics(self) -> None:
         """Reset all metrics counters."""
         self._hits = 0
         self._misses = 0

@@ -26,7 +26,6 @@ from .session import TWSSession, get_session_manager
 
 logger = logging.getLogger(__name__)
 
-
 class TWSInstanceManager:
     """
     Manages multiple TWS instances.
@@ -40,7 +39,7 @@ class TWSInstanceManager:
         MAZ → tws.maz.com:31116
     """
 
-    def __init__(self, config_path: Path | None = None):
+    def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or Path("config/tws_instances.json")
 
         # Instance storage
@@ -58,7 +57,7 @@ class TWSInstanceManager:
         # Load saved instances
         self._load_instances()
 
-    def _load_instances(self):
+    def _load_instances(self) -> None:
         """Load instances from configuration file."""
         if self.config_path.exists():
             try:
@@ -74,13 +73,18 @@ class TWSInstanceManager:
                     self._learning_stores[config.id] = TWSLearningStore(config.id)
 
                 logger.info("Loaded %s TWS instances", len(self._instances))
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error loading instances: %s", e)
         else:
             # Create default instances
             self._create_default_instances()
 
-    def _create_default_instances(self):
+    def _create_default_instances(self) -> None:
         """Create default example instances."""
         defaults = [
             TWSInstanceConfig(
@@ -129,7 +133,7 @@ class TWSInstanceManager:
         self._save_instances()
         logger.info("Created default TWS instances")
 
-    def _save_instances(self):
+    def _save_instances(self) -> None:
         """Save instances to configuration file."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -261,7 +265,12 @@ class TWSInstanceManager:
                 return True
             raise IntegrationError(f"Health check failed: {response.status_code}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             instance.status = TWSInstanceStatus.ERROR
             instance.error_count += 1
             instance.last_error = str(e)
@@ -313,7 +322,12 @@ class TWSInstanceManager:
                     "url": instance.connection_url,
                 }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             return {
                 "success": False,
                 "error": str(e),
@@ -349,7 +363,7 @@ class TWSInstanceManager:
         instance.active_sessions += 1
         return session
 
-    def close_session(self, session_id: str):
+    def close_session(self, session_id: str) -> None:
         """Close an operator session."""
         session = self._session_manager.get_session(session_id)
         if session:
@@ -392,10 +406,8 @@ class TWSInstanceManager:
             ],
         }
 
-
 # Global manager instance
 _manager: TWSInstanceManager | None = None
-
 
 def get_tws_manager() -> TWSInstanceManager:
     """Get global TWS instance manager."""

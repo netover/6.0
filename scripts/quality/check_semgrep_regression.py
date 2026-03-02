@@ -7,13 +7,11 @@ from pathlib import Path
 BASELINE_FILE = Path("config/quality/semgrep_baseline.json")
 CURRENT_FILE = Path("semgrep-report.json")
 
-
 def to_key(item: dict) -> str:
     path = item.get("path", "")
     check_id = item.get("check_id", "")
     line = item.get("start", {}).get("line", 0)
     return f"{path}:{line}:{check_id}"
-
 
 def main() -> int:
     baseline = json.loads(BASELINE_FILE.read_text())
@@ -43,7 +41,6 @@ def main() -> int:
 
     print("Semgrep regression gate passed.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

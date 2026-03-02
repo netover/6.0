@@ -4,7 +4,6 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-
 class AgentType(str, Enum):
     """Types of AI agents."""
 
@@ -13,7 +12,6 @@ class AgentType(str, Enum):
     ANALYSIS = "analysis"
     MONITORING = "monitoring"
     SUPPORT = "support"
-
 
 class AgentConfig(BaseModel):
     """Configuration model for AI agents."""

@@ -21,9 +21,7 @@ logger = logging.getLogger(__name__)
 # v5.9.5: Added authentication
 router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
 
-
 # Pydantic Models
-
 
 class TWSInstanceCreate(BaseModel):
     """Model for creating a TWS instance."""
@@ -45,7 +43,6 @@ class TWSInstanceCreate(BaseModel):
     read_only: bool = False
     learning_enabled: bool = True
 
-
 class TWSInstanceUpdate(BaseModel):
     """Model for updating a TWS instance."""
 
@@ -62,12 +59,10 @@ class TWSInstanceUpdate(BaseModel):
     read_only: bool | None = None
     learning_enabled: bool | None = None
 
-
 class SessionCreate(BaseModel):
     """Model for creating a session."""
 
     instance_id: str
-
 
 # Lazy import to avoid circular dependencies
 def _get_manager():
@@ -75,15 +70,12 @@ def _get_manager():
 
     return get_tws_manager()
 
-
 def _get_config_class():
     from resync.core.tws_multi.instance import TWSEnvironment, TWSInstanceConfig
 
     return TWSInstanceConfig, TWSEnvironment
 
-
 # Instance Endpoints
-
 
 @router.get("/tws-instances", tags=["TWS Instances"])
 async def list_tws_instances():
@@ -100,13 +92,11 @@ async def list_tws_instances():
         "total": len(instances),
     }
 
-
 @router.get("/tws-instances/summary", tags=["TWS Instances"])
 async def get_instances_summary():
     """Get summary of all TWS instances."""
     manager = _get_manager()
     return manager.get_summary()
-
 
 @router.post(
     "/tws-instances", status_code=status.HTTP_201_CREATED, tags=["TWS Instances"]
@@ -154,7 +144,6 @@ async def create_tws_instance(instance: TWSInstanceCreate):
             detail="Internal server error. Check server logs for details.",
         ) from e
 
-
 @router.get("/tws-instances/{instance_id}", tags=["TWS Instances"])
 async def get_tws_instance(instance_id: str):
     """Get a specific TWS instance."""
@@ -176,7 +165,6 @@ async def get_tws_instance(instance_id: str):
 
     return result
 
-
 @router.put("/tws-instances/{instance_id}", tags=["TWS Instances"])
 async def update_tws_instance(instance_id: str, update: TWSInstanceUpdate):
     """Update a TWS instance."""
@@ -196,7 +184,6 @@ async def update_tws_instance(instance_id: str, update: TWSInstanceUpdate):
         "instance": instance.to_dict(),
         "message": f"Instance '{instance.config.name}' updated successfully",
     }
-
 
 @router.delete("/tws-instances/{instance_id}", tags=["TWS Instances"])
 async def delete_tws_instance(instance_id: str):
@@ -218,9 +205,7 @@ async def delete_tws_instance(instance_id: str):
         "message": f"Instance '{name}' deleted successfully",
     }
 
-
 # Connection Endpoints
-
 
 @router.post("/tws-instances/{instance_id}/connect", tags=["TWS Instances"])
 async def connect_tws_instance(instance_id: str):
@@ -244,7 +229,6 @@ async def connect_tws_instance(instance_id: str):
         else f"Connection failed: {instance.last_error}",
     }
 
-
 @router.post("/tws-instances/{instance_id}/disconnect", tags=["TWS Instances"])
 async def disconnect_tws_instance(instance_id: str):
     """Disconnect from a TWS instance."""
@@ -265,7 +249,6 @@ async def disconnect_tws_instance(instance_id: str):
         "message": f"Disconnected from '{instance.config.name}'",
     }
 
-
 @router.post("/tws-instances/{instance_id}/test", tags=["TWS Instances"])
 async def test_tws_connection(instance_id: str):
     """Test connection to a TWS instance."""
@@ -280,9 +263,7 @@ async def test_tws_connection(instance_id: str):
 
     return await manager.test_connection(instance_id)
 
-
 # Session Endpoints (for tabs)
-
 
 @router.post("/tws-instances/{instance_id}/sessions", tags=["TWS Sessions"])
 async def create_session(
@@ -317,7 +298,6 @@ async def create_session(
         "message": f"Session created for '{instance.config.name}'",
     }
 
-
 @router.get("/tws-sessions", tags=["TWS Sessions"])
 async def list_user_sessions(user_id: str = "default"):
     """List all sessions for a user."""
@@ -328,7 +308,6 @@ async def list_user_sessions(user_id: str = "default"):
         "sessions": [s.to_dict() for s in sessions],
         "total": len(sessions),
     }
-
 
 @router.delete("/tws-sessions/{session_id}", tags=["TWS Sessions"])
 async def close_session(session_id: str):
@@ -341,9 +320,7 @@ async def close_session(session_id: str):
         "message": "Session closed",
     }
 
-
 # Learning Endpoints
-
 
 @router.get("/tws-instances/{instance_id}/learning", tags=["TWS Learning"])
 async def get_instance_learning(instance_id: str):
@@ -372,7 +349,6 @@ async def get_instance_learning(instance_id: str):
         "known_error_codes": len(learning_store.failure_resolutions),
     }
 
-
 @router.get("/tws-instances/{instance_id}/learning/patterns", tags=["TWS Learning"])
 async def get_job_patterns(instance_id: str, limit: int = 100):
     """Get learned job patterns for an instance."""
@@ -393,7 +369,6 @@ async def get_job_patterns(instance_id: str, limit: int = 100):
         "total": len(patterns),
     }
 
-
 @router.post("/tws-instances/{instance_id}/learning/export", tags=["TWS Learning"])
 async def export_learning_data(instance_id: str):
     """Export learning data for an instance."""
@@ -407,7 +382,6 @@ async def export_learning_data(instance_id: str):
         )
 
     return learning_store.export_learning_data()
-
 
 @router.post("/tws-instances/{instance_id}/learning/import", tags=["TWS Learning"])
 async def import_learning_data(instance_id: str, data: dict[str, Any]):
@@ -427,7 +401,6 @@ async def import_learning_data(instance_id: str, data: dict[str, Any]):
         "success": True,
         "message": "Learning data imported successfully",
     }
-
 
 @router.delete("/tws-instances/{instance_id}/learning", tags=["TWS Learning"])
 async def clear_learning_data(instance_id: str, confirm: bool = False):
@@ -454,9 +427,7 @@ async def clear_learning_data(instance_id: str, confirm: bool = False):
         "message": "Learning data cleared",
     }
 
-
 # Bulk Operations
-
 
 @router.post("/tws-instances/bulk/connect", tags=["TWS Instances"])
 async def connect_all_instances():
@@ -477,7 +448,6 @@ async def connect_all_instances():
         "connected": len([r for r in results.values() if r["success"]]),
         "failed": len([r for r in results.values() if not r["success"]]),
     }
-
 
 @router.post("/tws-instances/bulk/disconnect", tags=["TWS Instances"])
 async def disconnect_all_instances():

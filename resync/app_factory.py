@@ -1,3 +1,5 @@
+from resync.core.logging_setup import configure_logging
+
 """
 Application factory for creating and configuring the FastAPI application.
 
@@ -8,24 +10,37 @@ No Global State:
     The ``create_app()`` function creates a new ApplicationFactory instance
     per call to avoid state contamination between tests. All runtime state
     lives on ``app.state``.
+
+    ``ApplicationFactory.__init__`` accepts an optional ``settings`` argument
+    to enable full DI in tests without monkey-patching the module.
 """
 
 import hashlib
-from typing import TYPE_CHECKING
+import importlib  # [P3-01] Modern Python 3 API for dynamic imports
+import os
+from typing import TYPE_CHECKING, Any
 
+import orjson  # [P2-02] top-level import — not per-request
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from starlette.responses import HTMLResponse, RedirectResponse
-from starlette.staticfiles import FileResponse
+from slowapi.errors import RateLimitExceeded
+from starlette.responses import (
+    FileResponse,
+    HTMLResponse,
+    RedirectResponse,
+    Response,
+)  # [P3-01] FileResponse from starlette.responses
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
+from starlette.types import Scope
 
+from resync.core.security.rate_limiter_v2 import RateLimitMiddleware
 from resync.core.structured_logger import configure_structured_logging, get_logger
-from resync.settings import settings
 
 if TYPE_CHECKING:
     from resync.core.startup import lifespan as app_lifespan
+    from resync.settings import Settings
 
 
 def _get_lifespan() -> "app_lifespan":
@@ -35,37 +50,25 @@ def _get_lifespan() -> "app_lifespan":
     return lifespan
 
 
+def _get_settings() -> "Settings":
+    """[P1-02] Lazy settings accessor — allows test-time DI via ApplicationFactory(settings=...)."""
+    from resync.settings import get_settings
+
+    return get_settings()
+
+
 # =============================================================================
-# MODULE CONSTANTS (configurable via settings / admin UI where noted)
+# MODULE CONSTANTS (production security limits)
 # =============================================================================
-
-#: Default max-age for static file Cache-Control header (seconds).
-#: Overridden at runtime by ``settings.static_cache_max_age``.
-_DEFAULT_STATIC_CACHE_MAX_AGE = 86400  # 1 day
-
-#: Number of hex chars from SHA-256 kept for ETag values.
-#: 16 hex chars = 64-bit collision space — sufficient for cache validation.
-#: Configurable via ``settings.ETAG_HASH_LENGTH``.
-_DEFAULT_ETAG_HASH_LENGTH = 16
-
-#: Jinja2 template bytecode cache size (number of templates).
-#: Configurable via ``settings.JINJA2_TEMPLATE_CACHE_SIZE`` (computed property).
-_DEFAULT_TEMPLATE_CACHE_SIZE = 400
-
-#: Timeout for cancelling background tasks during shutdown (seconds).
-#: Configurable via ``settings.SHUTDOWN_TASK_CANCEL_TIMEOUT``.
-_DEFAULT_TASK_CANCEL_TIMEOUT = 5.0
-
-#: Minimum admin password length in production.
-_DEFAULT_MIN_PASSWORD_LENGTH = 8
-
-#: Minimum SECRET_KEY length in production.
-_DEFAULT_MIN_SECRET_KEY_LENGTH = 32
+# [P2-05 FIX] All other configuration values centralized in resync.settings.Settings
+# Use self.settings.<field_name> instead of module-level _DEFAULT_* constants.
 
 #: Maximum CSP report payload size (bytes) - prevents DoS via large payloads.
+#: Hard-coded security limit (intentionally not configurable via settings).
 _MAX_CSP_PAYLOAD_SIZE = 4096
 
 #: Minimum CSP nonce length for production (hex characters).
+#: Hard-coded security requirement (intentionally not configurable via settings).
 _MIN_CSP_NONCE_LENGTH = 16
 
 # Configure app factory logger
@@ -75,25 +78,48 @@ app_logger = get_logger("resync.app_factory")
 logger = app_logger
 
 
-class CachedStaticFiles(StarletteStaticFiles):
-    """Static files handler with ETag and Cache-Control headers."""
+# [P2-01] Public replacement for the private slowapi._rate_limit_exceeded_handler.
+# Uses the public RateLimitExceeded API only — safe across slowapi upgrades.
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Handle 429 Too Many Requests with Retry-After header."""
+    retry_after = str(getattr(exc, "retry_after", 60))
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "rate_limit_exceeded",
+            "detail": str(exc.detail) if hasattr(exc, "detail") else "Too Many Requests",
+            "retry_after": retry_after,
+        },
+        headers={"Retry-After": retry_after},
+    )
 
-    async def get_response(self, path: str, scope):
+
+class CachedStaticFiles(StarletteStaticFiles):
+    """Static files handler with ETag and Cache-Control headers.
+
+    [P3-03] Settings resolved once at instantiation time, not per request.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize static files handler and cache settings."""
+        super().__init__(**kwargs)
+        # [P2-05 FIX] Direct access to Settings fields eliminates duplicate defaults.
+        # All fields are guaranteed to exist with validated defaults from Pydantic.
+        settings = _get_settings()
+        self._cache_max_age = settings.static_cache_max_age
+        self._etag_hash_length = settings.ETAG_HASH_LENGTH
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
         """Return response with cache-friendly headers."""
         response = await super().get_response(path, scope)
 
         if response.status_code == 200:
-            cache_max_age = getattr(
-                settings, "static_cache_max_age", _DEFAULT_STATIC_CACHE_MAX_AGE
-            )
-            response.headers["Cache-Control"] = f"public, max-age={cache_max_age}"
+            response.headers["Cache-Control"] = f"public, max-age={self._cache_max_age}"
 
             # Generate ETag from file metadata for cache validation
             try:
                 # Reuse stat_result from FileResponse if available (avoid double I/O)
-                if isinstance(response, FileResponse) and getattr(
-                    response, "stat_result", None
-                ):
+                if isinstance(response, FileResponse) and getattr(response, "stat_result", None):
                     st = response.stat_result
                     file_metadata = f"{st.st_size}-{int(st.st_mtime)}"
                 else:
@@ -101,11 +127,8 @@ class CachedStaticFiles(StarletteStaticFiles):
                     file_metadata = None
 
                 if file_metadata is not None:
-                    hash_len = getattr(
-                        settings, "ETAG_HASH_LENGTH", _DEFAULT_ETAG_HASH_LENGTH
-                    )
                     digest = hashlib.sha256(file_metadata.encode()).hexdigest()[
-                        :hash_len
+                        : self._etag_hash_length
                     ]
                     response.headers["ETag"] = f'"{digest}"'
             except OSError as exc:
@@ -122,13 +145,30 @@ class ApplicationFactory:
 
     This class encapsulates all application initialization logic,
     providing a clean separation of concerns and modular architecture.
+
+    Args:
+        settings: Optional settings instance for test-time DI. When None,
+                  ``_get_settings()`` is called lazily on first use.
     """
 
-    def __init__(self):
-        """Initialize the application factory."""
+    def __init__(self, settings: "Settings | None" = None) -> None:
+        """Initialize the application factory.
+
+        [P1-02] Accept settings via constructor to avoid global singleton
+        contamination between test runs. Production code calls create_app()
+        which passes no settings (lazy resolution via get_settings()).
+        """
+        self._settings = settings  # None = lazy resolution
         self.app: FastAPI
         self.templates: Jinja2Templates | None = None
         self.template_env: Environment | None = None
+
+    @property
+    def settings(self) -> "Settings":
+        """[P1-02] Lazy settings accessor — resolves once and caches on instance."""
+        if self._settings is None:
+            self._settings = _get_settings()
+        return self._settings
 
     def create_application(self) -> FastAPI:
         """
@@ -139,9 +179,9 @@ class ApplicationFactory:
         """
         # Configure logging EARLY - must be before any other imports that use logging
         configure_structured_logging(
-            log_level=settings.log_level,
-            json_logs=settings.log_format == "json",
-            development_mode=settings.is_development,
+            log_level=self.settings.log_level,
+            json_logs=self.settings.log_format == "json",
+            development_mode=self.settings.is_development,
         )
 
         # Validate settings first
@@ -152,14 +192,15 @@ class ApplicationFactory:
 
         # Create FastAPI app with lifespan
         self.app = FastAPI(
-            title=settings.project_name,
-            version=settings.project_version,
-            description=settings.description,
+            title=self.settings.project_name,
+            version=self.settings.project_version,
+            description=self.settings.description,
             lifespan=app_lifespan,
-            docs_url="/api/docs" if not settings.is_production else None,
-            redoc_url="/api/redoc" if not settings.is_production else None,
-            openapi_url="/api/openapi.json" if not settings.is_production else None,
+            docs_url="/api/docs" if not self.settings.is_production else None,
+            redoc_url="/api/redoc" if not self.settings.is_production else None,
+            openapi_url="/api/openapi.json" if not self.settings.is_production else None,
         )
+        self.app.add_middleware(RateLimitMiddleware)
 
         # Configure all components in order
         self._setup_templates()
@@ -172,8 +213,8 @@ class ApplicationFactory:
 
         logger.info(
             "application_created",
-            environment=settings.environment.value,
-            debug_mode=settings.is_development,
+            environment=self.settings.environment.value,
+            debug_mode=self.settings.is_development,
         )
 
         return self.app
@@ -183,33 +224,27 @@ class ApplicationFactory:
         errors = []
 
         # Redis configuration
-        if settings.redis_pool_min_size > settings.redis_pool_max_size:
-            max_sz = settings.redis_pool_max_size
-            min_sz = settings.redis_pool_min_size
+        if self.settings.redis_pool_min_size > self.settings.redis_pool_max_size:
+            max_sz = self.settings.redis_pool_max_size
+            min_sz = self.settings.redis_pool_min_size
             raise ValueError(
-                "redis_pool_max_size "
-                f"({max_sz}) must be >= redis_pool_min_size ({min_sz})"
+                f"redis_pool_max_age ({max_sz}) must be >= redis_pool_min_size ({min_sz})"
             )
 
         # Production-specific validations
-        if settings.is_production:
-            min_pw_len = getattr(
-                settings, "MIN_ADMIN_PASSWORD_LENGTH", _DEFAULT_MIN_PASSWORD_LENGTH
-            )
-            min_sk_len = getattr(
-                settings, "MIN_SECRET_KEY_LENGTH", _DEFAULT_MIN_SECRET_KEY_LENGTH
-            )
+        if self.settings.is_production:
+            # [P2-05 FIX] Direct field access - Pydantic ensures defaults exist
+            min_pw_len = self.settings.MIN_ADMIN_PASSWORD_LENGTH
+            min_sk_len = self.settings.MIN_SECRET_KEY_LENGTH
 
             # Admin credentials
             admin_pw = (
-                settings.admin_password.get_secret_value()
-                if settings.admin_password
+                self.settings.admin_password.get_secret_value()
+                if self.settings.admin_password
                 else ""
             )
             if not admin_pw or len(admin_pw.strip()) < min_pw_len:
-                errors.append(
-                    f"ADMIN_PASSWORD must be set (>= {min_pw_len} chars) in production"
-                )
+                errors.append(f"ADMIN_PASSWORD must be set (>= {min_pw_len} chars) in production")
             elif admin_pw.strip().lower() in {
                 "change_me_please",
                 "admin",
@@ -218,28 +253,20 @@ class ApplicationFactory:
                 errors.append("Insecure admin password in production")
 
             # JWT secret key
-            secret = (
-                settings.secret_key.get_secret_value() if settings.secret_key else ""
-            )
-            if (
-                not secret
-                or len(secret.strip()) < min_sk_len
-                or ("CHANGE_ME" in secret.upper())
-            ):
-                errors.append(
-                    f"SECRET_KEY must be set (>= {min_sk_len} chars) in production"
-                )
+            secret = self.settings.secret_key.get_secret_value() if self.settings.secret_key else ""
+            if not secret or len(secret.strip()) < min_sk_len or ("CHANGE_ME" in secret.upper()):
+                errors.append(f"SECRET_KEY must be set (>= {min_sk_len} chars) in production")
 
             # Debug must remain disabled
-            if getattr(settings, "debug", False):
+            if getattr(self.settings, "debug", False):
                 errors.append("Debug mode must be disabled in production")
 
             # CORS hardening
-            if any(origin.strip() == "*" for origin in settings.cors_allowed_origins):
+            if any(origin.strip() == "*" for origin in self.settings.cors_allowed_origins):
                 errors.append("Wildcard CORS origins not allowed in production")
 
             # LLM configuration hardening
-            llm_key = getattr(settings, "llm_api_key", None)
+            llm_key = getattr(self.settings, "llm_api_key", None)
             if llm_key is not None:
                 try:
                     if llm_key.get_secret_value() == "dummy_key_for_development":
@@ -258,13 +285,14 @@ class ApplicationFactory:
 
     def _setup_templates(self) -> None:
         """Configure Jinja2 template engine."""
-        templates_dir = settings.base_dir / "templates"
+        templates_dir = self.settings.base_dir / "templates"
 
         if not templates_dir.exists():
             logger.warning("templates_directory_not_found", path=str(templates_dir))
             return
 
         # Create Jinja2 environment with security settings
+        # [P2-05 FIX] JINJA2_TEMPLATE_CACHE_SIZE is a computed @property in Settings
         self.template_env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
             autoescape=select_autoescape(
@@ -272,11 +300,9 @@ class ApplicationFactory:
                 default_for_string=True,
                 default=True,
             ),
-            auto_reload=settings.is_development,
-            cache_size=getattr(
-                settings, "JINJA2_TEMPLATE_CACHE_SIZE", _DEFAULT_TEMPLATE_CACHE_SIZE
-            )
-            if settings.is_production
+            auto_reload=self.settings.is_development,
+            cache_size=self.settings.JINJA2_TEMPLATE_CACHE_SIZE
+            if self.settings.is_production
             else 0,
             enable_async=True,
             # extensions=['resync.core.csp_jinja_extension.CSPNonceExtension']
@@ -307,29 +333,100 @@ class ApplicationFactory:
         from resync.api.middleware.cors_config import CORSConfig
         from resync.api.middleware.cors_middleware import LoggingCORSMiddleware
 
+        # 0) Reverse-proxy hardening (enterprise default)
+        # - ProxyHeadersMiddleware: trust X-Forwarded-* only from known proxies
+        # - TrustedHostMiddleware: protect against Host header attacks
+        #
+        # Configure via:
+        #   TRUSTED_HOSTS="api.example.com,*.example.com"
+        #   PROXY_TRUSTED_HOSTS="10.0.0.0/8,192.168.0.0/16"  (or "*" ONLY in dev)
+        try:
+            if self.settings.is_production:
+                trusted_hosts_env = os.getenv("TRUSTED_HOSTS", "").strip()
+                if trusted_hosts_env:
+                    from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+                    allowed_hosts = [h.strip() for h in trusted_hosts_env.split(",") if h.strip()]
+                    self.app.add_middleware(
+                        TrustedHostMiddleware,
+                        allowed_hosts=allowed_hosts,
+                    )
+
+                proxy_enabled = os.getenv("PROXY_HEADERS", "false").lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+                if proxy_enabled:
+                    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+                    # Comma-separated list of proxy IPs/CIDRs. Defaults to FORWARDED_ALLOW_IPS.
+                    proxy_trusted = os.getenv(
+                        "PROXY_TRUSTED_HOSTS",
+                        os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+                    )
+                    self.app.add_middleware(
+                        ProxyHeadersMiddleware,
+                        trusted_hosts=proxy_trusted,
+                    )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            # Fail closed in production: better to crash than accept spoofed headers.
+            if self.settings.is_production:
+                logger.critical("proxy_middleware_setup_failed_prod", error=str(e))
+                raise
+            logger.warning("proxy_middleware_setup_failed", error=str(e))
+
         # 1) Rate limiting (startup-time wiring)
+        # [P1-01] BaseException replaced with specific infra exceptions.
+        #         CancelledError / SystemExit / KeyboardInterrupt must propagate freely.
         try:
             from resync.core.security.rate_limiter_v2 import setup_rate_limiting
 
             setup_rate_limiting(self.app)
-        except BaseException as e:
-            # Rate limiting must not silently fail open in production.
-            # Use BaseException to catch ALL errors including KeyboardInterrupt
-            if settings.is_production:
+
+            # Set up slowapi for unified_config_api endpoints
+            from slowapi.middleware import SlowAPIMiddleware
+            from resync.api.unified_config_api import limiter
+
+            self.app.state.limiter = limiter
+            self.app.add_middleware(SlowAPIMiddleware)
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            # [P1-01] Rate limiting must not silently fail open in production.
+            if self.settings.is_production:
                 logger.critical("rate_limiting_setup_failed_prod", error=str(e))
                 raise
             logger.warning("rate_limiting_setup_failed", error=str(e))
 
         # 2) CORS configuration (delegate to Starlette CORSMiddleware)
         cors_config = CORSConfig()
-        cors_policy = cors_config.get_policy(settings.environment.value)
+        cors_policy = cors_config.get_policy(self.settings.environment.value)
 
         # Convert list of regex patterns to a single regex string when provided.
         allow_origin_regex = None
         if getattr(cors_policy, "origin_regex_patterns", None):
-            allow_origin_regex = "|".join(
-                f"(?:{p})" for p in cors_policy.origin_regex_patterns
-            )
+            allow_origin_regex = "|".join(f"(?:{p})" for p in cors_policy.origin_regex_patterns)
 
         self.app.add_middleware(
             LoggingCORSMiddleware,
@@ -342,8 +439,29 @@ class ApplicationFactory:
             log_violations=cors_policy.log_violations,
         )
 
+        # 2.5) CSRF protection (production-only; requires SECRET_KEY)
+        # Only meaningful for cookie-auth / browser clients; safe no-op for pure token APIs.
+        if self.settings.is_production:
+            try:
+                from pydantic import SecretStr
+                from resync.api.middleware.csrf_protection import CSRFMiddleware
+
+                sk = getattr(self.settings, "secret_key", None)
+                secret_value = sk.get_secret_value() if isinstance(sk, SecretStr) else str(sk or "")
+                if secret_value:
+                    self.app.add_middleware(CSRFMiddleware, secret_key=secret_value)
+                    logger.info("csrf_middleware_registered")
+                else:
+                    logger.warning("csrf_middleware_skipped", reason="no_secret_key")
+            except ImportError as e:
+                logger.warning("csrf_middleware_not_available", error=str(e))
+            except (RuntimeError, OSError, ValueError) as e:
+                # Fail closed in production: better to crash than ship without CSRF.
+                logger.critical("csrf_middleware_setup_failed_prod", error=str(e))
+                raise
+
         # 3) CSP (production-only)
-        if settings.is_production:
+        if self.settings.is_production:
             from resync.api.middleware.csp_middleware import CSPMiddleware
 
             self.app.add_middleware(CSPMiddleware, report_only=False)
@@ -365,6 +483,11 @@ class ApplicationFactory:
         from resync.api.exception_handlers import register_exception_handlers
 
         register_exception_handlers(self.app)
+
+        # [P2-01] Use public _rate_limit_handler instead of private
+        #         slowapi._rate_limit_exceeded_handler (prefixed _ = private API).
+        self.app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+
         logger.info("exception_handlers_registered")
 
     def _setup_dependency_injection(self) -> None:
@@ -386,17 +509,20 @@ class ApplicationFactory:
         # CORE ROUTERS (v7.0: canonical paths under resync/api/routes/)
         # =================================================================
 
-        # Essential routers - must load (fail-fast)
+        # Essential routers - must load (fail-fast always)
+        # [P2-04] unified_config_api added here — critical infra since v6.1.0
         essential_routers = [
             ("resync.api.routes.core.health", "router", "health_router"),
             ("resync.api.routes.admin.main", "admin_router", "admin_router"),
             ("resync.api.agents", "agents_router", "agents_router"),
             ("resync.api.chat", "chat_router", "chat_router"),
+            ("resync.api.unified_config_api", "router", "unified_config_router"),  # [P2-04]
         ]
 
         for module_path, router_name, log_name in essential_routers:
             try:
-                mod = __import__(module_path, fromlist=[router_name])
+                # [P3-01] Modern importlib API replaces legacy __import__
+                mod = importlib.import_module(module_path)
                 router = getattr(mod, router_name)
                 self.app.include_router(router)
             except ImportError as e:
@@ -415,24 +541,22 @@ class ApplicationFactory:
             ("resync.api.routes.audit", "router", "audit_router"),
             ("resync.api.routes.cache", "router", "cache_router"),
             ("resync.api.routes.cors_monitoring", "router", "cors_monitor_router"),
+            ("resync.api.routes.feedback_submit", "router", "feedback_submit_router"),
             ("resync.api.routes.performance", "router", "performance_router"),
         ]
 
         for module_path, router_name, log_name in optional_routers:
             try:
-                mod = __import__(module_path, fromlist=[router_name])
+                # [P3-01] Modern importlib API replaces legacy __import__
+                mod = importlib.import_module(module_path)
                 router = getattr(mod, router_name)
                 self.app.include_router(router)
             except ImportError as e:
-                if settings.is_development:
-                    logger.error(
-                        "route_import_failed_dev", module=module_path, error=str(e)
-                    )
+                if self.settings.is_development:
+                    logger.error("route_import_failed_dev", module=module_path, error=str(e))
                     raise
                 else:
-                    logger.warning(
-                        "route_import_failed_prod", module=module_path, error=str(e)
-                    )
+                    logger.warning("route_import_failed_prod", module=module_path, error=str(e))
 
         # Additional routers from main_improved
         try:
@@ -444,7 +568,7 @@ class ApplicationFactory:
             self.app.include_router(config_router, prefix="/api/v1")
             self.app.include_router(rag_upload_router, prefix="/api/v1")
         except ImportError as e:
-            if settings.is_development:
+            if self.settings.is_development:
                 logger.error("optional_routers_not_available", error=str(e))
                 raise
             logger.warning("optional_routers_not_available", error=str(e))
@@ -457,11 +581,9 @@ class ApplicationFactory:
             self.app.include_router(enhanced_router)
             self.app.include_router(orchestration_router, prefix="/api/v1")
             logger.info("enhanced_endpoints_registered", prefix="/api/v2")
-            logger.info(
-                "orchestration_router_registered", prefix="/api/v1/orchestration"
-            )
+            logger.info("orchestration_router_registered", prefix="/api/v1/orchestration")
         except ImportError as e:
-            if settings.is_development:
+            if self.settings.is_development:
                 logger.error("enhanced_endpoints_not_available", error=str(e))
                 raise
             logger.warning("enhanced_endpoints_not_available", error=str(e))
@@ -471,11 +593,9 @@ class ApplicationFactory:
             from resync.api.graphrag_admin import router as graphrag_admin_router
 
             self.app.include_router(graphrag_admin_router)
-            logger.info(
-                "graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag"
-            )
+            logger.info("graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag")
         except ImportError as e:
-            if settings.is_development:
+            if self.settings.is_development:
                 logger.error("graphrag_admin_not_available", error=str(e))
                 raise
             logger.warning("graphrag_admin_not_available", error=str(e))
@@ -485,39 +605,30 @@ class ApplicationFactory:
             from resync.api.document_kg_admin import router as dkg_admin_router
 
             self.app.include_router(dkg_admin_router)
-            logger.info(
-                "document_kg_admin_endpoints_registered", prefix="/api/admin/kg"
-            )
+            logger.info("document_kg_admin_endpoints_registered", prefix="/api/admin/kg")
         except ImportError as e:
-            if settings.is_development:
+            if self.settings.is_development:
                 logger.error("document_kg_admin_not_available", error=str(e))
                 raise
             logger.warning("document_kg_admin_not_available", error=str(e))
 
-        # Register unified config API (v5.9.9)
-        try:
-            from resync.api.unified_config_api import router as unified_config_router
-
-            self.app.include_router(unified_config_router)
-            logger.info(
-                "unified_config_endpoints_registered", prefix="/api/admin/config"
-            )
-        except ImportError as e:
-            if settings.is_development:
-                logger.error("unified_config_api_not_available", error=str(e))
-                raise
-            logger.warning("unified_config_api_not_available", error=str(e))
-
         # Register monitoring routers
         try:
             from resync.api.routes.monitoring.routes import monitoring_router
+            from resync.api.routes.monitoring.prometheus_exporter import (
+                router as prometheus_exporter_router,
+            )
             from resync.core.monitoring_integration import register_dashboard_route
 
             self.app.include_router(monitoring_router, tags=["Monitoring"])
+            self.app.include_router(
+                prometheus_exporter_router,
+                tags=["Monitoring - Prometheus"],
+            )
             register_dashboard_route(self.app)
             logger.info("monitoring_routers_registered")
         except ImportError as e:
-            if settings.is_development:
+            if self.settings.is_development:
                 logger.error("monitoring_routers_not_available", error=str(e))
                 raise
             logger.warning("monitoring_routers_not_available", error=str(e))
@@ -576,6 +687,8 @@ class ApplicationFactory:
             from resync.api.routes.monitoring.ai_monitoring import (
                 router as ai_monitoring_router,
             )
+
+            # prometheus_exporter_router already imported and registered above
             from resync.api.routes.monitoring.metrics_dashboard import (
                 router as metrics_dashboard_router,
             )
@@ -674,7 +787,7 @@ class ApplicationFactory:
                 other_count=len(unified_other_routers),
             )
         except ImportError as e:
-            if settings.is_development:
+            if self.settings.is_development:
                 logger.error("unified_routers_not_available", error=str(e))
                 raise
             logger.warning("unified_routers_not_available", error=str(e))
@@ -688,21 +801,22 @@ class ApplicationFactory:
         Legacy submounts (/css, /js, /img, /fonts, /assets) removed -
         use /static/{subdir}/... instead.
         """
-        static_dir = settings.base_dir / "static"
+        static_dir = self.settings.base_dir / "static"
 
         if not static_dir.exists():
             logger.warning("static_directory_not_found", path=str(static_dir))
             return
 
         # Mount main static directory with caching
-        self.app.mount(
-            "/static", CachedStaticFiles(directory=str(static_dir)), name="static"
-        )
+        self.app.mount("/static", CachedStaticFiles(directory=str(static_dir)), name="static")
 
         logger.info("static_files_mounted", directory=str(static_dir))
 
     def _register_special_endpoints(self) -> None:
         """Register special endpoints (frontend, CSP, etc.)."""
+        # [P2-03] Import process_csp_report once at registration time, not per-request
+        from resync.csp_validation import process_csp_report
+        from resync.core.security.rate_limiter_v2 import rate_limit
 
         # Root redirect
         @self.app.get("/", include_in_schema=False)
@@ -714,17 +828,15 @@ class ApplicationFactory:
 
         # Revision page
         @self.app.get("/revisao", include_in_schema=False, response_class=HTMLResponse)
-        async def revisao_page(request: Request):
+        async def revisao_page(request: Request) -> HTMLResponse:
             """Serve the revision page."""
             return self._render_template("revisao.html", request)
 
         # CSP violation report endpoint with rate limiting to prevent
         # DoS from browser extensions.
-        from resync.core.security.rate_limiter_v2 import rate_limit
-
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
-        async def csp_violation_report(request: Request):
+        async def csp_violation_report(request: Request) -> JSONResponse:
             """
             Handle CSP violation reports with stream-based payload validation.
 
@@ -744,24 +856,30 @@ class ApplicationFactory:
                             "csp_report_payload_rejected",
                             size=body_size,
                             max_allowed=_MAX_CSP_PAYLOAD_SIZE,
-                            client_host=request.client.host
-                            if request.client
-                            else "unknown",
+                            client_host=request.client.host if request.client else "unknown",
                         )
                         return JSONResponse(
                             {"status": "ignored", "reason": "payload_too_large"},
                             status_code=413,
                         )
                     chunks.append(chunk)
-            except Exception as e:  # noqa: BLE001 - Stream errors must be handled
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                RuntimeError,
+                TimeoutError,
+                ConnectionError,
+            ) as e:  # noqa: BLE001
                 logger.error("csp_report_stream_error", error=str(e))
                 return JSONResponse(
                     {"status": "ignored", "reason": "stream_error"},
                     status_code=400,
                 )
 
-            import orjson
-
+            # [P2-02] orjson imported at module top-level — no per-request import cost
             try:
                 report_data: object = orjson.loads(b"".join(chunks))
             except (ValueError, orjson.JSONDecodeError) as e:
@@ -786,9 +904,8 @@ class ApplicationFactory:
                     status_code=400,
                 )
 
-            from resync.csp_validation import process_csp_report
-
-            return await process_csp_report(request)
+            # [P2-03] process_csp_report captured at registration time (closure)
+            return await process_csp_report(request, report_data=report_data)
 
         logger.info("special_endpoints_registered")
 
@@ -807,18 +924,14 @@ class ApplicationFactory:
             HTTPException: 500 if CSP nonce is missing in production (fail-closed)
         """
         if not self.templates:
-            raise HTTPException(
-                status_code=500, detail="Template engine not configured"
-            )
+            raise HTTPException(status_code=500, detail="Template engine not configured")
 
         nonce = getattr(request.state, "csp_nonce", None)
 
-        if settings.is_production:
+        if self.settings.is_production:
             if not nonce:
                 logger.critical("csp_nonce_missing_prod", template=template_name)
-                raise HTTPException(
-                    status_code=500, detail="Security middleware failed"
-                )
+                raise HTTPException(status_code=500, detail="Security middleware failed")
             if not isinstance(nonce, str) or len(nonce) < _MIN_CSP_NONCE_LENGTH:
                 logger.critical(
                     "csp_nonce_invalid_prod",
@@ -828,9 +941,7 @@ class ApplicationFactory:
                     nonce_length=len(nonce) if isinstance(nonce, str) else 0,
                     required_length=_MIN_CSP_NONCE_LENGTH,
                 )
-                raise HTTPException(
-                    status_code=500, detail="Security middleware failed"
-                )
+                raise HTTPException(status_code=500, detail="Security middleware failed")
 
         try:
             nonce_value = nonce or ""
@@ -839,8 +950,8 @@ class ApplicationFactory:
                 "nonce": nonce_value,
                 "csp_nonce": nonce_value,  # backward compatible
                 "settings": {
-                    "project_name": settings.project_name,
-                    "version": settings.project_version,
+                    "project_name": self.settings.project_name,
+                    "version": self.settings.project_version,
                     # Security: don't expose environment to prevent fingerprinting
                 },
             }
@@ -850,11 +961,18 @@ class ApplicationFactory:
             raise HTTPException(
                 status_code=404, detail=f"Template {template_name} not found"
             ) from None
-        except Exception as e:  # noqa: BLE001 - Template errors must not leak
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:  # noqa: BLE001
             logger.error("template_render_error", template=template_name, error=str(e))
-            raise HTTPException(
-                status_code=500, detail="Internal server error"
-            ) from None
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
 
 def create_app() -> FastAPI:

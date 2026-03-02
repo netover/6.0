@@ -14,7 +14,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class CircuitBreakerManager:
     """
     Manages multiple circuit breakers for different system components.
@@ -26,7 +25,7 @@ class CircuitBreakerManager:
     - Providing circuit breaker statistics and insights
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the circuit breaker manager."""
         self._circuit_breakers: dict[str, Any] = {}
         self._breaker_stats: dict[str, dict[str, Any]] = {}
@@ -91,7 +90,12 @@ class CircuitBreakerManager:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Update statistics
             await self._update_breaker_stats(breaker_name, success=False)
 
@@ -144,7 +148,12 @@ class CircuitBreakerManager:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "failed_to_get_circuit_breaker_status",
                 breaker_name=breaker_name,
@@ -205,7 +214,12 @@ class CircuitBreakerManager:
 
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "circuit_breaker_reset_failed", breaker_name=breaker_name, error=str(e)
             )
@@ -240,7 +254,12 @@ class CircuitBreakerManager:
                 state = getattr(circuit_breaker, "state", "unknown")
                 if state == "open":
                     open_breakers.append(breaker_name)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "failed_to_check_circuit_breaker_state",
                     breaker_name=breaker_name,

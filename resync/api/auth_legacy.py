@@ -1,4 +1,3 @@
-# pylint
 """Authentication and authorization API endpoints.
 
 This module provides JWT-based authentication endpoints and utilities,
@@ -29,15 +28,12 @@ logger = get_logger(__name__)
 # Allow missing Authorization to support HttpOnly cookie fallback
 security = HTTPBearer(auto_error=False)
 
-
 # Secret key for JWT tokens
 # v5.9.5: Fixed SECRET_KEY case mismatch - settings uses lowercase
 # SECURITY: No fallback in production - must fail fast if not configured
 def _get_secret_key() -> str:
     """Get secret key from settings, fail fast if not configured in production."""
     import os
-
-    from resync.settings import settings
 
     # Try to get secret_key (lowercase - correct attribute name)
     secret = getattr(settings, "secret_key", None)
@@ -64,11 +60,8 @@ def _get_secret_key() -> str:
     )
     return "dev_fallback_secret_key_NOT_FOR_PRODUCTION"
 
-
-SECRET_KEY = _get_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
 
 class SecureAuthenticator:
     """Authenticator resistente a timing attacks."""
@@ -177,11 +170,7 @@ class SecureAuthenticator:
         to avoid boot-time crashes when admin password is not configured.
         """
         # Use HMAC with secret key to prevent rainbow table attacks
-        raw_secret = getattr(settings, "secret_key", SECRET_KEY)
-        if hasattr(raw_secret, "get_secret_value"):
-            secret_key = raw_secret.get_secret_value().encode("utf-8")
-        else:
-            secret_key = str(raw_secret).encode("utf-8")
+        secret_key = _get_secret_key().encode("utf-8")
 
         if credential is None:
             c = ""
@@ -190,7 +179,7 @@ class SecureAuthenticator:
         else:
             c = str(credential)
 
-        return hmac.new(secret_key, c.encode("utf-8"), hashlib.sha256).digest()
+        return hmac.digest(secret_key, c.encode("utf-8"), hashlib.sha256)
 
     async def _record_failed_attempt(self, ip: str) -> None:
         """Record failed authentication attempt."""
@@ -244,10 +233,8 @@ class SecureAuthenticator:
 
         return max(0, int(remaining))
 
-
 # Global authenticator instance
 authenticator = SecureAuthenticator()
-
 
 def verify_admin_credentials(
     request: Request,
@@ -275,7 +262,7 @@ def verify_admin_credentials(
                 )
 
         # Decode & validate JWT
-        payload = decode_token(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_token(token, _get_secret_key(), algorithms=[ALGORITHM])
         username: str = payload.get("sub")
 
         if username is None:
@@ -304,7 +291,6 @@ def verify_admin_credentials(
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
-
 def create_access_token(
     data: dict[str, Any], expires_delta: timedelta | None = None
 ) -> str:
@@ -320,8 +306,9 @@ def create_access_token(
         )
 
     to_encode.update({"exp": expire})
-    return create_token(to_encode, SECRET_KEY, algorithm=ALGORITHM, expires_in=None)
-
+    return create_token(
+        to_encode, _get_secret_key(), algorithm=ALGORITHM, expires_in=None
+    )
 
 async def authenticate_admin(username: str, password: str) -> bool:
     """

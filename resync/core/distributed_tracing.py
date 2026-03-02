@@ -54,26 +54,30 @@ except ImportError:
         OK = 0
         ERROR = 1
 
-
 try:
     from opentelemetry.trace.propagation.tracecontext import TraceContextPropagator
 except ImportError:
     TraceContextPropagator = None
 
 try:
-    from opentelemetry.exporter.jaeger import JaegerExporter
+    # opentelemetry-exporter-jaeger was deprecated and removed from OTel Python ≥ 1.20.
+    # Modern deployments should use the OTLP exporter and configure a Jaeger/Tempo
+    # collector that accepts OTLP over gRPC or HTTP.
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-    JAEGER_AVAILABLE = True
+    JAEGER_AVAILABLE = True  # Keep name for backward compat; exporter is now OTLP-based.
+    JaegerExporter = OTLPSpanExporter  # type: ignore[assignment, misc]
 except ImportError:
     JAEGER_AVAILABLE = False
 
-    class JaegerExporter:
-        def __init__(self, **kwargs):
+    class JaegerExporter:  # type: ignore[no-redef]
+        """Stub when opentelemetry-exporter-otlp-proto-grpc is not installed."""
+
+        def __init__(self, **kwargs: object) -> None:
             pass
 
-        def shutdown(self, **kwargs):
+        def shutdown(self, **kwargs: object) -> None:
             pass
-
 
 try:
     from opentelemetry.sdk.trace.export import ConsoleSpanProcessor
@@ -83,12 +87,10 @@ except ImportError:
     CONSOLE_AVAILABLE = False
 
     class ConsoleSpanProcessor:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
-
 from resync.core.structured_logger import get_logger
-
 
 class _NoOpSpan:
     """Fallback span used when OpenTelemetry is disabled or uninitialized."""
@@ -100,26 +102,24 @@ class _NoOpSpan:
     def is_valid(self):
         return False
 
-    def set_attribute(self, *args, **kwargs):
+    def set_attribute(self, *args, **kwargs) -> None:
         return None
 
-    def record_exception(self, *args, **kwargs):
+    def record_exception(self, *args, **kwargs) -> None:
         return None
 
-    def set_status(self, *args, **kwargs):
+    def set_status(self, *args, **kwargs) -> None:
         return None
-
 
 logger = get_logger(__name__)
 
 current_trace_id: ContextVar[str | None] = ContextVar("current_trace_id", default=None)
 current_span_id: ContextVar[str | None] = ContextVar("current_span_id", default=None)
 
-
 class IntelligentSampler(Sampler):
     """Adaptive sampling strategy."""
 
-    def __init__(self, base_sample_rate: float = 0.1, max_sample_rate: float = 1.0):
+    def __init__(self, base_sample_rate: float = 0.1, max_sample_rate: float = 1.0) -> None:
         self.base_sample_rate = base_sample_rate
         self.max_sample_rate = max_sample_rate
         self.error_count = 0
@@ -176,7 +176,6 @@ class IntelligentSampler(Sampler):
             )
         return self.base_sample_rate
 
-
 @dataclass
 class TraceConfiguration:
     jaeger_endpoint: str = "http://localhost:14268/api/traces"
@@ -197,11 +196,10 @@ class TraceConfiguration:
     custom_span_processors: list[Any] = field(default_factory=list)
     custom_instrumentations: list[Any] = field(default_factory=list)
 
-
 class DistributedTracingManager:
     """Main distributed tracing manager."""
 
-    def __init__(self, config: TraceConfiguration | None = None):
+    def __init__(self, config: TraceConfiguration | None = None) -> None:
         self.config = config or TraceConfiguration()
         self.tracer_provider: TracerProvider | None = None
         self.tracer: trace.Tracer | None = None
@@ -271,11 +269,16 @@ class DistributedTracingManager:
         try:
             self._instrumented = True
             logger.info("Auto-instrumentation completed")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to setup auto-instrumentation: %s", e)
 
     @contextlib.contextmanager
-    def trace_context(self, operation_name: str, **attributes):
+    def trace_context(self, operation_name: str, **attributes) -> None:
         """Context manager for creating trace spans."""
         start_time = time.perf_counter()
         if not getattr(self, "tracer", None):
@@ -296,7 +299,12 @@ class DistributedTracingManager:
             self.trace_metrics["spans_created"] += 1
             try:
                 yield span
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 span.record_exception(e)  # Record exception here
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 raise
@@ -360,9 +368,7 @@ class DistributedTracingManager:
             span.record_exception(exception)
             span.set_status(Status(StatusCode.ERROR, str(exception)))
 
-
 _distributed_tracing_manager: DistributedTracingManager | None = None
-
 
 def _get_tracing_manager() -> DistributedTracingManager:
     global _distributed_tracing_manager
@@ -370,25 +376,20 @@ def _get_tracing_manager() -> DistributedTracingManager:
         _distributed_tracing_manager = DistributedTracingManager()
     return _distributed_tracing_manager
 
-
 async def get_distributed_tracing_manager() -> DistributedTracingManager:
     manager = _get_tracing_manager()
     if not manager._running:
         await manager.start()
     return manager
 
-
 def trace_method(operation_name: str | None = None):
     return _get_tracing_manager().trace_method(operation_name)
-
 
 def trace_context(operation_name: str, **attributes):
     return _get_tracing_manager().trace_context(operation_name, **attributes)
 
-
 def record_exception(exception: Exception) -> None:
     _get_tracing_manager().record_exception(exception)
-
 
 def traced(operation_name: str, **attributes):
     def decorator(func):

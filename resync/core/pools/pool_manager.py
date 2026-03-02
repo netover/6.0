@@ -7,6 +7,7 @@ Manages various connection pools using PostgreSQL.
 """
 
 import logging
+import threading
 from typing import Any
 
 from .db_pool import DatabasePool, get_db_pool
@@ -28,7 +29,7 @@ class PoolManager:
     Manages database and other connection pools.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the pool manager."""
         self._db_pool: DatabasePool | None = None
         self._initialized = False
@@ -36,7 +37,8 @@ class PoolManager:
     async def initialize(self) -> None:
         """Initialize all pools."""
         self._db_pool = get_db_pool()
-        await self._db_pool.initialize()
+        # DatabasePool.initialize() is synchronous; awaiting it raises TypeError.
+        self._db_pool.initialize()
         self._initialized = True
         logger.info("PoolManager initialized (PostgreSQL)")
 
@@ -64,13 +66,18 @@ class PoolManager:
 
 
 _instance: PoolManager | None = None
+_instance_lock = threading.Lock()
 
 
 def get_pool_manager() -> PoolManager:
     """Get the singleton PoolManager instance."""
     global _instance
-    if _instance is None:
-        _instance = PoolManager()
+    if _instance is not None:
+        return _instance
+
+    with _instance_lock:
+        if _instance is None:
+            _instance = PoolManager()
     return _instance
 
 

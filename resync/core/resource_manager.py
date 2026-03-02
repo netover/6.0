@@ -14,10 +14,11 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Generic, Self, TypeVar, cast
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
 
 @dataclass
 class ResourceInfo:
@@ -33,8 +34,7 @@ class ResourceInfo:
         """Get the lifetime of the resource in seconds."""
         return (datetime.now(timezone.utc) - self.created_at).total_seconds()
 
-
-class ManagedResource[T]:
+class ManagedResource(Generic[T]):
     """
     Base class for managed resources with automatic cleanup.
 
@@ -47,7 +47,7 @@ class ManagedResource[T]:
         self.created_at = datetime.now(timezone.utc)
         self._closed = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         logger.debug(
             "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
@@ -59,7 +59,7 @@ class ManagedResource[T]:
         await self.close()
         return False
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         """Sync context manager entry."""
         logger.debug(
             "Acquiring resource: %s (%s)", self.resource_id, self.resource_type
@@ -84,7 +84,12 @@ class ManagedResource[T]:
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     f"lifetime: {lifetime:.2f}s"
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error closing resource %s: %s", self.resource_id, e)
                 raise
 
@@ -101,7 +106,12 @@ class ManagedResource[T]:
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
                     f"lifetime: {lifetime:.2f}s"
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error closing resource %s: %s", self.resource_id, e)
                 raise
 
@@ -113,11 +123,10 @@ class ManagedResource[T]:
         """Override this method to implement sync cleanup logic."""
         pass
 
-
 class DatabaseConnectionResource(ManagedResource[Any]):
     """Managed database connection resource."""
 
-    def __init__(self, connection: Any, resource_id: str = "db_connection"):
+    def __init__(self, connection: Any, resource_id: str = "db_connection") -> None:
         super().__init__(resource_id, "database_connection")
         self.connection = connection
 
@@ -131,15 +140,19 @@ class DatabaseConnectionResource(ManagedResource[Any]):
                     close_result = await asyncio.to_thread(self.connection.close)
                     if inspect.isawaitable(close_result):
                         await close_result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing database connection: %s", e)
             raise
-
 
 class FileResource(ManagedResource[Any]):
     """Managed file resource."""
 
-    def __init__(self, file_handle: Any, resource_id: str = "file"):
+    def __init__(self, file_handle: Any, resource_id: str = "file") -> None:
         super().__init__(resource_id, "file")
         self.file_handle = file_handle
 
@@ -153,7 +166,12 @@ class FileResource(ManagedResource[Any]):
                     close_result = await asyncio.to_thread(self.file_handle.close)
                     if inspect.isawaitable(close_result):
                         await close_result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing file handle: %s", e)
             raise
 
@@ -162,15 +180,19 @@ class FileResource(ManagedResource[Any]):
         try:
             if hasattr(self.file_handle, "close"):
                 self.file_handle.close()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing file handle synchronously: %s", e)
             raise
-
 
 class NetworkSocketResource(ManagedResource[Any]):
     """Managed network socket resource."""
 
-    def __init__(self, socket: Any, resource_id: str = "socket"):
+    def __init__(self, socket: Any, resource_id: str = "socket") -> None:
         super().__init__(resource_id, "network_socket")
         self.socket = socket
 
@@ -184,10 +206,14 @@ class NetworkSocketResource(ManagedResource[Any]):
                     close_result = await asyncio.to_thread(self.socket.close)
                     if inspect.isawaitable(close_result):
                         await close_result
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Error closing network socket: %s", e)
             raise
-
 
 @asynccontextmanager
 async def managed_database_connection(pool: Any) -> AsyncIterator[Any]:
@@ -199,7 +225,6 @@ async def managed_database_connection(pool: Any) -> AsyncIterator[Any]:
             yield conn
     finally:
         pass
-
 
 @asynccontextmanager
 async def managed_file(file_path: str, mode: str = "r") -> AsyncIterator[Any]:
@@ -218,12 +243,12 @@ async def managed_file(file_path: str, mode: str = "r") -> AsyncIterator[Any]:
 
     file_handle = None
     try:
-        file_handle = await aiofiles.open(file_path, mode)
+        # Cast mode to handle the type checker expecting Literal types
+        file_handle = await aiofiles.open(file_path, cast(Any, mode))
         yield file_handle
     finally:
         if file_handle:
             await file_handle.close()
-
 
 @contextmanager
 def managed_file_sync(file_path: str, mode: str = "r") -> Iterator[Any]:
@@ -238,8 +263,7 @@ def managed_file_sync(file_path: str, mode: str = "r") -> Iterator[Any]:
         if file_handle:
             file_handle.close()
 
-
-class ResourcePool[T]:
+class ResourcePool(Generic[T]):
     """
     Generic resource pool with automatic cleanup and leak detection.
     """
@@ -249,6 +273,24 @@ class ResourcePool[T]:
         self.active_resources: dict[str, ResourceInfo] = {}
         self._lock = asyncio.Lock()
         self._resource_counter = 0
+        self._inflight_creations = 0
+
+    async def _close_resource(self, resource_id: str, resource: Any) -> None:
+        try:
+            if hasattr(resource, "close"):
+                if inspect.iscoroutinefunction(resource.close):
+                    await resource.close()
+                else:
+                    close_result = await asyncio.to_thread(resource.close)
+                    if inspect.isawaitable(close_result):
+                        await close_result
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            logger.error("Error closing resource %s: %s", resource_id, e)
 
     async def acquire(
         self,
@@ -260,15 +302,19 @@ class ResourcePool[T]:
         Acquire a resource from the pool.
         """
         async with self._lock:
-            if len(self.active_resources) >= self.max_resources:
+            current = len(self.active_resources) + self._inflight_creations
+            if current >= self.max_resources:
                 raise RuntimeError(
                     "Resource pool exhausted: "
                     f"{len(self.active_resources)}/{self.max_resources}"
                 )
 
+            self._inflight_creations += 1
             self._resource_counter += 1
             resource_id = f"{resource_type}_{self._resource_counter}"
 
+        resource: Any | None = None
+        try:
             if inspect.iscoroutinefunction(factory):
                 resource = await factory()
             else:
@@ -276,61 +322,56 @@ class ResourcePool[T]:
                 if inspect.isawaitable(resource):
                     resource = await resource
 
-            # Track the resource
             info = ResourceInfo(
                 resource_id=resource_id,
                 resource_type=resource_type,
                 resource_instance=resource,
                 metadata=metadata or {},
             )
-            self.active_resources[resource_id] = info
+            async with self._lock:
+                self._inflight_creations -= 1
+                self.active_resources[resource_id] = info
 
             logger.debug("Acquired resource: %s (%s)", resource_id, resource_type)
-            return resource_id, resource
+            # Type assertion: resource is guaranteed to be non-None here
+            return resource_id, cast(T, resource)
+        except BaseException:
+            async with self._lock:
+                self._inflight_creations -= 1
+            if resource is not None:
+                await self._close_resource(resource_id, resource)
+            raise
 
     async def release(self, resource_id: str, resource: Any) -> None:
         """
         Release a resource back to the pool.
         """
         async with self._lock:
-            await self._release_unsafe(resource_id, resource)
+            info = self.active_resources.pop(resource_id, None)
 
-    async def _release_unsafe(self, resource_id: str, resource: Any) -> None:
-        """Helper for unsafe release to avoid deadlocks."""
-        if resource_id in self.active_resources:
-            info = self.active_resources[resource_id]
-            lifetime = info.get_lifetime_seconds()
+        if info is None:
+            return
 
-            # Cleanup the resource
-            try:
-                if hasattr(resource, "close"):
-                    if inspect.iscoroutinefunction(resource.close):
-                        await resource.close()
-                    else:
-                        close_result = await asyncio.to_thread(resource.close)
-                        if inspect.isawaitable(close_result):
-                            await close_result
-            except Exception as e:
-                logger.error("Error closing resource %s: %s", resource_id, e)
-
-            del self.active_resources[resource_id]
-            logger.debug(
-                f"Released resource: {resource_id} ({info.resource_type}), "
-                f"lifetime: {lifetime:.2f}s"
-            )
+        lifetime = info.get_lifetime_seconds()
+        await self._close_resource(resource_id, resource)
+        logger.debug(
+            f"Released resource: {resource_id} ({info.resource_type}), "
+            f"lifetime: {lifetime:.2f}s"
+        )
 
     async def cleanup_all(self) -> None:
         """Cleanup all active resources."""
         async with self._lock:
-            resource_ids = list(self.active_resources.keys())
-            for res_id in resource_ids:
-                info = self.active_resources[res_id]
-                logger.warning(
-                    "Force cleaning up resource: %s (%s)",
-                    res_id,
-                    info.resource_type,
-                )
-                await self._release_unsafe(res_id, info.resource_instance)
+            items = list(self.active_resources.items())
+            self.active_resources.clear()
+
+        for res_id, info in items:
+            logger.warning(
+                "Force cleaning up resource: %s (%s)",
+                res_id,
+                info.resource_type,
+            )
+            await self._close_resource(res_id, info.resource_instance)
 
     async def detect_leaks(
         self, max_lifetime_seconds: int = 3600
@@ -371,8 +412,7 @@ class ResourcePool[T]:
             },
         }
 
-
-async def resource_scope[T](
+async def resource_scope(
     pool: ResourcePool,
     resource_type: str,
     factory: Callable[[], T],
@@ -387,13 +427,12 @@ async def resource_scope[T](
     finally:
         await pool.release(resource_id, resource)
 
-
 class BatchResourceManager:
     """
     Manager for batch resource operations with automatic cleanup.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.resources: list[tuple[str, Any, Callable | None]] = []
 
     def add_resource(
@@ -423,12 +462,17 @@ class BatchResourceManager:
                             await close_result
 
                 logger.debug("Cleaned up batch resource: %s", resource_id)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error cleaning up batch resource %s: %s", resource_id, e)
 
         self.resources.clear()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         return self
 
@@ -437,10 +481,8 @@ class BatchResourceManager:
         await self.cleanup_all()
         return False
 
-
 # Global resource pool instance
 _global_resource_pool: ResourcePool | None = None
-
 
 def get_global_resource_pool() -> ResourcePool:
     """Get the global resource pool instance."""

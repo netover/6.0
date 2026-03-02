@@ -7,7 +7,6 @@
 #   - Zero dependências externas
 #   - Integrado com métricas existentes do Resync
 
-
 import asyncio
 import logging
 import time
@@ -22,7 +21,6 @@ from fastapi.responses import JSONResponse
 from resync.api.security import decode_token
 
 logger = logging.getLogger(__name__)
-
 
 def _verify_ws_admin(websocket: WebSocket) -> bool:
     """Verify admin authentication for WebSocket connection.
@@ -51,16 +49,19 @@ def _verify_ws_admin(websocket: WebSocket) -> bool:
             roles = [roles_claim]
 
         return "admin" in roles
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.debug("WebSocket admin auth failed: %s", type(e).__name__)
         return False
-
 
 # Configurações do rolling buffer
 HISTORY_WINDOW_SECONDS = 2 * 60 * 60  # 2 horas
 SAMPLE_INTERVAL_SECONDS = 5  # Amostragem a cada 5s
 MAX_SAMPLES = HISTORY_WINDOW_SECONDS // SAMPLE_INTERVAL_SECONDS  # 1440 amostras
-
 
 @dataclass
 class MetricSample:
@@ -124,7 +125,6 @@ class MetricSample:
     rag_cache_hit_ratio: float = 0.0
     rag_chat_turns: int = 0
 
-
 @dataclass
 class DashboardMetricsStore:
     """Store para métricas do dashboard com rolling window."""
@@ -167,7 +167,7 @@ class DashboardMetricsStore:
                 {
                     "type": "error_rate",
                     "severity": "warning" if sample.error_rate < 10 else "critical",
-                    "message": "Error rate elevado: {sample.error_rate:.1f}%",
+                    "message": f"Error rate elevado: {sample.error_rate:.1f}%",
                     "timestamp": sample.datetime_str,
                 }
             )
@@ -181,7 +181,7 @@ class DashboardMetricsStore:
                 {
                     "type": "cache_ratio",
                     "severity": "warning",
-                    "message": "Cache hit ratio baixo: {sample.cache_hit_ratio:.1f}%",
+                    "message": f"Cache hit ratio baixo: {sample.cache_hit_ratio:.1f}%",
                     "timestamp": sample.datetime_str,
                 }
             )
@@ -194,7 +194,7 @@ class DashboardMetricsStore:
                     "severity": "warning"
                     if sample.response_time_p95 < 1000
                     else "critical",
-                    "message": "Latência P95 elevada: {sample.response_time_p95:.0f}ms",
+                    "message": f"Latência P95 elevada: {sample.response_time_p95:.0f}ms",
                     "timestamp": sample.datetime_str,
                 }
             )
@@ -429,18 +429,22 @@ class DashboardMetricsStore:
         hours = int((seconds % 86400) // 3600)
         return f"{days}d {hours}h"
 
+    async def get_alerts(self) -> dict[str, Any]:
+        """Return active alerts."""
+        async with self._lock:
+            return {"alerts": list(self.alerts), "count": len(self.alerts)}
+
     def _calc_trend(self, current: float, previous: float) -> float:
         """Calcula tendência em porcentagem."""
         if previous == 0:
             return 0
         return round(((current - previous) / previous) * 100, 1)
 
-
 # Singleton do store
 _metrics_store: DashboardMetricsStore | None = None
 _collector_task: asyncio.Task | None = None
-_collector_lock: asyncio.Lock | None = None
-
+# P1 fix: Module-level lock prevents TOCTOU race (safe on Python 3.10+)
+_collector_lock: asyncio.Lock = asyncio.Lock()
 
 def get_metrics_store() -> DashboardMetricsStore:
     """Obtém o store singleton."""
@@ -448,7 +452,6 @@ def get_metrics_store() -> DashboardMetricsStore:
     if _metrics_store is None:
         _metrics_store = DashboardMetricsStore()
     return _metrics_store
-
 
 async def collect_metrics_sample() -> MetricSample:
     """Coleta uma amostra das métricas atuais do sistema."""
@@ -462,11 +465,16 @@ async def collect_metrics_sample() -> MetricSample:
         store = get_metrics_store()
 
         # Calcular requests/sec baseado no delta
-        requests_total = (
-            snapshot.get("agent", {}).get("initializations", 0)
-            + snapshot.get("tws", {}).get("success", 0)
+        # P1 fix: explicit parentheses to prevent ternary precedence bug.
+        # Previously: (init + tws_success) if "tws" in snapshot else audit_records
+        # — which dropped agent initializations when "tws" was absent.
+        tws_success = (
+            snapshot.get("tws", {}).get("success", 0)
             if "tws" in snapshot
             else snapshot.get("audit", {}).get("records_created", 0)
+        )
+        requests_total = (
+            snapshot.get("agent", {}).get("initializations", 0) + tws_success
         )
 
         # Estimar requests/sec (simplificado)
@@ -561,13 +569,17 @@ async def collect_metrics_sample() -> MetricSample:
             rag_chat_turns=snapshot.get("rag", {}).get("chat_turns", 0),
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Erro ao coletar métricas: %s", e)
         return MetricSample(
             timestamp=time.time(),
             datetime_str=datetime.now(timezone.utc).strftime("%H:%M:%S"),
         )
-
 
 async def metrics_collector_loop():
     """Loop de coleta de métricas em background."""
@@ -577,40 +589,53 @@ async def metrics_collector_loop():
         try:
             sample = await collect_metrics_sample()
             await store.add_sample(sample)
-        except Exception as e:
+        except asyncio.CancelledError:
+            raise
+            logger.info("Metrics collector loop cancelled")
+            raise  # Must re-raise for proper shutdown
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Erro no collector loop: %s", e)
 
         await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
 
-
 async def _start_metrics_collector_async() -> None:
     """Start collector under lock to avoid duplicate background tasks."""
-    global _collector_task, _collector_lock
-
-    if _collector_lock is None:
-        _collector_lock = asyncio.Lock()
+    global _collector_task
 
     async with _collector_lock:
         if _collector_task is None or _collector_task.done():
             _collector_task = asyncio.create_task(metrics_collector_loop())
             logger.info("Dashboard metrics collector iniciado")
 
-
-def start_metrics_collector():
+def start_metrics_collector() -> None:
     """Inicia o coletor de métricas em background."""
     global _collector_task
 
     if _collector_task is None or _collector_task.done():
-        if _collector_task and _collector_task.exception():
-            logger.error("Collector task anterior falhou: %s", _collector_task.exception())
+        if _collector_task and _collector_task.done():
+            try:
+                exc = _collector_task.exception()
+                if exc:
+                    logger.error("Collector task anterior falhou: %s", exc)
+            except (asyncio.CancelledError, asyncio.InvalidStateError):
+                pass
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(_start_metrics_collector_async())
         except RuntimeError:
             logger.warning("Event loop não disponível, collector será iniciado depois")
-        except Exception as e:
-            logger.error("Unexpected error starting metrics collector: %s", e)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
 
+            logger.error("Unexpected error starting metrics collector: %s", e)
 
 def stop_metrics_collector():
     """Para o coletor de métricas."""
@@ -621,13 +646,11 @@ def stop_metrics_collector():
         logger.info("Dashboard metrics collector parado")
     _collector_task = None
 
-
 # =====================================
 # FastAPI Router
 # =====================================
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
-
 
 @router.get("/current")
 async def get_current_metrics():
@@ -639,7 +662,6 @@ async def get_current_metrics():
     """
     store = get_metrics_store()
     return JSONResponse(content=await store.get_current_metrics())
-
 
 @router.get("/history")
 async def get_metrics_history(minutes: int = 120):
@@ -656,16 +678,11 @@ async def get_metrics_history(minutes: int = 120):
     store = get_metrics_store()
     return JSONResponse(content=await store.get_history(minutes))
 
-
 @router.get("/alerts")
 async def get_active_alerts():
     """Retorna alertas ativos do sistema."""
     store = get_metrics_store()
-    async with store._lock:
-        return JSONResponse(
-            content={"alerts": store.alerts, "count": len(store.alerts)}
-        )
-
+    return JSONResponse(content=await store.get_alerts())
 
 @router.get("/health")
 async def monitoring_health():
@@ -684,12 +701,11 @@ async def monitoring_health():
         }
     )
 
-
 # WebSocket para atualizações em tempo real
 MAX_WS_CONNECTIONS = 200
-connected_clients: list[WebSocket] = []
+# P1 fix: Use set for O(1) add/remove/membership instead of O(n) list
+connected_clients: set[WebSocket] = set()
 _clients_lock = asyncio.Lock()
-
 
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket) -> None:
@@ -698,6 +714,9 @@ async def websocket_metrics(websocket: WebSocket) -> None:
 
     Envia atualizações a cada 5 segundos automaticamente.
     Requires admin authentication via Authorization header.
+
+    P0-05 fix: Uses try/finally for guaranteed cleanup.
+    P0-06 fix: Handles CancelledError for graceful shutdown.
     """
     # Verify admin authentication - fail closed (deny by default)
     if not _verify_ws_admin(websocket):
@@ -718,7 +737,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
             return
     await websocket.accept()
     async with _clients_lock:
-        connected_clients.append(websocket)
+        connected_clients.add(websocket)
 
     try:
         store = get_metrics_store()
@@ -732,11 +751,19 @@ async def websocket_metrics(websocket: WebSocket) -> None:
             await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
 
     except WebSocketDisconnect:
-        async with _clients_lock:
-            if websocket in connected_clients:
-                connected_clients.remove(websocket)
-    except Exception as e:
+        logger.info("monitoring_ws_disconnected")
+    except asyncio.CancelledError:
+        raise
+        logger.info("monitoring_ws_cancelled")
+        raise  # Must re-raise CancelledError for proper shutdown
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("WebSocket error: %s", e)
+    finally:
+        # P0-05: Guaranteed cleanup regardless of exit path
         async with _clients_lock:
-            if websocket in connected_clients:
-                connected_clients.remove(websocket)
+            connected_clients.discard(websocket)

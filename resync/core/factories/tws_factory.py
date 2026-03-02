@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import threading
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends
 
@@ -34,9 +34,8 @@ if TYPE_CHECKING:
     from resync.settings import Settings as AppSettings
 
 # Thread-safe singleton instance
-_tws_client_instance: Optional["OptimizedTWSClient"] = None
+_tws_client_instance: "OptimizedTWSClient" | None = None
 _tws_client_lock = threading.Lock()
-
 
 @lru_cache(maxsize=1)
 def _get_settings() -> "AppSettings":
@@ -49,7 +48,6 @@ def _get_settings() -> "AppSettings":
     from resync.settings import settings
 
     return settings  # type: ignore[return-value]
-
 
 def _create_tws_client(settings: "AppSettings") -> Any:
     """
@@ -65,9 +63,8 @@ def _create_tws_client(settings: "AppSettings") -> Any:
 
     return UnifiedTWSClient()
 
-
 def get_tws_client_singleton(
-    settings: Optional["AppSettings"] = None,
+    settings: "AppSettings" | None = None,
 ) -> "OptimizedTWSClient":
     """
     Get or create the TWS client singleton.
@@ -91,7 +88,6 @@ def get_tws_client_singleton(
 
     return _tws_client_instance
 
-
 def get_tws_client(
     settings: "AppSettings" = Depends(_get_settings),
 ) -> "OptimizedTWSClient":
@@ -113,7 +109,6 @@ def get_tws_client(
     """
     return get_tws_client_singleton(settings)
 
-
 def get_tws_client_factory():
     """
     Get the TWS client factory function.
@@ -130,7 +125,6 @@ def get_tws_client_factory():
     """
     return get_tws_client_singleton
 
-
 def reset_tws_client() -> None:
     """
     Reset the TWS client singleton.
@@ -144,11 +138,9 @@ def reset_tws_client() -> None:
         _tws_client_instance = None
         _get_settings.cache_clear()
 
-
 # Aliases for backward compatibility
 tws_client_factory = get_tws_client_factory
 get_client = get_tws_client_singleton
-
 
 __all__ = [
     "get_tws_client",

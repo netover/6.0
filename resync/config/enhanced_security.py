@@ -14,7 +14,6 @@ from resync.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
     """
     Enhanced security middleware with comprehensive protection mechanisms.
@@ -235,7 +234,6 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
             "payment 'none'; usb 'none'"
         )
 
-
 def configure_enhanced_security(
     app: FastAPI,
     security_middleware_config: dict | None = None,
@@ -261,7 +259,6 @@ def configure_enhanced_security(
         logger.info("Production security settings enabled")
     else:
         logger.info("Development security settings enabled")
-
 
 # Production security recommendations
 PRODUCTION_SECURITY_RECOMMENDATIONS = {
@@ -308,7 +305,6 @@ SECURITY_HEADERS_CHECKLIST = [
     "Cross-Origin-Resource-Policy",
 ]
 
-
 def validate_security_headers(response_headers: dict) -> list[str]:
     """
     Validate that all recommended security headers are present.
@@ -327,7 +323,6 @@ def validate_security_headers(response_headers: dict) -> list[str]:
             missing_headers.append(header)
 
     return missing_headers
-
 
 # Export configuration
 __all__ = [

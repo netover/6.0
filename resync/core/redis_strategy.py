@@ -32,11 +32,9 @@ import yaml
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # ENUMS
 # =============================================================================
-
 
 class RedisTier(str, Enum):
     """Redis dependency tier for endpoints."""
@@ -44,7 +42,6 @@ class RedisTier(str, Enum):
     READ_ONLY = "read_only"  # Never needs Redis
     BEST_EFFORT = "best_effort"  # Cache optional, can degrade
     CRITICAL = "critical"  # Redis required, 503 if unavailable
-
 
 class DegradedBehavior(str, Enum):
     """Possible degradation behaviors for BEST_EFFORT endpoints."""
@@ -55,11 +52,9 @@ class DegradedBehavior(str, Enum):
     READONLY_MODE = "readonly_mode"
     RETURN_CACHED_ONLY = "return_cached_only"
 
-
 # =============================================================================
 # ENDPOINT PATTERN MATCHER
 # =============================================================================
-
 
 class EndpointPattern:
     """
@@ -71,7 +66,7 @@ class EndpointPattern:
     - Method wildcard: "/health" (matches any method)
     """
 
-    def __init__(self, pattern: str):
+    def __init__(self, pattern: str) -> None:
         self.pattern = pattern
         self.regex = self._compile_pattern(pattern)
 
@@ -99,16 +94,14 @@ class EndpointPattern:
         request_str = f"{method.upper()} {path}"
         return bool(self.regex.match(request_str))
 
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-
 class RedisStrategyConfig:
     """Parsed configuration for Redis strategy."""
 
-    def __init__(self, config_dict: dict):
+    def __init__(self, config_dict: dict) -> None:
         # Startup config
         startup = config_dict.get("startup", {})
         self.startup_fail_fast: bool = startup.get("fail_fast", True)
@@ -185,11 +178,9 @@ class RedisStrategyConfig:
                 )
         return configs
 
-
 # =============================================================================
 # REDIS STRATEGY
 # =============================================================================
-
 
 class RedisStrategy:
     """
@@ -209,7 +200,7 @@ class RedisStrategy:
             raise HTTPException(503)
     """
 
-    def __init__(self, config_path: str = "config/redis_strategy.yaml"):
+    def __init__(self, config_path: str = "config/redis_strategy.yaml") -> None:
         """
         Initialize strategy with configuration file.
 
@@ -240,7 +231,12 @@ class RedisStrategy:
             with open(self.config_path) as f:
                 config_dict = yaml.safe_load(f) or {}
             return RedisStrategyConfig(config_dict)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "redis_strategy_config_error",
                 error=str(e),
@@ -372,15 +368,12 @@ class RedisStrategy:
             "critical": len(self.config.critical_configs),
         }
 
-
 # =============================================================================
 # SINGLETON
 # =============================================================================
 
-
 _strategy_instance: RedisStrategy | None = None
 _strategy_lock = __import__("threading").Lock()
-
 
 def get_redis_strategy() -> RedisStrategy:
     """
@@ -419,33 +412,27 @@ def get_redis_strategy() -> RedisStrategy:
 
     return _strategy_instance
 
-
 def reset_redis_strategy() -> None:
     """Reset singleton for testing purposes."""
     global _strategy_instance
     with _strategy_lock:
         _strategy_instance = None
 
-
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
 
 def is_endpoint_critical(method: str, path: str) -> bool:
     """Check if endpoint is CRITICAL tier."""
     return get_redis_strategy().get_tier(method, path) == RedisTier.CRITICAL
 
-
 def is_endpoint_read_only(method: str, path: str) -> bool:
     """Check if endpoint is READ_ONLY tier."""
     return get_redis_strategy().get_tier(method, path) == RedisTier.READ_ONLY
 
-
 def get_endpoint_tier(method: str, path: str) -> str:
     """Get tier name for endpoint."""
     return get_redis_strategy().get_tier(method, path).value
-
 
 def get_redis_strategy_status() -> dict[str, Any]:
     """
@@ -488,7 +475,12 @@ def get_redis_strategy_status() -> dict[str, Any]:
             "tiers": tiers_summary,
             "startup_fail_fast": startup_config.get("fail_fast", True),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

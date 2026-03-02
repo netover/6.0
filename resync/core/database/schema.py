@@ -18,7 +18,6 @@ from .models import Base, get_all_models
 
 logger = logging.getLogger(__name__)
 
-
 # SQL to create schemas
 CREATE_SCHEMAS_SQL = """
 -- Create schemas for organizing tables
@@ -37,7 +36,6 @@ CREATE SCHEMA IF NOT EXISTS metrics;
 -- GRANT USAGE ON SCHEMA learning TO your_app_role;
 -- GRANT USAGE ON SCHEMA metrics TO your_app_role;
 """
-
 
 async def create_schemas(engine: AsyncEngine | None = None) -> None:
     """
@@ -61,7 +59,6 @@ async def create_schemas(engine: AsyncEngine | None = None) -> None:
 
         logger.info("Database schemas created")
 
-
 async def create_tables(engine: AsyncEngine | None = None) -> None:
     """
     Create all database tables.
@@ -79,7 +76,6 @@ async def create_tables(engine: AsyncEngine | None = None) -> None:
         await conn.run_sync(Base.metadata.create_all)
 
     logger.info("Database tables created")
-
 
 async def drop_all_tables(
     engine: AsyncEngine | None = None, confirm: bool = False
@@ -102,7 +98,6 @@ async def drop_all_tables(
 
     logger.warning("All database tables dropped!")
 
-
 async def initialize_database(engine: AsyncEngine | None = None) -> None:
     """
     Initialize database with all schemas and tables.
@@ -118,7 +113,6 @@ async def initialize_database(engine: AsyncEngine | None = None) -> None:
     await create_tables(engine)
 
     logger.info("Database initialization complete")
-
 
 async def check_database_connection(engine: AsyncEngine | None = None) -> bool:
     """
@@ -141,13 +135,11 @@ async def check_database_connection(engine: AsyncEngine | None = None) -> bool:
         logger.error("Database connection failed: %s", e)
         return False
 
-
 def run_migrations() -> None:
     """
     Run migrations synchronously (for CLI usage).
     """
     run_sync(initialize_database())
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

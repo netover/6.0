@@ -9,12 +9,16 @@ from resync.core.websocket_pool_manager import get_websocket_pool_manager
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
 
-
 # --- Constants ---
 LOCK_TIMEOUT_SECONDS = 5.0
 
-
 class ConnectionManager:
+    """Core connection manager (client_id-based).
+
+    NOTE: The API websocket handlers define an AgentConnectionManager for agent_id-based routing.
+    Prefer importing from resync.core.connection_manager for core usage.
+    """
+
     """
     Manages active WebSocket connections for real-time updates.
     Enhanced with connection pooling and monitoring capabilities.
@@ -66,7 +70,12 @@ class ConnectionManager:
         # Close websocket outside lock to avoid potential deadlocks
         try:
             await websocket.close()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
@@ -81,35 +90,48 @@ class ConnectionManager:
         """
         Sends a message to a specific client.
         Integrates with the WebSocket pool manager for enhanced delivery.
+        Thread-safe: snapshot websocket reference under lock, then release
+        before performing network I/O (avoids head-of-line blocking).
         """
         if self._pool_manager:
             success = await self._pool_manager.send_personal_message(message, client_id)
             if success:
                 return
 
+        # Snapshot the websocket reference under lock, then release immediately.
+        # Network I/O must NEVER be performed while holding the lock — a slow
+        # client would otherwise serialise all connection operations system-wide.
         async with self._lock:
             websocket = self.active_connections.get(client_id)
-            if not websocket:
-                return
 
-            try:
-                await websocket.send_text(message)
-            except (WebSocketDisconnect, ConnectionError) as e:
-                logger.warning(
-                    "Connection error sending to client %s: %s", client_id, e
-                )
+        if not websocket:
+            return
+
+        # I/O performed outside the lock.
+        try:
+            await websocket.send_text(message)
+        except (WebSocketDisconnect, ConnectionError) as e:
+            logger.warning(
+                "Connection error sending to client %s: %s", client_id, e
+            )
+            async with self._lock:
                 self.active_connections.pop(client_id, None)
-            except RuntimeError as e:
-                if "websocket state" in str(e).lower():
-                    logger.warning(
-                        "WebSocket in wrong state for client %s: %s", client_id, e
-                    )
-                else:
-                    logger.error("Runtime error sending to client %s: %s", client_id, e)
-            except Exception as e:
-                if isinstance(e, asyncio.CancelledError):
-                    raise
-                logger.error("Unexpected error sending to client %s: %s", client_id, e)
+        except RuntimeError as e:
+            if "websocket state" in str(e).lower():
+                logger.warning(
+                    "WebSocket in wrong state for client %s: %s", client_id, e
+                )
+            else:
+                logger.error("Runtime error sending to client %s: %s", client_id, e)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            if isinstance(e, asyncio.CancelledError):
+                raise
+            logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
         """

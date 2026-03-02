@@ -32,7 +32,6 @@ from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
-
 class LoadBalancingStrategy(str, Enum):
     """
     Estratégias de load balancing disponíveis.
@@ -50,7 +49,6 @@ class LoadBalancingStrategy(str, Enum):
     LEAST_CONNECTIONS = "least_connections"
     WEIGHTED_RANDOM = "weighted_random"
     LATENCY_BASED = "latency_based"
-
 
 class LoadBalancer(Generic[T]):
     """
@@ -278,7 +276,6 @@ class LoadBalancer(Generic[T]):
             cls._last_index.clear()
         else:
             cls._last_index.pop(strategy.value, None)
-
 
 __all__ = [
     "LoadBalancingStrategy",

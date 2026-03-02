@@ -37,7 +37,6 @@ from .unified_health_service import UnifiedHealthService
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthServiceFacade:
     """
     Facade providing a unified interface for the health service system.
@@ -99,7 +98,12 @@ class HealthServiceFacade:
                 self._initialized = True
                 logger.info("health_service_facade_components_initialized")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "health_service_facade_initialization_failed", error=str(e)
                 )
@@ -123,7 +127,12 @@ class HealthServiceFacade:
                 self._monitoring_active = True
                 logger.info("health_service_facade_monitoring_started")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "health_service_facade_monitoring_start_failed", error=str(e)
                 )
@@ -140,7 +149,12 @@ class HealthServiceFacade:
                 self._monitoring_active = False
                 logger.info("health_service_facade_monitoring_stopped")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "health_service_facade_monitoring_stop_failed", error=str(e)
                 )
@@ -201,7 +215,12 @@ class HealthServiceFacade:
 
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("facade_comprehensive_health_check_failed", error=str(e))
 
             # Return error result
@@ -234,7 +253,12 @@ class HealthServiceFacade:
             # Get component health from unified service
             return await self.health_service.get_component_health(component_name)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "facade_get_component_health_failed",
                 component=component_name,
@@ -278,7 +302,12 @@ class HealthServiceFacade:
 
             return success
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "facade_component_recovery_failed",
                 component=component_name,
@@ -352,7 +381,12 @@ class HealthServiceFacade:
                     (time.time() * 1000) - (result.timestamp.timestamp() * 1000),
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -375,6 +409,11 @@ class HealthServiceFacade:
 
                 logger.info("health_service_facade_shutdown_completed")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("health_service_facade_shutdown_failed", error=str(e))
                 raise

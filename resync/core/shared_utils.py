@@ -6,7 +6,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 @dataclass
 class TeamsNotification:
     """Standardized Teams notification structure."""
@@ -19,10 +18,8 @@ class TeamsNotification:
     instance_name: str | None = None
     additional_data: dict[str, Any] | None = None
 
-
 class NotificationError(Exception):
     """Exception raised for notification errors."""
-
 
 def create_job_status_notification(
     job_data: dict[str, Any], instance_name: str, job_status_filters: list[str]

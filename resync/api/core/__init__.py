@@ -22,4 +22,8 @@ __all__ = [
     "check_permissions",
     "require_permissions",
     "require_role",
+    "security",
 ]
+
+# Re-export the security module itself so callers can import it as a namespace
+from . import security

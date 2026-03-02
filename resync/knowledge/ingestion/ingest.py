@@ -37,7 +37,6 @@ from .chunking import chunk_text
 
 logger = structlog.get_logger(__name__)
 
-
 class IngestService:
     """
     Idempotent ingestion service:
@@ -419,7 +418,12 @@ class IngestService:
                         "multi_view_no_chunks",
                         doc_id=doc_id
                     )
-            except Exception as mv_e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as mv_e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("multi_view_indexing_failed", error=str(mv_e))
         try:
             if self._settings.KG_EXTRACTION_ENABLED and self.kg_extractor and self.kg_store:
@@ -451,7 +455,12 @@ class IngestService:
                         concepts=len(extraction.concepts),
                         edges=len(extraction.edges),
                     )
-        except Exception as _kg_e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _kg_e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("document_kg_extraction_failed", error=str(_kg_e))
         chunk_types = {}
         error_code_count = 0
@@ -503,7 +512,12 @@ class IngestService:
         try:
             await self.store.delete_by_doc_id(doc_id, collection=CFG.collection_write)
             logger.info("deleted_existing_chunks", doc_id=doc_id)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("could_not_delete_existing_chunks", error=str(e))
         if use_advanced:
             return await self.ingest_document_advanced(

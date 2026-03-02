@@ -38,7 +38,6 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class LLMCircuitBreaker:
     """
     Circuit breaker para LLM providers.
@@ -112,7 +111,7 @@ class LLMCircuitBreaker:
         # half_open: permite tentativas limitadas
         return True
 
-    def record_success(self, provider: str):
+    def record_success(self, provider: str) -> None:
         """
         Registra sucesso.
 
@@ -138,7 +137,7 @@ class LLMCircuitBreaker:
             # Reset failure counter em sucesso
             self.failures[provider] = 0
 
-    def record_failure(self, provider: str):
+    def record_failure(self, provider: str) -> None:
         """
         Registra falha.
 
@@ -186,10 +185,8 @@ class LLMCircuitBreaker:
             "available": self.is_available(provider),
         }
 
-
 # Global circuit breaker instance
 circuit_breaker = LLMCircuitBreaker()
-
 
 async def call_llm_with_retry_and_fallback(
     primary_provider: Callable,
@@ -278,7 +275,12 @@ async def call_llm_with_retry_and_fallback(
 
                     return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             last_exception = e
             circuit_breaker.record_failure(provider_name)
 
@@ -302,7 +304,6 @@ async def call_llm_with_retry_and_fallback(
     )
     raise last_exception
 
-
 def get_circuit_breaker_status() -> dict[str, Any]:
     """
     Obtém status de todos circuit breakers.
@@ -319,7 +320,6 @@ def get_circuit_breaker_status() -> dict[str, Any]:
         "total": len(providers),
         "any_open": any(circuit_breaker.state.get(p) == "open" for p in providers),
     }
-
 
 # Exemplo de uso:
 """

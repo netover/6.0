@@ -15,7 +15,6 @@ from resync.core.health.health_models import HealthCheckConfig
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthCheckConfigurationManager:
     """
     Manages comprehensive health check configuration.
@@ -27,7 +26,7 @@ class HealthCheckConfigurationManager:
     - Providing configuration validation and defaults
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the configuration manager.
 
@@ -187,6 +186,11 @@ class HealthCheckConfigurationManager:
                     else:
                         updates[config_key] = env_value
                 except (ValueError, TypeError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning(
                         "invalid_environment_variable_value",
                         env_var=env_var,
@@ -337,7 +341,12 @@ class HealthCheckConfigurationManager:
             )
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

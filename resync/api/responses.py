@@ -39,7 +39,6 @@ except ImportError:
 
 from fastapi.responses import JSONResponse, Response
 
-
 class ORJSONResponse(JSONResponse):
     """
     High-performance JSON response using orjson.
@@ -89,10 +88,8 @@ class ORJSONResponse(JSONResponse):
             option=(
                 orjson.OPT_NON_STR_KEYS
                 | orjson.OPT_SERIALIZE_NUMPY
-                | orjson.OPT_PASSTHROUGH_DATETIME
             ),
         )
-
 
 class MsgSpecJSONResponse(Response):
     """
@@ -144,7 +141,6 @@ class MsgSpecJSONResponse(Response):
 
         return msgspec.json.encode(content)
 
-
 # Convenience function to get best available response class
 def get_optimized_response_class() -> type[JSONResponse]:
     """
@@ -162,15 +158,10 @@ def get_optimized_response_class() -> type[JSONResponse]:
     # MsgSpec only handles msgspec.Struct types, not Pydantic BaseModel
     if ORJSON_AVAILABLE:
         return ORJSONResponse
-    if MSGSPEC_AVAILABLE:
-        # MsgSpec is available but not prioritized - warn developers to use explicitly
-        return MsgSpecJSONResponse
     return JSONResponse
-
 
 # Export optimized response class as default
 OptimizedJSONResponse = get_optimized_response_class()
-
 
 __all__ = [
     "ORJSONResponse",

@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 # Type variable for model classes
 ModelT = TypeVar("ModelT", bound=DeclarativeBase)
 
-
 class BaseRepository(Generic[ModelT]):
     """
     Base repository providing common CRUD operations.
@@ -32,7 +31,7 @@ class BaseRepository(Generic[ModelT]):
 
     Example:
         class TWSJobRepository(BaseRepository[TWSJobStatus]):
-            def __init__(self, session_factory):
+            def __init__(self, session_factory) -> None:
                 super().__init__(TWSJobStatus, session_factory)
     """
 
@@ -350,7 +349,6 @@ class BaseRepository(Generic[ModelT]):
                 # Non-SELECT queries do not produce row results.
                 await session.commit()
                 return []
-
 
 class TimestampedRepository(BaseRepository[ModelT]):
     """

@@ -138,10 +138,8 @@ _ESSENTIALS = (
     "UnifiedHealthService",
 )
 
-
 def _env_flag(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
-
 
 # ---------------------------------------------------------------------------
 # Lazy loader (PEP 562) com memoization e deprecação por símbolo
@@ -160,11 +158,9 @@ def __getattr__(name: str) -> Any:
     globals()[name] = obj  # memoize para chamadas futuras
     return obj
 
-
 def __dir__() -> list[str]:
     # Reflete __all__ e símbolos já resolvidos (melhor DX em IDE)
     return sorted(list(set(list(globals().keys()) + list(__all__))))
-
 
 # ---------------------------------------------------------------------------
 # Caminhos opcionais:
@@ -177,14 +173,12 @@ def _preload_essentials() -> None:
         if name not in globals():
             _ = getattr(__import__(__name__, fromlist=[name]), name)
 
-
 def _strict_validate_exports() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         for name in __all__:
             if name not in globals():
                 _ = getattr(__import__(__name__, fromlist=[name]), name)
-
 
 if _env_flag("HSC_PRELOAD_ESSENTIALS"):
     _preload_essentials()

@@ -12,6 +12,7 @@ Migration Note:
 import logging
 from datetime import datetime
 from typing import Any
+from threading import Lock
 
 from resync.core.database.models import (
     TWSEvent,
@@ -36,7 +37,6 @@ __all__ = [
     "TWSStatusStore",
     "get_tws_status_store",
 ]
-
 
 class TWSStatusStore:
     """
@@ -182,17 +182,17 @@ class TWSStatusStore:
         """Clean up old data."""
         return await self._store.cleanup_old_data(days)
 
-
 _instance: TWSStatusStore | None = None
-_init_lock: Any = None
+_init_lock: Lock = Lock()
 
 def get_tws_status_store() -> TWSStatusStore:
     """Get the singleton TWSStatusStore instance."""
     global _instance
     if _instance is None:
-        _instance = TWSStatusStore()
+        with _init_lock:
+            if _instance is None:
+                _instance = TWSStatusStore()
     return _instance
-
 
 async def initialize_tws_status_store() -> TWSStatusStore:
     """Initialize and return the TWSStatusStore safely with a lock."""
@@ -206,4 +206,14 @@ async def initialize_tws_status_store() -> TWSStatusStore:
     async with _init_lock:
         if not store._initialized:
             await store.initialize()
+    return store
+
+# Alias compatibility
+def get_status_store() -> "TWSStatusStore":
+    """Alias for get_tws_status_store — backward compat."""
+    return get_tws_status_store()
+
+async def init_status_store() -> "TWSStatusStore":
+    """Initialize and return the TWSStatusStore singleton."""
+    store = get_tws_status_store()
     return store

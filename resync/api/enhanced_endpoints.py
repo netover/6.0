@@ -7,10 +7,11 @@ para chamadas paralelas e melhor performance.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 
 from resync.core.orchestrator import ServiceOrchestrator
@@ -24,11 +25,9 @@ logger = logging.getLogger(__name__)
 enhanced_router = APIRouter(prefix="/api/v2", tags=["enhanced"])
 INTERNAL_SERVER_ERROR_DETAIL = "Internal server error. Check server logs for details."
 
-
 # =============================================================================
 # DEPENDENCY INJECTION
 # =============================================================================
-
 
 async def get_tws_client() -> OptimizedTWSClient:
     """Get TWS client singleton.
@@ -40,31 +39,43 @@ async def get_tws_client() -> OptimizedTWSClient:
 
     return get_tws_client_singleton()
 
+_orchestrator_instance = None
 
 async def get_orchestrator(
     tws_client: Annotated[OptimizedTWSClient, Depends(get_tws_client)],
     knowledge_graph: Annotated[Any, Depends(get_knowledge_graph)],
 ) -> ServiceOrchestrator:
     """Get Service Orchestrator instance."""
-    return ServiceOrchestrator(
-        tws_client=tws_client,  # type: ignore[arg-type]
-        knowledge_graph=knowledge_graph,
-        max_retries=2,
-        timeout_seconds=10,
-    )
-
+    global _orchestrator_instance
+    if _orchestrator_instance is None:
+        _orchestrator_instance = ServiceOrchestrator(
+            tws_client=tws_client,  # type: ignore[arg-type]
+            knowledge_graph=knowledge_graph,
+            max_retries=2,
+            timeout_seconds=10,
+        )
+    return _orchestrator_instance
 
 # =============================================================================
 # ENHANCED ENDPOINTS
 # =============================================================================
 
+JOB_NAME_PATTERN = r"^[A-Z0-9_\-]{1,64}$"
 
 @enhanced_router.get(
     "/jobs/{job_name}/investigate",
     responses={500: {"description": "Internal Server Error"}},
 )
 async def investigate_job(
-    job_name: str,
+    job_name: Annotated[
+        str,
+        Path(
+            min_length=1,
+            max_length=64,
+            pattern=JOB_NAME_PATTERN,
+            description="TWS job name (uppercase alphanumeric + _ -)",
+        ),
+    ],
     orchestrator: Annotated[ServiceOrchestrator, Depends(get_orchestrator)],
     include_logs: bool = Query(default=True, description="Include job logs"),
     include_deps: bool = Query(default=True, description="Include dependencies"),
@@ -124,7 +135,12 @@ async def investigate_job(
             },
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -132,7 +148,6 @@ async def investigate_job(
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @enhanced_router.get(
     "/system/health",
@@ -159,7 +174,12 @@ async def system_health(
 
         return JSONResponse(status_code=status_code, content=health)
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -168,7 +188,6 @@ async def system_health(
             status_code=503,
             content={"status": "ERROR", "error": "Service temporarily unavailable"},
         )
-
 
 @enhanced_router.get(
     "/jobs/failed",
@@ -208,7 +227,12 @@ async def get_failed_jobs_endpoint(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -216,7 +240,6 @@ async def get_failed_jobs_endpoint(
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 @enhanced_router.get(
     "/jobs/{job_name}/summary",
@@ -250,8 +273,6 @@ async def get_job_summary(
     """
     try:
         # Buscar informações em paralelo
-        import asyncio
-
         status_task = None
         context_task = None
 
@@ -290,7 +311,12 @@ async def get_job_summary(
         if status_task and status_task.done() and not status_task.cancelled():
             try:
                 status = status_task.result()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error extracting job status: %s", e)
 
         if status is None:
@@ -301,7 +327,12 @@ async def get_job_summary(
         if context_task and context_task.done() and not context_task.cancelled():
             try:
                 context = context_task.result()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Error extracting relevant context: %s", e)
                 context = f"Erro ao recuperar contexto: {e}"
 
@@ -335,7 +366,12 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -348,7 +384,6 @@ Forneça um sumário executivo em 3-4 sentenças sobre:
         raise HTTPException(
             status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL
         ) from None
-
 
 # =============================================================================
 # EXPORTS

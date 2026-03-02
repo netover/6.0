@@ -17,7 +17,6 @@ from .redis_health_checker import RedisHealthChecker
 from .tws_monitor_health_checker import TWSMonitorHealthChecker
 from .websocket_pool_health_checker import WebSocketPoolHealthChecker
 
-
 class HealthCheckerFactory:
     """
     Factory for creating and managing health checker instances.
@@ -25,7 +24,7 @@ class HealthCheckerFactory:
     Provides dependency injection and centralized management of all health checkers.
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the health checker factory.
 

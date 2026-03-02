@@ -6,14 +6,12 @@ to avoid circular imports.
 
 from enum import Enum
 
-
 class Environment(str, Enum):
     """Ambientes suportados."""
 
     DEVELOPMENT = "development"
     PRODUCTION = "production"
     TEST = "test"
-
 
 class CacheHierarchyConfig:
     """Configuration object for cache hierarchy settings (snake_case internally).

@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Annotated
 
+from resync.core.io_utils import read_text, write_text
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from resync.api.dependencies_v2 import get_logger
@@ -45,7 +47,6 @@ from resync.api.models.responses_v2 import (
 
 router = APIRouter(tags=["Agents"])
 
-
 # =============================================================================
 # AGENT LISTING
 # =============================================================================
@@ -54,7 +55,6 @@ _AGENT_CACHE: dict[str, Any] | None = None
 _AGENT_CACHE_TIMESTAMP: float = 0
 _AGENT_CACHE_TTL: int = 300  # 5 minutes
 _AGENT_CACHE_LOCK = asyncio.Lock()
-
 
 async def _load_agents_config() -> dict[str, Any]:
     """
@@ -87,11 +87,10 @@ async def _load_agents_config() -> dict[str, Any]:
             _AGENT_CACHE_TIMESTAMP = now
             return config
 
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             # In case of error (e.g. malformed YAML), return empty or existing cache
             # logging would be good here but we don't have the logger instance
             return _AGENT_CACHE or {}
-
 
 @router.get("/", response_model=AgentListResponse)
 async def list_agents(
@@ -144,7 +143,12 @@ async def list_agents(
 
         return AgentListResponse(agents=default_agents, total=len(default_agents))
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -153,7 +157,6 @@ async def list_agents(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list agents",
         ) from e
-
 
 @router.get("/{agent_id}", response_model=AgentInfo)
 async def get_agent(
@@ -174,11 +177,9 @@ async def get_agent(
         detail=f"Agent '{agent_id}' not found",
     )
 
-
 # =============================================================================
 # AGENT EXECUTION (PR-4)
 # =============================================================================
-
 
 @router.post("/execute", response_model=AgentExecuteResponse)
 async def execute_agent(
@@ -291,13 +292,17 @@ async def execute_agent(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger_instance.error("agent_execute_error", error=str(e), trace_id=trace_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Agent execution failed. Check server logs for details.",
         ) from e
-
 
 @router.post("/roma/execute")
 async def execute_roma_agent(
@@ -332,18 +337,21 @@ async def execute_roma_agent(
             "verification_notes": result.get("verification_notes", []),
             "execution_logs": result.get("execution_logs", []),
         }
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger_instance.error("roma_execute_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ROMA execution failed",
         ) from e
 
-
 # =============================================================================
 # TOOL MANAGEMENT
 # =============================================================================
-
 
 @router.get("/tools/catalog")
 async def list_tools(
@@ -384,7 +392,12 @@ async def list_tools(
             "user_role": user_role,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -393,7 +406,6 @@ async def list_tools(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list tools",
         ) from e
-
 
 @router.post("/tools/execute", response_model=ToolResult)
 async def execute_tool(
@@ -463,18 +475,21 @@ async def execute_tool(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger_instance.error("tool_execute_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Tool execution failed. Check server logs for details.",
         ) from e
 
-
 # =============================================================================
 # HITL APPROVAL ENDPOINTS (PR-5)
 # =============================================================================
-
 
 @router.get("/approvals", response_model=ApprovalListResponse)
 async def list_pending_approvals(
@@ -534,7 +549,12 @@ async def list_pending_approvals(
             by_risk_level=by_risk,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -543,7 +563,6 @@ async def list_pending_approvals(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list approvals",
         ) from e
-
 
 @router.post("/approvals/{trace_id}", response_model=ApprovalResponse)
 async def handle_approval(
@@ -584,7 +603,12 @@ async def handle_approval(
                         result=result,
                         trace_id=trace_id,
                     )
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     execution_result = ToolResult(
                         tool_name=trace.tool_name,
                         success=False,
@@ -635,7 +659,12 @@ async def handle_approval(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -645,11 +674,9 @@ async def handle_approval(
             detail="Failed to process approval. Check server logs for details.",
         ) from e
 
-
 # =============================================================================
 # DIAGNOSTIC ENDPOINT (PR-3)
 # =============================================================================
-
 
 @router.post("/diagnose", response_model=DiagnosticResponse)
 async def run_diagnostic(
@@ -718,7 +745,12 @@ async def run_diagnostic(
             formatted_response=formatted,
         )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger_instance.error("diagnostic_error", error=str(e), trace_id=trace_id)
 
         # Return error response
@@ -732,7 +764,6 @@ async def run_diagnostic(
             result=error_result,
             formatted_response=f"Erro no diagnóstico: {e}",
         )
-
 
 def _format_diagnostic_response(result: DiagnosticResult) -> str:
     """Format diagnostic result as human-readable text."""
@@ -764,11 +795,9 @@ def _format_diagnostic_response(result: DiagnosticResult) -> str:
         else "Diagnóstico concluído sem resultados específicos."
     )
 
-
 # =============================================================================
 # EXECUTION HISTORY
 # =============================================================================
-
 
 @router.get("/traces")
 async def list_execution_traces(
@@ -791,7 +820,12 @@ async def list_execution_traces(
             "total": len(traces),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -801,11 +835,9 @@ async def list_execution_traces(
             detail="Failed to list traces",
         ) from e
 
-
 # =============================================================================
 # PR-9: ACTIVE RUNS TRACKING
 # =============================================================================
-
 
 @router.get("/runs/active")
 async def get_active_runs(
@@ -828,7 +860,12 @@ async def get_active_runs(
             "total": len(active),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -837,7 +874,6 @@ async def get_active_runs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get active runs",
         ) from e
-
 
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(
@@ -869,7 +905,12 @@ async def cancel_run(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -879,11 +920,9 @@ async def cancel_run(
             detail="Failed to cancel run",
         ) from e
 
-
 # =============================================================================
 # PR-11: UNDO OPERATIONS
 # =============================================================================
-
 
 @router.get("/undo/available")
 async def list_undoable_operations(
@@ -921,7 +960,12 @@ async def list_undoable_operations(
             "total": len(undoable),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -930,7 +974,6 @@ async def list_undoable_operations(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list undoable operations",
         ) from e
-
 
 @router.post("/undo/{trace_id}")
 async def undo_operation(
@@ -965,7 +1008,12 @@ async def undo_operation(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -975,11 +1023,9 @@ async def undo_operation(
             detail="Failed to undo operation",
         ) from e
 
-
 # =============================================================================
 # PR-8: PARALLEL TOOL EXECUTION
 # =============================================================================
-
 
 @router.post("/tools/execute-parallel")
 async def execute_tools_in_parallel(
@@ -1023,7 +1069,12 @@ async def execute_tools_in_parallel(
             "strategy": strategy,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1033,11 +1084,9 @@ async def execute_tools_in_parallel(
             detail="Parallel execution failed. Check server logs for details.",
         ) from e
 
-
 # =============================================================================
 # PR-10: SUB-AGENT DISPATCH
 # =============================================================================
-
 
 @router.post("/sub-agents/dispatch")
 async def dispatch_sub_agent_endpoint(
@@ -1065,7 +1114,12 @@ async def dispatch_sub_agent_endpoint(
 
         return result
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1074,7 +1128,6 @@ async def dispatch_sub_agent_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Sub-agent dispatch failed. Check server logs for details.",
         ) from e
-
 
 @router.post("/sub-agents/dispatch-parallel")
 async def dispatch_parallel_sub_agents_endpoint(
@@ -1118,7 +1171,12 @@ async def dispatch_parallel_sub_agents_endpoint(
             "success_count": success_count,
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -1128,11 +1186,9 @@ async def dispatch_parallel_sub_agents_endpoint(
             detail="Parallel sub-agent dispatch failed. Check server logs for details.",
         ) from e
 
-
 # =============================================================================
 # PR-12: RISK ASSESSMENT
 # =============================================================================
-
 
 @router.post("/tools/assess-risk")
 async def assess_tool_risk(
@@ -1177,7 +1233,12 @@ async def assess_tool_risk(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

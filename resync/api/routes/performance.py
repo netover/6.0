@@ -2,6 +2,9 @@
 Performance Monitoring API Endpoints.
 
 Provides REST API endpoints for monitoring and optimizing system performance.
+
+Critical fixes applied:
+- P1-24: Fixed f-string interpolation in cache metrics (lines 82-89)
 """
 
 import logging
@@ -28,13 +31,11 @@ __all__ = [
     "get_performance_health",
 ]
 
-
 logger = logging.getLogger(__name__)
 
 # Create router for performance endpoints
 performance_router = APIRouter(prefix="/api/performance", tags=["performance"])
 router = performance_router
-
 
 @performance_router.get("/report")
 async def get_performance_report() -> dict[str, Any]:
@@ -53,7 +54,12 @@ async def get_performance_report() -> dict[str, Any]:
         report = await performance_service.get_system_performance_report()
 
         return JSONResponse(status_code=status.HTTP_200_OK, content=report)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -62,7 +68,6 @@ async def get_performance_report() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate performance report. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/cache/metrics")
 async def get_cache_metrics() -> dict[str, Any]:
@@ -78,23 +83,29 @@ async def get_cache_metrics() -> dict[str, Any]:
         cache_metrics = {}
         for cache_name, monitor in performance_service.cache_monitors.items():
             metrics = await monitor.get_current_metrics()
+            # P1-24 fix: Added 'f' prefix to format strings for proper interpolation
             cache_metrics[cache_name] = {
-                "hit_rate": "{metrics.hit_rate:.2%}",
-                "miss_rate": "{metrics.miss_rate:.2%}",
-                "eviction_rate": "{metrics.eviction_rate:.2%}",
-                "efficiency_score": "{metrics.calculate_efficiency_score():.1f}/100",
+                "hit_rate": f"{metrics.hit_rate:.2%}",
+                "miss_rate": f"{metrics.miss_rate:.2%}",
+                "eviction_rate": f"{metrics.eviction_rate:.2%}",
+                "efficiency_score": f"{metrics.calculate_efficiency_score():.1f}/100",
                 "total_hits": metrics.total_hits,
                 "total_misses": metrics.total_misses,
                 "total_evictions": metrics.total_evictions,
                 "current_size": metrics.current_size,
-                "memory_usage_mb": "{metrics.memory_usage_mb:.2f}",
-                "average_access_time_ms": "{metrics.average_access_time_ms:.2f}",
+                "memory_usage_mb": f"{metrics.memory_usage_mb:.2f}",
+                "average_access_time_ms": f"{metrics.average_access_time_ms:.2f}",
             }
 
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"caches": cache_metrics}
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -103,7 +114,6 @@ async def get_cache_metrics() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get cache metrics. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/cache/recommendations")
 async def get_cache_recommendations() -> dict[str, Any]:
@@ -125,7 +135,12 @@ async def get_cache_recommendations() -> dict[str, Any]:
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"recommendations": recommendations}
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -134,7 +149,6 @@ async def get_cache_recommendations() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get cache recommendations. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/pools/metrics")
 async def get_pool_metrics() -> dict[str, Any]:
@@ -149,7 +163,12 @@ async def get_pool_metrics() -> dict[str, Any]:
         report = await pool_manager.get_performance_report()
 
         return JSONResponse(status_code=status.HTTP_200_OK, content=report)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -158,7 +177,6 @@ async def get_pool_metrics() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get pool metrics. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/pools/recommendations")
 async def get_pool_recommendations() -> dict[str, Any]:
@@ -175,7 +193,12 @@ async def get_pool_recommendations() -> dict[str, Any]:
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"recommendations": recommendations}
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -184,7 +207,6 @@ async def get_pool_recommendations() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get pool recommendations. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/resources/stats")
 async def get_resource_stats() -> dict[str, Any]:
@@ -201,7 +223,12 @@ async def get_resource_stats() -> dict[str, Any]:
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"resource_stats": stats}
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -210,7 +237,6 @@ async def get_resource_stats() -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get resource stats. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/resources/leaks")
 async def detect_resource_leaks(max_lifetime_seconds: int = 3600) -> dict[str, Any]:
@@ -246,7 +272,12 @@ async def detect_resource_leaks(max_lifetime_seconds: int = 3600) -> dict[str, A
                 "max_lifetime_seconds": max_lifetime_seconds,
             },
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -255,7 +286,6 @@ async def detect_resource_leaks(max_lifetime_seconds: int = 3600) -> dict[str, A
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to detect resource leaks. Check server logs for details.",
         ) from e
-
 
 @performance_router.get("/health")
 async def get_performance_health() -> dict[str, Any]:
@@ -315,10 +345,15 @@ async def get_performance_health() -> dict[str, Any]:
                 "pool_health": pool_health,
                 "pool_issues": pool_issues,
                 "resource_health": resource_health,
-                "resource_utilization": "{resource_stats['utilization']:.1f}%",
+                "resource_utilization": f"{resource_stats['utilization']:.1f}%",
             },
         )
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise

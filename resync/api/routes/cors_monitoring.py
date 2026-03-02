@@ -30,13 +30,11 @@ __all__ = [
     "router",
 ]
 
-
 # Initialize logger
 logger = logging.getLogger(__name__)
 
 # Create a new router for CORS monitoring
 cors_monitor_router = APIRouter()
-
 
 @cors_monitor_router.get("/stats", summary="Get CORS violation statistics")
 async def get_cors_stats(request: Request) -> dict:
@@ -45,7 +43,6 @@ async def get_cors_stats(request: Request) -> dict:
     """
     # This is a placeholder implementation
     return {"violations_detected": 0}
-
 
 @cors_monitor_router.get(
     "/config",
@@ -64,7 +61,6 @@ async def get_cors_config(request: Request) -> CorsConfigResponse:
         expose_headers=settings.CORS_EXPOSE_HEADERS,
         max_age=settings.CORS_MAX_AGE,
     )
-
 
 @cors_monitor_router.post(
     "/test", response_model=CorsTestResponse, summary="Test CORS policy"
@@ -90,7 +86,6 @@ async def test_cors_policy(
         origin=params.origin,
         method=params.method,
     )
-
 
 @cors_monitor_router.post(
     "/validate-origins",
@@ -122,7 +117,6 @@ async def validate_origins(
 
     return OriginValidationResponse(validated_origins=validated_origins)
 
-
 @cors_monitor_router.get("/violations", summary="Get recent CORS violations")
 async def get_cors_violations(
     limit: int = Query(100, ge=1, le=1000),
@@ -133,7 +127,6 @@ async def get_cors_violations(
     """
     # Placeholder implementation
     return []
-
 
 # Backwards-compatible alias expected by older import paths
 router = cors_monitor_router

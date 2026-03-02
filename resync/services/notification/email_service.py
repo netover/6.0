@@ -23,11 +23,10 @@ from resync.settings import get_settings
 
 logger = get_logger(__name__)
 
-
 class EmailService:
     """Service to send emails using SMTP with template support."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = get_settings()
         self.enabled = self.settings.smtp_enabled
         self.template_env = self._init_template_env()
@@ -46,7 +45,12 @@ class EmailService:
         try:
             template = self.template_env.get_template(template_name)
             return await template.render_async(**context)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error(
                 "email_template_render_error", template=template_name, error=str(e)
             )
@@ -111,7 +115,12 @@ class EmailService:
                         f"attachment; filename= {path.name}",
                     )
                     msg.attach(part)
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error("email_attachment_error", path=str(path), error=str(e))
         else:
             # Simple message
@@ -123,7 +132,12 @@ class EmailService:
             await asyncio.to_thread(self._send_smtp, msg)
             logger.info("email_sent", recipient=to_email, subject=subject)
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("email_send_failed", recipient=to_email, error=str(e))
             return False
 
@@ -145,14 +159,17 @@ class EmailService:
                     )
 
                 server.send_message(msg)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise to be caught by the async wrapper
             raise e
 
-
 # Singleton factory
 _email_service_instance: EmailService | None = None
-
 
 def get_email_service() -> EmailService:
     global _email_service_instance

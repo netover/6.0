@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-
 class TWSInstanceStatus(str, Enum):
     """Status of a TWS instance."""
 
@@ -20,7 +19,6 @@ class TWSInstanceStatus(str, Enum):
     ERROR = "error"
     MAINTENANCE = "maintenance"
 
-
 class TWSEnvironment(str, Enum):
     """TWS environment type."""
 
@@ -28,7 +26,6 @@ class TWSEnvironment(str, Enum):
     STAGING = "staging"
     DEVELOPMENT = "development"
     DR = "disaster_recovery"
-
 
 @dataclass
 class TWSInstanceConfig:
@@ -125,7 +122,6 @@ class TWSInstanceConfig:
                 data[dt_field] = datetime.fromisoformat(data[dt_field])
 
         return cls(**{k: v for k, v in data.items() if hasattr(cls, k)})
-
 
 @dataclass
 class TWSInstance:

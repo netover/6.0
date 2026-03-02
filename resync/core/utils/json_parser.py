@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 MAX_JSON_SIZE = 1024 * 1024  # 1MB limit for JSON content
 MAX_TEXT_SIZE = 10 * 1024 * 1024  # 10MB limit for input text
 
-
 @handle_parsing_errors("Failed to parse LLM JSON response")
 def parse_llm_json_response(
     text: str,

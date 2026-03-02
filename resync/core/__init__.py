@@ -34,11 +34,10 @@ VALIDATION_CACHE_TTL = 60
 
 logger = logging.getLogger(__name__)
 
-
 class CorrelationIdFilter(logging.Filter):
     """Logging filter to inject correlation_id into all log records."""
 
-    def __init__(self, correlation_id_getter=None):
+    def __init__(self, correlation_id_getter=None) -> None:
         super().__init__()
         self.correlation_id_getter = correlation_id_getter
 
@@ -48,15 +47,18 @@ class CorrelationIdFilter(logging.Filter):
                 correlation_id = self.correlation_id_getter()
                 if correlation_id:
                     record.correlation_id = correlation_id
-            except Exception as exc:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.debug("suppressed_exception: %s", str(exc), exc_info=True)
         return True
-
 
 _LAZY_EXPORTS = {"AsyncTTLCache": ("resync.core.cache.async_cache", "AsyncTTLCache")}
 _LOADED_EXPORTS = {}
 _LAZY_LOAD_LOCK = threading.Lock()
-
 
 def __getattr__(name: str):
     """PEP 562 lazy loading for heavy imports with thread safety."""
@@ -79,12 +81,11 @@ def __getattr__(name: str):
         return _LOADED_EXPORTS[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from None
 
-
 class CoreBootManager:
     """Hardened boot manager for core components with lifecycle tracking and
     health validation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._components: dict[str, Any] = {}
         self._boot_times: dict[str, float] = {}
         self._health_status: dict[str, dict[str, Any]] = {}
@@ -167,12 +168,11 @@ class CoreBootManager:
             "component_count": len(self._components),
         }
 
-
 class EnvironmentDetector:
     """Detect and validate execution environment for security and
     compatibility."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._validation_cache = {}
         self._last_validation = 0
 
@@ -209,10 +209,8 @@ class EnvironmentDetector:
             logger.warning("Environment validation failed: %s", e)
             return False
 
-
 _boot_manager_instance = None
 _boot_manager_lock = threading.Lock()
-
 
 def get_boot_manager():
     """Get the singleton instance of CoreBootManager."""
@@ -223,7 +221,6 @@ def get_boot_manager():
                 _boot_manager_instance = CoreBootManager()
     return _boot_manager_instance
 
-
 try:
     from resync.core.structured_logger import get_logger as _get_logger_func
 except ImportError:
@@ -231,26 +228,21 @@ except ImportError:
     def _get_logger_func(name: str | None = None) -> Any:
         return logging.getLogger(name if name else __name__)
 
-
 def _get_logger():
     """Lazy import of logger."""
     return _get_logger_func(__name__)
-
 
 def get_global_correlation_id() -> str:
     """Get the global correlation ID for distributed tracing."""
     return get_boot_manager().get_global_correlation_id()
 
-
 def get_environment_tags() -> dict[str, Any]:
     """Get environment tags for mock detection and debugging."""
     return get_boot_manager().get_environment_tags()
 
-
 def add_global_trace_event(event: str, data: dict[str, Any] | None = None) -> None:
     """Add a trace event to the global correlation context."""
     get_boot_manager().add_global_event(event, data)
-
 
 def _validate_environment() -> None:
     """Validate environment lazily."""
@@ -263,12 +255,16 @@ def _validate_environment() -> None:
                 "Environment validation failed - system may not be secure",
             )
     except (ImportError, AttributeError, OSError, RuntimeError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         try:
             log = _get_logger()
             log.warning("Environment validation failed: %s", e)
         except (ImportError, RuntimeError):
             logger.debug("suppressed_exception: %s", str(e), exc_info=True)
-
 
 __all__ = [
     "CoreBootManager",

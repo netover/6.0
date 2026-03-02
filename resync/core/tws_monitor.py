@@ -24,7 +24,6 @@ from .shared_utils import TeamsNotification, create_job_status_notification
 
 logger = structlog.get_logger(__name__)
 
-
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for TWS operations."""
@@ -54,7 +53,6 @@ class PerformanceMetrics:
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     uptime_seconds: float = 0.0
 
-
 @dataclass
 class Alert:
     """Alert for system anomalies or issues."""
@@ -68,21 +66,29 @@ class Alert:
     resolution_time: datetime | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
-
 class TWSMonitor:
     """TWS monitoring and alerting system."""
 
-    def __init__(self, tws_client: ITWSClient):
+    def __init__(self, tws_client: ITWSClient) -> None:
         """Initialize TWS monitor.
 
         Args:
             tws_client: TWS client for data collection
         """
         self.tws_client = tws_client
+        # NOTE: Separate sampling cadence (metrics collection) from alert evaluation.
+        # This matches the monitoring dashboard sampling interval (5s) while allowing
+        # alert evaluation to run less frequently.
+        self.sample_interval_seconds: float = 5.0
         # Keep ~36h of history at 30s interval (4320 records)
         # Using deque for O(1) appends and automatic pruning of old records
         self.metrics_history: deque[PerformanceMetrics] = deque(maxlen=4320)
-        self.alerts: list[Alert] = []
+        # Bounded deque prevents OOM from repeated threshold breaches.
+        # 10 000 entries keeps ~83 hours of alerts at the 30 s check interval
+        # even without any suppression, which is sufficient for all dashboards.
+        self.alerts: deque[Alert] = deque(maxlen=10_000)
+        # Minimum seconds between alerts of the same category (suppresses storms).
+        self._alert_suppression_seconds: int = 300
         self.alert_check_interval = 30  # seconds
         self._is_monitoring = False
         self._monitoring_task: asyncio.Task | None = None
@@ -133,14 +139,28 @@ class TWSMonitor:
 
     async def _monitoring_loop(self) -> None:
         """Main monitoring loop."""
+        last_alert_check = 0.0
         while self._is_monitoring:
             try:
+                # Collect metrics frequently.
                 await self._collect_metrics()
-                await self._check_alerts()
-                await asyncio.sleep(self.alert_check_interval)
+
+                # Evaluate alerts on a slower cadence.
+                now = time.monotonic()
+                if (now - last_alert_check) >= max(float(self.alert_check_interval), 1.0):
+                    await self._check_alerts()
+                    last_alert_check = now
+
+                await asyncio.sleep(max(float(self.sample_interval_seconds), 0.1))
             except asyncio.CancelledError:
+                raise
                 break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     "error_in_tws_monitoring_loop", error=str(e), exc_info=True
                 )
@@ -161,8 +181,8 @@ class TWSMonitor:
             # Collect LLM metrics
             llm_metrics = self._measure_llm_usage()
 
-            # Collect memory metrics
-            memory_usage = self._measure_memory_usage()
+            # Collect memory metrics (async — runs psutil on thread pool)
+            memory_usage = await self._measure_memory_usage()
 
             # Create metrics record
             metrics = PerformanceMetrics(
@@ -181,7 +201,12 @@ class TWSMonitor:
             # Deque handles pruning automatically via maxlen
             # No need for manual list comprehension filtering
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -193,7 +218,12 @@ class TWSMonitor:
             start_time = time.time()
             await self.tws_client.check_connection()
             return time.time() - start_time
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -201,29 +231,91 @@ class TWSMonitor:
             return 999.0  # High value indicates error
 
     def _calculate_api_error_rate(self) -> float:
-        """Calculate API error rate."""
-        # This would typically track actual API calls and errors
-        # For now, we'll use a simple heuristic
+        """Calculate API error rate from runtime metrics.
+
+        Returns error_rate as a fraction (0.0–1.0).  Falls back to 0.0 if
+        metrics are not yet instrumented.
+        """
+        # FIX P1-03: Was hardcoded 0.0. Now reads from RuntimeMetricsCollector.
+        try:
+            from resync.core.metrics.runtime_metrics import runtime_metrics
+
+            snapshot = runtime_metrics.get_snapshot()
+            system = snapshot.get("system", {})
+            total: int = system.get("api_requests_total", 0)
+            errors: int = system.get("api_errors_total", 0)
+            if total > 0:
+                return errors / total
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:  # noqa: BLE001
+            logger.warning("api_error_rate_unavailable", error=str(exc))
         return 0.0
 
     def _measure_cache_performance(self) -> float:
-        """Measure cache performance."""
-        # This would typically access cache metrics
-        # For now, we'll return a simulated value
-        return 0.85  # 85% hit ratio
+        """Measure cache hit ratio from runtime metrics.
+
+        Returns hit_ratio as a fraction (0.0–1.0).  Falls back to 0.0 if
+        metrics are not yet available.
+        """
+        # FIX P1-03: Was hardcoded 0.85. Now reads from RuntimeMetricsCollector.
+        try:
+            from resync.core.metrics.runtime_metrics import runtime_metrics
+
+            snapshot = runtime_metrics.get_snapshot()
+            rc = snapshot.get("router_cache", {})
+            hits: int = rc.get("hits", 0)
+            misses: int = rc.get("misses", 0)
+            total = hits + misses
+            if total > 0:
+                return hits / total
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:  # noqa: BLE001
+            logger.warning("cache_performance_unavailable", error=str(exc))
+        return 0.0
 
     def _measure_llm_usage(self) -> dict[str, Any]:
-        """Measure LLM usage."""
-        # This would typically access LLM metrics
-        # For now, we'll return simulated values
-        return {"calls": 10, "tokens": 1000, "cost": 0.02}
+        """Measure LLM usage from lightweight_store or runtime metrics.
 
-    def _measure_memory_usage(self) -> float:
-        """Measure memory usage."""
+        Returns a dict with keys: calls, tokens, cost.
+        Falls back to zeros when metrics are not yet instrumented.
+        """
+        # FIX P1-03: Was hardcoded fake data {"calls": 10, "tokens": 1000, "cost": 0.02}.
+        # Now reads from the lightweight metrics store where LLM counters are recorded.
+        result: dict[str, Any] = {"calls": 0, "tokens": 0, "cost": 0.0}
+        try:
+            from resync.core.metrics.lightweight_store import get_metrics_store as _get_lw_store
+
+            store = _get_lw_store()
+            result["calls"] = int(store.get_counter("llm.requests_total"))
+            result["tokens"] = int(store.get_counter("llm.tokens_total"))
+            result["cost"] = float(store.get_counter("llm.cost_usd"))
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:  # noqa: BLE001
+            logger.warning("llm_usage_metrics_unavailable", error=str(exc))
+        return result
+
+    async def _measure_memory_usage(self) -> float:
+        """Measure memory usage without blocking the event loop.
+
+        psutil.Process().memory_info() is a blocking syscall — it is executed
+        on the thread pool via asyncio.to_thread to avoid event-loop starvation.
+        """
         import psutil
 
-        process = psutil.Process()
-        return process.memory_info().rss / (1024 * 1024)  # MB
+        def _blocking_measure() -> float:
+            return psutil.Process().memory_info().rss / (1024 * 1024)  # MB
+
+        return await asyncio.to_thread(_blocking_measure)
+
+    def _should_emit_alert(self, category: str) -> bool:
+        """Return True only if no recent unresolved alert exists for this category.
+
+        Prevents duplicate alerts from filling the bounded deque during sustained
+        threshold breaches (e.g. high memory every 30 s for hours).
+        """
+        now = datetime.now(timezone.utc)
+        for alert in reversed(self.alerts):
+            if alert.category == category and not alert.resolved:
+                age_seconds = (now - alert.timestamp).total_seconds()
+                return age_seconds > self._alert_suppression_seconds
+        return True
 
     async def _check_alerts(self) -> None:
         """Check for alert conditions."""
@@ -272,7 +364,12 @@ class TWSMonitor:
                 )
 
         # Check LLM cost (daily)
-        daily_cost = latest_metrics.llm_cost_estimate * 24  # Assuming hourly rate
+        # FIX P1-01: Original formula multiplied by 24 (assuming hourly rate) but
+        # llm_cost_estimate is accumulated per *sample* (metrics collection) cycle.
+        # The correct multiplier is seconds_per_day / sample_interval_seconds.
+        _seconds_per_day = 86400
+        interval = max(float(self.sample_interval_seconds), 0.1)
+        daily_cost = latest_metrics.llm_cost_estimate * (_seconds_per_day / interval)
         if daily_cost > self.alert_thresholds["llm_cost_daily"]:
             alerts_to_add.append(
                 Alert(
@@ -304,14 +401,22 @@ class TWSMonitor:
                 )
             )
 
-        # Add new alerts
+        # Add new alerts — skip duplicates within the suppression window to prevent
+        # deque exhaustion from sustained threshold breaches (e.g. high memory for hours).
         for alert in alerts_to_add:
-            self.alerts.append(alert)
-            logger.warning("new_alert_generated", message=alert.message)
+            if self._should_emit_alert(alert.category):
+                self.alerts.append(alert)
+                logger.warning("new_alert_generated", message=alert.message)
 
-            # Send Teams notification for critical alerts
-            if alert.severity in ["critical", "high"]:
-                await self._send_teams_notification(alert)
+                # Send Teams notification for critical alerts
+                if alert.severity in ["critical", "high"]:
+                    await self._send_teams_notification(alert)
+            else:
+                logger.debug(
+                    "alert_suppressed_within_window",
+                    category=alert.category,
+                    suppression_seconds=self._alert_suppression_seconds,
+                )
 
     async def _send_teams_notification(self, alert: Alert) -> None:
         """Send alert notification to Microsoft Teams.
@@ -334,7 +439,12 @@ class TWSMonitor:
             # Send notification
             await teams_integration.send_notification(notification)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -387,7 +497,12 @@ class TWSMonitor:
 
                 await teams_integration.send_notification(notification)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -479,7 +594,12 @@ class TWSMonitor:
                 },
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -514,10 +634,8 @@ class TWSMonitor:
             for alert in recent_alerts
         ]
 
-
 # Global TWS monitor instance
 _tws_monitor: TWSMonitor | None = None
-
 
 async def get_tws_monitor(
     tws_client: ITWSClient, tg: asyncio.TaskGroup | None = None
@@ -536,14 +654,12 @@ async def get_tws_monitor(
         _tws_monitor.start_monitoring(tg=tg)
     return _tws_monitor
 
-
 async def shutdown_tws_monitor() -> None:
     """Shutdown global TWS monitor instance."""
     global _tws_monitor
     if _tws_monitor is not None:
         await _tws_monitor.stop_monitoring()
         _tws_monitor = None
-
 
 class TWSMonitorInterface:
     """Interface to provide synchronous access to the TWS monitor."""
@@ -573,10 +689,8 @@ class TWSMonitorInterface:
             return []
         return _tws_monitor.get_alerts(limit)
 
-
 # Global tws_monitor variable that provides synchronous access
 _tws_monitor_instance: TWSMonitorInterface | None = None
-
 
 class _LazyTWSMonitorInterface:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
@@ -594,9 +708,7 @@ class _LazyTWSMonitorInterface:
     def __getattr__(self, name: str):
         return getattr(self.get_instance(), name)
 
-
 tws_monitor = _LazyTWSMonitorInterface()
-
 
 def get_tws_monitor_sync() -> TWSMonitorInterface:
     """Return the singleton instance (preferred over using the proxy directly)."""

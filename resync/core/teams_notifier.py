@@ -20,11 +20,10 @@ from resync.core.database.models.teams_notifications import (
 
 logger = structlog.get_logger(__name__)
 
-
 class TeamsNotificationManager:
     """Gerencia notificações proativas para o Teams."""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session) -> None:
         self.db = db_session
         self._rate_limit_cache: dict[str, list[datetime]] = {}
         self._config_cache: TeamsNotificationConfig | None = None
@@ -120,7 +119,12 @@ class TeamsNotificationManager:
             logger.warning("unknown_pattern_type", type=pattern_type)
             return False
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -436,7 +440,12 @@ class TeamsNotificationManager:
 
         except asyncio.TimeoutError:
             return False, None, "Timeout"
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

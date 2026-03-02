@@ -8,7 +8,6 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
-
 class DegradedIdempotencyManager:
     """No-op idempotency manager that fails fast when Redis is unavailable.
 
@@ -73,6 +72,5 @@ class DegradedIdempotencyManager:
             detail="Idempotency service temporarily unavailable (Redis down)",
             headers={"Retry-After": "60"},
         )
-
 
 __all__ = ["DegradedIdempotencyManager"]

@@ -19,19 +19,17 @@ Environment Variables:
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
+from pydantic import SecretStr
 logger = logging.getLogger(__name__)
-
 
 class DatabaseDriver(str, Enum):
     """Database driver enumeration."""
 
     POSTGRESQL = "postgresql"  # Only supported backend
-
 
 @dataclass
 class DatabaseConfig:
@@ -47,7 +45,7 @@ class DatabaseConfig:
     port: int = 5432
     name: str = "resync"
     user: str = "resync"
-    password: str = ""
+    password: SecretStr = field(default_factory=lambda: SecretStr(""), repr=False)
 
     # Connection pool settings
     # Otimizado para <100 req/s, 20 usuários simultâneos
@@ -64,9 +62,9 @@ class DatabaseConfig:
     @property
     def url(self) -> str:
         """Get async database URL for SQLAlchemy."""
-        password = self.password or os.getenv("DATABASE_PASSWORD", "")
-        return f"postgresql+asyncpg://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
-
+        password = self.password.get_secret_value() or os.getenv("DATABASE_PASSWORD", "")
+        encoded = quote_plus(password) if password else ""
+        return f"postgresql+asyncpg://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
     @property
     def alembic_url(self) -> str:
         """
@@ -75,8 +73,9 @@ class DatabaseConfig:
         Uses asyncpg driver - Alembic must be configured for async mode.
         See alembic.ini and env.py for async configuration.
         """
-        password = self.password or os.getenv("DATABASE_PASSWORD", "")
-        return f"postgresql+asyncpg://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
+        password = self.password.get_secret_value() or os.getenv("DATABASE_PASSWORD", "")
+        encoded = quote_plus(password) if password else ""
+        return f"postgresql+asyncpg://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
 
     @property
     def raw_url(self) -> str:
@@ -85,9 +84,10 @@ class DatabaseConfig:
 
         Useful for direct psql connections or third-party tools.
         """
-        password = self.password or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password.get_secret_value() or os.getenv("DATABASE_PASSWORD", "")
+        encoded = quote_plus(password) if password else ""
         return (
-            f"postgresql://{self.user}:{password}@{self.host}:{self.port}/{self.name}"
+            f"postgresql://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
         )
 
     def get_pool_options(self) -> dict:
@@ -98,7 +98,6 @@ class DatabaseConfig:
             "pool_timeout": self.pool_timeout,
             "pool_recycle": self.pool_recycle,
         }
-
 
 def get_database_config() -> DatabaseConfig:
     """
@@ -121,7 +120,7 @@ def get_database_config() -> DatabaseConfig:
         port=int(os.getenv("DATABASE_PORT", "5432")),
         name=os.getenv("DATABASE_NAME", "resync"),
         user=os.getenv("DATABASE_USER", "resync"),
-        password=os.getenv("DATABASE_PASSWORD", ""),
+        password=SecretStr(os.getenv("DATABASE_PASSWORD", "")),
         # Keep env defaults aligned with the dataclass defaults (optimized values)
         pool_size=int(os.getenv("DATABASE_POOL_SIZE", "5")),
         max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
@@ -129,7 +128,6 @@ def get_database_config() -> DatabaseConfig:
         pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
         ssl_mode=os.getenv("DATABASE_SSL_MODE", "prefer"),
     )
-
 
 def _parse_database_url(url: str) -> DatabaseConfig:
     """
@@ -153,10 +151,9 @@ def _parse_database_url(url: str) -> DatabaseConfig:
     config.port = parsed.port or 5432
     config.name = parsed.path.lstrip("/") if parsed.path else "resync"
     config.user = parsed.username or "resync"
-    config.password = parsed.password or ""
+    config.password = SecretStr(parsed.password or "")
 
     return config
-
 
 def _is_production_env() -> bool:
     """
@@ -171,7 +168,6 @@ def _is_production_env() -> bool:
     )
     v = raw.strip().lower()
     return v in {"prod", "production"}
-
 
 def _validate_database_url_security(url: str) -> None:
     """
@@ -188,7 +184,7 @@ def _validate_database_url_security(url: str) -> None:
         normalized = normalized.replace("postgres://", "postgresql://", 1)
 
     parsed = urlparse(normalized)
-    password: Optional[str] = parsed.password
+    password: str | None = parsed.password
 
     if not password:
         return
@@ -208,10 +204,8 @@ def _validate_database_url_security(url: str) -> None:
             "DATABASE_URL contains an insecure database password; set a strong password/secret in production"
         )
 
-
 # Singleton config instance
 _config: DatabaseConfig | None = None
-
 
 def get_config() -> DatabaseConfig:
     """Get singleton database config."""

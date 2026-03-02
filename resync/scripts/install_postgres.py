@@ -486,12 +486,10 @@ CREATE INDEX IF NOT EXISTS idx_langgraph_checkpoint_writes_thread ON langgraph_c
 CREATE INDEX IF NOT EXISTS idx_langgraph_store_namespace ON langgraph_store(namespace);
 """
 
-
 def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     """Executa um comando shell."""
     print(f"Running: {' '.join(cmd)}")
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
-
 
 def detect_os() -> str:
     """Detecta o sistema operacional."""
@@ -501,7 +499,6 @@ def detect_os() -> str:
         return "macos"
     else:
         return "linux"
-
 
 def install_postgres_windows() -> None:
     """Instala PostgreSQL no Windows via Chocolatey ou manual."""
@@ -533,7 +530,6 @@ Ou use Winget:
     winget install PostgreSQL.PostgreSQL
 """)
 
-
 def install_postgres_linux() -> None:
     """Instala PostgreSQL no Linux."""
     print("\n=== Instalando PostgreSQL no Linux ===")
@@ -562,7 +558,6 @@ def install_postgres_linux() -> None:
     else:
         print("Distribuição não suportada. Instale manualmente.")
 
-
 def install_postgres_macos() -> None:
     """Instala PostgreSQL no macOS."""
     print("\n=== Instalando PostgreSQL no macOS ===")
@@ -574,7 +569,6 @@ Use Homebrew:
 Ou use Docker:
     docker run -d --name postgres -e POSTGRES_PASSWORD=resync_password -p 5432:5432 postgres:16
 """)
-
 
 def setup_database() -> None:
     """Configura o banco de dados."""
@@ -631,7 +625,12 @@ def setup_database() -> None:
                 ],
                 check=False,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             print(f"Nota: {e}")
 
     # Executar schema
@@ -667,7 +666,6 @@ Configure o arquivo .env:
     DATABASE_URL=postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}
 """)
 
-
 def run_migrations() -> None:
     """Executa migrações SQLAlchemy (se houver)."""
     print("\n=== Executando Migrações ===")
@@ -676,8 +674,7 @@ def run_migrations() -> None:
         '    python -c "from resync.core.database import engine; from resync.core.database.models import *; import resync.core.database.models_registry; from resync.core.database.schema import Base; Base.metadata.create_all(engine)"'
     )
 
-
-def main():
+def main() -> None:
     global DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 
     parser = argparse.ArgumentParser(description="PostgreSQL Setup for Resync")
@@ -715,7 +712,6 @@ def main():
 
     if args.action == "migrate":
         run_migrations()
-
 
 if __name__ == "__main__":
     main()

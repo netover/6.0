@@ -16,6 +16,15 @@ This module provides:
 import logging
 from typing import Any
 
+from pydantic import SecretStr
+
+
+def _unwrap_secret(val: SecretStr | str | None) -> str | None:
+    """Return the raw secret string from Pydantic SecretStr or a plain string."""
+    if isinstance(val, SecretStr):
+        return val.get_secret_value()
+    return val
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
@@ -53,7 +62,6 @@ except ImportError as e:
     )
     jwt = None  # type: ignore
 
-
 # =============================================================================
 # Settings Integration - Use main validated settings, not AppSettings
 # =============================================================================
@@ -70,9 +78,7 @@ def get_settings():
 
     return _get_settings()
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 
 # =============================================================================
 # Startup Validation
@@ -109,7 +115,12 @@ def validate_auth_requirements() -> None:
                 "Use at least 32 characters for security."
             )
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         errors.append(f"Failed to load settings: {e}")
 
     if errors:
@@ -120,7 +131,6 @@ def validate_auth_requirements() -> None:
         raise RuntimeError(error_msg)
 
     logger.info("auth_validation_passed")
-
 
 # =============================================================================
 # Token Decoding - No Fail-Open Paths
@@ -166,9 +176,10 @@ def decode_token(token: str, settings: Any = None) -> dict[str, Any]:
         settings = get_settings()
 
     # Get secret key from settings (support both naming conventions)
-    secret_key = getattr(settings, "secret_key", None) or getattr(
+    raw_key = getattr(settings, "secret_key", None) or getattr(
         settings, "jwt_secret_key", None
     )
+    secret_key = _unwrap_secret(raw_key)
     algorithm = getattr(settings, "jwt_algorithm", "HS256")
 
     # Validate secret key
@@ -216,14 +227,18 @@ def decode_token(token: str, settings: Any = None) -> dict[str, Any]:
         ) from e
     except HTTPException:
         raise
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("token_decode_error error=%s", str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
-
 
 # =============================================================================
 # FastAPI Dependencies
@@ -242,7 +257,6 @@ async def get_current_user(
     settings = get_settings()
     return decode_token(token, settings)
 
-
 async def get_current_user_optional(
     token: str | None = Depends(
         OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -259,7 +273,6 @@ async def get_current_user_optional(
 
     settings = get_settings()
     return decode_token(token, settings)
-
 
 def require_role(required_role: str):
     """
@@ -314,7 +327,6 @@ def require_role(required_role: str):
 
     return role_dependency
 
-
 def require_any_role(*roles: str):
     """
     Dependency factory that enforces any of the specified roles.
@@ -354,7 +366,6 @@ def require_any_role(*roles: str):
 
     return role_dependency
 
-
 # =============================================================================
 # Utility Functions
 # =============================================================================
@@ -378,13 +389,22 @@ def create_access_token(
         raise RuntimeError("PyJWT is required to create tokens")
 
     settings = get_settings()
-    secret_key = getattr(settings, "secret_key", None) or getattr(
+    raw_key = getattr(settings, "secret_key", None) or getattr(
         settings, "jwt_secret_key", None
     )
+    secret_key = _unwrap_secret(raw_key)
     algorithm = getattr(settings, "jwt_algorithm", "HS256")
 
     if not secret_key or secret_key in ("change-me", "change-me-in-production"):
         raise RuntimeError("JWT secret key not configured")
+
+    # Unwrap Pydantic SecretStr (or SecretStr-like) keys for PyJWT.
+    if not isinstance(secret_key, str):
+        get_secret_value = getattr(secret_key, "get_secret_value", None)
+        if callable(get_secret_value):
+            secret_key = get_secret_value()
+        if not isinstance(secret_key, str):
+            raise TypeError("JWT secret key must be a string")
 
     to_encode = data.copy()
 
@@ -393,7 +413,6 @@ def create_access_token(
     to_encode.update({"exp": expire, "iat": time.time()})
 
     return jwt.encode(to_encode, secret_key, algorithm=algorithm)
-
 
 # =============================================================================
 # Module Exports

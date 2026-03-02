@@ -1,7 +1,7 @@
 """
 Subgraph Retrieval for GraphRAG
 
-Retrieves structured knowledge subgraphs from Neo4j/Apache AGE instead of
+Retrieves structured knowledge subgraphs from the configured Postgres knowledge graph store instead of
 unstructured text chunks. Provides rich contextual relationships for LLM reasoning.
 
 Author: Resync Team
@@ -67,7 +67,7 @@ class SubgraphRetriever:
             return self.cache[cache_key]
 
         try:
-            # Build Cypher query based on parameters
+            # Build graph query query based on parameters
             cypher = self._build_job_context_query(
                 job_name=job_name,
                 depth=depth,
@@ -76,32 +76,40 @@ class SubgraphRetriever:
             )
 
             # Execute query
-            result = await self.kg.execute_cypher(cypher, {"job_name": job_name})
+            # Legacy legacy-query querying removed; use get_subgraph if backend supports it.
+            if hasattr(self.kg, "get_subgraph"):
+                subgraph = await self.kg.get_subgraph(
+                    seed_node_ids=[job_name],
+                    max_depth=depth,
+                    max_edges=100,
+                )
+                return {"job": job_name, "subgraph": subgraph}
+            logger.warning("subgraph_backend_missing_get_subgraph")
+            return {"job": job_name, "subgraph": {"nodes": [], "edges": []}}
 
-            # Structure the result
-            context = self._structure_job_context(result)
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
 
-            # Cache for 1 hour
-            self.cache[cache_key] = context
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
 
-            logger.info(
-                "Subgraph retrieved",
-                job_name=job_name,
-                dependencies=len(context.get("dependencies", [])),
-                errors=len(context.get("errors", [])),
-                solutions=len(context.get("solutions", [])),
-            )
-
-            return context
-
-        except Exception as e:
             logger.error("Subgraph retrieval failed: %s", e, exc_info=True)
             return self._empty_context(job_name)
 
     def _build_job_context_query(
         self, job_name: str, depth: int, include_history: bool, include_solutions: bool
     ) -> str:
-        """Build Cypher query for job context."""
+        """Build graph query query for job context."""
 
         # Base query - job and dependencies
         query_parts = [
@@ -150,18 +158,12 @@ class SubgraphRetriever:
 
         return {
             "job": row.get("job", {}),
-            "dependencies": [
-                self._node_to_dict(dep) for dep in row.get("dependencies", []) if dep
-            ],
+            "dependencies": [self._node_to_dict(dep) for dep in row.get("dependencies", []) if dep],
             "workstation": self._node_to_dict(row.get("workstation")),
             "errors": [self._node_to_dict(err) for err in row.get("errors", []) if err],
-            "solutions": [
-                self._node_to_dict(sol) for sol in row.get("solutions", []) if sol
-            ],
+            "solutions": [self._node_to_dict(sol) for sol in row.get("solutions", []) if sol],
             "executions": [
-                self._node_to_dict(exec_)
-                for exec_ in row.get("executions", [])
-                if exec_
+                self._node_to_dict(exec_) for exec_ in row.get("executions", []) if exec_
             ],
         }
 
@@ -249,7 +251,7 @@ class SubgraphRetriever:
 
         return "\n".join(lines)
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear subgraph cache."""
         self.cache.clear()
         logger.info("Subgraph cache cleared")

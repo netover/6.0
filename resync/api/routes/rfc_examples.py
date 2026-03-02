@@ -7,6 +7,7 @@ Este módulo demonstra o uso completo de:
 - Respostas padronizadas
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Annotated, Any
 from uuid import uuid4
@@ -33,16 +34,13 @@ __all__ = [
     "get_rfc_examples",
 ]
 
-
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/examples", tags=["RFC Examples"])
 
-
 # ============================================================================
 # MODELS
 # ============================================================================
-
 
 class Book(BaseModel):
     """Modelo de exemplo: Livro."""
@@ -66,15 +64,12 @@ class Book(BaseModel):
         }
     )
 
-
 class BookOut(Book):
     """Book out."""
 
     _links: dict[str, Any]
 
-
 ISBN = Annotated[str, StringConstraints(pattern=r"^[\d-]+$")]
-
 
 class BookCreate(BaseModel):
     """Request para criar livro."""
@@ -86,6 +81,8 @@ class BookCreate(BaseModel):
         None, description="Ano de publicação", ge=1000, le=9999
     )
 
+# Thread-safe lock para operações em _books_db
+_books_lock = asyncio.Lock()
 
 # Simulação de banco de dados em memória
 _books_db: list[Book] = [
@@ -107,11 +104,9 @@ _books_db: list[Book] = [
     ),
 ]
 
-
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
-
 
 @router.get(
     "/books",
@@ -152,8 +147,11 @@ async def list_books(
 ):
     """Lista livros com paginação e HATEOAS."""
 
-    # Filtrar livros
-    books = _books_db
+    # Cópia defensiva thread-safe
+    async with _books_lock:
+        books = list(_books_db)
+    
+    # Filtrar livros (fora do lock para não bloquear operações)
     if author:
         books = [b for b in books if author.lower() in b.author.lower()]
 
@@ -202,7 +200,6 @@ async def list_books(
         query_params=query_params,
     )
 
-
 @router.get(
     "/books/{book_id}",
     response_model=BookOut,
@@ -246,8 +243,9 @@ async def list_books(
 async def get_book(book_id: str):
     """Obtém livro por ID com links HATEOAS."""
 
-    # Buscar livro
-    book = next((b for b in _books_db if b.id == book_id), None)
+    # Buscar livro (cópia defensiva thread-safe)
+    async with _books_lock:
+        book = next((b for b in _books_db if b.id == book_id), None)
 
     if not book:
         raise ResourceNotFoundError(
@@ -279,7 +277,6 @@ async def get_book(book_id: str):
     }
 
     return book_dict
-
 
 @router.post(
     "/books",
@@ -347,7 +344,9 @@ async def create_book(book_data: BookCreate):
         created_at=datetime.now(timezone.utc).isoformat() + "Z",
     )
 
-    _books_db.append(book)
+    # Adicionar ao banco thread-safe
+    async with _books_lock:
+        _books_db.append(book)
 
     # Adicionar links HATEOAS
     builder = LinkBuilder()
@@ -371,7 +370,6 @@ async def create_book(book_data: BookCreate):
 
     return book_dict
 
-
 @router.delete(
     "/books/{book_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -387,21 +385,18 @@ async def create_book(book_data: BookCreate):
 async def delete_book(book_id: str):
     """Deleta um livro."""
 
-    # Buscar índice do livro
-    index = next((i for i, b in enumerate(_books_db) if b.id == book_id), None)
-
-    if index is None:
-        raise ResourceNotFoundError(
-            message=f"Book with ID '{book_id}' not found", details={"book_id": book_id}
-        )
-
-    # Remover livro
-    deleted_book = _books_db.pop(index)
+    # Buscar e remover livro thread-safe
+    async with _books_lock:
+        index = next((i for i, b in enumerate(_books_db) if b.id == book_id), None)
+        
+        if index is None:
+            raise ResourceNotFoundError(
+                message=f"Book with ID '{book_id}' not found", details={"book_id": book_id}
+            )
+        
+        deleted_book = _books_db.pop(index)
 
     logger.info("Book deleted", book_id=book_id, title=deleted_book.title)
-
-    return
-
 
 @router.get(
     "/rfc-examples",

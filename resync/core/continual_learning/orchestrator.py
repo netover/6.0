@@ -43,7 +43,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 @dataclass
 class ContinualLearningResult:
     """Result from continual learning orchestration."""
@@ -93,7 +92,6 @@ class ContinualLearningResult:
             "processing_time_ms": self.processing_time_ms,
             "timestamp": self.timestamp.isoformat(),
         }
-
 
 class ContinualLearningOrchestrator:
     """
@@ -351,10 +349,8 @@ class ContinualLearningOrchestrator:
 
         return stats
 
-
 # Singleton instance
 _orchestrator: ContinualLearningOrchestrator | None = None
-
 
 def get_continual_learning_orchestrator() -> ContinualLearningOrchestrator:
     """Get global orchestrator instance."""
@@ -362,7 +358,6 @@ def get_continual_learning_orchestrator() -> ContinualLearningOrchestrator:
     if _orchestrator is None:
         _orchestrator = ContinualLearningOrchestrator()
     return _orchestrator
-
 
 async def process_with_continual_learning(
     query: str,

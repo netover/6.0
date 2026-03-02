@@ -4,14 +4,12 @@ Orchestration Configuration Repository
 Provides data access methods for orchestration configurations.
 """
 
-from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import asc, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database.models.orchestration import OrchestrationConfig
-
 
 class OrchestrationConfigRepository:
     """
@@ -34,10 +32,10 @@ class OrchestrationConfigRepository:
         name: str,
         strategy: str,
         steps: dict,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        owner_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
+        description: str | None = None,
+        metadata: dict | None = None,
+        owner_id: str | None = None,
+        tenant_id: str | None = None,
         is_global: bool = False,
     ) -> OrchestrationConfig:
         """
@@ -71,7 +69,7 @@ class OrchestrationConfigRepository:
         await self._session.refresh(config)
         return config
 
-    async def get_by_id(self, config_id: UUID) -> Optional[OrchestrationConfig]:
+    async def get_by_id(self, config_id: UUID) -> OrchestrationConfig | None:
         """
         Get configuration by ID.
 
@@ -87,8 +85,8 @@ class OrchestrationConfigRepository:
         return result.scalar_one_or_none()
 
     async def get_by_name(
-        self, name: str, owner_id: Optional[str] = None
-    ) -> Optional[OrchestrationConfig]:
+        self, name: str, owner_id: str | None = None
+    ) -> OrchestrationConfig | None:
         """
         Get configuration by name, optionally scoped to owner.
 
@@ -119,13 +117,13 @@ class OrchestrationConfigRepository:
 
     async def list_all(
         self,
-        owner_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        strategy: Optional[str] = None,
+        owner_id: str | None = None,
+        tenant_id: str | None = None,
+        strategy: str | None = None,
         is_active: bool = True,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[OrchestrationConfig]:
+    ) -> list[OrchestrationConfig]:
         """
         List orchestration configurations with filters.
 
@@ -167,7 +165,7 @@ class OrchestrationConfigRepository:
         self,
         config_id: UUID,
         **kwargs,
-    ) -> Optional[OrchestrationConfig]:
+    ) -> OrchestrationConfig | None:
         """
         Update configuration fields.
 
@@ -206,8 +204,8 @@ class OrchestrationConfigRepository:
 
     async def count(
         self,
-        owner_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
+        owner_id: str | None = None,
+        tenant_id: str | None = None,
         is_active: bool = True,
     ) -> int:
         """

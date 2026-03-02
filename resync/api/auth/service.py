@@ -1,10 +1,10 @@
-# pylint
 """
 Authentication service with database support.
 """
 
 import logging
-import os
+import asyncio
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from .models import (
@@ -21,20 +21,27 @@ from .repository import UserRepository
 logger = logging.getLogger(__name__)
 
 # Get secret key from environment with secure default handling
-_DEFAULT_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "")
-if not _DEFAULT_SECRET_KEY:
-    _env = os.getenv("ENVIRONMENT", "development").lower()
-    if _env in ("production", "prod", "staging"):
-        raise RuntimeError(
-            "AUTH_SECRET_KEY must be set in production/staging environments. "
-            "Set the AUTH_SECRET_KEY environment variable."
-        )
-    logger.warning(
-        "AUTH_SECRET_KEY not set — using insecure default. "
-        "This is only acceptable in development."
-    )
-    _DEFAULT_SECRET_KEY = "insecure-dev-key-do-not-use-in-production"
+def _resolve_secret_key() -> str:
+    """Resolve the JWT secret key from canonical Settings only.
 
+    This project has not been deployed to production, so we intentionally do **not**
+    support legacy environment variable fallbacks (e.g., AUTH_SECRET_KEY). This
+    avoids configuration drift and makes failures explicit early.
+    """
+    # Import locally to avoid circular deps at import time.
+    from pydantic import SecretStr
+    from resync.settings import get_settings
+
+    settings = get_settings()
+    sk = getattr(settings, "secret_key", None)
+
+    if not sk:
+        raise RuntimeError(
+            "SECRET_KEY must be configured (settings.secret_key). "
+            "Set it via your Settings/environment configuration."
+        )
+
+    return sk.get_secret_value() if isinstance(sk, SecretStr) else str(sk)
 
 class AuthService:
     """
@@ -58,7 +65,7 @@ class AuthService:
             access_token_expire_minutes: Token expiration time
         """
         self.repository = repository or UserRepository()
-        self.secret_key = secret_key or _DEFAULT_SECRET_KEY
+        self.secret_key = secret_key or _resolve_secret_key()
         self.algorithm = algorithm
         self.access_token_expire_minutes = access_token_expire_minutes
 
@@ -109,7 +116,9 @@ class AuthService:
 
         # Hash password and create user
         user_dict = user_data.model_dump()
-        user_dict["hashed_password"] = self._hash_password(user_dict.pop("password"))
+        user_dict["hashed_password"] = await asyncio.to_thread(
+            self._hash_password, user_dict.pop("password")
+        )
 
         created = await self.repository.create(user_dict)
 
@@ -143,7 +152,10 @@ class AuthService:
             )
             return None
 
-        if not self._verify_password(password, user_data["hashed_password"]):
+        password_valid = await asyncio.to_thread(
+            self._verify_password, password, user_data["hashed_password"]
+        )
+        if not password_valid:
             logger.warning(
                 "Authentication failed: invalid password",
                 extra={"username_prefix": username[:3] + "***"},
@@ -201,6 +213,8 @@ class AuthService:
             "username": user.username,
             "role": user.role.value,
             "permissions": user.permissions,
+            "jti": uuid.uuid4().hex,
+            "iat": datetime.now(timezone.utc),
             "exp": expire,
         }
 
@@ -232,7 +246,7 @@ class AuthService:
                 username=payload["username"],
                 role=payload["role"],
                 permissions=payload.get("permissions", []),
-                exp=datetime.fromtimestamp(payload["exp"]),
+                exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
             )
 
         except JWTError:
@@ -279,8 +293,8 @@ class AuthService:
 
         # Hash password if provided
         if "password" in update_dict:
-            update_dict["hashed_password"] = self._hash_password(
-                update_dict.pop("password")
+            update_dict["hashed_password"] = await asyncio.to_thread(
+                self._hash_password, update_dict.pop("password")
             )
 
         updated = await self.repository.update(user_id, update_dict)
@@ -372,11 +386,9 @@ class AuthService:
 
         return True
 
-
 # Global service instance and lock
 _auth_service: AuthService | None = None
 _auth_lock = __import__("threading").Lock()
-
 
 def get_auth_service() -> AuthService:
     """Get or create auth service instance (thread-safe)."""
@@ -387,8 +399,7 @@ def get_auth_service() -> AuthService:
                 _auth_service = AuthService()
     return _auth_service
 
-
-def reset_auth_service():
+def reset_auth_service() -> None:
     """Reset auth service (for testing)."""
     global _auth_service
     _auth_service = None

@@ -10,18 +10,21 @@ from typing import TextIO
 
 logger = logging.getLogger(__name__)
 
-
 def _get_encoding(stream: TextIO | None) -> str | None:
     """Safely retrieve encoding from a text stream, handling edge cases."""
     try:
         return getattr(stream, "encoding", None) if stream else None
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.error("exception_caught", exc_info=True)
         return None
-
 
 def can_encode(
     text: str, stream: TextIO | None = None, encoding: str | None = None
@@ -38,7 +41,6 @@ def can_encode(
         return True
     except (LookupError, UnicodeEncodeError):
         return False
-
 
 def symbol(ok: bool, stream: TextIO | None = None, encoding: str | None = None) -> str:
     """

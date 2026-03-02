@@ -30,7 +30,6 @@ from .common import (
 
 logger = structlog.get_logger(__name__)
 
-
 class FileSystemHealthChecker(BaseHealthChecker):
     """
     Health checker for file system health and disk space monitoring.
@@ -84,7 +83,12 @@ class FileSystemHealthChecker(BaseHealthChecker):
                 },
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             return build_error_health(
                 ctx=ErrorContext(
                     name=self.component_name,

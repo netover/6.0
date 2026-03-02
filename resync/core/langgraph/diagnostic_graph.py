@@ -58,11 +58,9 @@ except ImportError:
     StateGraph = None
     END = "END"
 
-
 # =============================================================================
 # STATE DEFINITIONS
 # =============================================================================
-
 
 class DiagnosticPhase(str, Enum):
     """Current phase in diagnostic resolution."""
@@ -77,7 +75,6 @@ class DiagnosticPhase(str, Enum):
     COMPLETE = "complete"
     FAILED = "failed"
 
-
 class ConfidenceLevel(str, Enum):
     """Confidence in diagnosis/solution."""
 
@@ -85,7 +82,6 @@ class ConfidenceLevel(str, Enum):
     MEDIUM = "medium"  # 40-70% - tentative
     HIGH = "high"  # 70-90% - confident
     CERTAIN = "certain"  # > 90% - very confident
-
 
 class DiagnosticState(TypedDict, total=False):
     """
@@ -141,7 +137,6 @@ class DiagnosticState(TypedDict, total=False):
     # Errors
     errors: list[str]
 
-
 @dataclass
 class DiagnosticConfig:
     """Configuration for diagnostic resolution."""
@@ -162,11 +157,9 @@ class DiagnosticConfig:
     model: str = "meta/llama-3.1-70b-instruct"
     temperature: float = 0.3  # Lower for diagnostic accuracy
 
-
 # =============================================================================
 # NODE IMPLEMENTATIONS
 # =============================================================================
-
 
 class DiagnoseNode:
     """
@@ -237,7 +230,12 @@ Symptoms:"""
 
             return symptoms[:10]  # Limit to 10 symptoms
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -296,13 +294,17 @@ Causes:"""
                 }
             ]
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("Hypothesis generation failed: %s", e)
             return []
-
 
 class ResearchNode:
     """
@@ -381,7 +383,12 @@ class ResearchNode:
                 top_k=self.config.max_rag_results,
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -393,7 +400,6 @@ class ResearchNode:
         # DEBT: Implement historical incident search when ITSM integration is ready
         # For now, return empty list
         return []
-
 
 class VerifyNode:
     """
@@ -493,12 +499,22 @@ class VerifyNode:
                 try:
                     status = await client.get_job_status(job)
                     states[job] = status
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     states[job] = {"error": str(e)}
 
             return states
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -553,7 +569,6 @@ class VerifyNode:
             return causes[0].get("cause", "Unknown cause")
 
         return "Unable to determine root cause"
-
 
 class ProposeNode:
     """
@@ -674,7 +689,12 @@ Solution:"""
                 "recommendations": [],
             }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -713,11 +733,9 @@ Solution:"""
 
         return "\n".join(parts)
 
-
 # =============================================================================
 # GRAPH BUILDER
 # =============================================================================
-
 
 def create_diagnostic_graph(
     config: DiagnosticConfig | None = None,
@@ -779,11 +797,9 @@ def create_diagnostic_graph(
 
     return graph.compile()
 
-
 # =============================================================================
 # HIGH-LEVEL API
 # =============================================================================
-
 
 async def diagnose_problem(
     problem_description: str,
@@ -841,7 +857,12 @@ async def diagnose_problem(
                 "requires_action": final_state.get("requires_action", False),
                 "risk_level": final_state.get("risk_level", "unknown"),
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Diagnostic graph failed: %s", e)
 
     # Fallback: run nodes manually without graph
@@ -869,7 +890,12 @@ async def diagnose_problem(
             "risk_level": state.get("risk_level", "unknown"),
         }
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
         logger.error("Manual diagnostic failed: %s", e)
         return {
             "success": False,
@@ -881,7 +907,6 @@ async def diagnose_problem(
             "recommendations": ["Contact support for assistance"],
             "response": f"Diagnostic failed: {e}",
         }
-
 
 __all__ = [
     "DiagnosticPhase",

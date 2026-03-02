@@ -38,7 +38,6 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class RouterIntent(str, Enum):
     """Supported intents for classification."""
 
@@ -63,7 +62,6 @@ class RouterIntent(str, Enum):
     GENERAL = "general"
     GREETING = "greeting"
     CHITCHAT = "chitchat"
-
 
 # Pre-defined examples for each intent (bilingual: PT/EN)
 INTENT_EXAMPLES = {
@@ -202,7 +200,6 @@ INTENT_EXAMPLES = {
     ],
 }
 
-
 @dataclass
 class ClassificationResult:
     """Result of intent classification."""
@@ -212,7 +209,6 @@ class ClassificationResult:
     all_scores: dict[str, float] = field(default_factory=dict)
     used_llm_fallback: bool = False
     classification_time_ms: float = 0.0
-
 
 class EmbeddingRouter:
     """
@@ -266,7 +262,7 @@ class EmbeddingRouter:
                 raise
         return self._embedding_model
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Pre-compute embeddings for all intent examples."""
         if self._initialized:
             return
@@ -319,7 +315,12 @@ class EmbeddingRouter:
                 if intent.value in data:
                     self._intent_embeddings[intent] = list(data[intent.value])
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("cache_load_failed: %s", e)
             return False
 
@@ -338,7 +339,12 @@ class EmbeddingRouter:
             }
             np.savez(cache_file, **data)
             logger.info("intent_embeddings_cached")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("cache_save_failed: %s", e)
 
     async def classify(
@@ -455,7 +461,12 @@ Respond with ONLY the intent name, nothing else."""
                         classification_time_ms=embedding_time_ms + elapsed,
                     )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("llm_fallback_failed: %s", e)
 
         # Default to general
@@ -478,13 +489,11 @@ Respond with ONLY the intent name, nothing else."""
             "model_loaded": self._embedding_model is not None,
         }
 
-
 # =============================================================================
 # Singleton Instance
 # =============================================================================
 
 _embedding_router: EmbeddingRouter | None = None
-
 
 def get_embedding_router() -> EmbeddingRouter:
     """Get or create embedding router instance."""
@@ -497,7 +506,6 @@ def get_embedding_router() -> EmbeddingRouter:
             ),
         )
     return _embedding_router
-
 
 async def classify_intent(
     query: str,
@@ -515,7 +523,6 @@ async def classify_intent(
     """
     router = get_embedding_router()
     return await router.classify(query, context)
-
 
 __all__ = [
     "RouterIntent",

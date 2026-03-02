@@ -18,26 +18,16 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
-def load_validation_config():
-    """Load validation configuration from TOML file."""
+def load_validation_config() -> dict[str, Any]:
+    """Load validation configuration from GraphRAG TOML."""
     try:
-        from pathlib import Path
-
-        import toml
-
-        config_file = Path(__file__).parent.parent.parent / "config" / "graphrag.toml"
-
-        if config_file.exists():
-            config = toml.load(config_file)
-            return config.get("graphrag", {}).get("validation", {})
+        from resync.settings import get_settings
+        from resync.core.config_loader import load_toml
+        settings = get_settings()
+        cfg = load_toml(getattr(settings, 'graphrag_config_path', 'config/graphrag.toml'))
+        return cfg.get('graphrag', {}).get('validation', {})
+    except Exception:
         return {}
-    except Exception as e:
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
-        return {}
-
 
 class CacheValidationConfig:
     """
@@ -66,7 +56,7 @@ class CacheValidationConfig:
     AUTO_REDISCOVER = _config.get("auto_rediscover", True)
 
     @classmethod
-    def reload_from_file(cls):
+    def reload_from_file(cls) -> None:
         """Reload configuration from file."""
         cls._config = load_validation_config()
 
@@ -78,11 +68,10 @@ class CacheValidationConfig:
         cls.AUTO_INVALIDATE = cls._config.get("auto_invalidate", True)
         cls.AUTO_REDISCOVER = cls._config.get("auto_rediscover", True)
 
-
 class CacheValidationStats:
     """Statistics for cache validation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.validations_triggered = 0
         self.validations_passed = 0
         self.validations_failed = 0
@@ -130,7 +119,7 @@ class CacheValidationStats:
             "last_reset": self.last_reset.isoformat(),
         }
 
-    def reset_daily_stats(self):
+    def reset_daily_stats(self) -> None:
         """Reset daily statistics."""
         self.validations_triggered = 0
         self.validations_passed = 0
@@ -138,7 +127,6 @@ class CacheValidationStats:
         self.cache_invalidations = 0
         self.dependencies_changed = []
         self.last_reset = datetime.now(timezone.utc)
-
 
 class SmartCacheValidator:
     """
@@ -220,7 +208,12 @@ class SmartCacheValidator:
             if not is_valid and CacheValidationConfig.AUTO_INVALIDATE:
                 await self._handle_invalid_cache(job_name, event_details, changes)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -259,7 +252,12 @@ class SmartCacheValidator:
 
             return None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -279,7 +277,12 @@ class SmartCacheValidator:
             age = datetime.now(timezone.utc) - cached_at
             return age.days
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -350,7 +353,12 @@ class SmartCacheValidator:
             # No changes detected
             return True, None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -371,11 +379,16 @@ class SmartCacheValidator:
             if CacheValidationConfig.AUTO_REDISCOVER and self.discovery:
                 logger.info("Triggering re-discovery for %s", job_name)
 
-                await create_tracked_task(
+                create_tracked_task(
                     self.discovery.on_job_failed(job_name, event_details)
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -395,7 +408,12 @@ class SmartCacheValidator:
 
             logger.debug("Cache invalidated for %s", job_name)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -405,11 +423,10 @@ class SmartCacheValidator:
         """Get validation statistics."""
         return self.stats.get_stats()
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """Reset daily statistics."""
         self.stats.reset_daily_stats()
         logger.info("Cache validation stats reset")
-
 
 def get_cache_validator(
     tws_client, cache_client, knowledge_graph, discovery_service=None

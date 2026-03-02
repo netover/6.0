@@ -22,14 +22,12 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class DistanceMetric(str, Enum):
     """Supported distance metrics for similarity search."""
 
     COSINE = "cosine"
     L2 = "l2"
     INNER_PRODUCT = "inner_product"
-
 
 @dataclass
 class VectorDocument:
@@ -40,7 +38,6 @@ class VectorDocument:
     embedding: list[float] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     chunk_id: int = 0
-
 
 @dataclass
 class SearchResult:
@@ -57,7 +54,6 @@ class SearchResult:
         """Get similarity score (higher is better for cosine)."""
         return 1.0 - self.score
 
-
 @dataclass
 class CollectionStats:
     """Statistics for a collection."""
@@ -65,7 +61,6 @@ class CollectionStats:
     name: str
     document_count: int
     unique_documents: int
-
 
 class PgVectorService:
     """
@@ -307,7 +302,6 @@ class PgVectorService:
             unique_documents=stats["unique_documents"],
         )
 
-
 # =============================================================================
 # Singleton accessor
 # =============================================================================
@@ -315,8 +309,7 @@ class PgVectorService:
 # Eagerly initialised — never None — eliminates TOCTOU race on singleton init
 _pool = None
 _vector_service: PgVectorService | None = None
-_vector_service_lock: Optional[asyncio.Lock] = None
-
+_vector_service_lock: asyncio.Lock | None = None
 
 async def get_vector_service() -> PgVectorService:
     """Get singleton vector service instance (thread-safe double-checked locking)."""
@@ -354,7 +347,6 @@ async def get_vector_service() -> PgVectorService:
 
         _vector_service = await PgVectorService.create(_pool)
         return _vector_service
-
 
 async def close_vector_service() -> None:
     """Close singleton vector service instance and pool connection."""

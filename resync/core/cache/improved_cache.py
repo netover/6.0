@@ -12,6 +12,5 @@ from __future__ import annotations
 
 from resync.core.cache.async_cache import AsyncTTLCache
 
-
 class ImprovedAsyncCache(AsyncTTLCache):
     """Backward compatible alias for :class:`~resync.core.cache.async_cache.AsyncTTLCache`."""

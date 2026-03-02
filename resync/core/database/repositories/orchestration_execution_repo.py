@@ -7,7 +7,6 @@ Provides data access methods for orchestration executions.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -33,14 +32,14 @@ class OrchestrationExecutionRepository:
     async def create(
         self,
         trace_id: str,
-        config_id: Optional[UUID],
+        config_id: UUID | None,
         config_name: str,
         input_data: dict,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        created_by: Optional[str] = None,
-        callback_url: Optional[str] = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        tenant_id: str | None = None,
+        created_by: str | None = None,
+        callback_url: str | None = None,
     ) -> OrchestrationExecution:
         """
         Create a new execution record.
@@ -76,21 +75,17 @@ class OrchestrationExecutionRepository:
         await self._session.refresh(execution)
         return execution
 
-    async def get_by_id(self, execution_id: UUID) -> Optional[OrchestrationExecution]:
+    async def get_by_id(self, execution_id: UUID) -> OrchestrationExecution | None:
         """Get execution by ID."""
         result = await self._session.execute(
-            select(OrchestrationExecution).where(
-                OrchestrationExecution.id == execution_id
-            )
+            select(OrchestrationExecution).where(OrchestrationExecution.id == execution_id)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_trace_id(self, trace_id: str) -> Optional[OrchestrationExecution]:
+    async def get_by_trace_id(self, trace_id: str) -> OrchestrationExecution | None:
         """Get execution by trace ID."""
         result = await self._session.execute(
-            select(OrchestrationExecution).where(
-                OrchestrationExecution.trace_id == trace_id
-            )
+            select(OrchestrationExecution).where(OrchestrationExecution.trace_id == trace_id)
         )
         return result.scalar_one_or_none()
 
@@ -98,11 +93,12 @@ class OrchestrationExecutionRepository:
         self,
         execution_id: UUID,
         status: str,
-        output: Optional[dict] = None,
-        completed_at: Optional[datetime] = None,
-        total_latency_ms: Optional[int] = None,
-        estimated_cost: Optional[float] = None,
-    ) -> Optional[OrchestrationExecution]:
+        output: dict | None = None,
+        completed_at: datetime | None = None,
+        total_latency_ms: int | None = None,
+        estimated_cost: float | None = None,
+        meta_data_update: dict | None = None,
+    ) -> OrchestrationExecution | None:
         """
         Update execution status and metrics.
 
@@ -118,6 +114,12 @@ class OrchestrationExecutionRepository:
             Updated execution
         """
         values = {"status": status}
+
+        if meta_data_update:
+            current = await self.get_by_id(execution_id)
+            merged_meta = dict(getattr(current, "meta_data", {}) or {}) if current else {}
+            merged_meta.update(meta_data_update)
+            values["meta_data"] = merged_meta
 
         if output is not None:
             values["output_data"] = output
@@ -145,10 +147,10 @@ class OrchestrationExecutionRepository:
     async def list_by_config(
         self,
         config_id: UUID,
-        status: Optional[str] = None,
+        status: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[OrchestrationExecution]:
+    ) -> list[OrchestrationExecution]:
         """
         List executions for a configuration.
 
@@ -178,10 +180,10 @@ class OrchestrationExecutionRepository:
     async def list_by_user(
         self,
         user_id: str,
-        status: Optional[str] = None,
+        status: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[OrchestrationExecution]:
+    ) -> list[OrchestrationExecution]:
         """List executions for a user."""
         query = (
             select(OrchestrationExecution)
@@ -200,7 +202,7 @@ class OrchestrationExecutionRepository:
     async def get_step_runs(
         self,
         execution_id: UUID,
-    ) -> List[OrchestrationStepRun]:
+    ) -> list[OrchestrationStepRun]:
         """Get all step runs for an execution."""
         result = await self._session.execute(
             select(OrchestrationStepRun)
@@ -221,8 +223,8 @@ class OrchestrationStepRunRepository:
         execution_id: UUID,
         step_index: int,
         step_id: str,
-        step_name: Optional[str] = None,
-        dependencies_json: Optional[list] = None,
+        step_name: str | None = None,
+        dependencies_json: list | None = None,
     ) -> OrchestrationStepRun:
         """Create a new step run record."""
         step_run = OrchestrationStepRun(
@@ -242,17 +244,24 @@ class OrchestrationStepRunRepository:
         self,
         step_run_id: UUID,
         status: str,
-        output: Optional[dict] = None,
-        output_truncated: Optional[str] = None,
-        error_message: Optional[str] = None,
-        error_trace: Optional[str] = None,
-        latency_ms: Optional[int] = None,
-        retry_count: Optional[int] = None,
-        token_count: Optional[int] = None,
-        estimated_cost: Optional[float] = None,
-    ) -> Optional[OrchestrationStepRun]:
+        output: dict | None = None,
+        output_truncated: str | None = None,
+        error_message: str | None = None,
+        error_trace: str | None = None,
+        latency_ms: int | None = None,
+        retry_count: int | None = None,
+        token_count: int | None = None,
+        estimated_cost: float | None = None,
+        meta_data_update: dict | None = None,
+    ) -> OrchestrationStepRun | None:
         """Update step run status and metrics."""
         values = {"status": status}
+
+        if meta_data_update:
+            current = await self.get_by_id(step_run_id)
+            merged_meta = dict(getattr(current, "meta_data", {}) or {}) if current else {}
+            merged_meta.update(meta_data_update)
+            values["meta_data"] = merged_meta
 
         if output is not None:
             values["output"] = output

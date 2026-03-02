@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-
 class EventType(str, Enum):
     """Types of orchestration events."""
 
@@ -36,7 +35,6 @@ class EventType(str, Enum):
     AGENT_ACTION = "agent.action"
     AGENT_OBSERVATION = "agent.observation"
 
-
 class OrchestrationEvent(BaseModel):
     """Event payload structure."""
 
@@ -51,7 +49,6 @@ class OrchestrationEvent(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-
 @dataclass
 class Subscription:
     """Represents a subscription with an ID for tracking."""
@@ -59,7 +56,6 @@ class Subscription:
     subscription_id: str
     callback: Callable
     event_type: EventType | None = None  # None means global subscription
-
 
 class EventBus:
     """
@@ -69,7 +65,7 @@ class EventBus:
     Supports subscription tracking to prevent memory leaks.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._subscribers: dict[EventType, list[Subscription]] = {}
         self._global_subscribers: dict[str, Subscription] = {}
 
@@ -152,7 +148,12 @@ class EventBus:
             for subscription in self._subscribers[event.type]:
                 try:
                     await self._invoke_callback(subscription.callback, event)
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.error(
                         f"Error in event subscriber {subscription.subscription_id}: {e}"
                     )
@@ -161,7 +162,12 @@ class EventBus:
         for subscription in self._global_subscribers.values():
             try:
                 await self._invoke_callback(subscription.callback, event)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error(
                     f"Error in global event subscriber {subscription.subscription_id}: {e}"
                 )
@@ -177,7 +183,6 @@ class EventBus:
         return len(self._global_subscribers) + sum(
             len(subs) for subs in self._subscribers.values()
         )
-
 
 # Global instance
 event_bus = EventBus()

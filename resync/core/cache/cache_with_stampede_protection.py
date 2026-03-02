@@ -12,16 +12,14 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
-
 class CacheEntry:
     """Represents a cache entry with metadata."""
 
-    def __init__(self, value: Any, expiry: float, is_loading: bool = False):
+    def __init__(self, value: Any, expiry: float, is_loading: bool = False) -> None:
         self.value = value
         self.expiry = expiry
         self.is_loading = is_loading
         self.created_at = time.time()
-
 
 class StampedeProtectionLevel(Enum):
     """Levels of stampede protection."""
@@ -29,7 +27,6 @@ class StampedeProtectionLevel(Enum):
     NONE = "none"
     BASIC = "basic"
     AGGRESSIVE = "aggressive"
-
 
 @dataclass
 class CacheConfig:
@@ -39,7 +36,6 @@ class CacheConfig:
     stampede_protection_level: StampedeProtectionLevel = StampedeProtectionLevel.BASIC
     max_concurrent_loads: int = 3
     load_timeout: int = 30  # seconds
-
 
 class CacheWithStampedeProtection(Generic[T]):
     """Cache implementation with stampede protection."""
@@ -131,7 +127,12 @@ class CacheWithStampedeProtection(Generic[T]):
 
             return value
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

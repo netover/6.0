@@ -42,11 +42,9 @@ from resync.core.metrics.runtime_metrics import runtime_metrics
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # ROUTING MODES
 # =============================================================================
-
 
 # =============================================================================
 # ACTION TRIGGERS (GAP B: Inteligência em STATUS/MONITORING)
@@ -74,7 +72,6 @@ ACTION_TRIGGERS = [
     "diagnosticar",
 ]
 
-
 class RoutingMode(str, Enum):
     """
     Routing modes for hybrid agent system.
@@ -89,11 +86,9 @@ class RoutingMode(str, Enum):
     AGENTIC = "agentic"  # Agno Team with tools
     DIAGNOSTIC = "diagnostic"  # LangGraph with HITL
 
-
 # =============================================================================
 # INTENT CLASSIFICATION
 # =============================================================================
-
 
 class Intent(str, Enum):
     """
@@ -118,7 +113,6 @@ class Intent(str, Enum):
     # System
     UNKNOWN = "unknown"  # Cannot classify
 
-
 # Intent to routing mode mapping
 INTENT_TO_ROUTING: dict[Intent, RoutingMode] = {
     Intent.GREETING: RoutingMode.RAG_ONLY,
@@ -131,7 +125,6 @@ INTENT_TO_ROUTING: dict[Intent, RoutingMode] = {
     Intent.TROUBLESHOOTING: RoutingMode.DIAGNOSTIC,
     Intent.UNKNOWN: RoutingMode.RAG_ONLY,
 }
-
 
 @dataclass
 class IntentClassification:
@@ -156,7 +149,6 @@ class IntentClassification:
     def needs_clarification(self) -> bool:
         """Check if we should ask for clarification."""
         return self.confidence < 0.4
-
 
 class IntentClassifier:
     """
@@ -288,7 +280,7 @@ class IntentClassifier:
     # Class-level cache for compiled regex patterns
     _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
 
-    def __init__(self, llm_classifier: Callable | None = None):
+    def __init__(self, llm_classifier: Callable | None = None) -> None:
         """
         Initialize the classifier.
 
@@ -430,11 +422,9 @@ class IntentClassifier:
 
         return entities
 
-
 # =============================================================================
 # ROUTING RESULT
 # =============================================================================
-
 
 @dataclass
 class RoutingResult:
@@ -454,11 +444,9 @@ class RoutingResult:
     requires_approval: bool = False
     approval_id: str | None = None
 
-
 # =============================================================================
 # HANDLER PROTOCOL
 # =============================================================================
-
 
 class Handler(Protocol):
     """Protocol for message handlers."""
@@ -472,16 +460,14 @@ class Handler(Protocol):
         """Handle a message and return response."""
         ...
 
-
 # =============================================================================
 # BASE HANDLER
 # =============================================================================
 
-
 class BaseHandler(ABC):
     """Base class for all handlers."""
 
-    def __init__(self, agent_manager: Any = None, skill_manager: Any = None):
+    def __init__(self, agent_manager: Any = None, skill_manager: Any = None) -> None:
         self.agent_manager = agent_manager
         self.skill_manager = skill_manager
         self.last_tools_used: list[str] = []
@@ -562,11 +548,9 @@ class BaseHandler(ABC):
         msg = message.lower()
         return any(t in msg for t in ACTION_TRIGGERS)
 
-
 # =============================================================================
 # RAG-ONLY HANDLER (Path 1)
 # =============================================================================
-
 
 class RAGOnlyHandler(BaseHandler):
     """
@@ -610,7 +594,12 @@ class RAGOnlyHandler(BaseHandler):
             # Fallback to general response
             return self._general_response(classification)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("RAG search failed: %s", e)
             return self._general_response(classification)
 
@@ -635,11 +624,9 @@ class RAGOnlyHandler(BaseHandler):
             "Como posso ajudar?"
         )
 
-
 # =============================================================================
 # AGENTIC HANDLER (Path 2) - Enhanced with Parallel Execution (PR-8)
 # =============================================================================
-
 
 class AgenticHandler(BaseHandler):
     """
@@ -657,7 +644,7 @@ class AgenticHandler(BaseHandler):
     Controlled by tool_call_limit and max_steps.
     """
 
-    def __init__(self, agent_manager: Any = None, skill_manager: Any = None):
+    def __init__(self, agent_manager: Any = None, skill_manager: Any = None) -> None:
         super().__init__(agent_manager)
         self.skill_manager = skill_manager
         self.tool_call_limit = 10
@@ -715,7 +702,12 @@ class AgenticHandler(BaseHandler):
                 "tws-general", message, skill_context=skill_context
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Agentic handler error: %s", e)
             return f"Erro ao processar a solicitação: {e}"
 
@@ -934,7 +926,12 @@ PERGUNTA DO USUÁRIO:
                 response += f"\n_Analisados {len(job_names)} jobs em paralelo_"
                 return response
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Parallel sub-agent failed: %s", e)
 
         # Single job or fallback
@@ -973,7 +970,12 @@ PERGUNTA DO USUÁRIO:
                         f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team analysis failed: %s", e)
 
         # v6.0: Optionally run specialist team for complex analysis
@@ -991,7 +993,12 @@ PERGUNTA DO USUÁRIO:
                         f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team analysis failed: %s", e)
 
         # Quando for chamar o agente, passe a skill
@@ -1053,11 +1060,9 @@ PERGUNTA DO USUÁRIO:
             skill_context=self._build_skill_context(classification),
         )
 
-
 # =============================================================================
 # DIAGNOSTIC HANDLER (Path 3)
 # =============================================================================
-
 
 class DiagnosticHandler(BaseHandler):
     """
@@ -1095,7 +1100,12 @@ class DiagnosticHandler(BaseHandler):
                         f"{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team diagnostic failed: %s", e)
 
             # v6.0: Run specialist team for diagnostic context (best-effort)
@@ -1114,7 +1124,12 @@ class DiagnosticHandler(BaseHandler):
                         f"{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("Specialist team diagnostic failed: %s", e)
 
             result = await diagnose_problem(
@@ -1159,7 +1174,12 @@ class DiagnosticHandler(BaseHandler):
         except ImportError:
             logger.warning("LangGraph not available, using fallback")
             return self._manual_troubleshooting(message, classification)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Diagnostic handler error: %s", e)
             return self._manual_troubleshooting(message, classification)
 
@@ -1238,7 +1258,12 @@ class DiagnosticHandler(BaseHandler):
                 response_parts.append("\n**Baseado em incidentes similares:**")
                 for rec in history["recommendations"][:2]:
                     response_parts.append(f"• {rec}")
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.debug(
                 "suppressed_exception", error=str(exc), exc_info=True
             )  # was: pass
@@ -1254,11 +1279,9 @@ class DiagnosticHandler(BaseHandler):
 
         return "\n".join(response_parts)
 
-
 # =============================================================================
 # HYBRID ROUTER
 # =============================================================================
-
 
 class HybridRouter:
     """
@@ -1338,7 +1361,12 @@ class HybridRouter:
             tools_used = (
                 handler.last_tools_used if hasattr(handler, "last_tools_used") else []
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Handler error: %s", e)
             response = f"Erro ao processar: {e}"
             tools_used = []
@@ -1366,21 +1394,23 @@ class HybridRouter:
                 trace_id=get_trace_id(),
                 message=message,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("failed_to_record_routing_metric", error=str(e))
 
         return result
-
 
 # =============================================================================
 # BACKWARD COMPATIBILITY
 # =============================================================================
 
-
 # Alias for backward compatibility
 class AgentRouter(HybridRouter):
     """Backward-compatible alias for HybridRouter."""
-
 
 def create_router(
     agent_manager: Any,
@@ -1409,7 +1439,6 @@ def create_router(
     )
 
     return router
-
 
 # =============================================================================
 # EXPORTS

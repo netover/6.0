@@ -16,7 +16,6 @@ AUDIT_FLAGGING_CONFIDENCE_THRESHOLD = 0.6
 AUDIT_HIGH_RATING_THRESHOLD = 3
 RECENT_MEMORIES_FETCH_LIMIT = 100
 
-
 # ============================================================================
 # HTTP CLIENT DEFAULTS
 # ============================================================================
@@ -28,7 +27,6 @@ DEFAULT_POOL_TIMEOUT = 5.0
 DEFAULT_MAX_CONNECTIONS = 100
 DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
 
-
 # ============================================================================
 # LLM CONFIGURATION
 # ============================================================================
@@ -39,14 +37,12 @@ LLM_DEFAULT_MAX_RETRIES = 3
 LLM_DEFAULT_BACKOFF_BASE_DELAY = 1.0
 LLM_DEFAULT_BACKOFF_MAX_DELAY = 30.0
 
-
 # ============================================================================
 # CACHING CONFIGURATION
 # ============================================================================
 
 CACHE_DEFAULT_TTL_SECONDS = 3600
 RESPONSE_CACHE_DEFAULT_TTL_SECONDS = 300
-
 
 # ============================================================================
 # AUDIT AND LOCKING
@@ -55,11 +51,9 @@ RESPONSE_CACHE_DEFAULT_TTL_SECONDS = 300
 AUDIT_LOCK_DEFAULT_TIMEOUT = 30
 AUDIT_LOCK_CLEANUP_MAX_AGE = 60
 
-
 # ============================================================================
 # ERROR MESSAGES
 # ============================================================================
-
 
 class ErrorMessages(Enum):
     """Standardized error messages for consistent user communication."""
@@ -77,7 +71,6 @@ class ErrorMessages(Enum):
     RATE_LIMIT_EXCEEDED = "Rate limit exceeded for {operation}"
     QUOTA_EXCEEDED = "Quota exceeded for {operation}"
 
-
 # ============================================================================
 # LOG LEVEL MAPPINGS
 # ============================================================================
@@ -90,7 +83,6 @@ LOG_LEVEL_MAP = {
     "CRITICAL": 50,
 }
 
-
 # ============================================================================
 # API RESPONSE CONSTANTS
 # ============================================================================
@@ -98,7 +90,6 @@ LOG_LEVEL_MAP = {
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 1000
 DEFAULT_TIMEOUT_SECONDS = 30
-
 
 # ============================================================================
 # VALIDATION CONSTANTS
@@ -109,7 +100,6 @@ MAX_MESSAGE_LENGTH = 1000
 MIN_QUERY_LENGTH = 1
 MAX_QUERY_LENGTH = 2000
 
-
 # ============================================================================
 # PERFORMANCE THRESHOLDS
 # ============================================================================
@@ -117,7 +107,6 @@ MAX_QUERY_LENGTH = 2000
 SLOW_QUERY_THRESHOLD_MS = 1000
 SLOW_EXTERNAL_CALL_THRESHOLD_MS = 5000
 CONNECTION_POOL_WARNING_THRESHOLD = 80  # percentage
-
 
 # ============================================================================
 # SECURITY CONSTANTS
@@ -129,7 +118,6 @@ SESSION_TIMEOUT_HOURS = 24
 PASSWORD_MIN_LENGTH = 8
 JWT_DEFAULT_EXPIRATION_HOURS = 1
 
-
 # ============================================================================
 # WEBSOCKET CONSTANTS
 # ============================================================================
@@ -138,7 +126,6 @@ WEBSOCKET_PING_INTERVAL_SECONDS = 30
 WEBSOCKET_PING_TIMEOUT_SECONDS = 10
 WEBSOCKET_MAX_CONNECTIONS_PER_CLIENT = 5
 
-
 # ============================================================================
 # METRICS AND MONITORING
 # ============================================================================
@@ -146,7 +133,6 @@ WEBSOCKET_MAX_CONNECTIONS_PER_CLIENT = 5
 HEALTH_CHECK_INTERVAL_SECONDS = 30
 METRICS_RETENTION_DAYS = 30
 ALERT_ESCALATION_TIMEOUT_MINUTES = 5
-
 
 # ============================================================================
 # TWS INTEGRATION CONSTANTS
@@ -158,7 +144,6 @@ TWS_CONNECTION_RETRY_DELAY_SECONDS = 2.0
 TWS_COMMAND_TIMEOUT_SECONDS = 60
 TWS_HEALTH_CHECK_TIMEOUT_SECONDS = 10
 
-
 # ============================================================================
 # KNOWLEDGE GRAPH CONSTANTS
 # ============================================================================
@@ -168,7 +153,6 @@ KNOWLEDGE_GRAPH_MAX_LIMIT = 1000
 KNOWLEDGE_GRAPH_SIMILARITY_THRESHOLD = 0.8
 KNOWLEDGE_GRAPH_EMBEDDING_DIMENSIONS = 384  # Common for sentence transformers
 
-
 # ============================================================================
 # FILE UPLOAD CONSTANTS
 # ============================================================================
@@ -176,7 +160,6 @@ KNOWLEDGE_GRAPH_EMBEDDING_DIMENSIONS = 384  # Common for sentence transformers
 MAX_FILE_SIZE_MB = 10
 ALLOWED_FILE_EXTENSIONS = {".txt", ".md", ".pdf", ".docx", ".json", ".yaml", ".yml"}
 UPLOAD_CHUNK_SIZE = 8192  # 8KB chunks
-
 
 # ============================================================================
 # RATE LIMITING CONSTANTS

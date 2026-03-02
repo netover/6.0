@@ -29,7 +29,6 @@ from typing import Any
 # METRICS DATACLASSES
 # =============================================================================
 
-
 @dataclass
 class RetrievalMetrics:
     """Standard IR metrics for retrieval evaluation."""
@@ -83,7 +82,6 @@ class RetrievalMetrics:
             "timestamp": self.timestamp,
         }
 
-
 @dataclass
 class EvalSample:
     """A single evaluation sample with expected results."""
@@ -96,7 +94,6 @@ class EvalSample:
     sample_id: str = ""
     category: str = ""
     tags: list[str] = field(default_factory=list)
-
 
 @dataclass
 class EvalResult:
@@ -125,11 +122,9 @@ class EvalResult:
     success: bool = True
     error: str | None = None
 
-
 # =============================================================================
 # METRIC CALCULATION FUNCTIONS
 # =============================================================================
-
 
 def recall_at_k(relevant: set[str], retrieved: list[str], k: int) -> float:
     """
@@ -148,7 +143,6 @@ def recall_at_k(relevant: set[str], retrieved: list[str], k: int) -> float:
     retrieved_k = set(retrieved[:k])
     return len(relevant & retrieved_k) / len(relevant)
 
-
 def hit_rate_at_k(relevant: set[str], retrieved: list[str], k: int) -> float:
     """
     Calculate hit rate@k (any relevant doc in top-k).
@@ -161,7 +155,6 @@ def hit_rate_at_k(relevant: set[str], retrieved: list[str], k: int) -> float:
     retrieved_k = set(retrieved[:k])
     return 1.0 if (relevant & retrieved_k) else 0.0
 
-
 def reciprocal_rank(relevant: set[str], retrieved: list[str]) -> float:
     """
     Calculate reciprocal rank (1/position of first relevant).
@@ -172,7 +165,6 @@ def reciprocal_rank(relevant: set[str], retrieved: list[str]) -> float:
         if doc_id in relevant:
             return 1.0 / i
     return 0.0
-
 
 def dcg_at_k(
     relevance_scores: dict[str, float],
@@ -189,7 +181,6 @@ def dcg_at_k(
         rel = relevance_scores.get(doc_id, 0.0)
         dcg += rel / math.log2(i + 1)
     return dcg
-
 
 def ndcg_at_k(
     relevance_scores: dict[str, float],
@@ -220,7 +211,6 @@ def ndcg_at_k(
 
     return dcg / idcg
 
-
 def ndcg_at_k_binary(
     relevant: set[str],
     retrieved: list[str],
@@ -234,7 +224,6 @@ def ndcg_at_k_binary(
     # Convert to relevance scores dict
     relevance_scores = {doc_id: 1.0 for doc_id in relevant}
     return ndcg_at_k(relevance_scores, retrieved, k)
-
 
 def percentile(values: list[float], p: float) -> float:
     """Calculate percentile of a list of values."""
@@ -252,11 +241,9 @@ def percentile(values: list[float], p: float) -> float:
     weight = index - lower
     return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
 
-
 # =============================================================================
 # MAIN EVALUATION FUNCTION
 # =============================================================================
-
 
 def calculate_retrieval_metrics(
     results: list[EvalResult],
@@ -334,11 +321,9 @@ def calculate_retrieval_metrics(
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
-
 # =============================================================================
 # REGRESSION GATE
 # =============================================================================
-
 
 @dataclass
 class RegressionThresholds:
@@ -352,7 +337,6 @@ class RegressionThresholds:
 
     # Maximum allowed latency increase (as fraction)
     p95_latency: float = 0.10  # 10% increase allowed
-
 
 class RegressionGate:
     """
@@ -492,11 +476,9 @@ class RegressionGate:
 
         return "\n".join(lines)
 
-
 # =============================================================================
 # HNSW PARAMETER TUNING
 # =============================================================================
-
 
 @dataclass
 class HNSWConfig:

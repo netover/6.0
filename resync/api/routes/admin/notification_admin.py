@@ -11,7 +11,6 @@ from resync.settings import get_settings
 
 router = APIRouter(prefix="/admin/notifications", tags=["admin", "notifications"])
 
-
 class SMTPConfigUpdate(BaseModel):
     enabled: bool
     host: str
@@ -21,10 +20,8 @@ class SMTPConfigUpdate(BaseModel):
     from_email: EmailStr
     use_tls: bool
 
-
 class SMTPTestRequest(BaseModel):
     recipient: EmailStr
-
 
 @router.get("/smtp", response_model=SMTPConfigUpdate)
 async def get_smtp_config(_admin: Annotated[dict, Depends(get_current_admin)]):
@@ -40,7 +37,6 @@ async def get_smtp_config(_admin: Annotated[dict, Depends(get_current_admin)]):
         from_email=settings.smtp_from_email,
         use_tls=settings.smtp_use_tls,
     )
-
 
 @router.put("/smtp")
 async def update_smtp_config(
@@ -68,7 +64,6 @@ async def update_smtp_config(
     get_email_service().enabled = settings.smtp_enabled
 
     return {"message": "SMTP configuration updated successfully (runtime only)"}
-
 
 @router.post("/smtp/test")
 async def test_smtp_config(

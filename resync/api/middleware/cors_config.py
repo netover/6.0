@@ -8,14 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
-
 class Environment(str, Enum):
     """Environment types for CORS configuration."""
 
     DEVELOPMENT = "development"
     PRODUCTION = "production"
     TEST = "test"
-
 
 class CORSMethods(str, Enum):
     """Allowed HTTP methods for CORS."""
@@ -25,7 +23,6 @@ class CORSMethods(str, Enum):
     PUT = "PUT"
     DELETE = "DELETE"
     OPTIONS = "OPTIONS"
-
 
 class CORSPolicy(BaseModel):
     """
@@ -166,7 +163,12 @@ class CORSPolicy(BaseModel):
             return True
         try:
             parsed = urlparse(origin)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("exception_caught", exc_info=True, extra={"error": str(e)})
             return False
         if parsed.scheme not in ("http", "https"):
@@ -237,7 +239,6 @@ class CORSPolicy(BaseModel):
         }
 
     model_config = ConfigDict(use_enum_values=True, validate_assignment=True)
-
 
 class CORSConfig(BaseModel):
     """
@@ -314,6 +315,5 @@ class CORSConfig(BaseModel):
             self.test = policy
         else:
             raise ValueError(f"Unknown environment: {environment}")
-
 
 cors_config = CORSConfig()

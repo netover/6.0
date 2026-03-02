@@ -1,0 +1,11 @@
+{
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.14",
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "build",
+    "dist"
+  ],
+  "reportMissingImports": "none"
+}

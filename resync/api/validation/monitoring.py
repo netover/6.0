@@ -11,7 +11,6 @@ from pydantic import StringConstraints as PydanticStringConstraints
 
 from .common import BaseValidatedModel, ValidationPatterns
 
-
 class MetricType(str, Enum):
     """System metric types."""
 
@@ -27,7 +26,6 @@ class MetricType(str, Enum):
     ERRORS = "errors"
     CUSTOM = "custom"
 
-
 class AlertSeverity(str, Enum):
     """Alert severity levels."""
 
@@ -35,7 +33,6 @@ class AlertSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 class AlertStatus(str, Enum):
     """Alert status."""
@@ -45,7 +42,6 @@ class AlertStatus(str, Enum):
     ACKNOWLEDGED = "acknowledged"
     SUPPRESSED = "suppressed"
 
-
 class HealthStatus(str, Enum):
     """Health check status."""
 
@@ -53,7 +49,6 @@ class HealthStatus(str, Enum):
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
-
 
 class SystemMetricRequest(BaseValidatedModel):
     """System metric request validation."""
@@ -101,7 +96,6 @@ class SystemMetricRequest(BaseValidatedModel):
         if len(v) != len(set(v)):
             raise ValueError("Duplicate metric types found")
         return v
-
 
 class CustomMetricRequest(BaseValidatedModel):
     """Custom metric submission request validation."""
@@ -203,7 +197,6 @@ class CustomMetricRequest(BaseValidatedModel):
                 "Metric description contains potentially malicious content"
             )
         return v
-
 
 class AlertRequest(BaseValidatedModel):
     """Alert creation/update request validation."""
@@ -316,7 +309,6 @@ class AlertRequest(BaseValidatedModel):
             raise ValueError("Duplicate notification channels found")
         return v
 
-
 class AlertQueryParams(BaseValidatedModel):
     """Alert query parameters validation."""
 
@@ -379,7 +371,6 @@ class AlertQueryParams(BaseValidatedModel):
             raise ValueError("Field contains potentially malicious content")
         return v
 
-
 class HealthCheckRequest(BaseValidatedModel):
     """Health check request validation."""
 
@@ -422,7 +413,6 @@ class HealthCheckRequest(BaseValidatedModel):
         if ValidationPatterns.SCRIPT_PATTERN.search(v):
             raise ValueError("Component name contains potentially malicious content")
         return v
-
 
 class LogQueryParams(BaseValidatedModel):
     """Log query parameters validation."""
@@ -487,7 +477,6 @@ class LogQueryParams(BaseValidatedModel):
         if ValidationPatterns.SCRIPT_PATTERN.search(v):
             raise ValueError("Field contains potentially malicious content")
         return v
-
 
 class PerformanceTestRequest(BaseValidatedModel):
     """Performance test request validation."""
@@ -556,7 +545,6 @@ class PerformanceTestRequest(BaseValidatedModel):
             if value <= 0:
                 raise ValueError(f"Success criterion '{key}' must be positive")
         return v
-
 
 __all__ = [
     "MetricType",

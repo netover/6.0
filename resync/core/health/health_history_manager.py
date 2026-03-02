@@ -22,7 +22,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-
 class HealthHistoryManager:
     """
     Manages health check history with efficient storage and cleanup.
@@ -81,13 +80,13 @@ class HealthHistoryManager:
         self.health_history.append(history_entry)
 
         # Perform cleanup if needed
-        await create_tracked_task(
+        create_tracked_task(
             self._cleanup_health_history(), name="cleanup_health_history"
         )
 
         # Update memory usage tracking
         if self.memory_usage_threshold_mb > 0:
-            await create_tracked_task(
+            create_tracked_task(
                 self._update_memory_usage(), name="update_memory_usage"
             )
 
@@ -163,7 +162,12 @@ class HealthHistoryManager:
                     # Keep at least some recent history
                     self.health_history = self.health_history[-min_entries:]
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("error_during_health_history_cleanup", error=str(e))
 
     async def _update_memory_usage(self) -> None:
@@ -187,7 +191,12 @@ class HealthHistoryManager:
             else:
                 self._memory_usage_mb = 0.0
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise

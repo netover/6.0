@@ -9,13 +9,11 @@ from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
-
 class CacheTransactionMixinProtocol(Protocol):
     """Protocol defining methods expected by CacheTransactionMixin."""
 
     async def delete(self, key: str) -> None: ...
     async def set(self, key: str, value: Any, **kwargs: Any) -> None: ...
-
 
 class CacheTransactionMixin:
     """
@@ -31,13 +29,13 @@ class CacheTransactionMixin:
         self._transaction_log = []
         self._in_transaction = False
 
-    def begin_transaction(self):
+    def begin_transaction(self) -> None:
         """Begin a new transaction."""
         self._transaction_log = []
         self._in_transaction = True
         logger.debug("Cache transaction started")
 
-    def _log_operation(self, operation: str, key: str, old_value: Any = None):
+    def _log_operation(self, operation: str, key: str, old_value: Any = None) -> None:
         """Log an operation for potential rollback."""
         if self._in_transaction:
             self._transaction_log.append(
@@ -92,7 +90,12 @@ class CacheTransactionMixin:
             self._in_transaction = False
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Rollback failed: %s", e)
             return False
 

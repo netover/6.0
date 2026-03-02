@@ -42,7 +42,6 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = get_logger(__name__)
 
-
 class HTTPMethod(Enum):
     """HTTP methods supported by the gateway."""
 
@@ -56,7 +55,6 @@ class HTTPMethod(Enum):
     CONNECT = "CONNECT"
     TRACE = "TRACE"
 
-
 class LoadBalancingStrategy(Enum):
     """Load balancing strategies."""
 
@@ -66,7 +64,6 @@ class LoadBalancingStrategy(Enum):
     IP_HASH = "ip_hash"
     RANDOM = "random"
 
-
 class RateLimitType(Enum):
     """Rate limiting types."""
 
@@ -75,7 +72,6 @@ class RateLimitType(Enum):
     REQUESTS_PER_HOUR = "requests_per_hour"
     BANDWIDTH_PER_SECOND = "bandwidth_per_second"
     CONCURRENT_REQUESTS = "concurrent_requests"
-
 
 @dataclass
 class ServiceEndpoint:
@@ -100,7 +96,6 @@ class ServiceEndpoint:
     def is_healthy(self) -> bool:
         """Check if service is healthy (placeholder - would integrate with health checks)."""
         return True  # Simplified for now
-
 
 @dataclass
 class RouteConfiguration:
@@ -127,7 +122,6 @@ class RouteConfiguration:
         pattern = self.path_pattern.replace("{", "(?P<").replace("}", ">[^/]+)")
         return bool(re.match(f"^{pattern}$", path))
 
-
 @dataclass
 class RateLimitRule:
     """Rate limiting rule."""
@@ -149,7 +143,6 @@ class RateLimitRule:
             return request.headers.get("X-API-Key", "no_key")
         return "default"
 
-
 class APIGateway:
     """
     Advanced API Gateway for microservices architecture.
@@ -166,7 +159,7 @@ class APIGateway:
     - Monitoring and observability
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
 
         # Core components
@@ -254,13 +247,13 @@ class APIGateway:
             return
 
         self._running = True
-        self._cleanup_task = await create_tracked_task(
+        self._cleanup_task = create_tracked_task(
             self._cleanup_worker(), name="cleanup_worker"
         )
-        self._health_check_task = await create_tracked_task(
+        self._health_check_task = create_tracked_task(
             self._health_check_worker(), name="health_check_worker"
         )
-        self._metrics_task = await create_tracked_task(
+        self._metrics_task = create_tracked_task(
             self._metrics_worker(), name="metrics_worker"
         )
 
@@ -409,7 +402,12 @@ class APIGateway:
 
             return processed_response
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             self.metrics["requests_failed"] += 1
             logger.error("Request processing error: %s", e, exc_info=True)
             return self._create_error_response(500, "Internal server error")
@@ -795,7 +793,12 @@ class APIGateway:
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Cleanup worker error: %s", e)
 
     async def _health_check_worker(self) -> None:
@@ -814,7 +817,12 @@ class APIGateway:
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Health check worker error: %s", e)
 
     async def _metrics_worker(self) -> None:
@@ -836,7 +844,12 @@ class APIGateway:
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Metrics worker error: %s", e)
 
     def get_metrics(self) -> dict[str, Any]:
@@ -880,10 +893,8 @@ class APIGateway:
             },
         }
 
-
 # Global API Gateway instance
 api_gateway = APIGateway()
-
 
 async def get_api_gateway() -> APIGateway:
     """Get the global API Gateway instance."""

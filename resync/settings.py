@@ -14,13 +14,10 @@ Settings are organized into logical groups:
 
 v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 """
-# ruff: noqa: E501
-
 from __future__ import annotations
 
-import secrets
+import threading  # [P1-07 FIX] For thread-safe singleton
 from collections.abc import Iterator, Mapping
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -30,7 +27,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Import shared types and validators from separate modules
 from .settings_types import CacheHierarchyConfig, Environment
 from .settings_validators import SettingsValidators
-
 
 class Settings(BaseSettings, SettingsValidators):
     """
@@ -112,6 +108,26 @@ class Settings(BaseSettings, SettingsValidators):
         description="Nível de logging",
     )
 
+    # When enabled, re-raise programming errors (TypeError/KeyError/AttributeError/IndexError)
+    # that are caught by broad exception handlers, to fail fast in staging/canary.
+    # Default is False for backward compatibility.
+    strict_exception_handling: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("STRICT_EXCEPTION_HANDLING"),
+        description="Re-levanta erros de programação capturados por handlers amplos (fail-fast)",
+    )
+
+
+
+    # When enabled, export a higher-cardinality metric label ("site" = file:line) for
+    # programming errors caught by broad exception handlers. Useful to locate hotspots
+    # quickly in staging/canary; keep disabled in production to avoid label explosion.
+    programming_error_metrics_detailed_site: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("PROGRAMMING_ERROR_METRICS_DETAILED_SITE"),
+        description="Métrica detalhada (site=file:linha) para erros de programação capturados (staging/canary)",
+    )
+
     # ============================================================================
     # CONNECTION POOLS (PostgreSQL) - v6.0 adjusted for single VM
     # For Docker/K8s: increase via environment variables
@@ -134,8 +150,9 @@ class Settings(BaseSettings, SettingsValidators):
         repr=False,
     )
 
+    # NOTE: Default intentionally has NO credentials. In production, set DATABASE_URL.
     database_url: SecretStr = Field(
-        default=SecretStr("postgresql+asyncpg://resync:resync@localhost:5432/resync"),
+        default=SecretStr("postgresql+asyncpg://localhost:5432/resync"),
         validation_alias=AliasChoices("DATABASE_URL", "APP_DATABASE_URL"),
         description="URL de conexão com banco de dados PostgreSQL",
         repr=False,
@@ -258,6 +275,36 @@ class Settings(BaseSettings, SettingsValidators):
         default=8.0,
         gt=0,
         description="Timeout para Ollama em segundos (agressivo para fallback rápido)",
+    )
+
+    # ---------------------------------------------------------------------
+    # LLM Context Management (History Compaction)
+    # ---------------------------------------------------------------------
+
+    llm_compact_history_enabled: bool = Field(
+        default=True,
+        description="Se true, compacta/resume histórico quando próximo do limite de contexto (protege estabilidade/latência)",
+    )
+
+    llm_context_safety_margin_tokens: int = Field(
+        default=512,
+        ge=0,
+        le=8192,
+        description="Margem de segurança em tokens para evitar estourar a janela de contexto (inclui overhead e variação de tokenização)",
+    )
+
+    llm_compact_history_min_recent_messages: int = Field(
+        default=6,
+        ge=0,
+        le=100,
+        description="Quantidade mínima de mensagens mais recentes para manter sem compactação",
+    )
+
+    llm_compact_history_summary_max_tokens: int = Field(
+        default=800,
+        ge=0,
+        le=8192,
+        description="Tamanho máximo (em tokens estimados) do resumo do histórico compactado",
     )
 
     # Fallback cloud model quando Ollama falha
@@ -508,6 +555,44 @@ class Settings(BaseSettings, SettingsValidators):
     cache_hierarchy_max_workers: int = Field(
         ge=1, default=4, description="Max workers for cache operations"
     )
+
+    # ============================================================================
+    # WEBSOCKET POOL
+    # ============================================================================
+    # FIX P0-02: These fields were missing — websocket_pool_manager accessed them
+    # causing AttributeError on every WebSocket connection.
+    ws_pool_max_size: int = Field(
+        default=100, ge=1, description="Maximum simultaneous WebSocket connections"
+    )
+    ws_pool_cleanup_interval: float = Field(
+        default=30.0, gt=0, description="WebSocket pool cleanup interval in seconds"
+    )
+    ws_connection_timeout: float = Field(
+        default=300.0, gt=0, description="WebSocket inactivity timeout in seconds"
+    )
+    ws_max_connection_duration: float = Field(
+        default=7200.0, gt=0, description="Maximum WebSocket connection duration in seconds"
+    )
+
+    @property
+    def WS_POOL_MAX_SIZE(self) -> int:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_pool_max_size
+
+    @property
+    def WS_POOL_CLEANUP_INTERVAL(self) -> float:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_pool_cleanup_interval
+
+    @property
+    def WS_CONNECTION_TIMEOUT(self) -> float:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_connection_timeout
+
+    @property
+    def WS_MAX_CONNECTION_DURATION(self) -> float:
+        """Uppercase alias for backward compat with websocket_pool_manager."""
+        return self.ws_max_connection_duration
 
     # ============================================================================
     # TWS (Workload Automation)
@@ -766,10 +851,21 @@ class Settings(BaseSettings, SettingsValidators):
         exclude=True,
         repr=False,
     )
-    jwt_algorithm: str = Field(
+    jwt_algorithm: Literal["HS256", "HS384", "HS512"] = Field(
         default="HS256",
-        description="Algorithm for JWT token signing",
+        description=(
+            "Algorithm for JWT token signing. HMAC-only by default; "
+            "asymmetric algorithms require different key handling."
+        ),
     )
+    jwt_leeway_seconds: int = Field(
+        default=60,
+        ge=0,
+        le=600,
+        validation_alias=AliasChoices("JWT_LEEWAY_SECONDS", "APP_JWT_LEEWAY_SECONDS"),
+        description="Allowed clock skew (seconds) when validating JWT exp/nbf claims",
+    )
+
     access_token_expire_minutes: int = Field(
         default=30,
         ge=5,
@@ -777,10 +873,11 @@ class Settings(BaseSettings, SettingsValidators):
         description="Access token expiration time in minutes",
     )
 
-    metrics_api_key_hash: str = Field(
-        default="",
+    metrics_api_key_hash: SecretStr = Field(
+        default=SecretStr(""),
         description="SHA-256 hash of the API key for workstation metrics collection",
         exclude=True,
+        repr=False,
     )
 
     # Debug mode
@@ -838,7 +935,14 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # CORS
-    cors_allowed_origins: list[str] = Field(default=["http://localhost:3000"])
+    cors_allowed_origins: list[str] = Field(
+        default=["http://localhost:3000"],
+        description=(
+            "Allowed CORS origins. MUST be overridden in production via "
+            "APP_CORS_ALLOWED_ORIGINS env var (comma-separated). "
+            "Wildcard '*' is rejected in production by _validate_critical_settings()."
+        ),
+    )
     cors_allow_credentials: bool = Field(default=False)
     cors_allow_methods: list[str] = Field(default=["*"])
     cors_allow_headers: list[str] = Field(default=["*"])
@@ -854,6 +958,29 @@ class Settings(BaseSettings, SettingsValidators):
     )
     server_port: int = Field(
         default=8000, ge=1024, le=65535, description="Porta do servidor"
+    )
+
+    # ============================================================================
+    # OBSERVABILITY — Sentry SDK
+    # Set SENTRY_DSN (or APP_SENTRY_DSN) to enable error tracking.
+    # ============================================================================
+    sentry_dsn: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SENTRY_DSN", "APP_SENTRY_DSN"),
+        description="Sentry DSN for error tracking (optional). Leave unset to disable.",
+        repr=False,
+    )
+    sentry_traces_sample_rate: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of transactions to send to Sentry for performance monitoring.",
+    )
+    sentry_profiles_sample_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of sampled transactions to profile (requires traces_sample_rate > 0).",
     )
 
     # ============================================================================
@@ -937,7 +1064,7 @@ class Settings(BaseSettings, SettingsValidators):
         description="Number of worker processes (set based on CPU cores)",
     )
     worker_class: str = Field(
-        default="uvicorn.workers.UvicornWorker",
+        default="uvicorn_worker.UvicornWorker",
         description="Gunicorn worker class for async support",
     )
     worker_timeout: int = Field(
@@ -1181,14 +1308,36 @@ class Settings(BaseSettings, SettingsValidators):
 
     @property
     def DEBUG(self) -> bool:
-        """Legacy alias: True when environment == DEVELOPMENT."""
-        env = self.environment
-        return env == Environment.DEVELOPMENT
+        """Legacy alias for the `debug` flag.
+
+        Historically this returned True when environment==DEVELOPMENT, ignoring the
+        explicit `debug` setting. For clarity and configurability, this now mirrors
+        `self.debug`.
+        """
+        return self.debug
 
     @property
     def REDIS_URL(self) -> str:
-        """Legacy alias for redis_url."""
+        """Legacy alias for redis_url (DEPRECATED).
+
+        This returns the Redis URL in plaintext for backward compatibility.
+        Prefer accessing `settings.redis_url` (SecretStr) and calling
+        `.get_secret_value()` explicitly.
+        """
+        import warnings
+
+        warnings.warn(
+            "settings.REDIS_URL exposes credentials in plaintext. "
+            "Prefer settings.redis_url.get_secret_value() explicitly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.redis_url.get_secret_value()
+
+    @property
+    def redis_url_secret(self) -> SecretStr:
+        """Safe access to the Redis URL without automatic SecretStr unwrap."""
+        return self.redis_url
 
     @property
     def LLM_ENDPOINT(self) -> str | None:
@@ -1196,7 +1345,7 @@ class Settings(BaseSettings, SettingsValidators):
         return self.llm_endpoint
 
     @property
-    def LLM_API_KEY(self) -> Any:
+    def LLM_API_KEY(self) -> SecretStr | None:
         """Legacy alias for llm_api_key."""
         return self.llm_api_key
 
@@ -1323,10 +1472,7 @@ class Settings(BaseSettings, SettingsValidators):
 
     @property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
-        """Legacy alias exposing cache hierarchy configuration object.
-
-        Converted to @property for thread safety (lightweight object creation).
-        """
+        """Legacy alias exposing cache hierarchy configuration object."""
         return CacheHierarchyConfig(
             l1_max_size=self.cache_hierarchy_l1_max_size,
             l2_ttl_seconds=self.cache_hierarchy_l2_ttl,
@@ -1613,38 +1759,85 @@ class Settings(BaseSettings, SettingsValidators):
     # Validators are now imported from settings_validators.py
 
     def __repr__(self) -> str:
-        """Representation that excludes sensitive fields from the output."""
+        """Representation that excludes sensitive fields from the output.
+        
+        [P0-08 FIX] Respects both field_info.exclude AND field_info.repr to prevent
+        SecretStr leakage in logs/traces. SecretStr fields are masked as '**********'.
+        """
         fields: dict[str, Any] = {}
         for name, field_info in self.__class__.model_fields.items():
-            if field_info.exclude:
+            # [P0-08 FIX] Check BOTH exclude and repr flags
+            if field_info.exclude or (hasattr(field_info, 'repr') and not field_info.repr):
                 continue
-            fields[name] = getattr(self, name, None)
+            
+            value = getattr(self, name, None)
+            
+            # [P0-08 FIX] Mask SecretStr values
+            if isinstance(value, SecretStr):
+                fields[name] = "SecretStr('**********')"
+            else:
+                fields[name] = value
 
         parts = [f"{name}={value!r}" for name, value in fields.items()]
         return f"{self.__class__.__name__}({', '.join(parts)})"
 
-
 # -----------------------------------------------------------------------------
 # Instância global (lazy) + helpers
 # -----------------------------------------------------------------------------
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    """Factory para obter settings (útil para dependency injection)."""
-    settings = Settings()
-    if settings.secret_key is None:
-        env = settings.environment
-        if env != Environment.PRODUCTION:
-            settings.secret_key = SecretStr(secrets.token_urlsafe(32))
-    return settings
+# [P1-07 FIX] Thread-safe singleton with explicit lock
+_settings_instance: Settings | None = None
+_settings_lock = threading.Lock()
 
+def get_settings() -> Settings:
+    """Factory para obter settings (útil para dependency injection).
+    
+    [P1-07 FIX] Thread-safe lazy singleton without lru_cache complexity.
+    Uses double-checked locking pattern for optimal performance.
+    
+    [P0-07 FIX] SECRET_KEY auto-generation removed. Pydantic validators
+    enforce SECRET_KEY presence in production. For dev/test, users MUST
+    set SECRET_KEY explicitly via environment variable to ensure
+    deterministic behavior.
+    
+    Returns:
+        Settings: Immutable settings singleton instance
+        
+    Note:
+        Use clear_settings_cache() to force reload (e.g., in tests)
+    """
+    global _settings_instance
+    
+    # Fast path: instance already created (99% of calls)
+    if _settings_instance is not None:
+        return _settings_instance
+    
+    # Slow path: acquire lock for thread-safe initialization
+    with _settings_lock:
+        # Double-check: another thread may have created it while we waited
+        if _settings_instance is not None:
+            return _settings_instance
+        
+        # [P0-07 FIX] No automatic SECRET_KEY generation
+        # Pydantic validators handle production enforcement
+        _settings_instance = Settings()
+        return _settings_instance
 
 def clear_settings_cache() -> None:
-    """Clear the cached settings instance (useful for testing)."""
-    get_settings.cache_clear()
-
+    """Clear the cached settings instance (useful for testing).
+    
+    [P1-07 FIX] Thread-safe cache clearing.
+    """
+    global _settings_instance
+    with _settings_lock:
+        _settings_instance = None
 
 class _SettingsProxy:
-    """Proxy de conveniência para manter compatibilidade."""
+    """[P1-09 FIX] Read-only proxy to Settings singleton.
+    
+    Enforces immutability of settings after initialization. Tests that need to
+    modify settings should use clear_settings_cache() + environment variables,
+    not direct mutation.
+    """
 
     __slots__ = ()
 
@@ -1652,10 +1845,16 @@ class _SettingsProxy:
         return getattr(get_settings(), name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        """Allow setting attributes on the underlying Settings instance.
-        This enables tests and runtime code to modify configuration values.
+        """[P1-09 FIX] Settings are immutable after construction.
+        
+        Raises:
+            AttributeError: Always (settings cannot be modified after init)
         """
-        setattr(get_settings(), name, value)
+        raise AttributeError(
+            f"Cannot set attribute '{name}' on immutable Settings. "
+            "To modify settings in tests, use clear_settings_cache() and set "
+            "environment variables before calling get_settings()."
+        )
 
     def __repr__(self) -> str:
         return repr(get_settings())
@@ -1663,9 +1862,7 @@ class _SettingsProxy:
     def __dir__(self) -> list[str]:
         return dir(get_settings())
 
-
 settings = _SettingsProxy()
-
 
 # -----------------------------------------------------------------------------
 # Backward helper retained
@@ -1674,11 +1871,9 @@ def load_settings() -> Settings:
     """Load application settings (backward-compat shim)."""
     return get_settings()
 
-
 # =============================================================================
 # TEAMS OUTGOING WEBHOOK CONFIGURATION
 # =============================================================================
-
 
 # Define a proxy class to lazily access settings for the dictionary interface
 class _TeamsConfigProxy(Mapping[str, Any]):
@@ -1693,12 +1888,28 @@ class _TeamsConfigProxy(Mapping[str, Any]):
         "max_response_length": "teams_outgoing_webhook_max_response_length",
     }
 
+    # Keys whose values are secrets and must not be unwrapped implicitly.
+    _SECRET_KEYS: ClassVar[frozenset[str]] = frozenset({"security_token"})
+
     def __getitem__(self, key: str) -> Any:
         if key not in self._KEY_MAP:
             raise KeyError(key)
         s = get_settings()
         value = getattr(s, self._KEY_MAP[key])
-        return value.get_secret_value() if isinstance(value, SecretStr) else value
+        # IMPORTANT: do NOT unwrap SecretStr automatically.
+        return value
+
+    def get_secret(self, key: str) -> str:
+        """Explicitly unwrap a secret key.
+
+        This is the only supported way to access secret values.
+        """
+        if key not in self._SECRET_KEYS:
+            raise KeyError(f"{key!r} is not a secret key")
+        value = self[key]
+        if isinstance(value, SecretStr):
+            return value.get_secret_value()
+        return str(value)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self._KEY_MAP)
@@ -1707,7 +1918,13 @@ class _TeamsConfigProxy(Mapping[str, Any]):
         return len(self._KEY_MAP)
 
     def __repr__(self) -> str:
-        safe = {k: ("***" if k == "security_token" else self[k]) for k in self}
+        safe: dict[str, object] = {}
+        for k in self:
+            try:
+                v = self[k]
+                safe[k] = "**********" if isinstance(v, SecretStr) else v
+            except Exception:  # noqa: BLE001
+                safe[k] = "<unavailable>"
         return repr(safe)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -1715,7 +1932,6 @@ class _TeamsConfigProxy(Mapping[str, Any]):
             return self[key]
         except KeyError:
             return default
-
 
 TEAMS_OUTGOING_WEBHOOK = _TeamsConfigProxy()
 

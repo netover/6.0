@@ -49,11 +49,9 @@ router = APIRouter(
     dependencies=[Depends(verify_admin_credentials)],
 )
 
-
 # =============================================================================
 # Pydantic Models
 # =============================================================================
-
 
 class ModeRequest(BaseModel):
     """Request to set auto-tuning mode."""
@@ -65,7 +63,6 @@ class ModeRequest(BaseModel):
     )
     admin_user: str = Field(default="admin", description="User making the change")
 
-
 class ThresholdRequest(BaseModel):
     """Request to set a threshold value."""
 
@@ -75,24 +72,20 @@ class ThresholdRequest(BaseModel):
         default="Manual adjustment via API", description="Reason for change"
     )
 
-
 class ApprovalRequest(BaseModel):
     """Request to approve/reject a recommendation."""
 
     admin_user: str = Field(default="admin", description="User performing action")
     reason: str = Field(default="", description="Optional reason")
 
-
 class ResetRequest(BaseModel):
     """Request for reset operations."""
 
     admin_user: str = Field(default="admin", description="User performing action")
 
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
 
 async def _get_manager():
     """Get the ThresholdTuningManager instance."""
@@ -109,11 +102,9 @@ async def _get_manager():
             detail="Threshold tuning module not available",
         ) from e
 
-
 # =============================================================================
 # Status Endpoints
 # =============================================================================
-
 
 @router.get("/status")
 async def get_status() -> dict[str, Any]:
@@ -132,11 +123,9 @@ async def get_status() -> dict[str, Any]:
     status_data = await manager.get_full_status()
     return {"status": "success", "data": status_data}
 
-
 # =============================================================================
 # Mode Endpoints
 # =============================================================================
-
 
 @router.get("/mode")
 async def get_mode() -> dict[str, Any]:
@@ -148,7 +137,6 @@ async def get_mode() -> dict[str, Any]:
         "mode": mode.value,
         "params": manager.MODE_PARAMS[mode],
     }
-
 
 @router.put("/mode")
 async def set_mode(request: ModeRequest) -> dict[str, Any]:
@@ -174,11 +162,9 @@ async def set_mode(request: ModeRequest) -> dict[str, Any]:
     manager = await _get_manager()
     return await manager.set_mode(mode, request.admin_user)
 
-
 # =============================================================================
 # Threshold Endpoints
 # =============================================================================
-
 
 @router.get("/thresholds")
 async def get_thresholds() -> dict[str, Any]:
@@ -186,7 +172,6 @@ async def get_thresholds() -> dict[str, Any]:
     manager = await _get_manager()
     thresholds = await manager.get_thresholds()
     return {"status": "success", "thresholds": thresholds}
-
 
 @router.get("/thresholds/{name}")
 async def get_threshold(name: str) -> dict[str, Any]:
@@ -200,7 +185,6 @@ async def get_threshold(name: str) -> dict[str, Any]:
         )
 
     return {"status": "success", "threshold": threshold.to_dict()}
-
 
 @router.put("/thresholds/{name}")
 async def set_threshold(name: str, request: ThresholdRequest) -> dict[str, Any]:
@@ -224,13 +208,11 @@ async def set_threshold(name: str, request: ThresholdRequest) -> dict[str, Any]:
 
     return result
 
-
 @router.post("/reset")
 async def reset_to_defaults(request: ResetRequest) -> dict[str, Any]:
     """Reset all thresholds to default values."""
     manager = await _get_manager()
     return await manager.reset_to_defaults(request.admin_user)
-
 
 @router.post("/rollback")
 async def rollback_to_last_good(request: ResetRequest) -> dict[str, Any]:
@@ -245,11 +227,9 @@ async def rollback_to_last_good(request: ResetRequest) -> dict[str, Any]:
 
     return result
 
-
 # =============================================================================
 # Metrics Endpoints
 # =============================================================================
-
 
 @router.get("/metrics")
 async def get_metrics(
@@ -274,7 +254,6 @@ async def get_metrics(
         "metrics": metrics.to_dict(),
     }
 
-
 @router.get("/metrics/daily")
 async def get_daily_metrics(
     days: int = Query(
@@ -294,11 +273,9 @@ async def get_daily_metrics(
         "daily_metrics": daily,
     }
 
-
 # =============================================================================
 # Recommendation Endpoints
 # =============================================================================
-
 
 @router.get("/recommendations")
 async def get_recommendations() -> dict[str, Any]:
@@ -306,7 +283,6 @@ async def get_recommendations() -> dict[str, Any]:
     manager = await _get_manager()
     recs = await manager.get_pending_recommendations()
     return {"status": "success", "recommendations": recs}
-
 
 @router.post("/recommendations/generate")
 async def generate_recommendations() -> dict[str, Any]:
@@ -323,7 +299,6 @@ async def generate_recommendations() -> dict[str, Any]:
         "generated": len(recs),
         "recommendations": [r.to_dict() for r in recs],
     }
-
 
 @router.post("/recommendations/{recommendation_id}/approve")
 async def approve_recommendation(
@@ -345,7 +320,6 @@ async def approve_recommendation(
 
     return result
 
-
 @router.post("/recommendations/{recommendation_id}/reject")
 async def reject_recommendation(
     recommendation_id: int,
@@ -366,11 +340,9 @@ async def reject_recommendation(
 
     return result
 
-
 # =============================================================================
 # Auto-Adjustment Endpoints
 # =============================================================================
-
 
 @router.post("/auto-adjust")
 async def run_auto_adjustment() -> dict[str, Any]:
@@ -382,7 +354,6 @@ async def run_auto_adjustment() -> dict[str, Any]:
     """
     manager = await _get_manager()
     return await manager.run_auto_adjustment_cycle()
-
 
 @router.post("/circuit-breaker/reset")
 async def reset_circuit_breaker(request: ResetRequest) -> dict[str, Any]:
@@ -402,7 +373,6 @@ async def reset_circuit_breaker(request: ResetRequest) -> dict[str, Any]:
 
     return result
 
-
 @router.get("/circuit-breaker/status")
 async def get_circuit_breaker_status() -> dict[str, Any]:
     """Get circuit breaker status."""
@@ -419,11 +389,9 @@ async def get_circuit_breaker_status() -> dict[str, Any]:
         },
     }
 
-
 # =============================================================================
 # Audit Log Endpoints
 # =============================================================================
-
 
 @router.get("/audit-log")
 async def get_audit_log(

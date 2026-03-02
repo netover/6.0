@@ -31,14 +31,12 @@ _current_scope: ContextVar[ServiceScope | None] = ContextVar(
     "di_current_scope", default=None
 )
 
-
 class ServiceLifetime(Enum):
     """Defines the lifecycle scope of a registered service."""
 
     SINGLETON = "singleton"  # Single instance for entire app lifetime
     TRANSIENT = "transient"  # New instance every time
     SCOPED = "scoped"  # One instance per request/scope
-
 
 class ServiceScope:
     """
@@ -48,7 +46,7 @@ class ServiceScope:
     ensuring complete isolation between concurrent requests.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._services: dict[type, Any] = {}
         self._token = None
 
@@ -82,7 +80,6 @@ class ServiceScope:
         """Set service in current scope."""
         self._services[interface] = instance
 
-
 class DIContainer:
     """
     Thread-safe and async-safe DI container with proper lifecycle management.
@@ -100,7 +97,7 @@ class DIContainer:
             user_svc = await container.get(IUserService)  # Same instance in this scope
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._factories: dict[type, tuple[Callable, ServiceLifetime]] = {}
         self._singletons: dict[type, Any] = {}
         self._locks: dict[type, asyncio.Lock] = {}
@@ -236,7 +233,12 @@ class DIContainer:
             if inspect.isawaitable(result):
                 return await result
             return result
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("service_factory_error", factory=repr(factory), error=str(exc))
             raise
 
@@ -274,11 +276,9 @@ class DIContainer:
         self._locks.clear()
         logger.info("container_cleared")
 
-
 # --- Global Container Instance ---
 
 _container_singleton: "DIContainer | None" = None
-
 
 class _LazyContainerProxy:
     """Proxy that lazily creates the DIContainer on first use.
@@ -296,15 +296,12 @@ class _LazyContainerProxy:
     def __getattr__(self, name: str):
         return getattr(self._get(), name)
 
-
 # Backward-compatible global name used across the codebase.
 container = _LazyContainerProxy()
-
 
 def get_container() -> "DIContainer":
     """Return the concrete DIContainer instance."""
     return container._get()  # type: ignore[attr-defined]
-
 
 def register_default_services() -> None:
     """Register default services with the container."""

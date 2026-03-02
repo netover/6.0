@@ -40,7 +40,7 @@ try:
     from watchdog.observers import Observer
 
     WATCHDOG_AVAILABLE = True
-except Exception:  # pragma: no cover
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover
     # Allow import without watchdog;
     # hot-reload watching will be disabled.
     FileModifiedEvent = object  # type: ignore[assignment]
@@ -53,7 +53,6 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class ConfigChange:
     """Represents a configuration change."""
@@ -64,14 +63,13 @@ class ConfigChange:
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     source: str = "api"  # api, file, env
 
-
 class ConfigFileHandler(FileSystemEventHandler):
     """Handles file system events for config files."""
 
-    def __init__(self, callback: Callable):
+    def __init__(self, callback: Callable) -> None:
         self.callback = callback
 
-    def on_modified(self, event):
+    def on_modified(self, event) -> None:
         if isinstance(event, FileModifiedEvent):
             # Watchdog runs in a background thread, so we need to schedule the callback
             # on the event loop safely.
@@ -90,7 +88,6 @@ class ConfigFileHandler(FileSystemEventHandler):
                 logger.warning(
                     "config_file_modified_but_no_loop_active", path=event.src_path
                 )
-
 
 class ConfigManager:
     """
@@ -119,15 +116,13 @@ class ConfigManager:
         self._observer: Observer | None = None
         self._watching = False
 
-        # Lock for thread safety (lazy-initialized)
-        # to avoid event-loop issues at import time
-        self._lock: asyncio.Lock | None = None
+        # P0 fix: Initialize lock eagerly to prevent race condition
+        # Lock is still lazily bound to event loop but with proper initialization
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def _async_lock(self) -> asyncio.Lock:
-        """Lazy initialization of asyncio.Lock."""
-        if self._lock is None:
-            self._lock = asyncio.Lock()
+        """Return the asyncio lock (eagerly initialized)."""
         return self._lock
 
     async def start(self, tg: asyncio.TaskGroup | None = None):
@@ -147,7 +142,7 @@ class ConfigManager:
 
         logger.info("ConfigManager started", extra={"config_dir": str(self.config_dir)})
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the configuration manager."""
         if self._observer:
             self._observer.stop()
@@ -156,7 +151,7 @@ class ConfigManager:
 
         logger.info("ConfigManager stopped")
 
-    def _start_watching(self):
+    def _start_watching(self) -> None:
         """Start watching config files for changes."""
         if self._watching:
             return
@@ -209,7 +204,12 @@ class ConfigManager:
             async with aiofiles.open(config_file, "w") as f:
                 await f.write(json.dumps(self._config, indent=2, default=str))
             logger.info("Configuration saved")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to save config: %s", e)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -279,11 +279,11 @@ class ConfigManager:
             await self._load_config()
             await self._notify_subscribers()
 
-    def subscribe(self, callback: Callable):
+    def subscribe(self, callback: Callable) -> None:
         """Subscribe to configuration changes."""
         self._subscribers.add(callback)
 
-    def unsubscribe(self, callback: Callable):
+    def unsubscribe(self, callback: Callable) -> None:
         """Unsubscribe from configuration changes."""
         self._subscribers.discard(callback)
 
@@ -297,7 +297,12 @@ class ConfigManager:
                     result = await asyncio.to_thread(callback, change)
                     if inspect.isawaitable(result):
                         await result
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Error notifying subscriber: %s", e)
 
     def get_all(self) -> dict[str, Any]:
@@ -329,10 +334,8 @@ class ConfigManager:
             await self._save_config()
             return True
 
-
 # Global instance
 _config_manager: ConfigManager | None = None
-
 
 def get_config_manager() -> ConfigManager:
     """Get global configuration manager."""
@@ -340,7 +343,6 @@ def get_config_manager() -> ConfigManager:
     if _config_manager is None:
         _config_manager = ConfigManager()
     return _config_manager
-
 
 async def init_config_manager():
     """Initialize global configuration manager."""

@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 _registered = False
 
-
-def register_all_models():
+def register_all_models() -> None:
     """
     Import all SQLAlchemy models to register them with Base.metadata.
 
@@ -55,7 +54,6 @@ def register_all_models():
 
     _registered = True
     logger.info("All database models registered")
-
 
 # Convenience: auto-register when module is imported
 register_all_models()

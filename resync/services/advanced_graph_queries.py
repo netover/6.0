@@ -35,11 +35,12 @@ Version: 5.2.3.26
 from __future__ import annotations
 
 import time
-from collections import defaultdict
+import threading
+from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Any
 
 import networkx as nx
 
@@ -51,7 +52,6 @@ except ImportError:
     import logging
 
     logger = logging.getLogger(__name__)
-T = TypeVar("T")
 
 
 class RelationConfidence(str, Enum):
@@ -111,29 +111,21 @@ class NegationResult:
 
 class TemporalGraphManager:
     """
-    Manages temporal states of entities for version conflict resolution.
+    Manages temporal versions of entity states.
 
-    Solves the "Conflicting Information" RAG failure:
-    - Tracks entity states over time
-    - Resolves "what is current?" vs "what was it at time X?"
-    - Handles policy/status changes correctly
-
-    Example TWS Use Cases:
-    - "What was JOB_X status 2 hours ago?"
-    - "When did the job start failing?"
-    - "Show status history for the last 24 hours"
+    Notes on concurrency:
+    - FastAPI can run with multiple worker threads (and future free-threaded CPython).
+    - This manager keeps in-memory mutable state and therefore must be synchronized.
+    - History is stored newest-first using deque.appendleft() with maxlen eviction.
     """
 
-    def __init__(self, max_history_per_entity: int = 1000):
-        """
-        Initialize TemporalGraphManager.
-
-        Args:
-            max_history_per_entity: Maximum states to keep per entity (LRU)
-        """
+    def __init__(self, max_history_per_entity: int = 1000) -> None:
         self.max_history = max_history_per_entity
-        self._history: dict[str, list[TemporalState]] = defaultdict(list)
-        self._last_cleanup = time.time()
+        # Newest-first per entity; auto-evicts oldest entries.
+        self._history: dict[str, deque[TemporalState]] = defaultdict(
+            lambda: deque(maxlen=self.max_history)
+        )
+        self._lock = threading.Lock()
 
     def record_state(
         self,
@@ -142,131 +134,79 @@ class TemporalGraphManager:
         timestamp: datetime | None = None,
         source: str = "api",
     ) -> TemporalState:
-        """
-        Record a new state for an entity.
-
-        Args:
-            entity_id: Entity identifier (e.g., job name)
-            state: Current state dict (status, return_code, etc.)
-            timestamp: When this state was observed (default: now)
-            source: Source of this state information
-
-        Returns:
-            The created TemporalState
-        """
+        """Record a state snapshot for an entity."""
         ts = timestamp or datetime.now(timezone.utc)
         temporal_state = TemporalState(
-            entity_id=entity_id, timestamp=ts, state=state.copy(), source=source
+            entity_id=entity_id,
+            timestamp=ts,
+            state=state.copy(),
+            source=source,
         )
-        history = self._history[entity_id]
-        history.insert(0, temporal_state)
-        if len(history) > self.max_history:
-            self._history[entity_id] = history[: self.max_history]
+        with self._lock:
+            self._history[entity_id].appendleft(temporal_state)
+            history_size = len(self._history[entity_id])
         logger.debug(
             "temporal_state_recorded",
-            extra={
-                "entity_id": entity_id,
-                "timestamp": ts.isoformat(),
-                "history_size": len(self._history[entity_id]),
-            },
+            entity_id=entity_id,
+            timestamp=ts.isoformat(),
+            history_size=history_size,
         )
         return temporal_state
 
     def get_state_at(self, entity_id: str, at_time: datetime) -> TemporalState | None:
-        """
-        Get entity state at a specific point in time.
-
-        Uses the most recent state that was recorded BEFORE at_time.
-
-        Args:
-            entity_id: Entity identifier
-            at_time: The point in time to query
-
-        Returns:
-            TemporalState or None if no history exists
-        """
-        history = self._history.get(entity_id, [])
+        """Get the state at (or immediately before) a given time."""
+        with self._lock:
+            history = list(self._history.get(entity_id, deque()))
+        # history is newest-first by insertion; timestamps can be out-of-order, so scan all.
+        best: TemporalState | None = None
         for state in history:
-            if state.timestamp <= at_time:
-                logger.debug(
-                    "temporal_lookup_hit",
-                    extra={
-                        "entity_id": entity_id,
-                        "query_time": at_time.isoformat(),
-                        "found_time": state.timestamp.isoformat(),
-                    },
-                )
-                return state
-        logger.debug(
-            "temporal_lookup_miss",
-            extra={"entity_id": entity_id, "query_time": at_time.isoformat()},
-        )
-        return None
+            if state.timestamp <= at_time and (best is None or state.timestamp > best.timestamp):
+                best = state
+        return best
 
     def get_current_state(self, entity_id: str) -> TemporalState | None:
-        """Get the most recent state for an entity."""
-        history = self._history.get(entity_id, [])
-        return history[0] if history else None
+        """Get the latest recorded state."""
+        with self._lock:
+            history = self._history.get(entity_id)
+            if not history:
+                return None
+            return history[0]
 
     def get_state_history(
         self,
         entity_id: str,
+        limit: int = 10,
         since: datetime | None = None,
-        until: datetime | None = None,
-        limit: int = 100,
     ) -> list[TemporalState]:
-        """
-        Get state history for an entity within a time range.
-
-        Args:
-            entity_id: Entity identifier
-            since: Start of time range (inclusive)
-            until: End of time range (inclusive)
-            limit: Maximum results to return
-
-        Returns:
-            List of TemporalState objects (newest first)
-        """
-        history = self._history.get(entity_id, [])
-        result = []
+        """Get recent state history for an entity."""
+        with self._lock:
+            history = list(self._history.get(entity_id, deque()))
+        results: list[TemporalState] = []
         for state in history:
-            if since and state.timestamp < since:
-                break
-            if until and state.timestamp > until:
+            if since is not None and state.timestamp < since:
+                # Do not break: timestamps may be out-of-order.
                 continue
-            result.append(state)
-            if len(result) >= limit:
+            results.append(state)
+            if len(results) >= limit:
                 break
-        return result
+        return results
 
     def find_state_changes(
-        self, entity_id: str, field: str, since: datetime | None = None
+        self,
+        entity_id: str,
+        field: str,
+        since: datetime | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        Find when a specific field changed values.
-
-        Useful for: "When did the job start failing?"
-
-        Args:
-            entity_id: Entity identifier
-            field: Field name to track (e.g., "status")
-            since: Only look at changes since this time
-
-        Returns:
-            List of change events with old_value, new_value, timestamp
-        """
-        history = self.get_state_history(entity_id, since=since, limit=500)
-        if len(history) < 2:
-            return []
-        changes = []
-        prev_value = None
-        for state in reversed(history):
+        """Find when a specific field changed over time."""
+        history = self.get_state_history(entity_id, limit=self.max_history, since=since)
+        changes: list[dict[str, Any]] = []
+        prev_value: Any = None
+        for state in reversed(history):  # oldest -> newest for change detection
             current_value = state.state.get(field)
             if prev_value is not None and current_value != prev_value:
                 changes.append(
                     {
-                        "timestamp": state.timestamp,
-                        "field": field,
+                        "timestamp": state.timestamp.isoformat(),
                         "old_value": prev_value,
                         "new_value": current_value,
                         "source": state.source,
@@ -275,63 +215,61 @@ class TemporalGraphManager:
             prev_value = current_value
         return changes
 
+    @staticmethod
+    def _extract_ts(value: dict[str, Any]) -> datetime | None:
+        raw = value.get("timestamp") or value.get("date")
+        if isinstance(raw, datetime):
+            return raw
+        if isinstance(raw, str):
+            try:
+                return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                return None
+        return None
+
     def resolve_conflicting_states(
-        self, entity_id: str, conflicting_values: list[dict[str, Any]]
+        self,
+        conflicting_states: list[dict[str, Any]],
+        strategy: str = "latest",
     ) -> dict[str, Any]:
-        """
-        Resolve conflicting information by using the most recent state.
+        """Resolve conflicting state values using a strategy."""
+        if not conflicting_states:
+            return {}
+        if len(conflicting_states) == 1:
+            return conflicting_states[0]
 
-        This is the key solution to the "Conflicting Information" RAG failure.
+        if strategy == "latest":
+            dated_values = [v for v in conflicting_states if self._extract_ts(v) is not None]
+            if not dated_values:
+                return conflicting_states[-1]
+            dated_values.sort(key=self._extract_ts)  # type: ignore[arg-type]
+            return dated_values[-1]
 
-        Args:
-            entity_id: Entity identifier
-            conflicting_values: List of potentially conflicting states
-
-        Returns:
-            The resolved, current truth
-        """
-        current = self.get_current_state(entity_id)
-        if current:
-            logger.info(
-                "conflict_resolved_by_temporal",
-                extra={
-                    "entity_id": entity_id,
-                    "resolved_timestamp": current.timestamp.isoformat(),
-                },
+        if strategy == "merge":
+            merged: dict[str, Any] = {}
+            # Apply oldest -> newest (best-effort) for determinism
+            ordered = sorted(
+                conflicting_states,
+                key=lambda v: (
+                    self._extract_ts(v) is None,
+                    self._extract_ts(v) or datetime.min.replace(tzinfo=timezone.utc),
+                ),
             )
-            return {
-                "resolved_value": current.state,
-                "resolution_method": "temporal_latest",
-                "timestamp": current.timestamp,
-                "confidence": "high",
-            }
-        dated_values = [
-            v for v in conflicting_values if "timestamp" in v or "date" in v
-        ]
-        if dated_values:
-            sorted_values = sorted(
-                dated_values,
-                key=lambda x: x.get("timestamp") or x.get("date"),
-                reverse=True,
-            )
-            return {
-                "resolved_value": sorted_values[0],
-                "resolution_method": "timestamp_sort",
-                "confidence": "medium",
-            }
-        return {
-            "resolved_value": conflicting_values[0] if conflicting_values else None,
-            "resolution_method": "first_available",
-            "confidence": "low",
-        }
+            for state in ordered:
+                merged.update(state)
+            return merged
+
+        # Default fallback
+        return conflicting_states[-1]
 
     def get_statistics(self) -> dict[str, Any]:
-        """Get temporal graph statistics."""
-        total_states = sum((len(h) for h in self._history.values()))
+        """Get statistics about stored temporal data."""
+        with self._lock:
+            entity_count = len(self._history)
+            total_states = sum(len(h) for h in self._history.values())
         return {
-            "entities_tracked": len(self._history),
+            "entities_tracked": entity_count,
             "total_states": total_states,
-            "avg_states_per_entity": total_states / max(len(self._history), 1),
             "max_history_per_entity": self.max_history,
         }
 
@@ -350,7 +288,7 @@ class NegationQueryEngine:
     - "Workstations NOT affected by the outage"
     """
 
-    def __init__(self, graph: nx.DiGraph | None = None):
+    def __init__(self, graph: nx.DiGraph | None = None) -> None:
         """
         Initialize NegationQueryEngine.
 
@@ -359,7 +297,7 @@ class NegationQueryEngine:
         """
         self._graph = graph
 
-    def set_graph(self, graph: nx.DiGraph):
+    def set_graph(self, graph: nx.DiGraph) -> None:
         """Update the graph reference."""
         self._graph = graph
 
@@ -422,9 +360,7 @@ class NegationQueryEngine:
         """
         all_jobs = set(job_status_map.keys())
         excluded_jobs = {
-            job_id
-            for job_id, status in job_status_map.items()
-            if status in excluded_statuses
+            job_id for job_id, status in job_status_map.items() if status in excluded_statuses
         }
         result_jobs = all_jobs - excluded_jobs
         return NegationResult(
@@ -517,7 +453,7 @@ class CommonNeighborAnalyzer:
     - "Find potential conflicts between two job streams"
     """
 
-    def __init__(self, graph: nx.DiGraph | None = None):
+    def __init__(self, graph: nx.DiGraph | None = None) -> None:
         """
         Initialize CommonNeighborAnalyzer.
 
@@ -526,7 +462,7 @@ class CommonNeighborAnalyzer:
         """
         self._graph = graph
 
-    def set_graph(self, graph: nx.DiGraph):
+    def set_graph(self, graph: nx.DiGraph) -> None:
         """Update the graph reference."""
         self._graph = graph
 
@@ -543,16 +479,8 @@ class CommonNeighborAnalyzer:
         """
         if not self._graph:
             return set()
-        preds_a = (
-            set(nx.ancestors(self._graph, entity_a))
-            if entity_a in self._graph
-            else set()
-        )
-        preds_b = (
-            set(nx.ancestors(self._graph, entity_b))
-            if entity_b in self._graph
-            else set()
-        )
+        preds_a = set(nx.ancestors(self._graph, entity_a)) if entity_a in self._graph else set()
+        preds_b = set(nx.ancestors(self._graph, entity_b)) if entity_b in self._graph else set()
         return preds_a.intersection(preds_b)
 
     def find_common_successors(self, entity_a: str, entity_b: str) -> set[str]:
@@ -568,16 +496,8 @@ class CommonNeighborAnalyzer:
         """
         if not self._graph:
             return set()
-        succs_a = (
-            set(nx.descendants(self._graph, entity_a))
-            if entity_a in self._graph
-            else set()
-        )
-        succs_b = (
-            set(nx.descendants(self._graph, entity_b))
-            if entity_b in self._graph
-            else set()
-        )
+        succs_a = set(nx.descendants(self._graph, entity_a)) if entity_a in self._graph else set()
+        succs_b = set(nx.descendants(self._graph, entity_b)) if entity_b in self._graph else set()
         return succs_a.intersection(succs_b)
 
     def find_common_direct_neighbors(self, entity_a: str, entity_b: str) -> set[str]:
@@ -690,217 +610,214 @@ class CommonNeighborAnalyzer:
 
 class EdgeVerificationEngine:
     """
-    Verifies relationships to prevent false link hallucination.
+    Verifies graph edges to reduce false-link hallucination.
 
-    Solves the "Inventing False Links" RAG failure:
-    - Distinguishes explicit relationships from co-occurrence
-    - Tracks evidence for each relationship
-    - Provides confidence scores
-
-    Example TWS Use Cases:
-    - "Is JOB_A actually dependent on JOB_B, or just mentioned together?"
-    - "What evidence supports this dependency?"
-    - "Filter to only high-confidence relationships"
+    Concurrency:
+    - This engine maintains shared mutable in-memory structures.
+    - Protect all read-modify-write operations with a lock.
+    - Bound internal caches to prevent unbounded memory growth (DoS/OOM).
     """
 
-    def __init__(self):
-        """Initialize EdgeVerificationEngine."""
-        self._verified_edges: dict[tuple[str, str, str], VerifiedRelationship] = {}
-        self._co_occurrences: dict[tuple[str, str], int] = defaultdict(int)
+    def __init__(
+        self,
+        max_verified_edges: int = 100_000,
+        max_co_occurrence_keys: int = 100_000,
+        max_co_occurrences_per_key: int = 500,
+        max_evidence_per_edge: int = 50,
+    ):
+        self._lock = threading.Lock()
+        self._max_verified_edges = max_verified_edges
+        self._max_co_occurrence_keys = max_co_occurrence_keys
+        self._max_co_occurrences_per_key = max_co_occurrences_per_key
+        self._max_evidence_per_edge = max_evidence_per_edge
+
+        # Use OrderedDict to support FIFO eviction.
+        self._verified_edges: OrderedDict[tuple[str, str, str], VerifiedRelationship] = (
+            OrderedDict()
+        )
+        self._co_occurrences: OrderedDict[str, set[str]] = OrderedDict()
+
+    def _evict_verified_edges_if_needed(self) -> None:
+        while len(self._verified_edges) > self._max_verified_edges:
+            self._verified_edges.popitem(last=False)
+
+    def _evict_co_occurrences_if_needed(self) -> None:
+        while len(self._co_occurrences) > self._max_co_occurrence_keys:
+            self._co_occurrences.popitem(last=False)
 
     def register_explicit_edge(
         self,
         source: str,
         target: str,
-        relation_type: str,
+        relation_type: str = "DEPENDS_ON",
         evidence: list[str] | None = None,
+        confidence: RelationConfidence = RelationConfidence.EXPLICIT,
     ) -> VerifiedRelationship:
-        """
-        Register an explicitly stated relationship.
-
-        Args:
-            source: Source entity
-            target: Target entity
-            relation_type: Type of relationship (e.g., "DEPENDS_ON")
-            evidence: Evidence supporting this relationship
-
-        Returns:
-            VerifiedRelationship object
-        """
+        """Register a verified explicit relationship."""
         key = (source, target, relation_type)
-        now = datetime.now(timezone.utc)
-        if key in self._verified_edges:
-            rel = self._verified_edges[key]
-            rel.last_verified = now
-            if evidence:
-                rel.evidence.extend(evidence)
-        else:
-            rel = VerifiedRelationship(
-                source=source,
-                target=target,
-                relation_type=relation_type,
-                confidence=RelationConfidence.EXPLICIT,
-                evidence=evidence or [],
-                first_seen=now,
-                last_verified=now,
-            )
-            self._verified_edges[key] = rel
-        logger.debug(
+        ev = (evidence or [])[: self._max_evidence_per_edge]
+        with self._lock:
+            if key in self._verified_edges:
+                rel = self._verified_edges[key]
+                # Preserve existing evidence + append new items (bounded).
+                rel.evidence.extend(ev)
+                if len(rel.evidence) > self._max_evidence_per_edge:
+                    rel.evidence[:] = rel.evidence[-self._max_evidence_per_edge :]
+                rel.confidence = confidence
+                rel.timestamp = datetime.now(timezone.utc)
+                self._verified_edges.move_to_end(key)
+            else:
+                rel = VerifiedRelationship(
+                    source=source,
+                    target=target,
+                    relation_type=relation_type,
+                    confidence=confidence,
+                    evidence=list(ev),
+                    timestamp=datetime.now(timezone.utc),
+                )
+                self._verified_edges[key] = rel
+                self._evict_verified_edges_if_needed()
+        logger.info(
             "explicit_edge_registered",
-            extra={"source": source, "target": target, "relation": relation_type},
+            source=source,
+            target=target,
+            relation_type=relation_type,
+            confidence=confidence.value,
         )
         return rel
 
     def register_co_occurrence(
-        self, entity_a: str, entity_b: str, context: str | None = None
-    ):
-        """
-        Register a co-occurrence (entities mentioned together).
-
-        This is NOT treated as a relationship, but tracked to detect
-        potential false link attempts.
-
-        Args:
-            entity_a: First entity
-            entity_b: Second entity
-            context: Context where they co-occurred
-        """
-        key = tuple(sorted([entity_a, entity_b]))
-        self._co_occurrences[key] += 1
+        self,
+        entity_a: str,
+        entity_b: str,
+        context: str | None = None,
+    ) -> None:
+        """Register that two entities co-occurred in the same context."""
+        if entity_a == entity_b:
+            return
+        with self._lock:
+            s = self._co_occurrences.get(entity_a)
+            if s is None:
+                s = set()
+                self._co_occurrences[entity_a] = s
+            s.add(entity_b)
+            # Bound set size to avoid unbounded growth per key.
+            if len(s) > self._max_co_occurrences_per_key:
+                # Drop arbitrary extra elements (set is unordered).
+                for _ in range(len(s) - self._max_co_occurrences_per_key):
+                    s.pop()
+            self._co_occurrences.move_to_end(entity_a)
+            self._evict_co_occurrences_if_needed()
         logger.debug(
             "co_occurrence_registered",
-            extra={"entities": key, "count": self._co_occurrences[key]},
+            entity_a=entity_a,
+            entity_b=entity_b,
+            context=context,
         )
 
     def verify_relationship(
-        self, source: str, target: str, relation_type: str = "DEPENDS_ON"
-    ) -> dict[str, Any]:
-        """
-        Verify if a relationship is explicit or just inferred from co-occurrence.
-
-        This is the key method to prevent false link hallucination.
-
-        Args:
-            source: Source entity
-            target: Target entity
-            relation_type: Type of relationship to check
-
-        Returns:
-            Verification result with confidence and evidence
-        """
+        self,
+        source: str,
+        target: str,
+        relation_type: str = "DEPENDS_ON",
+        graph: nx.DiGraph | None = None,
+    ) -> VerifiedRelationship | None:
+        """Verify if relationship is explicit, inferred, or temporal."""
         key = (source, target, relation_type)
-        if key in self._verified_edges:
-            rel = self._verified_edges[key]
-            return {
-                "verified": True,
-                "confidence": RelationConfidence.EXPLICIT.value,
-                "evidence": rel.evidence,
-                "first_seen": rel.first_seen,
-                "last_verified": rel.last_verified,
-                "message": f"VERIFIED: {source} {relation_type} {target} is explicitly stated.",
-            }
-        reverse_key = (target, source, relation_type)
-        if reverse_key in self._verified_edges:
-            return {
-                "verified": False,
-                "confidence": "none",
-                "evidence": [],
-                "message": f"DIRECTION MISMATCH: Found {target} {relation_type} {source}, not the reverse.",
-            }
-        co_key = tuple(sorted([source, target]))
-        if co_key in self._co_occurrences:
-            count = self._co_occurrences[co_key]
-            return {
-                "verified": False,
-                "confidence": "co_occurrence",
-                "co_occurrence_count": count,
-                "evidence": [],
-                "message": f"NOT VERIFIED: {source} and {target} appear together {count} times, but no explicit {relation_type} relationship found. This may be a FALSE LINK.",
-            }
-        return {
-            "verified": False,
-            "confidence": "unknown",
-            "evidence": [],
-            "message": f"UNKNOWN: No information about relationship between {source} and {target}.",
-        }
+        with self._lock:
+            rel = self._verified_edges.get(key)
+            if rel is not None:
+                return rel
+
+            # Heuristic: co-occurrence suggests inferred relationship but is NOT verified.
+            co = self._co_occurrences.get(source, set())
+            inferred = target in co
+
+        if inferred:
+            return VerifiedRelationship(
+                source=source,
+                target=target,
+                relation_type=relation_type,
+                confidence=RelationConfidence.INFERRED,
+                evidence=["co_occurrence"],
+                timestamp=datetime.now(timezone.utc),
+            )
+
+        if graph is not None and graph.has_edge(source, target):
+            return VerifiedRelationship(
+                source=source,
+                target=target,
+                relation_type=relation_type,
+                confidence=RelationConfidence.TEMPORAL,
+                evidence=["graph_edge_present"],
+                timestamp=datetime.now(timezone.utc),
+            )
+        return None
 
     def get_verified_relationships(
-        self, entity: str, direction: str = "both"
+        self,
+        entity: str,
+        direction: str = "both",
     ) -> list[VerifiedRelationship]:
-        """
-        Get all verified relationships for an entity.
-
-        Args:
-            entity: Entity to query
-            direction: "outgoing", "incoming", or "both"
-
-        Returns:
-            List of verified relationships
-        """
-        results = []
-        for key, rel in self._verified_edges.items():
-            source, target, _ = key
-            if (
-                direction in ("outgoing", "both")
-                and source == entity
-                or (direction in ("incoming", "both") and target == entity)
+        """Get all verified relationships for an entity."""
+        if direction not in ("incoming", "outgoing", "both"):
+            raise ValueError(f"Invalid direction: {direction}")
+        results: list[VerifiedRelationship] = []
+        with self._lock:
+            items = list(self._verified_edges.values())
+        for rel in items:
+            source = rel.source
+            target = rel.target
+            if (direction in ("outgoing", "both") and source == entity) or (
+                direction in ("incoming", "both") and target == entity
             ):
                 results.append(rel)
         return results
+
+    _CONFIDENCE_RANK = {
+        RelationConfidence.TEMPORAL: 0,
+        RelationConfidence.INFERRED: 1,
+        RelationConfidence.EXPLICIT: 2,
+    }
 
     def filter_graph_by_confidence(
         self,
         graph: nx.DiGraph,
         min_confidence: RelationConfidence = RelationConfidence.EXPLICIT,
     ) -> nx.DiGraph:
-        """
-        Create a filtered graph with only high-confidence edges.
-
-        Args:
-            graph: Original graph
-            min_confidence: Minimum confidence level to include
-
-        Returns:
-            Filtered graph
-        """
+        """Return a subgraph containing only edges that meet the confidence threshold."""
         filtered = nx.DiGraph()
+        min_rank = self._CONFIDENCE_RANK.get(min_confidence, 0)
+        with self._lock:
+            verified = dict(self._verified_edges)  # snapshot
         for source, target, data in graph.edges(data=True):
             rel_type = data.get("relation", "DEPENDS_ON")
             key = (source, target, rel_type)
-            if key in self._verified_edges:
-                rel = self._verified_edges[key]
-                if (
-                    rel.confidence == min_confidence
-                    or rel.confidence == RelationConfidence.EXPLICIT
-                ):
-                    filtered.add_edge(source, target, **data)
-            elif min_confidence == RelationConfidence.INFERRED:
+            rel = verified.get(key)
+            if rel is None:
+                # Only include unverified edges when caller explicitly allows inferred/temporal.
+                if min_confidence == RelationConfidence.EXPLICIT:
+                    continue
+                # Treat unverified edges as lowest confidence.
+                edge_rank = self._CONFIDENCE_RANK[RelationConfidence.TEMPORAL]
+            else:
+                edge_rank = self._CONFIDENCE_RANK.get(rel.confidence, -1)
+            if edge_rank >= min_rank:
                 filtered.add_edge(source, target, **data)
-        logger.info(
-            "graph_filtered_by_confidence",
-            extra={
-                "original_edges": graph.number_of_edges(),
-                "filtered_edges": filtered.number_of_edges(),
-                "min_confidence": min_confidence.value,
-            },
-        )
         return filtered
 
     def get_statistics(self) -> dict[str, Any]:
-        """Get verification statistics."""
+        with self._lock:
+            verified_edges = len(self._verified_edges)
+            co_occurrence_keys = len(self._co_occurrences)
+            total_co_occurrences = sum(len(v) for v in self._co_occurrences.values())
         return {
-            "verified_edges": len(self._verified_edges),
-            "co_occurrences_tracked": len(self._co_occurrences),
-            "by_confidence": {
-                conf.value: sum(
-                    (
-                        1
-                        for rel in self._verified_edges.values()
-                        if rel.confidence == conf
-                    )
-                )
-                for conf in RelationConfidence
-            },
+            "verified_edges": verified_edges,
+            "co_occurrence_keys": co_occurrence_keys,
+            "total_co_occurrences": total_co_occurrences,
+            "max_verified_edges": self._max_verified_edges,
+            "max_co_occurrence_keys": self._max_co_occurrence_keys,
+            "max_co_occurrences_per_key": self._max_co_occurrences_per_key,
         }
 
 
@@ -915,7 +832,7 @@ class AdvancedGraphQueryService:
     4. Edge verification (false link prevention)
     """
 
-    def __init__(self, graph: nx.DiGraph | None = None):
+    def __init__(self, graph: nx.DiGraph | None = None) -> None:
         """
         Initialize AdvancedGraphQueryService.
 
@@ -926,14 +843,16 @@ class AdvancedGraphQueryService:
         self.negation = NegationQueryEngine(graph)
         self.intersection = CommonNeighborAnalyzer(graph)
         self.verification = EdgeVerificationEngine()
+        self._graph_lock = threading.Lock()
         self._graph = graph
         logger.info("advanced_graph_query_service_initialized")
 
-    def set_graph(self, graph: nx.DiGraph):
-        """Update the graph for all engines."""
-        self._graph = graph
-        self.negation.set_graph(graph)
-        self.intersection.set_graph(graph)
+    def set_graph(self, graph: nx.DiGraph) -> None:
+        """Atomically update the graph for all engines."""
+        with self._graph_lock:
+            self._graph = graph
+            self.negation.set_graph(graph)
+            self.intersection.set_graph(graph)
 
     def get_job_status_at(self, job_id: str, at_time: datetime) -> dict[str, Any]:
         """Get job status at a specific time."""
@@ -1014,14 +933,11 @@ class AdvancedGraphQueryService:
     def find_shared_bottlenecks(self, job_list: list[str]) -> dict[str, Any]:
         """Find dependencies shared by multiple jobs."""
         bottlenecks = self.intersection.find_bottleneck_dependencies(job_list)
-        sorted_bottlenecks = sorted(
-            bottlenecks.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_bottlenecks = sorted(bottlenecks.items(), key=lambda x: x[1], reverse=True)
         return {
             "analyzed_jobs": len(job_list),
             "bottlenecks": [
-                {"dependency": dep, "used_by_jobs": count}
-                for dep, count in sorted_bottlenecks[:10]
+                {"dependency": dep, "used_by_jobs": count} for dep, count in sorted_bottlenecks[:10]
             ],
             "total_shared_dependencies": len(bottlenecks),
         }
@@ -1077,23 +993,17 @@ class AdvancedGraphQueryService:
 
 
 _advanced_query_service: AdvancedGraphQueryService | None = None
+_service_lock = threading.Lock()
 
 
 def get_advanced_query_service(
     graph: nx.DiGraph | None = None,
 ) -> AdvancedGraphQueryService:
-    """
-    Get singleton AdvancedGraphQueryService instance.
-
-    Args:
-        graph: Optional graph to initialize with
-
-    Returns:
-        AdvancedGraphQueryService instance
-    """
+    """Thread-safe singleton accessor for AdvancedGraphQueryService."""
     global _advanced_query_service
-    if _advanced_query_service is None:
-        _advanced_query_service = AdvancedGraphQueryService(graph)
-    elif graph:
-        _advanced_query_service.set_graph(graph)
-    return _advanced_query_service
+    with _service_lock:
+        if _advanced_query_service is None:
+            _advanced_query_service = AdvancedGraphQueryService(graph)
+        elif graph is not None:
+            _advanced_query_service.set_graph(graph)
+        return _advanced_query_service

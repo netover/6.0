@@ -21,14 +21,14 @@ import struct
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 try:
     from redisvl.index import SearchIndex
     from redisvl.query import VectorQuery
 
     REDISVL_AVAILABLE = True
-except Exception:
+except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     SearchIndex = None  # type: ignore[assignment]
     VectorQuery = None  # type: ignore[assignment]
     REDISVL_AVAILABLE = False
@@ -81,7 +81,6 @@ SCHEMA: dict[str, Any] = {
     ],
 }
 
-
 class SemanticCache:
     """
     Enhanced Semantic Cache using RedisVL with full API parity and fallback support.
@@ -124,7 +123,12 @@ class SemanticCache:
             OrderedDict()
         )
         self._memory_lock = asyncio.Lock()
+        # Explicit bool (not None) — avoids implicit None-falsy handling in conditionals.
+        self._redis_stack_available: bool = False
         self._last_redis_check = 0.0
+        # Prevents concurrent coroutines from all racing through _try_restore_redis
+        # simultaneously when _memory_only is True (e.g. after a Redis outage).
+        self._restore_lock = asyncio.Lock()
 
     async def initialize(self) -> bool:
         """Initialize connection and verify index/stack availability."""
@@ -144,7 +148,12 @@ class SemanticCache:
             redis_client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             try:
                 await redis_client.ping()
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 self._memory_only = True
                 self._redis_stack_available = False
                 self._initialized = True
@@ -167,7 +176,12 @@ class SemanticCache:
 
             self._initialized = True
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to initialize SemanticCache: %s", e)
             self._redis_stack_available = False  # Force fallback if init fails
             self._initialized = True  # Mark as initialized to allow fallback
@@ -181,21 +195,30 @@ class SemanticCache:
         self._redis_stack_available = False
 
     async def _try_restore_redis(self) -> None:
+        """Attempt to restore Redis connectivity after a fallback to memory-only mode.
+
+        Guarded by _restore_lock so concurrent cache lookups during an outage
+        don't all race to ping Redis simultaneously (thundering-herd prevention).
+        """
         if not self._memory_only:
             return
-        now = time.monotonic()
-        if now - self._last_redis_check < 5.0:
-            return
-        self._last_redis_check = now
+        async with self._restore_lock:
+            # Re-check after acquiring lock — another coroutine may have restored already.
+            if not self._memory_only:
+                return
+            now = time.monotonic()
+            if now - self._last_redis_check < 5.0:
+                return
+            self._last_redis_check = now
         try:
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             await client.ping()
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             return
         try:
             stack_info = await check_redis_stack_available()
-            self._redis_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
-        except Exception:
+            self._redis_stack_available = bool(stack_info.get("search", False))
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             self._redis_stack_available = False
         self._memory_only = not REDISVL_AVAILABLE
 
@@ -244,7 +267,7 @@ class SemanticCache:
             return len(keys_to_delete)
 
     async def _search_memory(
-        self, query: str, embedding: List[float], user_id: str | None = None
+        self, query: str, embedding: list[float], user_id: str | None = None
     ) -> CacheResult:
         best_distance = float("inf")
         best_entry: CacheEntry | None = None
@@ -306,9 +329,13 @@ class SemanticCache:
 
         start_time = time.perf_counter()
         try:
-            # Generate embedding vector (use user-scoped cache key for embedding)
+            # Generate embedding vector (use user-scoped cache key for embedding).
+            # vectorizer.embed() calls model.encode() which is CPU-intensive ML
+            # inference — must run on thread pool to avoid blocking the event loop.
             cache_key_text = self._build_cache_key(query, user_id)
-            embedding = self.vectorizer.embed(cache_key_text)
+            embedding: list[float] = await asyncio.to_thread(
+                self.vectorizer.embed, cache_key_text
+            )
 
             if self._memory_only:
                 await self._try_restore_redis()
@@ -337,13 +364,18 @@ class SemanticCache:
             self._stats["total_lookup_time_ms"] += lookup_time
             return result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Cache lookup failed: %s", e)
             self._stats["errors"] += 1
             return CacheResult(hit=False)
 
     async def _search_redisvl(
-        self, query: str, embedding: List[float], user_id: str | None = None
+        self, query: str, embedding: list[float], user_id: str | None = None
     ) -> CacheResult:
         """Search using RedisVL VectorQuery with user_id filtering.
 
@@ -402,7 +434,7 @@ class SemanticCache:
         return CacheResult(hit=False)
 
     async def _search_fallback(
-        self, query: str, embedding: List[float], user_id: str | None = None
+        self, query: str, embedding: list[float], user_id: str | None = None
     ) -> CacheResult:
         """Fallback search using Python-based brute-force similarity with user_id filtering.
 
@@ -456,7 +488,12 @@ class SemanticCache:
                     distance=best_distance,
                     entry=best_entry,
                 )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Fallback search encountered error: %s", e)
             self._enter_memory_only("fallback_search_failed")
             return await self._search_memory(query, embedding, user_id)
@@ -508,7 +545,8 @@ class SemanticCache:
         query_hash = self._hash_query(cache_key_text)
         embedding: list[float] = []
         try:
-            embedding = self.vectorizer.embed(cache_key_text)
+            # CPU-intensive ML inference — run on thread pool to avoid blocking event loop.
+            embedding = await asyncio.to_thread(self.vectorizer.embed, cache_key_text)
 
             if self._memory_only:
                 await self._try_restore_redis()
@@ -560,7 +598,12 @@ class SemanticCache:
                 return True
             return False
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to set cache entry: %s", e)
             self._stats["errors"] += 1
             self._enter_memory_only("set_failed")
@@ -576,7 +619,7 @@ class SemanticCache:
             self._stats["sets"] += 1
             return True
 
-    async def _increment_hit_count(self, entry: Optional[CacheEntry]) -> None:
+    async def _increment_hit_count(self, entry: CacheEntry | None) -> None:
         """Increment hit count for a cache entry."""
         if not entry:
             return
@@ -595,7 +638,7 @@ class SemanticCache:
                 key = f"{self.KEY_PREFIX}{query_hash}"
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             await client.hincrby(key, "hit_count", 1)
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             self._enter_memory_only("increment_hit_count_failed")
             entry.hit_count += 1
 
@@ -608,7 +651,12 @@ class SemanticCache:
             query_hash = self._hash_query(query)
             deleted = await client.delete(f"{self.KEY_PREFIX}{query_hash}")
             return bool(deleted)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to invalidate cache entry: %s", e)
             self._enter_memory_only("invalidate_failed")
             return bool(await self._memory_invalidate_query(query))
@@ -626,7 +674,12 @@ class SemanticCache:
                     await client.delete(key)
                     count += 1
             return count
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to invalidate pattern: %s", e)
             self._enter_memory_only("invalidate_pattern_failed")
             return await self._memory_invalidate_pattern(pattern)
@@ -648,7 +701,12 @@ class SemanticCache:
 
             self._stats = {k: 0 for k in self._stats}
             return True
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to clear cache: %s", e)
             self._enter_memory_only("clear_failed")
             async with self._memory_lock:
@@ -656,7 +714,7 @@ class SemanticCache:
             self._stats = {k: 0 for k in self._stats}
             return True
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Return comprehensive cache performance statistics."""
         try:
             if self._memory_only:
@@ -736,7 +794,12 @@ class SemanticCache:
                 "reranks_total": self._stats["reranks"],
                 "rerank_rejections": self._stats["rerank_rejections"],
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to get stats: %s", e)
             self._enter_memory_only("get_stats_failed")
             return await self.get_stats()
@@ -759,7 +822,7 @@ class SemanticCache:
         self,
         query_text: str,
         user_id: str | None = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Check if a query's intent is cached (Router Cache).
 
@@ -784,8 +847,11 @@ class SemanticCache:
         try:
             # Generate embedding for the query with user scoping
             # SECURITY FIX: Include user_id in cache key to prevent cross-user leakage
+            # CPU-intensive ML inference — run on thread pool to avoid blocking event loop.
             cache_key_text = self._build_cache_key(query_text, user_id)
-            embedding = self.vectorizer.embed(cache_key_text)
+            embedding: list[float] = await asyncio.to_thread(
+                self.vectorizer.embed, cache_key_text
+            )
 
             if self._memory_only:
                 await self._try_restore_redis()
@@ -827,14 +893,19 @@ class SemanticCache:
                 )
                 return None
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Intent cache check failed: %s", e)
             return None
 
     async def store_intent(
         self,
         query_text: str,
-        intent_data: Dict[str, Any],
+        intent_data: dict[str, Any],
         ttl: int | None = None,
         user_id: str | None = None,
     ) -> bool:
@@ -884,7 +955,12 @@ class SemanticCache:
 
             return success
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Intent cache store failed: %s", e)
             return False
 
@@ -899,13 +975,11 @@ class SemanticCache:
             "redis_stack_available": self._redis_stack_available,
         }
 
-
 # Singleton Management
 
 _cache_instance: SemanticCache | None = None
 _cache_lock = None
 _cache_lock_loop = None
-
 
 def _get_cache_lock() -> asyncio.Lock:
     global _cache_lock, _cache_lock_loop
@@ -919,7 +993,6 @@ def _get_cache_lock() -> asyncio.Lock:
         _cache_lock_loop = loop
     return _cache_lock
 
-
 async def get_semantic_cache() -> SemanticCache:
     global _cache_instance
     if _cache_instance is not None:
@@ -931,6 +1004,5 @@ async def get_semantic_cache() -> SemanticCache:
         _cache_instance = SemanticCache()
         await _cache_instance.initialize()
         return _cache_instance
-
 
 __all__ = ["CacheEntry", "CacheResult", "SemanticCache", "get_semantic_cache"]

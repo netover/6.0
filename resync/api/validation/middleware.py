@@ -26,7 +26,6 @@ ErrorHandlerFn = Callable[
     JSONResponse | Awaitable[JSONResponse],
 ]
 
-
 class ValidationMiddleware:
     """Middleware for automatic request validation using Pydantic models."""
 
@@ -98,7 +97,12 @@ class ValidationMiddleware:
         except HTTPException:
             # Re-raise HTTP exceptions
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -252,7 +256,12 @@ class ValidationMiddleware:
             ) from e
         except ValidationError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -305,7 +314,12 @@ class ValidationMiddleware:
 
         except ValidationError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -337,7 +351,12 @@ class ValidationMiddleware:
                     data = await result
                 else:
                     data = result
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning(
                     "custom_validator_failed",
                     validator_name=validator_name,
@@ -414,7 +433,12 @@ class ValidationMiddleware:
                 if inspect.isawaitable(handler_result):
                     return await handler_result
                 return cast(JSONResponse, handler_result)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Custom error handler failed: %s", str(e), exc_info=True)
 
         # Return standard error response
@@ -448,7 +472,6 @@ class ValidationMiddleware:
         )
 
         return JSONResponse(status_code=500, content=error_response.model_dump())
-
 
 class ValidationConfig:
     """Configuration for validation middleware."""
@@ -489,7 +512,6 @@ class ValidationConfig:
         self.rate_limit_validation = rate_limit_validation
         self.max_validation_errors = max_validation_errors
 
-
 def create_validation_middleware(config: ValidationConfig) -> ValidationMiddleware:
     """
     Create validation middleware from configuration.
@@ -508,7 +530,6 @@ def create_validation_middleware(config: ValidationConfig) -> ValidationMiddlewa
         custom_validators=config.custom_validators,
         error_handler=config.error_handler,
     )
-
 
 # Common validation utilities
 async def validate_json_body(
@@ -544,7 +565,6 @@ async def validate_json_body(
     except ValidationError:
         raise
 
-
 def validate_query_params(request: Request, model: type[BaseModel]) -> dict[str, Any]:
     """
     Validate query parameters against a Pydantic model.
@@ -574,7 +594,6 @@ def validate_query_params(request: Request, model: type[BaseModel]) -> dict[str,
 
     validated_model = model(**converted_params)
     return validated_model.model_dump()
-
 
 # Export for use in FastAPI applications
 __all__ = [

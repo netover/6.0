@@ -125,27 +125,27 @@ How to Configure the Service
 class TestStructureAwareOverlap:
     """Tests for structure-aware overlap (Decision #3)."""
 
-    def test_overlap_strategy_none(self):
+    def test_overlap_strategy_none(self) -> None:
         """Test that NONE strategy returns empty string."""
         text = "This is a test paragraph.\n\nThis is another paragraph."
         result = get_structure_aware_overlap(text, 50, OverlapStrategy.NONE)
         assert result == ""
 
-    def test_overlap_strategy_constant(self):
+    def test_overlap_strategy_constant(self) -> None:
         """Test that CONSTANT strategy returns last sentences."""
         text = "First sentence. Second sentence. Third sentence."
         result = get_structure_aware_overlap(text, 10, OverlapStrategy.CONSTANT)
         # Should return some text
         assert len(result) > 0
 
-    def test_overlap_strategy_structure(self):
+    def test_overlap_strategy_structure(self) -> None:
         """Test that STRUCTURE strategy returns paragraph-level overlap."""
         text = "First paragraph content.\n\nSecond paragraph content.\n\nThird paragraph content."
         result = get_structure_aware_overlap(text, 50, OverlapStrategy.STRUCTURE)
         # Should return at least one paragraph
         assert len(result) > 0
 
-    def test_chunker_uses_overlap_strategy(self, sample_text):
+    def test_chunker_uses_overlap_strategy(self, sample_text) -> None:
         """Test that AdvancedChunker respects overlap strategy."""
         config = ChunkingConfig(
             strategy=ChunkingStrategy.STRUCTURE_AWARE,
@@ -170,7 +170,7 @@ class TestStructureAwareOverlap:
 class TestCitationFriendlyIDs:
     """Tests for citation-friendly IDs (Decision #7)."""
 
-    def test_generate_stable_id(self):
+    def test_generate_stable_id(self) -> None:
         """Test stable ID generation."""
         stable_id = generate_stable_id(
             doc_id="manual_v2",
@@ -181,7 +181,7 @@ class TestCitationFriendlyIDs:
         assert "troubleshooting_error-codes" in stable_id
         assert "000001" in stable_id
 
-    def test_generate_stable_id_empty_section(self):
+    def test_generate_stable_id_empty_section(self) -> None:
         """Test stable ID with empty section."""
         stable_id = generate_stable_id(
             doc_id="doc123",
@@ -191,20 +191,20 @@ class TestCitationFriendlyIDs:
         assert "doc123" in stable_id
         assert "root" in stable_id
 
-    def test_generate_snippet_preview(self):
+    def test_generate_snippet_preview(self) -> None:
         """Test snippet preview generation."""
         content = "This is a long piece of content that should be truncated at a word boundary."
         preview = generate_snippet_preview(content, max_chars=30)
         assert len(preview) <= 33  # max_chars + "..."
         assert preview.endswith("...")
 
-    def test_snippet_preview_short_content(self):
+    def test_snippet_preview_short_content(self) -> None:
         """Test snippet preview with short content."""
         content = "Short content."
         preview = generate_snippet_preview(content, max_chars=100)
         assert preview == content
 
-    def test_chunk_has_stable_id(self, sample_text):
+    def test_chunk_has_stable_id(self, sample_text) -> None:
         """Test that chunks get stable IDs."""
         config = ChunkingConfig(strategy=ChunkingStrategy.STRUCTURE_AWARE)
         chunker = AdvancedChunker(config)
@@ -218,7 +218,7 @@ class TestCitationFriendlyIDs:
             assert chunk.metadata.stable_id != ""
             assert "test_doc" in chunk.metadata.stable_id
 
-    def test_chunk_has_snippet_preview(self, sample_text):
+    def test_chunk_has_snippet_preview(self, sample_text) -> None:
         """Test that chunks get snippet previews."""
         config = ChunkingConfig(strategy=ChunkingStrategy.STRUCTURE_AWARE)
         chunker = AdvancedChunker(config)
@@ -236,7 +236,7 @@ class TestCitationFriendlyIDs:
 class TestMultiViewChunking:
     """Tests for multi-view chunk indexing (Decision #8)."""
 
-    def test_multi_view_chunk_creation(self, sample_error_doc):
+    def test_multi_view_chunk_creation(self, sample_error_doc) -> None:
         """Test creating a multi-view chunk."""
         # First create a regular chunk
         config = ChunkingConfig()
@@ -250,7 +250,7 @@ class TestMultiViewChunking:
             assert mvc.summary_view != ""
             assert mvc.entities_view != ""
 
-    def test_entities_view_extraction(self, sample_error_doc):
+    def test_entities_view_extraction(self, sample_error_doc) -> None:
         """Test entities view extraction."""
         config = ChunkingConfig(extract_error_codes=True)
         chunker = AdvancedChunker(config)
@@ -263,7 +263,7 @@ class TestMultiViewChunking:
             )
             assert "AWS001E" in entities_view or "Error codes" in entities_view
 
-    def test_faq_view_generation_error_doc(self, sample_error_doc):
+    def test_faq_view_generation_error_doc(self, sample_error_doc) -> None:
         """Test FAQ view generation for error documentation."""
         config = ChunkingConfig()
         chunker = AdvancedChunker(config)
@@ -281,7 +281,7 @@ class TestMultiViewChunking:
                 assert "Q:" in faq_view
                 assert "A:" in faq_view
 
-    def test_faq_view_generation_procedure(self, sample_procedure):
+    def test_faq_view_generation_procedure(self, sample_procedure) -> None:
         """Test FAQ view generation for procedures."""
         faq_view = generate_faq_view(
             sample_procedure,
@@ -292,7 +292,7 @@ class TestMultiViewChunking:
         assert "Q:" in faq_view
         assert "A:" in faq_view
 
-    def test_multi_view_disabled(self, sample_text):
+    def test_multi_view_disabled(self, sample_text) -> None:
         """Test that multi-view can be disabled."""
         config = ChunkingConfig(enable_multi_view=False)
         chunker = AdvancedChunker(config)
@@ -300,7 +300,7 @@ class TestMultiViewChunking:
         chunks = chunker.chunk_document(sample_text, source="test.md")
         assert len(chunks) > 0
 
-    def test_get_view_method(self):
+    def test_get_view_method(self) -> None:
         """Test MultiViewChunk.get_view() method."""
         mvc = MultiViewChunk(
             chunk_id="test#001",
@@ -325,7 +325,7 @@ class TestMultiViewChunking:
 class TestFailureSliceEval:
     """Tests for failure-slice eval pipeline (Decision #9)."""
 
-    def test_detect_missing_exception(self):
+    def test_detect_missing_exception(self) -> None:
         """Test detection of missing exception failure."""
         query = "What is the timeout setting?"
         retrieved = [
@@ -345,7 +345,7 @@ class TestFailureSliceEval:
         # Should detect some failure since relevant chunk wasn't retrieved
         assert failure_slice != FailureSlice.UNKNOWN or not relevant_ids
 
-    def test_detect_lost_table_header(self):
+    def test_detect_lost_table_header(self) -> None:
         """Test detection of lost table header failure."""
         query = "What are the configuration options?"
         retrieved = [
@@ -365,7 +365,7 @@ class TestFailureSliceEval:
         # Table without header should trigger LOST_TABLE_HEADER
         assert failure_slice in [FailureSlice.LOST_TABLE_HEADER, FailureSlice.UNKNOWN]
 
-    def test_detect_redundant_overlaps(self):
+    def test_detect_redundant_overlaps(self) -> None:
         """Test detection of redundant overlaps failure."""
         query = "What is the timeout?"
         # Two chunks with high overlap
@@ -398,7 +398,7 @@ class TestFailureSliceEval:
         # High overlap should trigger REDUNDANT_OVERLAPS
         assert failure_slice in [FailureSlice.REDUNDANT_OVERLAPS, FailureSlice.UNKNOWN]
 
-    def test_generate_rule_suggestions(self):
+    def test_generate_rule_suggestions(self) -> None:
         """Test rule suggestion generation."""
         results = [
             EvalResult(
@@ -427,12 +427,12 @@ class TestFailureSliceEval:
             s.failure_slice == FailureSlice.MISSING_EXCEPTION for s in suggestions
         )
 
-    def test_eval_pipeline_creation(self):
+    def test_eval_pipeline_creation(self) -> None:
         """Test eval pipeline creation."""
         pipeline = ChunkingEvalPipeline(top_k=5)
         assert pipeline.top_k == 5
 
-    def test_create_eval_query(self):
+    def test_create_eval_query(self) -> None:
         """Test eval query creation helper."""
         query = create_eval_query(
             query_id="q1",
@@ -445,7 +445,7 @@ class TestFailureSliceEval:
         assert query["expected"] == "The error means X"
         assert query["relevant_ids"] == ["c1", "c2"]
 
-    def test_eval_result_to_dict(self):
+    def test_eval_result_to_dict(self) -> None:
         """Test EvalResult serialization."""
         result = EvalResult(
             query_id="q1",
@@ -459,7 +459,7 @@ class TestFailureSliceEval:
         assert d["failure_slice"] == "missing_exception"
         assert d["failure_severity"] == "high"
 
-    def test_eval_report_to_dict(self):
+    def test_eval_report_to_dict(self) -> None:
         """Test EvalReport serialization."""
         report = EvalReport(
             total_queries=10,
@@ -482,7 +482,7 @@ class TestFailureSliceEval:
 class TestIntegration:
     """Integration tests for all chunking improvements."""
 
-    def test_full_chunking_pipeline(self, sample_text):
+    def test_full_chunking_pipeline(self, sample_text) -> None:
         """Test the full chunking pipeline with all features."""
         config = ChunkingConfig(
             strategy=ChunkingStrategy.TWS_OPTIMIZED,
@@ -517,7 +517,7 @@ class TestIntegration:
                 ChunkType.DEFINITION,
             ]
 
-    def test_multi_view_pipeline(self, sample_text):
+    def test_multi_view_pipeline(self, sample_text) -> None:
         """Test multi-view chunk generation."""
         config = ChunkingConfig(
             strategy=ChunkingStrategy.STRUCTURE_AWARE,
@@ -548,7 +548,7 @@ class TestIntegration:
 class TestBackwardCompatibility:
     """Tests for backward compatibility."""
 
-    def test_chunk_document_function(self, sample_text):
+    def test_chunk_document_function(self, sample_text) -> None:
         """Test that chunk_document convenience function still works."""
         chunks = chunk_document(
             sample_text,
@@ -557,14 +557,14 @@ class TestBackwardCompatibility:
         )
         assert len(chunks) > 0
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test that default config is valid."""
         config = ChunkingConfig()
         assert config.strategy == ChunkingStrategy.TWS_OPTIMIZED
         assert config.overlap_strategy == OverlapStrategy.STRUCTURE
         assert config.enable_multi_view is True
 
-    def test_metadata_to_dict_includes_new_fields(self):
+    def test_metadata_to_dict_includes_new_fields(self) -> None:
         """Test that ChunkMetadata.to_dict includes new fields."""
         metadata = ChunkMetadata(
             source_file="test.md",

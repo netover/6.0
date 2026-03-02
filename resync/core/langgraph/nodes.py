@@ -33,11 +33,9 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # =============================================================================
 # BASE NODE
 # =============================================================================
-
 
 class BaseNode(ABC):
     """
@@ -49,7 +47,7 @@ class BaseNode(ABC):
 
     name: str = "base_node"
 
-    def __init__(self, name: str | None = None):
+    def __init__(self, name: str | None = None) -> None:
         if name:
             self.name = name
 
@@ -60,11 +58,9 @@ class BaseNode(ABC):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(name={self.name})>"
 
-
 # =============================================================================
 # ROUTER NODE
 # =============================================================================
-
 
 @dataclass
 class RouterConfig:
@@ -86,7 +82,7 @@ class RouterConfig:
     # Keyword patterns (for fallback)
     keyword_patterns: dict[str, list[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.keyword_patterns is None:
             self.keyword_patterns = {
                 "status": ["status", "estado", "workstation", "online", "offline"],
@@ -98,7 +94,6 @@ class RouterConfig:
         # [FIX] v5.9.9: Resolve model dynamically via LLMConfig. NEVER use hardcoded strings.
         if self.model is None:
             self.model = get_llm_config().get_model(task_type="classification")
-
 
 class RouterNode(BaseNode):
     """
@@ -126,7 +121,12 @@ class RouterNode(BaseNode):
         if self.config.use_llm:
             try:
                 intent, confidence = await self._classify_with_llm(message)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.warning("router_llm_failed", error=str(e))
                 if self.config.fallback_to_keywords:
                     intent, confidence = self._classify_with_keywords(message)
@@ -189,11 +189,9 @@ class RouterNode(BaseNode):
 
         return "general", 0.5
 
-
 # =============================================================================
 # LLM NODE
 # =============================================================================
-
 
 @dataclass
 class LLMNodeConfig:
@@ -212,10 +210,9 @@ class LLMNodeConfig:
     include_history: bool = True
     max_history_messages: int = 5
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.prompt_variables is None:
             self.prompt_variables = {}
-
 
 class LLMNode(BaseNode):
     """
@@ -302,11 +299,9 @@ class LLMNode(BaseNode):
 
         return state
 
-
 # =============================================================================
 # TOOL NODE
 # =============================================================================
-
 
 @dataclass
 class ToolNodeConfig:
@@ -323,7 +318,6 @@ class ToolNodeConfig:
 
     # Timeout
     timeout_seconds: float = 30.0
-
 
 class ToolNode(BaseNode):
     """
@@ -378,7 +372,12 @@ class ToolNode(BaseNode):
 
             except asyncio.TimeoutError:
                 last_error = f"Tool {self.config.tool_name} timed out after {self.config.timeout_seconds}s"
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 last_error = str(e)
 
             retry_count += 1
@@ -413,11 +412,9 @@ class ToolNode(BaseNode):
             return await result
         return result
 
-
 # =============================================================================
 # VALIDATION NODE
 # =============================================================================
-
 
 @dataclass
 class ValidationConfig:
@@ -432,10 +429,9 @@ class ValidationConfig:
     error_field: str = "error"
     retry_on_error: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.required_fields is None:
             self.required_fields = ["response"]
-
 
 class ValidationNode(BaseNode):
     """
@@ -489,11 +485,9 @@ class ValidationNode(BaseNode):
         state["current_node"] = self.name
         return state
 
-
 # =============================================================================
 # HUMAN APPROVAL NODE
 # =============================================================================
-
 
 @dataclass
 class ApprovalRequest:
@@ -539,7 +533,6 @@ class ApprovalRequest:
             if data.get("approved_at")
             else None,
         )
-
 
 class HumanApprovalNode(BaseNode):
     """
@@ -596,7 +589,12 @@ class HumanApprovalNode(BaseNode):
                 self.timeout_seconds,
                 json.dumps(request.to_dict()),
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("approval_persistence_failed", error=str(e))
             raise RuntimeError(f"Failed to persist approval request: {e}")
 
@@ -730,6 +728,6 @@ class HumanApprovalNode(BaseNode):
                     if request.status == "pending":
                         if user_id is None or request.user_id == user_id:
                             pending.append(request)
-                except Exception:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
                     continue
         return pending

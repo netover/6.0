@@ -6,34 +6,92 @@ to enable dependency injection, testing, and proper async/await usage
 with FastAPI, asyncpg, and the async stack.
 
 All protocols use async methods to prevent event loop blocking.
-Compatible with Python 3.14 async improvements (PEP 701, 688, 692).
+Compatible with Python 3.14 (PEP 649 lazy annotations are the default).
 
-Version: 6.0.0 - Converted to async protocols
+Version: 6.1.0 — Added TypeAlias annotations, runtime async validator.
 """
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypeAlias, runtime_checkable
+import inspect
 
+# ---------------------------------------------------------------------------
+# Type aliases — explicit TypeAlias annotation for mypy/pyright clarity
+# ---------------------------------------------------------------------------
 
-# Type aliases for clarity
-EmbeddingVector = list[float]
-EmbeddingBatch = list[list[float]]
-DocumentPayload = Mapping[str, Any]
-SearchFilters = Mapping[str, Any]
+#: A single embedding vector (one row returned by an Embedder).
+EmbeddingVector: TypeAlias = list[float]
 
+#: A batch of embedding vectors (shape: batch_size × embedding_dim).
+EmbeddingBatch: TypeAlias = list[list[float]]
+
+#: Arbitrary key-value metadata payload attached to a stored vector.
+DocumentPayload: TypeAlias = Mapping[str, Any]
+
+#: Filter expression for vector store queries (field → value).
+SearchFilters: TypeAlias = Mapping[str, Any]
+
+# ---------------------------------------------------------------------------
+# Runtime async-protocol validator
+# ---------------------------------------------------------------------------
+
+def verify_async_protocol(obj: object, protocol_cls: type) -> bool:
+    """
+    Verify that *obj* implements *protocol_cls* **and** that all protocol
+    methods are coroutine functions on *obj*.
+
+    ``@runtime_checkable`` only checks method *presence*, not whether the
+    method is async.  This helper performs the additional async check.
+
+    Args:
+        obj:          Object to verify.
+        protocol_cls: A ``@runtime_checkable`` Protocol class.
+
+    Returns:
+        ``True`` if *obj* passes both ``isinstance`` and the async check.
+
+    Example::
+
+        class MyEmbedder:
+            async def embed(self, text: str, *, timeout: float = 30.0) -> list[float]:
+                ...
+
+        assert verify_async_protocol(MyEmbedder(), Embedder)
+    """
+    if not isinstance(obj, protocol_cls):
+        return False
+
+    for name in vars(protocol_cls):
+        if name.startswith("_"):
+            continue
+        proto_method = getattr(protocol_cls, name, None)
+        if proto_method is None or not callable(proto_method):
+            continue
+        impl_method = getattr(obj, name, None)
+        if impl_method is None:
+            return False
+        if not inspect.iscoroutinefunction(impl_method):
+            return False
+
+    return True
+
+# ---------------------------------------------------------------------------
+# Embedder Protocol
+# ---------------------------------------------------------------------------
 
 @runtime_checkable
 class Embedder(Protocol):
     """
-    Protocol for async embedding text into vectors.
+    Async protocol for embedding text into dense vectors.
 
-    All methods are async to prevent event loop blocking when calling
-    external embedding APIs (OpenAI, Cohere, local models via HTTP).
+    All methods are coroutines to prevent event-loop blocking when
+    calling CPU-bound local models (via ``asyncio.to_thread``) or
+    remote embedding APIs (OpenAI, Cohere, etc.).
 
-    Implementations must support:
-    - Single text embedding with timeout
-    - Batch embedding with automatic batching and rate limiting
-    - Proper error handling and retries
+    Implementations must provide:
+    - Single-text embedding with configurable timeout.
+    - Batch embedding with automatic sub-batching and rate-limiting.
+    - Proper ``asyncio.TimeoutError`` propagation.
     """
 
     async def embed(
@@ -43,18 +101,18 @@ class Embedder(Protocol):
         timeout: float = 30.0,
     ) -> EmbeddingVector:
         """
-        Embed single text into vector.
+        Embed a single text string into a dense vector.
 
         Args:
-            text: Input text to embed
-            timeout: Maximum time to wait for embedding (seconds)
+            text:    Input text to embed.  Must be non-empty.
+            timeout: Maximum wall-clock time in seconds.
 
         Returns:
-            Embedding vector as list of floats
+            Embedding vector as a list of floats.
 
         Raises:
-            asyncio.TimeoutError: If embedding exceeds timeout
-            ValueError: If text is empty or too long
+            asyncio.TimeoutError: Embedding exceeded *timeout*.
+            ValueError: *text* is empty or exceeds model token limit.
         """
         ...
 
@@ -66,30 +124,34 @@ class Embedder(Protocol):
         timeout: float = 60.0,
     ) -> EmbeddingBatch:
         """
-        Embed multiple texts into vectors with automatic batching.
+        Embed multiple texts with automatic sub-batching.
 
         Args:
-            texts: Sequence of texts to embed
-            batch_size: Maximum texts to embed per API call
-            timeout: Maximum time to wait for entire batch (seconds)
+            texts:      Texts to embed.  Each must be non-empty.
+            batch_size: Maximum texts per API call.
+            timeout:    Maximum wall-clock time for the entire batch.
 
         Returns:
-            Embedding vectors as list of lists (batch_size, embedding_dim)
+            List of embedding vectors, one per input text,
+            in the same order as *texts*.
 
         Raises:
-            asyncio.TimeoutError: If embedding exceeds timeout
-            ValueError: If any text is empty or too long
+            asyncio.TimeoutError: Batch exceeded *timeout*.
+            ValueError: Any text is empty or exceeds model token limit.
         """
         ...
 
+# ---------------------------------------------------------------------------
+# VectorStore Protocol
+# ---------------------------------------------------------------------------
 
 @runtime_checkable
 class VectorStore(Protocol):
     """
-    Protocol for async storing and retrieving vector embeddings with metadata.
+    Async protocol for storing and querying dense vector embeddings.
 
-    All methods are async for integration with asyncpg/psycopg3 async drivers.
-    Supports pgvector HNSW index operations with proper connection pooling.
+    All methods are coroutines for integration with asyncpg / psycopg3
+    async connection pools and pgvector HNSW index operations.
     """
 
     async def upsert_batch(
@@ -102,19 +164,18 @@ class VectorStore(Protocol):
         timeout: float = 30.0,
     ) -> None:
         """
-        Upsert vectors and metadata into vector store.
+        Insert or update vectors and their metadata.
 
         Args:
-            ids: Unique identifiers for vectors
-            vectors: Embedding vectors (batch_size, embedding_dim)
-            payloads: Metadata for each vector
-            collection: Target collection name (uses default if None)
-            timeout: Maximum time for batch upsert (seconds)
+            ids:        Unique string identifiers (one per vector).
+            vectors:    Embedding vectors (must match len(ids)).
+            payloads:   Metadata dicts (must match len(ids)).
+            collection: Collection name; uses implementation default if ``None``.
+            timeout:    Maximum time for the entire batch operation.
 
         Raises:
-            asyncio.TimeoutError: If upsert exceeds timeout
-            ValueError: If ids/vectors/payloads lengths don't match
-            asyncpg.PostgresError: On database errors
+            asyncio.TimeoutError: Upsert exceeded *timeout*.
+            ValueError: ``len(ids) != len(vectors)`` or ``!= len(payloads)``.
         """
         ...
 
@@ -130,24 +191,24 @@ class VectorStore(Protocol):
         timeout: float = 10.0,
     ) -> list[dict[str, Any]]:
         """
-        Query vector store for similar vectors.
+        Find the *top_k* most similar vectors.
 
         Args:
-            vector: Query embedding vector
-            top_k: Number of results to return
-            collection: Target collection name (uses default if None)
-            filters: Metadata filters for results
-            ef_search: HNSW ef_search parameter (uses default if None)
-            with_vectors: Include embedding vectors in results
-            timeout: Maximum time for query (seconds)
+            vector:      Query embedding vector.
+            top_k:       Number of results to return (must be ≥ 1).
+            collection:  Collection to search; uses default if ``None``.
+            filters:     Metadata filter predicates (implementation-defined).
+            ef_search:   HNSW ``ef_search`` tuning parameter.
+            with_vectors: Include the stored embedding in each result.
+            timeout:     Maximum query time in seconds.
 
         Returns:
-            List of results with scores and metadata
+            List of result dicts with at least ``id``, ``score``,
+            and ``payload`` keys.
 
         Raises:
-            asyncio.TimeoutError: If query exceeds timeout
-            ValueError: If top_k < 1 or > max_top_k
-            asyncpg.PostgresError: On database errors
+            asyncio.TimeoutError: Query exceeded *timeout*.
+            ValueError: ``top_k < 1``.
         """
         ...
 
@@ -158,17 +219,14 @@ class VectorStore(Protocol):
         timeout: float = 5.0,
     ) -> int:
         """
-        Count vectors in collection.
+        Return the number of vectors in *collection*.
 
         Args:
-            collection: Target collection name (uses default if None)
-            timeout: Maximum time for count (seconds)
+            collection: Collection to count; uses default if ``None``.
+            timeout:    Maximum time in seconds.
 
         Returns:
-            Number of vectors in collection
-
-        Raises:
-            asyncio.TimeoutError: If count exceeds timeout
+            Non-negative integer vector count.
         """
         ...
 
@@ -180,48 +238,44 @@ class VectorStore(Protocol):
         timeout: float = 5.0,
     ) -> bool:
         """
-        Check if document with SHA256 exists in collection.
+        Check whether a document identified by SHA-256 hash exists.
 
         Args:
-            sha256: Document SHA256 hash
-            collection: Target collection name (uses default if None)
-            timeout: Maximum time for check (seconds)
+            sha256:     Hex-encoded SHA-256 digest of the source document.
+            collection: Collection to check; uses default if ``None``.
+            timeout:    Maximum time in seconds.
 
         Returns:
-            True if document exists, False otherwise
-
-        Raises:
-            asyncio.TimeoutError: If check exceeds timeout
+            ``True`` if the document exists, ``False`` otherwise.
         """
         ...
 
     async def get_all_documents(
         self,
         collection: str | None = None,
-        limit: int = 1000,
+        limit: int = 1_000,
         *,
         offset: int = 0,
         timeout: float = 30.0,
     ) -> list[dict[str, Any]]:
         """
-        Get all documents from collection (for BM25 index building).
+        Paginate through all documents in a collection.
 
-        Use pagination (limit/offset) to avoid memory exhaustion.
-        ATENÇÃO: limit máximo recomendado é 10.000 para evitar OOM.
-        Use paginação com offset para datasets maiores.
+        Use ``limit`` / ``offset`` to avoid OOM on large collections.
+        Maximum recommended ``limit`` is 10 000 per call.
 
         Args:
-            collection: Target collection name (uses default if None)
-            limit: Maximum documents to return
-            offset: Number of documents to skip
-            timeout: Maximum time for query (seconds)
+            collection: Collection name; uses default if ``None``.
+            limit:      Maximum documents per page (must be ≤ 100 000).
+            offset:     Number of documents to skip for pagination.
+            timeout:    Maximum time for the request.
 
         Returns:
-            List of documents with metadata
+            List of document dicts with ``id``, ``payload``, and
+            optionally ``vector`` keys.
 
         Raises:
-            asyncio.TimeoutError: If query exceeds timeout
-            ValueError: If limit > 100000
+            ValueError: ``limit > 100_000``.
         """
         ...
 
@@ -233,19 +287,15 @@ class VectorStore(Protocol):
         timeout: float = 30.0,
     ) -> int:
         """
-        Delete all vectors associated with a document ID.
+        Delete all vectors whose payload contains *doc_id*.
 
         Args:
-            doc_id: Document ID to delete
-            collection: Target collection (uses default if None)
-            timeout: Maximum time for deletion (seconds)
+            doc_id:     Source document identifier.
+            collection: Target collection; uses default if ``None``.
+            timeout:    Maximum time for deletion.
 
         Returns:
-            Number of vectors deleted
-
-        Raises:
-            asyncio.TimeoutError: If deletion exceeds timeout
-            asyncpg.PostgresError: On database errors
+            Number of vectors deleted (0 if none matched).
         """
         ...
 
@@ -257,28 +307,32 @@ class VectorStore(Protocol):
         timeout: float = 10.0,
     ) -> set[str]:
         """
-        Batch check which SHA256 hashes exist in collection.
+        Batch check which SHA-256 hashes exist in *collection*.
 
-        More efficient than N individual exists_by_sha256 calls.
+        More efficient than *N* sequential :meth:`exists_by_sha256` calls.
 
         Args:
-            sha256_list: List of SHA256 hashes to check
-            collection: Target collection (uses default if None)
-            timeout: Maximum time for batch check (seconds)
+            sha256_list: SHA-256 digests to check.
+            collection:  Collection to check; uses default if ``None``.
+            timeout:     Maximum time for the batch check.
 
         Returns:
-            Set of SHA256 hashes that exist in the collection
+            Set of digests that exist in the collection.
         """
         ...
 
+# ---------------------------------------------------------------------------
+# Retriever Protocol
+# ---------------------------------------------------------------------------
 
 @runtime_checkable
 class Retriever(Protocol):
     """
-    Protocol for async retrieving relevant documents based on query.
+    Async protocol for high-level document retrieval.
 
-    High-level interface that combines embedding, vector search, and reranking.
-    All methods are async for integration with FastAPI and LangChain async tools.
+    Combines embedding, vector search, and optional reranking into a
+    single interface.  All methods are coroutines for integration with
+    FastAPI dependency injection and LangChain async tools.
     """
 
     async def retrieve(
@@ -290,25 +344,26 @@ class Retriever(Protocol):
         timeout: float = 30.0,
     ) -> list[dict[str, Any]]:
         """
-        Retrieve relevant documents for query.
+        Retrieve the most relevant documents for *query*.
 
         Pipeline:
-        1. Embed query text
-        2. Vector similarity search
-        3. Optional reranking (if gating conditions met)
-        4. Return top-k results
+        1. Embed *query* text.
+        2. Vector similarity search.
+        3. Optional reranking (implementation-defined gating).
+        4. Return top-*k* results.
 
         Args:
-            query: Search query text
-            top_k: Number of results to return
-            filters: Metadata filters for results
-            timeout: Maximum time for entire retrieval pipeline (seconds)
+            query:   Search query string (must be non-empty).
+            top_k:   Number of results to return (must be ≥ 1).
+            filters: Metadata filter predicates.
+            timeout: Maximum wall-clock time for the full pipeline.
 
         Returns:
-            List of results with scores and metadata
+            List of result dicts with ``score``, ``payload``, and
+            source metadata.
 
         Raises:
-            asyncio.TimeoutError: If retrieval exceeds timeout
-            ValueError: If query empty or top_k invalid
+            asyncio.TimeoutError: Retrieval exceeded *timeout*.
+            ValueError: *query* is empty, or ``top_k < 1``.
         """
         ...

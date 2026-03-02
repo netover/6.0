@@ -17,11 +17,9 @@ from typing import Any
 
 logger = structlog.get_logger(__name__)
 
-
 # =============================================================================
 # SQL INJECTION PROTECTION
 # =============================================================================
-
 
 def sanitize_sql_identifier(value: str) -> str:
     """
@@ -44,11 +42,9 @@ def sanitize_sql_identifier(value: str) -> str:
 
     return sanitized
 
-
 # =============================================================================
 # TIPOS DE RELAÇÃO TWS (15+ tipos)
 # =============================================================================
-
 
 class TWSRelationType(Enum):
     """
@@ -144,11 +140,9 @@ class TWSRelationType(Enum):
     # Job deve terminar antes de um horário específico
     MUST_END_BEFORE = "must_end_before"
 
-
 # =============================================================================
 # TIPOS DE NÓS
 # =============================================================================
-
 
 class TWSNodeType(Enum):
     """Tipos de nós no Knowledge Graph TWS."""
@@ -164,11 +158,9 @@ class TWSNodeType(Enum):
     USER = "user"
     APPLICATION = "application"
 
-
 # =============================================================================
 # MODELOS DE DADOS
 # =============================================================================
-
 
 @dataclass
 class TWSNode:
@@ -193,7 +185,6 @@ class TWSNode:
             "tenant_id": self.tenant_id,
         }
 
-
 @dataclass
 class TWSRelation:
     """Relação entre nós no Knowledge Graph TWS."""
@@ -217,8 +208,8 @@ class TWSRelation:
             "tenant_id": self.tenant_id,
         }
 
-    # NOTE: to_cypher() method removed in v5.9.3
-    # Apache AGE was never implemented; graph now uses NetworkX on-demand
+    # NOTE: to_query() method removed in v5.9.3
+    # Legacy graph-db integrations were removed; graph now uses NetworkX on-demand
 
     def to_sql(self, table_name: str = "kg_relations") -> tuple[str, list[Any]]:
         """Gera query SQL preparada e parâmetros para inserir a relação."""
@@ -244,11 +235,9 @@ class TWSRelation:
         ]
         return sql, params
 
-
 # =============================================================================
 # QUERY PATTERNS
 # =============================================================================
-
 
 class TWSQueryPatterns:
     """Padrões de query para o Knowledge Graph TWS."""
@@ -387,16 +376,14 @@ class TWSQueryPatterns:
         """
         return sql, params
 
-
 # =============================================================================
 # RELATION BUILDER
 # =============================================================================
 
-
 class TWSRelationBuilder:
     """Builder para criar relações TWS de forma fluente."""
 
-    def __init__(self, tenant_id: str | None = None):
+    def __init__(self, tenant_id: str | None = None) -> None:
         self.tenant_id = tenant_id
         self._relations: list[TWSRelation] = []
 
@@ -549,11 +536,9 @@ class TWSRelationBuilder:
         self._relations = []
         return self
 
-
 # =============================================================================
 # METADATA E STATS
 # =============================================================================
-
 
 def get_relation_types_info() -> dict[str, Any]:
     """Retorna informações sobre todos os tipos de relação."""
@@ -598,7 +583,6 @@ def get_relation_types_info() -> dict[str, Any]:
         },
         "all_types": [r.value for r in TWSRelationType],
     }
-
 
 def get_node_types_info() -> dict[str, Any]:
     """Retorna informações sobre todos os tipos de nó."""

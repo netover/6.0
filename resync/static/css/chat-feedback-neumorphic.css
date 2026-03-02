@@ -1,0 +1,144 @@
+/*
+  Chat Feedback Buttons (Neumorphic)
+  - Additive: does not modify existing chat.css
+  - Visually matches admin-neumorphic.css by using its CSS variables.
+*/
+
+:root {
+  /* Bridge variables: if admin vars exist, reuse them; otherwise provide safe fallbacks */
+  --chatfb-bg: var(--bg-color, #f0f2f5);
+  --chatfb-accent: var(--accent-color, #4b6cb7);
+  --chatfb-success: var(--success, #00b894);
+  --chatfb-error: var(--error, #d63031);
+
+  --chatfb-neu-convex: var(--neu-convex, 5px 5px 10px #d1d9e6, -5px -5px 10px #ffffff);
+  --chatfb-neu-pressed: var(--neu-pressed, inset 3px 3px 7px #d1d9e6, inset -3px -3px 7px #ffffff);
+
+  --chatfb-radius: var(--radius-md, 12px);
+  --chatfb-transition: 140ms ease;
+}
+
+/* Container injected into assistant messages */
+.chatfb-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--chatfb-transition), transform var(--chatfb-transition);
+}
+
+/* Show on hover (desktop) */
+.message.assistant:hover .chatfb-bar {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Always visible on touch devices */
+@media (hover: none) {
+  .chatfb-bar {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.chatfb-btn {
+  border: none;
+  cursor: pointer;
+  background: var(--chatfb-bg);
+  box-shadow: var(--chatfb-neu-convex);
+  border-radius: var(--chatfb-radius);
+  padding: 10px 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  user-select: none;
+  transition: transform var(--chatfb-transition), box-shadow var(--chatfb-transition), opacity var(--chatfb-transition);
+}
+
+.chatfb-btn:hover {
+  transform: translateY(-1px);
+}
+
+.chatfb-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--chatfb-neu-pressed);
+}
+
+.chatfb-btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chatfb-btn .chatfb-label {
+  font-size: 0.9rem;
+}
+
+/* Icon-only buttons */
+.chatfb-btn--icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.1rem;
+}
+
+.chatfb-btn--up.is-selected {
+  box-shadow: var(--chatfb-neu-pressed);
+  outline: 2px solid color-mix(in srgb, var(--chatfb-success) 40%, transparent);
+}
+
+.chatfb-btn--down.is-selected {
+  box-shadow: var(--chatfb-neu-pressed);
+  outline: 2px solid color-mix(in srgb, var(--chatfb-error) 40%, transparent);
+}
+
+.chatfb-status {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #6b7280);
+  padding: 10px 12px;
+  border-radius: var(--chatfb-radius);
+  background: var(--chatfb-bg);
+  box-shadow: var(--chatfb-neu-pressed);
+  white-space: nowrap;
+}
+
+/* Modal styling: reuse admin .modal if present, but ensure our textarea/button look consistent */
+.chatfb-modal textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  padding: 12px;
+  border-radius: var(--chatfb-radius);
+  border: none;
+  background: var(--chatfb-bg);
+  box-shadow: var(--chatfb-neu-pressed);
+  outline: none;
+}
+
+.chatfb-modal .chatfb-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.chatfb-modal .chatfb-hint {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+/* Mobile spacing */
+@media (max-width: 480px) {
+  .chatfb-bar {
+    gap: 8px;
+  }
+
+  .chatfb-btn--icon {
+    width: 42px;
+    height: 42px;
+  }
+}

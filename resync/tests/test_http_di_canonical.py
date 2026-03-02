@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 def test_dependency_yield_teardown_runs() -> None:
     closed = {"value": False}
 
-    def dep_with_yield():
+    def dep_with_yield() -> None:
         try:
             yield "resource"
         finally:

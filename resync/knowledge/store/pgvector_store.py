@@ -17,6 +17,7 @@ Version: 6.0.0 - Fixed concurrency issues, added ef_search support
 """
 
 import asyncio
+import threading
 from typing import TYPE_CHECKING, Any
 
 from resync.knowledge.config import CFG
@@ -35,7 +36,6 @@ except ImportError:
     ASYNCPG_AVAILABLE = False
 if TYPE_CHECKING:
     import asyncpg
-
 
 class PgVectorStore(VectorStore):
     """
@@ -524,12 +524,11 @@ class PgVectorStore(VectorStore):
         logger.info("Retrieved %s documents from collection '%s'", len(documents), col)
         return documents
 
-
 # Async-safe singleton implementation using module-level lock
 _store_instance: "PgVectorStore | None" = None
 # Lazy initialised — avoids RuntimeError on module import
 _store_lock: asyncio.Lock | None = None
-
+_store_sync_lock = threading.Lock()
 
 async def get_vector_store() -> "PgVectorStore":
     """Get singleton vector store instance (double-checked async-safe locking)."""
@@ -548,15 +547,15 @@ async def get_vector_store() -> "PgVectorStore":
             _store_instance = PgVectorStore()
     return _store_instance
 
-
 # Backward-compatible sync version (for non-async contexts)
 def get_vector_store_sync() -> "PgVectorStore":
-    """Synchronous version for backward compatibility."""
+    """Synchronous version for backward compatibility.
+
+    NOTE: This must use a module-level lock; a local threading.Lock provides no mutual exclusion.
+    """
     global _store_instance
     if _store_instance is None:
-        import threading
-        lock = threading.Lock()
-        with lock:
+        with _store_sync_lock:
             if _store_instance is None:
                 _store_instance = PgVectorStore()
     return _store_instance

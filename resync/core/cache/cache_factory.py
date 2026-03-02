@@ -17,7 +17,6 @@ from resync.core.cache.base_cache import BaseCache
 if TYPE_CHECKING:
     from resync.core.cache.cache_with_stampede_protection import CacheConfig
 
-
 @dataclass
 class SimpleCacheConfig:
     """Simple cache configuration."""
@@ -25,7 +24,6 @@ class SimpleCacheConfig:
     ttl_seconds: float = 300.0
     max_entries: int = 10000
     enable_stats: bool = True
-
 
 @dataclass
 class CacheEntry:
@@ -37,7 +35,6 @@ class CacheEntry:
 
     def is_expired(self) -> bool:
         return time.time() > self.timestamp + self.ttl
-
 
 class MemoryCache(BaseCache):
     """In-memory cache implementation."""
@@ -100,7 +97,6 @@ class MemoryCache(BaseCache):
             "size": len(self._store),
         }
 
-
 class EnhancedCache(MemoryCache):
     """Enhanced cache with stampede protection."""
 
@@ -136,7 +132,6 @@ class EnhancedCache(MemoryCache):
         finally:
             self._computing[key].set()
             del self._computing[key]
-
 
 class HybridCache(BaseCache):
     """Hybrid cache combining memory and persistent storage."""
@@ -185,7 +180,6 @@ class HybridCache(BaseCache):
         await self._memory.clear()
         async with self._lock:
             self._persistent.clear()
-
 
 class CacheFactory:
     """

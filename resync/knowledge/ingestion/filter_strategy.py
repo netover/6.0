@@ -25,7 +25,6 @@ _ALLOWED: dict[str, set[str]] = {
     },
 }
 
-
 def normalize_metadata_value(field: str, value: str | None) -> str:
     """Normalize a metadata value.
 

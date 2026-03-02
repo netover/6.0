@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-
 @dataclass(slots=True)
 class PlanStep:
     """One executable step in an execution plan."""
@@ -24,7 +23,6 @@ class PlanStep:
     description: str
     requires: list[str] = field(default_factory=list)
     on_failure: str = "skip"  # "skip" | "abort"
-
 
 def create_plan(template_key: str) -> dict:
     """Create a JSON-serializable plan from a template key."""
@@ -46,7 +44,6 @@ def create_plan(template_key: str) -> dict:
         "steps": steps,
         "total_steps": len(steps),
     }
-
 
 PLAN_TEMPLATES: dict[str, list[PlanStep]] = {
     # Troubleshooting: collect -> analyze -> synthesize

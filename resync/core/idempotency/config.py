@@ -4,7 +4,6 @@ Configuração do sistema de idempotency.
 
 from dataclasses import dataclass
 
-
 @dataclass
 class IdempotencyConfig:
     """Configuração do sistema de idempotency"""
@@ -14,7 +13,6 @@ class IdempotencyConfig:
     key_prefix: str = "idempotency"
     processing_prefix: str = "processing"
     max_response_size_kb: int = 64  # 64KB máximo por resposta
-
 
 # Instância global de configuração
 config = IdempotencyConfig()

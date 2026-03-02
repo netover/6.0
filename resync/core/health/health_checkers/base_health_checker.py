@@ -22,7 +22,6 @@ from resync.core.health.health_models import (
 
 logger = structlog.get_logger(__name__)
 
-
 class BaseHealthChecker(ABC):
     """
     Base class for all health checker implementations.
@@ -31,7 +30,7 @@ class BaseHealthChecker(ABC):
     health checkers must implement.
     """
 
-    def __init__(self, config: HealthCheckConfig | None = None):
+    def __init__(self, config: HealthCheckConfig | None = None) -> None:
         """
         Initialize the health checker.
 
@@ -84,7 +83,12 @@ class BaseHealthChecker(ABC):
 
             return health_result
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             response_time = (time.time() - start_time) * 1000
             self.logger.error(
                 "health_check_failed",

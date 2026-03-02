@@ -156,13 +156,11 @@ Versão: v5.9.6
 # Helpers para eager loading
 from sqlalchemy.orm import joinedload, selectinload
 
-
 def with_job_statuses():
     """Helper para eager load job_statuses em TWSSnapshot."""
     from resync.core.database.models.stores import TWSSnapshot
 
     return selectinload(TWSSnapshot.job_statuses)
-
 
 def with_snapshot():
     """Helper para eager load snapshot em TWSJobStatus."""
@@ -170,13 +168,11 @@ def with_snapshot():
 
     return joinedload(TWSJobStatus.snapshot)
 
-
 def with_full_snapshot_data():
     """Helper para eager load snapshot completo com todos relacionamentos."""
     from resync.core.database.models.stores import TWSSnapshot
 
     return selectinload(TWSSnapshot.job_statuses)
-
 
 # Exemplo de uso em repository:
 """

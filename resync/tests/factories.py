@@ -35,13 +35,13 @@ except ImportError:
     # Fallback for when polyfactory is not installed
     class ModelFactory:
         @classmethod
-        def build(cls, **kwargs):
+        def build(cls, **kwargs) -> None:
             raise NotImplementedError(
                 "Install polyfactory: pip install polyfactory"
             ) from None
 
         @classmethod
-        def batch(cls, size: int, **kwargs):
+        def batch(cls, size: int, **kwargs) -> None:
             raise NotImplementedError(
                 "Install polyfactory: pip install polyfactory"
             ) from None
@@ -97,7 +97,7 @@ class DictFactory:
         return cls._faker
 
     @classmethod
-    def build(cls, **kwargs):
+    def build(cls, **kwargs) -> None:
         raise NotImplementedError("Subclasses must implement build()")
 
     @classmethod

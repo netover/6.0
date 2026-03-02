@@ -54,18 +54,15 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # ENUMS AND CONSTANTS
 # =============================================================================
-
 
 class MemoryType(str, Enum):
     """Types of long-term memory."""
 
     DECLARATIVE = "declarative"  # Facts, preferences, static info
     PROCEDURAL = "procedural"  # Behavior patterns, workflows
-
 
 class DeclarativeCategory(str, Enum):
     """Categories of declarative (factual) memory."""
@@ -77,7 +74,6 @@ class DeclarativeCategory(str, Enum):
     CONSTRAINT = "constraint"  # "Só pode reiniciar jobs após 18h"
     RELATIONSHIP = "relationship"  # "Job X depende de Y"
 
-
 class ProceduralCategory(str, Enum):
     """Categories of procedural (behavioral) memory."""
 
@@ -87,24 +83,20 @@ class ProceduralCategory(str, Enum):
     WORKFLOW = "workflow"  # "Sempre confirma antes de ações"
     INVESTIGATION = "investigation"  # "Começa análise pelo predecessor"
 
-
 class RetrievalMode(str, Enum):
     """How to retrieve memories."""
 
     PROACTIVE = "proactive"  # Always include (push)
     REACTIVE = "reactive"  # On-demand semantic search (pull)
 
-
 # Confidence thresholds
 CONFIDENCE_HIGH = 0.8
 CONFIDENCE_MEDIUM = 0.5
 CONFIDENCE_LOW = 0.3
 
-
 # =============================================================================
 # DATA MODELS
 # =============================================================================
-
 
 @dataclass
 class MemoryProvenance:
@@ -164,7 +156,6 @@ class MemoryProvenance:
             times_contradicted=data.get("times_contradicted", 0),
         )
 
-
 @dataclass
 class DeclarativeMemory:
     """
@@ -201,7 +192,7 @@ class DeclarativeMemory:
     updated_at: datetime = field(default_factory=datetime.now)
     expires_at: datetime | None = None  # None = never expires
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.id:
             self.id = self._generate_id()
 
@@ -290,7 +281,6 @@ class DeclarativeMemory:
         )
         return f"[{self.category.value}] {self.content} (confiança: {confidence_label})"
 
-
 @dataclass
 class ProceduralMemory:
     """
@@ -327,7 +317,7 @@ class ProceduralMemory:
     updated_at: datetime = field(default_factory=datetime.now)
     last_observed: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.id:
             self.id = self._generate_id()
 
@@ -418,15 +408,12 @@ class ProceduralMemory:
             f"[{self.category.value}] {self.pattern} (observado {self.times_observed}x)"
         )
 
-
 # Type alias for any memory type
 Memory = DeclarativeMemory | ProceduralMemory
-
 
 # =============================================================================
 # MEMORY STORE INTERFACE
 # =============================================================================
-
 
 class LongTermMemoryStore(ABC):
     """Abstract interface for long-term memory storage."""
@@ -469,11 +456,9 @@ class LongTermMemoryStore(ABC):
     ) -> list[Memory]:
         """Get memories that should always be included (push)."""
 
-
 # =============================================================================
 # IN-MEMORY STORE (Development/Testing)
 # =============================================================================
-
 
 class InMemoryLongTermStore(LongTermMemoryStore):
     """
@@ -482,7 +467,7 @@ class InMemoryLongTermStore(LongTermMemoryStore):
     WARNING: Data is lost on restart.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._memories: dict[str, Memory] = {}
         self._user_index: dict[str, set[str]] = {}  # user_id -> memory_ids
 
@@ -595,11 +580,9 @@ class InMemoryLongTermStore(LongTermMemoryStore):
             if m.retrieval_mode == RetrievalMode.PROACTIVE or m.is_high_confidence
         ]
 
-
 # =============================================================================
 # REDIS STORE (Production)
 # =============================================================================
-
 
 class RedisLongTermStore(LongTermMemoryStore):
     """
@@ -635,7 +618,12 @@ class RedisLongTermStore(LongTermMemoryStore):
                     decode_responses=True,
                 )
                 logger.info("Redis long-term memory store connected")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
                 logger.error("Redis connection failed: %s", e)
                 raise
 
@@ -668,7 +656,12 @@ class RedisLongTermStore(LongTermMemoryStore):
             if parsed.get("type") == MemoryType.DECLARATIVE.value:
                 return DeclarativeMemory.from_dict(parsed)
             return ProceduralMemory.from_dict(parsed)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Failed to parse memory %s: %s", memory_id, e)
             return None
 
@@ -767,11 +760,9 @@ class RedisLongTermStore(LongTermMemoryStore):
             await self._redis.close()
             self._redis = None
 
-
 # =============================================================================
 # LLM MEMORY EXTRACTOR
 # =============================================================================
-
 
 # Prompt for extracting memories from conversation
 MEMORY_EXTRACTION_PROMPT = """Analise a conversa abaixo e extraia insights sobre o usuário que devem ser lembrados para futuras interações.
@@ -817,7 +808,6 @@ Responda APENAS em JSON válido no formato:
 Se não houver insights para extrair, retorne listas vazias.
 Apenas extraia informações claramente demonstradas na conversa, não faça suposições.
 """
-
 
 class MemoryExtractor:
     """
@@ -918,7 +908,12 @@ class MemoryExtractor:
                         provenance=provenance,
                     )
                     memories.append(memory)
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Failed to create declarative memory: %s", e)
 
             # Process procedural memories
@@ -934,7 +929,12 @@ class MemoryExtractor:
                         provenance=provenance,
                     )
                     memories.append(memory)
-                except Exception as e:
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    import sys as _sys
+                    from resync.core.exception_guard import maybe_reraise_programming_error
+                    _exc_type, _exc, _tb = _sys.exc_info()
+                    maybe_reraise_programming_error(_exc, _tb)
+
                     logger.warning("Failed to create procedural memory: %s", e)
 
             logger.info(f"Extracted {len(memories)} memories from session {session_id}")
@@ -943,15 +943,18 @@ class MemoryExtractor:
         except json.JSONDecodeError as e:
             logger.error("Failed to parse LLM response as JSON: %s", e)
             return []
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.error("Memory extraction failed: %s", e)
             return []
-
 
 # =============================================================================
 # LONG-TERM MEMORY MANAGER
 # =============================================================================
-
 
 class LongTermMemoryManager:
     """
@@ -998,7 +1001,12 @@ class LongTermMemoryManager:
                 self._store = RedisLongTermStore()
                 logger.info("Using Redis for long-term memory")
                 return self._store
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             logger.warning("Redis not available for LTM: %s", e)
 
         # Fallback to in-memory
@@ -1356,13 +1364,11 @@ class LongTermMemoryManager:
             },
         }
 
-
 # =============================================================================
 # SINGLETON INSTANCE
 # =============================================================================
 
 _ltm_manager: LongTermMemoryManager | None = None
-
 
 def get_long_term_memory() -> LongTermMemoryManager:
     """Get singleton LongTermMemoryManager instance."""
@@ -1370,7 +1376,6 @@ def get_long_term_memory() -> LongTermMemoryManager:
     if _ltm_manager is None:
         _ltm_manager = LongTermMemoryManager()
     return _ltm_manager
-
 
 __all__ = [
     # Enums

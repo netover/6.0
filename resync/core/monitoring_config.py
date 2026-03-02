@@ -13,14 +13,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 class PollingMode(str, Enum):
     """Modos de polling."""
 
     FIXED = "fixed"  # Intervalo fixo
     ADAPTIVE = "adaptive"  # Adapta baseado em atividade
     SCHEDULED = "scheduled"  # Horários específicos
-
 
 class MonitoringConfig(BaseModel):
     """Configurações de monitoramento proativo."""
@@ -369,19 +367,16 @@ class MonitoringConfig(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-
 # =============================================================================
 # DEFAULT CONFIGURATION
 # =============================================================================
 
 DEFAULT_MONITORING_CONFIG = MonitoringConfig()
 
-
 def get_monitoring_config() -> MonitoringConfig:
     """Retorna configuração de monitoramento atual."""
     # Em produção, isso pode carregar de arquivo/env/banco
     return DEFAULT_MONITORING_CONFIG
-
 
 def update_monitoring_config(updates: dict[str, Any]) -> MonitoringConfig:
     """Atualiza configuração de monitoramento."""

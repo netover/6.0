@@ -14,15 +14,12 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Protocol, runtime_checkable
 
-
 # Custom exceptions for better error handling
 class ComplianceCalculationError(Exception):
     """Raised when there's an error in compliance calculation."""
 
-
 class StrategyValidationError(ValueError):
     """Raised when strategy validation fails."""
-
 
 # Lazy import to avoid circular dependency
 def _get_soc2_classes():
@@ -34,10 +31,8 @@ def _get_soc2_classes():
 
     return SOC2ComplianceManager, SOC2TrustServiceCriteria
 
-
 # Setup logging
 logger = logging.getLogger(__name__)
-
 
 @runtime_checkable
 class ComplianceManagerProtocol(Protocol):
@@ -85,7 +80,6 @@ class ComplianceManagerProtocol(Protocol):
         """Get end of reporting period."""
         ...
 
-
 class ReportStrategy(ABC):
     """Base interface for report generation strategies with enhanced error handling."""
 
@@ -113,7 +107,12 @@ class ReportStrategy(ABC):
         try:
             self.validate_manager(manager)
             return self._execute_strategy(manager, context or {})
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -134,7 +133,6 @@ class ReportStrategy(ABC):
             The strategy result data
         """
         raise NotImplementedError("Subclasses must implement _execute_strategy method")
-
 
 class ControlComplianceStrategy(ReportStrategy):
     """Strategy for calculating control compliance statistics.
@@ -186,14 +184,18 @@ class ControlComplianceStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 f"Manager missing required attributes: {e}"
             ) from None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error calculating control compliance: {e}"
             ) from None
-
 
 class CriteriaScoresStrategy(ReportStrategy):
     """Strategy for calculating scores for each SOC 2 trust service criteria.
@@ -248,14 +250,18 @@ class CriteriaScoresStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 f"Manager or control missing required attributes: {e}"
             ) from None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error calculating criteria scores: {e}"
             ) from None
-
 
 class OverallComplianceStrategy(ReportStrategy):
     """Strategy for calculating overall compliance score.
@@ -320,14 +326,18 @@ class OverallComplianceStrategy(ReportStrategy):
 
             return overall_score
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error calculating overall compliance score: {e}"
             ) from None
-
 
 class ControlStatusSummaryStrategy(ReportStrategy):
     """Strategy for generating control status summary.
@@ -358,14 +368,18 @@ class ControlStatusSummaryStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 f"Manager or control missing required attributes: {e}"
             ) from None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error generating control status summary: {e}"
             ) from None
-
 
 class EvidenceSummaryStrategy(ReportStrategy):
     """Strategy for generating evidence summary.
@@ -409,14 +423,18 @@ class EvidenceSummaryStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 f"Manager or evidence missing required attributes: {e}"
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error generating evidence summary: {e}"
             ) from None
-
 
 class AvailabilitySummaryStrategy(ReportStrategy):
     """Strategy for generating availability summary.
@@ -475,14 +493,18 @@ class AvailabilitySummaryStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 "Cannot calculate average with empty metrics list"
             ) from None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error generating availability summary: {e}"
             ) from None
-
 
 class ProcessingIntegritySummaryStrategy(ReportStrategy):
     """Strategy for generating processing integrity summary.
@@ -544,14 +566,18 @@ class ProcessingIntegritySummaryStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 "Cannot calculate average with empty checks list"
             ) from None
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error generating processing integrity summary: {e}"
             ) from None
-
 
 class ConfidentialityIncidentsSummaryStrategy(ReportStrategy):
     """Strategy for generating confidentiality incidents summary.
@@ -597,14 +623,18 @@ class ConfidentialityIncidentsSummaryStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 f"Manager or incidents missing required attributes: {e}"
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             raise ComplianceCalculationError(
                 f"Error generating confidentiality incidents summary: {e}"
             ) from e
-
 
 class RecommendationsStrategy(ReportStrategy):
     """Strategy for generating recommendations based on compliance analysis.
@@ -641,7 +671,12 @@ class RecommendationsStrategy(ReportStrategy):
             raise ComplianceCalculationError(
                 f"Manager missing _generate_recommendations method: {e}"
             ) from e
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
@@ -664,11 +699,10 @@ class RecommendationsStrategy(ReportStrategy):
         context = {"report": report} if report is not None else {}
         return super().execute(manager, context)
 
-
 class ReportGenerator:
     """Facade for generating complete compliance reports using strategies."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.strategies = {
             "control_compliance": ControlComplianceStrategy(),
             "criteria_scores": CriteriaScoresStrategy(),
@@ -763,7 +797,12 @@ class ReportGenerator:
 
         except StrategyValidationError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
