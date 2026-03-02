@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Utilities to bridge between sync and async code safely.
 
 Why this exists

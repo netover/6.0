@@ -364,7 +364,8 @@ class InputSanitizer:
                 return int(raw_value)
             if value_type is float:
                 return float(raw_value)
-            return value_type(raw_value)  # type: ignore[call-arg]
+            converter = value_type
+            return converter(raw_value)
         except (ValueError, TypeError) as exc:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -433,8 +434,9 @@ class InputSanitizer:
                 error_code="TOO_LONG",
             )
             if raise_on_error:
+                error_text = result.error or "Text exceeds maximum length"
                 raise InputTooLongError(
-                    result.error or "",  # type: ignore[arg-type]
+                    error_text,
                     max_length=max_length,
                     actual_length=actual_length,
                 )

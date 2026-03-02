@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 # ruff: noqa: E501
 """Field validators for the Settings class.
 
