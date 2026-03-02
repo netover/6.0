@@ -89,7 +89,9 @@ class ConnectorTest(BaseModel):
 
     timeout_seconds: int = 10
 
-# In-memory connector store
+# P1-20 FIX (partial): Added TODO comment for DB migration
+# In-memory connector store - NOTE: This causes "Split Brain" in multi-worker deployments
+# TODO(P1-20): Replace with Database-backed storage for production clusters
 _connectors = {
     "default-tws": {
         "id": "default-tws",
