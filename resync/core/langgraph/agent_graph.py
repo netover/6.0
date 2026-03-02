@@ -256,7 +256,7 @@ def _get_router_cache() -> SemanticCache | None:
                         threshold=0.95,
                         default_ttl=3600,
                     )
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     import sys as _sys
                     from resync.core.exception_guard import maybe_reraise_programming_error
                     _exc_type, _exc, _tb = _sys.exc_info()
@@ -279,7 +279,7 @@ def _get_router_cache() -> SemanticCache | None:
                             threshold=0.95,
                             default_ttl=3600,
                         )
-                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                         import sys as _sys
                         from resync.core.exception_guard import maybe_reraise_programming_error
                         _exc_type, _exc, _tb = _sys.exc_info()
@@ -318,7 +318,7 @@ async def async_init_router_cache() -> SemanticCache | None:
                     threshold=0.95,
                     default_ttl=3600,
                 )
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
@@ -341,7 +341,7 @@ def _get_knowledge_graph_or_stub() -> Any:
         from resync.services.rag_client import RAGClient
 
         return RAGClient()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -483,7 +483,7 @@ async def router_node(state: AgentState) -> AgentState:
                 # Skip LLM call - return immediately
                 return state
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -545,7 +545,7 @@ async def router_node(state: AgentState) -> AgentState:
         else:
             state = _fallback_router(state)
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -600,7 +600,7 @@ async def document_kg_context_node(state: AgentState) -> AgentState:
             state=state,
         )
         state["doc_kg_context"] = ctx or ""
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -756,7 +756,7 @@ async def plan_executor_node(state: AgentState) -> AgentState:
         step["completed"] = True
         step["error"] = None
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -1056,8 +1056,9 @@ async def output_critique_node(state: AgentState) -> AgentState:
         else:
             state["needs_refinement"] = False
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+    except Exception:
         # Never block a response on critique failures.
+        # IMPORTANT: CancelledError inherits BaseException, so it is not swallowed.
         state["needs_refinement"] = False
 
     return state
@@ -1114,7 +1115,7 @@ async def status_handler_node(state: AgentState) -> AgentState:
         state["tool_name"] = "get_job_status"
         state["tool_output"] = json.dumps(status, ensure_ascii=False, default=str)
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -1185,7 +1186,7 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
                     "data_completeness": "{orch.success_rate:.0%}",
                 }
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -1233,7 +1234,7 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
         # incident_response not available, use diagnostic subgraph
         state = await _fallback_troubleshoot(state, job_name, message)
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -1316,7 +1317,7 @@ Resposta:"""
             "response": response,
         }
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -1370,7 +1371,7 @@ async def action_handler_node(state: AgentState) -> AgentState:
                     "result": result,
                     "approved_by": approval.get("approver"),
                 }
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
@@ -1425,7 +1426,7 @@ async def general_handler_node(state: AgentState) -> AgentState:
         state["response"] = response
         state["raw_data"] = {"response": response}
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -1556,7 +1557,7 @@ async def hallucination_check_node(state: AgentState) -> AgentState:
             retry_count = state.get("hallucination_retry_count", 0)
             state["hallucination_retry_count"] = retry_count + 1
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -1877,7 +1878,7 @@ class FallbackGraph:
             if self.config.enable_hallucination_check:
                 full_state = await hallucination_check_node(full_state)
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -1943,7 +1944,7 @@ async def stream_agent_response(
 
             yield event
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (ImportError, ModuleNotFoundError, OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()

@@ -478,6 +478,11 @@ async def websocket_endpoint(
 
             payload = await verify_token_async(token)
             is_valid = bool(payload)
+            if not is_valid:
+                from resync.api.auth.service import get_auth_service
+
+                auth_service = get_auth_service()
+                is_valid = bool(await asyncio.to_thread(auth_service.verify_token, token))
         except INFRA_ERRORS:
             from resync.api.auth.service import get_auth_service
 
@@ -500,9 +505,14 @@ async def websocket_endpoint(
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
         # Note: No knowledge_graph passed - it's now obtained from enterprise_state
         await _message_processing_loop(websocket, agent, agent_id, session_id)
-    except WebSocketDisconnect:
-        code = getattr(websocket.state, "code", "unknown")
-        reason = getattr(websocket.state, "reason", "unknown")
+    except WebSocketDisconnect as exc:
+        with contextlib.suppress(RuntimeError, ConnectionError, OSError):
+            await websocket.close(
+                code=getattr(exc, "code", 1000),
+                reason=getattr(exc, "reason", ""),
+            )
+        code = getattr(exc, "code", "unknown")
+        reason = getattr(exc, "reason", "unknown")
         logger.info(
             "Client disconnected from agent '%s'. Reason: %s (Code: %s)",
             agent_id,
@@ -545,7 +555,11 @@ async def websocket_endpoint(
             ConnectionError,
             OSError,
         ):
-            await websocket.close()
+            if not (
+                getattr(websocket, "client_state", None)
+                and websocket.client_state.name == "DISCONNECTED"
+            ):
+                await websocket.close()
 
 
 async def _validate_input(
