@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 import logging
 from pathlib import Path
 import uuid
-import anyio
+import aiofiles
+from werkzeug.utils import secure_filename
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -73,12 +74,18 @@ def validate_file(file: UploadFile) -> None:
         ) from e
 
 async def save_upload_file(upload_file: UploadFile, destination: Path) -> str:
-    """Save uploaded file to disk and return content."""
+    """Save uploaded file to disk using streaming (OOM protected)."""
+    # P0-18 FIX: Stream the file in chunks instead of reading all into RAM
+    # P2-40 FIX: Use aiofiles properly (not anyio.open_file with await)
+    CHUNK_SIZE = 1024 * 1024  # 1MB chunks
+    
     try:
-        content = await upload_file.read()
-        async with await anyio.open_file(destination, "wb") as buffer:
-            await buffer.write(content)
-        return content.decode("utf-8", errors="ignore")
+        async with aiofiles.open(destination, "wb") as buffer:
+            while chunk := await upload_file.read(CHUNK_SIZE):
+                await buffer.write(chunk)
+        
+        # Return file path for later processing, not decoded content
+        return str(destination)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -96,11 +103,28 @@ async def process_rag_document(
     rag_service: RAGIntegrationService,
     file_id: str,
     filename: str,
-    content: str,
+    file_path: str,
     tags: list[str],
 ):
     """Background task to process document for RAG."""
     try:
+        # P0-18 FIX: Read content from file path (not from memory)
+        # Use asyncio.to_thread for blocking I/O
+        import aiofiles
+        
+        # Determine if file is text-based
+        text_extensions = {'.txt', '.md', '.json', '.log'}
+        ext = Path(filename).suffix.lower()
+        
+        if ext in text_extensions:
+            # Read text files with proper encoding
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+        else:
+            # For binary files (PDF, DOCX), pass the path to the RAG service
+            # The service will handle extraction
+            content = file_path  # Pass path for non-text files
+        
         await rag_service.ingest_document(
             file_id=file_id, filename=filename, content=content, tags=tags
         )
@@ -136,18 +160,30 @@ async def upload_rag_file(
     """
     try:
         validate_file(file)
-        original_filename = Path(file.filename or "upload.bin").name
+        
+        # P0-19 FIX: Rigid Path Traversal protection
+        raw_filename = file.filename if file.filename else "upload.bin"
+        safe_filename = secure_filename(raw_filename)
+        
+        if not safe_filename:
+            safe_filename = f"upload_{uuid.uuid4().hex[:8]}.bin"
+            
         file_id = str(uuid.uuid4())
-        unique_filename = f"{file_id}_{original_filename}"
+        unique_filename = f"{file_id}_{safe_filename}"
         file_path = UPLOAD_DIR / unique_filename
-        content = await save_upload_file(file, file_path)
+        
+        # Save in chunks - returns file path, not decoded content
+        file_path_str = await save_upload_file(file, file_path)
+        
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        
+        # P0-18 FIX: Pass file path to background task, let it read from disk
         background_tasks.add_task(
             process_rag_document,
             rag_service,
             file_id,
-            original_filename,
-            content,
+            safe_filename,
+            file_path_str,  # Pass path instead of content
             tag_list,
         )
         upload_response = FileUploadResponse(

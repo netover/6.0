@@ -75,7 +75,7 @@ class AgentConnectionManager:
     """Manage WebSocket connections with thread-safe operations.
 
     Security fixes applied:
-    - Eager lock initialization to prevent race conditions (P0)
+    - Lazy lock initialization to prevent event loop issues (P0-20)
     """
 
     def __init__(self):
@@ -84,11 +84,18 @@ class AgentConnectionManager:
         self.active_connections: dict[str, set[WebSocket]] = {}
         # Map websocket -> agent_id
         self.agent_connections: dict[WebSocket, str] = {}
-        # P0 fix: Initialize lock eagerly to prevent race condition
-        self._lock: asyncio.Lock = asyncio.Lock()
+        # P0-20 FIX: Lazy lock initialization - don't create asyncio.Lock at module load time
+        self._lock: asyncio.Lock | None = None
 
-    async def connect(self, websocket: WebSocket, agent_id: str):
-        """Connect WebSocket for specific agent"""
+    @property
+    def lock(self) -> asyncio.Lock:
+        """Lazy initialization of asyncio.Lock to avoid event loop issues."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
+
+    async def connect(self, websocket: WebSocket, agent_id: str) -> bool:
+        """Connect WebSocket for specific agent. Returns False if rate-limited."""
         # Rate limit connection attempts per client IP
         client_ip = getattr(getattr(websocket, "client", None), "host", None) or "unknown"
         allowed, retry_after = await ws_allow_connect(client_ip)
@@ -97,10 +104,12 @@ class AgentConnectionManager:
             # Accept first for better ASGI/WebSocket compliance across servers.
             await websocket.accept()
             await websocket.close(code=1013, reason=f"Rate limited. Retry after ~{retry_after}s")
-            return
+            # P0-21 FIX: Return False to indicate rate limit, not just return
+            return False
+        
         await websocket.accept()
 
-        async with self._lock:
+        async with self.lock:
             if agent_id not in self.active_connections:
                 self.active_connections[agent_id] = set()
 
@@ -115,7 +124,7 @@ class AgentConnectionManager:
         Args:
             websocket: The WebSocket connection to remove
         """
-        async with self._lock:
+        async with self.lock:
             agent_id = self.agent_connections.get(websocket)
             if agent_id and websocket in self.active_connections.get(agent_id, set()):
                 self.active_connections[agent_id].remove(websocket)
@@ -168,7 +177,7 @@ class AgentConnectionManager:
         - Concurrent sends with a semaphore (avoids head-of-line blocking).
         - Per-send timeout.
         """
-        async with self._lock:
+        async with self.lock:
             websockets = list(self.active_connections.get(agent_id, set()))
 
         if not websockets:
@@ -291,6 +300,12 @@ async def websocket_handler(
 
     await manager.connect(websocket, agent_id)
 
+    # P0-21 FIX: Verify connection was successful (not rate-limited)
+    is_connected = await manager.connect(websocket, agent_id)
+    if not is_connected:
+        # Rate limited - socket already closed by manager
+        return
+
     # Maximum allowed payload per message (env: WS_MAX_MESSAGE_SIZE, default 256 KiB).
     # Prevents DoS via unbounded memory allocation from a single client.
     _WS_MAX_MESSAGE_BYTES: int = int(
@@ -412,8 +427,7 @@ async def websocket_handler(
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for agent %s", agent_id)
     except asyncio.CancelledError:
-        # P0-06 fix: Must re-raise CancelledError for proper shutdown
-        raise
+        # P2-41 FIX: Log BEFORE raising, not after (dead code)
         logger.info("WebSocket cancelled for agent %s", agent_id)
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:

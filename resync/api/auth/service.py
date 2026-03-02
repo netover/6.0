@@ -69,14 +69,26 @@ class AuthService:
         self.algorithm = algorithm
         self.access_token_expire_minutes = access_token_expire_minutes
 
+        # P1-12 FIX: Memory lock map for concurrency mitigation
+        self._user_locks: dict[str, asyncio.Lock] = {}
+
         # Password hashing
         try:
             from passlib.context import CryptContext
 
             self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            # P1-11 FIX: Dummy hash to ensure verification takes the exact same time
+            self._dummy_hash = self.pwd_context.hash("dummy_mitigation_password")
         except ImportError:
             self.pwd_context = None
+            self._dummy_hash = ""
             logger.warning("passlib not available, using fallback hashing")
+
+    def _get_user_lock(self, user_id: str) -> asyncio.Lock:
+        """P1-12 FIX: Retrieve or create an asyncio lock for a specific user id."""
+        if user_id not in self._user_locks:
+            self._user_locks[user_id] = asyncio.Lock()
+        return self._user_locks[user_id]
 
     def _hash_password(self, password: str) -> str:
         """Hash a password."""
@@ -145,6 +157,15 @@ class AuthService:
             User if authentication successful, None otherwise
         """
         user_data = await self.repository.get_by_username(username)
+
+        # P1-11 FIX: Prevent Timing Attacks by always computing a hash
+        # If user is None, verify against the dummy_hash to occupy CPU
+        hash_to_verify = user_data["hashed_password"] if user_data else self._dummy_hash
+
+        password_valid = await asyncio.to_thread(
+            self._verify_password, password, hash_to_verify
+        )
+
         if not user_data:
             logger.warning(
                 "Authentication failed: user not found",
@@ -152,9 +173,6 @@ class AuthService:
             )
             return None
 
-        password_valid = await asyncio.to_thread(
-            self._verify_password, password, user_data["hashed_password"]
-        )
         if not password_valid:
             logger.warning(
                 "Authentication failed: invalid password",
@@ -353,16 +371,18 @@ class AuthService:
         Returns:
             True if granted
         """
-        user_data = await self.repository.get_by_id(user_id)
-        if not user_data:
-            return False
+        # P1-12 FIX: Enforce atomic updates sequentially
+        async with self._get_user_lock(user_id):
+            user_data = await self.repository.get_by_id(user_id)
+            if not user_data:
+                return False
 
-        permissions = user_data.get("permissions", [])
-        if permission not in permissions:
-            permissions.append(permission)
-            await self.repository.update(user_id, {"permissions": permissions})
+            permissions = user_data.get("permissions", [])
+            if permission not in permissions:
+                permissions.append(permission)
+                await self.repository.update(user_id, {"permissions": permissions})
 
-        return True
+            return True
 
     async def revoke_permission(self, user_id: str, permission: str) -> bool:
         """
@@ -375,16 +395,18 @@ class AuthService:
         Returns:
             True if revoked
         """
-        user_data = await self.repository.get_by_id(user_id)
-        if not user_data:
-            return False
+        # P1-12 FIX: Enforce atomic updates sequentially
+        async with self._get_user_lock(user_id):
+            user_data = await self.repository.get_by_id(user_id)
+            if not user_data:
+                return False
 
-        permissions = user_data.get("permissions", [])
-        if permission in permissions:
-            permissions.remove(permission)
-            await self.repository.update(user_id, {"permissions": permissions})
+            permissions = user_data.get("permissions", [])
+            if permission in permissions:
+                permissions.remove(permission)
+                await self.repository.update(user_id, {"permissions": permissions})
 
-        return True
+            return True
 
 # Global service instance and lock
 _auth_service: AuthService | None = None

@@ -15,7 +15,7 @@ from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from resync.api.routes.admin.main import verify_admin_credentials
 
@@ -53,9 +53,11 @@ class ConnectorCreate(BaseModel):
     host: str | None = None
     port: int | None = None
     username: str | None = None
-    password: str | None = None
+    # P2-43 FIX: Use SecretStr to avoid logging passwords in plain text
+    password: SecretStr | None = None
     config: dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
+
 
 class ConnectorUpdate(BaseModel):
     """Model for updating a connector."""
@@ -64,7 +66,8 @@ class ConnectorUpdate(BaseModel):
     host: str | None = None
     port: int | None = None
     username: str | None = None
-    password: str | None = None
+    # P2-43 FIX: Use SecretStr to avoid logging passwords in plain text
+    password: SecretStr | None = None
     config: dict[str, Any] | None = None
     enabled: bool | None = None
 
@@ -157,6 +160,9 @@ async def create_connector(connector: ConnectorCreate):
 
     connector_id = str(uuid.uuid4())
 
+    # P0-22 FIX: Extract raw password for storage (was being discarded before!)
+    raw_password = connector.password.get_secret_value() if connector.password else None
+
     new_connector = {
         "id": connector_id,
         "name": connector.name,
@@ -164,6 +170,8 @@ async def create_connector(connector: ConnectorCreate):
         "host": connector.host,
         "port": connector.port,
         "username": connector.username,
+        # P0-22 FIX: Store the password, not just the flag
+        "password": raw_password,
         "enabled": connector.enabled,
         "status": "unknown",
         "last_check": None,
@@ -171,8 +179,8 @@ async def create_connector(connector: ConnectorCreate):
         "config": connector.config,
     }
 
-    # Don't store password in response
-    if connector.password:
+    # Mark that password exists for reference
+    if raw_password:
         new_connector["config"]["has_password"] = True
 
     _connectors[connector_id] = new_connector

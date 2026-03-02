@@ -36,8 +36,8 @@ class IContainer(Protocol):
         """Resolve an implementation for an interface."""
 
     @abstractmethod
-    def dispose(self) -> None:
-        """Dispose of all managed resources."""
+    async def dispose(self) -> None:
+        """Dispose of all managed resources."""""
 
 class Container:
     """Implementation of the dependency injection container."""

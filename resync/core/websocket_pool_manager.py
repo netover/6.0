@@ -4,7 +4,7 @@ import json
 
 try:
     import orjson  # type: ignore
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     orjson = None  # type: ignore
 
 import logging
@@ -455,15 +455,7 @@ class WebSocketPoolManager:
             return True
         except asyncio.TimeoutError:
             logger.warning(
-                "WebSocket send timed out for client %s (timeout=%ss) — disconnecting",
-                client_id,
-                self._send_timeout_seconds,
-            )
-            await self._remove_connection(client_id)
-            return False
-        except asyncio.TimeoutError:
-            logger.warning(
-                "WebSocket broadcast send timed out for client %s (timeout=%ss) — removing connection",
+                "ws_send_timeout client=%s timeout=%.1fs — marking error and removing",
                 client_id,
                 self._send_timeout_seconds,
             )
@@ -612,7 +604,7 @@ class WebSocketPoolManager:
 
         logger.info("Broadcasting JSON data to %s WebSocket clients", len(snapshot))
 
-        sem = asyncio.Semaphore(100)
+        sem = asyncio.Semaphore(self._broadcast_concurrency)
 
         async def _send_with_sem(cid: str, conn_info: WebSocketConnectionInfo) -> bool:
             async with sem:
@@ -649,7 +641,10 @@ class WebSocketPoolManager:
             return False
 
         try:
-            await conn_info.websocket.send_json(data)
+            await asyncio.wait_for(
+                conn_info.websocket.send_json(data),
+                timeout=self._send_timeout_seconds,
+            )
             conn_info.update_activity()
             conn_info.message_count += 1
             json_str = (orjson.dumps(data).decode('utf-8') if orjson is not None else json.dumps(data))

@@ -22,12 +22,17 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 try:
     from redis import Redis
-    from redis.exceptions import ConnectionError, TimeoutError
+    from redis.exceptions import ConnectionError as RedisConnectionError
+    from redis.exceptions import TimeoutError as RedisTimeoutError
 except ImportError:
-    # Handle case where redis is not available (e.g., in test environments)
+    # P1-13 FIX: Create dummy exception classes instead of None to prevent TypeError
     Redis = None  # type: ignore
-    ConnectionError = None  # type: ignore
-    TimeoutError = None  # type: ignore
+
+    class RedisConnectionError(Exception):
+        """Dummy exception when redis is not available."""
+
+    class RedisTimeoutError(Exception):
+        """Dummy exception when redis is not available."""
 
 from pydantic import BaseModel
 
@@ -143,7 +148,7 @@ async def get_redis_connection() -> Redis | None:
             redis_client.ping()
             logger.info("Successfully connected to Redis")
             return redis_client
-        except (ConnectionError, TimeoutError) as e:
+        except (RedisConnectionError, RedisTimeoutError) as e:
             logger.error("Failed to connect to Redis: %s", e)
             return None
         except (OSError, ValueError, RuntimeError) as e:
@@ -181,7 +186,7 @@ class RedisCacheManager:
                 else:
                     logger.debug("Cache miss for key: %s", key)
                 return value
-            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
                 logger.error("Error retrieving from cache: %s", e)
                 return None
         
@@ -205,7 +210,7 @@ class RedisCacheManager:
                 self.redis_client.setex(key, expire, value)
                 logger.debug("Set cache key: %s with expire: %s", key, expire)
                 return True
-            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
                 logger.error("Error setting cache: %s", e)
                 return False
         
@@ -227,7 +232,7 @@ class RedisCacheManager:
                 deleted = self.redis_client.delete(key)
                 logger.debug("Deleted cache key: %s, count: %s", key, deleted)
                 return bool(deleted)
-            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
                 logger.error("Error deleting cache: %s", e)
                 return False
         
@@ -267,7 +272,7 @@ class RedisCacheManager:
 
                 logger.debug("Cleared %s keys matching pattern: %s", total_deleted, pattern)
                 return total_deleted
-            except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
                 logger.error("Error clearing pattern: %s", e)
                 return 0
         
@@ -380,7 +385,9 @@ async def verify_admin_credentials(
         )
 
     correct_username = secrets.compare_digest(creds.username, admin_user)
-    correct_password = secrets.compare_digest(creds.password, admin_pass)
+    # P0-04 FIX: Extract value from SecretStr before C-level comparison
+    real_admin_pass = admin_pass.get_secret_value() if hasattr(admin_pass, "get_secret_value") else str(admin_pass)
+    correct_password = secrets.compare_digest(creds.password, real_admin_pass)
 
     if not (correct_username and correct_password):
         # P2-35 fix: Only log username, never password

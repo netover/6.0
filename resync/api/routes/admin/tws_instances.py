@@ -9,6 +9,7 @@ Provides endpoints for managing multiple TWS/HWA server connections:
 """
 
 import logging
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -431,22 +432,38 @@ async def clear_learning_data(instance_id: str, confirm: bool = False):
 
 @router.post("/tws-instances/bulk/connect", tags=["TWS Instances"])
 async def connect_all_instances():
-    """Connect to all enabled instances."""
+    """Connect to all enabled instances concurrently."""
     manager = _get_manager()
     results = {}
 
-    for instance in manager.get_all_instances():
-        if instance.config.enabled:
-            success = await manager.connect_instance(instance.config.id)
-            results[instance.config.name] = {
-                "success": success,
-                "status": instance.status.value,
-            }
+    # Get enabled instances
+    enabled_instances = [inst for inst in manager.get_all_instances() if inst.config.enabled]
+
+    # P1-18 FIX: Execute network connections in parallel via asyncio.gather
+    async def _connect_task(instance):
+        """Task to connect a single instance."""
+        success = await manager.connect_instance(instance.config.id)
+        return instance.config.name, {
+            "success": success,
+            "status": instance.status.value,
+        }
+
+    # Create tasks for all enabled instances
+    tasks = [_connect_task(inst) for inst in enabled_instances]
+    
+    if tasks:
+        completed = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for item in completed:
+            if isinstance(item, tuple):
+                results[item[0]] = item[1]
+            elif isinstance(item, Exception):
+                logger.error("Critically failed to bulk connect: %s", item)
 
     return {
         "results": results,
-        "connected": len([r for r in results.values() if r["success"]]),
-        "failed": len([r for r in results.values() if not r["success"]]),
+        "connected": len([r for r in results.values() if r.get("success")]),
+        "failed": len([r for r in results.values() if not r.get("success")]),
     }
 
 @router.post("/tws-instances/bulk/disconnect", tags=["TWS Instances"])

@@ -128,7 +128,7 @@ async def _tcp_reachable(
         return False, "timeout"
     except OSError as e:
         return False, f"os_error:{type(e).__name__}"
-    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # pragma: no cover
+    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, ConnectionError) as e:  # pragma: no cover
         return False, f"unexpected:{type(e).__name__}"
 
 async def _http_healthy(
@@ -205,7 +205,7 @@ async def _check_tws(
     start = time.monotonic()
     host = getattr(settings, "tws_host", None)
     port = getattr(settings, "tws_port", None)
-    raw_timeout = getattr(settings, "STARTUP_TCP_CHECK_TIMEOUT", 3.0)  # FIX P1-07: default is float, not str
+    raw_timeout = getattr(settings, "tws_timeout_connect", 3.0)
     timeout = float(raw_timeout) if raw_timeout else 3.0
 
     if not host or not port:
@@ -315,7 +315,7 @@ async def _check_rag(
 ) -> StartupCheck:
     start = time.monotonic()
     url = getattr(settings, "rag_service_url", None)
-    timeout = float(getattr(settings, "RAG_SERVICE_TIMEOUT", 5.0))
+    timeout = float(getattr(settings, "rag_service_timeout", 5.0))
 
     if not url:
         status: Status = "skipped"
@@ -812,7 +812,7 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 logger.info("core_services_initialized")
 
                 # 3. Optional services...
-                optional_timeout = max(0.5, min(3.0, float(startup_timeout) / 2.0))
+                optional_timeout = max(5.0, float(startup_timeout) * 0.8)
                 optional_results: list[Exception] = []
                 try:
                     async with asyncio.timeout(optional_timeout):
@@ -880,7 +880,17 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 logger.info("application_startup_completed")
                 st.startup_complete = True
 
-                yield  # Application runs here, bg_tasks are active
+                try:
+                    yield  # Application runs here, bg_tasks are active
+                except* Exception as eg:
+                    # Catch exceptions from background tasks during app runtime
+                    for exc in eg.exceptions:
+                        logger.critical(
+                            "bg_task_crashed",
+                            error=str(exc),
+                            type=type(exc).__name__,
+                        )
+                    # Don't re-raise - app is already shutting down
 
         # When lifespan exits, TaskGroup auto-cancels
         # and waits for background tasks.

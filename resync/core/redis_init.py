@@ -457,14 +457,17 @@ class RedisInitializer:
 
 # Global Redis initializer instance - lazy initialization
 _redis_initializer: RedisInitializer | None = None
+_redis_initializer_create_lock = threading.Lock()
 
 
 def get_redis_initializer() -> RedisInitializer:
     """
-    Retorna instância global do initializer.
-    Nota: se houver alta concorrência de criação, considere um lock.
+    Retorna instância global do initializer com double-checked locking
+    para evitar race conditions em ambientes de alta concorrência.
     """
     global _redis_initializer  # pylint
     if _redis_initializer is None:
-        _redis_initializer = RedisInitializer()
+        with _redis_initializer_create_lock:
+            if _redis_initializer is None:
+                _redis_initializer = RedisInitializer()
     return _redis_initializer

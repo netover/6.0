@@ -666,25 +666,36 @@ async def get_system_logs(
                 "message": "Log file not found",
             }
 
-        # Read log file
-        async with aiofiles.open(log_file, encoding="utf-8") as f:
-            all_lines = await f.readlines()
+        # P0-16 FIX: Use deque with fixed-size and offload CPU-bound filter to thread
+        def _read_and_filter_logs() -> tuple[list[str], int]:
+            from collections import deque
 
-        # Get last N lines
-        log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+            level_upper = level.upper() if level else None
+            search_lower = search.lower() if search else None
 
-        # Filter by level if specified
-        if level:
-            log_lines = [line for line in log_lines if level.upper() in line.upper()]
+            filtered_logs = deque(maxlen=lines)
+            total_lines = 0
 
-        # Filter by search term if specified
-        if search:
-            log_lines = [line for line in log_lines if search.lower() in line.lower()]
+            with open(log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    total_lines += 1
+
+                    # Apply filters early before keeping in memory
+                    if level_upper and level_upper not in line.upper():
+                        continue
+                    if search_lower and search_lower not in line.lower():
+                        continue
+
+                    filtered_logs.append(line)
+
+            return list(filtered_logs), total_lines
+
+        log_lines, total_lines = await asyncio.to_thread(_read_and_filter_logs)
 
         return {
             "logs": log_lines,
             "count": len(log_lines),
-            "total_lines": len(all_lines),
+            "total_lines": total_lines,
             "log_file": str(log_file),
         }
 
@@ -875,13 +886,22 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
         Status of restore operation
     """
     try:
+        import os
         from resync.core.config_persistence import ConfigPersistenceManager
 
         config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
+        # P0-15 FIX: Sanitize input before path building to prevent path traversal
+        safe_filename = os.path.basename(backup_filename)
+        if not safe_filename or safe_filename != backup_filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid backup filename format. Path traversal is not allowed.",
+            )
+
         # Find backup file (with path traversal protection)
-        backup_file = (persistence.backup_dir / backup_filename).resolve()
+        backup_file = (persistence.backup_dir / safe_filename).resolve()
         if not backup_file.is_relative_to(persistence.backup_dir.resolve()):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -966,7 +986,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
     Checks all critical system components and returns their health status.
     This endpoint is used by the admin dashboard health monitoring section.
 
-    Components checked:
+    Components checked (in parallel):
     - Database (SQLite/ContextStore)
     - Redis (Cache)
     - LLM (AI Service)
@@ -974,244 +994,221 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
     - Teams (Integration)
     - TWS (HCL Workload Automation)
     """
+    import asyncio
     import time
 
-    components: dict[str, ComponentHealth] = {}
-    overall_healthy = True
+    # P2-38 FIX: Define helper functions for parallel execution
 
-    # 1. Check Database (SQLite/ContextStore)
-    try:
-        start = time.perf_counter()
-        from resync.core.context_store import ContextStore
-
-        store = ContextStore()
-        await store.initialize()
-        latency = (time.perf_counter() - start) * 1000
-        components["database"] = ComponentHealth(
-            status="healthy",
-            latency_ms=round(latency, 2),
-            message="SQLite connected",
-        )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        overall_healthy = False
-        components["database"] = ComponentHealth(
-            status="unhealthy",
-            message=f"Database error: {str(e)[:100]}",
-        )
-
-    # 2. Check Redis
-    try:
-        start = time.perf_counter()
-        from resync.core.redis_init import get_redis_client
-
-        redis_client = get_redis_client()
-        if redis_client:
-            await redis_client.ping()
+    async def _check_database() -> ComponentHealth:
+        """Check database health."""
+        try:
+            start = time.perf_counter()
+            from resync.core.context_store import ContextStore
+            store = ContextStore()
+            await store.initialize()
             latency = (time.perf_counter() - start) * 1000
-            info = await redis_client.info("memory")
-            used_memory = info.get("used_memory_human", "unknown")
-            components["redis"] = ComponentHealth(
+            return ComponentHealth(
                 status="healthy",
                 latency_ms=round(latency, 2),
-                message=f"Connected, memory: {used_memory}",
+                message="SQLite connected",
             )
-        else:
-            components["redis"] = ComponentHealth(
+        except Exception as e:
+            return ComponentHealth(
+                status="unhealthy",
+                message=f"Database error: {str(e)[:100]}",
+            )
+
+    async def _check_redis() -> ComponentHealth:
+        """Check Redis health."""
+        try:
+            start = time.perf_counter()
+            from resync.core.redis_init import get_redis_client
+            redis_client = get_redis_client()
+            if redis_client:
+                await redis_client.ping()
+                latency = (time.perf_counter() - start) * 1000
+                info = await redis_client.info("memory")
+                used_memory = info.get("used_memory_human", "unknown")
+                return ComponentHealth(
+                    status="healthy",
+                    latency_ms=round(latency, 2),
+                    message=f"Connected, memory: {used_memory}",
+                )
+            return ComponentHealth(
                 status="degraded",
                 message="Redis not configured",
             )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        overall_healthy = False
-        components["redis"] = ComponentHealth(
-            status="unhealthy",
-            message=f"Redis error: {str(e)[:100]}",
-        )
-
-    # 3. Check LLM (LiteLLM)
-    try:
-        start = time.perf_counter()
-        llm_endpoint = getattr(settings, "LLM_ENDPOINT", None)
-        if llm_endpoint:
-            import httpx
-
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                # Try to reach the LLM endpoint health check
-                try:
-                    resp = await client.get(f"{llm_endpoint}/health")
-                    latency = (time.perf_counter() - start) * 1000
-                    if resp.status_code == 200:
-                        components["llm"] = ComponentHealth(
-                            status="healthy",
-                            latency_ms=round(latency, 2),
-                            message="LiteLLM responding",
-                        )
-                    else:
-                        components["llm"] = ComponentHealth(
-                            status="degraded",
-                            latency_ms=round(latency, 2),
-                            message=f"LLM returned status {resp.status_code}",
-                        )
-                except httpx.ConnectError:
-                    components["llm"] = ComponentHealth(
-                        status="unhealthy",
-                        message="Cannot connect to LLM endpoint",
-                    )
-                    overall_healthy = False
-        else:
-            components["llm"] = ComponentHealth(
-                status="degraded",
-                message="LLM endpoint not configured",
+        except Exception as e:
+            return ComponentHealth(
+                status="unhealthy",
+                message=f"Redis error: {str(e)[:100]}",
             )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
 
-        components["llm"] = ComponentHealth(
-            status="unhealthy",
-            message=f"LLM error: {str(e)[:100]}",
-        )
-        overall_healthy = False
-
-    # 4. Check RAG (pgvector in PostgreSQL)
-    try:
-        start = time.perf_counter()
-        # pgvector is now part of PostgreSQL - check vector extension
+    async def _check_llm() -> ComponentHealth:
+        """Check LLM health."""
         try:
-            from resync.knowledge.ingestion.embeddings import get_vector_service
-
-            vector_service = await get_vector_service()
-            stats = await vector_service.get_collection_stats("tws_docs")
-            latency = (time.perf_counter() - start) * 1000
-
-            components["rag"] = ComponentHealth(
-                status="healthy",
-                latency_ms=round(latency, 2),
-                message=f"pgvector operational ({stats.document_count} docs)",
+            start = time.perf_counter()
+            llm_endpoint = getattr(settings, "LLM_ENDPOINT", None)
+            if not llm_endpoint:
+                return ComponentHealth(
+                    status="degraded",
+                    message="LLM endpoint not configured",
+                )
+            import httpx
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{llm_endpoint}/health")
+                latency = (time.perf_counter() - start) * 1000
+                if resp.status_code == 200:
+                    return ComponentHealth(
+                        status="healthy",
+                        latency_ms=round(latency, 2),
+                        message="LiteLLM responding",
+                    )
+                return ComponentHealth(
+                    status="degraded",
+                    latency_ms=round(latency, 2),
+                    message=f"LLM returned status {resp.status_code}",
+                )
+        except httpx.ConnectError:
+            return ComponentHealth(
+                status="unhealthy",
+                message="Cannot connect to LLM endpoint",
             )
-        except ImportError:
-            # Fallback to RAG service URL if available
-            rag_url = getattr(settings, "RAG_SERVICE_URL", None)
-            if rag_url:
-                import httpx
+        except Exception as e:
+            return ComponentHealth(
+                status="unhealthy",
+                message=f"LLM error: {str(e)[:100]}",
+            )
 
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    try:
-                        resp = await client.get(f"{rag_url}/health")
-                        latency = (time.perf_counter() - start) * 1000
-                        if resp.status_code == 200:
-                            components["rag"] = ComponentHealth(
-                                status="healthy",
-                                latency_ms=round(latency, 2),
-                                message="RAG service responding",
-                            )
-                        else:
-                            components["rag"] = ComponentHealth(
-                                status="degraded",
-                                latency_ms=round(latency, 2),
-                                message=f"RAG returned status {resp.status_code}",
-                            )
-                    except httpx.ConnectError:
-                        components["rag"] = ComponentHealth(
-                            status="unhealthy",
-                            message="Cannot connect to RAG service",
-                        )
-            else:
-                components["rag"] = ComponentHealth(
+    async def _check_rag() -> ComponentHealth:
+        """Check RAG health."""
+        try:
+            start = time.perf_counter()
+            # Try pgvector first
+            try:
+                from resync.knowledge.ingestion.embeddings import get_vector_service
+                vector_service = await get_vector_service()
+                stats = await vector_service.get_collection_stats("tws_docs")
+                latency = (time.perf_counter() - start) * 1000
+                return ComponentHealth(
+                    status="healthy",
+                    latency_ms=round(latency, 2),
+                    message=f"pgvector operational ({stats.document_count} docs)",
+                )
+            except ImportError:
+                pass
+            # Fallback to RAG service URL
+            rag_url = getattr(settings, "RAG_SERVICE_URL", None)
+            if not rag_url:
+                return ComponentHealth(
                     status="degraded",
                     message="RAG not configured (pgvector or RAG_SERVICE_URL)",
                 )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        components["rag"] = ComponentHealth(
-            status="degraded",
-            message=f"RAG check failed: {str(e)[:50]}",
-        )
-
-    # 5. Check Teams Integration
-    try:
-        start = time.perf_counter()
-        from resync.core.fastapi_di import get_teams_integration
-
-        teams = get_teams_integration()
-        health = await teams.health_check()
-        latency = (time.perf_counter() - start) * 1000
-        teams_enabled = health.get("enabled", False)
-        teams_status = "healthy" if teams_enabled else "degraded"
-        components["teams"] = ComponentHealth(
-            status=teams_status,
-            latency_ms=round(latency, 2),
-            message="Enabled" if teams_enabled else "Disabled",
-        )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        components["teams"] = ComponentHealth(
-            status="degraded",
-            message=f"Teams check failed: {str(e)[:50]}",
-        )
-
-    # 6. Check TWS (HCL Workload Automation)
-    try:
-        start = time.perf_counter()
-        from resync.core.fastapi_di import get_tws_client
-
-        tws = get_tws_client(request)
-        connected = await tws.check_connection()
-        latency = (time.perf_counter() - start) * 1000
-        if connected:
-            components["tws"] = ComponentHealth(
-                status="healthy",
-                latency_ms=round(latency, 2),
-                message="Connected to HWA",
+            import httpx
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{rag_url}/health")
+                latency = (time.perf_counter() - start) * 1000
+                if resp.status_code == 200:
+                    return ComponentHealth(
+                        status="healthy",
+                        latency_ms=round(latency, 2),
+                        message="RAG service responding",
+                    )
+                return ComponentHealth(
+                    status="degraded",
+                    latency_ms=round(latency, 2),
+                    message=f"RAG returned status {resp.status_code}",
+                )
+        except httpx.ConnectError:
+            return ComponentHealth(
+                status="unhealthy",
+                message="Cannot connect to RAG service",
             )
-        else:
-            components["tws"] = ComponentHealth(
+        except Exception as e:
+            return ComponentHealth(
                 status="degraded",
+                message=f"RAG check failed: {str(e)[:50]}",
+            )
+
+    async def _check_teams() -> ComponentHealth:
+        """Check Teams integration health."""
+        try:
+            start = time.perf_counter()
+            from resync.core.fastapi_di import get_teams_integration
+            teams = get_teams_integration()
+            health = await teams.health_check()
+            latency = (time.perf_counter() - start) * 1000
+            teams_enabled = health.get("enabled", False)
+            return ComponentHealth(
+                status="healthy" if teams_enabled else "degraded",
+                latency_ms=round(latency, 2),
+                message="Enabled" if teams_enabled else "Disabled",
+            )
+        except Exception as e:
+            return ComponentHealth(
+                status="degraded",
+                message=f"Teams check failed: {str(e)[:50]}",
+            )
+
+    async def _check_tws() -> ComponentHealth:
+        """Check TWS (HCL Workload Automation) health."""
+        try:
+            start = time.perf_counter()
+            from resync.core.fastapi_di import get_tws_client
+            tws = get_tws_client(request)
+            connected = await tws.check_connection()
+            latency = (time.perf_counter() - start) * 1000
+            if connected:
+                return ComponentHealth(
+                    status="healthy",
+                    latency_ms=round(latency, 2),
+                    message="Connected to HWA",
+                )
+            return ComponentHealth(
+                status="degraded",
+                latency_ms=round(latency, 2),
                 message="TWS not connected",
             )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
+        except Exception as e:
+            return ComponentHealth(
+                status="degraded",
+                message=f"TWS: {str(e)[:50]}",
+            )
 
-        components["tws"] = ComponentHealth(
-            status="degraded",
-            message=f"TWS: {str(e)[:50]}",
-        )
+    # P2-38 FIX: Execute all health checks in parallel
+    results = await asyncio.gather(
+        _check_database(),
+        _check_redis(),
+        _check_llm(),
+        _check_rag(),
+        _check_teams(),
+        _check_tws(),
+        return_exceptions=True,
+    )
+
+    # Map results to component names
+    component_names = ["database", "redis", "llm", "rag", "teams", "tws"]
+    components: dict[str, ComponentHealth] = {}
+
+    for name, result in zip(component_names, results):
+        if isinstance(result, Exception):
+            components[name] = ComponentHealth(
+                status="unhealthy",
+                message=f"Check failed: {str(result)[:100]}",
+            )
+        else:
+            components[name] = result
 
     # Determine overall status
-    if overall_healthy:
-        unhealthy_count = sum(1 for c in components.values() if c.status == "unhealthy")
-        degraded_count = sum(1 for c in components.values() if c.status == "degraded")
+    unhealthy_count = sum(1 for c in components.values() if c.status == "unhealthy")
+    degraded_count = sum(1 for c in components.values() if c.status == "degraded")
 
-        if unhealthy_count > 0:
-            overall_status = "unhealthy"
-        elif degraded_count > 2:
-            overall_status = "degraded"
-        else:
-            overall_status = "healthy"
-    else:
+    if unhealthy_count > 0:
         overall_status = "unhealthy"
+    elif degraded_count > 2:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
 
     return SystemHealthResponse(
         overall_status=overall_status,

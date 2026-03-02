@@ -113,71 +113,56 @@ class RagComponentsManager:
                     self._ingest_service,
                 )
 
+            # P0-17 FIX: Offload synchronous blocking instantiation into thread pool
+            def _init_sync_services():
+                emb = EmbeddingService()
+                vs = get_vector_store()
+                ret = RagRetriever(emb, vs)
+                ing = IngestService(emb, vs)
+                return emb, vs, ret, ing
+
             try:
-                self._embedding_service = EmbeddingService()
-                self._vector_store = get_vector_store()
-                self._retriever = RagRetriever(self._embedding_service, self._vector_store)
-                self._ingest_service = IngestService(self._embedding_service, self._vector_store)
+                self._embedding_service, self._vector_store, self._retriever, self._ingest_service = await asyncio.to_thread(
+                    _init_sync_services
+                )
 
                 try:
                     from resync.knowledge.retrieval.hybrid_retriever import (
                         HybridRetriever,
                     )
 
-                    self._hybrid_retriever = HybridRetriever(
-                        self._embedding_service, self._vector_store
+                    # P0-17 FIX: Offload HybridRetriever creation to thread pool
+                    self._hybrid_retriever = await asyncio.to_thread(
+                        HybridRetriever,
+                        self._embedding_service,
+                        self._vector_store,
                     )
                     if logger:
                         logger.info("Hybrid retriever initialized (BM25 + Vector)")
-                except (
-                    OSError,
-                    ValueError,
-                    TypeError,
-                    KeyError,
-                    AttributeError,
-                    RuntimeError,
-                    TimeoutError,
-                    ConnectionError,
-                ) as e:
-                    import sys as _sys
-                    from resync.core.exception_guard import maybe_reraise_programming_error
-
-                    _exc_type, _exc, _tb = _sys.exc_info()
-                    maybe_reraise_programming_error(_exc, _tb)
-
+                except Exception as e:
+                    # P1-16 FIX: Don't use broad exception catching with maybe_reraise
                     if logger:
                         logger.warning("Hybrid retriever not available, using standard: %s", e)
 
                 self._initialized = True
                 if logger:
                     logger.info("RAG components initialized successfully (lazy)")
-            except (
-                OSError,
-                ValueError,
-                TypeError,
-                KeyError,
-                AttributeError,
-                RuntimeError,
-                TimeoutError,
-                ConnectionError,
-            ) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
-
+            except Exception as e:
+                # P1-16 FIX: Log real exception and crash gracefully if RAG cannot start
                 if logger:
-                    logger.error("Failed to initialize RAG components: %s", e)
+                    logger.error("Critical failure during RAG lazy init: %s", e, exc_info=True)
                 self._embedding_service = None
                 self._vector_store = None
                 self._retriever = None
                 self._ingest_service = None
+                raise HTTPException(status_code=503, detail="RAG system is currently unavailable.")
 
         return (
             self._embedding_service,
             self._vector_store,
             self._retriever,
+            self._ingest_service,
+        )
             self._ingest_service,
         )
 
@@ -203,9 +188,12 @@ async def _save_conversation_turn(
     assistant_response: str,
     metadata: dict[str, Any] | None = None,
 ) -> None:
-    """Save conversation turn to memory."""
+    """Save conversation turn to memory (thread-safe version)."""
     try:
-        memory = get_conversation_memory()
+        # P2-39 FIX: Use thread-safe singleton getter
+        from resync.core.background_tasks import get_conversation_memory_safe
+        
+        memory = await get_conversation_memory_safe()
         await memory.add_turn(session_id, user_message, assistant_response, metadata)
     except (
         OSError,
@@ -261,7 +249,12 @@ async def chat_message(
     is_operator = False
 
     if x_operator_key and settings.operator_api_key:
-        if secrets.compare_digest(x_operator_key, settings.operator_api_key.get_secret_value()):
+        # P1-15 FIX: Ensure both are converted to bytes securely before comparison
+        api_key_val = settings.operator_api_key.get_secret_value()
+        if secrets.compare_digest(
+            x_operator_key.encode("utf-8"),
+            api_key_val.encode("utf-8")
+        ):
             is_operator = True
 
     if settings.is_production and not current_user and not is_operator:
