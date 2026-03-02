@@ -13,7 +13,7 @@ from typing import Any
 import structlog
 
 from resync.core.connection_pool_manager import get_advanced_connection_pool_manager
-from resync.core.resilience import CircuitBreaker, CircuitBreakerConfig
+from resync.core.resilience import CircuitBreaker
 
 logger = structlog.get_logger(__name__)
 
@@ -30,11 +30,14 @@ class ProactiveMonitoringSystem:
 
     def __init__(self):
         """Initialize the proactive monitoring system."""
+        from resync.core.resilience_singletons import (
+            adaptive_llm_api_breaker,
+            adaptive_tws_api_breaker,
+        )
+
         self.circuit_breakers = {
-            "database": CircuitBreaker(CircuitBreakerConfig()),
-            "redis": CircuitBreaker(CircuitBreakerConfig()),
-            "cache_hierarchy": CircuitBreaker(CircuitBreakerConfig()),
-            "tws_monitor": CircuitBreaker(CircuitBreakerConfig()),
+            "adaptive_tws_api": adaptive_tws_api_breaker,
+            "adaptive_llm_api": adaptive_llm_api_breaker,
         }
 
     async def perform_proactive_health_checks(self) -> dict[str, Any]:

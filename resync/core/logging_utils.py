@@ -7,6 +7,44 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_SENSITIVE_FIELD_NAMES: frozenset[str] = frozenset(
+    {
+        "password",
+        "token",
+        "secret",
+        "api_key",
+        "apikey",
+        "authorization",
+        "auth",
+        "credential",
+        "private_key",
+        "access_token",
+        "refresh_token",
+        "client_secret",
+        "pin",
+        "cvv",
+        "ssn",
+        "credit_card",
+        "card_number",
+        "tws_password",
+        "llm_api_key",
+        "jwt",
+        "session",
+        "cookie",
+    }
+)
+
+_SENSITIVE_VALUE_PATTERNS: tuple[str, ...] = (
+    r'(?:password|pwd|token|secret|key|api_key|apikey|auth|authorization)\s*[:=]\s*["\']?([^"\'\s]+)["\']?',
+    r"(?:authorization)[:\s]*bearer\s+([^\s]+)",
+    r"(?:basic)\s+([a-zA-Z0-9+/=]+)",
+    r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
+    r"\b\d{3}-?\d{2}-?\d{4}\b",
+    r"ey[A-Za-z0-9-_]+\.ey[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+",
+)
+
+_RESERVED_LOGRECORD_ATTRS: frozenset[str] = frozenset(logging.makeLogRecord({}).__dict__.keys())
+
 class SecretRedactor(logging.Filter):
     """
     A logging filter that redacts sensitive information from log records.
@@ -23,45 +61,8 @@ class SecretRedactor(logging.Filter):
             name: Optional name for the filter
         """
         super().__init__(name)
-        # Define patterns for sensitive field names
-        self.sensitive_patterns = {
-            "password",
-            "token",
-            "secret",
-            "api_key",
-            "apikey",
-            "authorization",
-            "auth",
-            "credential",
-            "private_key",
-            "access_token",
-            "refresh_token",
-            "client_secret",
-            "pin",
-            "cvv",
-            "ssn",
-            "credit_card",
-            "card_number",
-            "tws_password",
-            "llm_api_key",
-            "jwt",
-            "session",
-            "cookie",
-        }
-
-        # Define regex patterns for sensitive values
-        self.sensitive_value_patterns = [
-            # Basic patterns for key=value structures
-            r'(?:password|pwd|token|secret|key|api_key|apikey|auth|authorization)\s*[:=]\s*["\']?([^"\'\s]+)["\']?',
-            r"(?:authorization)[:\s]*bearer\s+([^\s]+)",
-            r"(?:basic)\s+([a-zA-Z0-9+/=]+)",
-            # Credit card pattern
-            r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
-            # SSN pattern
-            r"\b\d{3}-?\d{2}-?\d{4}\b",
-            # JWT pattern (heuristic)
-            r"ey[A-Za-z0-9-_]+\.ey[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+",
-        ]
+        self.sensitive_patterns = _SENSITIVE_FIELD_NAMES
+        self.sensitive_value_patterns = _SENSITIVE_VALUE_PATTERNS
 
     def filter(self, record: logging.LogRecord) -> bool:
         """
@@ -85,10 +86,13 @@ class SecretRedactor(logging.Filter):
 
         # If the record has additional structured data, redact from there
         if hasattr(record, "__dict__"):
-            # We need to be careful not to modify internal logging attributes
-            # that might break the logging system, but we want to catch
-            # structured data added by structlog or others.
-            pass
+            for key, value in vars(record).items():
+                if key.startswith("_") or key in _RESERVED_LOGRECORD_ATTRS:
+                    continue
+                if isinstance(value, str):
+                    setattr(record, key, self._redact_sensitive_data(value))
+                elif isinstance(value, dict):
+                    setattr(record, key, self._redact_dict(value))
 
         return True
 
@@ -103,7 +107,7 @@ class SecretRedactor(logging.Filter):
             The redacted arguments
         """
         if isinstance(args, (list, tuple)):
-            redacted_args: list[str | dict[str, Any] | Any] = []
+            redacted_args: list[Any] = []
             for arg in args:
                 if isinstance(arg, str):
                     redacted_args.append(self._redact_sensitive_data(arg))
@@ -169,18 +173,24 @@ class SecretRedactor(logging.Filter):
         for pattern in self.sensitive_value_patterns:
             try:
 
-                def replace_match(match):
+                def replace_match(match: re.Match[str]) -> str:
                     full_match = match.group(0)
                     if match.groups():
-                        # If we have groups, redact groups
-                        for i in range(1, len(match.groups()) + 1):
-                            start, end = match.span(i)
-                            # recreate string with redacted part
-                            return (
-                                full_match[: match.start(i) - match.start(0)]
+                        redacted_full_match = full_match
+                        spans = [
+                            match.span(i)
+                            for i in range(1, len(match.groups()) + 1)
+                            if match.group(i) is not None
+                        ]
+                        for start, end in sorted(spans, reverse=True):
+                            rel_start = start - match.start(0)
+                            rel_end = end - match.start(0)
+                            redacted_full_match = (
+                                redacted_full_match[:rel_start]
                                 + "***REDACTED***"
-                                + full_match[match.end(i) - match.start(0) :]
+                                + redacted_full_match[rel_end:]
                             )
+                        return redacted_full_match
                     return "***REDACTED***"
 
                 redacted = re.sub(pattern, replace_match, redacted, flags=re.IGNORECASE)

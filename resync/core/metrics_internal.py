@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from threading import Lock
+import threading
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -253,12 +254,15 @@ class MetricsRegistry:
     _instance: "MetricsRegistry | None" = None
     _metrics: dict[str, Any]
     _lock: Lock
+    _init_lock: threading.Lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._metrics: dict[str, Any] = {}
-            cls._instance._lock = Lock()
+            with cls._init_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._metrics = {}
+                    cls._instance._lock = Lock()
         return cls._instance
 
     def register(self, metric: Any) -> None:
@@ -281,18 +285,25 @@ class MetricsRegistry:
             "metrics": {},
         }
 
-        for name, metric in self._metrics.items():
+        with self._lock:
+            metrics_snapshot = dict(self._metrics)
+
+        for name, metric in metrics_snapshot.items():
             if isinstance(metric, Counter):
+                with metric._lock:
+                    values = dict(metric._values)
                 result["metrics"][name] = {
                     "type": "counter",
                     "description": metric.description,
-                    "values": dict(metric._values),
+                    "values": values,
                 }
             elif isinstance(metric, Gauge):
+                with metric._lock:
+                    values = dict(metric._values)
                 result["metrics"][name] = {
                     "type": "gauge",
                     "description": metric.description,
-                    "values": dict(metric._values),
+                    "values": values,
                 }
             elif isinstance(metric, Histogram):
                 result["metrics"][name] = {

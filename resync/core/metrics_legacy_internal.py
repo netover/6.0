@@ -100,6 +100,10 @@ class MetricCounter:
             # não deveriam ter 'set' arbitrário.
             self.value = value
 
+    def get(self) -> int:
+        with self._lock:
+            return self.value
+
 @dataclass
 class MetricGauge:
     """Gauge (sobe e desce)."""
@@ -478,27 +482,27 @@ class RuntimeMetrics:
     # -------------------------
     def _calculate_error_rate_ratio(self) -> float:
         total_requests = (
-            self.agent_initializations.value
-            + self.tws_status_requests_success.value
-            + self.tws_status_requests_failed.value
+            self.agent_initializations.get()
+            + self.tws_status_requests_success.get()
+            + self.tws_status_requests_failed.get()
         )
         if total_requests > 0:
             return (
-                self.agent_creation_failures.value
-                + self.tws_status_requests_failed.value
+                self.agent_creation_failures.get()
+                + self.tws_status_requests_failed.get()
             ) / total_requests
         return 0.0
 
     def _calculate_cache_hit_ratio(self) -> float:
-        total_cache_ops = self.cache_hits.value + self.cache_misses.value
+        total_cache_ops = self.cache_hits.get() + self.cache_misses.get()
         if total_cache_ops > 0:
-            return self.cache_hits.value / total_cache_ops
+            return self.cache_hits.get() / total_cache_ops
         return 0.0
 
     def _calculate_router_cache_hit_ratio(self) -> float:
-        total_router_ops = self.router_cache_hits.value + self.router_cache_misses.value
+        total_router_ops = self.router_cache_hits.get() + self.router_cache_misses.get()
         if total_router_ops > 0:
-            return self.router_cache_hits.value / total_router_ops
+            return self.router_cache_hits.get() / total_router_ops
         return 0.0
 
     def get_snapshot(self) -> dict[str, Any]:
@@ -506,37 +510,37 @@ class RuntimeMetrics:
         error_metrics = {}
         with self._error_lock:
             for et, counter in self.error_counts.items():
-                error_metrics[et] = counter.value
+                error_metrics[et] = counter.get()
 
         return {
             "agent": {
-                "initializations": self.agent_initializations.value,
-                "creation_failures": self.agent_creation_failures.value,
-                "mock_fallbacks": self.agent_mock_fallbacks.value,
+                "initializations": self.agent_initializations.get(),
+                "creation_failures": self.agent_creation_failures.get(),
+                "mock_fallbacks": self.agent_mock_fallbacks.get(),
                 "active_count": self.agent_active_count.get(),
             },
             "cache": {
-                "hits": self.cache_hits.value,
-                "misses": self.cache_misses.value,
-                "evictions": self.cache_evictions.value,
-                "sets": self.cache_sets.value,
+                "hits": self.cache_hits.get(),
+                "misses": self.cache_misses.get(),
+                "evictions": self.cache_evictions.get(),
+                "sets": self.cache_sets.get(),
                 "size": self.cache_size.get(),
-                "cleanup_cycles": self.cache_cleanup_cycles.value,
+                "cleanup_cycles": self.cache_cleanup_cycles.get(),
                 "hit_rate": self._calculate_cache_hit_ratio(),
             },
             "router_cache": {
-                "hits": self.router_cache_hits.value,
-                "misses": self.router_cache_misses.value,
-                "sets": self.router_cache_sets.value,
+                "hits": self.router_cache_hits.get(),
+                "misses": self.router_cache_misses.get(),
+                "sets": self.router_cache_sets.get(),
                 "hit_rate": self._calculate_router_cache_hit_ratio(),
             },
             "audit": {
-                "records_created": self.audit_records_created.value,
-                "records_approved": self.audit_records_approved.value,
-                "records_rejected": self.audit_records_rejected.value,
-                "batch_operations": self.audit_batch_operations.value,
-                "pending_timeout": self.audit_pending_timeout.value,
-                "rollback_operations": self.audit_rollback_operations.value,
+                "records_created": self.audit_records_created.get(),
+                "records_approved": self.audit_records_approved.get(),
+                "records_rejected": self.audit_records_rejected.get(),
+                "batch_operations": self.audit_batch_operations.get(),
+                "pending_timeout": self.audit_pending_timeout.get(),
+                "rollback_operations": self.audit_rollback_operations.get(),
             },
             "system": {
                 "correlation_ids_active": self.correlation_ids_active.get(),

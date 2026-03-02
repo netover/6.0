@@ -29,6 +29,7 @@ async def initialize_proactive_monitoring(
         app: FastAPI application instance
         tg: Optional TaskGroup to run background tasks in
     """
+    from resync.api.dependencies import require_authentication
     from resync.settings import settings
 
     # Check if polling is enabled
@@ -192,10 +193,11 @@ def register_dashboard_route(app: FastAPI) -> None:
     Args:
         app: FastAPI instance
     """
-    from fastapi import Request
+    from fastapi import Depends, Request
     from fastapi.responses import HTMLResponse
     from fastapi.templating import Jinja2Templates
 
+    from resync.api.dependencies import require_authentication
     from resync.settings import settings
 
     templates_dir = settings.base_dir / "templates"
@@ -207,7 +209,10 @@ def register_dashboard_route(app: FastAPI) -> None:
     templates = Jinja2Templates(directory=str(templates_dir))
 
     @app.get("/dashboard/realtime", response_class=HTMLResponse, tags=["Dashboard"])
-    def realtime_dashboard(request: Request):
+    def realtime_dashboard(
+        request: Request,
+        _: dict[str, Any] = Depends(require_authentication),
+    ):
         """TWS real-time monitoring dashboard."""
         from resync.core.monitoring_config import get_monitoring_config
 
@@ -222,7 +227,10 @@ def register_dashboard_route(app: FastAPI) -> None:
         )
 
     @app.get("/dashboard/tws", response_class=HTMLResponse, tags=["Dashboard"])
-    def tws_dashboard(request: Request):
+    def tws_dashboard(
+        request: Request,
+        _: dict[str, Any] = Depends(require_authentication),
+    ):
         """Alias for TWS monitoring dashboard."""
         from resync.core.monitoring_config import get_monitoring_config
 
@@ -305,7 +313,7 @@ def _create_mock_tws_client() -> Any:
 
         def get_plan_jobs(
             self,
-            status: list = None,
+            status: list[str] | None = None,
             limit: int = 500,
         ) -> dict[str, Any]:
             """Returns mock jobs."""

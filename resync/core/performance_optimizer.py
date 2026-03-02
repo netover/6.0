@@ -6,6 +6,7 @@ Performance Optimization Module for Phase 2 Enhancements (v6.1.2).
 import asyncio
 import inspect
 import logging
+import threading
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -195,7 +196,6 @@ class ConnectionPoolOptimizer:
                 runtime_metrics.record_histogram(
                     f"connection_pool.{self.pool_name}.acquire_time",
                     wait_time_ms / 1000,
-                    {"pool_name": self.pool_name},
                 )
 
     async def get_current_metrics(
@@ -313,9 +313,9 @@ class ResourceManager:
     async def unregister_resource(self, resource_id: str) -> None:
         """Unregister a resource after cleanup."""
         async with self._lock:
-            await self._unregister_unsafe(resource_id)
+            await self._unregister_nolock(resource_id)
 
-    async def _unregister_unsafe(self, resource_id: str) -> None:
+    async def _unregister_nolock(self, resource_id: str) -> None:
         """Helper for unsafe unregistration (lock must be held or unneeded)."""
         if resource_id in self.active_resources:
             del self.active_resources[resource_id]
@@ -335,27 +335,27 @@ class ResourceManager:
     async def cleanup_all(self) -> None:
         """Cleanup all registered resources."""
         async with self._lock:
-            for resource_id, resource in list(self.active_resources.items()):
-                try:
-                    if hasattr(resource, "close"):
-                        if inspect.iscoroutinefunction(resource.close):
-                            await resource.close()
-                        else:
-                            # Use to_thread for sync close
-                            close_result = await asyncio.to_thread(resource.close)
-                            if inspect.isawaitable(close_result):
-                                await close_result
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                    import sys as _sys
-                    from resync.core.exception_guard import maybe_reraise_programming_error
-                    _exc_type, _exc, _tb = _sys.exc_info()
-                    maybe_reraise_programming_error(_exc, _tb)
+            resources_to_cleanup = list(self.active_resources.items())
+            self.active_resources.clear()
+            self.resource_creation_times.clear()
 
-                    logger.error("Error cleaning up resource %s: %s", resource_id, e)
-                finally:
-                    if resource_id in self.active_resources:
-                        del self.active_resources[resource_id]
-                    self.resource_creation_times.pop(resource_id, None)
+        for resource_id, resource in resources_to_cleanup:
+            try:
+                if hasattr(resource, "close"):
+                    if inspect.iscoroutinefunction(resource.close):
+                        await resource.close()
+                    else:
+                        # Use to_thread for sync close
+                        close_result = await asyncio.to_thread(resource.close)
+                        if inspect.isawaitable(close_result):
+                            await close_result
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
+                logger.error("Error cleaning up resource %s: %s", resource_id, e)
 
     async def detect_leaks(self, max_lifetime_seconds: int = 3600) -> list[str]:
         """
@@ -381,12 +381,15 @@ class ResourceManager:
         return len(self.active_resources)
 
 _resource_manager: ResourceManager | None = None
+_resource_manager_lock = threading.Lock()
 
 def get_resource_manager() -> ResourceManager:
     """Get the global resource manager instance."""
     global _resource_manager
     if _resource_manager is None:
-        _resource_manager = ResourceManager()
+        with _resource_manager_lock:
+            if _resource_manager is None:
+                _resource_manager = ResourceManager()
     return _resource_manager
 
 class PerformanceOptimizationService:
@@ -458,10 +461,13 @@ class PerformanceOptimizationService:
         return report
 
 _performance_service: PerformanceOptimizationService | None = None
+_performance_service_lock = threading.Lock()
 
 def get_performance_service() -> PerformanceOptimizationService:
     """Get the global performance optimization service."""
     global _performance_service
     if _performance_service is None:
-        _performance_service = PerformanceOptimizationService()
+        with _performance_service_lock:
+            if _performance_service is None:
+                _performance_service = PerformanceOptimizationService()
     return _performance_service
