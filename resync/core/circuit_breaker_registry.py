@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -223,22 +224,24 @@ class CircuitBreakerRegistry:
 
     _instance: "CircuitBreakerRegistry | None" = None
 
-    # Async lock used only for singleton instantiation.
-    #
-    # IMPORTANT: do not create asyncio primitives at import time. In deployment
-    # modes such as gunicorn --preload, module import can happen before the
-    # worker event loop exists, causing "Future attached to a different loop"
-    # errors when awaiting.
-    _lock: asyncio.Lock | None = None
+    # Async lock and sync lock for singleton instantiation.
+    _init_lock = threading.Lock()
+    _lock_registry_guard = threading.Lock()
+    _async_locks: dict[int, asyncio.Lock] = {}
 
     @classmethod
     def _get_lock(cls) -> asyncio.Lock:
-        """Return a lock bound to the *current* running event loop."""
-        if cls._lock is None:
-            cls._lock = asyncio.Lock()
-        return cls._lock
+        """Return an async lock scoped to the current running event loop."""
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        with cls._lock_registry_guard:
+            lock = cls._async_locks.get(loop_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                cls._async_locks[loop_id] = lock
+            return lock
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._breakers: dict[str, CircuitBreaker] = {}
         self._specs = CIRCUIT_BREAKER_SPECS
         self._initialized = False
@@ -257,8 +260,10 @@ class CircuitBreakerRegistry:
     def get_instance_sync(cls) -> CircuitBreakerRegistry:
         """Get singleton instance (sync version)."""
         if cls._instance is None:
-            cls._instance = cls()
-            cls._instance._initialize()
+            with cls._init_lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+                    cls._instance._initialize()
         return cls._instance
 
     def _initialize(self) -> None:

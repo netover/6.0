@@ -16,6 +16,7 @@ Date: October 2025
 """
 
 import asyncio
+import threading
 import weakref
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
@@ -107,11 +108,10 @@ class CircuitBreaker:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
         self.metrics = CircuitBreakerMetrics()
-        # Python 3.10+ asyncio.Lock is NOT bound to any event loop at creation time,
-        # so eager initialisation is safe even under gunicorn --preload.
-        # This eliminates the lazy-init race where two concurrent coroutines could
-        # both see self._lock is None and each create a separate lock object.
-        self._lock: asyncio.Lock = asyncio.Lock()
+        # Lazy lock creation avoids binding primitives before worker event-loop setup
+        # (e.g. gunicorn --preload / forked process startup).
+        self._lock: asyncio.Lock | None = None
+        self._lock_init = threading.Lock()
 
         # Properties for compatibility with tests
         self.fail_max = config.failure_threshold
@@ -129,7 +129,11 @@ class CircuitBreaker:
         )
 
     def _get_lock(self) -> asyncio.Lock:
-        """Return the internal asyncio lock (always eagerly initialised)."""
+        """Return an asyncio lock bound to the current loop."""
+        if self._lock is None:
+            with self._lock_init:
+                if self._lock is None:
+                    self._lock = asyncio.Lock()
         return self._lock
 
     async def call(self, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
@@ -214,7 +218,7 @@ class CircuitBreaker:
         return elapsed >= self.config.recovery_timeout
 
     def _on_success(self) -> None:
-        """Callback para sucesso"""
+        """Callback para sucesso (deve ser chamado sob lock)."""
         self.metrics.successful_calls += 1
         self.metrics.consecutive_failures = 0
         self.metrics.last_success_time = datetime.now(timezone.utc)
@@ -228,7 +232,7 @@ class CircuitBreaker:
             )
 
     def _on_failure(self) -> None:
-        """Callback para falha"""
+        """Callback para falha (deve ser chamado sob lock)."""
         self.metrics.failed_calls += 1
         self.metrics.consecutive_failures += 1
         self.metrics.last_failure_time = datetime.now(timezone.utc)
