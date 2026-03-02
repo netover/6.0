@@ -8,7 +8,7 @@ embedding models and rerankers.
 """
 
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 try:
     from redisvl.utils.vectorize import BaseVectorizer

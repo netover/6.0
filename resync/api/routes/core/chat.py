@@ -17,8 +17,11 @@ which automatically routes messages to the appropriate handler based on
 intent classification and complexity analysis.
 """
 
+import asyncio
+import logging
+import threading
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 
 from fastapi import (
     APIRouter,
@@ -55,12 +58,12 @@ from resync.knowledge.retrieval.retriever import RagRetriever
 from resync.knowledge.store.pgvector_store import get_vector_store
 
 router = APIRouter()
-import logging
 
 logger = logging.getLogger(__name__)
 
 # v5.4.1: HybridRouter instance (singleton)
 _hybrid_router: HybridRouter | None = None
+
 
 class RagComponentsManager:
     """Singleton manager for RAG components to avoid global state issues."""
@@ -74,8 +77,7 @@ class RagComponentsManager:
     _hybrid_retriever = None
 
     # Protects lazy creation of the asyncio.Lock itself (avoids TOCTOU).
-    import threading as _threading
-    _lock_create_lock = _threading.Lock()
+    _lock_create_lock = threading.Lock()
     _lock: "asyncio.Lock | None" = None
 
     def __new__(cls) -> "RagComponentsManager":
@@ -83,7 +85,9 @@ class RagComponentsManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    async def get_components(self):
+    async def get_components(
+        self,
+    ) -> tuple[EmbeddingService, Any, RagRetriever, IngestService]:
         """Lazy initialization of RAG components within async context"""
         if self._initialized:
             return (
@@ -95,12 +99,10 @@ class RagComponentsManager:
 
         # v5.7.1 FIX: Thread-safe initialization
         if self._lock is None:
-            import asyncio
             asyncio.get_running_loop()
             with self._lock_create_lock:
                 if self._lock is None:
                     self._lock = asyncio.Lock()
-
 
         async with self._lock:
             if self._initialized:
@@ -114,12 +116,8 @@ class RagComponentsManager:
             try:
                 self._embedding_service = EmbeddingService()
                 self._vector_store = get_vector_store()
-                self._retriever = RagRetriever(
-                    self._embedding_service, self._vector_store
-                )
-                self._ingest_service = IngestService(
-                    self._embedding_service, self._vector_store
-                )
+                self._retriever = RagRetriever(self._embedding_service, self._vector_store)
+                self._ingest_service = IngestService(self._embedding_service, self._vector_store)
 
                 try:
                     from resync.knowledge.retrieval.hybrid_retriever import (
@@ -131,23 +129,41 @@ class RagComponentsManager:
                     )
                     if logger:
                         logger.info("Hybrid retriever initialized (BM25 + Vector)")
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                except (
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    RuntimeError,
+                    TimeoutError,
+                    ConnectionError,
+                ) as e:
                     import sys as _sys
                     from resync.core.exception_guard import maybe_reraise_programming_error
+
                     _exc_type, _exc, _tb = _sys.exc_info()
                     maybe_reraise_programming_error(_exc, _tb)
 
                     if logger:
-                        logger.warning(
-                            "Hybrid retriever not available, using standard: %s", e
-                        )
+                        logger.warning("Hybrid retriever not available, using standard: %s", e)
 
                 self._initialized = True
                 if logger:
                     logger.info("RAG components initialized successfully (lazy)")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                RuntimeError,
+                TimeoutError,
+                ConnectionError,
+            ) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
+
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
 
@@ -165,31 +181,45 @@ class RagComponentsManager:
             self._ingest_service,
         )
 
+
 # Singleton instance
 _rag_manager = RagComponentsManager()
+
 
 async def _get_rag_components():
     """Lazy initialization of RAG components within async context"""
     return await _rag_manager.get_components()
+
 
 async def _get_or_create_session(session_id: str | None) -> ConversationContext:
     """Get or create conversation session for memory."""
     memory = get_conversation_memory()
     return await memory.get_or_create_session(session_id)
 
+
 async def _save_conversation_turn(
     session_id: str,
     user_message: str,
     assistant_response: str,
-    metadata: dict | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Save conversation turn to memory."""
     try:
         memory = get_conversation_memory()
         await memory.add_turn(session_id, user_message, assistant_response, metadata)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
+
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
@@ -199,6 +229,7 @@ async def _save_conversation_turn(
         if logger:
             logger.warning("Failed to save conversation turn: %s", e)
 
+
 @router.post("/chat", response_model=ChatMessageResponse)
 async def chat_message(
     request: ChatMessageRequest,
@@ -206,10 +237,9 @@ async def chat_message(
     x_session_id: str | None = Header(None, alias="X-Session-ID"),
     x_routing_mode: str | None = Header(None, alias="X-Routing-Mode"),
     x_operator_key: str | None = Header(None, alias="X-Operator-Key"),
-    # Temporarily disabled authentication for testing
-    current_user: dict | None = Depends(get_current_user),
-    hybrid_router=Depends(get_hybrid_router_provider),
-    logger_instance=Depends(get_logger),
+    current_user: dict[str, Any] | None = Depends(get_current_user),
+    hybrid_router: HybridRouter = Depends(get_hybrid_router_provider),
+    logger_instance: "RouteLogger" = Depends(get_logger),
 ):
     """
     Send chat message to Resync AI Assistant.
@@ -231,9 +261,7 @@ async def chat_message(
     is_operator = False
 
     if x_operator_key and settings.operator_api_key:
-        if secrets.compare_digest(
-            x_operator_key, settings.operator_api_key.get_secret_value()
-        ):
+        if secrets.compare_digest(x_operator_key, settings.operator_api_key.get_secret_value()):
             is_operator = True
 
     if settings.is_production and not current_user and not is_operator:
@@ -266,7 +294,16 @@ async def chat_message(
         if x_routing_mode:
             try:
                 force_mode = RoutingMode(x_routing_mode)
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                RuntimeError,
+                TimeoutError,
+                ConnectionError,
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid X-Routing-Mode: {x_routing_mode}",
@@ -386,9 +423,19 @@ async def chat_message(
             },
         )
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
+
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
@@ -398,9 +445,11 @@ async def chat_message(
             detail="Failed to process chat message",
         ) from e
 
+
 @router.post("/chat/analyze", response_model=dict)
 async def analyze_message(
-    request: ChatMessageRequest, logger_instance=Depends(get_logger)
+    request: ChatMessageRequest,
+    logger_instance: "RouteLogger" = Depends(get_logger),
 ):
     """
     Analyze a message without processing it.
@@ -431,9 +480,19 @@ async def analyze_message(
             "suggested_routing": getattr(classification, "suggested_routing", None),
         }
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
+
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
@@ -443,17 +502,28 @@ async def analyze_message(
             detail="Failed to analyze message",
         ) from e
 
+
+class RouteLogger(Protocol):
+    """Minimal logging protocol used by route dependencies."""
+
+    def debug(self, event: str, *args: Any, **kwargs: Any) -> None: ...
+
+    def info(self, event: str, *args: Any, **kwargs: Any) -> None: ...
+
+    def warning(self, event: str, *args: Any, **kwargs: Any) -> None: ...
+
+    def error(self, event: str, *args: Any, **kwargs: Any) -> None: ...
+
+
 @router.get("/chat/history")
 async def chat_history(
     query_params: ChatHistoryQuery = Depends(),
     x_session_id: str | None = Header(None, alias="X-Session-ID"),
     current_user: dict[str, Any] | None = Depends(get_current_user),
-    logger_instance=Depends(get_logger),
+    logger_instance: RouteLogger = Depends(get_logger),
 ):
     """Get chat history for the current session."""
     if not current_user:
-        from fastapi import HTTPException, status
-
         logger_instance.warning("unauthorized_chat_history_access")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -471,9 +541,19 @@ async def chat_history(
                     "session_id": x_session_id,
                     "total_messages": len(context.messages),
                 }
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as exc:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
+
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
@@ -494,15 +574,22 @@ async def chat_history(
         "total_messages": 0,
     }
 
+
 @router.delete("/chat/history")
 async def clear_chat_history(
     query_params: ChatHistoryQuery = Depends(),
     x_session_id: str | None = Header(None, alias="X-Session-ID"),
-    # Temporarily disabled authentication for testing
-    current_user: dict | None = Depends(get_current_user),
-    logger_instance=Depends(get_logger),
+    current_user: dict[str, Any] | None = Depends(get_current_user),
+    logger_instance: RouteLogger = Depends(get_logger),
 ):
     """Clear chat history for the current session."""
+    if not current_user:
+        logger_instance.warning("unauthorized_chat_history_clear_access")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
     # v5.4.1: Clear from memory if session provided
     if x_session_id:
         try:
@@ -513,9 +600,19 @@ async def clear_chat_history(
                 "message": "Chat history cleared successfully",
                 "session_id": x_session_id,
             }
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as exc:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
+
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
@@ -529,6 +626,7 @@ async def clear_chat_history(
 
     logger_instance.info("chat_history_cleared", user_id="test_user")
     return {"message": "Chat history cleared successfully"}
+
 
 @router.get("/chat/intents")
 async def list_supported_intents():

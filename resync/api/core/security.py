@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 import bcrypt
 import logging
 import uuid
@@ -19,15 +19,21 @@ def _get_algorithm() -> str:
     """Lazy accessor — avoids module-level settings cache."""
     return get_settings().jwt_algorithm
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Check if the provided plain text password matches the cryptographic hash."""
     try:
-        if isinstance(hashed_password, str):
-            hashed_password = hashed_password.encode("utf-8")
-        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password)
+        hashed_password_bytes = (
+            hashed_password.encode("utf-8") if isinstance(hashed_password, str) else hashed_password
+        )
+        return cast(
+            bool,
+            bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password_bytes),
+        )
     except (ValueError, TypeError) as exc:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
+
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
@@ -39,19 +45,20 @@ async def verify_password_async(plain_password: str, hashed_password: str) -> bo
     """Async wrapper for verify_password() to avoid blocking the event loop."""
     return await asyncio.to_thread(verify_password, plain_password, hashed_password)
 
+
 async def get_password_hash_async(password: str) -> str:
     """Async wrapper for get_password_hash() to avoid blocking the event loop."""
     return await asyncio.to_thread(get_password_hash, password)
+
 
 def get_password_hash(password: str) -> str:
     """Generate a secure cryptographic hash of the password using bcrypt."""
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
-    return hashed.decode("utf-8")
+    return cast(str, hashed.decode("utf-8"))
 
-def create_access_token(
-    subject: Any, expires_delta: timedelta | None = None
-) -> str:
+
+def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
     """Generate a JWT access token with iss/aud claims."""
     settings = get_settings()
     now = datetime.now(timezone.utc)
@@ -76,7 +83,8 @@ def create_access_token(
         expires_in=None,
     )
 
-def decode_access_token(token: str) -> dict | None:
+
+def decode_access_token(token: str) -> dict[str, Any] | None:
     """Validate and decode a JWT access token."""
     settings = get_settings()
     try:
@@ -92,20 +100,25 @@ def decode_access_token(token: str) -> dict | None:
     except (JWTError, ValidationError):
         return None
 
+
 verify_token = decode_access_token
+
 
 def check_permissions(required_permissions: list[str], user_permissions: list[str]) -> bool:
     """Check if user has required permissions."""
     return all((perm in user_permissions for perm in required_permissions))
 
-def require_permissions(required_permissions: list[str]):
+
+def require_permissions(
+    required_permissions: list[str],
+) -> Any:
     """FastAPI dependency to check user permissions."""
     from fastapi import Depends, HTTPException, status
 
-    def permission_checker(current_user: dict = Depends(get_current_user)):
-        if not check_permissions(
-            required_permissions, current_user.get("permissions", [])
-        ):
+    def permission_checker(
+        current_user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        if not check_permissions(required_permissions, current_user.get("permissions", [])):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
             )
@@ -113,11 +126,14 @@ def require_permissions(required_permissions: list[str]):
 
     return permission_checker
 
-def require_role(required_roles: list[str]):
+
+def require_role(required_roles: list[str]) -> Any:
     """FastAPI dependency to check user role."""
     from fastapi import Depends, HTTPException, status
 
-    def role_checker(current_user: dict = Depends(get_current_user)):
+    def role_checker(
+        current_user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
         user_role = current_user.get("role", "")
         if user_role not in required_roles:
             raise HTTPException(
@@ -128,9 +144,19 @@ def require_role(required_roles: list[str]):
 
     return role_checker
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+
+async def get_current_user(
+    token: str | None = Depends(oauth2_scheme),
+) -> dict[str, Any]:
     """Backend dependency to extract user from token without DB hit."""
     from fastapi import HTTPException, status
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     payload = decode_access_token(token)
     if not payload:
@@ -146,7 +172,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         "permissions": payload.get("permissions", []),
     }
 
-async def verify_token_async(token: str) -> dict | None:
+
+async def verify_token_async(token: str) -> dict[str, Any] | None:
     """Async token verification with optional revocation (enterprise-grade).
 
     - Decodes JWT

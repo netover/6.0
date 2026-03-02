@@ -11,9 +11,15 @@ import logging
 import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 
@@ -21,9 +27,11 @@ from .config import get_database_config
 
 logger = logging.getLogger(__name__)
 
+
 # Base class for all SQLAlchemy models
 class Base(DeclarativeBase):
     """Base class for all database models."""
+
 
 # Module-level engine singleton — intentional for connection pool reuse.
 # _engine_lock guards the lazy initialization only (runs once at startup).
@@ -36,6 +44,7 @@ _engine_lock = threading.Lock()  # Sync lock guards one-time lazy init only
 _active_sessions = 0
 _active_sessions_lock: asyncio.Lock | None = None
 _active_sessions_lock_loop: asyncio.AbstractEventLoop | None = None
+
 
 def _get_active_sessions_lock() -> asyncio.Lock:
     """Return a lock bound to the current running event loop.
@@ -57,21 +66,25 @@ def _get_active_sessions_lock() -> asyncio.Lock:
         _active_sessions_lock_loop = loop
     return _active_sessions_lock
 
+
 _shutdown_event: asyncio.Event | None = None
 
-async def _increment_sessions():
+
+async def _increment_sessions() -> None:
     """Incrementa contador de sessões ativas."""
     global _active_sessions
     async with _get_active_sessions_lock():
         _active_sessions += 1
 
-async def _decrement_sessions():
+
+async def _decrement_sessions() -> None:
     """Decrementa contador de sessões ativas."""
     global _active_sessions
     async with _get_active_sessions_lock():
         _active_sessions -= 1
 
-def get_engine():
+
+def get_engine() -> AsyncEngine:
     """
     Get or create the database engine.
 
@@ -116,7 +129,8 @@ def get_engine():
 
     return _engine
 
-def get_session_factory():
+
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
     """Get or create session factory."""
     global _session_factory
 
@@ -132,9 +146,11 @@ def get_session_factory():
 
     return _session_factory
 
+
 def is_engine_available() -> bool:
     """Check if engine is available (not shut down)."""
     return _engine is not None and _shutdown_event is None
+
 
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -151,9 +167,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         RuntimeError: Se engine está em processo de shutdown.
     """
     if _shutdown_event is not None:
-        raise RuntimeError(
-            "Database engine is shutting down. Cannot create new sessions."
-        )
+        raise RuntimeError("Database engine is shutting down. Cannot create new sessions.")
 
     if _engine is None:
         # Lazy initialization
@@ -169,14 +183,13 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             except asyncio.CancelledError:
                 # Do not swallow cancellations; let the server shut down promptly.
                 raise
-            except Exception as e:
+            except Exception:
                 # Roll back so the connection is clean for pool reuse.
-                if isinstance(e, asyncio.CancelledError):
-                    raise
                 await session.rollback()
                 raise
     finally:
         await _decrement_sessions()
+
 
 @asynccontextmanager
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -186,7 +199,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with get_session() as session:
         yield session
 
-async def close_engine(timeout: float = 30.0):
+
+async def close_engine(timeout: float = 30.0) -> None:
     """
     Close the database engine and all connections with graceful draining.
 
@@ -237,7 +251,8 @@ async def close_engine(timeout: float = 30.0):
         _shutdown_event = None
         _active_sessions = 0
 
-def get_engine_status() -> dict:
+
+def get_engine_status() -> dict[str, Any]:
     """Get engine status information."""
     if _engine is None:
         return {"status": "not_initialized"}

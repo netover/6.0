@@ -39,7 +39,7 @@ import threading
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from enum import Enum
 from typing import Any
 
 import networkx as nx
@@ -53,12 +53,14 @@ except ImportError:
 
     logger = logging.getLogger(__name__)
 
+
 class RelationConfidence(str, Enum):
     """Confidence level for a relationship."""
 
     EXPLICIT = "explicit"
     INFERRED = "inferred"
     TEMPORAL = "temporal"
+
 
 @dataclass
 class TemporalState:
@@ -68,6 +70,7 @@ class TemporalState:
     timestamp: datetime
     state: dict[str, Any]
     source: str = "api"
+
 
 @dataclass
 class VerifiedRelationship:
@@ -81,6 +84,7 @@ class VerifiedRelationship:
     first_seen: datetime | None = None
     last_verified: datetime | None = None
 
+
 @dataclass
 class IntersectionResult:
     """Result of a common neighbor analysis."""
@@ -93,6 +97,7 @@ class IntersectionResult:
     conflict_risk: str
     explanation: str
 
+
 @dataclass
 class NegationResult:
     """Result of a negation/exclusion query."""
@@ -102,6 +107,7 @@ class NegationResult:
     excluded_entities: set[str]
     result_entities: set[str]
     exclusion_reason: str
+
 
 class TemporalGraphManager:
     """
@@ -244,7 +250,10 @@ class TemporalGraphManager:
             # Apply oldest -> newest (best-effort) for determinism
             ordered = sorted(
                 conflicting_states,
-                key=lambda v: (self._extract_ts(v) is None, self._extract_ts(v) or datetime.min.replace(tzinfo=timezone.utc)),
+                key=lambda v: (
+                    self._extract_ts(v) is None,
+                    self._extract_ts(v) or datetime.min.replace(tzinfo=timezone.utc),
+                ),
             )
             for state in ordered:
                 merged.update(state)
@@ -263,6 +272,8 @@ class TemporalGraphManager:
             "total_states": total_states,
             "max_history_per_entity": self.max_history,
         }
+
+
 class NegationQueryEngine:
     """
     Handles negation and exclusion queries using set operations.
@@ -349,9 +360,7 @@ class NegationQueryEngine:
         """
         all_jobs = set(job_status_map.keys())
         excluded_jobs = {
-            job_id
-            for job_id, status in job_status_map.items()
-            if status in excluded_statuses
+            job_id for job_id, status in job_status_map.items() if status in excluded_statuses
         }
         result_jobs = all_jobs - excluded_jobs
         return NegationResult(
@@ -428,6 +437,7 @@ class NegationQueryEngine:
             exclusion_reason=f"Excluded {len(entities_with_property)} entities with {property_name}={property_value}",
         )
 
+
 class CommonNeighborAnalyzer:
     """
     Finds common neighbors/dependencies between entities.
@@ -469,16 +479,8 @@ class CommonNeighborAnalyzer:
         """
         if not self._graph:
             return set()
-        preds_a = (
-            set(nx.ancestors(self._graph, entity_a))
-            if entity_a in self._graph
-            else set()
-        )
-        preds_b = (
-            set(nx.ancestors(self._graph, entity_b))
-            if entity_b in self._graph
-            else set()
-        )
+        preds_a = set(nx.ancestors(self._graph, entity_a)) if entity_a in self._graph else set()
+        preds_b = set(nx.ancestors(self._graph, entity_b)) if entity_b in self._graph else set()
         return preds_a.intersection(preds_b)
 
     def find_common_successors(self, entity_a: str, entity_b: str) -> set[str]:
@@ -494,16 +496,8 @@ class CommonNeighborAnalyzer:
         """
         if not self._graph:
             return set()
-        succs_a = (
-            set(nx.descendants(self._graph, entity_a))
-            if entity_a in self._graph
-            else set()
-        )
-        succs_b = (
-            set(nx.descendants(self._graph, entity_b))
-            if entity_b in self._graph
-            else set()
-        )
+        succs_a = set(nx.descendants(self._graph, entity_a)) if entity_a in self._graph else set()
+        succs_b = set(nx.descendants(self._graph, entity_b)) if entity_b in self._graph else set()
         return succs_a.intersection(succs_b)
 
     def find_common_direct_neighbors(self, entity_a: str, entity_b: str) -> set[str]:
@@ -613,6 +607,7 @@ class CommonNeighborAnalyzer:
                     dependency_count[pred] += 1
         return {dep: count for dep, count in dependency_count.items() if count > 1}
 
+
 class EdgeVerificationEngine:
     """
     Verifies graph edges to reduce false-link hallucination.
@@ -637,7 +632,9 @@ class EdgeVerificationEngine:
         self._max_evidence_per_edge = max_evidence_per_edge
 
         # Use OrderedDict to support FIFO eviction.
-        self._verified_edges: OrderedDict[tuple[str, str, str], VerifiedRelationship] = OrderedDict()
+        self._verified_edges: OrderedDict[tuple[str, str, str], VerifiedRelationship] = (
+            OrderedDict()
+        )
         self._co_occurrences: OrderedDict[str, set[str]] = OrderedDict()
 
     def _evict_verified_edges_if_needed(self) -> None:
@@ -822,6 +819,8 @@ class EdgeVerificationEngine:
             "max_co_occurrence_keys": self._max_co_occurrence_keys,
             "max_co_occurrences_per_key": self._max_co_occurrences_per_key,
         }
+
+
 class AdvancedGraphQueryService:
     """
     Unified service combining all 4 advanced query techniques.
@@ -934,14 +933,11 @@ class AdvancedGraphQueryService:
     def find_shared_bottlenecks(self, job_list: list[str]) -> dict[str, Any]:
         """Find dependencies shared by multiple jobs."""
         bottlenecks = self.intersection.find_bottleneck_dependencies(job_list)
-        sorted_bottlenecks = sorted(
-            bottlenecks.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_bottlenecks = sorted(bottlenecks.items(), key=lambda x: x[1], reverse=True)
         return {
             "analyzed_jobs": len(job_list),
             "bottlenecks": [
-                {"dependency": dep, "used_by_jobs": count}
-                for dep, count in sorted_bottlenecks[:10]
+                {"dependency": dep, "used_by_jobs": count} for dep, count in sorted_bottlenecks[:10]
             ],
             "total_shared_dependencies": len(bottlenecks),
         }
@@ -995,8 +991,10 @@ class AdvancedGraphQueryService:
             "graph_edges": self._graph.number_of_edges() if self._graph else 0,
         }
 
+
 _advanced_query_service: AdvancedGraphQueryService | None = None
 _service_lock = threading.Lock()
+
 
 def get_advanced_query_service(
     graph: nx.DiGraph | None = None,

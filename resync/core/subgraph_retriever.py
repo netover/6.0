@@ -14,6 +14,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+
 class SubgraphRetriever:
     """
     Retrieves knowledge subgraphs for GraphRAG applications.
@@ -79,32 +80,26 @@ class SubgraphRetriever:
             if hasattr(self.kg, "get_subgraph"):
                 subgraph = await self.kg.get_subgraph(
                     seed_node_ids=[job_name],
-                    max_depth=max_depth,
-                    max_edges=max_edges,
+                    max_depth=depth,
+                    max_edges=100,
                 )
                 return {"job": job_name, "subgraph": subgraph}
             logger.warning("subgraph_backend_missing_get_subgraph")
             return {"job": job_name, "subgraph": {"nodes": [], "edges": []}}
 
-            # Structure the result
-            context = self._structure_job_context(result)
-
-            # Cache for 1 hour
-            self.cache[cache_key] = context
-
-            logger.info(
-                "Subgraph retrieved",
-                job_name=job_name,
-                dependencies=len(context.get("dependencies", [])),
-                errors=len(context.get("errors", [])),
-                solutions=len(context.get("solutions", [])),
-            )
-
-            return context
-
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
+
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
@@ -163,18 +158,12 @@ class SubgraphRetriever:
 
         return {
             "job": row.get("job", {}),
-            "dependencies": [
-                self._node_to_dict(dep) for dep in row.get("dependencies", []) if dep
-            ],
+            "dependencies": [self._node_to_dict(dep) for dep in row.get("dependencies", []) if dep],
             "workstation": self._node_to_dict(row.get("workstation")),
             "errors": [self._node_to_dict(err) for err in row.get("errors", []) if err],
-            "solutions": [
-                self._node_to_dict(sol) for sol in row.get("solutions", []) if sol
-            ],
+            "solutions": [self._node_to_dict(sol) for sol in row.get("solutions", []) if sol],
             "executions": [
-                self._node_to_dict(exec_)
-                for exec_ in row.get("executions", [])
-                if exec_
+                self._node_to_dict(exec_) for exec_ in row.get("executions", []) if exec_
             ],
         }
 
@@ -266,6 +255,7 @@ class SubgraphRetriever:
         """Clear subgraph cache."""
         self.cache.clear()
         logger.info("Subgraph cache cleared")
+
 
 def get_subgraph_retriever(knowledge_graph):
     """

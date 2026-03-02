@@ -1,4 +1,5 @@
 from resync.core.logging_setup import configure_logging
+
 """
 Application factory for creating and configuring the FastAPI application.
 
@@ -25,10 +26,16 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from slowapi.errors import RateLimitExceeded
-from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response  # [P3-01] FileResponse from starlette.responses
+from starlette.responses import (
+    FileResponse,
+    HTMLResponse,
+    RedirectResponse,
+    Response,
+)  # [P3-01] FileResponse from starlette.responses
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 from starlette.types import Scope
 
+from resync.core.security.rate_limiter_v2 import RateLimitMiddleware
 from resync.core.structured_logger import configure_structured_logging, get_logger
 
 if TYPE_CHECKING:
@@ -112,9 +119,7 @@ class CachedStaticFiles(StarletteStaticFiles):
             # Generate ETag from file metadata for cache validation
             try:
                 # Reuse stat_result from FileResponse if available (avoid double I/O)
-                if isinstance(response, FileResponse) and getattr(
-                    response, "stat_result", None
-                ):
+                if isinstance(response, FileResponse) and getattr(response, "stat_result", None):
                     st = response.stat_result
                     file_metadata = f"{st.st_size}-{int(st.st_mtime)}"
                 else:
@@ -223,8 +228,7 @@ class ApplicationFactory:
             max_sz = self.settings.redis_pool_max_size
             min_sz = self.settings.redis_pool_min_size
             raise ValueError(
-                "redis_pool_max_age "
-                f"({max_sz}) must be >= redis_pool_min_size ({min_sz})"
+                f"redis_pool_max_age ({max_sz}) must be >= redis_pool_min_size ({min_sz})"
             )
 
         # Production-specific validations
@@ -240,9 +244,7 @@ class ApplicationFactory:
                 else ""
             )
             if not admin_pw or len(admin_pw.strip()) < min_pw_len:
-                errors.append(
-                    f"ADMIN_PASSWORD must be set (>= {min_pw_len} chars) in production"
-                )
+                errors.append(f"ADMIN_PASSWORD must be set (>= {min_pw_len} chars) in production")
             elif admin_pw.strip().lower() in {
                 "change_me_please",
                 "admin",
@@ -251,17 +253,9 @@ class ApplicationFactory:
                 errors.append("Insecure admin password in production")
 
             # JWT secret key
-            secret = (
-                self.settings.secret_key.get_secret_value() if self.settings.secret_key else ""
-            )
-            if (
-                not secret
-                or len(secret.strip()) < min_sk_len
-                or ("CHANGE_ME" in secret.upper())
-            ):
-                errors.append(
-                    f"SECRET_KEY must be set (>= {min_sk_len} chars) in production"
-                )
+            secret = self.settings.secret_key.get_secret_value() if self.settings.secret_key else ""
+            if not secret or len(secret.strip()) < min_sk_len or ("CHANGE_ME" in secret.upper()):
+                errors.append(f"SECRET_KEY must be set (>= {min_sk_len} chars) in production")
 
             # Debug must remain disabled
             if getattr(self.settings, "debug", False):
@@ -352,11 +346,7 @@ class ApplicationFactory:
                 if trusted_hosts_env:
                     from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-                    allowed_hosts = [
-                        h.strip()
-                        for h in trusted_hosts_env.split(",")
-                        if h.strip()
-                    ]
+                    allowed_hosts = [h.strip() for h in trusted_hosts_env.split(",") if h.strip()]
                     self.app.add_middleware(
                         TrustedHostMiddleware,
                         allowed_hosts=allowed_hosts,
@@ -380,9 +370,19 @@ class ApplicationFactory:
                         ProxyHeadersMiddleware,
                         trusted_hosts=proxy_trusted,
                     )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
+
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
@@ -409,6 +409,7 @@ class ApplicationFactory:
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
+
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
@@ -425,9 +426,7 @@ class ApplicationFactory:
         # Convert list of regex patterns to a single regex string when provided.
         allow_origin_regex = None
         if getattr(cors_policy, "origin_regex_patterns", None):
-            allow_origin_regex = "|".join(
-                f"(?:{p})" for p in cors_policy.origin_regex_patterns
-            )
+            allow_origin_regex = "|".join(f"(?:{p})" for p in cors_policy.origin_regex_patterns)
 
         self.app.add_middleware(
             LoggingCORSMiddleware,
@@ -448,11 +447,7 @@ class ApplicationFactory:
                 from resync.api.middleware.csrf_protection import CSRFMiddleware
 
                 sk = getattr(self.settings, "secret_key", None)
-                secret_value = (
-                    sk.get_secret_value()
-                    if isinstance(sk, SecretStr)
-                    else str(sk or "")
-                )
+                secret_value = sk.get_secret_value() if isinstance(sk, SecretStr) else str(sk or "")
                 if secret_value:
                     self.app.add_middleware(CSRFMiddleware, secret_key=secret_value)
                     logger.info("csrf_middleware_registered")
@@ -558,14 +553,10 @@ class ApplicationFactory:
                 self.app.include_router(router)
             except ImportError as e:
                 if self.settings.is_development:
-                    logger.error(
-                        "route_import_failed_dev", module=module_path, error=str(e)
-                    )
+                    logger.error("route_import_failed_dev", module=module_path, error=str(e))
                     raise
                 else:
-                    logger.warning(
-                        "route_import_failed_prod", module=module_path, error=str(e)
-                    )
+                    logger.warning("route_import_failed_prod", module=module_path, error=str(e))
 
         # Additional routers from main_improved
         try:
@@ -590,9 +581,7 @@ class ApplicationFactory:
             self.app.include_router(enhanced_router)
             self.app.include_router(orchestration_router, prefix="/api/v1")
             logger.info("enhanced_endpoints_registered", prefix="/api/v2")
-            logger.info(
-                "orchestration_router_registered", prefix="/api/v1/orchestration"
-            )
+            logger.info("orchestration_router_registered", prefix="/api/v1/orchestration")
         except ImportError as e:
             if self.settings.is_development:
                 logger.error("enhanced_endpoints_not_available", error=str(e))
@@ -604,9 +593,7 @@ class ApplicationFactory:
             from resync.api.graphrag_admin import router as graphrag_admin_router
 
             self.app.include_router(graphrag_admin_router)
-            logger.info(
-                "graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag"
-            )
+            logger.info("graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag")
         except ImportError as e:
             if self.settings.is_development:
                 logger.error("graphrag_admin_not_available", error=str(e))
@@ -618,9 +605,7 @@ class ApplicationFactory:
             from resync.api.document_kg_admin import router as dkg_admin_router
 
             self.app.include_router(dkg_admin_router)
-            logger.info(
-                "document_kg_admin_endpoints_registered", prefix="/api/admin/kg"
-            )
+            logger.info("document_kg_admin_endpoints_registered", prefix="/api/admin/kg")
         except ImportError as e:
             if self.settings.is_development:
                 logger.error("document_kg_admin_not_available", error=str(e))
@@ -702,6 +687,7 @@ class ApplicationFactory:
             from resync.api.routes.monitoring.ai_monitoring import (
                 router as ai_monitoring_router,
             )
+
             # prometheus_exporter_router already imported and registered above
             from resync.api.routes.monitoring.metrics_dashboard import (
                 router as metrics_dashboard_router,
@@ -822,9 +808,7 @@ class ApplicationFactory:
             return
 
         # Mount main static directory with caching
-        self.app.mount(
-            "/static", CachedStaticFiles(directory=str(static_dir)), name="static"
-        )
+        self.app.mount("/static", CachedStaticFiles(directory=str(static_dir)), name="static")
 
         logger.info("static_files_mounted", directory=str(static_dir))
 
@@ -872,16 +856,23 @@ class ApplicationFactory:
                             "csp_report_payload_rejected",
                             size=body_size,
                             max_allowed=_MAX_CSP_PAYLOAD_SIZE,
-                            client_host=request.client.host
-                            if request.client
-                            else "unknown",
+                            client_host=request.client.host if request.client else "unknown",
                         )
                         return JSONResponse(
                             {"status": "ignored", "reason": "payload_too_large"},
                             status_code=413,
                         )
                     chunks.append(chunk)
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # noqa: BLE001
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                RuntimeError,
+                TimeoutError,
+                ConnectionError,
+            ) as e:  # noqa: BLE001
                 logger.error("csp_report_stream_error", error=str(e))
                 return JSONResponse(
                     {"status": "ignored", "reason": "stream_error"},
@@ -933,18 +924,14 @@ class ApplicationFactory:
             HTTPException: 500 if CSP nonce is missing in production (fail-closed)
         """
         if not self.templates:
-            raise HTTPException(
-                status_code=500, detail="Template engine not configured"
-            )
+            raise HTTPException(status_code=500, detail="Template engine not configured")
 
         nonce = getattr(request.state, "csp_nonce", None)
 
         if self.settings.is_production:
             if not nonce:
                 logger.critical("csp_nonce_missing_prod", template=template_name)
-                raise HTTPException(
-                    status_code=500, detail="Security middleware failed"
-                )
+                raise HTTPException(status_code=500, detail="Security middleware failed")
             if not isinstance(nonce, str) or len(nonce) < _MIN_CSP_NONCE_LENGTH:
                 logger.critical(
                     "csp_nonce_invalid_prod",
@@ -954,9 +941,7 @@ class ApplicationFactory:
                     nonce_length=len(nonce) if isinstance(nonce, str) else 0,
                     required_length=_MIN_CSP_NONCE_LENGTH,
                 )
-                raise HTTPException(
-                    status_code=500, detail="Security middleware failed"
-                )
+                raise HTTPException(status_code=500, detail="Security middleware failed")
 
         try:
             nonce_value = nonce or ""
@@ -976,11 +961,18 @@ class ApplicationFactory:
             raise HTTPException(
                 status_code=404, detail=f"Template {template_name} not found"
             ) from None
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # noqa: BLE001
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:  # noqa: BLE001
             logger.error("template_render_error", template=template_name, error=str(e))
-            raise HTTPException(
-                status_code=500, detail="Internal server error"
-            ) from None
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
 
 def create_app() -> FastAPI:
