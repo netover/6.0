@@ -369,7 +369,8 @@ class SecureAuthenticator:
 
             -- Record failed attempt (only if not success)
             if not success and is_locked == 0 then
-                redis.call('ZADD', key, now, tostring(now))
+                local nonce = ARGV[6]
+                redis.call('ZADD', key, now, tostring(now) .. ':' .. nonce)
                 redis.call('EXPIRE', key, lockout_duration * 2)
                 count = count + 1
             end
@@ -386,6 +387,7 @@ class SecureAuthenticator:
                 str(self._max_attempts),
                 str(self._lockout_duration_seconds),
                 str(success),
+                secrets.token_hex(8),
             )
 
             is_locked = bool(result[0])

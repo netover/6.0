@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database.session import get_db
@@ -198,7 +198,7 @@ async def teams_outgoing_webhook_endpoint(
     # Parse mensagem
     try:
         message = TeamsMessage.model_validate_json(body_bytes)
-    except Exception as e:
+    except ValidationError as e:
         logger.error("teams_webhook_invalid_message_format", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -245,6 +245,8 @@ async def teams_outgoing_webhook_endpoint(
 
         return TeamsResponse(text=answer)
 
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.error(
             "teams_webhook_processing_error",

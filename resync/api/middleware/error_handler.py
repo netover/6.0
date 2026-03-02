@@ -48,7 +48,7 @@ class GlobalExceptionHandlerMiddleware:
             return
 
         correlation_id = generate_correlation_id()
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Ensure `request.state` works (Starlette uses scope["state"]).
         scope.setdefault("state", {})
@@ -58,7 +58,7 @@ class GlobalExceptionHandlerMiddleware:
 
         try:
             await self.app(scope, receive, send)
-            processing_time = time.time() - start_time
+            processing_time = time.perf_counter() - start_time
             if processing_time > 1.0:
                 logger.warning(
                     "Slow request detected: %s %s took %.2fs",
@@ -75,13 +75,13 @@ class GlobalExceptionHandlerMiddleware:
 
         except RequestValidationError as exc:
             response = await self._handle_validation_error(request, exc, correlation_id)
-            self._dispatch_log_error_metrics(exc.__class__.__name__, time.time() - start_time)
+            self._dispatch_log_error_metrics(exc.__class__.__name__, time.perf_counter() - start_time)
             await response(scope, receive, send)
             return
 
         except ResyncException as exc:
             response = await self._handle_resync_exception(request, exc, correlation_id)
-            self._dispatch_log_error_metrics(exc.__class__.__name__, time.time() - start_time)
+            self._dispatch_log_error_metrics(exc.__class__.__name__, time.perf_counter() - start_time)
             await response(scope, receive, send)
             return
 
@@ -92,7 +92,7 @@ class GlobalExceptionHandlerMiddleware:
                 extra={"error": str(exc), "correlation_id": correlation_id},
             )
             response = await self._handle_generic_exception(request, exc, correlation_id)
-            self._dispatch_log_error_metrics(exc.__class__.__name__, time.time() - start_time)
+            self._dispatch_log_error_metrics(exc.__class__.__name__, time.perf_counter() - start_time)
             await response(scope, receive, send)
             return
 

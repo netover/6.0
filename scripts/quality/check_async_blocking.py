@@ -1,26 +1,41 @@
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
-BAD = [re.compile(r"\btime\.sleep\(")]
+
+def _async_functions_with_sleep(source: str) -> bool:
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncFunctionDef):
+            for child in ast.walk(node):
+                if not isinstance(child, ast.Call):
+                    continue
+                func = child.func
+                if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+                    if func.value.id == "time" and func.attr == "sleep":
+                        return True
+    return False
+
 
 def main() -> int:
-    bad = []
+    bad: list[Path] = []
     for p in Path("resync").rglob("*.py"):
         if "__pycache__" in str(p):
             continue
         txt = p.read_text(encoding="utf-8", errors="replace")
-        if "async def" not in txt:
+        try:
+            has_blocking_sleep = _async_functions_with_sleep(txt)
+        except SyntaxError:
             continue
-        for rx in BAD:
-            if rx.search(txt):
-                bad.append((p, rx.pattern))
+        if has_blocking_sleep:
+            bad.append(p)
     if bad:
-        for p, pat in bad:
-            print(f"Async blocking pattern {pat} in {p}")
+        for p in bad:
+            print(f"Async blocking pattern time.sleep() in async function at {p}")
         return 2
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
