@@ -226,9 +226,13 @@ def configure_structured_logging(
         add_service_context,
         protect_log_injection,
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
         censor_sensitive_data,
     ]
+
+    # Keep pretty exceptions in development console output.
+    # format_exc_info is only needed for JSON pipelines and emits a warning with ConsoleRenderer.
+    if not (development_mode or not json_logs):
+        shared_processors.append(structlog.processors.format_exc_info)
 
     renderer: Any
     if development_mode or not json_logs:

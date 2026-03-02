@@ -29,7 +29,9 @@ import os
 import re
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -89,11 +91,39 @@ class SlidingWindowLimiter:
     def __init__(self) -> None:
         self._events: dict[str, deque[float]] = {}
         self._lock = asyncio.Lock()
+        self._cleanup_task: asyncio.Task[None] | None = None
+        self._cleanup_interval_seconds = 300
+        self._stale_after_seconds = max(3600, API_LIMIT_WINDOW_SECONDS * 10)
+
+    def _ensure_cleanup_task(self) -> None:
+        """Start best-effort background cleanup task once per worker process."""
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    async def _cleanup_loop(self) -> None:
+        """Evict stale limiter keys to avoid unbounded memory growth."""
+        while True:
+            await asyncio.sleep(self._cleanup_interval_seconds)
+            now = time.monotonic()
+            stale_cutoff = now - float(self._stale_after_seconds)
+
+            async with self._lock:
+                stale_keys = []
+                for key, events in self._events.items():
+                    if not events:
+                        stale_keys.append(key)
+                        continue
+                    if events[-1] < stale_cutoff:
+                        stale_keys.append(key)
+
+                for stale_key in stale_keys:
+                    self._events.pop(stale_key, None)
 
     async def allow(self, key: str, limit: Limit) -> tuple[bool, int]:
         """
         Returns: (allowed, retry_after_seconds)
         """
+        self._ensure_cleanup_task()
         now = time.monotonic()
         cutoff = now - float(limit.window_seconds)
 
@@ -106,6 +136,12 @@ class SlidingWindowLimiter:
             # evict old
             while q and q[0] < cutoff:
                 q.popleft()
+
+            if not q:
+                # Key became idle after eviction; free memory eagerly.
+                self._events.pop(key, None)
+                q = deque()
+                self._events[key] = q
 
             if len(q) < limit.requests:
                 q.append(now)
@@ -205,7 +241,20 @@ def setup_rate_limiting(app) -> None:
 # Usage: @rate_limit("30/minute")
 # =============================================================================
 
-def rate_limit(limit_str: str):
+
+def _resolve_request(*args: Any, **kwargs: Any) -> Request:
+    """Resolve a Starlette Request from decorated endpoint arguments."""
+    request = kwargs.get("request")
+    if isinstance(request, Request):
+        return request
+
+    for arg in args:
+        if isinstance(arg, Request):
+            return arg
+
+    raise RuntimeError("rate_limit decorator requires a Request parameter")
+
+def rate_limit(limit_str: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator: apply a sliding-window rate limit to an endpoint.
 
     Args:
@@ -232,12 +281,13 @@ def rate_limit(limit_str: str):
     lim = _parse(limit_str)
     _limiter = SlidingWindowLimiter()
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if not RATE_LIMIT_ENABLED:
             return func
 
         @functools.wraps(func)
-        async def wrapper(request: "Request", *args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            request = _resolve_request(*args, **kwargs)
             ip = _client_ip(request)
             key = f"rl:{func.__name__}:{ip}"
             allowed, retry_after = await _limiter.allow(key, lim)
@@ -248,13 +298,13 @@ def rate_limit(limit_str: str):
                     status_code=429,
                     headers={"Retry-After": str(retry_after)},
                 )
-            return await func(request, *args, **kwargs)
+            return await func(*args, **kwargs)
 
         return wrapper
     return decorator
 
 
-def rate_limit_auth(func):
+def rate_limit_auth(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator: apply the auth-specific rate limit to an endpoint.
 
     Uses ``AUTH_LIMIT_REQUESTS / AUTH_LIMIT_WINDOW_SECONDS`` from config.
@@ -266,7 +316,8 @@ def rate_limit_auth(func):
     _lim = Limit(requests=AUTH_LIMIT_REQUESTS, window_seconds=AUTH_LIMIT_WINDOW_SECONDS)
 
     @functools.wraps(func)
-    async def wrapper(request: "Request", *args, **kwargs):
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        request = _resolve_request(*args, **kwargs)
         ip = _client_ip(request)
         key = f"rl_auth:{ip}"
         allowed, retry_after = await _limiter.allow(key, _lim)
@@ -277,6 +328,6 @@ def rate_limit_auth(func):
                 status_code=429,
                 headers={"Retry-After": str(retry_after)},
             )
-        return await func(request, *args, **kwargs)
+        return await func(*args, **kwargs)
 
     return wrapper

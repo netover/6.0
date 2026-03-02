@@ -9,24 +9,29 @@ from resync.core.orchestration.agent_adapter import AgentAdapter
 from resync.core.orchestration.events import EventType, OrchestrationEvent
 from resync.core.orchestration.runner import OrchestrationRunner
 from resync.core.orchestration.schemas import (
-    OrchestrationRequest,
-    OrchestrationResponse,
-    TaskDefinition,
+    StepConfig,
+    StepDependency,
+    StepType,
+    WorkflowConfig,
 )
 from resync.core.orchestration.strategies import (
-    OrchestrationStrategy,
+    ExecutionStrategy,
     ParallelStrategy,
     SequentialStrategy,
 )
+
+# Backward-compatible alias used by older imports.
+OrchestrationStrategy = ExecutionStrategy
 
 __all__ = [
     "AgentAdapter",
     "OrchestrationEvent",
     "EventType",
     "OrchestrationRunner",
-    "OrchestrationRequest",
-    "OrchestrationResponse",
-    "TaskDefinition",
+    "StepType",
+    "StepDependency",
+    "StepConfig",
+    "WorkflowConfig",
     "OrchestrationStrategy",
     "SequentialStrategy",
     "ParallelStrategy",

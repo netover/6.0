@@ -138,7 +138,7 @@ async def get_redis_connection() -> Redis | None:
         """Synchronous Redis connection logic."""
         try:
             redis_client = Redis.from_url(
-                settings.REDIS_URL,
+                settings.redis_url.get_secret_value(),
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,

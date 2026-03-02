@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import Text, and_, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from resync.core.database.models import (
@@ -266,13 +266,13 @@ class AuditEntryRepository(TimestampedRepository[AuditEntry]):
             if entity_type:
                 filters.append(AuditEntry.entity_type == entity_type)
 
-            # Keyword search in action, entity_type and metadata (JSONB)
+            # Keyword search restricted to textual columns.
             keyword = f"%{query}%"
             search_filters = or_(
                 AuditEntry.action.ilike(keyword),
                 AuditEntry.entity_type.ilike(keyword),
-                # Search in JSONB metadata by casting to text
-                func.cast(AuditEntry.metadata_, Text).ilike(keyword),
+                AuditEntry.user_id.ilike(keyword),
+                AuditEntry.entity_id.ilike(keyword),
             )
             filters.append(search_filters)
 
@@ -323,9 +323,14 @@ class AuditQueueRepository(BaseRepository[AuditQueueItem]):
     async def mark_failed(
         self, item_id: int, error_message: str
     ) -> AuditQueueItem | None:
-        """Mark item as failed."""
+        """Mark item as failed with row-level locking."""
         async with self._get_session() as session:
-            item = await session.get(AuditQueueItem, item_id)
+            result = await session.execute(
+                select(AuditQueueItem)
+                .where(AuditQueueItem.id == item_id)
+                .with_for_update()
+            )
+            item = result.scalar_one_or_none()
             if item:
                 item.retry_count += 1
                 item.error_message = error_message
@@ -334,7 +339,6 @@ class AuditQueueRepository(BaseRepository[AuditQueueItem]):
                 else:
                     item.status = "pending"
                 await session.commit()
-                await session.refresh(item)
             return item
 
 # =============================================================================
