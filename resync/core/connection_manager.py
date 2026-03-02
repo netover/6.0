@@ -162,14 +162,11 @@ class ConnectionManager:
         # HARDENING [P0]: asyncio.TaskGroup previne HoL blocking
         # e garante concorrência estruturada.
         # Um cliente lento ou com erro de rede não atrasa o envio para os demais.
-        tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(
-                        tg.create_task(
-                            connection.send_text(message), name=f"broadcast_text_{idx}"
-                        )
+                    tg.create_task(
+                        connection.send_text(message), name=f"broadcast_text_{idx}"
                     )
         except* asyncio.CancelledError:
             raise
@@ -205,14 +202,11 @@ class ConnectionManager:
         logger.info("Broadcasting JSON data to %d clients.", len(connections))
         # HARDENING [P0]: TaskGroup para concorrência real
         # e isolamento de falhas estruturado
-        tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(
-                        tg.create_task(
-                            connection.send_json(data), name=f"broadcast_json_{idx}"
-                        )
+                    tg.create_task(
+                        connection.send_json(data), name=f"broadcast_json_{idx}"
                     )
         except* asyncio.CancelledError:
             raise

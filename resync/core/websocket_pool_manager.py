@@ -142,7 +142,6 @@ class WebSocketPoolManager:
                 await self._recompute_health_snapshot()
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -308,7 +307,7 @@ class WebSocketPoolManager:
         # Accept the network connection (I/O, outside lock).
         try:
             await websocket.accept()
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        except BaseException:
             async with self._lock:
                 self._pending_accepts = max(self._pending_accepts - 1, 0)
             raise

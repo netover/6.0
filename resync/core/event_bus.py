@@ -175,6 +175,7 @@ class EventBus:
         self._dropped_events: int = 0
 
         # Primitivas asyncio — inicializadas em start(), não aqui
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._websocket_lock: asyncio.Lock | None = None
         self._event_queue: asyncio.Queue[dict[str, Any]] | None = None
         self._processor_task: asyncio.Task | None = None
@@ -204,7 +205,7 @@ class EventBus:
 
         # Guard obrigatório — asyncio.Lock/Queue exigem loop ativo no Python 3.10+
         try:
-            asyncio.get_running_loop()
+            self._loop = asyncio.get_running_loop()
         except RuntimeError:
             raise RuntimeError(
                 "EventBus.start() deve ser chamado em contexto "
@@ -419,7 +420,7 @@ class EventBus:
                    (model_dump), objetos com to_dict(), dicts ou qualquer
                    objeto (convertido via str).
         """
-        if self._event_queue is None:
+        if self._event_queue is None or self._loop is None:
             raise RuntimeError("EventBus não iniciado. Chame start() primeiro.")
 
         # Serialização com suporte a Pydantic v2 como prioridade
@@ -435,22 +436,29 @@ class EventBus:
         if "timestamp" not in event_data:
             event_data["timestamp"] = datetime.now(timezone.utc).isoformat()
 
-        # Tenta enfileirar — falha graciosamente sob pressão
-        try:
-            self._event_queue.put_nowait(event_data)
-        except asyncio.QueueFull:
-            self._dropped_events += 1
-            logger.error(
-                "event_queue_full_dropped",
-                event_type=event_data.get("event_type", "unknown"),
-                dropped_total=self._dropped_events,
-                queue_maxsize=self.config.max_queue_size,
-            )
-            return  # Não adiciona ao histórico — mantém consistência
+        def _enqueue() -> None:
+            try:
+                self._event_queue.put_nowait(event_data)
+                self._event_history.append(event_data)
+                self._events_published += 1
+            except asyncio.QueueFull:
+                self._dropped_events += 1
+                logger.error(
+                    "event_queue_full_dropped",
+                    event_type=event_data.get("event_type", "unknown"),
+                    dropped_total=self._dropped_events,
+                    queue_maxsize=self.config.max_queue_size,
+                )
 
-        # Histórico e métrica apenas após enfileiramento bem-sucedido
-        self._event_history.append(event_data)
-        self._events_published += 1
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
+        if current_loop is self._loop:
+            _enqueue()
+        else:
+            self._loop.call_soon_threadsafe(_enqueue)
 
     def publish_batch(self, events: list[Any]) -> None:
         """Publica múltiplos eventos sequencialmente."""
