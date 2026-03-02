@@ -16,7 +16,7 @@ Note:
 """
 
 import asyncio
-import random
+import secrets
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -212,7 +212,7 @@ class ServiceOrchestrator:
                     )
                     raise
                 delay = min(2**attempt, _MAX_BACKOFF_SECONDS)
-                jitter = random.uniform(0, delay * 0.5)  # noqa: S311
+                jitter = (secrets.randbelow(1_000_000) / 1_000_000) * (delay * 0.5)
                 logger.warning(
                     "service_call_retrying",
                     task=name,
