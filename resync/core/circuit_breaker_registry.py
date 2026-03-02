@@ -40,7 +40,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import structlog
 
@@ -446,7 +446,7 @@ def get_registry() -> CircuitBreakerRegistry:
 def circuit_protected(
     cb_type: CircuitBreakers,
     fallback: Callable[..., Any] | None = None,
-):
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """
     Decorator to protect a function with a circuit breaker.
 
@@ -468,7 +468,7 @@ def circuit_protected(
         cb = get_circuit_breaker(cb_type)
 
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             try:
                 return await cb.call(func, *args, **kwargs)
             except CircuitBreakerError:
@@ -479,16 +479,17 @@ def circuit_protected(
                         circuit=cb_type.value,
                     )
                     if inspect.iscoroutinefunction(fallback):
-                        return await fallback(*args, **kwargs)
+                        async_fallback = cast(Callable[..., Awaitable[T]], fallback)
+                        return await async_fallback(*args, **kwargs)
                     fallback_result = fallback(*args, **kwargs)
                     if inspect.isawaitable(fallback_result):
-                        return await fallback_result
-                    return fallback_result
+                        return await cast(Awaitable[T], fallback_result)
+                    return cast(T, fallback_result)
                 raise
 
         # Expose circuit breaker for inspection
-        wrapper.circuit_breaker = cb
-        wrapper.circuit_type = cb_type
+        setattr(wrapper, "circuit_breaker", cb)
+        setattr(wrapper, "circuit_type", cb_type)
         return wrapper
 
     return decorator
@@ -496,7 +497,7 @@ def circuit_protected(
 def multi_circuit_protected(
     primary: CircuitBreakers,
     fallback_circuits: list[CircuitBreakers],
-):
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """
     Decorator for functions that should try multiple circuits.
 
@@ -522,7 +523,7 @@ def multi_circuit_protected(
         all_circuits = [primary] + fallback_circuits
 
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             last_error = None
 
             for cb_type in all_circuits:
@@ -590,6 +591,11 @@ class CircuitBreakerContext:
         self.cb = get_circuit_breaker(self.cb_type)
         return self.cb
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object | None,
+    ) -> bool:
         # Don't suppress exceptions
         return False

@@ -136,7 +136,9 @@ class CircuitBreaker:
                     self._lock = asyncio.Lock()
         return self._lock
 
-    async def call(self, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    async def call(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """
         Executa função através do circuit breaker
 
@@ -308,11 +310,13 @@ class RetryWithBackoff:
     e jitter para evitar thundering herd.
     """
 
-    def __init__(self, config: RetryConfig):
+    def __init__(self, config: RetryConfig) -> None:
         self.config = config
         self.metrics = RetryMetrics()
 
-    async def execute(self, func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    async def execute(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """Execute an async operation with retries.
 
         This implementation is consolidated on **tenacity** (same library used
@@ -329,7 +333,7 @@ class RetryWithBackoff:
             )
         )
 
-        def _before_sleep(retry_state):
+        def _before_sleep(retry_state: Any) -> None:
             # tenacity provides the computed sleep duration in seconds.
             sleep_s = float(getattr(retry_state, "idle_for", 0.0) or 0.0)
             self.metrics.total_retry_delay += sleep_s
@@ -439,9 +443,9 @@ class TimeoutManager:
 def circuit_breaker(
     failure_threshold: int = 5,
     recovery_timeout: int = 60,
-    expected_exception: type = Exception,
+    expected_exception: type[BaseException] | tuple[type[BaseException], ...] = Exception,
     name: str | None = None,
-):
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """
     Decorador para aplicar Circuit Breaker
 
@@ -463,12 +467,12 @@ def circuit_breaker(
         breaker = CircuitBreaker(config)
 
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             return await breaker.call(func, *args, **kwargs)
 
         # Expor circuit breaker para monitoramento
-        wrapper.circuit_breaker = breaker  # type: ignore[attr-defined]
-        return wrapper  # type: ignore[return-value]
+        setattr(wrapper, "circuit_breaker", breaker)
+        return wrapper
 
     return decorator
 
@@ -478,8 +482,8 @@ def retry_with_backoff(
     max_delay: float = 60.0,
     exponential_base: float = 2.0,
     jitter: bool = True,
-    expected_exceptions: tuple = (Exception,),
-):
+    expected_exceptions: tuple[type[BaseException], ...] = (Exception,),
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """
     Decorador para aplicar retry com exponential backoff
 
@@ -504,16 +508,18 @@ def retry_with_backoff(
         retry = RetryWithBackoff(config)
 
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             return await retry.execute(func, *args, **kwargs)
 
         # Expor retry handler para monitoramento
-        wrapper.retry_handler = retry  # type: ignore[attr-defined]
-        return wrapper  # type: ignore[return-value]
+        setattr(wrapper, "retry_handler", retry)
+        return wrapper
 
     return decorator
 
-def with_timeout(timeout_seconds: float, timeout_exception: Exception | None = None):
+def with_timeout(
+    timeout_seconds: float, timeout_exception: Exception | None = None
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """
     Decorador para aplicar timeout
 
@@ -524,7 +530,7 @@ def with_timeout(timeout_seconds: float, timeout_exception: Exception | None = N
 
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             return await TimeoutManager.with_timeout(
                 func(*args, **kwargs), timeout_seconds, timeout_exception
             )
@@ -602,7 +608,7 @@ class CircuitBreakerManager:
         return br
 
     async def call(
-        self, name: str, func: Callable[..., Awaitable[T]], *args, **kwargs
+        self, name: str, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
     ) -> T:
         br = self.get(name)
         return await br.call(func, *args, **kwargs)
