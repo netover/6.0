@@ -501,11 +501,10 @@ class EventBus:
 
                 self._event_queue.task_done()
 
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -652,8 +651,14 @@ class EventBus:
 
         evt_lower = event_type.lower()
 
+        evt_parts = set(evt_lower.split("_"))
+
         for prefix, sub_type in _SUBSCRIPTION_PRIORITY:
-            if prefix in evt_lower:
+            if (
+                prefix in evt_parts
+                or evt_lower.startswith(f"{prefix}_")
+                or evt_lower == prefix
+            ):
                 # Encontrou a categoria do evento — entrega apenas se subscrito
                 return sub_type in subscription_types
 

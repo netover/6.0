@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -49,7 +48,7 @@ class FileIngestor(IFileIngestor):
             raise ValueError("Invalid filename")
 
         upload_dir = Path(self.settings.upload_dir).resolve()
-        upload_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(upload_dir.mkdir, parents=True, exist_ok=True)
 
         destination = (upload_dir / safe_name)
 
@@ -73,21 +72,24 @@ class FileIngestor(IFileIngestor):
             max_upload_bytes = default_max_bytes
 
         try:
-            def _save() -> None:
-                bytes_written = 0
-                with open(destination_resolved, "wb") as buffer:
-                    while True:
-                        chunk = file_content.read(1024 * 1024)  # 1 MiB
-                        if not chunk:
-                            break
-                        bytes_written += len(chunk)
-                        if bytes_written > max_upload_bytes:
-                            raise ValueError("File too large")
-                        buffer.write(chunk)
+            read_fn = getattr(file_content, "read", None)
+            if not callable(read_fn):
+                raise ValueError("file_content must provide a read method")
 
-            await asyncio.to_thread(_save)
+            if asyncio.iscoroutinefunction(read_fn):
+                raw_bytes = await read_fn(max_upload_bytes + 1)
+            else:
+                raw_bytes = await asyncio.to_thread(read_fn, max_upload_bytes + 1)
 
-            logger.info("file_saved", extra={"path": str(destination_resolved), "bytes_written_max": max_upload_bytes})
+            if len(raw_bytes) > max_upload_bytes:
+                raise ValueError(f"File too large (max {max_upload_bytes} bytes)")
+
+            await asyncio.to_thread(destination_resolved.write_bytes, raw_bytes)
+
+            logger.info(
+                "file_saved",
+                extra={"path": str(destination_resolved), "bytes_written": len(raw_bytes)},
+            )
             return destination_resolved
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
