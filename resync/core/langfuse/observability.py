@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import sys
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -36,25 +37,24 @@ from resync.settings import settings
 logger = get_logger(__name__)
 
 # Try to import langfuse
-try:
-    from langfuse import Langfuse
-    from langfuse.decorators import langfuse_context, observe
-
-    LANGFUSE_AVAILABLE = True
-except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-    import sys as _sys
-    from resync.core.exception_guard import maybe_reraise_programming_error
-    _exc_type, _exc, _tb = _sys.exc_info()
-    maybe_reraise_programming_error(_exc, _tb)
-
+if sys.version_info >= (3, 14):
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     observe = None
     langfuse_context = None
-    logger.warning(
-        "langfuse_disabled reason=%s",
-        type(exc).__name__,
-    )
+    logger.warning("langfuse_disabled reason=%s", "Python314Compatibility")
+else:
+    try:
+        from langfuse import Langfuse
+        from langfuse.decorators import langfuse_context, observe
+
+        LANGFUSE_AVAILABLE = True
+    except ImportError as exc:
+        LANGFUSE_AVAILABLE = False
+        Langfuse = None
+        observe = None
+        langfuse_context = None
+        logger.warning("langfuse_disabled reason=%s", type(exc).__name__)
 
 # Type variable for decorated functions
 F = TypeVar("F", bound=Callable[..., Any])

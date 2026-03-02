@@ -36,10 +36,14 @@ def _resolve_secret_key() -> str:
     sk = getattr(settings, "secret_key", None)
 
     if not sk:
-        raise RuntimeError(
-            "SECRET_KEY must be configured (settings.secret_key). "
-            "Set it via your Settings/environment configuration."
-        )
+        env = str(getattr(settings, "environment", "development")).lower()
+        if "prod" in env:
+            raise RuntimeError(
+                "SECRET_KEY must be configured (settings.secret_key). "
+                "Set it via your Settings/environment configuration."
+            )
+        logger.warning("Using development fallback SECRET_KEY for AuthService")
+        return "dev-insecure-secret-key-change-me"
 
     return sk.get_secret_value() if isinstance(sk, SecretStr) else str(sk)
 
@@ -79,10 +83,13 @@ class AuthService:
             self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
             # P1-11 FIX: Dummy hash to ensure verification takes the exact same time
             self._dummy_hash = self.pwd_context.hash("dummy_mitigation_password")
-        except ImportError:
+        except (ImportError, AttributeError, RuntimeError, ValueError) as exc:
             self.pwd_context = None
             self._dummy_hash = ""
-            logger.warning("passlib not available, using fallback hashing")
+            logger.warning(
+                "passlib/bcrypt backend unavailable, using fallback hashing path: %s",
+                exc,
+            )
 
     def _get_user_lock(self, user_id: str) -> asyncio.Lock:
         """P1-12 FIX: Retrieve or create an asyncio lock for a specific user id."""
