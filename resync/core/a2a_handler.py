@@ -107,7 +107,7 @@ class A2AHandler:
 
             return JsonRpcResponse(result=result, id=request.id)
 
-        except (ValueError, KeyError, AttributeError, TimeoutError, ConnectionError) as e:
+        except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -120,7 +120,11 @@ class A2AHandler:
                 error=str(e),
             )
             task.update_state(TaskState.FAILED, error=str(e))
-            await self._publish_event("task_failed", task)
+
+            try:
+                await self._publish_event("task_failed", task)
+            except Exception as ev_err:
+                logger.error("failed_to_publish_error_event", error=str(ev_err))
 
             return JsonRpcResponse(
                 error={"code": -32603, "message": str(e)}, id=request.id

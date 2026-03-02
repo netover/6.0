@@ -343,6 +343,7 @@ class AgentManager:
             self.tools: dict[str, Any] = _discover_tools()
             self._tws_client_factory = tws_client_factory
             self.tws_client: Any = None
+            self._lock_registry_lock = threading.Lock()
             # P1-1: Use int | None to allow fallback key for contexts without running loop
             self._tws_locks: dict[int | None, asyncio.Lock] = {}
             self._agent_locks: dict[int | None, asyncio.Lock] = {}
@@ -382,16 +383,18 @@ class AgentManager:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             # Fallback for contexts without a running loop (e.g., during initialization)
-            if None not in self._tws_locks:
-                self._tws_locks[None] = asyncio.Lock()
-            return self._tws_locks[None]
+            with self._lock_registry_lock:
+                if None not in self._tws_locks:
+                    self._tws_locks[None] = asyncio.Lock()
+                return self._tws_locks[None]
         
         loop_id = id(loop)
-        lock = self._tws_locks.get(loop_id)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._tws_locks[loop_id] = lock
-        return lock
+        with self._lock_registry_lock:
+            lock = self._tws_locks.get(loop_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._tws_locks[loop_id] = lock
+            return lock
 
     def _get_agent_lock(self) -> asyncio.Lock:
         """P1-1: Get or create a lock for the current event loop.
@@ -402,16 +405,18 @@ class AgentManager:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             # Fallback for contexts without a running loop (e.g., during initialization)
-            if None not in self._agent_locks:
-                self._agent_locks[None] = asyncio.Lock()
-            return self._agent_locks[None]
+            with self._lock_registry_lock:
+                if None not in self._agent_locks:
+                    self._agent_locks[None] = asyncio.Lock()
+                return self._agent_locks[None]
         
         loop_id = id(loop)
-        lock = self._agent_locks.get(loop_id)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._agent_locks[loop_id] = lock
-        return lock
+        with self._lock_registry_lock:
+            lock = self._agent_locks.get(loop_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._agent_locks[loop_id] = lock
+            return lock
 
     # -----------------------------------------------------------------
     # YAML configuration loader
@@ -428,11 +433,18 @@ class AgentManager:
                 Path(__file__).parent.parent.parent / "config" / "agents.yaml",
                 Path("/app/config/agents.yaml"),
             ]
-            config_file = next((p for p in search_paths if p.exists()), None)
+
+            def _find_existing_config() -> Path | None:
+                return next((p for p in search_paths if p.exists()), None)
+
+            config_file = await asyncio.to_thread(_find_existing_config)
         else:
             config_file = Path(config_path)
 
-        if config_file is None or not config_file.exists():
+        def _exists(path: Path | None) -> bool:
+            return path is not None and path.exists()
+
+        if not await asyncio.to_thread(_exists, config_file):
             logger.warning(
                 "agent_config_not_found",
                 searched_paths=(

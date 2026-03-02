@@ -27,6 +27,7 @@ Version: 5.4.1
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from abc import ABC, abstractmethod
@@ -573,11 +574,15 @@ class RAGOnlyHandler(BaseHandler):
             from resync.core.specialists.tools import RAGTool
 
             rag = RAGTool()
-            results = rag.search_knowledge_base(
-                query=message,
-                top_k=5,
-                use_hybrid=True,
-            )
+
+            def _execute_rag_search() -> dict[str, Any]:
+                return rag.search_knowledge_base(
+                    query=message,
+                    top_k=5,
+                    use_hybrid=True,
+                )
+
+            results = await asyncio.to_thread(_execute_rag_search)
 
             if results.get("results"):
                 self.last_tools_used.append("search_knowledge_base")
@@ -941,7 +946,7 @@ PERGUNTA DO USUÁRIO:
             job_tool = JobLogTool()
             job_name = job_names[0]
 
-            history = job_tool.get_job_history(job_name, days=7)
+            history = await asyncio.to_thread(job_tool.get_job_history, job_name, days=7)
             self.last_tools_used.append("get_job_history")
 
             return (
@@ -1169,11 +1174,19 @@ class DiagnosticHandler(BaseHandler):
                 return "\n".join(response_parts)
 
             # Fallback to manual analysis
-            return self._manual_troubleshooting(message, classification)
+            return await asyncio.to_thread(
+                self._manual_troubleshooting,
+                message,
+                classification,
+            )
 
         except ImportError:
             logger.warning("LangGraph not available, using fallback")
-            return self._manual_troubleshooting(message, classification)
+            return await asyncio.to_thread(
+                self._manual_troubleshooting,
+                message,
+                classification,
+            )
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1181,7 +1194,11 @@ class DiagnosticHandler(BaseHandler):
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.error("Diagnostic handler error: %s", e)
-            return self._manual_troubleshooting(message, classification)
+            return await asyncio.to_thread(
+                self._manual_troubleshooting,
+                message,
+                classification,
+            )
 
     def _manual_troubleshooting(
         self,
