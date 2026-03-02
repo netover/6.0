@@ -20,7 +20,6 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
-import sys
 from datetime import datetime, timezone
 from enum import Enum
 from functools import lru_cache
@@ -37,22 +36,17 @@ from resync.settings import settings
 logger = get_logger(__name__)
 
 # Try to import langfuse (optional dependency)
-if sys.version_info >= (3, 14):
+try:
+    from langfuse import Langfuse
+
+    LANGFUSE_AVAILABLE = True
+except ImportError as exc:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
-    logger.warning("langfuse_prompt_manager_disabled reason=%s", "Python314Compatibility")
-else:
-    try:
-        from langfuse import Langfuse
-
-        LANGFUSE_AVAILABLE = True
-    except ImportError as exc:
-        LANGFUSE_AVAILABLE = False
-        Langfuse = None
-        logger.warning(
-            "langfuse_prompt_manager_disabled reason=%s",
-            type(exc).__name__,
-        )
+    logger.warning(
+        "langfuse_prompt_manager_disabled reason=%s",
+        type(exc).__name__,
+    )
 
 # =============================================================================
 # MODELS

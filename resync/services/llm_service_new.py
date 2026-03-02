@@ -153,6 +153,11 @@ class LLMService:
                 getattr(settings, "llm_max_concurrency", None)
                 or os.getenv("LLM_MAX_CONCURRENCY", "8")
             )
+            if self._max_concurrency < 1:
+                raise ConfigurationError(
+                    message="Invalid LLM_MAX_CONCURRENCY",
+                    details={"value": self._max_concurrency, "min_allowed": 1},
+                )
             self._sem_instance: asyncio.Semaphore | None = None
 
             # Retry with exponential backoff + jitter (only for transient errors).

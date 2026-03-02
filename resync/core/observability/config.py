@@ -142,10 +142,6 @@ def setup_langfuse() -> bool:
         logger.info("langfuse_disabled", reason="not configured")
         return False
 
-    if sys.version_info >= (3, 14):
-        logger.warning("langfuse_not_available", hint="python314_compatibility")
-        return False
-
     try:
         from langfuse import Langfuse
 

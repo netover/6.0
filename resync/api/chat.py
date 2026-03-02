@@ -159,15 +159,18 @@ async def _auditor_worker() -> None:
         return
 
     while True:
+        dequeued = False
         try:
             await _auditor_queue.get()
+            dequeued = True
             await run_auditor_safely()
         except asyncio.CancelledError:
             raise
         except (OSError, ValueError, RuntimeError):
             logger.error("IA Auditor worker failed while processing queue item", exc_info=True)
         finally:
-            _auditor_queue.task_done()
+            if dequeued:
+                _auditor_queue.task_done()
 
 
 async def _ensure_auditor_workers() -> None:

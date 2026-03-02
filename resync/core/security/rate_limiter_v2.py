@@ -256,6 +256,10 @@ def _resolve_request(*args: Any, **kwargs: Any) -> Request:
     if isinstance(request, Request):
         return request
 
+    for value in kwargs.values():
+        if isinstance(value, Request):
+            return value
+
     for arg in args:
         if isinstance(arg, Request):
             return arg
@@ -287,8 +291,6 @@ def rate_limit(limit_str: str) -> Callable[[Callable[..., Any]], Callable[..., A
         return Limit(requests=count, window_seconds=_window_map[unit])
 
     lim = _parse(limit_str)
-    _limiter = SlidingWindowLimiter()
-
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if not RATE_LIMIT_ENABLED:
             return func
@@ -298,7 +300,7 @@ def rate_limit(limit_str: str) -> Callable[[Callable[..., Any]], Callable[..., A
             request = _resolve_request(*args, **kwargs)
             ip = _client_ip(request)
             key = f"rl:{func.__name__}:{ip}"
-            allowed, retry_after = await _limiter.allow(key, lim)
+            allowed, retry_after = await _LIMITER.allow(key, lim)
             if not allowed:
                 from starlette.responses import JSONResponse
                 return JSONResponse(
@@ -320,7 +322,6 @@ def rate_limit_auth(func: Callable[..., Any]) -> Callable[..., Any]:
     if not RATE_LIMIT_ENABLED:
         return func
 
-    _limiter = SlidingWindowLimiter()
     _lim = Limit(requests=AUTH_LIMIT_REQUESTS, window_seconds=AUTH_LIMIT_WINDOW_SECONDS)
 
     @functools.wraps(func)
@@ -328,7 +329,7 @@ def rate_limit_auth(func: Callable[..., Any]) -> Callable[..., Any]:
         request = _resolve_request(*args, **kwargs)
         ip = _client_ip(request)
         key = f"rl_auth:{ip}"
-        allowed, retry_after = await _limiter.allow(key, _lim)
+        allowed, retry_after = await _LIMITER.allow(key, _lim)
         if not allowed:
             from starlette.responses import JSONResponse
             return JSONResponse(

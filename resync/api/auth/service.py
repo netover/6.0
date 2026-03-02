@@ -93,7 +93,7 @@ class AuthService:
             self.pwd_context = None
             self._dummy_hash = ""
             logger.warning(
-                "passlib/bcrypt backend unavailable, using fallback hashing path: %s",
+                "passlib/bcrypt backend unavailable, password operations will fail closed: %s",
                 exc,
             )
 

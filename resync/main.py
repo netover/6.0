@@ -28,9 +28,13 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Setup Environment: Ensure project root is in sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+
+load_dotenv(BASE_DIR / ".env")
 
 from resync.app_factory import create_app  # noqa: E402
 
@@ -41,11 +45,7 @@ def main() -> None:
     # Import uvicorn here to avoid loading it in production ASGI path
     # where it's not needed
     import uvicorn
-    from dotenv import load_dotenv
-
     from resync.settings import settings
-
-    load_dotenv(BASE_DIR / ".env")
 
     host = os.getenv("HOST") or settings.server_host
     port = int(os.getenv("PORT") or settings.server_port)
