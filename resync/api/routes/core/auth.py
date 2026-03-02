@@ -21,11 +21,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import os
 import secrets
 import threading
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -38,8 +39,9 @@ from resync.api.routes.core.ip_utils import (
     get_trusted_client_ip,
     sanitize_ip_for_redis_key,
 )
-from resync.core.security.rate_limiter_v2 import rate_limit_auth
+from resync.core.exception_guard import maybe_reraise_programming_error
 from resync.core.redis_init import get_redis_client
+from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
 from resync.core.token_revocation import revoke_jti
 from resync.settings import settings
@@ -74,13 +76,21 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 _DEVELOPMENT_FALLBACK_SECRET: str | None = None
+INFRA_ERRORS = (
+    OSError,
+    ValueError,
+    TypeError,
+    KeyError,
+    AttributeError,
+    RuntimeError,
+    TimeoutError,
+    ConnectionError,
+)
 
 def _get_dev_fallback_secret() -> str:
     """Generate a secure random fallback secret for development only."""
     global _DEVELOPMENT_FALLBACK_SECRET
     if _DEVELOPMENT_FALLBACK_SECRET is None:
-        import os
-
         _DEVELOPMENT_FALLBACK_SECRET = os.urandom(32).hex()
     return _DEVELOPMENT_FALLBACK_SECRET
 
@@ -256,7 +266,7 @@ class SecureAuthenticator:
                 extra={
                     "ip": request_ip,
                     "username_prefix": username[:3] + "***",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )
 
@@ -267,11 +277,8 @@ class SecureAuthenticator:
         try:
             redis = get_redis_client()
             await redis.delete(f"{self._redis_prefix}:{sanitized_ip}")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+        except INFRA_ERRORS as exc:
+            maybe_reraise_programming_error(exc, exc.__traceback__)
 
             # Non-fatal: if Redis is down, lockout TTL will expire naturally
             logger.debug("redis_lockout_clear_failed", error=str(exc))
@@ -280,7 +287,7 @@ class SecureAuthenticator:
             "auth_success",
             extra={
                 "ip": request_ip,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         )
 
@@ -312,11 +319,8 @@ class SecureAuthenticator:
                 ip, success=True
             )
             return is_locked, remaining_minutes
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+        except INFRA_ERRORS as exc:
+            maybe_reraise_programming_error(exc, exc.__traceback__)
 
             logger.error("redis_lockout_check_failed", error=str(exc))
             return False, 0
@@ -410,11 +414,8 @@ class SecureAuthenticator:
 
             return is_locked, remaining_minutes, attempt_count
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+        except INFRA_ERRORS as e:
+            maybe_reraise_programming_error(e, e.__traceback__)
 
             logger.error("redis_lockout_check_failed", error=str(e))
             return False, 0, 0
@@ -449,7 +450,10 @@ async def get_authenticator() -> SecureAuthenticator:
 
 async def verify_admin_credentials(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ] = None,
 ) -> str | None:
     """Verify admin credentials for protected endpoints using JWT tokens.
 
@@ -501,7 +505,7 @@ async def verify_admin_credentials(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
-            )
+            ) from None
 
         except InvalidTokenError as e:
             # Log error type only (no token in message)
@@ -517,7 +521,7 @@ async def verify_admin_credentials(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
-            )
+            ) from e
 
         if not payload:
             raise HTTPException(
@@ -550,11 +554,8 @@ async def verify_admin_credentials(
     except HTTPException:
         raise
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
+    except INFRA_ERRORS as e:
+        maybe_reraise_programming_error(e, e.__traceback__)
 
         # Generic handler - no sensitive data in error
         logger.error(
@@ -569,7 +570,7 @@ async def verify_admin_credentials(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
     finally:
         # P0-01 fix: Use asyncio.sleep() instead of time.sleep() to avoid
         # blocking the event loop. Maintains constant-time defense (TASK-007).
@@ -617,7 +618,7 @@ class TokenResponse(BaseModel):
     """Token response model."""
 
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105
     expires_in: int = ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
 class LoginResponse(BaseModel):
@@ -722,10 +723,7 @@ async def logout(request: Request) -> Response:
         except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
             raise
         except (ValueError, TypeError, KeyError, RuntimeError, OSError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+            maybe_reraise_programming_error(e, e.__traceback__)
 
             # Log but don't fail - token may already be invalid
             logger.warning(

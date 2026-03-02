@@ -271,7 +271,7 @@ def rate_limit(limit_str: str):
             return func
 
         @functools.wraps(func)
-        async def wrapper(request: "Request", *args, **kwargs):
+        async def wrapper(request: Request, *args, **kwargs):
             ip = _client_ip(request)
             key = f"rl:{func.__name__}:{ip}"
             allowed, retry_after = await _limiter.allow(key, lim)
@@ -300,7 +300,7 @@ def rate_limit_auth(func):
     _lim = Limit(requests=AUTH_LIMIT_REQUESTS, window_seconds=AUTH_LIMIT_WINDOW_SECONDS)
 
     @functools.wraps(func)
-    async def wrapper(request: "Request", *args, **kwargs):
+    async def wrapper(request: Request, *args, **kwargs):
         ip = _client_ip(request)
         key = f"rl_auth:{ip}"
         allowed, retry_after = await _limiter.allow(key, _lim)
