@@ -7,13 +7,13 @@ through the /admin/config interface.
 from __future__ import annotations
 
 # mypy
+import asyncio
 import inspect
 import logging
-from datetime import datetime, timezone
+import re
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
-
-import aiofiles
-from resync.core.io_utils import read_text, write_text
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
@@ -32,9 +32,6 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 
 # Templates will be obtained from app state at runtime
 
-# Module-level singleton variables for dependency injection to avoid B008 errors
-teams_integration_dependency = Depends(get_teams_integration)
-tws_client_dependency = Depends(get_tws_client)
 PRODUCTION_SETTINGS_FILE = "settings.production.toml"
 
 class TeamsConfigUpdate(BaseModel):
@@ -74,7 +71,7 @@ class AdminConfigResponse(BaseModel):
         default_factory=dict, description="System configuration"
     )
     last_updated: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Last update timestamp",
     )
 
@@ -85,7 +82,7 @@ class TeamsHealthResponse(BaseModel):
         default_factory=dict, description="Teams integration status"
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Health check timestamp",
     )
 
@@ -169,7 +166,7 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_admin_config(
-    request: Request, teams_integration: TeamsIntegration = teams_integration_dependency
+    request: Request, teams_integration: TeamsIntegration = Depends(get_teams_integration)
 ) -> AdminConfigResponse:
     """Get current admin configuration.
 
@@ -214,7 +211,7 @@ async def get_admin_config(
             teams=teams_config_dict,
             tws=tws_config,
             system=system_config,
-            last_updated=datetime.now(timezone.utc).isoformat(),
+            last_updated=datetime.now(UTC).isoformat(),
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -240,7 +237,7 @@ async def get_admin_config(
 async def update_teams_config(
     request: Request,
     config_update: TeamsConfigUpdate,
-    teams_integration: TeamsIntegration = teams_integration_dependency,
+    teams_integration: TeamsIntegration = Depends(get_teams_integration),
 ) -> AdminConfigResponse:
     """Update Microsoft Teams integration configuration.
 
@@ -303,7 +300,7 @@ async def update_teams_config(
             teams=teams_config_dict,
             tws=tws_config,
             system=system_config,
-            last_updated=datetime.now(timezone.utc).isoformat(),
+            last_updated=datetime.now(UTC).isoformat(),
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -327,7 +324,7 @@ async def update_teams_config(
     dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_teams_health(
-    request: Request, teams_integration: TeamsIntegration = teams_integration_dependency
+    request: Request, teams_integration: TeamsIntegration = Depends(get_teams_integration)
 ) -> TeamsHealthResponse:
     """Get Microsoft Teams integration health status.
 
@@ -337,7 +334,7 @@ async def get_teams_health(
     try:
         health_status = await teams_integration.health_check()
         return TeamsHealthResponse(
-            status=health_status, timestamp=datetime.now(timezone.utc).isoformat()
+            status=health_status, timestamp=datetime.now(UTC).isoformat()
         )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
@@ -362,7 +359,7 @@ async def get_teams_health(
 async def test_teams_notification(
     request: Request,
     message: str = "Test notification from Resync",
-    teams_integration: TeamsIntegration = teams_integration_dependency,
+    teams_integration: TeamsIntegration = Depends(get_teams_integration),
 ) -> dict[str, Any]:
     """Send test notification to Microsoft Teams.
 
@@ -377,7 +374,7 @@ async def test_teams_notification(
             message=message,
             severity="info",
             additional_data={
-                "test_timestamp": datetime.now(timezone.utc).isoformat(),
+                "test_timestamp": datetime.now(UTC).isoformat(),
                 "instance": "admin_test",
             },
         )
@@ -389,12 +386,12 @@ async def test_teams_notification(
             return {
                 "status": "success",
                 "message": "Test notification sent successfully",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         return {
             "status": "error",
             "message": "Failed to send test notification",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -419,8 +416,8 @@ async def test_teams_notification(
 )
 async def get_admin_status(
     request: Request,
-    tws_client: ITWSClient = tws_client_dependency,
-    teams_integration: TeamsIntegration = teams_integration_dependency,
+    tws_client: ITWSClient = Depends(get_tws_client),
+    teams_integration: TeamsIntegration = Depends(get_teams_integration),
 ) -> dict[str, Any]:
     """Get overall system status for administration.
 
@@ -451,7 +448,7 @@ async def get_admin_status(
         return {
             "system": {
                 "status": "operational",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "environment": getattr(settings, "APP_ENV", "development"),
                 "debug": getattr(settings, "DEBUG", False),
             },
@@ -643,65 +640,74 @@ async def get_system_logs(
     level: str | None = None,
     search: str | None = None,
 ) -> dict[str, Any]:
-    """Retrieve system logs with filtering options.
-
-    Args:
-        lines: Number of log lines to retrieve (default: 100, max: 1000)
-        level: Filter by log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        search: Search term to filter logs
-
-    Returns:
-        Dictionary containing log entries and metadata
-    """
+    """Retrieve system logs with filtering options."""
     try:
-        # Limit maximum lines
         lines = min(lines, 1000)
-
         log_file = settings.BASE_DIR / "logs" / "resync.log"
 
-        if not log_file.exists():
+        def _read_and_filter_logs(
+            file_path: Path,
+            line_limit: int,
+            level_filter: str | None,
+            search_filter: str | None,
+        ) -> tuple[list[str], int, int]:
+            from collections import deque
+
+            if not file_path.exists():
+                return [], 0, 0
+
+            level_upper = level_filter.upper() if level_filter else None
+            search_lower = search_filter.lower() if search_filter else None
+
+            filtered_logs: deque[str] = deque(maxlen=line_limit)
+            total_lines = 0
+            with open(file_path, encoding="utf-8") as f:
+                for line in f:
+                    total_lines += 1
+                    if level_upper and level_upper not in line.upper():
+                        continue
+                    if search_lower and search_lower not in line.lower():
+                        continue
+                    filtered_logs.append(line)
+
+            return list(filtered_logs), total_lines, file_path.stat().st_size
+
+        log_lines, total_lines, file_size = await asyncio.to_thread(
+            _read_and_filter_logs,
+            log_file,
+            lines,
+            level,
+            search,
+        )
+
+        if total_lines == 0 and not log_lines:
             return {
                 "logs": [],
                 "count": 0,
                 "message": "Log file not found",
             }
 
-        # P0-16 FIX: Use deque with fixed-size and offload CPU-bound filter to thread
-        def _read_and_filter_logs() -> tuple[list[str], int]:
-            from collections import deque
-
-            level_upper = level.upper() if level else None
-            search_lower = search.lower() if search else None
-
-            filtered_logs = deque(maxlen=lines)
-            total_lines = 0
-
-            with open(log_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    total_lines += 1
-
-                    # Apply filters early before keeping in memory
-                    if level_upper and level_upper not in line.upper():
-                        continue
-                    if search_lower and search_lower not in line.lower():
-                        continue
-
-                    filtered_logs.append(line)
-
-            return list(filtered_logs), total_lines
-
-        log_lines, total_lines = await asyncio.to_thread(_read_and_filter_logs)
-
         return {
             "logs": log_lines,
             "count": len(log_lines),
             "total_lines": total_lines,
+            "file_size_bytes": file_size,
             "log_file": str(log_file),
         }
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
+
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
@@ -760,7 +766,7 @@ async def clear_cache(
         return {
             "status": "success",
             "cleared": cleared,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -805,7 +811,7 @@ async def create_backup(request: Request) -> dict[str, Any]:
         return {
             "status": "success",
             "backup_file": str(backup_file.name),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -886,43 +892,56 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
         Status of restore operation
     """
     try:
-        import os
         from resync.core.config_persistence import ConfigPersistenceManager
 
         config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
-
-        # P0-15 FIX: Sanitize input before path building to prevent path traversal
-        safe_filename = os.path.basename(backup_filename)
-        if not safe_filename or safe_filename != backup_filename:
+        # Enforce strict filename policy and allow-list against actual backups.
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", backup_filename):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid backup filename format. Path traversal is not allowed.",
+                detail=(
+                    "Invalid backup filename format. "
+                    "Only alphanumeric, underscore, dash and dot are allowed."
+                ),
             )
 
-        # Find backup file (with path traversal protection)
-        backup_file = (persistence.backup_dir / safe_filename).resolve()
-        if not backup_file.is_relative_to(persistence.backup_dir.resolve()):
+        if "/" in backup_filename or "\\" in backup_filename or ".." in backup_filename:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid backup filename",
             )
 
-        if not backup_file.exists():
+        allowed_backups = {backup.name: backup for backup in await persistence.list_backups()}
+        backup_file = allowed_backups.get(backup_filename)
+        if backup_file is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Backup file not found",
+            )
+
+        resolved_backup = backup_file.resolve(strict=True)
+        if not resolved_backup.is_relative_to(persistence.backup_dir.resolve()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid backup filename",
+            )
+
+        if not resolved_backup.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Backup file not found",
             )
 
         # Restore from backup
-        await persistence.restore_backup(backup_file)
+        await persistence.restore_backup(resolved_backup)
 
         logger.info("Configuration restored from backup: %s", backup_filename)
 
         return {
             "status": "success",
             "restored_from": backup_filename,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "note": (
                 "Application restart may be required for all "
                 "changes to take effect"
@@ -959,7 +978,7 @@ class ComponentHealth(BaseModel):
     )
     message: str | None = Field(None, description="Additional status message")
     last_check: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Last health check timestamp",
     )
 
@@ -971,7 +990,7 @@ class SystemHealthResponse(BaseModel):
         default_factory=dict, description="Individual component health"
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Health check timestamp",
     )
 
@@ -1213,7 +1232,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
     return SystemHealthResponse(
         overall_status=overall_status,
         components=components,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
 @admin_router.get(
@@ -1265,7 +1284,7 @@ async def get_admin_audit_logs(
             "total": total_count,
             "limit": limit,
             "offset": offset,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -1286,5 +1305,5 @@ async def get_admin_audit_logs(
             "limit": limit,
             "offset": offset,
             "error": str(e)[:100],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }

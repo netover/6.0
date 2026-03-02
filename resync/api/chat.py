@@ -16,14 +16,18 @@ v6.0 REFACTORING:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import logging
+import sys
 import time
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from resync.core.exception_guard import maybe_reraise_programming_error
 from resync.core.exceptions import (
     AgentExecutionError,
     AuditError,
@@ -47,6 +51,31 @@ chat_router = APIRouter()
 # Optional: track background tasks for observability (non-blocking)
 _bg_tasks: set[asyncio.Task[Any]] = set()
 
+# Bound concurrent writes per conversation to preserve ordering across sockets
+_session_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+# Bounded in-process audit scheduling to avoid unbounded fire-and-forget growth
+_AUDITOR_QUEUE_MAXSIZE = 256
+_AUDITOR_WORKERS = 2
+_auditor_queue: asyncio.Queue[None] | None = None
+_auditor_workers: set[asyncio.Task[Any]] = set()
+_auditor_init_lock = asyncio.Lock()
+
+
+INFRA_ERRORS = (
+    OSError,
+    ValueError,
+    TypeError,
+    KeyError,
+    AttributeError,
+    RuntimeError,
+    TimeoutError,
+    ConnectionError,
+)
+
+INFRA_ERRORS_NON_TIMEOUT = tuple(exc for exc in INFRA_ERRORS if exc is not TimeoutError)
+
+
 class SupportsAgentMeta(Protocol):
     """Minimal contract used by this module for agent-like objects."""
 
@@ -56,9 +85,11 @@ class SupportsAgentMeta(Protocol):
     llm_model: Any | None  # type: ignore[assignment]
     model: Any | None  # type: ignore[assignment]
 
+
 def _now_iso() -> str:
     """Get current timestamp in ISO format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
+
 
 async def send_error_message(
     websocket: WebSocket, message: str, agent_id: str, session_id: str
@@ -85,6 +116,7 @@ async def send_error_message(
     except (TypeError, KeyError, AttributeError, IndexError):
         raise
 
+
 async def run_auditor_safely() -> None:
     """
     Executes the IA auditor in a safe context, catching and logging any exceptions
@@ -92,7 +124,7 @@ async def run_auditor_safely() -> None:
     """
     try:
         await analyze_and_flag_memories()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("IA Auditor timed out during execution.", exc_info=True)
     except KnowledgeGraphError:
         logger.error("IA Auditor encountered a knowledge graph error.", exc_info=True)
@@ -103,7 +135,7 @@ async def run_auditor_safely() -> None:
     except asyncio.CancelledError:  # pylint
         # Propagate task cancellation correctly
         raise
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:  # pylint
+    except INFRA_ERRORS_NON_TIMEOUT as _e:  # pylint
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
@@ -111,6 +143,50 @@ async def run_auditor_safely() -> None:
             "IA Auditor background task failed with an unhandled exception.",
             exc_info=True,
         )
+
+
+async def _auditor_worker() -> None:
+    """Consume queued audit triggers with bounded worker concurrency."""
+    global _auditor_queue
+    if _auditor_queue is None:
+        return
+
+    while True:
+        try:
+            await _auditor_queue.get()
+            await run_auditor_safely()
+        except asyncio.CancelledError:
+            raise
+        except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError):
+            logger.error("IA Auditor worker failed while processing queue item", exc_info=True)
+        finally:
+            _auditor_queue.task_done()
+
+
+async def _ensure_auditor_workers() -> None:
+    """Initialize bounded auditor worker pool lazily and safely."""
+    global _auditor_queue
+    async with _auditor_init_lock:
+        if _auditor_queue is None:
+            _auditor_queue = asyncio.Queue(maxsize=_AUDITOR_QUEUE_MAXSIZE)
+        if _auditor_workers:
+            return
+        for idx in range(_AUDITOR_WORKERS):
+            task = create_tracked_task(_auditor_worker(), name=f"ia_auditor_worker_{idx}")
+            _auditor_workers.add(task)
+            task.add_done_callback(_auditor_workers.discard)
+
+
+async def _schedule_auditor_run() -> None:
+    """Queue an auditor execution request without unbounded task creation."""
+    await _ensure_auditor_workers()
+    if _auditor_queue is None:
+        return
+    try:
+        _auditor_queue.put_nowait(None)
+    except asyncio.QueueFull:
+        logger.warning("IA Auditor queue is full; dropping trigger to preserve service stability")
+
 
 async def _handle_agent_interaction(
     websocket: WebSocket,
@@ -157,105 +233,97 @@ async def _handle_agent_interaction(
     )
 
     try:
-        # Persist user turn (best-effort, don't block on failure)
-        try:
-            await kg.add_conversation(
-                session_id=session_id,
-                role="user",
-                content=sanitized,
-                metadata={"agent_id": agent_id_str},
+        # Serialize a session end-to-end to preserve conversation ordering
+        async with _session_locks[session_id]:
+            # Persist user turn (best-effort, don't block on failure)
+            try:
+                await kg.add_conversation(
+                    session_id=session_id,
+                    role="user",
+                    content=sanitized,
+                    metadata={"agent_id": agent_id_str},
+                )
+            except INFRA_ERRORS as e:
+                _exc_type, _exc, _tb = sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
+                logger.warning("Failed to persist user message: %s", e)
+
+            # Route via HybridRouter (single source of truth)
+            start_time = time.time()
+
+            result = await router.route(
+                sanitized,
+                context={"agent_id": agent_id_str, "session_id": session_id},
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Failed to persist user message: %s", e)
+            processing_time_ms = int((time.time() - start_time) * 1000)
 
-        # Route via HybridRouter (single source of truth)
-        start_time = time.time()
-
-        result = await router.route(
-            sanitized,
-            context={"agent_id": agent_id_str, "session_id": session_id},
-        )
-
-        processing_time_ms = int((time.time() - start_time) * 1000)
-
-        # Send final response ONCE with metadata in correct location
-        # Per WebSocketMessage: routing info goes in metadata, not at top level
-        await websocket.send_json(
-            {
-                "type": "message",
-                "sender": "agent",
-                "message": result.response,
-                "agent_id": agent_id_str,
-                "session_id": session_id,
-                "is_final": True,
-                "timestamp": _now_iso(),
-                "correlation_id": result.trace_id,
-                "metadata": {
-                    # Routing info
-                    "routing_mode": result.routing_mode.value,
-                    "intent": result.intent,
-                    "confidence": result.confidence,
-                    "handler": result.handler,
-                    "tools_used": result.tools_used,
-                    "entities": result.entities,
-                    "processing_time_ms": processing_time_ms,
-                    "requires_approval": result.requires_approval,
-                    "approval_id": result.approval_id,
-                    # Backward compatibility aliases
-                    "query_type": result.intent,
-                },
-            }
-        )
-
-        logger.info(
-            "Agent '%s' response: mode=%s, intent=%s, tools=%s",
-            agent_id,
-            result.routing_mode.value,
-            result.intent,
-            result.tools_used,
-        )
-
-        # Persist assistant turn (best-effort, don't block on failure)
-        try:
-            await kg.add_conversation(
-                session_id=session_id,
-                role="assistant",
-                content=result.response,
-                metadata={
+            # Send final response ONCE with metadata in correct location
+            # Per WebSocketMessage: routing info goes in metadata, not at top level
+            await websocket.send_json(
+                {
+                    "type": "message",
+                    "sender": "agent",
+                    "message": result.response,
                     "agent_id": agent_id_str,
-                    "routing_mode": result.routing_mode.value,
-                    "intent": result.intent,
-                    "confidence": result.confidence,
-                    "tools_used": result.tools_used,
-                    "entities": result.entities,
-                    "processing_time_ms": processing_time_ms,
-                },
+                    "session_id": session_id,
+                    "is_final": True,
+                    "timestamp": _now_iso(),
+                    "correlation_id": result.trace_id,
+                    "metadata": {
+                        # Routing info
+                        "routing_mode": result.routing_mode.value,
+                        "intent": result.intent,
+                        "confidence": result.confidence,
+                        "handler": result.handler,
+                        "tools_used": result.tools_used,
+                        "entities": result.entities,
+                        "processing_time_ms": processing_time_ms,
+                        "requires_approval": result.requires_approval,
+                        "approval_id": result.approval_id,
+                        # Backward compatibility aliases
+                        "query_type": result.intent,
+                    },
+                }
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Failed to persist assistant message: %s", e)
+            logger.info(
+                "Agent '%s' response: mode=%s, intent=%s, tools=%s",
+                agent_id,
+                result.routing_mode.value,
+                result.intent,
+                result.tools_used,
+            )
 
-        # Schedule the IA Auditor to run in the background
-        logger.info("Scheduling IA Auditor to run in the background.")
-        task = create_tracked_task(
-            run_auditor_safely(), name="run_auditor_safely"
-        )
-        _bg_tasks.add(task)
-        task.add_done_callback(_bg_tasks.discard)
+            # Persist assistant turn (best-effort, don't block on failure)
+            try:
+                await kg.add_conversation(
+                    session_id=session_id,
+                    role="assistant",
+                    content=result.response,
+                    metadata={
+                        "agent_id": agent_id_str,
+                        "routing_mode": result.routing_mode.value,
+                        "intent": result.intent,
+                        "confidence": result.confidence,
+                        "tools_used": result.tools_used,
+                        "entities": result.entities,
+                        "processing_time_ms": processing_time_ms,
+                    },
+                )
+            except INFRA_ERRORS as e:
+                _exc_type, _exc, _tb = sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
 
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
+                logger.warning("Failed to persist assistant message: %s", e)
+
+            # Schedule the IA Auditor via bounded queue
+            logger.info("Queueing IA Auditor execution trigger.")
+            await _schedule_auditor_run()
+
+    except INFRA_ERRORS as e:
+        _exc_type, _exc, _tb = sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.error("Error in agent interaction: %s", e, exc_info=True)
@@ -265,6 +333,7 @@ async def _handle_agent_interaction(
             agent_id_str,
             session_id,
         )
+
 
 async def _setup_websocket_session(
     websocket: WebSocket, agent_id: SafeAgentID
@@ -313,6 +382,7 @@ async def _setup_websocket_session(
     )
     return agent, session_id
 
+
 async def _message_processing_loop(
     websocket: WebSocket,
     agent: SupportsAgentMeta | Any,
@@ -345,10 +415,8 @@ async def _message_processing_loop(
             raise WebSocketDisconnect(code=1001, reason="Max connection duration exceeded")
 
         try:
-            raw_data = await asyncio.wait_for(
-                websocket.receive_text(), timeout=inactivity_timeout
-            )
-        except asyncio.TimeoutError:
+            raw_data = await asyncio.wait_for(websocket.receive_text(), timeout=inactivity_timeout)
+        except TimeoutError:
             # Inactivity timeout: close to free server resources
             await send_error_message(
                 websocket,
@@ -356,7 +424,7 @@ async def _message_processing_loop(
                 str(agent_id),
                 session_id,
             )
-            raise WebSocketDisconnect(code=1001, reason="Inactivity timeout")
+            raise WebSocketDisconnect(code=1001, reason="Inactivity timeout") from None
 
         logger.info("Received message for agent '%s': %s...", agent_id, raw_data[:200])
 
@@ -365,6 +433,7 @@ async def _message_processing_loop(
             continue
 
         await _handle_agent_interaction(websocket, agent_id, raw_data)
+
 
 @chat_router.websocket("/ws/{agent_id}")
 async def websocket_endpoint(
@@ -390,16 +459,27 @@ async def websocket_endpoint(
         if auth_header and auth_header.lower().startswith("bearer "):
             token = auth_header.split(" ", 1)[1].strip() or None
     try:
-        from resync.api.auth.service import get_auth_service
-
-        auth_service = get_auth_service()
-        if not token or not auth_service.verify_token(token):
+        if not token:
             await websocket.close(code=1008, reason="Authentication required")
             return
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+
+        try:
+            from resync.api.core.security import verify_token_async
+
+            payload = await verify_token_async(token)
+            is_valid = bool(payload)
+        except INFRA_ERRORS:
+            from resync.api.auth.service import get_auth_service
+
+            auth_service = get_auth_service()
+            is_valid = await asyncio.to_thread(auth_service.verify_token, token)
+
+        if not is_valid:
+            await websocket.close(code=1008, reason="Authentication required")
+            return
+    except INFRA_ERRORS:
         logger.warning(
-            "WebSocket auth check failed - rejecting connection "
-            "(auth service unavailable)"
+            "WebSocket auth check failed - rejecting connection (auth service unavailable)"
         )
         await websocket.close(code=1008, reason="Authentication service unavailable")
         return
@@ -434,13 +514,11 @@ async def websocket_endpoint(
             agent_id_str,
             session_id,
         )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _e:  # pylint: disable=broad-exception-caught
+    except INFRA_ERRORS_NON_TIMEOUT as _e:  # pylint: disable=broad-exception-caught
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.critical(
-            "Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True
-        )
+        logger.critical("Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True)
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(
@@ -451,10 +529,14 @@ async def websocket_endpoint(
         )
     finally:
         # Guarantee WebSocket is closed, even after unexpected errors
-        try:
+        with contextlib.suppress(
+            RuntimeError,
+            WebSocketDisconnect,
+            ConnectionError,
+            OSError,
+        ):
             await websocket.close()
-        except (RuntimeError, WebSocketDisconnect, ConnectionError, OSError):
-            pass  # Already closed or broken — safe to ignore
+
 
 async def _validate_input(
     raw_data: str, agent_id: SafeAgentID, websocket: WebSocket
@@ -476,9 +558,7 @@ async def _validate_input(
     if not result.is_valid:
         agent_id_str = str(agent_id)
         session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
-        await send_error_message(
-            websocket, "Conteúdo inválido.", agent_id_str, session_id
-        )
+        await send_error_message(websocket, "Conteúdo inválido.", agent_id_str, session_id)
         return {"is_valid": False}
 
     return {"is_valid": True}

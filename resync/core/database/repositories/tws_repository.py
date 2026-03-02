@@ -6,10 +6,11 @@ PostgreSQL implementation replacing SQLite-based tws_status_store.py.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from resync.core.database.models import (
@@ -112,49 +113,37 @@ class TWSJobStatusRepository(TimestampedRepository[TWSJobStatus]):
         super().__init__(TWSJobStatus, session_factory)
 
     async def upsert_job_status(self, job: JobStatus) -> TWSJobStatus:
-        """Insert or update job status."""
+        """Insert or update job status atomically."""
         async with self._get_session() as session:
-            # Check if exists
-            existing = await session.execute(
-                select(TWSJobStatus)
-                .where(
-                    and_(
-                        TWSJobStatus.job_name == job.job_name,
-                        TWSJobStatus.run_number == job.run_number,
-                    )
-                )
-                .order_by(TWSJobStatus.timestamp.desc())
-                .limit(1)
+            stmt = pg_insert(TWSJobStatus).values(
+                job_name=job.job_name,
+                job_stream=job.job_stream,
+                workstation=job.workstation,
+                status=job.status,
+                run_number=job.run_number,
+                start_time=job.start_time,
+                end_time=job.end_time,
+                return_code=job.return_code,
+                timestamp=job.timestamp,
+                metadata_=job.metadata,
             )
-            record = existing.scalar_one_or_none()
 
-            if record:
-                # Update existing
-                record.status = job.status
-                record.start_time = job.start_time
-                record.end_time = job.end_time
-                record.return_code = job.return_code
-                record.timestamp = job.timestamp
-                record.metadata_ = job.metadata
-            else:
-                # Create new
-                record = TWSJobStatus(
-                    job_name=job.job_name,
-                    job_stream=job.job_stream,
-                    workstation=job.workstation,
-                    status=job.status,
-                    run_number=job.run_number,
-                    start_time=job.start_time,
-                    end_time=job.end_time,
-                    return_code=job.return_code,
-                    timestamp=job.timestamp,
-                    metadata_=job.metadata,
-                )
-                session.add(record)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["job_name", "run_number", "timestamp"],
+                set_={
+                    "status": stmt.excluded.status,
+                    "start_time": stmt.excluded.start_time,
+                    "end_time": stmt.excluded.end_time,
+                    "return_code": stmt.excluded.return_code,
+                    "metadata_": stmt.excluded.metadata_,
+                    "job_stream": stmt.excluded.job_stream,
+                    "workstation": stmt.excluded.workstation,
+                },
+            ).returning(TWSJobStatus)
 
+            result = await session.execute(stmt)
             await session.commit()
-            await session.refresh(record)
-            return record
+            return result.scalar_one()
 
     async def get_job_history(
         self, job_name: str, limit: int = 100
@@ -261,43 +250,37 @@ class TWSPatternRepository(BaseRepository[TWSPattern]):
         super().__init__(TWSPattern, session_factory)
 
     async def upsert_pattern(self, pattern: PatternMatch) -> TWSPattern:
-        """Insert or update a pattern."""
+        """Insert or update a pattern atomically."""
         async with self._get_session() as session:
-            # Check if exists
-            existing = await session.execute(
-                select(TWSPattern).where(
-                    and_(
-                        TWSPattern.pattern_type == pattern.pattern_type,
-                        TWSPattern.job_name == pattern.job_name,
-                    )
-                )
+            stmt = pg_insert(TWSPattern).values(
+                pattern_type=pattern.pattern_type,
+                job_name=pattern.job_name,
+                description=pattern.description,
+                confidence=pattern.confidence,
+                occurrences=pattern.occurrences,
+                first_seen=pattern.first_seen,
+                last_seen=pattern.last_seen,
+                pattern_data=pattern.pattern_data,
             )
-            record = existing.scalar_one_or_none()
 
-            if record:
-                # Update existing
-                record.occurrences += 1
-                record.last_seen = datetime.now(timezone.utc)
-                record.confidence = max(record.confidence, pattern.confidence)
-                if pattern.pattern_data:
-                    record.pattern_data = pattern.pattern_data
-            else:
-                # Create new
-                record = TWSPattern(
-                    pattern_type=pattern.pattern_type,
-                    job_name=pattern.job_name,
-                    description=pattern.description,
-                    confidence=pattern.confidence,
-                    occurrences=pattern.occurrences,
-                    first_seen=pattern.first_seen,
-                    last_seen=pattern.last_seen,
-                    pattern_data=pattern.pattern_data,
-                )
-                session.add(record)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["pattern_type", "job_name"],
+                set_={
+                    "description": stmt.excluded.description,
+                    "occurrences": TWSPattern.occurrences + stmt.excluded.occurrences,
+                    "last_seen": stmt.excluded.last_seen,
+                    "confidence": func.greatest(
+                        TWSPattern.confidence, stmt.excluded.confidence
+                    ),
+                    "pattern_data": func.coalesce(
+                        stmt.excluded.pattern_data, TWSPattern.pattern_data
+                    ),
+                },
+            ).returning(TWSPattern)
 
+            result = await session.execute(stmt)
             await session.commit()
-            await session.refresh(record)
-            return record
+            return result.scalar_one()
 
     async def get_active_patterns(
         self, job_name: str | None = None, min_confidence: float = 0.5
@@ -364,16 +347,26 @@ class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
     ) -> TWSProblemSolution | None:
         """Record whether a solution worked."""
         async with self._get_session() as session:
-            solution = await session.get(TWSProblemSolution, solution_id)
-            if solution:
-                if success:
-                    solution.success_count += 1
-                else:
-                    solution.failure_count += 1
-                solution.last_used = datetime.now(timezone.utc)
-                await session.commit()
-                await session.refresh(solution)
-            return solution
+            increment_column = (
+                TWSProblemSolution.success_count
+                if success
+                else TWSProblemSolution.failure_count
+            )
+
+            stmt = (
+                update(TWSProblemSolution)
+                .where(TWSProblemSolution.id == solution_id)
+                .values(
+                    {
+                        increment_column: increment_column + 1,
+                        TWSProblemSolution.last_used: datetime.now(timezone.utc),
+                    }
+                )
+                .returning(TWSProblemSolution)
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.scalar_one_or_none()
 
 # =============================================================================
 # UNIFIED TWS STORE (facade for all repositories)

@@ -178,6 +178,7 @@ class TWSPattern(Base):
     __table_args__ = (
         Index("idx_tws_patterns_type", "pattern_type"),
         Index("idx_tws_patterns_job", "job_name"),
+        UniqueConstraint("pattern_type", "job_name", name="uq_tws_pattern_job"),
         {"schema": "tws"},
     )
 
