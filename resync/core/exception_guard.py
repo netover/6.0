@@ -14,8 +14,11 @@ IMPORTANT:
 from __future__ import annotations
 
 import os
+import threading
 from types import TracebackType
-from typing import Final
+from typing import Any, Final
+
+from resync.core.metrics_compat import Counter
 
 _PROGRAMMING_ERRORS: Final[tuple[type[BaseException], ...]] = (
     TypeError,
@@ -23,9 +26,6 @@ _PROGRAMMING_ERRORS: Final[tuple[type[BaseException], ...]] = (
     AttributeError,
     IndexError,
 )
-
-
-from resync.core.metrics_compat import Counter
 
 # Low-cardinality counter (safe for production dashboards)
 _programming_errors_caught_total = Counter(
@@ -40,6 +40,21 @@ _programming_errors_caught_detailed_total = Counter(
     "Detailed count of programming errors caught by broad exception handlers (label site=file:line)",
     labels=["exc_type", "site"],
 )
+
+_cached_settings: Any = None
+_settings_lock = threading.Lock()
+
+
+def _get_cached_settings() -> Any:
+    """Load settings once and reuse to keep exception path lightweight."""
+    global _cached_settings
+    if _cached_settings is None:
+        with _settings_lock:
+            if _cached_settings is None:
+                from resync.settings import get_settings
+
+                _cached_settings = get_settings()
+    return _cached_settings
 
 
 def maybe_reraise_programming_error(
@@ -56,12 +71,13 @@ def maybe_reraise_programming_error(
     if exc is None or not isinstance(exc, _PROGRAMMING_ERRORS):
         return
 
+    settings: Any | None = None
+
     # Record metric for visibility even when strict handling is disabled.
     try:
         import traceback as _traceback
-        from resync.settings import get_settings
 
-        settings = get_settings()
+        settings = _get_cached_settings()
 
         module = "unknown"
         site = "unknown"
@@ -92,15 +108,17 @@ def maybe_reraise_programming_error(
                     "site": site,
                 },
             )
-    except (Exception,) as _metric_exc:
+    except Exception:
         # Metrics must never break exception flow.
         pass
 
+    if settings is None:
+        try:
+            settings = _get_cached_settings()
+        except Exception:
+            return
 
-    # Lazy import to avoid import cycles; only executed on exceptions.
-    from resync.settings import get_settings
-
-    if not bool(get_settings().strict_exception_handling):
+    if not bool(getattr(settings, "strict_exception_handling", False)):
         return
 
     # Re-raise preserving traceback as much as possible.

@@ -9,6 +9,7 @@ Uso de contextvars garante isolamento entre requisições concorrentes.
 
 import uuid
 from contextvars import ContextVar, Token
+from typing import Literal
 
 # Context variables para armazenar informações da requisição
 _correlation_id_ctx: ContextVar[str | None] = ContextVar("correlation_id", default=None)
@@ -216,7 +217,7 @@ def clear_context() -> None:
     clear_request_id()
     clear_trace_id()
 
-def get_context_dict() -> dict:
+def get_context_dict() -> dict[str, str | None]:
     """Retorna um dicionário com todo o contexto atual.
 
     Returns:
@@ -250,7 +251,7 @@ class RequestContext:
         user_id: str | None = None,
         request_id: str | None = None,
         trace_id: str | None = None,
-    ):
+    ) -> None:
         """Inicializa o context manager.
 
         Args:
@@ -265,7 +266,7 @@ class RequestContext:
         self.trace_id = trace_id
         self.tokens: list[tuple[str, Token[str | None]]] = []
 
-    def __enter__(self):
+    def __enter__(self) -> "RequestContext":
         """Entra no contexto, definindo os valores."""
         if self.correlation_id:
             self.tokens.append(
@@ -279,7 +280,12 @@ class RequestContext:
             self.tokens.append(("trace_id", set_trace_id(self.trace_id)))
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object | None,
+    ) -> Literal[False]:
         """Sai do contexto, resetando os valores."""
         for ctx_name, token in reversed(self.tokens):
             if ctx_name == "correlation_id":
