@@ -29,7 +29,9 @@ import os
 import re
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -239,7 +241,20 @@ def setup_rate_limiting(app) -> None:
 # Usage: @rate_limit("30/minute")
 # =============================================================================
 
-def rate_limit(limit_str: str):
+
+def _resolve_request(*args: Any, **kwargs: Any) -> Request:
+    """Resolve a Starlette Request from decorated endpoint arguments."""
+    request = kwargs.get("request")
+    if isinstance(request, Request):
+        return request
+
+    for arg in args:
+        if isinstance(arg, Request):
+            return arg
+
+    raise RuntimeError("rate_limit decorator requires a Request parameter")
+
+def rate_limit(limit_str: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator: apply a sliding-window rate limit to an endpoint.
 
     Args:
@@ -266,12 +281,13 @@ def rate_limit(limit_str: str):
     lim = _parse(limit_str)
     _limiter = SlidingWindowLimiter()
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if not RATE_LIMIT_ENABLED:
             return func
 
         @functools.wraps(func)
-        async def wrapper(request: Request, *args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            request = _resolve_request(*args, **kwargs)
             ip = _client_ip(request)
             key = f"rl:{func.__name__}:{ip}"
             allowed, retry_after = await _limiter.allow(key, lim)
@@ -282,13 +298,13 @@ def rate_limit(limit_str: str):
                     status_code=429,
                     headers={"Retry-After": str(retry_after)},
                 )
-            return await func(request, *args, **kwargs)
+            return await func(*args, **kwargs)
 
         return wrapper
     return decorator
 
 
-def rate_limit_auth(func):
+def rate_limit_auth(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator: apply the auth-specific rate limit to an endpoint.
 
     Uses ``AUTH_LIMIT_REQUESTS / AUTH_LIMIT_WINDOW_SECONDS`` from config.
@@ -300,7 +316,8 @@ def rate_limit_auth(func):
     _lim = Limit(requests=AUTH_LIMIT_REQUESTS, window_seconds=AUTH_LIMIT_WINDOW_SECONDS)
 
     @functools.wraps(func)
-    async def wrapper(request: Request, *args, **kwargs):
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        request = _resolve_request(*args, **kwargs)
         ip = _client_ip(request)
         key = f"rl_auth:{ip}"
         allowed, retry_after = await _limiter.allow(key, _lim)
@@ -311,6 +328,6 @@ def rate_limit_auth(func):
                 status_code=429,
                 headers={"Retry-After": str(retry_after)},
             )
-        return await func(request, *args, **kwargs)
+        return await func(*args, **kwargs)
 
     return wrapper
