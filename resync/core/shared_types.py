@@ -42,7 +42,7 @@ class CacheEntry(Generic[T]):
 
     data: T
     timestamp: float = field(default_factory=time.time)
-    ttl: float = 300.0  # Default 5 minutes
+    ttl: float | None = 300.0  # Default 5 minutes
     access_count: int = 0
     last_access: float = field(default_factory=time.time)
     size_bytes: int = 0

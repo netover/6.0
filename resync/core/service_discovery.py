@@ -1316,15 +1316,16 @@ class ServiceDiscoveryManager:
                     service_name=sd.service_name
                 ).observe(elapsed)
 
-                inst.response_time_avg = (
-                    elapsed
-                    if inst.response_time_avg == 0
-                    else (0.7 * inst.response_time_avg + 0.3 * elapsed)
+                current_avg = inst.response_time_avg
+                object.__setattr__(
+                    inst,
+                    "response_time_avg",
+                    elapsed if current_avg == 0 else (0.7 * current_avg + 0.3 * elapsed),
                 )
 
                 if resp.status_code == 200:
-                    inst.status = ServiceStatus.HEALTHY
-                    inst.consecutive_failures = 0
+                    object.__setattr__(inst, "status", ServiceStatus.HEALTHY)
+                    object.__setattr__(inst, "consecutive_failures", 0)
                     _prom_health_checks.labels(
                         service_name=sd.service_name, result="healthy"
                     ).inc()
@@ -1336,8 +1337,10 @@ class ServiceDiscoveryManager:
                             instance_id=inst.instance_id
                         ).set(0)
                 else:
-                    inst.status = ServiceStatus.UNHEALTHY
-                    inst.consecutive_failures += 1
+                    object.__setattr__(inst, "status", ServiceStatus.UNHEALTHY)
+                    object.__setattr__(
+                        inst, "consecutive_failures", inst.consecutive_failures + 1
+                    )
                     _prom_health_checks.labels(
                         service_name=sd.service_name, result="unhealthy"
                     ).inc()
@@ -1359,8 +1362,8 @@ class ServiceDiscoveryManager:
                             instance_id=inst.instance_id
                         ).set(1)
 
-                inst.last_health_check_mono = time.monotonic()
-                inst.last_health_check_epoch = time.time()
+                object.__setattr__(inst, "last_health_check_mono", time.monotonic())
+                object.__setattr__(inst, "last_health_check_epoch", time.time())
 
                 if inst.consecutive_failures >= sd.max_consecutive_failures:
                     logger.warning(
@@ -1387,10 +1390,12 @@ class ServiceDiscoveryManager:
                 ).inc()
                 _prom_errors.labels(error_type="health_check_exception").inc()
 
-                inst.status = ServiceStatus.UNHEALTHY
-                inst.consecutive_failures += 1
-                inst.last_health_check_mono = time.monotonic()
-                inst.last_health_check_epoch = time.time()
+                object.__setattr__(inst, "status", ServiceStatus.UNHEALTHY)
+                object.__setattr__(
+                    inst, "consecutive_failures", inst.consecutive_failures + 1
+                )
+                object.__setattr__(inst, "last_health_check_mono", time.monotonic())
+                object.__setattr__(inst, "last_health_check_epoch", time.time())
 
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
@@ -1430,7 +1435,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1476,7 +1480,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1505,7 +1508,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1539,7 +1541,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
