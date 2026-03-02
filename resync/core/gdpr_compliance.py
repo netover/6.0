@@ -18,6 +18,7 @@ import contextlib
 import hashlib
 import json
 import os
+import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -282,10 +283,7 @@ class GDPRDataEncryptor:
         encryption_secret = os.environ.get(
             "GDPR_ENCRYPTION_SECRET", "gdpr_default_secret_change_me"
         )
-        key_data = (
-            "gdpr_encryption_key_"
-            f"{encryption_secret}_{self.config.encryption_key_rotation_days}"
-        )
+        key_data = f"gdpr_encryption_key_{encryption_secret}"
         encryption_salt = os.environ.get(
             "GDPR_ENCRYPTION_SALT", "gdpr_compliance_salt_2024"
         ).encode()
@@ -301,9 +299,6 @@ class GDPRDataEncryptor:
 
     def encrypt_data(self, data: str) -> str:
         """Encrypt sensitive data."""
-        if self._should_rotate_key():
-            self._initialize_encryption()
-
         encrypted = self._cipher.encrypt(data.encode())
         return base64.urlsafe_b64encode(encrypted).decode()
 
@@ -770,7 +765,6 @@ class GDPRComplianceManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -793,7 +787,6 @@ class GDPRComplianceManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -820,7 +813,6 @@ class GDPRComplianceManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -851,9 +843,11 @@ class GDPRComplianceManager:
             # For simulation, we'll just mark as completed
             affected_records = 42  # Simulated
 
-            # Generate verification hash
+            # Generate verification hash (CPU-bound hashing in thread)
             deleted_data = [{"user_id": request.user_id, "deleted_at": time.time()}]
-            request.generate_verification_hash(deleted_data)
+            request.verification_hash = await asyncio.to_thread(
+                request.generate_verification_hash, deleted_data
+            )
 
             request.mark_completed(affected_records)
 
@@ -862,6 +856,7 @@ class GDPRComplianceManager:
                 request_id=request.request_id,
                 user_id=request.user_id,
                 affected_records=affected_records,
+                verification_hash=request.verification_hash,
             )
 
             logger.info("Data erasure completed: %s", request.request_id)
@@ -1000,12 +995,15 @@ class GDPRComplianceManager:
 
 # Global GDPR compliance manager instance (lazy-initialized)
 _gdpr_compliance_manager: GDPRComplianceManager | None = None
+_gdpr_singleton_lock = threading.Lock()
 
 def _get_gdpr_compliance_manager_instance() -> GDPRComplianceManager:
     """Get or create the GDPR compliance manager (lazy init)."""
     global _gdpr_compliance_manager
     if _gdpr_compliance_manager is None:
-        _gdpr_compliance_manager = GDPRComplianceManager()
+        with _gdpr_singleton_lock:
+            if _gdpr_compliance_manager is None:
+                _gdpr_compliance_manager = GDPRComplianceManager()
     return _gdpr_compliance_manager
 
 # Backward compatibility alias

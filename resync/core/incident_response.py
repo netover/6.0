@@ -14,6 +14,7 @@ This module provides intelligent incident response capabilities including:
 
 import asyncio
 import contextlib
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -1119,7 +1120,6 @@ class IncidentResponseEngine:
                 await self._check_for_incident()
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1157,7 +1157,6 @@ class IncidentResponseEngine:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1190,7 +1189,6 @@ class IncidentResponseEngine:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1201,12 +1199,15 @@ class IncidentResponseEngine:
 
 # Global incident response engine instance (lazy-initialized)
 _incident_response_engine: IncidentResponseEngine | None = None
+_incident_singleton_lock = threading.Lock()
 
 def _get_incident_response_engine_instance() -> IncidentResponseEngine:
     """Get or create the incident response engine (lazy init)."""
     global _incident_response_engine
     if _incident_response_engine is None:
-        _incident_response_engine = IncidentResponseEngine()
+        with _incident_singleton_lock:
+            if _incident_response_engine is None:
+                _incident_response_engine = IncidentResponseEngine()
     return _incident_response_engine
 
 # Backward compatibility alias

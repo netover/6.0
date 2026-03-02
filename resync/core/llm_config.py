@@ -9,6 +9,7 @@ Version: 6.1.2
 """
 
 from pathlib import Path
+import threading
 from typing import Any
 
 # Python 3.11+ baseline: stdlib tomllib is always available.
@@ -34,6 +35,7 @@ class LLMConfig:
     """
 
     _instance: "LLMConfig" | None = None
+    _instance_lock = threading.Lock()
     _config: dict[str, Any] = {}
 
     def __init__(self) -> None:
@@ -229,7 +231,9 @@ def get_llm_config() -> LLMConfig:
         >>> response = llm_client.chat(model=model, ...)
     """
     if LLMConfig._instance is None:
-        LLMConfig._instance = LLMConfig()
+        with LLMConfig._instance_lock:
+            if LLMConfig._instance is None:
+                LLMConfig._instance = LLMConfig()
 
     return LLMConfig._instance
 
