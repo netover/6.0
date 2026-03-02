@@ -56,7 +56,7 @@ class CorrelationIdFilter(logging.Filter):
                 logger.debug("suppressed_exception: %s", str(exc), exc_info=True)
         return True
 
-_LAZY_EXPORTS = {"AsyncTTLCache": ("resync.core.cache.async_cache", "AsyncTTLCache")}
+_LAZY_EXPORTS = {"AsyncTTLCache": ("resync.core.cache.async_cache", "AsyncTTLCache"), "tws_monitor": ("resync.core.tws_monitor", None)}
 _LOADED_EXPORTS = {}
 _LAZY_LOAD_LOCK = threading.Lock()
 
@@ -69,7 +69,7 @@ def __getattr__(name: str):
                 if name not in _LOADED_EXPORTS:
                     try:
                         module = importlib.import_module(mod)
-                        _LOADED_EXPORTS[name] = getattr(module, attr)
+                        _LOADED_EXPORTS[name] = module if attr is None else getattr(module, attr)
                     except ImportError as e:
                         raise ImportError(
                             f"Cannot import {attr} from {mod}: {e}"

@@ -17,25 +17,26 @@ from resync.core.exceptions import (
     TWSTimeoutError,
 )
 from resync.services.tws_service import OptimizedTWSClient
-from resync.settings import settings
+from resync.settings import get_settings
 
 
 @pytest.fixture
 def isolated_settings() -> None:
     """Provide isolated settings for each test to avoid race conditions."""
-    original_retry_total = settings.tws_retry_total
-    original_backoff_base = settings.tws_retry_backoff_base
-    original_backoff_max = settings.tws_retry_backoff_max
+    settings_obj = get_settings()
+    original_retry_total = settings_obj.tws_retry_total
+    original_backoff_base = settings_obj.tws_retry_backoff_base
+    original_backoff_max = settings_obj.tws_retry_backoff_max
 
-    settings.tws_retry_total = 3
-    settings.tws_retry_backoff_base = 0.01
-    settings.tws_retry_backoff_max = 0.1
+    object.__setattr__(settings_obj, "tws_retry_total", 3)
+    object.__setattr__(settings_obj, "tws_retry_backoff_base", 0.01)
+    object.__setattr__(settings_obj, "tws_retry_backoff_max", 0.1)
 
-    yield settings
+    yield settings_obj
 
-    settings.tws_retry_total = original_retry_total
-    settings.tws_retry_backoff_base = original_backoff_base
-    settings.tws_retry_backoff_max = original_backoff_max
+    object.__setattr__(settings_obj, "tws_retry_total", original_retry_total)
+    object.__setattr__(settings_obj, "tws_retry_backoff_base", original_backoff_base)
+    object.__setattr__(settings_obj, "tws_retry_backoff_max", original_backoff_max)
 
 
 @pytest_asyncio.fixture
