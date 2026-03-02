@@ -858,7 +858,7 @@ class ApplicationFactory:
         # DoS from browser extensions.
         @self.app.post("/csp-violation-report", include_in_schema=False)
         @rate_limit("30/minute")
-        async def csp_violation_report(request: Request) -> JSONResponse:
+        async def csp_violation_report(request: Request) -> Response:
             """
             Handle CSP violation reports with stream-based payload validation.
 
@@ -945,7 +945,24 @@ class ApplicationFactory:
                 )
 
             # [P2-03] process_csp_report captured at registration time (closure)
-            return await process_csp_report(request, report_data=report_data)
+            result = await process_csp_report(request, report_data=report_data)
+
+            report = result.get("report", {}) if isinstance(result, dict) else {}
+            csp_report = (
+                report.get("csp-report", {})
+                if isinstance(report, dict) and "csp-report" in report
+                else report
+            )
+            if isinstance(csp_report, dict):
+                logger.warning(
+                    "csp_violation",
+                    blocked_uri=csp_report.get("blocked-uri", "unknown"),
+                    violated_directive=csp_report.get("violated-directive", "unknown"),
+                    effective_directive=csp_report.get("effective-directive", "unknown"),
+                    script_sample=csp_report.get("script-sample", "none"),
+                )
+
+            return Response(status_code=204)
 
         logger.info("special_endpoints_registered")
 

@@ -1,11 +1,14 @@
 # pylint
 """CSP violation report validation utilities."""
 
+import asyncio
 import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
+
+from resync.core.exception_guard import maybe_reraise_programming_error
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -103,7 +106,7 @@ class CSPReport:
     effective_directive: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CSPReport" | None:
+    def from_dict(cls, data: dict[str, Any]) -> CSPReport | None:
         """Create CSPReport instance from dictionary data."""
         try:
             # Extract nested csp-report if present
@@ -179,6 +182,16 @@ class CSPReport:
 class CSPValidationError(Exception):
     """Custom exception for CSP validation errors."""
 
+def validate_csp_report_data(report_data: dict[str, Any]) -> bool:
+    """Validate CSP report dict format and content."""
+    try:
+        csp_report = CSPReport.from_dict(report_data)
+        if csp_report is None:
+            return False
+        return csp_report.validate()
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return False
+
 def validate_csp_report(body: bytes) -> bool:
     """
     Validate CSP violation report format and content with enhanced security.
@@ -195,14 +208,7 @@ def validate_csp_report(body: bytes) -> bool:
             return False
 
         report_data = json.loads(body.decode("utf-8"))
-
-        # Use CSPReport dataclass for structured validation
-        csp_report = CSPReport.from_dict(report_data)
-        if csp_report is None:
-            return False
-
-        # Validate using dataclass validation
-        return csp_report.validate()
+        return validate_csp_report_data(report_data)
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
         return False
 
@@ -335,7 +341,7 @@ def sanitize_csp_report(
     return sanitized
 
 @asynccontextmanager
-def csp_report_context(request: "Request") -> "Request":
+async def csp_report_context(request: Request) -> Request:
     """
     Async context manager for handling CSP report processing.
 
@@ -353,7 +359,7 @@ def csp_report_context(request: "Request") -> "Request":
         pass
 
 async def process_csp_report(
-    request: "Request",
+    request: Request,
     *,
     report_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -391,11 +397,19 @@ async def process_csp_report(
 
     except json.JSONDecodeError as e:
         raise CSPValidationError(f"Invalid JSON in CSP report: {str(e)}") from e
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
+    except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+        raise
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
+        maybe_reraise_programming_error(e, e.__traceback__)
 
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
