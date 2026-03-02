@@ -126,9 +126,6 @@ class ConnectionManager:
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
-
-            if isinstance(e, asyncio.CancelledError):
-                raise
             logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
