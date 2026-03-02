@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from resync.core.database.models import (
@@ -97,6 +97,20 @@ class ConversationRepository(TimestampedRepository[Conversation]):
     async def approve_conversation(self, conv_id: int) -> Conversation | None:
         """Approve a flagged conversation."""
         return await self.update(conv_id, is_approved=True)
+
+    async def atomic_flag(self, conv_id: int, expected_approved: bool) -> bool:
+        """Atomically flag a conversation only when approval state matches expectation."""
+        async with self._get_session() as session:
+            result = await session.execute(
+                update(Conversation)
+                .where(
+                    Conversation.id == conv_id,
+                    Conversation.is_approved == expected_approved,
+                )
+                .values(is_flagged=True, is_approved=False)
+            )
+            await session.commit()
+            return bool(result.rowcount and result.rowcount > 0)
 
 class ContextContentRepository(BaseRepository[ContextContent]):
     """Repository for context content."""

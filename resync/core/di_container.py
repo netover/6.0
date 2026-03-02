@@ -125,8 +125,6 @@ class DIContainer:
             lifetime: How long the instance should live
         """
         self._factories[interface] = (factory, lifetime)
-        if lifetime == ServiceLifetime.SINGLETON:
-            self._locks[interface] = asyncio.Lock()
         logger.debug(
             "service_registered", interface=interface.__name__, lifetime=lifetime.value
         )
@@ -188,7 +186,12 @@ class DIContainer:
         if interface in self._singletons:
             return self._singletons[interface]
 
-        # Slow path: acquire lock and create
+        # Slow path: lazily create lock in running-loop context, then acquire
+        if interface not in self._locks:
+            async with self.global_lock:
+                if interface not in self._locks:
+                    self._locks[interface] = asyncio.Lock()
+
         async with self._locks[interface]:
             # Double-check after acquiring lock
             if interface in self._singletons:
