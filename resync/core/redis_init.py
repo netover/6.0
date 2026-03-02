@@ -435,9 +435,15 @@ class RedisInitializer:
                 if self._client:
                     await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=2.0)
             except (RedisError, asyncio.TimeoutError):
-                logger.error("Redis health check failed - connection may be lost", exc_info=True)
+                logger.error("Redis health check failed - attempting reconnect", exc_info=True)
                 self._initialized = False
-                break
+                try:
+                    await self.initialize(max_retries=2, fatal_on_fail=False)
+                    logger.info("Redis health-check reconnect succeeded")
+                    continue
+                except RedisInitError:
+                    logger.critical("Redis reconnect failed; stopping health check", exc_info=True)
+                    break
             except (OSError, ValueError) as e:
                 logger.error("Unexpected error in Redis health check: %s", e, exc_info=True)
 

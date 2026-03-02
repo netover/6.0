@@ -15,6 +15,7 @@ from tenacity import (
     RetryCallState,
     before_sleep_log,
     retry,
+    retry_if_exception,
     retry_if_exception_type,
     retry_if_result,
     stop_after_attempt,
@@ -59,6 +60,13 @@ def log_retry_attempt(retry_state: RetryCallState) -> None:
                 getattr(retry_state.fn, "__qualname__", str(retry_state.fn)),
             )
 
+def _is_retriable_http_error(exc: BaseException) -> bool:
+    """Retry only transient/network HTTP failures."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code >= 500
+    return isinstance(exc, (httpx.RequestError, httpx.TimeoutException, ConnectionError))
+
+
 def http_retry(
     max_attempts: int = 3,
     min_wait: float = 1.0,
@@ -77,10 +85,10 @@ def http_retry(
     Returns:
         Decorated function with retry logic
     """
+    use_default_http_policy = exceptions is None
     if exceptions is None:
         exceptions = [
             httpx.RequestError,
-            httpx.HTTPStatusError,
             httpx.TimeoutException,
             ConnectionError,
         ]
@@ -106,7 +114,7 @@ def http_retry(
     return retry(
         stop=stop_after_attempt(max_attempts),
         wait=wait_exponential(multiplier=1, min=min_wait, max=max_wait),
-        retry=retry_if_exception_type(exception_tuple),
+        retry=(retry_if_exception(_is_retriable_http_error) if use_default_http_policy else retry_if_exception_type(exception_tuple)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )

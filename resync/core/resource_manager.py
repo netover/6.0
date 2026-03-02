@@ -412,6 +412,7 @@ class ResourcePool(Generic[T]):
             },
         }
 
+@asynccontextmanager
 async def resource_scope(
     pool: ResourcePool,
     resource_type: str,

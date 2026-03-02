@@ -22,7 +22,10 @@ from typing import Any
 
 import structlog
 
+from resync.core.database.session import SessionLocal
+from resync.core.exception_guard import maybe_reraise_programming_error
 from resync.core.task_tracker import create_tracked_task
+from resync.core.teams_notifier import TeamsNotificationManager
 
 logger = structlog.get_logger(__name__)
 
@@ -215,10 +218,7 @@ class ProactiveMonitoringManager:
             try:
                 await self._status_store.save_event(event)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
+                maybe_reraise_programming_error(e, e.__traceback__)
 
                 logger.error("failed_to_save_event", error=str(e))
 
@@ -232,9 +232,6 @@ class ProactiveMonitoringManager:
     async def _notify_teams_abend(self, event: Any) -> None:
         """Envia notificação proativa para Teams quando detecta ABEND."""
         try:
-            from resync.core.database.session import SessionLocal
-            from resync.core.teams_notifier import TeamsNotificationManager
-
             # Extrai dados do evento
             job_data = event.details.get("job", {})
             job_name = job_data.get("job_name", event.source)
@@ -244,12 +241,11 @@ class ProactiveMonitoringManager:
             error_message = job_data.get("error_message") or event.message
 
             # Cria sessão do banco
-            db = SessionLocal()
-            try:
+            async with SessionLocal() as db:
                 manager = TeamsNotificationManager(db)
 
                 # Verifica se notificações estão habilitadas
-                if not manager.is_enabled():
+                if not await asyncio.to_thread(manager.is_enabled):
                     logger.debug("teams_notifications_disabled_skipping")
                     return
 
@@ -276,14 +272,8 @@ class ProactiveMonitoringManager:
                         reason="notification_filter_or_no_channel",
                     )
 
-            finally:
-                db.close()
-
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+            maybe_reraise_programming_error(e, e.__traceback__)
 
             # Re-raise programming errors — these are bugs, not runtime failures
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
@@ -349,19 +339,15 @@ class ProactiveMonitoringManager:
                 )
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+            maybe_reraise_programming_error(e, e.__traceback__)
 
             logger.error("solution_suggestion_error", error=str(e))
 
     async def _pattern_detection_loop(self) -> None:
         """Loop de detecção de padrões."""
-        interval = self._config.pattern_detection_interval_minutes * 60
-
         while True:
             try:
+                interval = self._config.pattern_detection_interval_minutes * 60
                 await asyncio.sleep(interval)
 
                 if self._status_store:
@@ -379,12 +365,8 @@ class ProactiveMonitoringManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
+                maybe_reraise_programming_error(e, e.__traceback__)
 
                 logger.error("pattern_detection_error", error=str(e))
                 await asyncio.sleep(60)  # Wait before retry
@@ -435,12 +417,8 @@ class ProactiveMonitoringManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
+                maybe_reraise_programming_error(e, e.__traceback__)
 
                 logger.error("cleanup_error", error=str(e))
                 await asyncio.sleep(3600)  # Wait 1h before retry

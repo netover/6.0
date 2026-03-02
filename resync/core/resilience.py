@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from functools import wraps
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, cast
 
 from tenacity import (
     AsyncRetrying,
@@ -207,7 +207,7 @@ class CircuitBreaker:
                     state=self.state.value,
                 )
 
-            raise e
+            raise
 
     def _should_attempt_reset(self) -> bool:
         """Verifica se deve tentar resetar o circuit breaker"""
@@ -354,7 +354,8 @@ class RetryWithBackoff:
             reraise=True,
         )
 
-        result: T | None = None
+        _unset: object = object()
+        result: object = _unset
         try:
             async for attempt in retrying:
                 self.metrics.total_attempts += 1
@@ -367,7 +368,7 @@ class RetryWithBackoff:
                         attempt=attempt.retry_state.attempt_number - 1,
                         max_retries=self.config.max_retries,
                     )
-                return result
+                return cast(T, result)
         except self.config.expected_exceptions as exc:
             logger.error(
                 "Operation failed after all retry attempts",
@@ -376,13 +377,8 @@ class RetryWithBackoff:
                 error=str(exc),
             )
             raise
-        finally:
-            if result is None:
-                # This should not happen, but return a default for type safety
-                raise RuntimeError("No result from retry execution")
 
-        # This line is unreachable but required for type checking
-        return result
+        raise RuntimeError("RetryWithBackoff.execute exhausted without result or exception")
 
     def get_metrics(self) -> dict[str, Any]:
         """Retorna métricas de retry"""
