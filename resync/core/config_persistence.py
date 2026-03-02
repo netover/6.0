@@ -167,8 +167,16 @@ class ConfigPersistenceManager:
                 with open(temp_file, "w", encoding="utf-8") as f:
                     toml.dump(current_config, f)
 
-            # Atomic replace
-            temp_file.replace(self.config_file)
+            # Atomic replace (cross-platform; fallback for locked destination)
+            try:
+                os.replace(temp_file, self.config_file)
+            except OSError:
+                if self.config_file.exists():
+                    try:
+                        self.config_file.unlink()
+                    except OSError:
+                        pass
+                shutil.move(temp_file, self.config_file)
 
             logger.info(
                 "Configuration saved successfully: "

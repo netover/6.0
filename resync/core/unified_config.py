@@ -15,6 +15,7 @@ Version: 5.9.9
 
 import asyncio
 import inspect
+import threading
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Any
 
 import structlog
 import tomllib
+import copy
 try:
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
@@ -111,6 +113,9 @@ class UnifiedConfigManager:
         # Populated when hot reload is started from within the app.
         self._loop: asyncio.AbstractEventLoop | None = None
 
+        self._config_lock: asyncio.Lock | None = None
+        self._config_lock_init = threading.Lock()
+
         # Ensure config directory exists
         self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -185,7 +190,17 @@ class UnifiedConfigManager:
             self.observer = None
             logger.info("Hot reload stopped")
 
-    async def load_all_configs(self):
+
+    @property
+    def _async_config_lock(self) -> asyncio.Lock:
+        """Return lock bound to the running loop (lazy-init)."""
+        if self._config_lock is None:
+            with self._config_lock_init:
+                if self._config_lock is None:
+                    self._config_lock = asyncio.Lock()
+        return self._config_lock
+
+    async def load_all_configs(self) -> None:
         """Load all configuration files."""
         for name, path in self.CONFIG_FILES.items():
             if path.exists():
@@ -194,7 +209,7 @@ class UnifiedConfigManager:
                 logger.warning("Config file not found: %s", path)
                 self.configs[name] = {}
 
-    async def reload_config_file(self, file_path: Path):
+    async def reload_config_file(self, file_path: Path) -> None:
         """
         Reload a specific config file and notify listeners.
 
@@ -215,12 +230,10 @@ class UnifiedConfigManager:
             # Load new config
             async with aiofiles.open(file_path) as f:
                 content = await f.read()
-                new_config = tomllib.loads(content)
-            # Get old config
-            old_config = self.configs.get(config_name, {})
-
-            # Update in-memory config
-            self.configs[config_name] = new_config
+            new_config = await asyncio.to_thread(tomllib.loads, content)
+            async with self._async_config_lock:
+                old_config = copy.deepcopy(self.configs.get(config_name, {}))
+                self.configs[config_name] = new_config
 
             logger.info(
                 f"Config reloaded (hot reload): {config_name}", file=str(file_path)
@@ -245,9 +258,9 @@ class UnifiedConfigManager:
                 "Failed to reload config file %s: %s", file_path, e, exc_info=True
             )
 
-    async def _notify_change(self, config_name: str, old_value: Any, new_value: Any):
+    async def _notify_change(self, config_name: str, old_value: Any, new_value: Any) -> None:
         """Notify registered callbacks about config change."""
-        callbacks = self.change_callbacks.get(config_name, [])
+        callbacks = list(self.change_callbacks.get(config_name, []))
 
         event = ConfigChangeEvent(config_name, old_value, new_value)
 
@@ -267,7 +280,7 @@ class UnifiedConfigManager:
 
                 logger.error("Config change callback failed: %s", e, exc_info=True)
 
-    async def _apply_config_changes(self, config_name: str, new_config: dict):
+    async def _apply_config_changes(self, config_name: str, new_config: dict[str, Any]) -> None:
         """Apply configuration changes to runtime objects."""
         try:
             if config_name == "graphrag":
@@ -428,7 +441,7 @@ class UnifiedConfigManager:
             default_model=llm.get("default_model"),
         )
 
-    def register_change_callback(self, config_name: str, callback: Callable) -> None:
+    def register_change_callback(self, config_name: str, callback: Callable[[ConfigChangeEvent], Any]) -> None:
         """
         Register callback for config changes.
 
@@ -445,8 +458,8 @@ class UnifiedConfigManager:
         logger.debug("Registered callback for %s", config_name)
 
     async def update_config(
-        self, config_name: str, section: str, data: dict, create_backup: bool = True
-    ):
+        self, config_name: str, section: str, data: dict[str, Any], create_backup: bool = True
+    ) -> None:
         """
         Update configuration section and persist to file.
 
@@ -480,7 +493,7 @@ class UnifiedConfigManager:
             f"Config updated: {config_name}.{section}", fields=list(data.keys())
         )
 
-    def get_config(self, config_name: str, section: str | None = None) -> dict:
+    def get_config(self, config_name: str, section: str | None = None) -> dict[str, Any]:
         """
         Get configuration.
 
@@ -498,9 +511,9 @@ class UnifiedConfigManager:
 
         return config
 
-    def get_all_configs(self) -> dict[str, dict]:
+    def get_all_configs(self) -> dict[str, dict[str, Any]]:
         """Get all configurations."""
-        return self.configs.copy()
+        return copy.deepcopy(self.configs)
 
 # Global instance
 _config_manager: UnifiedConfigManager | None = None
