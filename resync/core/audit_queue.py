@@ -134,19 +134,22 @@ class AuditQueue:
 
 
 _instance: AuditQueue | None = None
-_instance_lock = asyncio.Lock()
+_instance_lock: asyncio.Lock | None = None
 
 
 async def get_audit_queue() -> AuditQueue:
     """Get the singleton AuditQueue instance (thread-safe)."""
-    global _instance
-    
+    global _instance, _instance_lock
+
+    if _instance_lock is None:
+        _instance_lock = asyncio.Lock()
+
     if _instance is None:
         async with _instance_lock:
             if _instance is None:
                 _instance = AuditQueue()
                 await asyncio.to_thread(_instance.initialize)
-    
+
     return _instance
 
 
