@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from resync.core.websocket_pool_manager import WebSocketPoolManager
 from resync.core.websocket_pool_manager import get_websocket_pool_manager
 
 # --- Logging Setup ---
@@ -28,12 +29,12 @@ class ConnectionManager:
     def __init__(self) -> None:
         """Initializes the ConnectionManager with connection pooling support."""
         self.active_connections: dict[str, WebSocket] = {}
-        self._pool_manager = None
+        self._pool_manager: WebSocketPoolManager | None = None
         self._pool_manager_lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         logger.info("ConnectionManager initialized with pooling support.")
 
-    async def _get_pool_manager(self):
+    async def _get_pool_manager(self) -> WebSocketPoolManager:
         """Get or create the WebSocket pool manager (thread-safe)."""
         if self._pool_manager is None:
             async with self._pool_manager_lock:
@@ -75,9 +76,6 @@ class ConnectionManager:
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
-
-            if isinstance(e, asyncio.CancelledError):
-                raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
 
         if self._pool_manager:
@@ -144,9 +142,8 @@ class ConnectionManager:
         if self._pool_manager and self._pool_manager.connections:
             successful_sends = await self._pool_manager.broadcast(message)
             logger.info(
-                "broadcast_completed",
-                successful_sends=successful_sends,
-                message="clients received the message",
+                "broadcast_completed successful_sends=%d clients received the message",
+                successful_sends,
             )
             return
 
@@ -158,7 +155,7 @@ class ConnectionManager:
             # Create a copy of the connections to iterate safely
             connections = list(self.active_connections.values())
 
-        logger.info("broadcasting_message", client_count=len(connections))
+        logger.info("broadcasting_message client_count=%d", len(connections))
         # HARDENING [P0]: asyncio.TaskGroup previne HoL blocking
         # e garante concorrência estruturada.
         # Um cliente lento ou com erro de rede não atrasa o envio para os demais.
@@ -172,7 +169,7 @@ class ConnectionManager:
             raise
         except* Exception as eg:
             for exc in eg.exceptions:
-                logger.warning("broadcast_connection_error", error=str(exc))
+                logger.warning("broadcast_connection_error error=%s", exc)
 
     async def broadcast_json(self, data: dict[str, Any]) -> None:
         """
@@ -185,9 +182,8 @@ class ConnectionManager:
         if self._pool_manager and self._pool_manager.connections:
             successful_sends = await self._pool_manager.broadcast_json(data)
             logger.info(
-                "json_broadcast_completed",
-                successful_sends=successful_sends,
-                message="clients received the data",
+                "json_broadcast_completed successful_sends=%d clients received the data",
+                successful_sends,
             )
             return
 
@@ -212,7 +208,7 @@ class ConnectionManager:
             raise
         except* Exception as eg:
             for exc in eg.exceptions:
-                logger.warning("json_broadcast_connection_error", error=str(exc))
+                logger.warning("json_broadcast_connection_error error=%s", exc)
 
     def get_connection_stats(self) -> dict[str, Any]:
         """

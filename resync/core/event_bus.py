@@ -66,7 +66,7 @@ class WebSocketProtocol(Protocol):
 # CONFIGURAÇÃO — Pydantic v2, imutável e validada na instanciação
 # =============================================================================
 
-class EventBusConfig(BaseModel):
+class EventBusConfig(BaseModel):  # type: ignore[misc]
     """
     Configuração imutável do EventBus.
 
@@ -114,7 +114,7 @@ class Subscriber:
     """Representa um assinante interno com callback."""
 
     subscriber_id: str
-    callback: collections.abc.Callable
+    callback: collections.abc.Callable[..., Any]
     subscription_types: set[SubscriptionType]
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     events_received: int = 0
@@ -178,7 +178,7 @@ class EventBus:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._websocket_lock: asyncio.Lock | None = None
         self._event_queue: asyncio.Queue[dict[str, Any]] | None = None
-        self._processor_task: asyncio.Task | None = None
+        self._processor_task: asyncio.Task[Any] | None = None
         self._is_running: bool = False
 
     # =========================================================================
@@ -264,7 +264,7 @@ class EventBus:
     def subscribe(
         self,
         subscriber_id: str,
-        callback: collections.abc.Callable,
+        callback: collections.abc.Callable[..., Any],
         subscription_types: set[SubscriptionType] | None = None,
     ) -> None:
         """
@@ -436,9 +436,11 @@ class EventBus:
         if "timestamp" not in event_data:
             event_data["timestamp"] = datetime.now(timezone.utc).isoformat()
 
+        queue = self._event_queue
+
         def _enqueue() -> None:
             try:
-                self._event_queue.put_nowait(event_data)
+                queue.put_nowait(event_data)
                 self._event_history.append(event_data)
                 self._events_published += 1
             except asyncio.QueueFull:
