@@ -89,11 +89,39 @@ class SlidingWindowLimiter:
     def __init__(self) -> None:
         self._events: dict[str, deque[float]] = {}
         self._lock = asyncio.Lock()
+        self._cleanup_task: asyncio.Task[None] | None = None
+        self._cleanup_interval_seconds = 300
+        self._stale_after_seconds = max(3600, API_LIMIT_WINDOW_SECONDS * 10)
+
+    def _ensure_cleanup_task(self) -> None:
+        """Start best-effort background cleanup task once per worker process."""
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    async def _cleanup_loop(self) -> None:
+        """Evict stale limiter keys to avoid unbounded memory growth."""
+        while True:
+            await asyncio.sleep(self._cleanup_interval_seconds)
+            now = time.monotonic()
+            stale_cutoff = now - float(self._stale_after_seconds)
+
+            async with self._lock:
+                stale_keys = []
+                for key, events in self._events.items():
+                    if not events:
+                        stale_keys.append(key)
+                        continue
+                    if events[-1] < stale_cutoff:
+                        stale_keys.append(key)
+
+                for stale_key in stale_keys:
+                    self._events.pop(stale_key, None)
 
     async def allow(self, key: str, limit: Limit) -> tuple[bool, int]:
         """
         Returns: (allowed, retry_after_seconds)
         """
+        self._ensure_cleanup_task()
         now = time.monotonic()
         cutoff = now - float(limit.window_seconds)
 
@@ -106,6 +134,12 @@ class SlidingWindowLimiter:
             # evict old
             while q and q[0] < cutoff:
                 q.popleft()
+
+            if not q:
+                # Key became idle after eviction; free memory eagerly.
+                self._events.pop(key, None)
+                q = deque()
+                self._events[key] = q
 
             if len(q) < limit.requests:
                 q.append(now)
