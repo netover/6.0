@@ -31,7 +31,7 @@ import asyncio
 import re
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol
@@ -279,9 +279,11 @@ class IntentClassifier:
     }
 
     # Class-level cache for compiled regex patterns
-    _compiled_patterns: dict[Intent, list[re.Pattern]] = {}
+    _compiled_patterns: dict[Intent, list[re.Pattern[str]]] = {}
 
-    def __init__(self, llm_classifier: Callable | None = None) -> None:
+    def __init__(
+        self, llm_classifier: Callable[[str], Awaitable[IntentClassification]] | None = None
+    ) -> None:
         """
         Initialize the classifier.
 
@@ -452,7 +454,7 @@ class RoutingResult:
 class Handler(Protocol):
     """Protocol for message handlers."""
 
-    def handle(
+    async def handle(
         self,
         message: str,
         context: dict[str, Any],
@@ -475,7 +477,7 @@ class BaseHandler(ABC):
         self._specialist_team = None  # lazy-loaded TWSSpecialistTeam
 
     @property
-    def specialist_team(self):
+    def specialist_team(self) -> Any:
         """Lazy-load TWSSpecialistTeam (shared across handlers)."""
         if self._specialist_team is None:
             from resync.core.specialists.agents import TWSSpecialistTeam
@@ -484,7 +486,7 @@ class BaseHandler(ABC):
         return self._specialist_team
 
     @abstractmethod
-    def handle(
+    async def handle(
         self,
         message: str,
         context: dict[str, Any],
@@ -492,13 +494,14 @@ class BaseHandler(ABC):
     ) -> str:
         """Handle the message and return a response."""
 
-    async def _call_tool(self, tool_name: str, **kwargs) -> str | None:
+    async def _call_tool(self, tool_name: str, **kwargs: Any) -> str | None:
         """Call a tool and track usage."""
         if self.agent_manager and hasattr(self.agent_manager, "call_tool"):
             result = await self.agent_manager.call_tool(tool_name, **kwargs)
-            if result:
+            if isinstance(result, str) and result:
                 self.last_tools_used.append(tool_name)
-            return result
+                return result
+            return None
         return None
 
     async def _get_agent_response(
@@ -508,7 +511,8 @@ class BaseHandler(ABC):
         if self.agent_manager:
             agent = await self.agent_manager.get_agent(agent_id)
             if agent and hasattr(agent, "arun"):
-                return await agent.arun(message, skill_context=skill_context)
+                response = await agent.arun(message, skill_context=skill_context)
+                return response if isinstance(response, str) else str(response)
         return ""
 
     def _build_skill_context(self, classification: IntentClassification) -> str:
@@ -524,7 +528,8 @@ class BaseHandler(ABC):
         # Use injected skill_manager (preferred) or fall back to deprecated global
         if self.skill_manager is not None:
             # New path: use SkillManager.build_skill_context (O(1) lookup, cached)
-            return self.skill_manager.build_skill_context(skills)
+            skill_context = self.skill_manager.build_skill_context(skills)
+            return skill_context if isinstance(skill_context, str) else str(skill_context)
 
         # Fallback: deprecated global singleton (will emit DeprecationWarning)
         from resync.core.skill_manager import get_skill_manager
@@ -576,11 +581,12 @@ class RAGOnlyHandler(BaseHandler):
             rag = RAGTool()
 
             def _execute_rag_search() -> dict[str, Any]:
-                return rag.search_knowledge_base(
+                raw_results = rag.search_knowledge_base(
                     query=message,
                     top_k=5,
                     use_hybrid=True,
                 )
+                return raw_results if isinstance(raw_results, dict) else {}
 
             results = await asyncio.to_thread(_execute_rag_search)
 
@@ -589,8 +595,13 @@ class RAGOnlyHandler(BaseHandler):
 
                 # Format response from RAG results
                 response_parts = ["Com base na documentação disponível:\n"]
-                for i, result in enumerate(results["results"][:3], 1):
-                    content = result.get("content", result.get("text", ""))
+                raw_result_items = results.get("results", [])
+                result_items = raw_result_items if isinstance(raw_result_items, list) else []
+                for i, result in enumerate(result_items[:3], 1):
+                    if not isinstance(result, dict):
+                        continue
+                    content_raw = result.get("content", result.get("text", ""))
+                    content = content_raw if isinstance(content_raw, str) else str(content_raw)
                     if content:
                         response_parts.append(f"{i}. {content[:500]}...")
 
@@ -658,7 +669,7 @@ class AgenticHandler(BaseHandler):
         self._specialist_team = None
 
     @property
-    def parallel_executor(self):
+    def parallel_executor(self) -> Any:
         """Lazy load parallel executor."""
         if self._parallel_executor is None:
             from resync.core.specialists.parallel_executor import ParallelToolExecutor
@@ -667,7 +678,7 @@ class AgenticHandler(BaseHandler):
         return self._parallel_executor
 
     @property
-    def specialist_team(self):
+    def specialist_team(self) -> Any:
         """
         Lazy load TWSSpecialistTeam for advanced agentic reasoning.
 

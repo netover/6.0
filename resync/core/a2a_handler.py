@@ -6,6 +6,7 @@ Manages task lifecycle, JSON-RPC routing, and agent delegation.
 import asyncio
 import uuid
 from datetime import datetime, timezone
+from collections.abc import AsyncGenerator
 from typing import Any, Protocol
 
 import structlog
@@ -40,7 +41,7 @@ class A2ATask:
 
     def update_state(
         self, state: TaskState, result: Any = None, error: str | None = None
-    ):
+    ) -> None:
         """Update task state and timestamp."""
         self.state = state
         self.updated_at = datetime.now(timezone.utc)
@@ -107,6 +108,8 @@ class A2AHandler:
 
             return JsonRpcResponse(result=result, id=request.id)
 
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -146,7 +149,7 @@ class A2AHandler:
         # Fallback to direct tool-like call if possible (simplified for now)
         return await agent.arun(f"Execute action: {method} with params {params}")
 
-    async def _publish_event(self, event_type: str, task: A2ATask):
+    async def _publish_event(self, event_type: str, task: A2ATask) -> None:
         """Publish event to internal queue for SSE/WebSockets."""
         event = {"type": "a2a_event", "event": event_type, "task": task.to_dict()}
         try:
@@ -154,7 +157,7 @@ class A2AHandler:
         except asyncio.TimeoutError:
             logger.warning("Event queue full, dropping event", event_type=event_type)
 
-    async def get_event_stream(self):
+    async def get_event_stream(self) -> AsyncGenerator[dict[str, Any], None]:
         """Generator for SSE events."""
         while True:
             event = await self._event_queue.get()

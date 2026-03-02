@@ -14,12 +14,12 @@ import inspect
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-import aiofiles
+import aiofiles  # type: ignore[import-untyped]
 import structlog
-import yaml
-from cachetools import LRUCache
+import yaml  # type: ignore[import-untyped]
+from cachetools import LRUCache  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
 
 from resync.core.exceptions import AgentError
@@ -168,7 +168,7 @@ class Agent:
                 agent_logger.error("empty_content_in_message", agent=self.name)
                 return self._fallback_response(message)
 
-            return content
+            return content if isinstance(content, str) else str(content)
 
         except asyncio.CancelledError:
             raise
@@ -220,7 +220,8 @@ class Agent:
         """Synchronous wrapper around :meth:`arun`."""
         coro = self.arun(message)
         try:
-            return run_sync(coro)
+            result = run_sync(coro)
+            return result if isinstance(result, str) else str(result)
         except RuntimeError:
             coro.close()
             raise
@@ -243,7 +244,7 @@ MockAgent = Agent
 AGNO_AVAILABLE = True
 
 # --- Pydantic models --------------------------------------------------------
-class AgentsConfig(BaseModel):
+class AgentsConfig(BaseModel):  # type: ignore[misc]
     """Container for multiple agent configurations."""
 
     agents: list[AgentConfig] = Field(default_factory=list)
@@ -833,9 +834,11 @@ class UnifiedAgent:
         return self._history_locks[conversation_id]
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
-        if conversation_id not in self._histories:
-            self._histories[conversation_id] = []
-        return self._histories[conversation_id]
+        history = cast(list[dict[str, str]] | None, self._histories.get(conversation_id))
+        if history is None:
+            history = []
+            self._histories[conversation_id] = history
+        return history
 
     async def chat(
         self,
@@ -935,7 +938,7 @@ class UnifiedAgent:
         return list(self._get_history(conversation_id))
 
     @property
-    def router(self):
+    def router(self) -> Any:
         """Access the underlying router for advanced usage."""
         return self._router
 
@@ -1007,7 +1010,7 @@ class _UnifiedAgentProxy:
     to work without triggering initialization at import time.
     """
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         return getattr(get_unified_agent(), name)
 
     def __repr__(self) -> str:
