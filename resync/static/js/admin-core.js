@@ -1,5 +1,17 @@
 /**
- * Admin APP - Main controller for the Resync Administrative SPA.
+ * AdminApp
+ * --------
+ * Root controller for the Resync Administrative SPA.
+ *
+ * Authentication model:
+ *   - On load, `isAuthenticated()` checks sessionStorage for the `admin_logged_in` flag.
+ *   - If absent, `showLogin()` is called which POSTs credentials to `/auth/login`.
+ *   - A successful login causes the server to set an HttpOnly `access_token` JWT cookie.
+ *   - The flag is then stored in sessionStorage so page navigations don't re-show the modal.
+ *   - Logout calls `/auth/logout` (server revokes the token) and clears the flag.
+ *
+ * All JSON API calls use `credentials: 'include'` (via AdminAPIClient) so the browser
+ * automatically attaches the `access_token` cookie — no Bearer header needed.
  */
 class AdminApp {
     constructor() {
@@ -15,6 +27,9 @@ class AdminApp {
         this.init();
     }
 
+    /**
+     * Entry point — decides whether to show the login form or bootstrap the app.
+     */
     init() {
         if (!this.isAuthenticated()) {
             this.showLogin();
@@ -23,25 +38,49 @@ class AdminApp {
         }
     }
 
+    /**
+     * Check whether the current session has an admin login flag.
+     * NOTE: The real JWT sits in an HttpOnly cookie managed by the browser;
+     *       this flag only tracks client-side session state.
+     *
+     * @returns {boolean} True if the admin is considered logged in for this session.
+     */
     isAuthenticated() {
-        return sessionStorage.getItem('admin_auth') !== null;
+        return sessionStorage.getItem('admin_logged_in') === '1';
     }
 
+    /**
+     * Show the login modal and wire up the submit handler.
+     * POSTs JSON credentials to `/auth/login`; on success the server sets
+     * the `access_token` HttpOnly cookie and this method saves `admin_logged_in`
+     * to sessionStorage before reloading the page.
+     */
     showLogin() {
         document.getElementById('loginModal').style.display = 'flex';
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
-            const auth = btoa(`${user}:${pass}`);
-            sessionStorage.setItem('admin_auth', auth);
+
+            /** @type {string} */ const user = document.getElementById('username').value;
+            /** @type {string} */ const pass = document.getElementById('password').value;
 
             try {
-                await this.api.get('/health'); // Test auth
+                // POST credentials as JSON — server validates and sets the JWT cookie.
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',  // Required so the Set-Cookie header is accepted
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Invalid credentials');
+                }
+                // Mark session as authenticated; cookie is already set by server.
+                sessionStorage.setItem('admin_logged_in', '1');
                 location.reload();
             } catch (err) {
-                alert('Login failed: Invalid credentials');
-                sessionStorage.removeItem('admin_auth');
+                alert('Login failed: ' + err.message);
+                sessionStorage.removeItem('admin_logged_in');
             }
         });
     }
@@ -87,8 +126,12 @@ class AdminApp {
     }
 
     setupEventListeners() {
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            sessionStorage.removeItem('admin_auth');
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                // Ask server to revoke the JWT (Redis JTI blacklist).
+                await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+            } catch (_) { /* Non-fatal: cookie will expire on its own */ }
+            sessionStorage.removeItem('admin_logged_in');
             location.reload();
         });
     }

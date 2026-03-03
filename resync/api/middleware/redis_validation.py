@@ -1,15 +1,15 @@
 """
-Redis Validation Middleware
+Valkey Validation Middleware
 
-Intercepta todas as requests e valida disponibilidade de Redis
+Intercepta todas as requests e valida disponibilidade de Valkey
 baseado no tier do endpoint.
 
 Comportamento por Tier:
-- READ_ONLY: Sempre permite (nunca precisa Redis)
+- READ_ONLY: Sempre permite (nunca precisa Valkey)
 - BEST_EFFORT: Permite mas adiciona header de degradação
-- CRITICAL: Retorna 503 se Redis indisponível
+- CRITICAL: Retorna 503 se Valkey indisponível
 
-v5.4.2: Unifica modo degradado Redis com documentação de tiers.
+v6.3: Migrado de Redis para Valkey.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ logger = structlog.get_logger(__name__)
 _redis_strategy = None
 
 def get_redis_strategy():
-    """Lazy load Redis strategy to avoid import issues."""
+    """Lazy load Valkey strategy to avoid import issues."""
     global _redis_strategy
     if _redis_strategy is None:
         from resync.core.redis_strategy import get_redis_strategy as _get_strategy
@@ -39,10 +39,10 @@ def get_redis_strategy():
 
 class RedisValidationMiddleware(BaseHTTPMiddleware):
     """
-    Middleware que valida disponibilidade de Redis por tier de endpoint.
+    Middleware que valida disponibilidade de Valkey por tier de endpoint.
 
     Adiciona headers:
-    - X-Redis-Status: available|unavailable
+    - X-Valkey-Status: available|unavailable (X-Redis-Status para compatibilidade)
     - X-Degraded-Mode: true (se degradado)
     - X-Degraded-Reason: mensagem explicativa
     - X-Cost-Impact: impacto de custo (se aplicável)
@@ -50,7 +50,7 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
     Comportamento:
     - READ_ONLY: Sempre permite
     - BEST_EFFORT: Permite com headers de aviso
-    - CRITICAL: Retorna 503 se Redis down
+    - CRITICAL: Retorna 503 se Valkey down
     """
 
     def __init__(self, app: ASGIApp) -> None:

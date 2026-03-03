@@ -61,6 +61,19 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
 
             # Real connectivity test
             tws_url = tws_config.get("url")
+            
+            # P2-C11 FIX: Validate URL against SSRF protection
+            from resync.core.ssrf_protection import SSRFProtection
+            is_safe, reason = SSRFProtection.is_safe_url(tws_url)
+            if not is_safe:
+                return ComponentHealth(
+                    name=self.component_name,
+                    component_type=self.component_type,
+                    status=HealthStatus.UNHEALTHY,
+                    message=f"TWS monitor URL blocked: {reason}",
+                    last_check=datetime.now(timezone.utc),
+                )
+            
             try:
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     resp = await client.get(f"{tws_url}/health")

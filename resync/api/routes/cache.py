@@ -2,7 +2,9 @@
 
 This module provides REST API endpoints for cache management operations,
 including cache statistics, cache clearing, and cache health monitoring.
-It supports both memory and Redis-based caching with detailed metrics.
+It supports both memory and Valkey-based caching with detailed metrics.
+
+v6.3: Migrated from Redis to Valkey.
 
 Critical fixes applied:
 - P0-14: Thread-safe redis_manager initialization with asyncio.Lock
@@ -21,18 +23,23 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 try:
-    from redis import Redis
-    from redis.exceptions import ConnectionError as RedisConnectionError
-    from redis.exceptions import TimeoutError as RedisTimeoutError
+    from valkey import Valkey as Redis
+    from valkey.exceptions import ConnectionError as RedisConnectionError
+    from valkey.exceptions import TimeoutError as RedisTimeoutError
 except ImportError:
-    # P1-13 FIX: Create dummy exception classes instead of None to prevent TypeError
-    Redis = None  # type: ignore
+    # Fallback to redis-py for backward compatibility
+    try:
+        from redis import Redis
+        from redis.exceptions import ConnectionError as RedisConnectionError
+        from redis.exceptions import TimeoutError as RedisTimeoutError
+    except ImportError:
+        Redis = None  # type: ignore
 
-    class RedisConnectionError(Exception):
-        """Dummy exception when redis is not available."""
+        class RedisConnectionError(Exception):
+            """Dummy exception when Valkey is not available."""
 
-    class RedisTimeoutError(Exception):
-        """Dummy exception when redis is not available."""
+        class RedisTimeoutError(Exception):
+            """Dummy exception when Valkey is not available."""
 
 from pydantic import BaseModel
 

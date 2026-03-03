@@ -245,12 +245,12 @@ class ApplicationFactory:
         """Validate critical settings before application startup."""
         errors = []
 
-        # Redis configuration
-        if self.settings.redis_pool_min_size > self.settings.redis_pool_max_size:
-            max_sz = self.settings.redis_pool_max_size
-            min_sz = self.settings.redis_pool_min_size
+        # Valkey configuration
+        if self.settings.valkey_pool_min_size > self.settings.valkey_pool_max_size:
+            max_sz = self.settings.valkey_pool_max_size
+            min_sz = self.settings.valkey_pool_min_size
             raise ValueError(
-                f"redis_pool_max_age ({max_sz}) must be >= redis_pool_min_size ({min_sz})"
+                f"valkey_pool_max_size ({max_sz}) must be >= valkey_pool_min_size ({min_sz})"
             )
 
         # Production-specific validations
@@ -326,7 +326,6 @@ class ApplicationFactory:
             cache_size=self.settings.JINJA2_TEMPLATE_CACHE_SIZE
             if self.settings.is_production
             else 0,
-            enable_async=True,
             # extensions=['resync.core.csp_jinja_extension.CSPNonceExtension']
         )
 
@@ -535,6 +534,7 @@ class ApplicationFactory:
         # [P2-04] unified_config_api added here — critical infra since v6.1.0
         essential_routers = [
             ("resync.api.routes.core.health", "router", "health_router"),
+            ("resync.api.routes.core.auth", "router", "auth_router"),
             ("resync.api.routes.admin.main", "admin_router", "admin_router"),
             ("resync.api.agents", "agents_router", "agents_router"),
             ("resync.api.chat", "chat_router", "chat_router"),
@@ -841,10 +841,10 @@ class ApplicationFactory:
         from resync.core.security.rate_limiter_v2 import rate_limit
 
         # Root redirect
-        @self.app.get("/", include_in_schema=False)
-        async def root() -> RedirectResponse:
-            """Redirect root to admin dashboard."""
-            return RedirectResponse(url="/admin", status_code=307)
+        @self.app.get("/", include_in_schema=False, response_class=HTMLResponse)
+        async def root(request: Request) -> HTMLResponse:
+            """Serve the operator chat screen."""
+            return await self._render_template("chat.html", request)
 
         # Admin panel is now handled by the admin router
 
@@ -852,7 +852,7 @@ class ApplicationFactory:
         @self.app.get("/revisao", include_in_schema=False, response_class=HTMLResponse)
         async def revisao_page(request: Request) -> HTMLResponse:
             """Serve the revision page."""
-            return self._render_template("revisao.html", request)
+            return await self._render_template("revisao.html", request)
 
         # CSP violation report endpoint with rate limiting to prevent
         # DoS from browser extensions.
@@ -966,7 +966,7 @@ class ApplicationFactory:
 
         logger.info("special_endpoints_registered")
 
-    def _render_template(self, template_name: str, request: Request) -> HTMLResponse:
+    async def _render_template(self, template_name: str, request: Request) -> HTMLResponse:
         """
         Render a template with CSP nonce support.
 

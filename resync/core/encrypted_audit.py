@@ -21,6 +21,7 @@ import gzip
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import time
 from collections import deque
@@ -203,16 +204,30 @@ class EncryptedAuditConfig:
     encryption_enabled: bool = True
 
 class KeyManager:
-    """Secure key management for audit encryption."""
+    """Secure key management for audit encryption.
+    
+    P2-C12 FIX: Keys are now persisted to disk to prevent data loss on restart.
+    Keys are encrypted with a master key derived from settings or environment.
+    """
 
     def __init__(self, config: EncryptedAuditConfig) -> None:
         self.config = config
         self.keys: dict[str, EncryptionKey] = {}
         self.active_key_id: str | None = None
-        self.hmac_key: bytes = secrets.token_bytes(self.config.hmac_key_length)
+        
+        # P2-C12 FIX: Try to load keys from disk first, only generate if none exist
+        self._keys_file = Path(self.config.audit_log_directory) / "encryption_keys.json"
+        self._master_key = self._get_master_key()
+        
+        if not self._load_keys():
+            # No existing keys - generate new ones
+            self.hmac_key: bytes = secrets.token_bytes(self.config.hmac_key_length)
+            self.generate_key("initial_key")
+            self._save_keys()
+        # else: keys loaded from disk, including hmac_key
 
     def generate_key(self, reason: str = "scheduled_rotation") -> EncryptionKey:
-        """Generate a new encryption key."""
+        """Generate a new encryption key and persist to disk."""
         key_id = f"key_{int(time.time())}_{secrets.token_hex(4)}"
         key_data = secrets.token_bytes(32)  # 256-bit key
 
@@ -233,6 +248,7 @@ class KeyManager:
             self.active_key_id = key_id
 
         logger.info("Generated new encryption key: %s", key_id)
+        self._save_keys()  # P2-C12 FIX: Persist after generating
         return key
 
     def get_active_key(self) -> EncryptionKey:
@@ -247,7 +263,7 @@ class KeyManager:
         return key
 
     def rotate_key(self, reason: str = "manual_rotation") -> EncryptionKey:
-        """Force key rotation."""
+        """Force key rotation and persist."""
         # Deactivate current key
         if self.active_key_id and self.active_key_id in self.keys:
             self.keys[self.active_key_id].is_active = False
@@ -255,6 +271,7 @@ class KeyManager:
         # Generate new key
         new_key = self.generate_key(reason)
         logger.info("Key rotation completed: %s", new_key.key_id)
+        self._save_keys()  # P2-C12 FIX: Persist after rotation
         return new_key
 
     def get_key_by_id(self, key_id: str) -> EncryptionKey | None:
@@ -274,6 +291,94 @@ class KeyManager:
             }
             for key in self.keys.values()
         ]
+
+    # P2-C12 FIX: Add helper methods for key persistence
+    def _get_master_key(self) -> bytes:
+        """Get or generate master key for encrypting stored keys."""
+        from resync.settings import settings
+        master_key = getattr(settings, "AUDIT_MASTER_KEY", None)
+        if master_key:
+            return hashlib.sha256(str(master_key).encode()).digest()
+        
+        master_key_file = Path(self.config.audit_log_directory) / ".master_key"
+        if master_key_file.exists():
+            try:
+                with open(master_key_file, "rb") as f:
+                    return base64.b64decode(f.read())
+            except Exception:
+                pass
+        
+        new_master_key = secrets.token_bytes(32)
+        try:
+            master_key_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(master_key_file, "wb") as f:
+                f.write(base64.b64encode(new_master_key))
+            os.chmod(master_key_file, 0o600)
+        except Exception:
+            logger.warning("Could not persist master key - keys will not survive restart")
+        return new_master_key
+
+    def _load_keys(self) -> bool:
+        """Load encryption keys from disk."""
+        if not self._keys_file.exists():
+            return False
+        try:
+            with open(self._keys_file, "rb") as f:
+                encrypted_data = f.read()
+            from cryptography.fernet import Fernet
+            fernet = Fernet(base64.urlsafe_b64encode(self._master_key))
+            decrypted = fernet.decrypt(encrypted_data)
+            data = json.loads(decrypted)
+            self.hmac_key = base64.b64decode(data["hmac_key"])
+            for key_data in data.get("keys", []):
+                key = EncryptionKey(
+                    key_id=key_data["key_id"],
+                    key_data=base64.b64decode(key_data["key_data"]),
+                    created_at=key_data["created_at"],
+                    expires_at=key_data.get("expires_at"),
+                    is_active=key_data.get("is_active", True),
+                    rotation_reason=key_data.get("rotation_reason", ""),
+                )
+                self.keys[key.key_id] = key
+            self.active_key_id = data.get("active_key_id")
+            logger.info("Loaded %d encryption keys from disk", len(self.keys))
+            return True
+        except Exception as e:
+            logger.warning("Could not load encryption keys from disk: %s", e)
+            return False
+
+    def _save_keys(self) -> bool:
+        """Persist encryption keys to disk."""
+        try:
+            data = {
+                "hmac_key": base64.b64encode(self.hmac_key).decode(),
+                "active_key_id": self.active_key_id,
+                "keys": [
+                    {
+                        "key_id": k.key_id,
+                        "key_data": base64.b64encode(k.key_data).decode(),
+                        "created_at": k.created_at,
+                        "expires_at": k.expires_at,
+                        "is_active": k.is_active,
+                        "rotation_reason": k.rotation_reason,
+                    }
+                    for k in self.keys.values()
+                ],
+            }
+            from cryptography.fernet import Fernet
+            fernet = Fernet(base64.urlsafe_b64encode(self._master_key))
+            encrypted = fernet.json.dumps(data).encode()
+            self._keys_file.parent.mkdir(parents=True, exist_ok=True)
+            temp_file = self._keys_file.with_suffix(".tmp")
+            with open(temp_file, "wb") as f:
+                f.write(encrypted)
+            temp_file.replace(self._keys_file)
+            os.chmod(self._keys_file, 0o600)
+            logger.info("Saved %d encryption keys to disk", len(self.keys))
+            return True
+        except Exception as e:
+            logger.error("Could not save encryption keys to disk: %s", e)
+            return False
 
 class EncryptedAuditTrail:
     """

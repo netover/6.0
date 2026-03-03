@@ -112,7 +112,15 @@ class AuditLog:
 
 
 _instance: AuditLog | None = None
-_instance_lock = asyncio.Lock()
+_instance_lock: asyncio.Lock | None = None
+
+
+def _get_instance_lock() -> asyncio.Lock:
+    """Lazy initialization of the asyncio.Lock to avoid issues with event loop not running at import time."""
+    global _instance_lock
+    if _instance_lock is None:
+        _instance_lock = asyncio.Lock()
+    return _instance_lock
 
 
 async def get_audit_log() -> AuditLog:
@@ -120,7 +128,7 @@ async def get_audit_log() -> AuditLog:
     global _instance
     
     if _instance is None:
-        async with _instance_lock:
+        async with _get_instance_lock():
             if _instance is None:
                 _instance = AuditLog()
                 await _instance.initialize()

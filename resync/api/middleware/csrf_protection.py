@@ -37,8 +37,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     key=self.cookie_name,
                     value=new_token,
                     httponly=False,  # JS must read this for X-CSRF-Token header
-                    secure=True,
-                    samesite="strict",
+                    secure=getattr(settings, "is_production", False),
+                    samesite="lax",
                     max_age=3600,
                 )
             return response
@@ -75,8 +75,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 key=self.cookie_name,
                 value=new_token,
                 httponly=False,  # JS must read this for X-CSRF-Token header
-                secure=True,
-                samesite="strict",
+                secure=getattr(settings, "is_production", False),
+                samesite="lax",
                 max_age=3600,
             )
 

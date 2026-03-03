@@ -90,13 +90,11 @@ class TeamsHealthResponse(BaseModel):
     "/",
     response_class=HTMLResponse,
     summary="Admin Dashboard",
-    dependencies=[Depends(verify_admin_credentials)],
 )
 @admin_router.get(
     "",
     response_class=HTMLResponse,
     summary="Admin Dashboard",
-    dependencies=[Depends(verify_admin_credentials)],
 )
 async def admin_dashboard(request: Request) -> HTMLResponse:
     """Serve the admin configuration dashboard.
@@ -131,7 +129,6 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
     "/api-keys",
     response_class=HTMLResponse,
     summary="API Key Management",
-    dependencies=[Depends(verify_admin_credentials)],
 )
 async def api_keys_admin_page(request: Request) -> HTMLResponse:
     """Serve the API Key Management admin page.
@@ -199,10 +196,10 @@ async def get_admin_config(
             "monitored_instances": getattr(settings, "MONITORED_TWS_INSTANCES", []),
         }
 
-        # Get system configuration
+        # Get system configuration - P0-A5 FIX: Don't expose sensitive credentials
         system_config = {
             "llm_endpoint": getattr(settings, "LLM_ENDPOINT", None),
-            "admin_username": getattr(settings, "ADMIN_USERNAME", None),
+            # admin_username removed - should never be exposed in API responses
             "debug": getattr(settings, "DEBUG", False),
             "environment": getattr(settings, "APP_ENV", "development"),
         }
@@ -289,9 +286,10 @@ async def update_teams_config(
             "monitored_instances": getattr(settings, "MONITORED_TWS_INSTANCES", []),
         }
 
+        # P0-A5 FIX: Don't expose sensitive credentials
         system_config = {
             "llm_endpoint": getattr(settings, "LLM_ENDPOINT", None),
-            "admin_username": getattr(settings, "ADMIN_USERNAME", None),
+            # admin_username removed - should never be exposed in API responses
             "debug": getattr(settings, "DEBUG", False),
             "environment": getattr(settings, "APP_ENV", "development"),
         }
@@ -1073,6 +1071,16 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                     status="degraded",
                     message="LLM endpoint not configured",
                 )
+            
+            # P2-C11 FIX: Validate URL against SSRF protection
+            from resync.core.ssrf_protection import SSRFProtection
+            is_safe, reason = SSRFProtection.is_safe_url(llm_endpoint)
+            if not is_safe:
+                return ComponentHealth(
+                    status="unhealthy",
+                    message=f"LLM endpoint blocked: {reason}",
+                )
+            
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{llm_endpoint}/health")
@@ -1123,6 +1131,16 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                     status="degraded",
                     message="RAG not configured (pgvector or RAG_SERVICE_URL)",
                 )
+            
+            # P2-C11 FIX: Validate URL against SSRF protection
+            from resync.core.ssrf_protection import SSRFProtection
+            is_safe, reason = SSRFProtection.is_safe_url(rag_url)
+            if not is_safe:
+                return ComponentHealth(
+                    status="unhealthy",
+                    message=f"RAG endpoint blocked: {reason}",
+                )
+            
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{rag_url}/health")
@@ -1238,6 +1256,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
 @admin_router.get(
     "/audit",
     summary="Get Audit Logs",
+    dependencies=[Depends(verify_admin_credentials)],
 )
 async def get_admin_audit_logs(
     request: Request,

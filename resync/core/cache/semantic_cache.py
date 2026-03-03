@@ -33,6 +33,9 @@ except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, 
     VectorQuery = None  # type: ignore[assignment]
     REDISVL_AVAILABLE = False
 
+import valkey.asyncio as redis
+from valkey.exceptions import ConnectionError, ValkeyError as RedisError, TimeoutError
+
 from resync.models.cache import CacheEntry, CacheResult
 from .embedding_model import (
     cosine_distance,

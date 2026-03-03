@@ -18,6 +18,7 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
+# Python 3.14+: Langfuse intentionally disabled (compatibility not yet verified)
 if sys.version_info >= (3, 14):
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
@@ -118,6 +119,7 @@ class AgentConnectionManager:
             self.agent_connections[websocket] = agent_id
 
         logger.info("WebSocket connected for agent %s", agent_id)
+        return True
 
     async def disconnect(self, websocket: WebSocket):
         """Disconnect WebSocket - async version (replaces sync wrapper).
@@ -203,7 +205,7 @@ class AgentConnectionManager:
         - Concurrent sends with a semaphore.
         - Per-send timeout.
         """
-        async with self._lock:
+        async with self.lock:
             all_websockets: list[WebSocket] = []
             for agent_connections in self.active_connections.values():
                 all_websockets.extend(agent_connections)
@@ -298,8 +300,6 @@ async def websocket_handler(
     hashed_user = hash_user_id(user_id)
     if LANGFUSE_AVAILABLE and langfuse_context is not None:
         langfuse_context.update_current_trace(user_id=hashed_user)
-
-    await manager.connect(websocket, agent_id)
 
     # P0-21 FIX: Verify connection was successful (not rate-limited)
     is_connected = await manager.connect(websocket, agent_id)

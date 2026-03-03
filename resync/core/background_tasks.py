@@ -55,14 +55,24 @@ async def get_background_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 _conversation_memory_instance: "ConversationMemory | None" = None
 _conversation_memory_lock: asyncio.Lock | None = None
+_conversation_memory_thread_lock: threading.Lock | None = None
 
 
 def _get_memory_lock() -> asyncio.Lock:
-    """Get or create the memory singleton lock."""
+    """Get or create the async lock for memory singleton."""
     global _conversation_memory_lock
     if _conversation_memory_lock is None:
         _conversation_memory_lock = asyncio.Lock()
     return _conversation_memory_lock
+
+
+def _get_thread_lock() -> threading.Lock:
+    """Get or create the thread lock for synchronous memory access."""
+    global _conversation_memory_thread_lock
+    if _conversation_memory_thread_lock is None:
+        import threading
+        _conversation_memory_thread_lock = threading.Lock()
+    return _conversation_memory_thread_lock
 
 
 async def get_conversation_memory_safe() -> "ConversationMemory":
@@ -108,10 +118,9 @@ def get_conversation_memory() -> "ConversationMemory":
     
     if _conversation_memory_instance is None:
         from resync.core.memory.conversation_memory import ConversationMemory
-        import threading
         
-        # Use threading lock for sync access
-        lock = _get_memory_lock()
+        # Use threading lock for sync access (asyncio.Lock is not sync-safe)
+        lock = _get_thread_lock()
         with lock:
             if _conversation_memory_instance is None:
                 _conversation_memory_instance = ConversationMemory()

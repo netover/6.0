@@ -443,8 +443,21 @@ async def revoke_api_key(
         )
     )
 
-    await db.execute(stmt)
-    await db.commit()
+    try:
+        await db.execute(stmt)
+        await db.commit()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
+        await db.rollback()
+        logger.error("api_key_revoke_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke API key. Check server logs for details.",
+        ) from None
 
     logger.info(
         "api_key_revoked",
@@ -480,8 +493,21 @@ async def delete_api_key_permanent(
 
     # Delete
     stmt = delete(APIKey).where(APIKey.id == key_id)
-    await db.execute(stmt)
-    await db.commit()
+    try:
+        await db.execute(stmt)
+        await db.commit()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        import sys as _sys
+        from resync.core.exception_guard import maybe_reraise_programming_error
+        _exc_type, _exc, _tb = _sys.exc_info()
+        maybe_reraise_programming_error(_exc, _tb)
+
+        await db.rollback()
+        logger.error("api_key_delete_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete API key. Check server logs for details.",
+        ) from None
 
     logger.warning(
         "api_key_deleted_permanently", key_id=key_id, deleted_by=admin_token["user"]

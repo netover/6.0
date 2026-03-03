@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+from sqlalchemy import text
 
 from resync.core.health.health_models import (
     ComponentHealth,
@@ -59,10 +60,10 @@ class DatabaseHealthChecker(BaseHealthChecker):
                 )
 
             # Test database connectivity
-            async with pool_manager.acquire_connection("default") as conn:
+            async with pool_manager.db_pool.acquire() as conn:
                 # Simple query to test connection
                 if hasattr(conn, "execute"):
-                    result = await conn.execute("SELECT 1")
+                    result = await conn.execute(text("SELECT 1"))
                     if hasattr(result, "fetchone"):
                         await result.fetchone()
                 elif hasattr(conn, "cursor"):
@@ -75,7 +76,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
             response_time = (time.time() - start_time) * 1000
 
             # Get real pool statistics from pool manager
-            pool_stats = pool_manager.get_pool_stats()
+            pool_stats = pool_manager.get_status()
 
             if not pool_stats:
                 return ComponentHealth(
@@ -90,7 +91,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
 
             db_pool_stats = pool_stats.get("database")
 
-            if db_pool_stats is None:
+            if db_pool_stats is None or not isinstance(db_pool_stats, dict) or db_pool_stats.get("status") == "not_initialized":
                 return ComponentHealth(
                     name=self.component_name,
                     component_type=self.component_type,
@@ -102,8 +103,8 @@ class DatabaseHealthChecker(BaseHealthChecker):
                 )
 
             # Calculate connection usage percentage
-            active_connections = db_pool_stats.active_connections
-            total_connections = db_pool_stats.total_connections
+            active_connections = db_pool_stats.get("checked_out", 0)
+            total_connections = db_pool_stats.get("size", 10) + db_pool_stats.get("overflow", 0)
             connection_usage_percent = (
                 (active_connections / total_connections * 100)
                 if total_connections > 0
@@ -130,23 +131,11 @@ class DatabaseHealthChecker(BaseHealthChecker):
             # Use real database pool statistics
             pool_metadata = {
                 "active_connections": active_connections,
-                "idle_connections": db_pool_stats.idle_connections,
+                "idle_connections": db_pool_stats.get("checked_in", 0),
                 "total_connections": total_connections,
                 "connection_usage_percent": round(connection_usage_percent, 1),
                 "threshold_percent": threshold_percent,
-                "connection_errors": db_pool_stats.connection_errors,
-                "pool_hits": db_pool_stats.pool_hits,
-                "pool_misses": db_pool_stats.pool_misses,
-                "connection_creations": db_pool_stats.connection_creations,
-                "connection_closures": db_pool_stats.connection_closures,
-                "waiting_connections": db_pool_stats.waiting_connections,
-                "peak_connections": db_pool_stats.peak_connections,
-                "average_wait_time": round(db_pool_stats.average_wait_time, 3),
-                "last_health_check": (
-                    db_pool_stats.last_health_check.isoformat()
-                    if db_pool_stats.last_health_check
-                    else None
-                ),
+                "invalid_connections": db_pool_stats.get("invalid", 0),
             }
 
             return ComponentHealth(

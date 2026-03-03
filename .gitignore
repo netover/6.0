@@ -63,3 +63,4 @@ MYPY_REMEDIATION_PLAN.md
 *.key
 *.crt
 *.p12
+data/audit_logs/.master_key

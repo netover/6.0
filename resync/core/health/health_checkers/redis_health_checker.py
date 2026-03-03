@@ -57,12 +57,20 @@ class RedisHealthChecker(BaseHealthChecker):
                 )
 
             # Test actual Redis connectivity
-            from redis.exceptions import RedisError
-            from redis.exceptions import TimeoutError as RedisTimeoutError
+            from valkey.exceptions import ValkeyError as RedisError
+            from valkey.exceptions import TimeoutError as RedisTimeoutError
 
-            from resync.core.redis_init import get_redis_client
+            from resync.core.redis_init import get_redis_client, is_redis_available
 
             try:
+                if not is_redis_available():
+                    return ComponentHealth(
+                        name=self.component_name,
+                        component_type=self.component_type,
+                        status=HealthStatus.UNKNOWN,
+                        message="Valkey/Redis library not available",
+                        last_check=datetime.now(timezone.utc),
+                    )
                 # Use shared connection pool (prevents connection churn)
                 redis_client = get_redis_client()
 

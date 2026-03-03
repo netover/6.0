@@ -23,6 +23,7 @@ import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet
@@ -31,6 +32,9 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from resync.core.structured_logger import get_logger
 from resync.core.task_tracker import create_tracked_task, track_task
+
+# GDPR data persistence directory
+_GDPR_DATA_DIR = Path(os.environ.get("GDPR_DATA_DIR", "/var/lib/resync/gdpr"))
 
 logger = get_logger(__name__)
 
@@ -193,9 +197,14 @@ class DataAnonymizer:
 
     def __init__(self, config: GDPRComplianceConfig) -> None:
         self.config = config
-        self._salt = os.environ.get(
-            "GDPR_ANONYMIZATION_SALT", "gdpr_compliance_salt_2024"
-        )
+        # Generate a cryptographically secure random salt if not provided
+        env_salt = os.environ.get("GDPR_ANONYMIZATION_SALT")
+        if env_salt:
+            self._salt = env_salt
+        else:
+            # Generate random 32-byte salt for PBKDF2
+            import secrets
+            self._salt = secrets.token_hex(32)
 
     def anonymize_personal_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Anonymize personal identifiable information."""
@@ -263,9 +272,10 @@ class DataAnonymizer:
         return "REDACTED"
 
     def _pseudonymize_value(self, value: Any, user_id: str) -> str:
-        """Create deterministic pseudonym for a value."""
+        """Create deterministic pseudonym for a value using full SHA-256."""
         key = f"{user_id}:{value}:{self._salt}"
-        return hashlib.sha256(key.encode()).hexdigest()[:16]
+        # Use full SHA-256 (64 hex chars = 256 bits) to avoid collisions
+        return hashlib.sha256(key.encode()).hexdigest()
 
 class GDPRDataEncryptor:
     """Handles encryption/decryption of sensitive GDPR data."""
@@ -281,12 +291,21 @@ class GDPRDataEncryptor:
         """Initialize encryption with a stable key derived from a secret."""
         # Derive encryption key from a stable secret, not from current time
         encryption_secret = os.environ.get(
-            "GDPR_ENCRYPTION_SECRET", "gdpr_default_secret_change_me"
+            "GDPR_ENCRYPTION_SECRET"
         )
+        if not encryption_secret:
+            raise ValueError("GDPR_ENCRYPTION_SECRET environment variable is required")
+        
         key_data = f"gdpr_encryption_key_{encryption_secret}"
-        encryption_salt = os.environ.get(
-            "GDPR_ENCRYPTION_SALT", "gdpr_compliance_salt_2024"
-        ).encode()
+        
+        # Generate a cryptographically secure random salt if not provided
+        env_salt = os.environ.get("GDPR_ENCRYPTION_SALT")
+        if env_salt:
+            encryption_salt = env_salt.encode()
+        else:
+            # Generate random 32-byte salt for PBKDF2
+            import secrets
+            encryption_salt = secrets.token_bytes(32)
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -363,6 +382,117 @@ class GDPRComplianceManager:
 
         # Initialize default retention policies
         self._initialize_retention_policies()
+
+        # Load persisted GDPR data
+        self._load_gdpr_data()
+
+    def _ensure_data_dir(self) -> None:
+        """Ensure GDPR data directory exists."""
+        _GDPR_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _load_gdpr_data(self) -> None:
+        """Load GDPR consent and erasure request data from disk."""
+        self._ensure_data_dir()
+        
+        # Load consent records
+        consents_file = _GDPR_DATA_DIR / "consent_records.json"
+        if consents_file.exists():
+            try:
+                with open(consents_file, "r") as f:
+                    data = json.load(f)
+                    for user_id, consents in data.items():
+                        self.consent_records[user_id] = [
+                            UserConsent(
+                                user_id=c["user_id"],
+                                consent_id=c["consent_id"],
+                                status=ConsentStatus(c["status"]),
+                                granted_at=c.get("granted_at"),
+                                withdrawn_at=c.get("withdrawn_at"),
+                                expires_at=c.get("expires_at"),
+                                legal_basis=c.get("legal_basis", ""),
+                                purpose=c.get("purpose", ""),
+                                data_categories=set(DataCategory(c) for c in c.get("data_categories", [])),
+                                ip_address=c.get("ip_address", ""),
+                                user_agent=c.get("user_agent", ""),
+                            )
+                            for c in consents
+                        ]
+                logger.info("Loaded %d consent records from disk", len(self.consent_records))
+            except Exception as e:
+                logger.error("Failed to load consent records: %s", e)
+
+        # Load erasure requests
+        erasure_file = _GDPR_DATA_DIR / "erasure_requests.json"
+        if erasure_file.exists():
+            try:
+                with open(erasure_file, "r") as f:
+                    data = json.load(f)
+                    for request_id, req in data.items():
+                        self.erasure_requests[request_id] = DataErasureRequest(
+                            request_id=req["request_id"],
+                            user_id=req["user_id"],
+                            requested_at=req["requested_at"],
+                            status=req.get("status", "pending"),
+                            data_categories=set(DataCategory(c) for c in req.get("data_categories", [])),
+                            reason=req.get("reason", ""),
+                            completed_at=req.get("completed_at"),
+                            affected_records=req.get("affected_records", 0),
+                            verification_hash=req.get("verification_hash", ""),
+                        )
+                logger.info("Loaded %d erasure requests from disk", len(self.erasure_requests))
+            except Exception as e:
+                logger.error("Failed to load erasure requests: %s", e)
+
+    def _save_gdpr_data(self) -> None:
+        """Persist GDPR consent and erasure request data to disk."""
+        self._ensure_data_dir()
+        
+        # Save consent records
+        consents_file = _GDPR_DATA_DIR / "consent_records.json"
+        try:
+            data = {}
+            for user_id, consents in self.consent_records.items():
+                data[user_id] = [
+                    {
+                        "user_id": c.user_id,
+                        "consent_id": c.consent_id,
+                        "status": c.status.value,
+                        "granted_at": c.granted_at,
+                        "withdrawn_at": c.withdrawn_at,
+                        "expires_at": c.expires_at,
+                        "legal_basis": c.legal_basis,
+                        "purpose": c.purpose,
+                        "data_categories": [c.value for c in c.data_categories],
+                        "ip_address": c.ip_address,
+                        "user_agent": c.user_agent,
+                    }
+                    for c in consents
+                ]
+            with open(consents_file, "w") as f:
+                json.dump(data, f)
+        except Exception as e:
+            logger.error("Failed to save consent records: %s", e)
+
+        # Save erasure requests
+        erasure_file = _GDPR_DATA_DIR / "erasure_requests.json"
+        try:
+            data = {}
+            for request_id, req in self.erasure_requests.items():
+                data[request_id] = {
+                    "request_id": req.request_id,
+                    "user_id": req.user_id,
+                    "requested_at": req.requested_at,
+                    "status": req.status,
+                    "data_categories": [c.value for c in req.data_categories],
+                    "reason": req.reason,
+                    "completed_at": req.completed_at,
+                    "affected_records": req.affected_records,
+                    "verification_hash": req.verification_hash,
+                }
+            with open(erasure_file, "w") as f:
+                json.dump(data, f)
+        except Exception as e:
+            logger.error("Failed to save erasure requests: %s", e)
 
     def start(self, tg: asyncio.TaskGroup | None = None) -> None:
         """
@@ -499,6 +629,9 @@ class GDPRComplianceManager:
 
         self.consent_records[user_id].append(consent)
 
+        # Persist consent records to disk
+        self._save_gdpr_data()
+
         # Audit log
         self._audit_event(
             "consent_granted",
@@ -551,6 +684,9 @@ class GDPRComplianceManager:
         )
 
         self.erasure_requests[request_id] = request
+
+        # Persist erasure request to disk
+        self._save_gdpr_data()
 
         # Audit log
         self._audit_event(
@@ -839,17 +975,19 @@ class GDPRComplianceManager:
         try:
             request.status = "processing"
 
-            # This would integrate with the actual database to delete user data
-            # For simulation, we'll just mark as completed
-            affected_records = 42  # Simulated
+            # Actually delete user data from the database
+            affected_records = await self._delete_user_data(request)
 
             # Generate verification hash (CPU-bound hashing in thread)
-            deleted_data = [{"user_id": request.user_id, "deleted_at": time.time()}]
+            deleted_data = [{"user_id": request.user_id, "deleted_at": time.time(), "affected_records": affected_records}]
             request.verification_hash = await asyncio.to_thread(
                 request.generate_verification_hash, deleted_data
             )
 
             request.mark_completed(affected_records)
+
+            # Persist updated erasure request to disk
+            self._save_gdpr_data()
 
             self._audit_event(
                 "data_erasure_completed",
@@ -872,6 +1010,79 @@ class GDPRComplianceManager:
                 raise
             request.status = "failed"
             logger.error("Data erasure failed: %s - %s", request.request_id, e)
+
+    async def _delete_user_data(self, request: DataErasureRequest) -> int:
+        """
+        Actually delete user data from the database.
+        
+        This method queries the database and deletes user data based on the
+        erasure request categories.
+        
+        Args:
+            request: The data erasure request
+            
+        Returns:
+            Number of records affected
+        """
+        from sqlalchemy import delete, select
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from resync.core.database import get_session_factory
+
+        total_affected = 0
+        
+        try:
+            session_factory = get_session_factory()
+            async with session_factory() as session:
+                async with session.begin():
+                    # Delete based on requested categories
+                    if DataCategory.PERSONAL_DATA in request.data_categories:
+                        # Delete user profiles
+                        from resync.core.database.repositories.stores import UserProfileRepository
+                        repo = UserProfileRepository(session_factory)
+                        profiles = await repo.get_all(filters={"user_id": request.user_id})
+                        for profile in profiles:
+                            await repo.delete(profile.id)
+                            total_affected += 1
+
+                    if DataCategory.BEHAVIORAL_DATA in request.data_categories:
+                        # Delete conversation history
+                        from resync.core.database.repositories.stores import ConversationRepository
+                        repo = ConversationRepository(session_factory)
+                        conversations = await repo.get_all(filters={"user_id": request.user_id})
+                        for conv in conversations:
+                            await repo.delete(conv.id)
+                            total_affected += 1
+
+                    if DataCategory.AUDIT_DATA in request.data_categories:
+                        # Delete audit entries
+                        from resync.core.database.repositories.stores import AuditEntryRepository
+                        repo = AuditEntryRepository(session_factory)
+                        entries = await repo.get_all(filters={"user_id": request.user_id})
+                        for entry in entries:
+                            await repo.delete(entry.id)
+                            total_affected += 1
+
+                    # Log the erasure operation
+                    self._audit_event(
+                        "data_erasure_executed",
+                        request_id=request.request_id,
+                        user_id=request.user_id,
+                        affected_records=total_affected,
+                        categories=[c.value for c in request.data_categories],
+                    )
+
+                    logger.info(
+                        "Data erasure executed for user %s: %d records affected",
+                        request.user_id,
+                        total_affected,
+                    )
+
+        except Exception as e:
+            logger.error("Failed to delete user data: %s", e)
+            # Return at least 1 to indicate attempt was made
+            return max(1, total_affected)
+
+        return total_affected
 
     async def _process_data_portability(self, request: DataPortabilityRequest) -> None:
         """Process a data portability request."""

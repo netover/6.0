@@ -20,7 +20,7 @@ import threading  # [P1-07 FIX] For thread-safe singleton
 from functools import cached_property
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Annotated, Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal, Optional
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
@@ -141,13 +141,32 @@ class Settings(BaseSettings, SettingsValidators):
     db_pool_max_lifetime: int = Field(default=1800, ge=300)
 
     # ============================================================================
-    # REDIS - v6.0 adjusted for single VM
+    # VALKEY (Redis Alternative) - v6.3 migration
     # ============================================================================
-    # v5.9.7: Accept both APP_REDIS_URL (preferred) and legacy REDIS_URL
+    valkey_url: SecretStr = Field(
+        default=SecretStr("valkey://localhost:6379/0"),
+        validation_alias=AliasChoices("VALKEY_URL", "APP_VALKEY_URL"),
+        description="URL de conexão Valkey",
+        repr=False,
+    )
+    valkey_host: str = Field(default="localhost", alias="VALKEY_HOST")
+    valkey_port: int = Field(default=6379, alias="VALKEY_PORT")
+    valkey_db: int = Field(default=0, alias="VALKEY_DB")
+    valkey_password: Optional[SecretStr] = Field(default=None, alias="VALKEY_PASSWORD")
+
+    valkey_pool_min_size: int = Field(default=1, alias="VALKEY_POOL_MIN_SIZE")
+    valkey_pool_max_size: int = Field(default=5, alias="VALKEY_POOL_MAX_SIZE")
+    valkey_pool_connect_timeout: int = Field(default=15, alias="VALKEY_POOL_CONNECT_TIMEOUT")
+
+    # ============================================================================
+    # VALKEY - v6.3 migration from Redis
+    # ============================================================================
+    # Accept both APP_VALKEY_URL (preferred) and legacy VALKEY_URL
+    # For backward compatibility, also accepts REDIS_URL/APP_REDIS_URL
     redis_url: SecretStr = Field(
-        default=SecretStr("redis://localhost:6379/0"),
-        validation_alias=AliasChoices("REDIS_URL", "APP_REDIS_URL"),
-        description="URL de conexão Redis",
+        default=SecretStr("valkey://localhost:6379/0"),
+        validation_alias=AliasChoices("VALKEY_URL", "APP_VALKEY_URL", "REDIS_URL", "APP_REDIS_URL"),
+        description="URL de conexão Valkey (anteriormente Redis)",
         repr=False,
     )
 
@@ -163,26 +182,26 @@ class Settings(BaseSettings, SettingsValidators):
     redis_max_connections: int = Field(default=10, ge=1, le=1000)
     redis_timeout: float = Field(default=30.0, gt=0)
 
-    # Connection Pool - Redis
-    redis_pool_min_size: int = Field(default=1, ge=1, le=100)  # Reduced from 2
-    redis_pool_max_size: int = Field(default=5, ge=1, le=1000)  # Reduced from 10
+    # Connection Pool - Valkey
+    redis_pool_min_size: int = Field(default=1, ge=1, le=100)
+    redis_pool_max_size: int = Field(default=5, ge=1, le=1000)
     redis_pool_idle_timeout: int = Field(default=300, ge=60)
-    redis_pool_connect_timeout: int = Field(default=15, ge=5)  # Reduced from 30
+    redis_pool_connect_timeout: int = Field(default=15, ge=5)
     redis_pool_health_check_interval: int = Field(default=60, ge=10)
     redis_pool_max_lifetime: int = Field(default=1800, ge=300)
 
-    # Redis Initialization
+    # Valkey Initialization
     redis_max_startup_retries: int = Field(default=3, ge=1, le=10)
     redis_startup_backoff_base: float = Field(default=0.1, gt=0)
     redis_startup_backoff_max: float = Field(default=10.0, gt=0)
     redis_startup_lock_timeout: int = Field(
         default=30,
         ge=5,
-        description="Timeout for distributed Redis initialization lock",
+        description="Timeout for distributed Valkey initialization lock",
     )
 
     redis_health_check_interval: int = Field(
-        default=5, ge=1, description="Interval for Redis connection health checks"
+        default=5, ge=1, description="Interval for Valkey connection health checks"
     )
 
     # Robust Cache Configuration
@@ -998,7 +1017,7 @@ class Settings(BaseSettings, SettingsValidators):
     rate_limit_websocket_per_minute: int = Field(default=20, ge=1)
     rate_limit_dashboard_per_minute: int = Field(default=10, ge=1)
     rate_limit_storage_uri: SecretStr = Field(
-        default=SecretStr("redis://localhost:6379/1"),
+        default=SecretStr("valkey://localhost:6379/1"),
         repr=False,
     )
     rate_limit_key_prefix: str = Field(default="resync:ratelimit:")
@@ -1676,12 +1695,12 @@ class Settings(BaseSettings, SettingsValidators):
     STARTUP_REDIS_HEALTH_RETRIES: int = Field(
         ge=1,
         default=1,
-        description="Max retry attempts for Redis connectivity check at startup",
+        description="Max retry attempts for Valkey connectivity check at startup",
     )
     STARTUP_REDIS_HEALTH_TIMEOUT: float = Field(
         gt=0,
         default=3.0,
-        description="Timeout in seconds for Redis health check at startup",
+        description="Timeout in seconds for Valkey health check at startup",
     )
     require_llm_at_boot: bool = Field(
         default=False,
@@ -1823,6 +1842,7 @@ def get_settings() -> Settings:
         
         # [P0-07 FIX] No automatic SECRET_KEY generation
         # Pydantic validators handle production enforcement
+        Settings.model_rebuild()
         _settings_instance = Settings()
         return _settings_instance
 

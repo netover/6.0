@@ -458,6 +458,9 @@ async def websocket_endpoint(
         auth_header = websocket.headers.get("authorization")
         if auth_header and auth_header.lower().startswith("bearer "):
             token = auth_header.split(" ", 1)[1].strip() or None
+        
+        if not token:
+            token = websocket.cookies.get("access_token")
     try:
         if not token:
             await websocket.close(code=1008, reason="Authentication required")

@@ -39,6 +39,7 @@ from resync.core.exceptions import (
     RedisTimeoutError,
 )
 from resync.core.redis_init import RedisInitError, get_redis_initializer
+# Alias or use valkey as the primary terminology in logs eventually
 from resync.core.structured_logger import get_logger
 from resync.settings import Settings, get_settings
 
@@ -138,7 +139,15 @@ async def _http_healthy(
 
     We prefer strict 2xx success. Redirects are treated as unhealthy because
     they often indicate misrouting/auth.
+    
+    P2-C11 FIX: URL is validated against SSRF protection before making request.
     """
+    from resync.core.ssrf_protection import SSRFProtection
+    
+    # P2-C11 FIX: Validate URL against SSRF protection
+    is_safe, reason = SSRFProtection.is_safe_url(url)
+    if not is_safe:
+        return False, f"ssrf_blocked:{reason}", None, None
 
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
@@ -390,7 +399,7 @@ async def _check_redis(
             health_check_interval=int(
                 getattr(settings, "redis_health_check_interval", 5)
             ),
-            redis_url=getattr(settings, "redis_url", None),
+            redis_url=getattr(settings, "valkey_url", None) or getattr(settings, "redis_url", None),
         )
         return StartupCheck(
             name="redis_connection",

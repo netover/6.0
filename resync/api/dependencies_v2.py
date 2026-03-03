@@ -41,6 +41,9 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
 
     Returns None if no user is authenticated.
     For routes that require authentication, use verify_admin_credentials instead.
+    
+    P2-C10 FIX: Now properly propagates 401/403 errors instead of silently returning None.
+    This ensures authenticated-only endpoints get proper error responses.
     """
     try:
         from resync.api.routes.core.auth import verify_admin_credentials
@@ -49,6 +52,10 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         if username:
             return {"username": username, "authenticated": True}
     except HTTPException as exc:
+        # Re-raise authentication errors (401, 403) for proper error handling
+        if exc.status_code in (401, 403):
+            raise
+        # Only re-raise 5xx errors (infrastructure failures)
         if exc.status_code >= 500:
             raise
     return None

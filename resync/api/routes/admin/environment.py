@@ -199,30 +199,57 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         description="Allowed CORS origins (comma-separated)",
         default_value="*",
     ),
-    # Cache (Redis)
+    # Cache (Valkey - Redis Alternative)
+    "VALKEY_HOST": EnvironmentVariable(
+        name="VALKEY_HOST",
+        category=VariableCategory.CACHE,
+        description="Valkey server hostname",
+        default_value="localhost",
+    ),
+    "VALKEY_PORT": EnvironmentVariable(
+        name="VALKEY_PORT",
+        category=VariableCategory.CACHE,
+        description="Valkey server port",
+        default_value="6379",
+        validation_pattern=r"^\d+$",
+    ),
+    "VALKEY_PASSWORD": EnvironmentVariable(
+        name="VALKEY_PASSWORD",
+        category=VariableCategory.CACHE,
+        description="Valkey password",
+        is_sensitive=True,
+    ),
+    "VALKEY_DB": EnvironmentVariable(
+        name="VALKEY_DB",
+        category=VariableCategory.CACHE,
+        description="Valkey database number",
+        default_value="0",
+        validation_pattern=r"^\d+$",
+    ),
+    # Legacy Redis variables (for backward compatibility)
     "REDIS_HOST": EnvironmentVariable(
         name="REDIS_HOST",
         category=VariableCategory.CACHE,
-        description="Redis server hostname",
+        description="Valkey server hostname (legacy alias)",
         default_value="localhost",
     ),
     "REDIS_PORT": EnvironmentVariable(
         name="REDIS_PORT",
         category=VariableCategory.CACHE,
-        description="Redis server port",
+        description="Valkey server port (legacy alias)",
         default_value="6379",
         validation_pattern=r"^\d+$",
     ),
     "REDIS_PASSWORD": EnvironmentVariable(
         name="REDIS_PASSWORD",
         category=VariableCategory.CACHE,
-        description="Redis password",
+        description="Valkey password (legacy alias)",
         is_sensitive=True,
     ),
     "REDIS_DB": EnvironmentVariable(
         name="REDIS_DB",
         category=VariableCategory.CACHE,
-        description="Redis database number",
+        description="Valkey database number (legacy alias)",
         default_value="0",
         validation_pattern=r"^\d+$",
     ),

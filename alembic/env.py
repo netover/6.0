@@ -6,8 +6,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from resync.core.database.models.base import Base
-from resync.core.database.models import get_all_models
+from resync.core.database.models import Base, get_all_models
 
 config = context.config
 if config.config_file_name is not None:

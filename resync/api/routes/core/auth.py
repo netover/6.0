@@ -105,21 +105,14 @@ def _is_secret_key_secure(secret: str | None) -> bool:
     }
     return secret not in known_insecure and secret != _get_dev_fallback_secret()
 
+from resync.core.jwt_utils import unwrap_secret
+
 def _get_configured_secret_key() -> str | None:
-    """Fetch the configured JWT secret key as a raw string (never masked).
-
-    This project uses Pydantic SecretStr for secrets. Converting it to `str()`
-    yields a masked value ("**********"), which would silently break auth.
-
-    Returns:
-        The secret value as a string, or None if not configured.
-    """
+    """Fetch the configured JWT secret key as a raw string (never masked)."""
     key = getattr(settings, "secret_key", None)
     if key is None:
         return None
-    if hasattr(key, "get_secret_value"):
-        return key.get_secret_value()
-    return str(key)
+    return unwrap_secret(key)
 
 def get_jwt_secret_key() -> str:
     """Resolve JWT secret key.
@@ -684,7 +677,7 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
         value=access_token,
         httponly=True,  # Prevents XSS
         secure=getattr(settings, "is_production", False),  # HTTPS only in production
-        samesite="strict",  # CSRF protection
+        samesite="lax",  # CSRF protection - lax allows hash-based navigation
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )

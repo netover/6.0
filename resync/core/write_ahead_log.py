@@ -223,6 +223,7 @@ class WriteAheadLog:
                 # on the underlying file descriptor
                 # aiofiles handles wrap a real file object in ``._file``.
                 # Try to fsync the underlying file descriptor for durability.
+                # P1-B9 FIX: Use asyncio.to_thread to avoid blocking the event loop
                 fd = None
                 if hasattr(self._file_handle, "_file") and hasattr(
                     self._file_handle._file, "fileno"
@@ -231,7 +232,7 @@ class WriteAheadLog:
                 elif hasattr(self._file_handle, "fileno"):
                     fd = self._file_handle.fileno()
                 if fd is not None:
-                    os.fsync(fd)
+                    await asyncio.to_thread(os.fsync, fd)
 
                 # Update current size
                 self.current_size += len(serialized_entry.encode("utf-8"))

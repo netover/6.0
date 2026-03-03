@@ -169,17 +169,17 @@ def mock_db_session():
 
 
 # =============================================================================
-# Redis Fixtures
+# Valkey Fixtures
 # =============================================================================
 
 
 @pytest.fixture
 async def redis_client():
-    """Create a Redis client for testing."""
-    import redis.asyncio as redis
+    """Create a Valkey client for testing."""
+    import valkey.asyncio as valkey
 
-    redis_url = os.getenv("TEST_REDIS_URL", "redis://localhost:6379/15")
-    client = redis.from_url(redis_url)
+    redis_url = os.getenv("TEST_VALKEY_URL", "valkey://localhost:6379/15")
+    client = valkey.from_url(redis_url)
 
     # Clear test database
     await client.flushdb()
@@ -193,7 +193,7 @@ async def redis_client():
 
 @pytest.fixture
 def mock_redis():
-    """Create a mock Redis client for unit tests."""
+    """Create a mock Valkey client for unit tests."""
     mock = AsyncMock()
     mock.get = AsyncMock(return_value=None)
     mock.set = AsyncMock(return_value=True)

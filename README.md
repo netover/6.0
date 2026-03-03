@@ -1,4 +1,4 @@
-# Resync v6.2.0
+# Resync v6.3.0
 
 > Sistema de Orquestração de Agentes AI com RAG para IBM TWS
 
@@ -13,7 +13,7 @@ Resync é uma plataforma de orquestração de agentes AI desenvolvida com FastAP
 - 📊 **Monitoramento** - Métricas, alertas e observabilidade completa
 - 🔐 **Segurança** - Autenticação, autorização e conformidade SOC2/GDPR
 - ⚡ **Alta Performance** - Cache inteligente, rate limiting, circuit breaker
-- 🔄 **Alta Disponibilidade** - Redis, PostgreSQL, health checks
+- 🔄 **Alta Disponibilidade** - Valkey, PostgreSQL, health checks
 
 ## 🏗️ Arquitetura
 
@@ -45,7 +45,7 @@ Resync é uma plataforma de orquestração de agentes AI desenvolvida com FastAP
 │   CORE SERVICES   │    │   AGENT LAYER    │    │   KNOWLEDGE LAYER│
 │                   │    │                   │    │                   │
 │ ┌───────────────┐ │    │ ┌───────────────┐ │    │ ┌───────────────┐ │
-│ │ Cache (Redis) │ │    │ │ LangGraph    │ │    │ │ RAG Pipeline  │ │
+│ │ Cache (Valkey) │ │    │ │ LangGraph    │ │    │ │ RAG Pipeline  │ │
 │ └───────────────┘ │    │ │ Agent Graph   │ │    │ └───────────────┘ │
 │ ┌───────────────┐ │    │ └───────────────┘ │    │ ┌───────────────┐ │
 │ │ Auth Service  │ │    │ ┌───────────────┐ │    │ │ Kg Store      │ │
@@ -64,7 +64,7 @@ Resync é uma plataforma de orquestração de agentes AI desenvolvida com FastAP
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DATA LAYER                                         │
 │  ┌───────────────────┐                         ┌───────────────────┐       │
-│  │   PostgreSQL     │                         │      Redis       │       │
+│  │   PostgreSQL     │                         │     Valkey        │       │
 │  │  (Dados + RAG)   │                         │   (Cache/Sessão) │       │
 │  │                  │                         │                   │       │
 │  │ - users          │                         │ - cache          │       │

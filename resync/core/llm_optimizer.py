@@ -76,11 +76,24 @@ class TWSLLMOptimizer:
         ):
             return self._ollama_available
 
+        llm_endpoint = getattr(settings, "LLM_ENDPOINT", None)
+        if not llm_endpoint:
+            self._ollama_available = False
+            return False
+        
+        # P2-C11 FIX: Validate URL against SSRF protection
+        from resync.core.ssrf_protection import SSRFProtection
+        is_safe, reason = SSRFProtection.is_safe_url(llm_endpoint)
+        if not is_safe:
+            logger.warning("LLM endpoint blocked by SSRF protection: %s", reason)
+            self._ollama_available = False
+            return False
+        
         try:
             import httpx
 
             async with httpx.AsyncClient(timeout=2.0) as client:
-                response = await client.get(f"{settings.LLM_ENDPOINT}/api/tags")
+                response = await client.get(f"{llm_endpoint}/api/tags")
                 self._ollama_available = response.status_code == 200
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             self._ollama_available = False

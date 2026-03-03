@@ -1,7 +1,7 @@
 """
-Redis initialization and connection management.
+Valkey initialization and connection management (Valkey 9 migration).
 
-This module provides Redis client initialization with connection pooling,
+This module provides Valkey client initialization with connection pooling,
 distributed locking, health checks, and proper error handling.
 """
 
@@ -21,31 +21,33 @@ if TYPE_CHECKING:
     from resync.core.idempotency.manager import IdempotencyManager
 
 from resync.settings import settings
-
-try:  # pragma: no cover
-    import redis.asyncio as redis  # type: ignore
-
-    # Import correct Redis exceptions
-    from redis.exceptions import (
+try:
+    import valkey.asyncio as valkey  # type: ignore
+    from valkey.exceptions import (
         AuthenticationError,
         BusyLoadingError,
-        RedisError,
+        ValkeyError,
     )
-    from redis.exceptions import (
-        ConnectionError as RedisConnError,
+    from valkey.exceptions import (
+        ConnectionError as ValkeyConnError,
     )
-    from redis.exceptions import (
-        TimeoutError as RedisTimeoutError,
+    from valkey.exceptions import (
+        TimeoutError as ValkeyTimeoutError,
     )
-except ImportError:  # redis opcional
-    # If redis is not installed, define placeholder
-    # exception types to avoid NameError
-    redis = None  # type: ignore
-    RedisError = Exception  # type: ignore
+    # Alias for backward compatibility
+    ValkeyError = ValkeyError  # type: ignore
+except ImportError:
+    valkey = None  # type: ignore
+    ValkeyError = Exception  # type: ignore
     BusyLoadingError = Exception  # type: ignore
     AuthenticationError = Exception  # type: ignore
-    RedisConnError = Exception  # type: ignore
-    RedisTimeoutError = Exception  # type: ignore
+    ValkeyConnError = Exception  # type: ignore
+    ValkeyTimeoutError = Exception  # type: ignore
+
+# Legacy aliases for backward compatibility
+RedisError = ValkeyError
+RedisConnError = ValkeyConnError
+RedisTimeoutError = ValkeyTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,7 @@ async def _ensure_awaitable_str(result: Awaitable[str] | str) -> str:
 
 
 def _resolve_redis_url(url_value: object) -> str:
-    """Normalize redis url value from str/SecretStr-like objects."""
+    """Normalize Valkey/Redis url value from str/SecretStr-like objects."""
     getter = getattr(url_value, "get_secret_value", None)
     if callable(getter):
         secret = getter()
@@ -73,7 +75,7 @@ def _resolve_redis_url(url_value: object) -> str:
     if isinstance(url_value, str):
         return url_value
     if url_value is None:
-        return "redis://localhost:6379/0"
+        return "valkey://localhost:6379/0"
     return str(url_value)
 
 
@@ -83,8 +85,8 @@ def _env_flag(name: str, default: str = "0") -> bool:
     Accepts common truthy strings ("1", "true", "yes", "on") and treats
     unset/empty/"0"/"false" as False.
 
-    We intentionally support both ``RESYNC_DISABLE_REDIS=1`` and
-    ``RESYNC_DISABLE_REDIS=true`` because operators commonly use boolean
+    We intentionally support both ``RESYNC_DISABLE_VALKEY=1`` and
+    ``RESYNC_DISABLE_VALKEY=true`` because operators commonly use boolean
     values in .env / Kubernetes manifests.
     """
 
@@ -94,23 +96,27 @@ def _env_flag(name: str, default: str = "0") -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-class RedisInitError(RuntimeError):
-    """Erro de inicialização do Redis."""
+class ValkeyInitError(RuntimeError):
+    """Erro de inicialização do Valkey."""
 
 
-_REDIS_CLIENT: "redis.Redis" | None = None  # type: ignore
+# Legacy alias for backward compatibility
+RedisInitError = ValkeyInitError
+
+
+_REDIS_CLIENT: "valkey.Redis" | None = None  # type: ignore
 _REDIS_CLIENT_INIT_LOCK = threading.Lock()
 
 _IDEMPOTENCY_MANAGER: "IdempotencyManager" | None = None
 
 
 def is_redis_available() -> bool:
-    """Check if Redis library is available."""
-    return redis is not None
+    """Check if Valkey library is available."""
+    return valkey is not None
 
 
-def get_redis_client() -> "redis.Redis":  # type: ignore
-    """Return the canonical Redis client.
+def get_redis_client() -> "valkey.Redis":  # type: ignore
+    """Return the canonical Valkey client.
 
     In production (gunicorn --preload), creating network clients during import
     can lead to subtle bugs (master process connects, workers inherit state).
@@ -120,13 +126,13 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
 
     - Set **RESYNC_REDIS_LAZY_INIT=1** to allow the legacy "create-on-first-use"
       behavior (useful for one-off scripts).
-    - Set **RESYNC_DISABLE_REDIS=1** (or ``true``) to disable Redis entirely (tests/CI).
+    - Set **RESYNC_DISABLE_VALKEY=1** (or ``true``) to disable Valkey entirely (tests/CI).
     """
 
-    if _env_flag("RESYNC_DISABLE_REDIS"):
-        raise RuntimeError("Redis disabled by RESYNC_DISABLE_REDIS")
-    if redis is None:
-        raise RuntimeError("redis-py not installed (redis.asyncio).")
+    if _env_flag("RESYNC_DISABLE_VALKEY"):
+        raise RuntimeError("Valkey disabled by RESYNC_DISABLE_VALKEY")
+    if valkey is None:
+        raise RuntimeError("valkey-py not installed (valkey.asyncio).")
 
     global _REDIS_CLIENT  # pylint
 
@@ -142,7 +148,7 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
                 }
                 if not lazy:
                     raise RuntimeError(
-                        "Redis client not initialized. Ensure "
+                        "Valkey client not initialized. Ensure "
                         "RedisInitializer.initialize() runs "
                         "during application startup (lifespan). To allow lazy init (legacy), "
                         "set RESYNC_REDIS_LAZY_INIT=1."
@@ -153,17 +159,17 @@ def get_redis_client() -> "redis.Redis":  # type: ignore
                 url = (
                     _resolve_redis_url(_url)
                     if _url is not None
-                    else os.getenv("REDIS_URL", "redis://localhost:6379/0")
+                    else os.getenv("VALKEY_URL", "valkey://localhost:6379/0")
                 )
 
-                _REDIS_CLIENT = redis.from_url(url, encoding="utf-8", decode_responses=True)
-                logger.warning("Initialized Redis client via lazy init (RESYNC_REDIS_LAZY_INIT=1).")
+                _REDIS_CLIENT = valkey.from_url(url, encoding="utf-8", decode_responses=True)
+                logger.warning("Initialized Valkey client via lazy init (RESYNC_REDIS_LAZY_INIT=1).")
 
     return _REDIS_CLIENT
 
 
 async def close_redis_client() -> None:
-    """Close the global Redis client if it exists.
+    """Close the global Valkey client if it exists.
 
     This is the public API for shutting down the module-level client.
     External modules should use this instead of importing ``_REDIS_CLIENT``.
@@ -188,8 +194,24 @@ async def close_redis_client() -> None:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.debug("redis_close_error_ignored: %s", str(exc))  # best-effort on shutdown
+            logger.debug("valkey_close_error_ignored: %s", str(exc))  # best-effort on shutdown
         _REDIS_CLIENT = None
+
+
+# Aliases for backward compatibility
+def get_valkey_client() -> "valkey.Redis":
+    """Alias for get_redis_client() for Valkey."""
+    return get_redis_client()
+
+
+def is_valkey_available() -> bool:
+    """Alias for is_redis_available() for Valkey."""
+    return is_redis_available()
+
+
+async def close_valkey_client() -> None:
+    """Alias for close_redis_client() for Valkey."""
+    await close_redis_client()
 
 
 def get_idempotency_manager() -> "IdempotencyManager":
@@ -210,7 +232,7 @@ def get_idempotency_manager() -> "IdempotencyManager":
 
 class RedisInitializer:
     """
-    Thread-safe Redis initialization with connection pooling.
+    Thread-safe Valkey initialization with connection pooling.
     """
 
     UNLOCK_SCRIPT = """
@@ -257,8 +279,8 @@ class RedisInitializer:
         """
         if _env_flag("RESYNC_DISABLE_REDIS"):
             raise RedisInitError("Redis disabled by RESYNC_DISABLE_REDIS")
-        if redis is None:
-            raise RedisInitError("redis-py (redis.asyncio) not installed.")
+        if valkey is None:
+            raise RedisInitError("valkey-py (valkey.asyncio) not installed.")
 
         async with self.lock:
             if self._initialized and self._client:
@@ -329,7 +351,7 @@ class RedisInitializer:
                         _REDIS_CLIENT = redis_client
 
                         logger.info(
-                            "Redis initialized successfully",
+                            "Valkey initialized successfully",
                             extra={
                                 "attempt": attempt + 1,
                                 "pool_size": getattr(
@@ -384,8 +406,8 @@ class RedisInitializer:
         raise RedisInitError("Redis initialization failed - unexpected fallthrough") from None
 
     def _create_client_with_pool(self, redis_url: str | None = None) -> "redis.Redis":  # type: ignore
-        if redis is None:
-            raise RedisInitError("redis not installed.")
+        if valkey is None:
+            raise RedisInitError("valkey not installed.")
         keepalive_opts = {}
         # Opções portáveis
         for name in ("TCP_KEEPIDLE", "TCP_KEEPINTVL", "TCP_KEEPCNT"):
@@ -406,7 +428,7 @@ class RedisInitializer:
         socket_timeout = getattr(settings, "redis_timeout", 30)
         health_interval = getattr(settings, "redis_health_check_interval", 30)
 
-        return redis.Redis.from_url(
+        return valkey.Redis.from_url(
             url,
             encoding="utf-8",
             decode_responses=True,

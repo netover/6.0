@@ -20,7 +20,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def _unwrap_secret(value: object) -> str:
+def unwrap_secret(value: object) -> str:
     """Return a real secret string for libraries that require ``str`` keys.
 
     Supports Pydantic v2 ``SecretStr``-like objects (anything with a callable
@@ -217,7 +217,7 @@ def verify_token(
         return False, "No JWT library available"
 
     try:
-        secret_key = _unwrap_secret(secret_key)
+        secret_key = unwrap_secret(secret_key)
         if algorithms is None:
             algorithms = ["HS256"]
 
@@ -260,6 +260,7 @@ __all__ = [
     "JWT_LIBRARY",
     "is_jwt_available",
     "get_jwt_library",
+    "unwrap_secret",
     "decode_token",
     "create_token",
     "verify_token",

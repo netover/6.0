@@ -205,12 +205,12 @@ class SettingsValidators:
     @field_validator("redis_url", "rate_limit_storage_uri")
     @classmethod
     def validate_redis_url(cls, v: SecretStr | str) -> SecretStr | str:
-        """Validate Redis URL format."""
+        """Validate Redis/Valkey URL format."""
         val = v.get_secret_value() if isinstance(v, SecretStr) else v
-        if not val.startswith(("redis://", "rediss://")):
+        if not val.startswith(("redis://", "rediss://", "valkey://", "valkeys://")):
             raise ValueError(
-                "Redis URL must start with 'redis://' or 'rediss://'. "
-                "Example: redis://localhost:6379/0"
+                "Redis/Valkey URL must start with 'redis://', 'rediss://', 'valkey://' or 'valkeys://'. "
+                "Example: valkey://localhost:6379/0"
             )
         try:
             parsed = urlparse(val)

@@ -1,10 +1,10 @@
 # monitoring_dashboard.py — API endpoint para dashboard interno
-# de monitoramento (Redis Version)
+# de monitoramento (Valkey Version)
 # Substitui necessidade de Prometheus/Grafana com solução distribuída e sincronizada.
 #
 # Características:
-#   - Persistência Global em Redis (History List e Latest Hash)
-#   - Broadcast sincronizado via Redis Pub/Sub (Sincronização entre workers)
+#   - Persistência Global em Valkey (History List e Latest Hash)
+#   - Broadcast sincronizado via Valkey Pub/Sub (Sincronização entre workers)
 #   - Liderança Distribuída: Apenas um worker coleta métricas por vez
 #     (Resolução de Duplicação)
 #   - Alta Performance: Serialização otimizada com orjson
@@ -29,7 +29,7 @@ from resync.core.redis_init import get_redis_client
 from resync.core.task_tracker import create_tracked_task  # FIX P1-04
 
 if TYPE_CHECKING:
-    import redis.asyncio as redis_async
+    import valkey.asyncio as valkey_async
 
 logger = logging.getLogger(__name__)
 
@@ -713,7 +713,7 @@ class WebSocketManager:
                         break
                     await self._handle_pubsub_message(message)
             except asyncio.CancelledError:
-                raise
+                # Log before re-raising for graceful shutdown tracking
                 logger.info("WebSocketManager Pub/Sub listener cancelado")
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):

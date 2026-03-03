@@ -49,7 +49,7 @@ def main() -> None:
 
     host = os.getenv("HOST") or settings.server_host
     port = int(os.getenv("PORT") or settings.server_port)
-    log_level = os.getenv("LOG_LEVEL") or settings.log_level.lower()
+    log_level = (os.getenv("LOG_LEVEL") or settings.log_level).lower()
 
     uvicorn.run(
         "resync.main:app",
@@ -57,7 +57,7 @@ def main() -> None:
         port=port,
         log_level=log_level,
         reload=os.getenv("RELOAD", "false").lower() in {"1", "true", "yes", "on"},
-        loop="uvloop",  # P2-05 fix: Use uvloop for 2-4x async performance
+        loop="asyncio",  # P2-05 fix: uvloop is incompatible with Python 3.14 (BaseDefaultEventLoopPolicy removed)
     )
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    import redis.asyncio as redis_async
+    import valkey.asyncio as redis_async
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class RedisConfig:
         Format: redis://[:password@]host:port/db
         """
         auth = f":{self.password}@" if self.password else ""
-        return f"redis://{auth}{self.host}:{self.port}/{db.value}"
+        return f"valkey://{auth}{self.host}:{self.port}/{db.value}"
 
     def __repr__(self) -> str:
         """Safe repr that never shows password."""
@@ -191,10 +191,10 @@ def get_redis_client(
         ConnectionError: If Redis is unreachable
     """
     try:
-        from redis.asyncio import from_url
+        from valkey.asyncio import from_url
     except ImportError as e:
         raise RuntimeError(
-            "redis-py not installed. Run: pip install redis[hiredis]"
+            "valkey not installed. Run: pip install valkey[hiredis]"
         ) from e
 
     config = get_redis_config()

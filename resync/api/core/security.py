@@ -76,28 +76,57 @@ def create_access_token(subject: Any, expires_delta: timedelta | None = None) ->
         "iss": settings.project_name,
         "aud": settings.environment.value,
     }
+from resync.core.jwt_utils import create_token, decode_token, unwrap_secret
+
+def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
+    """Generate a JWT access token with iss/aud claims."""
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+
+    if expires_delta:
+        expire = now + expires_delta
+    else:
+        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
+
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "exp": int(expire.timestamp()),
+        "iat": int(now.timestamp()),
+        "jti": uuid.uuid4().hex,
+        "iss": settings.project_name,
+        "aud": settings.environment.value if hasattr(settings.environment, "value") else str(settings.environment),
+    }
+
     return create_token(
         payload,
-        secret_key=settings.secret_key,
+        secret_key=unwrap_secret(settings.secret_key),
         algorithm=_get_algorithm(),
         expires_in=None,
     )
 
 
 def decode_access_token(token: str) -> dict[str, Any] | None:
-    """Validate and decode a JWT access token."""
+    """Validate and decode a JWT access token.
+
+    Returns the decoded payload dict, or None if the token is invalid / expired.
+    Handles SecretStr unwrapping and PyJWT audience validation.
+    """
     settings = get_settings()
     try:
+        # Resolve the expected audience
+        audience = settings.environment.value if hasattr(settings.environment, "value") else str(settings.environment)
+
         payload = decode_token(
             token,
-            secret_key=settings.secret_key,
+            secret_key=unwrap_secret(settings.secret_key),
             algorithms=[_get_algorithm()],
+            audience=audience,
             options={
                 "leeway": int(getattr(settings, "jwt_leeway_seconds", 0)),
             },
         )
         return payload
-    except (JWTError, ValidationError, TypeError, ValueError):
+    except Exception:
         return None
 
 

@@ -29,10 +29,43 @@ class RateLimitRule:
     limit: int
     window_seconds: int
 
+
+# Trusted proxy IPs - configure via environment
+_TRUSTED_PROXIES: list[str] = []
+
+
+def _init_trusted_proxies() -> list[str]:
+    """Initialize trusted proxy list from environment."""
+    import os
+    proxies = os.getenv("TRUSTED_PROXY_IPS", "")
+    return [p.strip() for p in proxies.split(",") if p.strip()] if proxies else []
+
+
 def _client_ip(request: Request) -> str:
-    hdr = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    if hdr:
-        return hdr
+    """Extract client IP with proxy trust validation.
+    
+    Security fix: Only trust X-Forwarded-For from known proxy IPs.
+    This prevents attackers from spoofing their IP via custom headers.
+    """
+    global _TRUSTED_PROXIES
+    if not _TRUSTED_PROXIES:
+        _TRUSTED_PROXIES = _init_trusted_proxies()
+    
+    # Check direct client first (always trusted)
+    if request.client:
+        client_ip = request.client.host
+        if client_ip and (_TRUSTED_PROXIES is None or client_ip not in _TRUSTED_PROXIES):
+            # Direct client - use it
+            return client_ip
+    
+    # Only trust X-Forwarded-For if from trusted proxy
+    client_host = request.client.host if request.client else None
+    if _TRUSTED_PROXIES and client_host in _TRUSTED_PROXIES:
+        hdr = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if hdr:
+            return hdr
+    
+    # Fall back to direct client IP (untrusted proxy header ignored)
     if request.client:
         return request.client.host or "unknown"
     return "unknown"

@@ -256,10 +256,17 @@ class LLMNode(BaseNode):
         history = state.get("history", [])
 
         if prompt:
-            # Compile prompt with variables from state and config
+            # P1-B10 FIX: Separate system-defined variables from user-controlled variables
+            # Only use explicitly defined prompt_variables from config for system prompt
+            # to prevent prompt injection attacks via user input
             variables = {**self.config.prompt_variables}
+            
+            # Safely add state variables - only those explicitly whitelisted in prompt_variables
+            # User-controlled state keys like 'message', 'history', 'context' should NOT
+            # be automatically added to system prompt to prevent prompt injection
             for key in prompt.config.variables:
-                if key in state:
+                # Only include if already defined in config.prompt_variables (system-controlled)
+                if key in self.config.prompt_variables and key in state:
                     variables[key] = state[key]
 
             system_content = prompt.compile(**variables)

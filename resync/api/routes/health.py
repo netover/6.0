@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
-from resync.core.database.engine import async_engine
+from resync.core.database.engine import get_engine
 from resync.core.redis_init import get_redis_client
 from sqlalchemy import text
 
@@ -22,8 +22,9 @@ async def ready() -> dict[str, str]:
     
     # Database check with 3-second timeout
     try:
+        engine = get_engine()
         async with asyncio.timeout(3.0):
-            async with async_engine.begin() as conn:
+            async with engine.begin() as conn:
                 await conn.execute(text("SELECT 1"))
     except asyncio.TimeoutError:
         raise HTTPException(

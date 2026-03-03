@@ -59,9 +59,9 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 )
 
             # Check pool status
-            pool_stats = pool_manager.get_pool_stats()
+            pool_stats = pool_manager.get_status()
 
-            if not pool_stats:
+            if not pool_stats or "database" not in pool_stats:
                 response_time = (time.time() - start_time) * 1000
                 return ComponentHealth(
                     name=self.component_name,
@@ -73,9 +73,10 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                     metadata={"pool_stats": "empty or null"},
                 )
 
+            db_stats = pool_stats.get("database", {})
             # Analyze pool health with safe defaults
-            total_connections = pool_stats.get("total_connections", 0)
-            active_connections = pool_stats.get("active_connections", 0)
+            total_connections = db_stats.get("size", 10) + db_stats.get("overflow", 0)
+            active_connections = db_stats.get("checked_out", 0)
 
             if total_connections == 0:
                 status = HealthStatus.UNHEALTHY
@@ -107,7 +108,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
 
             # Enhance metadata with calculated percentages and thresholds
             enhanced_metadata = dict(pool_stats)
-            if "active_connections" in pool_stats and "total_connections" in pool_stats:
+            if "database" in pool_stats:
                 enhanced_metadata["connection_usage_percent"] = round(
                     connection_usage_percent, 1
                 )
