@@ -213,7 +213,6 @@ def get_status_store() -> "TWSStatusStore":
     """Alias for get_tws_status_store — backward compat."""
     return get_tws_status_store()
 
-async def init_status_store() -> "TWSStatusStore":
+async def init_status_store(**kwargs) -> "TWSStatusStore":
     """Initialize and return the TWSStatusStore singleton."""
-    store = get_tws_status_store()
-    return store
+    return await initialize_tws_status_store()

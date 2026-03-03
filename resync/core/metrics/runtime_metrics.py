@@ -56,6 +56,7 @@ class RuntimeMetricsCollector:
         # Cache Metrics
         self.cache_hits = create_counter("cache_hits", "Cache hits")
         self.cache_misses = create_counter("cache_misses", "Cache misses")
+        self.cache_sets = create_counter("cache_sets", "Cache sets")
         self.cache_evictions = create_counter("cache_evictions", "Cache evictions")
         self.cache_cleanup_cycles = create_counter(
             "cache_cleanup_cycles", "Cache cleanup cycles"

@@ -104,9 +104,9 @@ class CachePerformanceMonitor:
             self.access_times.append(access_time_ms)
 
             if hit:
-                runtime_metrics.cache_hits.increment()
+                runtime_metrics.cache_hits.inc()
             else:
-                runtime_metrics.cache_misses.increment()
+                runtime_metrics.cache_misses.inc()
 
     async def get_current_metrics(self) -> CachePerformanceMetrics:
         """Get current cache performance metrics."""

@@ -157,6 +157,109 @@ class LightweightMetricsStore:
         """Record gauge metric."""
         return await self.record(f"gauge.{gauge_name}", value)
 
+    async def inc(self, name: str, count: int = 1, tags: dict[str, str] | None = None) -> None:
+        """Increment an in-memory counter and persist an event data point."""
+        with self._state_lock:
+            self._counters[name] = int(self._counters.get(name, 0)) + int(count)
+        # Persist current value as a datapoint (counter semantics)
+        await self.record_count(name, count)
+
+    async def set_gauge(self, name: str, value: float) -> None:
+        """Set a gauge value (in-memory) and persist a datapoint."""
+        with self._state_lock:
+            self._gauges[name] = float(value)
+        await self.record_gauge(name, float(value))
+
+    def get_counter(self, name: str) -> int:
+        """Get the current counter value (in-memory)."""
+        with self._state_lock:
+            return int(self._counters.get(name, 0))
+
+    def get_gauge(self, name: str) -> float | None:
+        """Get the current gauge value (in-memory)."""
+        with self._state_lock:
+            return self._gauges.get(name)
+
+    async def get_summary(self) -> dict[str, Any]:
+        """Dashboard summary used by /api/v1/metrics/data."""
+        # Storage counts
+        async with self._store.data_points._get_session() as session:
+            result = await session.execute(select(func.count(MetricDataPoint.id)))
+            raw_records = int(result.scalar() or 0)
+        with self._state_lock:
+            counters = dict(self._counters)
+            gauges = dict(self._gauges)
+        return {
+            "storage": {"raw_records": raw_records, "aggregated_records": 0},
+            "counters": counters,
+            "gauges": gauges,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def get_metric_names(self) -> list[str]:
+        """Return distinct metric names stored in the database."""
+        async with self._store.data_points._get_session() as session:
+            result = await session.execute(select(MetricDataPoint.metric_name).distinct())
+            return sorted([row[0] for row in result.all() if row[0]])
+
+    @dataclass(slots=True)
+    class AggregatedSeriesPoint:
+        """Aggregated time bucket for charts."""
+        period_start: datetime
+        count: int
+        sum_value: float
+        avg_value: float
+        min_value: float
+        max_value: float
+
+    async def get_aggregated(
+        self,
+        metric_name: str,
+        period: str = "hour",
+        hours: int = 24,
+    ) -> list["LightweightMetricsStore.AggregatedSeriesPoint"]:
+        """Aggregate metrics into time buckets."""
+        if period not in {"minute", "hour", "day"}:
+            period = "hour"
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(hours=hours)
+        async with self._store.data_points._get_session() as session:
+            bucket = func.date_trunc(period, MetricDataPoint.timestamp).label("bucket")
+            q = (
+                select(
+                    bucket,
+                    func.count(MetricDataPoint.id).label("count"),
+                    func.sum(MetricDataPoint.value).label("sum"),
+                    func.avg(MetricDataPoint.value).label("avg"),
+                    func.min(MetricDataPoint.value).label("min"),
+                    func.max(MetricDataPoint.value).label("max"),
+                )
+                .where(
+                    MetricDataPoint.metric_name == metric_name,
+                    MetricDataPoint.timestamp >= start,
+                    MetricDataPoint.timestamp <= end,
+                )
+                .group_by(bucket)
+                .order_by(bucket.asc())
+            )
+            result = await session.execute(q)
+            rows = result.all()
+
+        points: list[LightweightMetricsStore.AggregatedSeriesPoint] = []
+        for r in rows:
+            b = r.bucket
+            points.append(
+                LightweightMetricsStore.AggregatedSeriesPoint(
+                    period_start=b if isinstance(b, datetime) else datetime.fromisoformat(str(b)),
+                    count=int(r.count or 0),
+                    sum_value=float(r.sum or 0.0),
+                    avg_value=float(r.avg or 0.0),
+                    min_value=float(r.min or 0.0),
+                    max_value=float(r.max or 0.0),
+                )
+            )
+        return points
+
 _instance: LightweightMetricsStore | None = None
 
 def get_metrics_store() -> LightweightMetricsStore:
@@ -184,110 +287,3 @@ async def record_timing(name: str, duration_ms: float) -> MetricDataPoint:
     """Record a timing/latency metric."""
     store = get_metrics_store()
     return await store.record_latency(name, duration_ms)
-
-async def increment(self, name: str, count: int = 1) -> None:
-    """Increment an in-memory counter and persist an event data point."""
-    with self._state_lock:
-        self._counters[name] = int(self._counters.get(name, 0)) + int(count)
-        current = self._counters[name]
-    # Persist current value as a datapoint (counter semantics)
-    await self.record_count(name, count)
-
-async def set_gauge(self, name: str, value: float) -> None:
-    """Set a gauge value (in-memory) and persist a datapoint."""
-    with self._state_lock:
-        self._gauges[name] = float(value)
-    await self.record_gauge(name, float(value))
-
-def get_counter(self, name: str) -> int:
-    """Get the current counter value (in-memory)."""
-    with self._state_lock:
-        return int(self._counters.get(name, 0))
-
-def get_gauge(self, name: str) -> float | None:
-    """Get the current gauge value (in-memory)."""
-    with self._state_lock:
-        return self._gauges.get(name)
-
-async def get_metric_names(self) -> list[str]:
-    """Return distinct metric names stored in the database."""
-    async with self._store.data_points._get_session() as session:
-        result = await session.execute(select(MetricDataPoint.metric_name).distinct())
-        return sorted([row[0] for row in result.all() if row[0]])
-
-async def get_summary(self) -> dict[str, Any]:
-    """Dashboard summary used by /api/v1/metrics/data."""
-    # Storage counts
-    async with self._store.data_points._get_session() as session:
-        result = await session.execute(select(func.count(MetricDataPoint.id)))
-        raw_records = int(result.scalar() or 0)
-    with self._state_lock:
-        counters = dict(self._counters)
-        gauges = dict(self._gauges)
-    return {
-        "storage": {"raw_records": raw_records, "aggregated_records": 0},
-        "counters": counters,
-        "gauges": gauges,
-    }
-
-@dataclass(slots=True)
-class AggregatedSeriesPoint:
-    """Aggregated time bucket for charts."""
-    period_start: datetime
-    count: int
-    sum_value: float
-    avg_value: float
-    min_value: float
-    max_value: float
-
-async def get_aggregated(
-    self,
-    metric_name: str,
-    period: str = "hour",
-    hours: int = 24,
-) -> list["LightweightMetricsStore.AggregatedSeriesPoint"]:
-    """Aggregate metrics into time buckets.
-
-    This method is built to satisfy the dashboard API contract (sum_value/avg_value).
-    """
-    if period not in {"minute", "hour", "day"}:
-        period = "hour"
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(hours=hours)
-    # Postgres date_trunc for buckets
-    async with self._store.data_points._get_session() as session:
-        bucket = func.date_trunc(period, MetricDataPoint.timestamp).label("bucket")
-        q = (
-            select(
-                bucket,
-                func.count(MetricDataPoint.id).label("count"),
-                func.sum(MetricDataPoint.value).label("sum"),
-                func.avg(MetricDataPoint.value).label("avg"),
-                func.min(MetricDataPoint.value).label("min"),
-                func.max(MetricDataPoint.value).label("max"),
-            )
-            .where(
-                MetricDataPoint.metric_name == metric_name,
-                MetricDataPoint.timestamp >= start,
-                MetricDataPoint.timestamp <= end,
-            )
-            .group_by(bucket)
-            .order_by(bucket.asc())
-        )
-        result = await session.execute(q)
-        rows = result.all()
-
-    points: list[LightweightMetricsStore.AggregatedSeriesPoint] = []
-    for r in rows:
-        b = r.bucket
-        points.append(
-            LightweightMetricsStore.AggregatedSeriesPoint(
-                period_start=b if isinstance(b, datetime) else datetime.fromisoformat(str(b)),
-                count=int(r.count or 0),
-                sum_value=float(r.sum or 0.0),
-                avg_value=float(r.avg or 0.0),
-                min_value=float(r.min or 0.0),
-                max_value=float(r.max or 0.0),
-            )
-        )
-    return points

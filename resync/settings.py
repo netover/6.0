@@ -70,7 +70,7 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     startup_timeout: int = Field(
-        default=60,
+        default=600,
         ge=10,
         validation_alias=AliasChoices("STARTUP_TIMEOUT_SECONDS", "APP_STARTUP_TIMEOUT"),
         description="Timeout global para o startup da aplicação em segundos",

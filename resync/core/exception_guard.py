@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import os
 import threading
+from contextlib import contextmanager
 from types import TracebackType
-from typing import Any, Final
+from typing import Any, Final, Generator
 
 from resync.core.metrics_compat import Counter
 
@@ -123,3 +124,30 @@ def maybe_reraise_programming_error(
 
     # Re-raise preserving traceback as much as possible.
     raise exc.with_traceback(tb)
+
+
+@contextmanager
+def guard_programming_errors() -> Generator[None, None, None]:
+    """Context manager to ensure programming errors are not silently swallowed.
+
+    Use this inside try/except blocks that catch broad exception tuples:
+
+    ```python
+    try:
+        with guard_programming_errors():
+            # complex logic
+    except (OSError, ValueError, ...) as e:
+        # handle expected runtime errors
+    ```
+    """
+    try:
+        yield
+    except Exception as e:
+        maybe_reraise_programming_error(e, e.__traceback__)
+        raise
+
+
+__all__ = [
+    "maybe_reraise_programming_error",
+    "guard_programming_errors",
+]

@@ -291,9 +291,9 @@ class BackupService:
                 raise
             logger.error("backup_metadata_save_failed", error=str(e))
 
-async def _save_metadata_async(self) -> None:
-    """Save metadata without blocking the event loop."""
-    await asyncio.to_thread(self._save_metadata)
+    async def _save_metadata_async(self) -> None:
+        """Save metadata without blocking the event loop."""
+        await asyncio.to_thread(self._save_metadata)
 
     async def create_database_backup(
         self,

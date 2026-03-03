@@ -17,6 +17,9 @@ import time
 import types
 from typing import Any
 
+from resync.core.exception_guard import guard_programming_errors
+from resync.core.structured_logger import get_logger
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,7 +135,8 @@ def decode_token(
             "No JWT library available. Install PyJWT: pip install PyJWT>=2.10.1"
         )
 
-    secret_key = _unwrap_secret(secret_key)
+    with guard_programming_errors():
+        secret_key = unwrap_secret(secret_key)
 
     if algorithms is None:
         algorithms = ["HS256"]
@@ -174,7 +178,8 @@ def create_token(
 
     to_encode = payload.copy()
 
-    secret_key = _unwrap_secret(secret_key)
+    with guard_programming_errors():
+        secret_key = unwrap_secret(secret_key)
 
     # Add timing claims (only if not already set by caller)
     now = time.time()
@@ -242,12 +247,8 @@ def verify_token(
         if "expired" in error_msg or "expir" in error_msg:
             return False, "Token has expired"
         return False, f"Invalid token: {str(e)}"
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
+        get_logger("resync.jwt").warning("token_verification_failed", error=str(e))
         return False, f"Token verification failed: {str(e)}"
 
 # =============================================================================

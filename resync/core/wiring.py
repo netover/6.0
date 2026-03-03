@@ -300,7 +300,11 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     Args:
         app: The FastAPI application instance.
     """
-    st = enterprise_state_from_app(app)
+    st = getattr(app.state, "enterprise_state", None)
+    if st is None:
+        logger.info("domain_singletons_not_initialized_skipping_shutdown")
+        return
+
     st.domain_shutdown_complete = True
 
     logger.info("starting_graceful_shutdown")

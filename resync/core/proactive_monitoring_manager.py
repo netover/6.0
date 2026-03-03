@@ -94,7 +94,7 @@ class ProactiveMonitoringManager:
             history_size=1000,
             enable_persistence=True,
         )
-        await self._event_bus.start()
+        self._event_bus.start()
         logger.info("event_bus_initialized")
 
         # 2. Inicializa Status Store
@@ -151,7 +151,7 @@ class ProactiveMonitoringManager:
         logger.info("starting_proactive_monitoring")
 
         # Inicia poller
-        await self._poller.start(tg=tg)
+        self._poller.start(tg=tg)
 
         # Inicia detecção de padrões periódica
         if self._config.pattern_detection_enabled:

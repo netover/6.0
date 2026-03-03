@@ -46,10 +46,15 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
         start_time = time.time()
 
         try:
-            # Check TWS configuration
-            from resync.settings import settings
+            with guard_programming_errors():
+                # Check TWS configuration
+                from resync.settings import settings
 
-            tws_config = settings.get("tws_monitor", {})
+            tws_config = getattr(settings, "tws_monitor", {})
+            if not isinstance(tws_config, dict):
+                # Handle cases where it might be an object/model
+                tws_config = getattr(tws_config, "dict", lambda: {})() if hasattr(tws_config, "dict") else {}
+            
             if not tws_config or not tws_config.get("enabled", False):
                 return ComponentHealth(
                     name=self.component_name,
@@ -98,11 +103,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                 },
             )
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+        except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
 
             response_time = (time.time() - start_time) * 1000
             logger.error("tws_monitor_health_check_failed", error=str(e))

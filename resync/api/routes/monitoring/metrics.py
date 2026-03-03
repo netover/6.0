@@ -113,7 +113,7 @@ async def get_dashboard_data(
 
         # Query volume chart
         query_data = await store.get_aggregated(
-            MetricNames.QUERY_TOTAL,
+            metric_name=MetricNames.QUERY_TOTAL,
             period="hour" if hours > 6 else "minute",
             hours=hours,
         )
@@ -124,7 +124,7 @@ async def get_dashboard_data(
 
         # Response time chart
         response_time_data = await store.get_aggregated(
-            MetricNames.QUERY_DURATION_MS,
+            metric_name=MetricNames.QUERY_DURATION_MS,
             period="hour" if hours > 6 else "minute",
             hours=hours,
         )
@@ -135,7 +135,7 @@ async def get_dashboard_data(
 
         # Feedback chart
         feedback_data = await store.get_aggregated(
-            MetricNames.FEEDBACK_TOTAL,
+            metric_name=MetricNames.FEEDBACK_TOTAL,
             period="hour" if hours > 6 else "minute",
             hours=hours,
         )
@@ -146,7 +146,7 @@ async def get_dashboard_data(
 
         # Enrichment chart
         enrichment_data = await store.get_aggregated(
-            MetricNames.ENRICHMENT_TOTAL,
+            metric_name=MetricNames.ENRICHMENT_TOTAL,
             period="hour" if hours > 6 else "minute",
             hours=hours,
         )

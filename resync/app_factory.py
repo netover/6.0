@@ -204,6 +204,7 @@ class ApplicationFactory:
             log_level=self.settings.log_level,
             json_logs=self.settings.log_format == "json",
             development_mode=self.settings.is_development,
+            persist_logs_path="/root/6.0/logs/startup.log",
         )
 
         # Validate settings first

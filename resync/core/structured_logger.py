@@ -210,7 +210,10 @@ def protect_log_injection(
 # ============================================================================
 
 def configure_structured_logging(
-    log_level: str = "INFO", json_logs: bool = True, development_mode: bool = False
+    log_level: str = "INFO",
+    json_logs: bool = True,
+    development_mode: bool = False,
+    persist_logs_path: str | None = None,
 ) -> None:
     level = getattr(logging, log_level.upper())
 
@@ -270,6 +273,12 @@ def configure_structured_logging(
         root_logger.removeHandler(h)
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
+
+    if persist_logs_path:
+        file_handler = logging.FileHandler(persist_logs_path, mode="w")
+        file_handler.setLevel(logging.WARNING)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
 
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)

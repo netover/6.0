@@ -1,24 +1,6 @@
-"""resync.core.startup
-
-Canonical startup sequence for the Resync ASGI application.
-
-This module is designed to be called from the ASGI *lifespan* (startup
-section, before the `yield`). That ensures the same validation and
-startup health semantics apply in the real production path.
-
-Design goals
-------------
-* **Single source of truth** for startup validation/health checks.
-* Health checks return explicit **ok/fail/skipped** statuses.
-* Only **critical** services affect fail-fast.
-* Startup retries are bounded by a **total time budget**.
-* Startup failures are **observable** (structured logs + clear reason codes).
-
-The public entrypoint here is :func:`run_startup_checks`.
-"""
-
 import asyncio
 import os
+import sys
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -38,8 +20,7 @@ from resync.core.exceptions import (
     RedisInitializationError,
     RedisTimeoutError,
 )
-from resync.core.redis_init import RedisInitError, get_redis_initializer
-# Alias or use valkey as the primary terminology in logs eventually
+from resync.core.exception_guard import guard_programming_errors
 from resync.core.structured_logger import get_logger
 from resync.settings import Settings, get_settings
 
@@ -47,8 +28,6 @@ Status = Literal["ok", "fail", "skipped"]
 
 @dataclass(frozen=True)
 class StartupCheck:
-    """Result of a single startup check."""
-
     name: str
     status: Status
     critical: bool
@@ -65,14 +44,10 @@ def _parse_bool(value: str | None) -> bool | None:
         return True
     if v in {"0", "false", "no", "n", "off"}:
         return False
+    get_logger("resync.startup").warning("invalid_boolean_env_var", value=value)
     return None
 
 def get_startup_policy(settings: Settings) -> dict[str, Any]:
-    """Resolve startup policy from env vars + settings.
-
-    Env vars are intentionally used as a fast rollback mechanism.
-    """
-
     strict_env = _parse_bool(os.getenv("STARTUP_STRICT"))
     strict = (
         strict_env
@@ -80,14 +55,11 @@ def get_startup_policy(settings: Settings) -> dict[str, Any]:
         else bool(getattr(settings, "is_production", False))
     )
 
-    # Total startup time budget (seconds)
-    # Prefer settings.startup_timeout, fallback to env var, default 30
     timeout_default = float(getattr(settings, "startup_timeout", 30))
     max_total_seconds = float(
         os.getenv("STARTUP_MAX_TOTAL_SECONDS", str(timeout_default))
     )
 
-    # Valores de retry com clamp para evitar absurdos
     retries = max(1, min(20, int(os.getenv("STARTUP_SERVICE_RETRIES", "3"))))
     base_delay = max(
         0.1,
@@ -109,42 +81,28 @@ def get_startup_policy(settings: Settings) -> dict[str, Any]:
 async def _tcp_reachable(
     host: str, port: int, timeout: float
 ) -> tuple[bool, str | None]:
-    """Simple TCP reachability check."""
-
     try:
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(host, port), timeout=timeout
         )
-        # Explicitly close immediately.
         writer.close()
         try:
-            # apenas erros de I/O/loop são ignorados
             await writer.wait_closed()
         except (OSError, AttributeError):
             pass
-        # Silence unused variable warning.
         _ = reader
         return True, None
     except TimeoutError:
         return False, "timeout"
     except OSError as e:
         return False, f"os_error:{type(e).__name__}"
-    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, ConnectionError) as e:  # pragma: no cover
+    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, ConnectionError) as e:
         return False, f"unexpected:{type(e).__name__}"
 
 async def _http_healthy(
     url: str, timeout: float
 ) -> tuple[bool, str | None, int | None, str | None]:
-    """HTTP health check.
-
-    We prefer strict 2xx success. Redirects are treated as unhealthy because
-    they often indicate misrouting/auth.
-    
-    P2-C11 FIX: URL is validated against SSRF protection before making request.
-    """
     from resync.core.ssrf_protection import SSRFProtection
-    
-    # P2-C11 FIX: Validate URL against SSRF protection
     is_safe, reason = SSRFProtection.is_safe_url(url)
     if not is_safe:
         return False, f"ssrf_blocked:{reason}", None, None
@@ -156,17 +114,20 @@ async def _http_healthy(
                 return True, None, resp.status_code, None
             if 300 <= resp.status_code < 400:
                 loc = resp.headers.get("location")
-                # sanitiza querystring para não vazar tokens
                 safe_loc = None
                 if loc:
-                    safe_loc = loc.split("?", 1)[0] if "?" in loc else loc
+                    from urllib.parse import urlparse
+                    parsed = urlparse(loc)
+                    safe_loc = f"{parsed.scheme}://{parsed.netloc}{parsed.path[:32]}"
+                    if len(parsed.path) > 32:
+                        safe_loc += "..."
                 return False, "redirect", resp.status_code, safe_loc
             return False, "http_status", resp.status_code, None
     except httpx.TimeoutException:
         return False, "timeout", None, None
     except httpx.RequestError as e:
         return False, f"request_error:{type(e).__name__}", None, None
-    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:  # pragma: no cover
+    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, ConnectionError) as e:
         return False, f"unexpected:{type(e).__name__}", None, None
 
 async def _retry(
@@ -178,7 +139,6 @@ async def _retry(
     max_delay: float,
     deadline: float,
 ) -> StartupCheck:
-    """Retry a check until ok/skip or retries exhausted or deadline reached."""
     logger = get_logger("resync.startup")
     last: StartupCheck | None = None
     for attempt in range(1, retries + 1):
@@ -198,7 +158,6 @@ async def _retry(
             await asyncio.sleep(min(delay, remaining))
 
     if last is None:
-        # Should be impossible, but keep safe.
         return StartupCheck(
             name=name,
             status="fail",
@@ -219,20 +178,19 @@ async def _check_tws(
 
     if not host or not port:
         status: Status = "fail" if critical else "skipped"
-        reason = "not_configured"
-        detail = "TWS host/port not configured"
         return StartupCheck(
             name="tws_reachability",
             status=status,
             critical=critical,
-            reason_code=reason,
-            detail=detail,
+            reason_code="not_configured",
+            detail="TWS host/port not configured",
             duration_ms=int((time.monotonic() - start) * 1000),
         )
 
     async def attempt_fn(attempt: int) -> StartupCheck:
+        attempt_start = time.monotonic()
         ok, reason = await _tcp_reachable(str(host), int(port), timeout)
-        dur_ms = int((time.monotonic() - start) * 1000)
+        dur_ms = int((time.monotonic() - attempt_start) * 1000)
         if ok:
             return StartupCheck(
                 name="tws_reachability",
@@ -242,7 +200,6 @@ async def _check_tws(
                 attempts=attempt,
                 duration_ms=dur_ms,
             )
-        # sanitiza host básico
         safe_host = str(host).split("@")[-1]
         return StartupCheck(
             name="tws_reachability",
@@ -268,7 +225,12 @@ async def _check_llm(
 ) -> StartupCheck:
     start = time.monotonic()
     endpoint = getattr(settings, "llm_endpoint", None)
-    timeout = float(getattr(settings, "STARTUP_LLM_HEALTH_TIMEOUT", 5.0))
+    timeout = float(
+        os.getenv(
+            "STARTUP_LLM_HEALTH_TIMEOUT",
+            str(getattr(settings, "startup_llm_health_timeout", 5.0)),
+        )
+    )
 
     if not endpoint:
         status: Status = "fail" if critical else "skipped"
@@ -282,8 +244,9 @@ async def _check_llm(
         )
 
     async def attempt_fn(attempt: int) -> StartupCheck:
+        attempt_start = time.monotonic()
         ok, reason, status_code, location = await _http_healthy(str(endpoint), timeout)
-        dur_ms = int((time.monotonic() - start) * 1000)
+        dur_ms = int((time.monotonic() - attempt_start) * 1000)
         if ok:
             return StartupCheck(
                 name="llm_service",
@@ -293,13 +256,11 @@ async def _check_llm(
                 attempts=attempt,
                 duration_ms=dur_ms,
             )
-
         detail = None
         if status_code is not None:
             detail = f"HTTP {status_code}"
             if reason == "redirect" and location:
                 detail = f"HTTP {status_code} redirect"
-
         return StartupCheck(
             name="llm_service",
             status="fail",
@@ -327,7 +288,7 @@ async def _check_rag(
     timeout = float(getattr(settings, "rag_service_timeout", 5.0))
 
     if not url:
-        status: Status = "skipped"
+        status: Status = "fail" if critical else "skipped"
         return StartupCheck(
             name="rag_service",
             status=status,
@@ -338,9 +299,9 @@ async def _check_rag(
         )
 
     async def attempt_fn(attempt: int) -> StartupCheck:
-        # Check if URL is valid by trying to connect/ping
+        attempt_start = time.monotonic()
         ok, reason, status_code, _ = await _http_healthy(str(url), timeout)
-        dur_ms = int((time.monotonic() - start) * 1000)
+        dur_ms = int((time.monotonic() - attempt_start) * 1000)
         if ok:
             return StartupCheck(
                 name="rag_service",
@@ -350,7 +311,6 @@ async def _check_rag(
                 attempts=attempt,
                 duration_ms=dur_ms,
             )
-
         return StartupCheck(
             name="rag_service",
             status="fail",
@@ -374,7 +334,6 @@ async def _check_redis(
     settings: Settings, *, deadline: float, logger: Any, disabled: bool
 ) -> StartupCheck:
     start = time.monotonic()
-
     if disabled:
         logger.info(
             "redis_startup_disabled",
@@ -390,17 +349,19 @@ async def _check_redis(
         )
 
     try:
-        # Canonical Redis bootstrap is owned by resync.core.redis_init.
-        # This ensures the worker has exactly one Redis client instance,
-        # shared by all code paths via the module-level lazy accessors.
+        from resync.core.redis_init import RedisInitError, get_redis_initializer
         initializer = get_redis_initializer()
-        await initializer.initialize(
-            max_retries=int(getattr(settings, "redis_max_startup_retries", 5)),
-            health_check_interval=int(
-                getattr(settings, "redis_health_check_interval", 5)
-            ),
-            redis_url=getattr(settings, "valkey_url", None) or getattr(settings, "redis_url", None),
-        )
+        with guard_programming_errors():
+            await initializer.initialize(
+                max_retries=int(getattr(settings, "redis_max_startup_retries", 5)),
+                health_check_interval=int(
+                    getattr(settings, "redis_health_check_interval", 5)
+                ),
+                redis_url=(
+                    getattr(settings, "valkey_url", None)
+                    or getattr(settings, "redis_url", None)
+                ),
+            )
         return StartupCheck(
             name="redis_connection",
             status="ok",
@@ -408,11 +369,9 @@ async def _check_redis(
             reason_code="initialized",
             duration_ms=int((time.monotonic() - start) * 1000),
         )
+
     except ConfigurationError as e:
-        logger.error(
-            "startup_redis_configuration_error",
-            error_message=str(e),
-        )
+        logger.error("startup_redis_configuration_error", error_message=str(e))
         return StartupCheck(
             name="redis_connection",
             status="fail",
@@ -477,20 +436,13 @@ async def _check_redis(
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        # Prefer a stable reason code for known initializer failures.
+    except (OSError, ValueError, RuntimeError, ConnectionError) as e:
         if isinstance(e, RedisInitError):
             reason = "redis_init_error"
         else:
-            # If startup budget is exhausted we still want a deterministic failure.
             reason = (
                 "startup_budget_exhausted"
-                if time.monotonic() >= deadline
+                if deadline and time.monotonic() >= deadline
                 else type(e).__name__
             )
         logger.error(
@@ -508,12 +460,6 @@ async def _check_redis(
         )
 
 async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, Any]:
-    """Run the canonical startup sequence.
-
-    Returns a dict suitable for logging and/or surfacing through a diagnostics
-    endpoint.
-    """
-
     settings_obj = settings or get_settings()
     logger = get_logger("resync.startup")
     policy = get_startup_policy(settings_obj)
@@ -523,10 +469,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
 
     redis_disabled = _parse_bool(os.getenv("RESYNC_DISABLE_REDIS")) or False
     if redis_disabled:
-        logger.warning(
-            "redis_marked_noncritical",
-            reason="RESYNC_DISABLE_REDIS=true",
-        )
+        logger.warning("redis_marked_noncritical", reason="RESYNC_DISABLE_REDIS=true")
 
     critical_services: list[str] = [] if redis_disabled else ["redis_connection"]
     if getattr(settings_obj, "require_tws_at_boot", False):
@@ -543,8 +486,6 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
         critical_services=critical_services,
     )
 
-    # Execute checks. Redis init is sequential (it sets up global redis/idempotency).
-    # TWS/LLM checks can run in parallel.
     results: list[StartupCheck] = []
 
     redis_result = await _check_redis(
@@ -552,7 +493,6 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     )
     results.append(redis_result)
 
-    # Parallel checks (bounded by remaining time budget)
     remaining = max(0.0, deadline - time.monotonic())
     if remaining > 0:
         tasks: dict[str, asyncio.Task[StartupCheck]] = {}
@@ -563,9 +503,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         tasks["tws"] = tg.create_task(
                             _check_tws(
                                 settings_obj,
-                                critical=getattr(
-                                    settings_obj, "require_tws_at_boot", False
-                                ),
+                                critical=getattr(settings_obj, "require_tws_at_boot", False),
                                 deadline=deadline,
                                 policy=policy,
                             ),
@@ -574,9 +512,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         tasks["llm"] = tg.create_task(
                             _check_llm(
                                 settings_obj,
-                                critical=getattr(
-                                    settings_obj, "require_llm_at_boot", False
-                                ),
+                                critical=getattr(settings_obj, "require_llm_at_boot", False),
                                 deadline=deadline,
                                 policy=policy,
                             ),
@@ -585,9 +521,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                         tasks["rag"] = tg.create_task(
                             _check_rag(
                                 settings_obj,
-                                critical=getattr(
-                                    settings_obj, "require_rag_at_boot", False
-                                ),
+                                critical=getattr(settings_obj, "require_rag_at_boot", False),
                                 deadline=deadline,
                                 policy=policy,
                             ),
@@ -604,15 +538,11 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                             exc_info=exc,
                         )
         except TimeoutError:
-            # Startup checks exceeded total time budget — logged below
             logger.warning("startup_checks_total_timeout")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-            import sys as _sys
+        except (OSError, ValueError, RuntimeError, ConnectionError) as exc:
+            _exc_type, _exc, _tb = sys.exc_info()
             from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
-
-            # Unexpected global failure during startup checks
             logger.error("startup_checks_unexpected_error", error=str(exc))
 
         now = time.monotonic()
@@ -649,7 +579,6 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                     )
                 )
 
-    # Compute overall health: only critical services matter.
     overall_health = True
     for r in results:
         if r.critical and r.status != "ok":
@@ -674,21 +603,12 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     }
 
 def enforce_startup_policy(result: dict[str, Any]) -> None:
-    """Fail process when strict startup is enabled and health check failed."""
-
     if result.get("strict") and not result.get("overall_health"):
-        # NOTE: Raising SystemExit ensures a non-zero exit code.
-        # This is important because some server/proc-manager combinations have
-        # historically swallowed startup failures.
         raise SystemExit(1)
 
 @asynccontextmanager
 async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
-    """Manage application lifecycle with proper startup and shutdown.
-
-    Consolidates logic previously in ApplicationFactory for better separation
-    of concerns.
-    """
+    """Manage application lifecycle with proper startup and shutdown."""
     logger = get_logger("resync.lifespan")
     logger.info("application_startup_initiated")
 
@@ -716,25 +636,18 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                     FastApiIntegration(transaction_style="endpoint"),
                     AsyncioIntegration(),
                 ],
-                traces_sample_rate=getattr(
-                    settings_for_sentry, "sentry_traces_sample_rate", 0.1
+                traces_sample_rate=getattr(settings_for_sentry, "sentry_traces_sample_rate", 0.1),
+                profiles_sample_rate=getattr(settings_for_sentry, "sentry_profiles_sample_rate", 0.0),
+                environment=(
+                    getattr(settings_for_sentry, "environment", "development").value
+                    if hasattr(getattr(settings_for_sentry, "environment", ""), "value")
+                    else str(getattr(settings_for_sentry, "environment", "development"))
                 ),
-                profiles_sample_rate=getattr(
-                    settings_for_sentry, "sentry_profiles_sample_rate", 0.0
-                ),
-                environment=getattr(
-                    settings_for_sentry, "environment", "development"
-                ).value
-                if hasattr(
-                    getattr(settings_for_sentry, "environment", ""), "value"
-                )
-                else str(getattr(settings_for_sentry, "environment", "development")),
                 release=getattr(settings_for_sentry, "project_version", "unknown"),
-                send_default_pii=False,  # Never send PII to Sentry
+                send_default_pii=False,
             )
             logger.info(
                 "sentry_initialized",
-                # Log only the host portion of the DSN to avoid leaking the secret key.
                 dsn_host=sentry_dsn.split("@")[-1].split("/")[0]
                 if "@" in sentry_dsn
                 else "configured",
@@ -746,46 +659,43 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
             "sentry_sdk_not_installed",
             hint="Install sentry-sdk[fastapi] to enable error tracking.",
         )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _sentry_err:
-        import sys as _sys
+    except (OSError, ValueError, RuntimeError, ConnectionError) as _sentry_err:
+        # FIX-01 + FIX-06: top-level sys import, TimeoutError removed from tuple.
+        _exc_type, _exc, _tb = sys.exc_info()
         from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
-
-        # Sentry init failure must NEVER crash the application.
         logger.warning("sentry_init_failed", error=str(_sentry_err))
 
-    # Initialize readiness event for optional parallel services
     app.state.singletons_ready_event = asyncio.Event()
 
-    # Cache VERSION_TEAMS_WEBHOOK at startup (read once, use many times)
-    # This avoids reading from disk on every request
+    # FIX-04: I/O-blocking Path.exists() / read_text() offloaded to thread.
     _version_file = Path(__file__).parent.parent / "VERSION_TEAMS_WEBHOOK.txt"
     try:
-        if _version_file.exists():
-            app.state.teams_webhook_version = _version_file.read_text().strip()
+        exists = await asyncio.to_thread(_version_file.exists)
+        if exists:
+            raw = await asyncio.to_thread(_version_file.read_text)
+            app.state.teams_webhook_version = raw.strip()
             logger.info(
-                "teams_webhook_version_loaded", version=app.state.teams_webhook_version
+                "teams_webhook_version_loaded",
+                version=app.state.teams_webhook_version,
             )
         else:
             app.state.teams_webhook_version = "unknown"
             logger.warning("teams_webhook_version_file_not_found")
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
+    except (OSError, ValueError, RuntimeError, ConnectionError) as e:
+        # FIX-01 + FIX-06: top-level sys, TimeoutError removed.
+        _exc_type, _exc, _tb = sys.exc_info()
         from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
-
         app.state.teams_webhook_version = "error"
         logger.error("teams_webhook_version_load_error", error=str(e))
 
     try:
         settings = get_settings()
         startup_timeout = getattr(settings, "startup_timeout", 60)
-
         total_startup_timeout = max(float(startup_timeout), 1.0) + 5.0
+
         async with asyncio.timeout(total_startup_timeout):
-            # 1. Canonical startup validation/health checks
             startup_result = await asyncio.wait_for(
                 run_startup_checks(settings=settings), timeout=float(startup_timeout)
             )
@@ -798,7 +708,6 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 )
             enforce_startup_policy(startup_result)
 
-            # 2. Core initialization (failures here are fatal)
             from resync.api_gateway.container import setup_dependencies
             from resync.core.tws_monitor import get_tws_monitor
             from resync.core.types.app_state import enterprise_state_from_app
@@ -807,32 +716,32 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
             await init_domain_singletons(app)
             st = enterprise_state_from_app(app)
 
-            # Record startup time for admin dashboard uptime display
             from resync.core.startup_time import set_startup_time
-
             set_startup_time()
 
             async with asyncio.TaskGroup() as bg_tasks:
+                # FIX (Bug #10): assign before any optional service accesses it.
                 app.state.bg_tasks = bg_tasks
 
-                # Move TWS monitor initialization here to use the bg_tasks group
                 await get_tws_monitor(st.tws_client, tg=bg_tasks)
                 setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
 
-                # Signal that core singletons are ready for optional services
                 app.state.singletons_ready_event.set()
                 logger.info("core_services_initialized")
 
-                # 3. Optional services...
                 enable_optional_services = (
                     getattr(settings, "startup_enable_optional_services", True) is True
                 )
                 optional_timeout = max(1.0, min(5.0, float(startup_timeout) * 0.4))
+
+                # FIX (Bug #5): list is now read and logged after init loop.
                 optional_results: list[Exception] = []
+
                 if enable_optional_services:
                     try:
                         async with asyncio.timeout(optional_timeout):
-                            # Scoped TG for init; some might spawn bg tasks
+                            # FIX-03: except* blocks are OUTSIDE the async with,
+                            # not nested inside it (was SyntaxError).
                             try:
                                 async with asyncio.TaskGroup() as init_tg:
                                     init_tg.create_task(
@@ -862,22 +771,26 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                                 raise
                             except* Exception as exc_group:
                                 for exc in exc_group.exceptions:
+                                    optional_results.append(exc)
                                     get_logger("resync.startup").warning(
                                         "optional_service_init_failed",
                                         error=str(exc),
                                         type=type(exc).__name__,
-                                        exc_info=exc,
                                     )
+
+                        # FIX (Bug #5): log summary of optional failures.
+                        if optional_results:
+                            get_logger("resync.startup").warning(
+                                "optional_services_init_summary",
+                                failed_count=len(optional_results),
+                                failed_types=[type(e).__name__ for e in optional_results],
+                            )
                     except TimeoutError:
                         get_logger("resync.startup").warning(
                             "optional_services_init_timeout"
                         )
-                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                        import sys as _sys
-                        from resync.core.exception_guard import maybe_reraise_programming_error
-                        _exc_type, _exc, _tb = _sys.exc_info()
-                        maybe_reraise_programming_error(_exc, _tb)
-
+                    except (OSError, ValueError, RuntimeError, ConnectionError) as e:
+                        # FIX-06: TimeoutError removed from tuple.
                         optional_results.append(e)
                 else:
                     logger.info("optional_services_startup_skipped")
@@ -886,19 +799,14 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 st.startup_complete = True
 
                 try:
-                    yield  # Application runs here, bg_tasks are active
+                    yield
                 except* Exception as eg:
-                    # Catch exceptions from background tasks during app runtime
                     for exc in eg.exceptions:
                         logger.critical(
                             "bg_task_crashed",
                             error=str(exc),
                             type=type(exc).__name__,
                         )
-                    # Don't re-raise - app is already shutting down
-
-        # When lifespan exits, TaskGroup auto-cancels
-        # and waits for background tasks.
 
     except TimeoutError:
         logger.critical(
@@ -914,357 +822,245 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
         raise ConfigurationError(
             f"Application startup exceeded {startup_timeout}s timeout"
         )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
+    except (OSError, ValueError, RuntimeError, ConnectionError) as exc:
+        # FIX-01 + FIX-06: top-level sys, TimeoutError removed.
+        _exc_type, _exc, _tb = sys.exc_info()
         from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
-
         if not isinstance(exc, ConfigurationError):
             logger.critical("application_startup_failed", error=str(exc))
         raise
     finally:
         await _shutdown_services(app)
 
-# --- Helper methods for optional services (moved from ApplicationFactory) ---
+
+# ---------------------------------------------------------------------------
+# Optional service initializers
+# ---------------------------------------------------------------------------
 
 async def _init_proactive_monitoring(
     app: "FastAPI", bg_tasks: asyncio.TaskGroup | None = None
 ) -> None:
     try:
-        async with asyncio.timeout(10):
-            # Wait for core singletons to be ready
-            await app.state.singletons_ready_event.wait()
-
-            from resync.core.monitoring_integration import (
-                initialize_proactive_monitoring,
-            )
-
-            await initialize_proactive_monitoring(app, tg=bg_tasks)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.monitoring_integration import initialize_proactive_monitoring
+                await initialize_proactive_monitoring(app, tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "proactive_monitoring_init_failed", error=str(exc)
         )
 
+
 async def _init_metrics_collector(app: "FastAPI") -> None:
     try:
-        async with asyncio.timeout(10):
-            # Wait for core singletons to be ready
-            await app.state.singletons_ready_event.wait()
-
-            from resync.api import monitoring_dashboard
-
-            # Use global TaskGroup if available
-            bg_tasks = getattr(app.state, "bg_tasks", None)
-            if bg_tasks:
-                monitoring_dashboard._collector_task = bg_tasks.create_task(
-                    monitoring_dashboard.metrics_collector_loop(),
-                    name="metrics-collector",
-                )
-            else:
-                from resync.core.task_tracker import create_tracked_task
-
-                monitoring_dashboard._collector_task = create_tracked_task(
-                    monitoring_dashboard.metrics_collector_loop(),
-                    name="metrics-collector",
-                )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.api import monitoring_dashboard
+                bg_tasks = getattr(app.state, "bg_tasks", None)
+                if bg_tasks:
+                    monitoring_dashboard._collector_task = bg_tasks.create_task(
+                        monitoring_dashboard.metrics_collector_loop(),
+                        name="metrics-collector",
+                    )
+                else:
+                    from resync.core.task_tracker import create_tracked_task
+                    monitoring_dashboard._collector_task = create_tracked_task(
+                        monitoring_dashboard.metrics_collector_loop(),
+                        name="metrics-collector",
+                    )
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "metrics_collector_start_failed", error=str(exc)
         )
 
+
 async def _init_cache_warmup(app: "FastAPI") -> None:
     try:
-        async with asyncio.timeout(10):
-            # Wait for core singletons to be ready
-            await app.state.singletons_ready_event.wait()
-
-            from resync.core.cache_utils import warmup_cache_on_startup
-
-            await warmup_cache_on_startup()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.cache_utils import warmup_cache_on_startup
+                await warmup_cache_on_startup()
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning("cache_warming_failed", error=str(exc))
+
 
 async def _init_graphrag(app: "FastAPI") -> None:
     try:
-        async with asyncio.timeout(15):
-            # Wait for core singletons to be ready
-            await app.state.singletons_ready_event.wait()
-
-            settings = get_settings()
-            graphrag_enabled = getattr(settings, "GRAPHRAG_ENABLED", False)
-            if not graphrag_enabled:
-                return
-
-            from resync.core.graphrag_integration import initialize_graphrag
-            from resync.core.redis_init import get_redis_client, is_redis_available
-            from resync.knowledge.retrieval.graph import get_knowledge_graph
-            from resync.services.llm_service import get_llm_service
-            from resync.services.tws_service import get_tws_client
-
-            initialize_graphrag(
-                llm_service=await get_llm_service(),
-                knowledge_graph=get_knowledge_graph(),
-                tws_client=get_tws_client(),
-                redis_client=get_redis_client() if is_redis_available() else None,
-                enabled=True,
-            )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(15):
+                await app.state.singletons_ready_event.wait()
+                settings = get_settings()
+                # FIX-07: snake_case consistent with rest of Settings access.
+                graphrag_enabled = getattr(settings, "graphrag_enabled", False)
+                if not graphrag_enabled:
+                    return
+                from resync.core.graphrag_integration import initialize_graphrag
+                from resync.core.redis_init import get_redis_client, is_redis_available
+                from resync.knowledge.retrieval.graph import get_knowledge_graph
+                from resync.services.llm_service import get_llm_service
+                from resync.services.tws_service import get_tws_client
+                initialize_graphrag(
+                    llm_service=await get_llm_service(),
+                    knowledge_graph=get_knowledge_graph(),
+                    tws_client=get_tws_client(),
+                    redis_client=get_redis_client() if is_redis_available() else None,
+                    enabled=True,
+                )
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "graphrag_initialization_failed", error=str(exc)
         )
 
+
 async def _init_config_system(app: "FastAPI") -> None:
     try:
-        async with asyncio.timeout(10):
-            # Wait for core singletons to be ready
-            await app.state.singletons_ready_event.wait()
-
-            from resync.core.unified_config import initialize_config_system
-
-            await initialize_config_system()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.unified_config import initialize_config_system
+                await initialize_config_system()
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "unified_config_initialization_failed", error=str(exc)
         )
 
+
 async def _init_enterprise_systems(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
-        async with asyncio.timeout(15):
-            await app.state.singletons_ready_event.wait()
-            from resync.core.enterprise.manager import get_enterprise_manager
-
-            manager = await get_enterprise_manager()
-            await manager.initialize(tg=bg_tasks)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(15):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.enterprise.manager import get_enterprise_manager
+                manager = await get_enterprise_manager()
+                await manager.initialize(tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "enterprise_systems_init_failed", error=str(exc)
         )
 
+
 async def _init_health_monitoring(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
-        async with asyncio.timeout(10):
-            await app.state.singletons_ready_event.wait()
-            from resync.core.health import get_unified_health_service
-
-            service = await get_unified_health_service()
-            service.start_monitoring(tg=bg_tasks)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.health import get_unified_health_service
+                service = await get_unified_health_service()
+                service.start_monitoring(tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "health_monitoring_init_failed", error=str(exc)
         )
 
+
 async def _init_backup_scheduler(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
-        async with asyncio.timeout(10):
-            await app.state.singletons_ready_event.wait()
-            from resync.core.backup.backup_service import get_backup_service
-
-            service = get_backup_service()
-            service.start_scheduler(tg=bg_tasks)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.backup.backup_service import get_backup_service
+                service = get_backup_service()
+                service.start_scheduler(tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "backup_scheduler_init_failed", error=str(exc)
         )
 
+
 async def _init_security_dashboard(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
-        async with asyncio.timeout(10):
-            await app.state.singletons_ready_event.wait()
-            from resync.core.security_dashboard import get_security_dashboard
-
-            _dashboard = await get_security_dashboard(tg=bg_tasks)
-            # dashboard starts automatically via
-            # get_security_dashboard lazy init
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.security_dashboard import get_security_dashboard
+                await get_security_dashboard(tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "security_dashboard_init_failed", error=str(exc)
         )
 
+
 async def _init_event_bus(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
-        async with asyncio.timeout(10):
-            await app.state.singletons_ready_event.wait()
-            from resync.core.event_bus import get_event_bus
-
-            bus = get_event_bus()
-            bus.start(tg=bg_tasks)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(10):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.event_bus import get_event_bus
+                bus = get_event_bus()
+                bus.start(tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning("event_bus_init_failed", error=str(exc))
+
 
 async def _init_service_discovery(app: "FastAPI", bg_tasks: asyncio.TaskGroup) -> None:
     try:
-        async with asyncio.timeout(15):
-            await app.state.singletons_ready_event.wait()
-            from resync.core.service_discovery import get_service_discovery_manager
-
-            _manager = get_service_discovery_manager(tg=bg_tasks)
-            # manager starts automatically via
-            # get_service_discovery_manager lazy init
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        if isinstance(exc, (TypeError, KeyError, AttributeError, IndexError)):
-            raise
+        with guard_programming_errors():
+            async with asyncio.timeout(15):
+                await app.state.singletons_ready_event.wait()
+                from resync.core.service_discovery import get_service_discovery_manager
+                get_service_discovery_manager(tg=bg_tasks)
+    except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:
         get_logger("resync.startup").warning(
             "service_discovery_init_failed", error=str(exc)
         )
 
+
+# ---------------------------------------------------------------------------
+# Shutdown
+# ---------------------------------------------------------------------------
+
 async def _shutdown_services(app: "FastAPI") -> None:
-    """Shutdown services in correct order with individual timeouts.
-
-    Order:
-    1. Cancel background tasks first (prevents tasks from using closing resources)
-    2. Shutdown domain singletons and TWS monitor in parallel (independent)
-
-    Each step has individual timeout to prevent hanging.
-    """
+    """Shutdown services in correct order with individual timeouts."""
     logger = get_logger("resync.lifespan")
     logger.info("application_shutdown_initiated")
 
-    # Imports inside to avoid early circular deps
     from resync.core.task_tracker import cancel_all_tasks
     from resync.core.tws_monitor import shutdown_tws_monitor
     from resync.core.wiring import shutdown_domain_singletons
 
-    # 1. Cancel background tasks FIRST (priority: stop active work)
     async def _cancel_tasks() -> None:
         try:
-            await asyncio.wait_for(cancel_all_tasks(timeout=5.0), timeout=7.0)
-            logger.info("background_tasks_cancelled")
+            with guard_programming_errors():
+                await asyncio.wait_for(cancel_all_tasks(timeout=5.0), timeout=7.0)
+                logger.info("background_tasks_cancelled")
         except TimeoutError:
-            logger.warning(
-                "task_cancel_timeout", hint="Some tasks did not cancel within 7s"
-            )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
+            logger.warning("task_cancel_timeout")
+        except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.warning("task_cancel_error", error=str(e))
 
-    # 2. Shutdown domain singletons (connections, clients)
     async def _shutdown_singletons() -> None:
         try:
-            await asyncio.wait_for(shutdown_domain_singletons(app), timeout=10.0)
-            logger.info("domain_singletons_shutdown")
+            with guard_programming_errors():
+                await asyncio.wait_for(shutdown_domain_singletons(app), timeout=10.0)
+                logger.info("domain_singletons_shutdown")
         except TimeoutError:
-            logger.error(
-                "singleton_shutdown_timeout", hint="Singleton shutdown exceeded 10s"
-            )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
+            logger.error("singleton_shutdown_timeout")
+        except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.error("domain_shutdown_error", error=str(e))
 
-    # 3. Shutdown TWS monitor
     async def _shutdown_tws() -> None:
         try:
-            await asyncio.wait_for(shutdown_tws_monitor(), timeout=5.0)
-            logger.info("tws_monitor_shutdown")
+            with guard_programming_errors():
+                await asyncio.wait_for(shutdown_tws_monitor(), timeout=5.0)
+                logger.info("tws_monitor_shutdown")
         except TimeoutError:
             logger.warning("tws_monitor_shutdown_timeout")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
+        except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.warning("tws_monitor_shutdown_error", error=str(e))
 
-    # 4. Shutdown Health Service
     async def _shutdown_health() -> None:
         from resync.core.health import shutdown_unified_health_service
-
         try:
-            await asyncio.wait_for(shutdown_unified_health_service(), timeout=5.0)
-            logger.info("health_service_shutdown")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
+            with guard_programming_errors():
+                await asyncio.wait_for(shutdown_unified_health_service(), timeout=5.0)
+                logger.info("health_service_shutdown")
+        except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("health_service_shutdown_error", error=str(e))
 
-    # Execute: tasks first, then resources in parallel
     await _cancel_tasks()
     try:
         async with asyncio.TaskGroup() as tg:
@@ -1272,7 +1068,6 @@ async def _shutdown_services(app: "FastAPI") -> None:
             tg.create_task(_shutdown_tws())
             tg.create_task(_shutdown_health())
     except* Exception as exc_group:
-        # Shutdown errors are non-fatal but must be observable
         logger.error(
             "shutdown_task_group_error",
             errors=[str(e) for e in exc_group.exceptions],

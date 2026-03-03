@@ -96,6 +96,7 @@ class SSRFProtection:
     
     @classmethod
     def is_safe_url(cls, url: str, allowed_hosts: tuple = ()) -> tuple[bool, str]:
+        """
         Validate URL is safe for HTTP requests.
         
         Args:

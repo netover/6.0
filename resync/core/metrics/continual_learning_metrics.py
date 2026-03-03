@@ -152,7 +152,7 @@ class ContinualLearningMetrics:
             qm.total_duration_ms = (time.time() - qm.start_time) * 1000
 
             # Record metrics
-            await self.store.increment(MetricNames.QUERY_TOTAL, tags=tags)
+            await self.store.inc(MetricNames.QUERY_TOTAL, tags=tags)
             await self.store.record(
                 MetricNames.QUERY_DURATION_MS,
                 qm.total_duration_ms,
@@ -161,7 +161,7 @@ class ContinualLearningMetrics:
             )
 
             if qm.enrichment_applied:
-                await self.store.increment(MetricNames.QUERY_WITH_ENRICHMENT, tags=tags)
+                await self.store.inc(MetricNames.QUERY_WITH_ENRICHMENT, tags=tags)
 
     # =========================================================================
     # FEEDBACK METRICS
@@ -178,12 +178,12 @@ class ContinualLearningMetrics:
         if query_type:
             tags["query_type"] = query_type
 
-        await self.store.increment(MetricNames.FEEDBACK_TOTAL, tags=tags)
+        await self.store.inc(MetricNames.FEEDBACK_TOTAL, tags=tags)
 
         if rating > 0:
-            await self.store.increment(MetricNames.FEEDBACK_POSITIVE, tags=tags)
+            await self.store.inc(MetricNames.FEEDBACK_POSITIVE, tags=tags)
         elif rating < 0:
-            await self.store.increment(MetricNames.FEEDBACK_NEGATIVE, tags=tags)
+            await self.store.inc(MetricNames.FEEDBACK_NEGATIVE, tags=tags)
 
         await self.store.record(
             MetricNames.FEEDBACK_RATING_AVG,
@@ -221,7 +221,7 @@ class ContinualLearningMetrics:
                 reasons[0] if isinstance(reasons[0], str) else reasons[0].value
             )
 
-        await self.store.increment(MetricNames.REVIEW_ADDED, tags=tags)
+        await self.store.inc(MetricNames.REVIEW_ADDED, tags=tags)
 
     async def record_review_completed(
         self,
@@ -231,14 +231,14 @@ class ContinualLearningMetrics:
         """Record when a review is completed."""
         tags = {"status": status}
 
-        await self.store.increment(MetricNames.REVIEW_COMPLETED, tags=tags)
+        await self.store.inc(MetricNames.REVIEW_COMPLETED, tags=tags)
 
         if status == "approved":
-            await self.store.increment(MetricNames.REVIEW_APPROVED)
+            await self.store.inc(MetricNames.REVIEW_APPROVED)
         elif status == "corrected":
-            await self.store.increment(MetricNames.REVIEW_CORRECTED)
+            await self.store.inc(MetricNames.REVIEW_CORRECTED)
         elif status == "rejected":
-            await self.store.increment(MetricNames.REVIEW_REJECTED)
+            await self.store.inc(MetricNames.REVIEW_REJECTED)
 
     async def update_review_queue_size(self, size: int) -> None:
         """Update the current review queue size gauge."""
@@ -257,10 +257,10 @@ class ContinualLearningMetrics:
         """Record a context enrichment event."""
         tags = {"source": source} if source else {}
 
-        await self.store.increment(MetricNames.ENRICHMENT_TOTAL, tags=tags)
+        await self.store.inc(MetricNames.ENRICHMENT_TOTAL, tags=tags)
 
         if context_count > 0:
-            await self.store.increment(MetricNames.ENRICHMENT_CONTEXT_ADDED, tags=tags)
+            await self.store.inc(MetricNames.ENRICHMENT_CONTEXT_ADDED, tags=tags)
             await self.store.record(
                 "cl.enrichment.context_count",
                 float(context_count),
@@ -268,7 +268,7 @@ class ContinualLearningMetrics:
                 tags=tags,
             )
         else:
-            await self.store.increment(MetricNames.ENRICHMENT_NO_CONTEXT, tags=tags)
+            await self.store.inc(MetricNames.ENRICHMENT_NO_CONTEXT, tags=tags)
 
         await self.store.record(
             MetricNames.ENRICHMENT_DURATION_MS,
@@ -291,7 +291,7 @@ class ContinualLearningMetrics:
         """Record an audit pipeline processing event."""
         tags = {"error_type": error_type} if error_type else {}
 
-        await self.store.increment(MetricNames.AUDIT_PROCESSED, tags=tags)
+        await self.store.inc(MetricNames.AUDIT_PROCESSED, tags=tags)
 
         if triplets_created > 0:
             await self.store.record(
@@ -329,7 +329,7 @@ class ContinualLearningMetrics:
         result_count: int = 0,
     ) -> None:
         """Record a RAG retrieval event."""
-        await self.store.increment(MetricNames.RAG_RETRIEVAL_TOTAL)
+        await self.store.inc(MetricNames.RAG_RETRIEVAL_TOTAL)
 
         await self.store.record(
             MetricNames.RAG_SIMILARITY_SCORE,
@@ -338,7 +338,7 @@ class ContinualLearningMetrics:
         )
 
         if feedback_rerank_applied:
-            await self.store.increment(MetricNames.RAG_WITH_FEEDBACK_RERANK)
+            await self.store.inc(MetricNames.RAG_WITH_FEEDBACK_RERANK)
 
             if boost_factor != 0:
                 await self.store.record(

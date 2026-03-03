@@ -45,33 +45,26 @@ class DatabaseHealthChecker(BaseHealthChecker):
         start_time = time.time()
 
         try:
-                        # Use pool manager from pools.pool_manager; connection_manager
-            # does not define this API.
-            from resync.core.pools.pool_manager import get_connection_pool_manager
+            with guard_programming_errors():
+                # Use pool manager from pools.pool_manager; connection_manager
+                # does not define this API.
+                from resync.core.pools.pool_manager import get_connection_pool_manager
 
-            pool_manager = get_connection_pool_manager()
-            if not pool_manager:
-                return ComponentHealth(
-                    name=self.component_name,
-                    component_type=self.component_type,
-                    status=HealthStatus.UNKNOWN,
-                    message="Database connection pool not available",
-                    last_check=datetime.now(timezone.utc),
-                )
+                pool_manager = get_connection_pool_manager()
+                if not pool_manager:
+                    return ComponentHealth(
+                        name=self.component_name,
+                        component_type=self.component_type,
+                        status=HealthStatus.UNKNOWN,
+                        message="Database connection pool not available",
+                        last_check=datetime.now(timezone.utc),
+                    )
 
-            # Test database connectivity
-            async with pool_manager.db_pool.acquire() as conn:
-                # Simple query to test connection
-                if hasattr(conn, "execute"):
-                    result = await conn.execute(text("SELECT 1"))
-                    if hasattr(result, "fetchone"):
-                        await result.fetchone()
-                elif hasattr(conn, "cursor"):
-                    # SQLite case
-                    cursor = await conn.cursor()
-                    await cursor.execute("SELECT 1")
-                    await cursor.fetchone()
-                    await cursor.close()
+                # Test database connectivity
+                async with pool_manager.db_pool.acquire() as conn:
+                    # Simple query to test connection
+                    # conn is typically an AsyncSession
+                    await conn.execute(text("SELECT 1"))
 
             response_time = (time.time() - start_time) * 1000
 
@@ -148,11 +141,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                 metadata=pool_metadata,
             )
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+        except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
 
             response_time = (time.time() - start_time) * 1000
 

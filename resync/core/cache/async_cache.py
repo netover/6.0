@@ -320,7 +320,7 @@ class AsyncTTLCache:
 
         if total_removed > 0:
             self._stats.evictions += total_removed
-            runtime_metrics.cache_evictions.increment(total_removed)
+            runtime_metrics.cache_evictions.inc(total_removed)
             logger.debug("Cleaned up %s expired entries", total_removed)
 
         return total_removed
@@ -347,7 +347,7 @@ class AsyncTTLCache:
 
                 if entry is None:
                     self._stats.misses += 1
-                    runtime_metrics.cache_misses.increment()
+                    runtime_metrics.cache_misses.inc()
                     return None
 
                 current_time = time()
@@ -357,14 +357,14 @@ class AsyncTTLCache:
                     del shard[str_key]
                     self._stats.misses += 1
                     self._stats.evictions += 1
-                    runtime_metrics.cache_misses.increment()
-                    runtime_metrics.cache_evictions.increment()
+                    runtime_metrics.cache_misses.inc()
+                    runtime_metrics.cache_evictions.inc()
                     return None
 
                 # Cache hit - update timestamp for LRU behavior
                 entry.timestamp = current_time
                 self._stats.hits += 1
-                runtime_metrics.cache_hits.increment()
+                runtime_metrics.cache_hits.inc()
                 ctx.set_result(entry.data)
 
         return ctx.result
@@ -409,7 +409,7 @@ class AsyncTTLCache:
                 )
 
             self._stats.sets += 1
-            runtime_metrics.cache_sets.increment()
+            runtime_metrics.cache_sets.inc()
 
             # WAL logging
             if self._wal:
@@ -589,7 +589,7 @@ class AsyncTTLCache:
 
         if evicted > 0:
             self._stats.evictions += evicted
-            runtime_metrics.cache_evictions.increment(evicted)
+            runtime_metrics.cache_evictions.inc(evicted)
             logger.debug("Evicted %s LRU entries", evicted)
 
         return evicted
@@ -598,20 +598,11 @@ class AsyncTTLCache:
         """Get total number of entries in cache."""
         return sum(len(s) for s in self.shards)
 
-    def stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
-        return {
-            "size": self.size(),
-            "hits": self._stats.hits,
-            "misses": self._stats.misses,
-            "sets": self._stats.sets,
-            "deletes": self._stats.deletes,
-            "evictions": self._stats.evictions,
-            "errors": self._stats.errors,
-            "hit_rate": self._stats.hit_rate,
-            "num_shards": self.num_shards,
-            "is_running": self.is_running,
-        }
+    async def get_detailed_metrics(self) -> dict[str, Any]:
+        """Return detailed metrics for health reporting."""
+        with self._stats_lock:
+            # We use an internal _stats_lock if available, otherwise just return stats
+            return self.stats()
 
     async def __aenter__(self) -> AsyncTTLCache:
         """Context manager entry."""

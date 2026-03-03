@@ -338,7 +338,7 @@ class CacheMemoryManager:
                             bytes_freed += sys.getsizeof(entry.last_accessed_at)
                             bytes_freed += sys.getsizeof(entry.ttl)
                             del shard[lru_key]
-                            runtime_metrics.cache_evictions.increment()
+                            runtime_metrics.cache_evictions.inc()
                             return True
                     return False
 
