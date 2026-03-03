@@ -4,7 +4,6 @@ Authentication service with database support.
 
 import logging
 import asyncio
-import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -20,8 +19,6 @@ from .models import (
 from .repository import UserRepository
 
 logger = logging.getLogger(__name__)
-
-_DEV_FALLBACK_SECRET: str | None = None
 
 # Get secret key from environment with secure default handling
 def _resolve_secret_key() -> str:
@@ -45,11 +42,8 @@ def _resolve_secret_key() -> str:
                 "SECRET_KEY must be configured (settings.secret_key). "
                 "Set it via your Settings/environment configuration."
             )
-        global _DEV_FALLBACK_SECRET
-        if _DEV_FALLBACK_SECRET is None:
-            _DEV_FALLBACK_SECRET = secrets.token_urlsafe(48)
-        logger.warning("Using generated development fallback SECRET_KEY for AuthService")
-        return _DEV_FALLBACK_SECRET
+        logger.warning("Using development fallback SECRET_KEY for AuthService")
+        return "dev-insecure-secret-key-change-me"
 
     return sk.get_secret_value() if isinstance(sk, SecretStr) else str(sk)
 
@@ -93,7 +87,7 @@ class AuthService:
             self.pwd_context = None
             self._dummy_hash = ""
             logger.warning(
-                "passlib/bcrypt backend unavailable, password operations will fail closed: %s",
+                "passlib/bcrypt backend unavailable, using fallback hashing path: %s",
                 exc,
             )
 

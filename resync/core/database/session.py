@@ -30,7 +30,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
     """Backward-compatible dependency provider for async DB sessions."""
     from resync.core.database.engine import get_db_session as _engine_get_db_session
 
-    async with _engine_get_db_session() as session:
+    async for session in _engine_get_db_session():
         yield session
 
 

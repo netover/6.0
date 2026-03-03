@@ -73,14 +73,7 @@ INFRA_ERRORS = (
     ConnectionError,
 )
 
-INFRA_ERRORS_NON_TIMEOUT: tuple[type[BaseException], ...] = (
-    OSError,
-    ValueError,
-    TypeError,
-    KeyError,
-    AttributeError,
-    RuntimeError,
-)
+INFRA_ERRORS_NON_TIMEOUT = tuple(exc for exc in INFRA_ERRORS if exc is not TimeoutError)
 
 
 class SupportsAgentMeta(Protocol):
@@ -89,8 +82,8 @@ class SupportsAgentMeta(Protocol):
     name: str | None
     description: str | None
     # Some agents expose 'llm_model', others 'model'
-    llm_model: Any | None
-    model: Any | None
+    llm_model: Any | None  # type: ignore[assignment]
+    model: Any | None  # type: ignore[assignment]
 
 
 def _now_iso() -> str:
@@ -159,18 +152,15 @@ async def _auditor_worker() -> None:
         return
 
     while True:
-        dequeued = False
         try:
             await _auditor_queue.get()
-            dequeued = True
             await run_auditor_safely()
         except asyncio.CancelledError:
             raise
-        except (OSError, ValueError, RuntimeError):
+        except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError):
             logger.error("IA Auditor worker failed while processing queue item", exc_info=True)
         finally:
-            if dequeued:
-                _auditor_queue.task_done()
+            _auditor_queue.task_done()
 
 
 async def _ensure_auditor_workers() -> None:
@@ -372,7 +362,7 @@ async def _setup_websocket_session(
         raise WebSocketDisconnect(code=1008, reason=f"Agent '{agent_id}' not found")
 
     # Welcome message - per WebSocketMessage model with type="system"
-    welcome_data: dict[str, Any] = {
+    welcome_data = {
         "type": "system",
         "sender": "system",
         "message": (
@@ -445,7 +435,7 @@ async def _message_processing_loop(
         await _handle_agent_interaction(websocket, agent_id, raw_data)
 
 
-@chat_router.websocket("/ws/{agent_id}")  # type: ignore[untyped-decorator]
+@chat_router.websocket("/ws/{agent_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     agent_id: SafeAgentID,
@@ -478,16 +468,11 @@ async def websocket_endpoint(
 
             payload = await verify_token_async(token)
             is_valid = bool(payload)
-            if not is_valid:
-                from resync.api.auth.service import get_auth_service
-
-                auth_service = get_auth_service()
-                is_valid = bool(await asyncio.to_thread(auth_service.verify_token, token))
         except INFRA_ERRORS:
             from resync.api.auth.service import get_auth_service
 
             auth_service = get_auth_service()
-            is_valid = bool(await asyncio.to_thread(auth_service.verify_token, token))
+            is_valid = await asyncio.to_thread(auth_service.verify_token, token)
 
         if not is_valid:
             await websocket.close(code=1008, reason="Authentication required")
@@ -505,14 +490,9 @@ async def websocket_endpoint(
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
         # Note: No knowledge_graph passed - it's now obtained from enterprise_state
         await _message_processing_loop(websocket, agent, agent_id, session_id)
-    except WebSocketDisconnect as exc:
-        with contextlib.suppress(RuntimeError, ConnectionError, OSError):
-            await websocket.close(
-                code=getattr(exc, "code", 1000),
-                reason=getattr(exc, "reason", ""),
-            )
-        code = getattr(exc, "code", "unknown")
-        reason = getattr(exc, "reason", "unknown")
+    except WebSocketDisconnect:
+        code = getattr(websocket.state, "code", "unknown")
+        reason = getattr(websocket.state, "reason", "unknown")
         logger.info(
             "Client disconnected from agent '%s'. Reason: %s (Code: %s)",
             agent_id,
@@ -555,11 +535,7 @@ async def websocket_endpoint(
             ConnectionError,
             OSError,
         ):
-            if not (
-                getattr(websocket, "client_state", None)
-                and websocket.client_state.name == "DISCONNECTED"
-            ):
-                await websocket.close()
+            await websocket.close()
 
 
 async def _validate_input(

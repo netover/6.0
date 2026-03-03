@@ -1,18 +1,17 @@
 # pylint
 """CSP violation report validation utilities."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Literal
-
-from fastapi import Request
+from typing import TYPE_CHECKING, Any, Literal
 
 from resync.core.exception_guard import maybe_reraise_programming_error
+
+if TYPE_CHECKING:
+    from fastapi import Request
 
 # Maximum allowed size for CSP reports (8KB)
 MAX_REPORT_SIZE = 8192
@@ -281,7 +280,7 @@ def _is_safe_directive_value(value: str) -> bool:
 
 def sanitize_csp_report(
     report_data: dict[str, Any],
-) -> dict[str, Any]:
+) -> dict[str, str | int | float | None]:
     """
     Sanitize CSP report data to prevent XSS and other injection attacks.
 
@@ -291,7 +290,7 @@ def sanitize_csp_report(
     Returns:
         dict[str, Any]: Sanitized report data
     """
-    sanitized: dict[str, Any] = {}
+    sanitized: dict[str, str | int | float | None] = {}
 
     # Fields that should remain as strings
     string_fields = [

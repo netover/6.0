@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import logging
 import os
 import re
 import time
@@ -37,8 +36,6 @@ from typing import Any
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-logger = logging.getLogger(__name__)
 
 # -----------------------------
 # Configuration (env-driven)
@@ -106,26 +103,21 @@ class SlidingWindowLimiter:
     async def _cleanup_loop(self) -> None:
         """Evict stale limiter keys to avoid unbounded memory growth."""
         while True:
-            try:
-                await asyncio.sleep(self._cleanup_interval_seconds)
-                now = time.monotonic()
-                stale_cutoff = now - float(self._stale_after_seconds)
+            await asyncio.sleep(self._cleanup_interval_seconds)
+            now = time.monotonic()
+            stale_cutoff = now - float(self._stale_after_seconds)
 
-                async with self._lock:
-                    stale_keys = []
-                    for key, events in self._events.items():
-                        if not events:
-                            stale_keys.append(key)
-                            continue
-                        if events[-1] < stale_cutoff:
-                            stale_keys.append(key)
+            async with self._lock:
+                stale_keys = []
+                for key, events in self._events.items():
+                    if not events:
+                        stale_keys.append(key)
+                        continue
+                    if events[-1] < stale_cutoff:
+                        stale_keys.append(key)
 
-                    for stale_key in stale_keys:
-                        self._events.pop(stale_key, None)
-            except asyncio.CancelledError:
-                raise
-            except (OSError, RuntimeError, ValueError) as exc:
-                logger.warning("rate_limiter_cleanup_failed", error=str(exc))
+                for stale_key in stale_keys:
+                    self._events.pop(stale_key, None)
 
     async def allow(self, key: str, limit: Limit) -> tuple[bool, int]:
         """
@@ -256,10 +248,6 @@ def _resolve_request(*args: Any, **kwargs: Any) -> Request:
     if isinstance(request, Request):
         return request
 
-    for value in kwargs.values():
-        if isinstance(value, Request):
-            return value
-
     for arg in args:
         if isinstance(arg, Request):
             return arg
@@ -291,6 +279,8 @@ def rate_limit(limit_str: str) -> Callable[[Callable[..., Any]], Callable[..., A
         return Limit(requests=count, window_seconds=_window_map[unit])
 
     lim = _parse(limit_str)
+    _limiter = SlidingWindowLimiter()
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if not RATE_LIMIT_ENABLED:
             return func
@@ -300,7 +290,7 @@ def rate_limit(limit_str: str) -> Callable[[Callable[..., Any]], Callable[..., A
             request = _resolve_request(*args, **kwargs)
             ip = _client_ip(request)
             key = f"rl:{func.__name__}:{ip}"
-            allowed, retry_after = await _LIMITER.allow(key, lim)
+            allowed, retry_after = await _limiter.allow(key, lim)
             if not allowed:
                 from starlette.responses import JSONResponse
                 return JSONResponse(
@@ -322,6 +312,7 @@ def rate_limit_auth(func: Callable[..., Any]) -> Callable[..., Any]:
     if not RATE_LIMIT_ENABLED:
         return func
 
+    _limiter = SlidingWindowLimiter()
     _lim = Limit(requests=AUTH_LIMIT_REQUESTS, window_seconds=AUTH_LIMIT_WINDOW_SECONDS)
 
     @functools.wraps(func)
@@ -329,7 +320,7 @@ def rate_limit_auth(func: Callable[..., Any]) -> Callable[..., Any]:
         request = _resolve_request(*args, **kwargs)
         ip = _client_ip(request)
         key = f"rl_auth:{ip}"
-        allowed, retry_after = await _LIMITER.allow(key, _lim)
+        allowed, retry_after = await _limiter.allow(key, _lim)
         if not allowed:
             from starlette.responses import JSONResponse
             return JSONResponse(

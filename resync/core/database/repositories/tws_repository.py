@@ -6,7 +6,7 @@ PostgreSQL implementation replacing SQLite-based tws_status_store.py.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select, update
@@ -340,8 +340,7 @@ class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
 
             query = query.order_by(TWSProblemSolution.success_count.desc())
             result = await session.execute(query)
-            from typing import cast
-            return cast(TWSProblemSolution | None, result.scalar_one_or_none())
+            return result.scalar_one_or_none()
 
     async def record_outcome(
         self, solution_id: int, success: bool
@@ -360,15 +359,14 @@ class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
                 .values(
                     {
                         increment_column: increment_column + 1,
-                        TWSProblemSolution.last_used: datetime.now(UTC),
+                        TWSProblemSolution.last_used: datetime.now(timezone.utc),
                     }
                 )
                 .returning(TWSProblemSolution)
             )
             result = await session.execute(stmt)
             await session.commit()
-            from typing import cast
-            return cast(TWSProblemSolution | None, result.scalar_one_or_none())
+            return result.scalar_one_or_none()
 
 # =============================================================================
 # UNIFIED TWS STORE (facade for all repositories)

@@ -836,8 +836,8 @@ class ApplicationFactory:
 
     def _register_special_endpoints(self) -> None:
         """Register special endpoints (frontend, CSP, etc.)."""
-        # [P2-03] Import CSP processing once at registration time, not per-request
-        from resync.csp_validation import CSPValidationError, process_csp_report
+        # [P2-03] Import process_csp_report once at registration time, not per-request
+        from resync.csp_validation import process_csp_report
         from resync.core.security.rate_limiter_v2 import rate_limit
 
         # Root redirect
@@ -945,14 +945,7 @@ class ApplicationFactory:
                 )
 
             # [P2-03] process_csp_report captured at registration time (closure)
-            try:
-                result = await process_csp_report(request, report_data=report_data)
-            except CSPValidationError as exc:
-                logger.warning("csp_report_validation_error", error=str(exc))
-                return JSONResponse(
-                    {"status": "ignored", "reason": "invalid_csp_report"},
-                    status_code=400,
-                )
+            result = await process_csp_report(request, report_data=report_data)
 
             report = result.get("report", {}) if isinstance(result, dict) else {}
             csp_report = (
