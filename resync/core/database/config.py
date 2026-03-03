@@ -61,9 +61,10 @@ class DatabaseConfig:
     @property
     def url(self) -> str:
         """Get async database URL for SQLAlchemy."""
-        password = self.password or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password or os.getenv("APP_DATABASE_PASSWORD", "")
         encoded = quote_plus(password) if password else ""
         return f"postgresql+asyncpg://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
+
     @property
     def alembic_url(self) -> str:
         """
@@ -72,7 +73,7 @@ class DatabaseConfig:
         Uses asyncpg driver - Alembic must be configured for async mode.
         See alembic.ini and env.py for async configuration.
         """
-        password = self.password or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password or os.getenv("APP_DATABASE_PASSWORD", "")
         encoded = quote_plus(password) if password else ""
         return f"postgresql+asyncpg://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
 
@@ -83,7 +84,7 @@ class DatabaseConfig:
 
         Useful for direct psql connections or third-party tools.
         """
-        password = self.password or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password or os.getenv("APP_DATABASE_PASSWORD", "")
         encoded = quote_plus(password) if password else ""
         return (
             f"postgresql://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
@@ -105,28 +106,42 @@ def get_database_config() -> DatabaseConfig:
     Returns:
         DatabaseConfig: Configured database settings
     """
-    # Check for full DATABASE_URL first (supports both DATABASE_URL and APP_DATABASE_URL)
+    # Check for full DATABASE_URL first
     url = os.getenv("APP_DATABASE_URL")
 
     if url:
         _validate_database_url_security(url)
-        return _parse_database_url(url)
+        config = _parse_database_url(url)
+    else:
+        # Build from individual environment variables
+        config = DatabaseConfig(
+            driver=DatabaseDriver.POSTGRESQL,
+            host=os.getenv("APP_DATABASE_HOST", "localhost"),
+            port=int(os.getenv("APP_DATABASE_PORT", "5432")),
+            name=os.getenv("APP_DATABASE_NAME", "resync"),
+            user=os.getenv("APP_DATABASE_USER", "resync"),
+            password=os.getenv("APP_DATABASE_PASSWORD", ""),
+        )
 
-    # Build from individual environment variables
-    return DatabaseConfig(
-        driver=DatabaseDriver.POSTGRESQL,
-        host=os.getenv("APP_DATABASE_HOST", "localhost"),
-        port=int(os.getenv("APP_DATABASE_PORT", "5432")),
-        name=os.getenv("APP_DATABASE_NAME", "resync"),
-        user=os.getenv("APP_DATABASE_USER", "resync"),
-        password=os.getenv("APP_DATABASE_PASSWORD", ""),
-        # Keep env defaults aligned with the dataclass defaults (optimized values)
-        pool_size=int(os.getenv("APP_DATABASE_POOL_SIZE", "5")),
-        max_overflow=int(os.getenv("APP_DATABASE_MAX_OVERFLOW", "10")),
-        pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
-        pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
-        ssl_mode=os.getenv("DATABASE_SSL_MODE", "prefer"),
-    )
+    # Always override pool settings from specific environment variables if present
+    # This ensures consistency even if DATABASE_URL is used.
+    # We enforce a minimum of 2 for pool_size as requested.
+    env_pool_size = os.getenv("APP_DATABASE_POOL_SIZE")
+    if env_pool_size:
+        config.pool_size = max(2, int(env_pool_size))
+    elif config.pool_size < 2:
+        config.pool_size = 2
+
+    env_max_overflow = os.getenv("APP_DATABASE_MAX_OVERFLOW")
+    if env_max_overflow:
+        config.max_overflow = int(env_max_overflow)
+
+    # v6.0.2: Align with other timeout variables
+    config.pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT", str(config.pool_timeout)))
+    config.pool_recycle = int(os.getenv("DATABASE_POOL_RECYCLE", str(config.pool_recycle)))
+    config.ssl_mode = os.getenv("DATABASE_SSL_MODE", config.ssl_mode)
+
+    return config
 
 def _parse_database_url(url: str) -> DatabaseConfig:
     """

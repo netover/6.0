@@ -141,7 +141,8 @@ class AdminApp {
         content.innerHTML = '<div class="card"><div class="stat-label">Carregando Health...</div></div>';
 
         try {
-            const stats = await this.api.get('/health');
+            // Use /health/detailed for comprehensive component data
+            const stats = await this.api.get('/health/detailed');
             content.innerHTML = `
                 <div class="header-title">
                     <h1>System Health</h1>
@@ -150,8 +151,8 @@ class AdminApp {
                 <div class="dashboard-grid">
                     <div class="card stat-card">
                         <span class="stat-label">Status Global</span>
-                        <div class="stat-value">${stats.status || 'UNKNOWN'}</div>
-                        <span class="badge ${stats.status === 'healthy' ? 'badge-success' : 'badge-error'}">${stats.status}</span>
+                        <div class="stat-value">${stats.overall_status || 'UNKNOWN'}</div>
+                        <span class="badge ${stats.overall_status === 'healthy' ? 'badge-success' : 'badge-error'}">${stats.overall_status}</span>
                     </div>
                     <div class="card">
                         <div class="card-title">Componentes</div>
@@ -161,8 +162,9 @@ class AdminApp {
                                     <div class="data-item-info">
                                         <span class="data-item-title">${name}</span>
                                         <span class="data-item-meta">${data.message || 'Sem detalhes'}</span>
+                                        ${data.response_time_ms ? `<span class="data-item-meta">Latência: ${data.response_time_ms}ms</span>` : ''}
                                     </div>
-                                    <span class="badge ${data.status === 'healthy' ? 'badge-success' : 'badge-error'}">${data.status}</span>
+                                    <span class="badge ${data.status === 'healthy' ? 'badge-success' : data.status === 'degraded' ? 'badge-warning' : 'badge-error'}">${data.status}</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -170,7 +172,39 @@ class AdminApp {
                 </div>
             `;
         } catch (err) {
-            content.innerHTML = `<div class="card"><div class="stat-label">Erro ao carregar health: ${err.message}</div></div>`;
+            // Fallback to basic /health if detailed fails
+            try {
+                const stats = await this.api.get('/health');
+                content.innerHTML = `
+                    <div class="header-title">
+                        <h1>System Health</h1>
+                        <p>Estado atual de todos os componentes do sistema</p>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="card stat-card">
+                            <span class="stat-label">Status Global</span>
+                            <div class="stat-value">${stats.status || 'UNKNOWN'}</div>
+                            <span class="badge ${stats.status === 'healthy' ? 'badge-success' : 'badge-error'}">${stats.status}</span>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">Componentes</div>
+                            <div class="data-list">
+                                ${Object.entries(stats.components || {}).map(([name, data]) => `
+                                    <div class="data-item">
+                                        <div class="data-item-info">
+                                            <span class="data-item-title">${name}</span>
+                                            <span class="data-item-meta">${data.message || 'Sem detalhes'}</span>
+                                        </div>
+                                        <span class="badge ${data.status === 'healthy' ? 'badge-success' : 'badge-error'}">${data.status}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (fallbackErr) {
+                content.innerHTML = `<div class="card"><div class="stat-label">Erro ao carregar health: ${fallbackErr.message}</div></div>`;
+            }
         }
     }
 

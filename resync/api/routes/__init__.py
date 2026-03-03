@@ -44,7 +44,7 @@ def get_all_routers() -> list[tuple["APIRouter", str, list[str]]]:
         (chat_router, "/api/v1", ["Chat"]),
         (status_router, "/api/v1", ["Status"]),
         (admin_router, "/api/v1", ["Admin"]),
-        (admin_router, "", ["Admin"]),
+        # Note: admin_router was duplicated here with empty prefix - removed for P3
         (prompt_router, "/api/v1", ["Admin - Prompts"]),
         (rag_stats_router, "/api/v1", ["Admin - RAG Stats"]),
         (monitoring_dashboard_router, "/api/v1", ["Monitoring"]),

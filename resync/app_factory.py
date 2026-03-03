@@ -1,5 +1,3 @@
-from resync.core.logging_setup import configure_logging
-
 """
 Application factory for creating and configuring the FastAPI application.
 
@@ -227,7 +225,6 @@ class ApplicationFactory:
             redoc_url="/api/redoc" if not self.settings.is_production else None,
             openapi_url="/api/openapi.json" if not self.settings.is_production else None,
         )
-        self.app.add_middleware(RateLimitMiddleware)
 
         # Configure all components in order
         self._setup_templates()

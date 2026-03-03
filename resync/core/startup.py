@@ -102,10 +102,14 @@ async def _tcp_reachable(
 async def _http_healthy(
     url: str, timeout: float
 ) -> tuple[bool, str | None, int | None, str | None]:
-    from resync.core.ssrf_protection import SSRFProtection
-    is_safe, reason = SSRFProtection.is_safe_url(url)
-    if not is_safe:
-        return False, f"ssrf_blocked:{reason}", None, None
+    # Check if SSRF protection is disabled via environment variable
+    ssrf_disabled = os.getenv("RESYNC_DISABLE_SSRF", "false").lower() == "true"
+    
+    if not ssrf_disabled:
+        from resync.core.ssrf_protection import SSRFProtection
+        is_safe, reason = SSRFProtection.is_safe_url(url)
+        if not is_safe:
+            return False, f"ssrf_blocked:{reason}", None, None
 
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
@@ -692,12 +696,10 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
     try:
         settings = get_settings()
         startup_timeout = getattr(settings, "startup_timeout", 60)
-        total_startup_timeout = max(float(startup_timeout), 1.0) + 5.0
 
-        async with asyncio.timeout(total_startup_timeout):
-            startup_result = await asyncio.wait_for(
-                run_startup_checks(settings=settings), timeout=float(startup_timeout)
-            )
+        # [FIX BUG #4] Use single timeout layer - simpler and more predictable
+        async with asyncio.timeout(float(startup_timeout)):
+            startup_result = await run_startup_checks(settings=settings)
             if not startup_result.get("overall_health"):
                 logger.warning(
                     "startup_health_failed",
@@ -728,9 +730,8 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 app.state.singletons_ready_event.set()
                 logger.info("core_services_initialized")
 
-                enable_optional_services = (
-                    getattr(settings, "startup_enable_optional_services", True) is True
-                )
+                # [P2 FIX] Use settings field directly instead of getattr with default
+                enable_optional_services = settings.startup_enable_optional_services is True
                 optional_timeout = max(1.0, min(5.0, float(startup_timeout) * 0.4))
 
                 # FIX (Bug #5): list is now read and logged after init loop.
@@ -746,7 +747,9 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                                     init_tg.create_task(
                                         _init_proactive_monitoring(app, bg_tasks)
                                     )
-                                    init_tg.create_task(_init_metrics_collector(app))
+                                    # [P2 FIX] Only start metrics collector if explicitly enabled
+                                    if settings.startup_enable_metrics_collector is True:
+                                        init_tg.create_task(_init_metrics_collector(app))
                                     init_tg.create_task(_init_cache_warmup(app))
                                     init_tg.create_task(_init_graphrag(app))
                                     init_tg.create_task(_init_config_system(app))
@@ -821,13 +824,16 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
         raise ConfigurationError(
             f"Application startup exceeded {startup_timeout}s timeout"
         )
-    except (OSError, ValueError, RuntimeError, ConnectionError) as exc:
-        # FIX-01 + FIX-06: top-level sys, TimeoutError removed.
+    except (OSError, ValueError, RuntimeError, ConnectionError, ConfigurationError) as exc:
+        # [FIX BUG #5] ConfigurationError now caught, isinstance check removed (was dead code)
         _exc_type, _exc, _tb = sys.exc_info()
         from resync.core.exception_guard import maybe_reraise_programming_error
         maybe_reraise_programming_error(_exc, _tb)
-        if not isinstance(exc, ConfigurationError):
-            logger.critical("application_startup_failed", error=str(exc))
+        logger.critical(
+            "application_startup_failed",
+            error=str(exc),
+            exc_type=type(exc).__name__,
+        )
         raise
     finally:
         await _shutdown_services(app)

@@ -87,7 +87,7 @@ MIN_EF_CONSTRUCTION: Final[int] = 10
 MAX_EF_CONSTRUCTION: Final[int] = 10000
 
 # Default dev DB URL (never used in production)
-DEV_DATABASE_URL: Final[str] = "postgresql+asyncpg://localhost:5432/resync"
+DEV_DATABASE_URL: Final[str] = "postgresql+asyncpg://resync:resync_password@127.0.0.1:5432/resync"
 
 # Query-string keys that often carry secrets
 SENSITIVE_QS_KEYS: Final[frozenset[str]] = frozenset(

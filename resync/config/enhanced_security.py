@@ -251,8 +251,8 @@ def configure_enhanced_security(
     # Add enhanced security middleware
     app.add_middleware(EnhancedSecurityMiddleware, **security_middleware_config)
 
-    # Add security headers middleware
-    app.add_middleware(SecurityHeadersMiddleware)
+    # SecurityHeadersMiddleware is added by add_additional_security_headers() in resync/config/security.py
+    # to avoid duplicate registration
 
     logger.info("Enhanced security middleware configured")
     if settings.is_production:

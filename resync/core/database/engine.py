@@ -94,6 +94,10 @@ def get_engine() -> AsyncEngine:
     if _engine is None:
         with _engine_lock:
             if _engine is None:
+                # Import settings to ensure proper initialization
+                from resync.settings import get_settings
+                _ = get_settings()
+                
                 config = get_database_config()
 
                 # Engine options with connection pooling

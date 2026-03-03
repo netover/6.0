@@ -287,6 +287,11 @@ SETTINGS_SCHEMA = {
                 "label": "Endpoint LLM",
                 "hot_reload": True,
             },
+            "llm_api_key": {
+                "type": "password",
+                "label": "API Key",
+                "hot_reload": True,
+            },
             "llm_model": {"type": "text", "label": "Modelo Padrão", "hot_reload": True},
             "llm_timeout": {
                 "type": "number",

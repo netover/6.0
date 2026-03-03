@@ -62,10 +62,14 @@ class PgVectorStore(VectorStore):
         if not ASYNCPG_AVAILABLE:
             raise RuntimeError("asyncpg is required. pip install asyncpg")
         import os
+        from pydantic import SecretStr
 
-        self._database_url = (
-            database_url or os.getenv("APP_DATABASE_URL") or CFG.database_url
-        )
+        # Handle SecretStr from settings
+        db_url = database_url or os.getenv("APP_DATABASE_URL") or CFG.database_url
+        if isinstance(db_url, SecretStr):
+            db_url = db_url.get_secret_value()
+        self._database_url = db_url
+
         if self._database_url.startswith("postgresql+asyncpg://"):
             self._database_url = self._database_url.replace(
                 "postgresql+asyncpg://", "postgresql://"

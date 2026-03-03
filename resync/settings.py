@@ -73,6 +73,19 @@ class Settings(BaseSettings, SettingsValidators):
         description="Timeout global para o startup da aplicação em segundos",
     )
 
+    # [FIX BUG #7] Enable optional services at startup - was missing from Settings
+    startup_enable_optional_services: bool = Field(
+        default=True,
+        description="Enable optional service initialization at startup (metrics, cache warmup, etc.)",
+    )
+
+    # [P2 FIX] Metrics collector flag - legacy monitoring_dashboard module has no routes
+    # Default is False until routes are explicitly wired to consume it
+    startup_enable_metrics_collector: bool = Field(
+        default=False,
+        description="Enable legacy metrics_collector_loop (monitoring_dashboard) - requires routes to be wired",
+    )
+
     # ============================================================================
     # LOGGING CONFIGURATION
     # ============================================================================

@@ -14,6 +14,9 @@ import logging
 from enum import Enum
 from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field, SecretStr
+
 from resync.api.routes.admin.main import verify_admin_credentials
 from resync.api.dependencies_v2 import get_database
 from resync.core.database.repositories.connector_repo import ConnectorRepository

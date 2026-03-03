@@ -30,6 +30,10 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env BEFORE importing app_factory to ensure settings have correct values
+from dotenv import load_dotenv
+load_dotenv(BASE_DIR / ".env")
+
 from resync.app_factory import create_app  # noqa: E402
 
 app = create_app()
@@ -44,7 +48,6 @@ def main() -> None:
     # Import uvicorn here to avoid loading it in production ASGI path
     # where it's not needed
     import uvicorn
-    from dotenv import load_dotenv
 
     from resync.settings import settings
 

@@ -275,6 +275,35 @@ def configure_structured_logging(
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
 
+    # P0 FIX: Always persist startup warnings/errors to logs/startup.log and logs/server_stdout.log.
+    # This replaces the old hardcoded path approach but maintains log persistence.
+    # The logs/ directory is configurable via LOG_DIR env var (defaults to ./logs).
+    # This is intentional - we always want startup logs for debugging in all environments.
+    import os as _os
+    log_dir = Path(_os.getenv("LOG_DIR", "logs"))
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Startup log - captures warnings/errors during boot (level=WARNING+)
+        startup_handler = logging.FileHandler(str(log_dir / "startup.log"), mode="a")
+        startup_handler.setLevel(logging.WARNING)
+        startup_handler.setFormatter(formatter)
+        root_logger.addHandler(startup_handler)
+
+        # Server stdout log - captures all application logs
+        stdout_handler = logging.FileHandler(str(log_dir / "server_stdout.log"), mode="a")
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setFormatter(formatter)
+        root_logger.addHandler(stdout_handler)
+    except OSError as e:
+        # Don't crash the service if we can't persist logs.
+        # Logging is already configured to stdout; keep running.
+        root_logger.warning(
+            "log_file_persistence_unavailable",
+            extra={"log_dir": str(log_dir), "error": str(e)},
+        )
+
+    # Legacy: still support explicit persist_logs_path for specific use cases
     if persist_logs_path:
         try:
             p = Path(persist_logs_path)
