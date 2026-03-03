@@ -10,7 +10,7 @@ from resync.core.exceptions import (
 from resync.core.fastapi_di import get_agent_manager
 from resync.core.security import SafeAgentID
 
-agents_router = APIRouter()
+agents_router = APIRouter(prefix="/agents", tags=["agents"])
 
 logger = logging.getLogger(__name__)
 

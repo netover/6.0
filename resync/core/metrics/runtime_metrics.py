@@ -440,47 +440,47 @@ class RuntimeMetricsCollector:
             },
         }
 
+    def get_snapshot(self) -> dict[str, Any]:
+        """Return a lightweight snapshot for dashboards.
+
+        The dashboard expects a dict with nested sections like `router_cache`.
+        Values may be None if the metric is not instrumented yet.
+        """
+        try:
+            router_cache_hits = float(getattr(self, "router_cache_hits").get_sum())
+            router_cache_misses = float(getattr(self, "router_cache_misses").get_sum())
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+            router_cache_hits = 0.0
+            router_cache_misses = 0.0
+
+        # Some dashboards reuse cache_avg_latency from internal metrics.
+        try:
+            avg_latency_ms = getattr(self, "cache_avg_latency").get()
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+            avg_latency_ms = None
+
+        snapshot: dict[str, Any] = {
+            "router_cache": {
+                "hits": int(router_cache_hits),
+                "misses": int(router_cache_misses),
+                "avg_latency_ms": avg_latency_ms,
+            },
+            "router": {
+                # Not fully instrumented in this codebase yet.
+                "accuracy": None,
+                "fallback_rate": None,
+                "avg_duration_ms": None,
+                "total_classifications": None,
+            },
+            "system": {
+                "api_requests_total": int(getattr(self, "api_requests_total").get_sum()),
+                "api_errors_total": int(getattr(self, "api_errors_total").get_sum()),
+            },
+        }
+        return snapshot
+
 # Global instance
 _instance: RuntimeMetricsCollector | None = None
-
-def get_snapshot(self) -> dict[str, Any]:
-    """Return a lightweight snapshot for dashboards.
-
-    The dashboard expects a dict with nested sections like `router_cache`.
-    Values may be None if the metric is not instrumented yet.
-    """
-    try:
-        router_cache_hits = float(getattr(self, "router_cache_hits").get_sum())
-        router_cache_misses = float(getattr(self, "router_cache_misses").get_sum())
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-        router_cache_hits = 0.0
-        router_cache_misses = 0.0
-
-    # Some dashboards reuse cache_avg_latency from internal metrics.
-    try:
-        avg_latency_ms = getattr(self, "cache_avg_latency").get()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-        avg_latency_ms = None
-
-    snapshot: dict[str, Any] = {
-        "router_cache": {
-            "hits": int(router_cache_hits),
-            "misses": int(router_cache_misses),
-            "avg_latency_ms": avg_latency_ms,
-        },
-        "router": {
-            # Not fully instrumented in this codebase yet.
-            "accuracy": None,
-            "fallback_rate": None,
-            "avg_duration_ms": None,
-            "total_classifications": None,
-        },
-        "system": {
-            "api_requests_total": int(getattr(self, "api_requests_total").get_sum()),
-            "api_errors_total": int(getattr(self, "api_errors_total").get_sum()),
-        },
-    }
-    return snapshot
 
 def get_runtime_metrics() -> RuntimeMetricsCollector:
     """Get the global RuntimeMetricsCollector instance."""
