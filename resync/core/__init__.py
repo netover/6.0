@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 Hardened Core Package Initialization for Resync
 

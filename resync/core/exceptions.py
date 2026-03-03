@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """Módulo para exceções customizadas da aplicação Resync.
 
 Este módulo implementa hierarquia completa de exceções

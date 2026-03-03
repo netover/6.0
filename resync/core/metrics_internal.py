@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 Internal Metrics System - Replaces Grafana dependencies.
 

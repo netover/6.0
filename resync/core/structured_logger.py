@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """Sistema de logging estruturado usando structlog.
 
 Este módulo configura logging estruturado em formato JSON para facilitar
