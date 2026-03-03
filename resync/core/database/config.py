@@ -136,9 +136,9 @@ def get_database_config() -> DatabaseConfig:
     if env_max_overflow:
         config.max_overflow = int(env_max_overflow)
 
-    # v6.0.2: Align with other timeout variables
-    config.pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT", str(config.pool_timeout)))
-    config.pool_recycle = int(os.getenv("DATABASE_POOL_RECYCLE", str(config.pool_recycle)))
+    # v6.1.0: Standardized with APP_ prefix
+    config.pool_timeout = int(os.getenv("APP_DATABASE_POOL_TIMEOUT", os.getenv("DATABASE_POOL_TIMEOUT", str(config.pool_timeout))))
+    config.pool_recycle = int(os.getenv("APP_DATABASE_POOL_RECYCLE", os.getenv("DATABASE_POOL_RECYCLE", str(config.pool_recycle))))
     config.ssl_mode = os.getenv("DATABASE_SSL_MODE", config.ssl_mode)
 
     return config

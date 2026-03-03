@@ -1228,9 +1228,9 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                     message="Database engine not initialized",
                 )
             
-            pool = engine_status.get("pool", {})
-            active = pool.get("checked_out", 0)
-            total = pool.get("pool_size", 0)
+            # The engine_status dictionary is flattened, no nested "pool" key
+            active = engine_status.get("checked_out", 0)
+            total = engine_status.get("pool_size", 0)
             
             if total > 0:
                 usage_pct = (active / total) * 100

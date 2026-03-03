@@ -22,6 +22,8 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+from resync.knowledge.config import CFG
+
 class DistanceMetric(str, Enum):
     """Supported distance metrics for similarity search."""
 
@@ -73,20 +75,20 @@ class PgVectorService:
     def __init__(
         self,
         pool,
-        default_collection: str = "documents",
-        embedding_dimension: int = 1536,
+        default_collection: str | None = None,
+        embedding_dimension: int | None = None,
     ):
         self._pool = pool
-        self._default_collection = default_collection
-        self._embedding_dimension = embedding_dimension
+        self._default_collection = default_collection or CFG.collection_write
+        self._embedding_dimension = embedding_dimension or CFG.embed_dim
         self._initialized = False
 
     @classmethod
     async def create(
         cls,
         pool,
-        default_collection: str = "documents",
-        embedding_dimension: int = 1536,
+        default_collection: str | None = None,
+        embedding_dimension: int | None = None,
     ) -> PgVectorService:
         """Create and initialize service."""
         service = cls(pool, default_collection, embedding_dimension)

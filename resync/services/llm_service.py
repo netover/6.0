@@ -297,12 +297,13 @@ class LLMService:
                     "hint": "Configure settings.llm_endpoint (NVIDIA OpenAI-compatible)"
                 },
             )
-        if api_key:
-            masked = api_key[:4] + "..." if len(api_key) > 4 else "***"
-            logger.info("Using LLM API key: %s", masked)
-        else:
-            logger.info("No LLM API key configured")
-        logger.info("LLM base URL: %s", base_url)
+        # P0-45 Security FIX: Avoid logging even masked tokens in certain environments.
+        # Plus, LiteLLM/OpenAI handle base_url natively.
+        logger.info(
+            "LLM initialized",
+            model=self.model,
+            endpoint=base_url
+        )
         try:
             self.client = AsyncOpenAI(
                 api_key=api_key,

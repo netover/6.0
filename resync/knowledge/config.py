@@ -283,18 +283,28 @@ class RagConfig(BaseSettings):
 
     # Embeddings
     embed_model: str = Field(
-        default="text-embedding-3-small",
+        default="nvidia/nv-embedqa-e5-v5",
         min_length=1,
-        description="Embedding model name (e.g. OpenAI text-embedding-3-small).",
+        description="Modelo de embedding (OpenAI, NVIDIA ou Local via LiteLLM)",
     )
     embed_dim: int = Field(
-        default=1536,
+        default=1024,
         ge=MIN_EMBED_DIM,
         le=MAX_EMBED_DIM,
         description=(
-            f"Embedding vector dimensions ({MIN_EMBED_DIM}-{MAX_EMBED_DIM}). "
-            "Must match model output."
+            f"Dimensão do vetor de embedding ({MIN_EMBED_DIM}-{MAX_EMBED_DIM}). "
+            "Deve coincidir com o modelo."
         ),
+    )
+    embed_api_base: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("APP_EMBEDDING_ENDPOINT", "APP_EMBED_API_BASE"),
+        description="API base URL for embeddings (e.g. NVIDIA NIM endpoint).",
+    )
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("APP_EMBEDDING_API_KEY", "APP_EMBED_API_KEY"),
+        description="OpenAI-compatible API key for embeddings.",
     )
 
     # Top-k / vizinhança

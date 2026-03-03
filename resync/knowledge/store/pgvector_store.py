@@ -56,8 +56,8 @@ class PgVectorStore(VectorStore):
         database_url: str | None = None,
         collection: str | None = None,
         dim: int | None = None,
-        pool_min_size: int = 2,
-        pool_max_size: int = 10,
+        pool_min_size: int | None = None,
+        pool_max_size: int | None = None,
     ):
         if not ASYNCPG_AVAILABLE:
             raise RuntimeError("asyncpg is required. pip install asyncpg")
@@ -77,8 +77,20 @@ class PgVectorStore(VectorStore):
         self._collection_default = collection or CFG.collection_write
         self._dim = dim if dim is not None else CFG.embed_dim
         self._pool: "asyncpg.Pool | None" = None
-        self._pool_min_size = pool_min_size
-        self._pool_max_size = pool_max_size
+        
+        # Consistent pool sizing
+        env_pool_size = os.getenv("APP_DATABASE_POOL_SIZE")
+        self._pool_min_size = pool_min_size or (int(env_pool_size) if env_pool_size else 2)
+        
+        env_max_overflow = os.getenv("APP_DATABASE_MAX_OVERFLOW")
+        self._pool_max_size = pool_max_size or (int(env_max_overflow) + self._pool_min_size if env_max_overflow else 10)
+
+        # Enforce minimum for safety
+        if self._pool_min_size < 2:
+            self._pool_min_size = 2
+        if self._pool_max_size < self._pool_min_size:
+            self._pool_max_size = self._pool_min_size + 5
+            
         self._initialized = False
         # Lazy initialised — avoids RuntimeError on module import or sync init
         self._pool_lock: asyncio.Lock | None = None

@@ -450,6 +450,48 @@ CREATE INDEX IF NOT EXISTS idx_kg_edges_relation ON kg_edges (tenant, graph_vers
 CREATE INDEX IF NOT EXISTS idx_kg_edges_evidence_gin ON kg_edges USING GIN (evidence);
 
 -- =============================================================================
+-- KNOWLEDGE VECTOR STORAGE (v6.0.0)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS document_embeddings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    collection_name TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    chunk_id INTEGER NOT NULL DEFAULT 0,
+    content TEXT NOT NULL,
+    embedding vector(1024),          -- Match with nv-embedqa-e5-v5 default
+    embedding_half halfvec(1024),   -- Memory-optimized storage
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    sha256 TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(collection_name, document_id, chunk_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_embeddings_half ON document_embeddings 
+USING hnsw (embedding_half halfvec_cosine_ops) 
+WITH (m = 16, ef_construction = 128);
+
+CREATE INDEX IF NOT EXISTS idx_doc_embeddings_binary ON document_embeddings 
+USING hnsw ((binary_quantize(embedding_half)::bit(1024)) bit_hamming_ops) 
+WITH (m = 16);
+
+CREATE INDEX IF NOT EXISTS idx_doc_embeddings_doc_chunk ON document_embeddings (document_id, chunk_id);
+
+CREATE OR REPLACE FUNCTION auto_quantize_embedding() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.embedding IS NOT NULL AND (TG_OP = 'INSERT' OR NEW.embedding IS DISTINCT FROM OLD.embedding) THEN
+    NEW.embedding_half = NEW.embedding::halfvec(1024);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_auto_quantize_embedding ON document_embeddings;
+CREATE TRIGGER trg_auto_quantize_embedding
+BEFORE INSERT OR UPDATE ON document_embeddings
+FOR EACH ROW EXECUTE FUNCTION auto_quantize_embedding();
+
+-- =============================================================================
 -- LANGGRAPH CHECKPOINTER (para persistência de estado)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS langgraph_checkpoints (

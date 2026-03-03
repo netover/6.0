@@ -28,6 +28,7 @@ from typing import Any
 
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import Embedder
+from resync.core.exceptions import IntegrationError
 
 import structlog
 
@@ -135,6 +136,7 @@ class MultiProviderEmbeddingService(Embedder):
         "vertex_ai/": EmbeddingProvider.VERTEX,
         "mistral/": EmbeddingProvider.MISTRAL,
         "jina/": EmbeddingProvider.JINA,
+        "nvidia/": EmbeddingProvider.OPENAI,
     }
 
     def __init__(
@@ -165,7 +167,7 @@ class MultiProviderEmbeddingService(Embedder):
             **extra_params: Provider-specific parameters
         """
         # Use config or defaults
-        self._model = model or os.getenv("EMBED_MODEL", CFG.embed_model)
+        self._model = model or os.getenv("APP_EMBED_MODEL", CFG.embed_model)
         self._provider = (
             self._detect_provider(self._model)
             if provider == EmbeddingProvider.AUTO
@@ -174,13 +176,26 @@ class MultiProviderEmbeddingService(Embedder):
         self._dimension = (
             dimension or self._infer_dimension(self._model) or CFG.embed_dim
         )
-        # Never store api_key in instance to prevent accidental logging
-        self._api_key = api_key
-        self._api_base = api_base
+        
+        # Load API key and base URL from config if not provided
+        self._api_key = api_key or (CFG.openai_api_key.get_secret_value() if CFG.openai_api_key else os.getenv("APP_EMBEDDING_API_KEY"))
+        self._api_base = api_base or CFG.embed_api_base or os.getenv("APP_EMBEDDING_ENDPOINT")
+        
         self._batch_size = batch_size
         self._timeout = timeout
         self._retry_attempts = retry_attempts
         self._extra_params = extra_params
+        
+        # Initialize OpenAI client if using OpenAI-compatible provider
+        self._use_openai_client = self._provider in {EmbeddingProvider.OPENAI, EmbeddingProvider.AZURE}
+        self._openai_client = None
+        if self._use_openai_client and self._api_key:
+            from openai import AsyncOpenAI
+            self._openai_client = AsyncOpenAI(
+                api_key=self._api_key,
+                base_url=self._api_base,
+                timeout=self._timeout
+            )
 
         # Check LiteLLM availability
         self._litellm_available = self._check_litellm()
@@ -359,6 +374,16 @@ class MultiProviderEmbeddingService(Embedder):
         self._stats["total_requests"] += 1
         self._stats["total_texts"] += len(texts)
 
+        if self._openai_client:
+            try:
+                return await self._embed_with_openai(texts, timeout=timeout)
+            except Exception as e:
+                logger.warning(
+                    "OpenAI_embedding_failed",
+                    error=str(e),
+                    message="Falling back to LiteLLM/Hash",
+                )
+        
         if self._litellm_available:
             try:
                 return await self._embed_with_litellm(texts, timeout=timeout)
@@ -378,6 +403,50 @@ class MultiProviderEmbeddingService(Embedder):
         # Fallback to hash-based embeddings
         self._stats["fallback_calls"] += 1
         return [self._hash_vec(t) for t in texts]
+
+    async def _embed_with_openai(
+        self, texts: list[str], timeout: float = 60.0
+    ) -> list[list[float]]:
+        """Embed texts using specialized AsyncOpenAI client for NVIDIA/OpenAI."""
+        if not self._openai_client:
+            raise IntegrationError("OpenAI client not initialized")
+
+        all_embeddings: list[list[float]] = []
+
+        # Process in batches
+        for i in range(0, len(texts), self._batch_size):
+            batch = texts[i : i + self._batch_size]
+            
+            # Simple retry logic for the specialized client
+            for attempt in range(self._retry_attempts):
+                try:
+                    response = await asyncio.wait_for(
+                        self._openai_client.embeddings.create(
+                            model=self._model,
+                            input=batch,
+                        ),
+                        timeout=timeout + 5.0
+                    )
+                    
+                    batch_embeddings = [item.embedding for item in response.data]
+                    all_embeddings.extend(batch_embeddings)
+                    self._stats["litellm_calls"] += 1  # Reusing stats counter
+                    break
+                    
+                except Exception as e:
+                    if attempt < self._retry_attempts - 1:
+                        wait_time = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(
+                            "openai_embedding_retry",
+                            attempt=attempt+1,
+                            wait_time=wait_time,
+                            error=str(e)
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        raise
+
+        return all_embeddings
 
     async def _embed_with_litellm(
         self, texts: list[str], timeout: float = 60.0
