@@ -223,7 +223,7 @@ class TestPathTraversalGuard:
                 "resync.api.routes.knowledge.ingest_api._get_settings"
             ) as mock_settings,
         ):
-            mock_settings.return_value.KNOWLEDGE_DOCS_ROOT = docs_root
+            mock_settings.return_value.knowledge_docs_root = docs_root
             mock_pipe.return_value = MagicMock()
 
             response = await ingest_batch(request)
@@ -272,7 +272,7 @@ class TestPathTraversalGuard:
                 return_value=True,
             ),
         ):
-            mock_settings.return_value.KNOWLEDGE_DOCS_ROOT = docs_root
+            mock_settings.return_value.knowledge_docs_root = docs_root
             response = await ingest_batch(request)
 
         assert response.failed == 0
@@ -296,7 +296,7 @@ class TestPathTraversalGuard:
                 "resync.api.routes.knowledge.ingest_api._get_settings"
             ) as mock_settings,
         ):
-            mock_settings.return_value.KNOWLEDGE_DOCS_ROOT = docs_root
+            mock_settings.return_value.knowledge_docs_root = docs_root
             mock_pipe.return_value = MagicMock()
 
             response = await ingest_batch(request)

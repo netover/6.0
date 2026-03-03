@@ -101,6 +101,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.knowledge.ingestion.ingest import IngestService                             # was: resync.services.ingest_service
     from resync.knowledge.store.pgvector_store import PgVectorStore                        # was: resync.services.pg_vector_store
     from resync.services.rag_client import get_rag_client_singleton
+    from resync.core.pools.pool_manager import initialize_pool_manager
 
     # ── Database initialization (idempotent: CREATE IF NOT EXISTS) ──────────
     # Must run before any ORM access. Uses check_first=True so it's safe
@@ -109,6 +110,10 @@ async def init_domain_singletons(app: FastAPI) -> None:
         from resync.core.database.schema import initialize_database
         await initialize_database()
         logger.info("database_schema_initialized")
+        
+        # Initialize pool manager to enable pool statistics for health checks
+        await initialize_pool_manager()
+        logger.info("pool_manager_initialized")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error

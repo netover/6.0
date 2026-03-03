@@ -191,18 +191,18 @@ class SettingsValidators:
             )
         return v
 
-    @field_validator("redis_pool_max_size")
+    @field_validator("valkey_pool_max_size")
     @classmethod
-    def validate_redis_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
+    def validate_valkey_pool_sizes(cls, v: int, info: ValidationInfo) -> int:
         """Validate that max_size >= min_size."""
-        min_size = info.data.get("redis_pool_min_size", 0)
+        min_size = info.data.get("valkey_pool_min_size", 0)
         if v < min_size:
             raise ValueError(
-                f"CONFIGURATION ERROR: redis_pool_max_size ({v}) must be >= redis_pool_min_size ({min_size})"
+                f"CONFIGURATION ERROR: valkey_pool_max_size ({v}) must be >= valkey_pool_min_size ({min_size})"
             )
         return v
 
-    @field_validator("redis_url", "rate_limit_storage_uri")
+    @field_validator("valkey_url", "rate_limit_storage_uri")
     @classmethod
     def validate_redis_url(cls, v: SecretStr | str) -> SecretStr | str:
         """Validate Redis/Valkey URL format."""
@@ -649,21 +649,9 @@ class SettingsValidators:
             )
         return v
 
-    @field_validator("redis_max_connections")
-    @classmethod
-    def validate_redis_connection_sizes(cls, v: int, info: ValidationInfo) -> int:
-        """Validate redis_max_connections >= redis_min_connections and reasonable ranges (Issue 12)."""
-        min_size = info.data.get("redis_min_connections", 0)
-        if v < min_size:
-            raise ValueError(
-                f"CONFIGURATION ERROR: redis_max_connections ({v}) must be >= redis_min_connections ({min_size})"
-            )
-        # Issue 12: Positive range
-        if v <= 0:
-            raise ValueError(
-                f"INVALID RANGE: redis_max_connections must be > 0. Got {v}"
-            )
-        return v
+    # v6.3.0: Removed validator for deprecated valkey_min_connections/valkey_max_connections
+    # These fields were consolidated into valkey_pool_* fields
+    # Validation is now handled by Field() constraints (ge=1, le=1000)
 
     # =========================================================================
     # MODEL-LEVEL VALIDATOR (runs after all field validators)
@@ -686,7 +674,7 @@ class SettingsValidators:
         # 1. Pool lifetime must be > idle timeout
         lifetime_pairs = [
             ("db_pool_idle_timeout", "db_pool_max_lifetime", "db_pool"),
-            ("redis_pool_idle_timeout", "redis_pool_max_lifetime", "redis_pool"),
+            ("valkey_pool_idle_timeout", "valkey_pool_max_lifetime", "valkey_pool"),
             ("http_pool_idle_timeout", "http_pool_max_lifetime", "http_pool"),
         ]
         for idle_field, lifetime_field, label in lifetime_pairs:
@@ -715,9 +703,9 @@ class SettingsValidators:
         # 3. Backoff ranges: base must be <= max
         backoff_pairs = [
             (
-                "redis_startup_backoff_base",
-                "redis_startup_backoff_max",
-                "Redis startup",
+                "valkey_startup_backoff_base",
+                "valkey_startup_backoff_max",
+                "Valkey startup",
             ),
             ("tws_retry_backoff_base", "tws_retry_backoff_max", "TWS retry"),
         ]

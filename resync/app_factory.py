@@ -246,7 +246,7 @@ class ApplicationFactory:
         """Validate critical settings before application startup."""
         errors = []
 
-        # Valkey configuration
+        # Redis/Valkey configuration
         if self.settings.valkey_pool_min_size > self.settings.valkey_pool_max_size:
             max_sz = self.settings.valkey_pool_max_size
             min_sz = self.settings.valkey_pool_min_size

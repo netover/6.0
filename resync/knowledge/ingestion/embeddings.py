@@ -278,17 +278,17 @@ def get_embedding_provider() -> EmbeddingProvider:
         if _embedding_provider is not None:
             return _embedding_provider
 
-        if os.getenv("EMBEDDING_MOCK", "").lower() in ("true", "1", "yes"):
-            dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+        if os.getenv("APP_EMBEDDING_MOCK", "").lower() in ("true", "1", "yes"):
+            dimension = int(os.getenv("APP_EMBED_DIM", "1536"))
             _embedding_provider = MockEmbeddingProvider(dimension=dimension)
             # CORRIGIDO P1: extra={} → kwargs diretos
             logger.info("mock_embedding_provider_initialized", dimension=dimension)
             return _embedding_provider
 
         config = EmbeddingConfig(
-            model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
-            dimension=int(os.getenv("EMBEDDING_DIMENSION", "1536")),
-            batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "100")),
+            model=os.getenv("APP_EMBED_MODEL", "text-embedding-ada-002"),
+            dimension=int(os.getenv("APP_EMBED_DIM", "1536")),
+            batch_size=int(os.getenv("APP_EMBED_BATCH_SIZE", "100")),
         )
         _embedding_provider = LiteLLMEmbeddingProvider(config)
         # CORRIGIDO P1: extra={} → kwargs diretos

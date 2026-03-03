@@ -26,7 +26,7 @@ from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
 
 # Import shared types and validators from separate modules
-from .settings_types import CacheHierarchyConfig, Environment
+from .settings_types import CacheConfig, CacheHierarchyConfig, Environment
 from .settings_validators import SettingsValidators
 
 class Settings(BaseSettings, SettingsValidators):
@@ -50,10 +50,8 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # APLICAÇÃO
     # ============================================================================
-    # v5.9.7: Accept both APP_ENVIRONMENT (preferred) and legacy ENVIRONMENT
     environment: Environment = Field(
         default=Environment.DEVELOPMENT,
-        validation_alias=AliasChoices("APP_ENVIRONMENT", "ENVIRONMENT"),
         description="Ambiente de execução",
     )
 
@@ -72,7 +70,6 @@ class Settings(BaseSettings, SettingsValidators):
     startup_timeout: int = Field(
         default=600,
         ge=10,
-        validation_alias=AliasChoices("STARTUP_TIMEOUT_SECONDS", "APP_STARTUP_TIMEOUT"),
         description="Timeout global para o startup da aplicação em segundos",
     )
 
@@ -102,10 +99,8 @@ class Settings(BaseSettings, SettingsValidators):
         description="Diretório base da aplicação (resync package directory)",
     )
 
-    # v5.9.7: Accept both APP_LOG_LEVEL (preferred) and legacy LOG_LEVEL
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO",
-        validation_alias=AliasChoices("LOG_LEVEL", "APP_LOG_LEVEL"),
         description="Nível de logging",
     )
 
@@ -114,7 +109,6 @@ class Settings(BaseSettings, SettingsValidators):
     # Default is False for backward compatibility.
     strict_exception_handling: bool = Field(
         default=False,
-        validation_alias=AliasChoices("STRICT_EXCEPTION_HANDLING"),
         description="Re-levanta erros de programação capturados por handlers amplos (fail-fast)",
     )
 
@@ -125,7 +119,6 @@ class Settings(BaseSettings, SettingsValidators):
     # quickly in staging/canary; keep disabled in production to avoid label explosion.
     programming_error_metrics_detailed_site: bool = Field(
         default=False,
-        validation_alias=AliasChoices("PROGRAMMING_ERROR_METRICS_DETAILED_SITE"),
         description="Métrica detalhada (site=file:linha) para erros de programação capturados (staging/canary)",
     )
 
@@ -133,74 +126,51 @@ class Settings(BaseSettings, SettingsValidators):
     # CONNECTION POOLS (PostgreSQL) - v6.0 adjusted for single VM
     # For Docker/K8s: increase via environment variables
     # ============================================================================
-    db_pool_min_size: int = Field(default=2, ge=1, le=100, validation_alias=AliasChoices("DB_POOL_MIN_SIZE", "APP_DB_POOL_MIN_SIZE"))  # Reduced from 5
-    db_pool_max_size: int = Field(default=10, ge=1, le=1000, validation_alias=AliasChoices("DB_POOL_MAX_SIZE", "APP_DB_POOL_MAX_SIZE"))  # Reduced from 20
+    db_pool_min_size: int = Field(default=2, ge=1, le=100)  # Reduced from 5
+    db_pool_max_size: int = Field(default=10, ge=1, le=1000)  # Reduced from 20
     db_pool_idle_timeout: int = Field(default=600, ge=60)  # Reduced from 1200
     db_pool_connect_timeout: int = Field(default=30, ge=5)  # Reduced from 60
     db_pool_health_check_interval: int = Field(default=60, ge=10)
     db_pool_max_lifetime: int = Field(default=1800, ge=300)
 
     # ============================================================================
-    # VALKEY (Redis Alternative) - v6.3 migration
+    # VALKEY (Redis) - v6.3 unified
     # ============================================================================
+
     valkey_url: SecretStr = Field(
         default=SecretStr("valkey://localhost:6379/0"),
-        validation_alias=AliasChoices("VALKEY_URL", "APP_VALKEY_URL"),
         description="URL de conexão Valkey",
         repr=False,
     )
-    valkey_host: str = Field(default="localhost", alias="VALKEY_HOST")
-    valkey_port: int = Field(default=6379, alias="VALKEY_PORT")
-    valkey_db: int = Field(default=0, alias="VALKEY_DB")
-    valkey_password: Optional[SecretStr] = Field(default=None, alias="VALKEY_PASSWORD")
 
-    valkey_pool_min_size: int = Field(default=1, alias="VALKEY_POOL_MIN_SIZE")
-    valkey_pool_max_size: int = Field(default=5, alias="VALKEY_POOL_MAX_SIZE")
-    valkey_pool_connect_timeout: int = Field(default=15, alias="VALKEY_POOL_CONNECT_TIMEOUT")
-
-    # ============================================================================
-    # VALKEY - v6.3 migration from Redis
-    # ============================================================================
-    # Accept both APP_VALKEY_URL (preferred) and legacy VALKEY_URL
-    # For backward compatibility, also accepts REDIS_URL/APP_REDIS_URL
-    redis_url: SecretStr = Field(
-        default=SecretStr("valkey://localhost:6379/0"),
-        validation_alias=AliasChoices("VALKEY_URL", "APP_VALKEY_URL", "REDIS_URL", "APP_REDIS_URL"),
-        description="URL de conexão Valkey (anteriormente Redis)",
-        repr=False,
-    )
-
-    # NOTE: Default intentionally has NO credentials. In production, set DATABASE_URL.
     database_url: SecretStr = Field(
         default=SecretStr("postgresql+asyncpg://localhost:5432/resync"),
-        validation_alias=AliasChoices("DATABASE_URL", "APP_DATABASE_URL"),
         description="URL de conexão com banco de dados PostgreSQL",
         repr=False,
     )
 
-    redis_min_connections: int = Field(default=1, ge=1, le=100)
-    redis_max_connections: int = Field(default=10, ge=1, le=1000)
-    redis_timeout: float = Field(default=30.0, gt=0)
+    # Legacy fields - use valkey_pool_* instead
+    valkey_timeout: float = Field(default=30.0, gt=0)
 
-    # Connection Pool - Valkey
-    redis_pool_min_size: int = Field(default=1, ge=1, le=100)
-    redis_pool_max_size: int = Field(default=5, ge=1, le=1000)
-    redis_pool_idle_timeout: int = Field(default=300, ge=60)
-    redis_pool_connect_timeout: int = Field(default=15, ge=5)
-    redis_pool_health_check_interval: int = Field(default=60, ge=10)
-    redis_pool_max_lifetime: int = Field(default=1800, ge=300)
+    # Connection Pool - Valkey (Canonical)
+    valkey_pool_min_size: int = Field(default=1, ge=1, le=100)
+    valkey_pool_max_size: int = Field(default=5, ge=1, le=1000)
+    valkey_pool_idle_timeout: int = Field(default=300, ge=60)
+    valkey_pool_connect_timeout: int = Field(default=15, ge=5)
+    valkey_pool_health_check_interval: int = Field(default=60, ge=10)
+    valkey_pool_max_lifetime: int = Field(default=1800, ge=300)
 
     # Valkey Initialization
-    redis_max_startup_retries: int = Field(default=3, ge=1, le=10)
-    redis_startup_backoff_base: float = Field(default=0.1, gt=0)
-    redis_startup_backoff_max: float = Field(default=10.0, gt=0)
-    redis_startup_lock_timeout: int = Field(
+    valkey_max_startup_retries: int = Field(default=3, ge=1, le=10)
+    valkey_startup_backoff_base: float = Field(default=0.1, gt=0)
+    valkey_startup_backoff_max: float = Field(default=10.0, gt=0)
+    valkey_startup_lock_timeout: int = Field(
         default=30,
         ge=5,
         description="Timeout for distributed Valkey initialization lock",
     )
 
-    redis_health_check_interval: int = Field(
+    valkey_health_check_interval: int = Field(
         default=5, ge=1, description="Interval for Valkey connection health checks"
     )
 
@@ -231,16 +201,13 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     llm_endpoint: str = Field(
         default="https://integrate.api.nvidia.com/v1",
-        description="Endpoint da API LLM (NVIDIA) - usado como fallback se Ollama falhar",
+        description="Endpoint da API LLM - usado como fallback se Ollama falhar",
     )
 
     llm_api_key: SecretStr = Field(
         default=SecretStr(""),
         min_length=0,
-        description=(
-            "Chave de API do LLM (NVIDIA). Deve ser configurada via variável de ambiente."
-        ),
-        validation_alias=AliasChoices("LLM_API_KEY", "APP_LLM_API_KEY"),
+        description="Chave de API do LLM. Deve ser configurada via APP_LLM_API_KEY.",
         exclude=True,
         repr=False,
     )
@@ -349,7 +316,6 @@ class Settings(BaseSettings, SettingsValidators):
     langfuse_secret_key: SecretStr = Field(
         default=SecretStr(""),
         description="LangFuse secret key for API authentication",
-        validation_alias=AliasChoices("LANGFUSE_SECRET_KEY", "APP_LANGFUSE_SECRET_KEY"),
         exclude=True,
         repr=False,
     )
@@ -507,74 +473,73 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # ============================================================================
-    # CACHE CONFIGURATION (v5.9.3 - TTL Diferenciado)
+    # CACHE CONFIGURATION (v6.3.0 - Unified CacheConfig)
     # ============================================================================
-    # Near Real-Time strategy: protect TWS API while providing fresh data
-
-    # Dynamic status (jobs, workstations) - very short TTL
-    cache_ttl_job_status: int = Field(
-        default=10,
-        ge=5,
-        le=60,
-        description="TTL in seconds for job status cache (near real-time)",
+    cache: CacheConfig = Field(
+        default_factory=CacheConfig,
+        description="Unified cache configuration (TTL, hierarchy, stampede protection)",
     )
 
-    # Logs and output - short TTL
-    cache_ttl_job_logs: int = Field(
-        default=30,
-        ge=10,
-        le=120,
-        description="TTL in seconds for job logs/stdlist cache",
-    )
+    # Backward compatibility properties
+    @property
+    def cache_ttl_job_status(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.ttl_job_status"""
+        return self.cache.ttl_job_status
 
-    # Static structure (dependencies, job definitions) - longer TTL
-    cache_ttl_static_structure: int = Field(
-        default=3600,
-        ge=300,
-        le=86400,
-        description="TTL in seconds for static structure (dependencies, definitions)",
-    )
+    @property
+    def cache_ttl_job_logs(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.ttl_job_logs"""
+        return self.cache.ttl_job_logs
 
-    # Graph cache TTL
-    cache_ttl_graph: int = Field(
-        default=300,
-        ge=60,
-        le=3600,
-        description="TTL in seconds for dependency graph cache",
-    )
+    @property
+    def cache_ttl_static_structure(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.ttl_static_structure"""
+        return self.cache.ttl_static_structure
 
-    # ============================================================================
-    # CACHE CONFIGURATION (Legacy)
-    # ============================================================================
-    # Cache Hierarchy Configuration
-    cache_hierarchy_l1_max_size: int = Field(
-        ge=1, default=5000, description="Maximum number of entries in L1 cache"
-    )
-    cache_hierarchy_l2_ttl: int = Field(
-        gt=0, default=600, description="Time-To-Live for L2 cache entries in seconds"
-    )
-    # Cache Configuration
-    enable_cache_swr: bool = Field(
-        default=True, description="Enable cache stampede write protection"
-    )
-    cache_ttl_jitter_ratio: float = Field(
-        default=0.1,
-        ge=0.0,
-        le=1.0,
-        description="Ratio of TTL to use as jitter to prevent thundering herd",
-    )
-    enable_cache_mutex: bool = Field(
-        default=True, description="Enable cache mutex to prevent duplicate computations"
-    )
-    cache_hierarchy_l2_cleanup_interval: int = Field(
-        gt=0, default=60, description="Cleanup interval for L2 cache in seconds"
-    )
-    cache_hierarchy_num_shards: int = Field(
-        default=8, description="Number of shards for cache"
-    )
-    cache_hierarchy_max_workers: int = Field(
-        ge=1, default=4, description="Max workers for cache operations"
-    )
+    @property
+    def cache_ttl_graph(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.ttl_graph"""
+        return self.cache.ttl_graph
+
+    @property
+    def cache_hierarchy_l1_max_size(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.hierarchy_l1_max_size"""
+        return self.cache.hierarchy_l1_max_size
+
+    @property
+    def cache_hierarchy_l2_ttl(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.hierarchy_l2_ttl"""
+        return self.cache.hierarchy_l2_ttl
+
+    @property
+    def enable_cache_swr(self) -> bool:
+        """.. deprecated:: 6.3.0 Use settings.cache.enable_swr"""
+        return self.cache.enable_swr
+
+    @property
+    def cache_ttl_jitter_ratio(self) -> float:
+        """.. deprecated:: 6.3.0 Use settings.cache.ttl_jitter_ratio"""
+        return self.cache.ttl_jitter_ratio
+
+    @property
+    def enable_cache_mutex(self) -> bool:
+        """.. deprecated:: 6.3.0 Use settings.cache.enable_mutex"""
+        return self.cache.enable_mutex
+
+    @property
+    def cache_hierarchy_l2_cleanup_interval(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.hierarchy_l2_cleanup_interval"""
+        return self.cache.hierarchy_l2_cleanup_interval
+
+    @property
+    def cache_hierarchy_num_shards(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.hierarchy_num_shards"""
+        return self.cache.hierarchy_num_shards
+
+    @property
+    def cache_hierarchy_max_workers(self) -> int:
+        """.. deprecated:: 6.3.0 Use settings.cache.hierarchy_max_workers"""
+        return self.cache.hierarchy_max_workers
 
     # ============================================================================
     # WEBSOCKET POOL
@@ -619,23 +584,24 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     tws_mock_mode: bool = Field(
         default=True,
-        validation_alias=AliasChoices("TWS_MOCK_MODE", "APP_TWS_MOCK_MODE"),
         description="Usar modo mock para TWS (desenvolvimento)",
     )
 
-    tws_host: str | None = Field(default=None)
-    tws_port: int | None = Field(default=None, ge=1, le=65535)
+    tws_host: str | None = Field(default=None, description="Host do TWS")
+    tws_port: int | None = Field(default=None, ge=1, le=65535, description="Porta do TWS")
     tws_user: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("TWS_USER", "APP_TWS_USER"),
         description="Usuário do TWS (obrigatório se não estiver em modo mock)",
     )
     tws_password: SecretStr | None = Field(
         default=None,
-        validation_alias=AliasChoices("TWS_PASSWORD", "APP_TWS_PASSWORD"),
         description="Senha do TWS (obrigatório se não estiver em modo mock)",
         exclude=True,
         repr=False,
+    )
+    tws_engine_name: str = Field(
+        default="TWS",
+        description="Nome do engine TWS",
     )
     tws_base_url: str = Field(default="http://localhost:31111")
     tws_request_timeout: float = Field(
@@ -811,38 +777,24 @@ class Settings(BaseSettings, SettingsValidators):
     # Teams Outgoing Webhook (Validation Logic)
     teams_outgoing_webhook_enabled: bool = Field(
         default=False,
-        validation_alias=AliasChoices(
-            "TEAMS_OUTGOING_WEBHOOK_ENABLED", "APP_TEAMS_OUTGOING_WEBHOOK_ENABLED"
-        ),
         description="Enable Teams outgoing webhook",
     )
     teams_outgoing_webhook_security_token: SecretStr = Field(
         default=SecretStr(""),
-        validation_alias=AliasChoices(
-            "TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN",
-            "APP_TEAMS_OUTGOING_WEBHOOK_SECURITY_TOKEN",
-        ),
         description="Security token for Teams webhook",
         exclude=True,
         repr=False,
     )
     teams_outgoing_webhook_name: str = Field(
         default="resync",
-        validation_alias=AliasChoices(
-            "TEAMS_OUTGOING_WEBHOOK_NAME", "APP_TEAMS_OUTGOING_WEBHOOK_NAME"
-        ),
     )
     teams_callback_url: str = Field(
         default="",
-        validation_alias=AliasChoices("TEAMS_CALLBACK_URL", "APP_TEAMS_CALLBACK_URL"),
     )
     teams_outgoing_webhook_timeout: int = Field(
         default=25,
         ge=1,
         le=60,
-        validation_alias=AliasChoices(
-            "TEAMS_OUTGOING_WEBHOOK_TIMEOUT", "APP_TEAMS_OUTGOING_WEBHOOK_TIMEOUT"
-        ),
         description="Response timeout for Teams webhook",
     )
     teams_outgoing_webhook_max_response_length: int = Field(
@@ -868,8 +820,7 @@ class Settings(BaseSettings, SettingsValidators):
     # JWT Configuration (v5.3.20 - consolidated from fastapi_app/core/config.py)
     secret_key: SecretStr | None = Field(
         default=None,
-        validation_alias=AliasChoices("SECRET_KEY", "APP_SECRET_KEY"),
-        description="Secret key for JWT signing. MUST be set via SECRET_KEY env var.",
+        description="Secret key for JWT signing. Set via APP_SECRET_KEY.",
         exclude=True,
         repr=False,
     )
@@ -884,7 +835,6 @@ class Settings(BaseSettings, SettingsValidators):
         default=60,
         ge=0,
         le=600,
-        validation_alias=AliasChoices("JWT_LEEWAY_SECONDS", "APP_JWT_LEEWAY_SECONDS"),
         description="Allowed clock skew (seconds) when validating JWT exp/nbf claims",
     )
 
@@ -929,28 +879,20 @@ class Settings(BaseSettings, SettingsValidators):
         description="Allowed file extensions for uploads",
     )
 
-    # v5.9.7: Accept both APP_ADMIN_USERNAME (preferred) and legacy ADMIN_USERNAME
     admin_username: str = Field(
         default="admin",
         min_length=3,
-        validation_alias=AliasChoices("ADMIN_USERNAME", "APP_ADMIN_USERNAME"),
         description="Nome de usuário do administrador",
     )
     admin_password: SecretStr | None = Field(
         default=None,
-        # Reads from ADMIN_PASSWORD (without APP_ prefix)
-        validation_alias=AliasChoices("ADMIN_PASSWORD", "APP_ADMIN_PASSWORD"),
-        description=(
-            "Senha do administrador. Deve ser configurada via variável de ambiente."
-        ),
+        description="Senha do administrador. Set via APP_ADMIN_PASSWORD.",
         exclude=True,
         repr=False,
     )
 
-    # v6.2.1: API Key for limited Operator access (outside admin)
     operator_api_key: SecretStr = Field(
         default=SecretStr(""),
-        validation_alias=AliasChoices("OPERATOR_API_KEY", "APP_OPERATOR_API_KEY"),
         description="Chave de API para acesso limitado de operador",
         exclude=True,
         repr=False,
@@ -988,7 +930,6 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     sentry_dsn: SecretStr | None = Field(
         default=None,
-        validation_alias=AliasChoices("SENTRY_DSN", "APP_SENTRY_DSN"),
         description="Sentry DSN for error tracking (optional). Leave unset to disable.",
         repr=False,
     )
@@ -1340,26 +1281,36 @@ class Settings(BaseSettings, SettingsValidators):
 
     @property
     def REDIS_URL(self) -> str:
-        """Legacy alias for redis_url (DEPRECATED).
+        """Legacy alias for valkey_url (DEPRECATED).
 
-        This returns the Redis URL in plaintext for backward compatibility.
-        Prefer accessing `settings.redis_url` (SecretStr) and calling
+        This returns the Valkey URL in plaintext for backward compatibility.
+        Prefer accessing `settings.valkey_url` (SecretStr) and calling
         `.get_secret_value()` explicitly.
+
+        .. deprecated:: 6.3.0
+            Use settings.valkey_url.get_secret_value() instead.
+            Will be removed in v7.0.
         """
         import warnings
 
         warnings.warn(
-            "settings.REDIS_URL exposes credentials in plaintext. "
-            "Prefer settings.redis_url.get_secret_value() explicitly.",
+            "settings.REDIS_URL exposes credentials in plaintext and is deprecated. "
+            "Use settings.valkey_url.get_secret_value() explicitly.",
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.redis_url.get_secret_value()
+        return self.valkey_url.get_secret_value()
 
     @property
     def redis_url_secret(self) -> SecretStr:
-        """Safe access to the Redis URL without automatic SecretStr unwrap."""
-        return self.redis_url
+        """Safe access to the Valkey URL without automatic SecretStr unwrap.
+
+        .. deprecated:: 6.3.0
+            Use settings.valkey_url directly instead.
+        """
+        import warnings
+        warnings.warn("Use settings.valkey_url directly", DeprecationWarning, stacklevel=2)
+        return self.valkey_url
 
     @property
     def LLM_ENDPOINT(self) -> str | None:
@@ -1469,8 +1420,8 @@ class Settings(BaseSettings, SettingsValidators):
 
     @property
     def TWS_ENGINE_NAME(self) -> str:
-        """Legacy constant for compatibility."""
-        return "TWS"
+        """Legacy uppercase alias for tws_engine_name."""
+        return self.tws_engine_name
 
     @property
     def TWS_ENGINE_OWNER(self) -> str:
@@ -1628,13 +1579,12 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # DOCUMENT KNOWLEDGE GRAPH (DKG)
     # ============================================================================
-    KNOWLEDGE_DOCS_ROOT: Path = Field(
+    knowledge_docs_root: Path = Field(
         default_factory=lambda: Path("docs"),
-        validation_alias=AliasChoices("KNOWLEDGE_DOCS_ROOT", "APP_KNOWLEDGE_DOCS_ROOT"),
         description=(
             "Allowed root directory for server-side batch document ingestion. "
             "All paths supplied to POST /knowledge/ingest/batch must resolve inside "
-            "this directory. Set via KNOWLEDGE_DOCS_ROOT env var. "
+            "this directory. Set via APP_KNOWLEDGE_DOCS_ROOT. "
             "Default: ./docs relative to the working directory."
         ),
     )
@@ -1857,7 +1807,7 @@ def clear_settings_cache() -> None:
 
 class _SettingsProxy:
     """[P1-09 FIX] Read-only proxy to Settings singleton.
-    
+
     Enforces immutability of settings after initialization. Tests that need to
     modify settings should use clear_settings_cache() + environment variables,
     not direct mutation.
@@ -1866,7 +1816,31 @@ class _SettingsProxy:
     __slots__ = ()
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(get_settings(), name)
+        """Proxy attribute access to the underlying Settings instance.
+
+        Args:
+            name: Attribute name to access
+
+        Returns:
+            The attribute value from the Settings singleton
+
+        Raises:
+            AttributeError: If the attribute does not exist on Settings,
+                with a helpful error message listing available attributes.
+        """
+        try:
+            return getattr(get_settings(), name)
+        except AttributeError:
+            settings_obj = get_settings()
+            available = [
+                attr for attr in dir(settings_obj)
+                if not attr.startswith('_')
+            ]
+            raise AttributeError(
+                f"Settings has no attribute '{name}'. "
+                f"Did you mean one of: {', '.join(available[:10])}...? "
+                f"See dir(settings) for full list."
+            ) from None
 
     def __setattr__(self, name: str, value: Any) -> None:
         """[P1-09 FIX] Settings are immutable after construction.

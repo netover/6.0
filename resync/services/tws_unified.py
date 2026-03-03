@@ -70,9 +70,9 @@ class TWSClientConfig(BaseSettings):
         password = getattr(settings, "tws_password", "")
         return cls(
             base_url=f"http://{settings.tws_host}:{settings.tws_port}",
-            username=settings.tws_username,
+            username=getattr(settings, "tws_user", getattr(settings, "tws_username", "")),
             password=SecretStr(password),
-            engine_name=settings.tws_engine_name,
+            engine_name=settings.TWS_ENGINE_NAME,
             engine_owner=getattr(settings, "tws_engine_owner", ""),
             connect_timeout=getattr(settings, "tws_connect_timeout", 10.0),
             read_timeout=getattr(settings, "tws_request_timeout", 30.0),

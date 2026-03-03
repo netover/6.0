@@ -1212,6 +1212,51 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 message=f"TWS: {str(e)[:50]}",
             )
 
+    async def _check_connection_pools() -> ComponentHealth:
+        """Check connection pools health."""
+        try:
+            start = time.perf_counter()
+            from resync.core.database.engine import get_engine_status
+            
+            engine_status = get_engine_status()
+            latency = (time.perf_counter() - start) * 1000
+            
+            if engine_status.get("status") == "not_initialized":
+                return ComponentHealth(
+                    status="degraded",
+                    latency_ms=round(latency, 2),
+                    message="Database engine not initialized",
+                )
+            
+            pool = engine_status.get("pool", {})
+            active = pool.get("checked_out", 0)
+            total = pool.get("pool_size", 0)
+            
+            if total > 0:
+                usage_pct = (active / total) * 100
+                if usage_pct >= 90:
+                    return ComponentHealth(
+                        status="degraded",
+                        latency_ms=round(latency, 2),
+                        message=f"Connection pool near capacity: {active}/{total} ({usage_pct:.1f}%, threshold: 90.0%)",
+                    )
+                return ComponentHealth(
+                    status="healthy",
+                    latency_ms=round(latency, 2),
+                    message=f"Connection pool: {active}/{total} ({usage_pct:.1f}%)",
+                )
+            
+            return ComponentHealth(
+                status="healthy",
+                latency_ms=round(latency, 2),
+                message="Connection pool operational",
+            )
+        except Exception as e:
+            return ComponentHealth(
+                status="degraded",
+                message=f"Connection pool check failed: {str(e)[:50]}",
+            )
+
     # P2-38 FIX: Execute all health checks in parallel
     results = await asyncio.gather(
         _check_database(),
@@ -1220,11 +1265,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
         _check_rag(),
         _check_teams(),
         _check_tws(),
+        _check_connection_pools(),
         return_exceptions=True,
     )
 
     # Map results to component names
-    component_names = ["database", "redis", "llm", "rag", "teams", "tws"]
+    component_names = ["database", "redis", "llm", "rag", "teams", "tws", "connection_pools"]
     components: dict[str, ComponentHealth] = {}
 
     for name, result in zip(component_names, results):

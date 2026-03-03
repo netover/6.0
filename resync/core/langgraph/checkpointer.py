@@ -65,16 +65,16 @@ def get_database_url() -> str:
         return settings.database_url
 
     # Try environment variable
-    db_url = os.getenv("DATABASE_URL")
+    db_url = os.getenv("APP_DATABASE_URL")
     if db_url:
         return db_url
 
     # Build from components
-    host = getattr(settings, "db_host", None) or os.getenv("DB_HOST", "localhost")
-    port = getattr(settings, "db_port", None) or os.getenv("DB_PORT", "5432")
-    user = getattr(settings, "db_user", None) or os.getenv("DB_USER", "postgres")
-    password = getattr(settings, "db_password", None) or os.getenv("DB_PASSWORD", "")
-    database = getattr(settings, "db_name", None) or os.getenv("DB_NAME", "resync")
+    host = getattr(settings, "db_host", None) or os.getenv("APP_DB_HOST", "localhost")
+    port = getattr(settings, "db_port", None) or os.getenv("APP_DB_PORT", "5432")
+    user = getattr(settings, "db_user", None) or os.getenv("APP_DB_USER", "postgres")
+    password = getattr(settings, "db_password", None) or os.getenv("APP_DB_PASSWORD", "")
+    database = getattr(settings, "db_name", None) or os.getenv("APP_DB_NAME", "resync")
 
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 

@@ -47,9 +47,9 @@ def main() -> None:
 
     load_dotenv(BASE_DIR / ".env")
 
-    host = os.getenv("HOST") or settings.server_host
-    port = int(os.getenv("PORT") or settings.server_port)
-    log_level = (os.getenv("LOG_LEVEL") or settings.log_level).lower()
+    host = settings.server_host
+    port = settings.server_port
+    log_level = settings.log_level.lower()
 
     uvicorn.run(
         "resync.main:app",

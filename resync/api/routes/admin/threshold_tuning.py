@@ -87,14 +87,14 @@ class ResetRequest(BaseModel):
 # Helper Functions
 # =============================================================================
 
-async def _get_manager():
+def _get_manager():
     """Get the ThresholdTuningManager instance."""
     try:
         from resync.core.continual_learning.threshold_tuning import (
             get_threshold_tuning_manager,
         )
 
-        return await get_threshold_tuning_manager()
+        return get_threshold_tuning_manager()
     except ImportError as e:
         logger.error("Failed to import threshold_tuning module: %s", e)
         raise HTTPException(
@@ -119,7 +119,7 @@ async def get_status() -> dict[str, Any]:
     - Pending recommendations
     - Recent audit log
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     status_data = await manager.get_full_status()
     return {"status": "success", "data": status_data}
 
@@ -130,7 +130,7 @@ async def get_status() -> dict[str, Any]:
 @router.get("/mode")
 async def get_mode() -> dict[str, Any]:
     """Get current auto-tuning mode."""
-    manager = await _get_manager()
+    manager = _get_manager()
     mode = await manager.get_mode()
     return {
         "status": "success",
@@ -159,7 +159,7 @@ async def set_mode(request: ModeRequest) -> dict[str, Any]:
             detail=f"Invalid mode: {request.mode}. Must be one of: off, low, mid, high",
         ) from None
 
-    manager = await _get_manager()
+    manager = _get_manager()
     return await manager.set_mode(mode, request.admin_user)
 
 # =============================================================================
@@ -169,14 +169,14 @@ async def set_mode(request: ModeRequest) -> dict[str, Any]:
 @router.get("/thresholds")
 async def get_thresholds() -> dict[str, Any]:
     """Get all threshold configurations."""
-    manager = await _get_manager()
+    manager = _get_manager()
     thresholds = await manager.get_thresholds()
     return {"status": "success", "thresholds": thresholds}
 
 @router.get("/thresholds/{name}")
 async def get_threshold(name: str) -> dict[str, Any]:
     """Get a specific threshold configuration."""
-    manager = await _get_manager()
+    manager = _get_manager()
     threshold = await manager.get_threshold(name)
 
     if not threshold:
@@ -193,7 +193,7 @@ async def set_threshold(name: str, request: ThresholdRequest) -> dict[str, Any]:
 
     The value will be clamped to the threshold's min/max bounds.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     result = await manager.set_threshold(
         name,
         request.value,
@@ -211,13 +211,13 @@ async def set_threshold(name: str, request: ThresholdRequest) -> dict[str, Any]:
 @router.post("/reset")
 async def reset_to_defaults(request: ResetRequest) -> dict[str, Any]:
     """Reset all thresholds to default values."""
-    manager = await _get_manager()
+    manager = _get_manager()
     return await manager.reset_to_defaults(request.admin_user)
 
 @router.post("/rollback")
 async def rollback_to_last_good(request: ResetRequest) -> dict[str, Any]:
     """Rollback to last known good thresholds."""
-    manager = await _get_manager()
+    manager = _get_manager()
     result = await manager.rollback_to_last_good(request.admin_user)
 
     if result["status"] == "error":
@@ -246,7 +246,7 @@ async def get_metrics(
     - Precision, Recall, F1 Score
     - Review and correction rates
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     metrics = await manager.get_metrics_summary(days)
     return {
         "status": "success",
@@ -265,7 +265,7 @@ async def get_daily_metrics(
 
     Returns per-day metrics for visualization.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     daily = await manager.get_daily_metrics(days)
     return {
         "status": "success",
@@ -280,7 +280,7 @@ async def get_daily_metrics(
 @router.get("/recommendations")
 async def get_recommendations() -> dict[str, Any]:
     """Get all pending recommendations."""
-    manager = await _get_manager()
+    manager = _get_manager()
     recs = await manager.get_pending_recommendations()
     return {"status": "success", "recommendations": recs}
 
@@ -292,7 +292,7 @@ async def generate_recommendations() -> dict[str, Any]:
     Analyzes current metrics and generates recommendations
     for threshold adjustments.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     recs = await manager.generate_recommendations()
     return {
         "status": "success",
@@ -310,7 +310,7 @@ async def approve_recommendation(
 
     This will update the threshold to the recommended value.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     result = await manager.approve_recommendation(recommendation_id, request.admin_user)
 
     if result["status"] == "error":
@@ -326,7 +326,7 @@ async def reject_recommendation(
     request: ApprovalRequest,
 ) -> dict[str, Any]:
     """Reject a pending recommendation."""
-    manager = await _get_manager()
+    manager = _get_manager()
     result = await manager.reject_recommendation(
         recommendation_id,
         request.admin_user,
@@ -352,7 +352,7 @@ async def run_auto_adjustment() -> dict[str, Any]:
     Only works in MID or HIGH mode. Respects cooldowns and
     minimum data point requirements.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     return await manager.run_auto_adjustment_cycle()
 
 @router.post("/circuit-breaker/reset")
@@ -363,7 +363,7 @@ async def reset_circuit_breaker(request: ResetRequest) -> dict[str, Any]:
     Establishes current metrics as the new baseline.
     Only available after cooldown period.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     result = await manager.reset_circuit_breaker(request.admin_user)
 
     if result["status"] == "error":
@@ -376,7 +376,7 @@ async def reset_circuit_breaker(request: ResetRequest) -> dict[str, Any]:
 @router.get("/circuit-breaker/status")
 async def get_circuit_breaker_status() -> dict[str, Any]:
     """Get circuit breaker status."""
-    manager = await _get_manager()
+    manager = _get_manager()
     status_data = await manager.get_full_status()
 
     return {
@@ -405,6 +405,6 @@ async def get_audit_log(
 
     Returns history of all threshold changes and mode changes.
     """
-    manager = await _get_manager()
+    manager = _get_manager()
     logs = await manager.get_audit_log(limit, threshold)
     return {"status": "success", "entries": logs}

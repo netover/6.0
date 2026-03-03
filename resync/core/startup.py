@@ -353,13 +353,12 @@ async def _check_redis(
         initializer = get_redis_initializer()
         with guard_programming_errors():
             await initializer.initialize(
-                max_retries=int(getattr(settings, "redis_max_startup_retries", 5)),
+                max_retries=int(getattr(settings, "valkey_max_startup_retries", 5)),
                 health_check_interval=int(
-                    getattr(settings, "redis_health_check_interval", 5)
+                    getattr(settings, "valkey_health_check_interval", 5)
                 ),
                 redis_url=(
                     getattr(settings, "valkey_url", None)
-                    or getattr(settings, "redis_url", None)
                 ),
             )
         return StartupCheck(

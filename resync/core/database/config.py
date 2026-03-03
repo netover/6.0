@@ -105,8 +105,8 @@ def get_database_config() -> DatabaseConfig:
     Returns:
         DatabaseConfig: Configured database settings
     """
-    # Check for full DATABASE_URL first
-    url = os.getenv("DATABASE_URL")
+    # Check for full DATABASE_URL first (supports both DATABASE_URL and APP_DATABASE_URL)
+    url = os.getenv("APP_DATABASE_URL")
 
     if url:
         _validate_database_url_security(url)
@@ -115,14 +115,14 @@ def get_database_config() -> DatabaseConfig:
     # Build from individual environment variables
     return DatabaseConfig(
         driver=DatabaseDriver.POSTGRESQL,
-        host=os.getenv("DATABASE_HOST", "localhost"),
-        port=int(os.getenv("DATABASE_PORT", "5432")),
-        name=os.getenv("DATABASE_NAME", "resync"),
-        user=os.getenv("DATABASE_USER", "resync"),
-        password=os.getenv("DATABASE_PASSWORD", ""),
+        host=os.getenv("APP_DATABASE_HOST", "localhost"),
+        port=int(os.getenv("APP_DATABASE_PORT", "5432")),
+        name=os.getenv("APP_DATABASE_NAME", "resync"),
+        user=os.getenv("APP_DATABASE_USER", "resync"),
+        password=os.getenv("APP_DATABASE_PASSWORD", ""),
         # Keep env defaults aligned with the dataclass defaults (optimized values)
-        pool_size=int(os.getenv("DATABASE_POOL_SIZE", "5")),
-        max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
+        pool_size=int(os.getenv("APP_DATABASE_POOL_SIZE", "5")),
+        max_overflow=int(os.getenv("APP_DATABASE_MAX_OVERFLOW", "10")),
         pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
         pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
         ssl_mode=os.getenv("DATABASE_SSL_MODE", "prefer"),

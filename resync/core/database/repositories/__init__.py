@@ -44,6 +44,7 @@ from .tws_repository import (
 
 # Auth (v5.4.7 consolidation)
 from .user_repository import UserRepository, UserService
+from .connector_repo import ConnectorRepository
 
 __all__ = [
     # Base
@@ -52,6 +53,8 @@ __all__ = [
     # Auth
     "UserRepository",
     "UserService",  # Backward compatibility alias
+    # Connectors
+    "ConnectorRepository",
     # TWS
     "JobStatus",
     "PatternMatch",

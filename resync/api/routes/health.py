@@ -37,8 +37,8 @@ async def ready() -> dict[str, str]:
             detail=f"Database readiness failed: {e}"
         )
     
-    # Redis readiness: required if APP_REDIS_URL is set in production
-    redis_required = bool(os.getenv('APP_REDIS_URL')) and os.getenv('APP_ENV','').lower() in {'prod','production'}
+    # Redis readiness: required if APP_VALKEY_URL is set in production
+    redis_required = bool(os.getenv('APP_VALKEY_URL')) and os.getenv('APP_ENVIRONMENT','').lower() in {'prod','production'}
     
     if redis_required:
         try:

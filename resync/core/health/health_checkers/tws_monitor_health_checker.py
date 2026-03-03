@@ -13,6 +13,8 @@ from typing import Any
 import httpx
 import structlog
 
+from resync.core.exception_guard import guard_programming_errors
+
 from resync.core.health.health_models import (
     ComponentHealth,
     ComponentType,

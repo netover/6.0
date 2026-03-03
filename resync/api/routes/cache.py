@@ -145,7 +145,7 @@ async def get_redis_connection() -> Redis | None:
         """Synchronous Redis connection logic."""
         try:
             redis_client = Redis.from_url(
-                settings.redis_url.get_secret_value(),
+                settings.valkey_url.get_secret_value(),
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
@@ -261,7 +261,7 @@ class RedisCacheManager:
                 # Use SCAN to avoid blocking Redis in production
                 keys_to_delete: list[str] = []
                 total_deleted = 0
-                batch_size = getattr(settings, "REDIS_DELETE_BATCH_SIZE", 1000)
+                batch_size = getattr(settings, "VALKEY_DELETE_BATCH_SIZE", 1000)
 
                 for key in self.redis_client.scan_iter(match=pattern, count=batch_size):
                     # Ensure keys are strings (scan_iter might yield bytes)
@@ -347,9 +347,9 @@ def validate_connection_pool() -> bool:
         True if validation passes, False otherwise
     """
     try:
-        min_conn = settings.redis_min_connections
-        max_conn = settings.redis_max_connections
-        timeout = settings.redis_timeout
+        min_conn = settings.valkey_min_connections
+        max_conn = settings.valkey_max_connections
+        timeout = settings.valkey_timeout
     except (TypeError, ValueError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error

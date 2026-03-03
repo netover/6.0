@@ -89,6 +89,10 @@ class Counter:
         with self._lock:
             self._values[label_key] += amount
 
+    def increment(self, amount: float = 1, labels: dict[str, str] | None = None) -> None:
+        """Alias for inc() — fixes AttributeError crash (C-01/C-02)."""
+        self.inc(amount, labels)
+
     def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current value."""
         label_key = tuple(sorted((labels or {}).items()))

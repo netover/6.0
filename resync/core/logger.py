@@ -18,7 +18,7 @@ def setup_logging() -> None:
     from logging.handlers import RotatingFileHandler
 
     # Get log level from environment or settings
-    log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level_str = os.getenv("APP_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
 
     # Configure structlog

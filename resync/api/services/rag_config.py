@@ -28,8 +28,8 @@ def _get_secure_database_url() -> str:
     Extra hardening:
         - Warn (dev) / fail (prod) on weak or default passwords
     """
-    url = os.getenv("DATABASE_URL")
-    env = os.getenv("ENVIRONMENT", "development").lower()
+    url = os.getenv("APP_DATABASE_URL")
+    env = os.getenv("APP_ENVIRONMENT", "development").lower()
 
     if url:
         # Minimal parsing to detect embedded credentials

@@ -331,7 +331,7 @@ async def get_vector_service() -> PgVectorService:
         import os
         import asyncpg
 
-        database_url = os.getenv("DATABASE_URL", "postgresql://localhost/resync")
+        database_url = os.getenv("APP_DATABASE_URL", "postgresql://localhost/resync")
         if database_url.startswith("postgresql+asyncpg://"):
             database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
 

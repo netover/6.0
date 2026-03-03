@@ -121,6 +121,9 @@ class ErrorCode(str, Enum):
     CONNECTION_ERROR = "CONNECTION_ERROR"
     WEBSOCKET_ERROR = "WEBSOCKET_ERROR"
 
+    # Erros de Segurança
+    SECURITY_VIOLATION = "SECURITY_VIOLATION"
+
 class ErrorSeverity(str, Enum):
     """Níveis de severidade para erros."""
 
@@ -278,6 +281,29 @@ class AuthorizationError(BaseAppException):
             details=details,
             correlation_id=correlation_id,
             severity=ErrorSeverity.WARNING,
+            original_exception=original_exception,
+        )
+
+class SecurityError(BaseAppException):
+    """Erro de segurança.
+
+    Usado quando uma restrição de segurança é violada (ex: proteção SSRF, acesso proibido).
+    """
+
+    def __init__(
+        self,
+        message: str = "Security violation",
+        details: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
+        original_exception: Exception | None = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.SECURITY_VIOLATION,
+            status_code=403,
+            details=details,
+            correlation_id=correlation_id,
+            severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
 

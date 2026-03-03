@@ -45,7 +45,7 @@ def _get_secret_key() -> str:
         return str(secret)
 
     # In production, MUST have secret_key configured
-    env = os.getenv("ENVIRONMENT", "development").lower()
+    env = os.getenv("APP_ENVIRONMENT", "development").lower()
     if env == "production":
         raise RuntimeError(
             "CRITICAL: SECRET_KEY/secret_key must be configured in production. "

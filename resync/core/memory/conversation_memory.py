@@ -237,7 +237,7 @@ class RedisMemoryStore(MemoryStore):
                 if not redis_url:
                     from resync.settings import settings
 
-                    redis_url = settings.redis_url
+                    redis_url = settings.valkey_url
 
                 # `redis.asyncio.from_url` returns a client instance (not awaitable).
                 # Also ensure SecretStr values are unwrapped.

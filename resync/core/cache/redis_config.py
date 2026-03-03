@@ -63,23 +63,23 @@ class RedisConfig:
 
         redis_url = None
         if app_settings is not None:
-            redis_url = getattr(app_settings, "redis_url", None)
+            redis_url = getattr(app_settings, "valkey_url", None)
             # Handle Pydantic SecretStr if applicable
             if hasattr(redis_url, "get_secret_value"):
                 redis_url = redis_url.get_secret_value()  # type: ignore[union-attr]
 
-        redis_url = redis_url or os.getenv("REDIS_URL") or os.getenv("APP_REDIS_URL")
+        redis_url = redis_url or os.getenv("APP_VALKEY_URL") or "valkey://localhost:6379/0"
         parsed = urlparse(redis_url) if redis_url else None
 
         # Base connection settings
-        self.host: str = os.getenv("REDIS_HOST") or (
+        self.host: str = os.getenv("APP_VALKEY_HOST") or (
             parsed.hostname if parsed and parsed.hostname else "localhost"
         )
         self.port: int = int(
-            os.getenv("REDIS_PORT")
+            os.getenv("APP_VALKEY_PORT")
             or (str(parsed.port) if parsed and parsed.port else "6379")
         )
-        env_password = os.getenv("REDIS_PASSWORD")
+        env_password = os.getenv("APP_VALKEY_PASSWORD")
         password_from_parsed = parsed.password if parsed and parsed.password else None
 
         self.password: str | None = env_password or password_from_parsed
@@ -90,46 +90,46 @@ class RedisConfig:
 
         # Connection pool settings
         default_pool_min = (
-            str(getattr(app_settings, "redis_pool_min_size", 5))
+            str(getattr(app_settings, "valkey_pool_min_size", 5))
             if app_settings
             else "5"
         )
         default_pool_max = (
-            str(getattr(app_settings, "redis_pool_max_size", 20))
+            str(getattr(app_settings, "valkey_pool_max_size", 20))
             if app_settings
             else "20"
         )
         default_socket_timeout = (
-            str(getattr(app_settings, "redis_timeout", 5.0)) if app_settings else "5.0"
+            str(getattr(app_settings, "valkey_timeout", 5.0)) if app_settings else "5.0"
         )
         default_connect_timeout = (
-            str(getattr(app_settings, "redis_pool_connect_timeout", 5.0))
+            str(getattr(app_settings, "valkey_pool_connect_timeout", 5.0))
             if app_settings
             else "5.0"
         )
 
         self.pool_min_connections: int = int(
-            os.getenv("REDIS_POOL_MIN", default_pool_min)
+            os.getenv("APP_VALKEY_POOL_MIN", default_pool_min)
         )
         self.pool_max_connections: int = int(
-            os.getenv("REDIS_POOL_MAX", default_pool_max)
+            os.getenv("APP_VALKEY_POOL_MAX", default_pool_max)
         )
         self.socket_timeout: float = float(
-            os.getenv("REDIS_SOCKET_TIMEOUT", default_socket_timeout)
+            os.getenv("APP_VALKEY_SOCKET_TIMEOUT", default_socket_timeout)
         )
         self.socket_connect_timeout: float = float(
-            os.getenv("REDIS_CONNECT_TIMEOUT", default_connect_timeout)
+            os.getenv("APP_VALKEY_CONNECT_TIMEOUT", default_connect_timeout)
         )
 
         # Retry settings
         self.retry_on_timeout: bool = True
         default_health = (
-            str(getattr(app_settings, "redis_health_check_interval", 30))
+            str(getattr(app_settings, "valkey_health_check_interval", 30))
             if app_settings
             else "30"
         )
         self.health_check_interval: int = int(
-            os.getenv("REDIS_HEALTH_INTERVAL", default_health)
+            os.getenv("APP_VALKEY_HEALTH_INTERVAL", default_health)
         )
 
         # Semantic cache specific

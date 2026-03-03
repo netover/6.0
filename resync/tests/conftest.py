@@ -32,7 +32,7 @@ from httpx import ASGITransport, AsyncClient
 logger = logging.getLogger(__name__)
 
 # Set test environment before any imports
-os.environ["ENVIRONMENT"] = "test"
+os.environ["APP_ENVIRONMENT"] = "test"
 os.environ["TESTING"] = "true"
 
 # =============================================================================

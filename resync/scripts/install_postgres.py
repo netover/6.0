@@ -671,7 +671,10 @@ def run_migrations() -> None:
     print("\n=== Executando Migrações ===")
     print("Para criar tabelas via SQLAlchemy, execute:")
     print(
-        '    python -c "from resync.core.database import engine; from resync.core.database.models import *; import resync.core.database.models_registry; from resync.core.database.schema import Base; Base.metadata.create_all(engine)"'
+        '    python -c "from resync.core.database import engine; '
+        'from resync.core.database.schema import Base; '
+        'import resync.core.database.models_registry; '
+        'Base.metadata.create_all(engine)"'
     )
 
 def main() -> None:

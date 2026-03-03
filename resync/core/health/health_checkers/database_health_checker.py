@@ -12,6 +12,8 @@ from typing import Any
 import structlog
 from sqlalchemy import text
 
+from resync.core.exception_guard import guard_programming_errors
+
 from resync.core.health.health_models import (
     ComponentHealth,
     ComponentType,

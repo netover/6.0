@@ -430,21 +430,33 @@ class EnterpriseManager:
                 task = track_task(self._auto_recovery_loop(), name="auto_recovery_loop")
             self._tasks.append(task)
 
+        import inspect
+
         # Start component background tasks
         if self._incident_response:
-            await self._incident_response.start(tg=tg)
+            res = self._incident_response.start(tg=tg)
+            if inspect.isawaitable(res):
+                await res
 
         if self._siem_integrator:
-            await self._siem_integrator.start(tg=tg)
+            res = self._siem_integrator.start(tg=tg)
+            if inspect.isawaitable(res):
+                await res
 
         if self._gdpr_manager:
-            await self._gdpr_manager.start(tg=tg)
+            res = self._gdpr_manager.start(tg=tg)
+            if inspect.isawaitable(res):
+                await res
 
         if self._soc2_manager:
-            await self._soc2_manager.start(tg=tg)
+            res = self._soc2_manager.start(tg=tg)
+            if inspect.isawaitable(res):
+                await res
 
         if self._encrypted_audit:
-            await self._encrypted_audit.start(tg=tg)
+            res = self._encrypted_audit.start(tg=tg)
+            if inspect.isawaitable(res):
+                await res
 
     async def _anomaly_monitoring_loop(self) -> None:
         """Background loop for anomaly detection."""

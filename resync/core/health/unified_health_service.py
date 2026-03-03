@@ -403,7 +403,7 @@ class UnifiedHealthService:
             status=HealthStatus.UNHEALTHY,
             message=error,
             response_time_ms=0,
-            component_type=ComponentType.SERVICE,
+            component_type=ComponentType.OTHER,
             metadata={"error": error},
         )
 

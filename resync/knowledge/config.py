@@ -243,25 +243,25 @@ class RagConfig(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
         frozen=True,
         validate_default=True,
-        env_prefix="RAG_",
+        env_prefix="APP_",
         case_sensitive=False,
-        extra="forbid",
+        extra="ignore",
         str_strip_whitespace=True,
     )
 
     # Ambiente
     environment: str = Field(
         default="development",
-        validation_alias=AliasChoices("ENVIRONMENT", "RAG_ENVIRONMENT"),
         description="Deployment environment (development|staging|production).",
     )
 
     # DB URL — sempre validada via field_validator, independentemente da origem.
     database_url: SecretStr = Field(
         default_factory=_default_database_url_for_env,
-        validation_alias="DATABASE_URL",  # ignora env_prefix
         description="PostgreSQL connection URL. Use postgresql+asyncpg://... for async.",
     )
 

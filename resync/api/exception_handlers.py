@@ -287,7 +287,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
     import os
-    include_details = os.getenv("ENVIRONMENT", "development") != "production"
+    include_details = os.getenv("APP_ENVIRONMENT", "development") != "production"
     details = (
         {"exception_type": type(exc).__name__, "exception_message": str(exc)}
         if include_details

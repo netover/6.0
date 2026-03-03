@@ -64,7 +64,7 @@ class PgVectorStore(VectorStore):
         import os
 
         self._database_url = (
-            database_url or os.getenv("DATABASE_URL") or CFG.database_url
+            database_url or os.getenv("APP_DATABASE_URL") or CFG.database_url
         )
         if self._database_url.startswith("postgresql+asyncpg://"):
             self._database_url = self._database_url.replace(

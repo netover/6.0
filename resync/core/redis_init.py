@@ -155,11 +155,11 @@ def get_redis_client() -> "valkey.Redis":  # type: ignore
                     )
 
                 # Legacy path (scripts/dev only)
-                _url = getattr(settings, "redis_url", None)
+                _url = getattr(settings, "valkey_url", None)
                 url = (
                     _resolve_redis_url(_url)
                     if _url is not None
-                    else os.getenv("VALKEY_URL", "valkey://localhost:6379/0")
+                    else os.getenv("APP_VALKEY_URL") or "valkey://localhost:6379/0"
                 )
 
                 _REDIS_CLIENT = valkey.from_url(url, encoding="utf-8", decode_responses=True)
@@ -418,15 +418,15 @@ class RedisInitializer:
                     "TCP_KEEPCNT": 3,
                 }[name]
         # v5.9.7: Use consolidated settings field names
-        _url = redis_url or getattr(settings, "redis_url", "redis://localhost:6379/0")
+        _url = redis_url or getattr(settings, "valkey_url", "valkey://localhost:6379/0")
         url = _resolve_redis_url(_url)
 
-        max_conns = getattr(settings, "redis_pool_max_size", None) or getattr(
-            settings, "redis_max_connections", 50
+        max_conns = getattr(settings, "valkey_pool_max_size", None) or getattr(
+            settings, "valkey_max_connections", 50
         )
-        socket_connect_timeout = getattr(settings, "redis_pool_connect_timeout", 5)
-        socket_timeout = getattr(settings, "redis_timeout", 30)
-        health_interval = getattr(settings, "redis_health_check_interval", 30)
+        socket_connect_timeout = getattr(settings, "valkey_pool_connect_timeout", 5)
+        socket_timeout = getattr(settings, "valkey_timeout", 30)
+        health_interval = getattr(settings, "valkey_health_check_interval", 30)
 
         return valkey.Redis.from_url(
             url,

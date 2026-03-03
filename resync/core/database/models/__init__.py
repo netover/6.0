@@ -10,6 +10,13 @@ from .auth import (
     User,
     UserRole,
 )
+from .connector import Connector
+from .orchestration import (
+    OrchestrationCallback,
+    OrchestrationConfig,
+    OrchestrationExecution,
+    OrchestrationStepRun,
+)
 from .stores import (
     ActiveLearningCandidate,
     # Audit Models
@@ -41,8 +48,20 @@ from .stores import (
     # Analytics Models
     UserProfile,
     # Helper
-    get_all_models,
+    get_all_models as _get_all_models_stores,
 )
+
+def get_all_models():
+    """Return all model classes including new ones."""
+    models = _get_all_models_stores()
+    models.extend([
+        Connector,
+        OrchestrationConfig,
+        OrchestrationExecution,
+        OrchestrationStepRun,
+        OrchestrationCallback,
+    ])
+    return models
 
 AdminUser = User
 
@@ -71,6 +90,13 @@ __all__ = [
     # Auth Models
     "User",
     "AdminUser",
+    # Connector Models
+    "Connector",
+    # Orchestration Models
+    "OrchestrationConfig",
+    "OrchestrationExecution",
+    "OrchestrationStepRun",
+    "OrchestrationCallback",
     # Analytics Models
     "UserProfile",
     "SessionHistory",

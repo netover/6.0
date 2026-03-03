@@ -23,7 +23,7 @@ startup_logger = structlog.get_logger("resync.startup.validation")
 
 # Required environment variables for different components
 REQUIRED_ENV_VARS = {
-    "redis": ["REDIS_URL"],
+    "redis": ["APP_VALKEY_URL"],
     "tws": ["TWS_HOST", "TWS_PORT", "TWS_USER", "TWS_PASSWORD"],
     "llm": ["LLM_ENDPOINT", "LLM_API_KEY"],
     "security": ["ADMIN_USERNAME", "ADMIN_PASSWORD", "SECRET_KEY"],
@@ -178,7 +178,7 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
         "validating_redis_connection_started", max_retries=max_retries, timeout=timeout
     )
 
-    redis_url = os.getenv("REDIS_URL")
+    redis_url = os.getenv("APP_VALKEY_URL")
     if not redis_url:
         raise ConfigurationValidationError("REDIS_URL environment variable not set")
 
@@ -282,14 +282,14 @@ def validate_tws_configuration() -> dict[str, str]:
     validation_errors = []
 
     # Validate TWS host
-    tws_host = os.getenv("TWS_HOST")
+    tws_host = os.getenv("APP_TWS_HOST")
     if not tws_host or len(tws_host.strip()) == 0:
         validation_errors.append("TWS_HOST cannot be empty")
     else:
         tws_config["host"] = tws_host.strip()
 
     # Validate TWS port
-    tws_port_str = os.getenv("TWS_PORT")
+    tws_port_str = os.getenv("APP_TWS_PORT")
     if not tws_port_str:
         validation_errors.append("TWS_PORT not set")
     else:
@@ -360,8 +360,8 @@ def validate_security_settings() -> dict[str, str]:
     validation_errors = []
 
     # Validate admin credentials
-    admin_username = os.getenv("ADMIN_USERNAME")
-    admin_password = os.getenv("ADMIN_PASSWORD")
+    admin_username = os.getenv("APP_ADMIN_USERNAME")
+    admin_password = os.getenv("APP_ADMIN_PASSWORD")
 
     if not admin_username or len(admin_username.strip()) < 3:
         validation_errors.append("ADMIN_USERNAME must be at least 3 characters")
@@ -374,7 +374,7 @@ def validate_security_settings() -> dict[str, str]:
         security_config["admin_password"] = admin_password.strip()
 
     # Validate secret key
-    secret_key = os.getenv("SECRET_KEY")
+    secret_key = os.getenv("APP_SECRET_KEY")
     if not secret_key or len(secret_key.strip()) < 32:
         validation_errors.append(
             "SECRET_KEY must be at least 32 characters for security"

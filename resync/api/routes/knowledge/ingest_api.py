@@ -209,7 +209,7 @@ async def ingest_batch(request: BatchIngestRequest):
 
     # Security: resolve the allowed docs root to prevent path traversal.
     # Every requested path must be inside KNOWLEDGE_DOCS_ROOT.
-    _docs_root = Path(_get_settings().KNOWLEDGE_DOCS_ROOT).resolve()
+    _docs_root = Path(_get_settings().knowledge_docs_root).resolve()
 
     for fp in request.file_paths:
         path = Path(fp).resolve()

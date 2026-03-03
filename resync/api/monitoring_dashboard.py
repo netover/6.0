@@ -281,8 +281,8 @@ class DashboardMetricsStore:
                         redis.get(REDIS_KEY_PREV_WALLTIME), name="get_prev_walltime"
                     )
             except* asyncio.CancelledError:
-                # Crucial: propagar cancelamento para shutdown limpo
-                raise
+                # Crucial: propagar cancelamento para shutdown limpo sem group
+                raise asyncio.CancelledError()
             except* Exception as exc_group:
                 logger.error(
                     "storage_state_fetch_failure",

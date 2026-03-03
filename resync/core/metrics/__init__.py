@@ -71,7 +71,12 @@ __all__ = [
     "get_cl_metrics",
     # Logging
     "log_with_correlation",
+    # v6.3.0: Business metrics (Prometheus)
+    "business_metrics",
 ]
+
+# v6.3.0: Import business metrics module for easy access
+from . import business_metrics
 
 def get_runtime_metrics() -> RuntimeMetricsCollector:
     """Return the singleton runtime metrics collector.

@@ -73,23 +73,36 @@ async def create_config(
     """Create a new orchestration configuration."""
     repo = OrchestrationConfigRepository(db)
 
-    # Basic validation
-    # TODO: Validate 'steps' against WorkflowConfig schema?
-    try:
-        # Check if steps have "steps" key list
-        steps_list = steps.get("steps") if isinstance(steps, dict) else steps
-        if not isinstance(steps_list, list):
-            raise ValueError("Steps must be a list or dict with 'steps' key")
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
+    from resync.core.orchestration.schemas import WorkflowConfig, StepConfig
 
-        raise HTTPException(status_code=400, detail=str(e))
+    # v6.3 FIX: Add Pydantic schema validation for WorkflowConfig.steps
+    # Risk: Invalid step structure causes runtime errors instead of 400 Bad Request
+    try:
+        # Check if steps is a list or a dict containing steps
+        if isinstance(steps, list):
+            # Validate as list of StepConfig
+            validated_steps = [StepConfig.model_validate(s) for s in steps]
+            # Convert back to dict for repository storage (which expects json-serializable dict/list)
+            steps_to_store = {"steps": [s.model_dump() for s in validated_steps]}
+        else:
+            # Validate as WorkflowConfig
+            validated_wf = WorkflowConfig.model_validate(steps)
+            steps_to_store = validated_wf.model_dump()
+            
+    except (ValueError, TypeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"Invalid step configuration: {str(e)}"
+        )
+    except Exception as e:
+        logger.error("Step validation failed: %s", str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"Validation error: {str(e)}"
+        )
 
     config = await repo.create(
-        name=name, strategy=strategy, steps=steps, description=description
+        name=name, strategy=strategy, steps=steps_to_store, description=description
     )
     return config
 
@@ -124,9 +137,13 @@ async def execute_workflow(
     Returns trace_id immediately.
     """
     try:
+        # FIXME(P0-COMPLIANCE): Extract user_id from JWT token
+        # Current: All executions show as "api_user" (breaks audit trail)
+        # Fix: Add dependency `current_user = Depends(get_current_user)`
+        # Impact: GDPR/SOX compliance violation
         trace_id = await runner.start_execution(
             config_id, input_data, user_id="api_user"
-        )  # TODO: get user from auth
+        )
         return {"trace_id": trace_id, "status": "accepted"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

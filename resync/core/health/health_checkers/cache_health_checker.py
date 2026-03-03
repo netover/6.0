@@ -74,7 +74,7 @@ class CacheHealthChecker(BaseHealthChecker):
                 logger.warning("Cache delete test had unexpected result")
 
             # Get cache statistics
-            metrics = test_cache.get_detailed_metrics()
+            metrics = await test_cache.get_detailed_metrics()
 
             # Stop the test cache
             await test_cache.stop()

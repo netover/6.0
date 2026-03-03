@@ -12,13 +12,13 @@ def test_alembic_upgrade_head_runs() -> None:
 
     This is intentionally a black-box test: if migrations are broken, the command fails.
     """
-    database_url = os.getenv("DATABASE_URL")
+    database_url = os.getenv("APP_DATABASE_URL")
     if not database_url:
-        pytest.skip("DATABASE_URL not set")
+        pytest.skip("APP_DATABASE_URL not set")
 
-    # Ensure alembic sees DATABASE_URL
+    # Ensure alembic sees APP_DATABASE_URL
     env = dict(os.environ)
-    env["DATABASE_URL"] = database_url
+    env["APP_DATABASE_URL"] = database_url
 
     # Run alembic in a subprocess to match real usage.
     proc = subprocess.run(
