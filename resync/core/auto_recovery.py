@@ -5,6 +5,7 @@ Auto-Recovery System
 This module provides automatic recovery capabilities for failed components and services.
 """
 
+import asyncio
 import time
 from typing import Any
 

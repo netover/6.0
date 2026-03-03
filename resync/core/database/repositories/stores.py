@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update, Text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from resync.core.database.models import (

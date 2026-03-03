@@ -229,7 +229,7 @@ class ValidationError(BaseAppException):
             message=message,
             error_code=ErrorCode.VALIDATION_ERROR,
             status_code=400,
-            details=_details,
+            details=details,
             correlation_id=correlation_id,
             severity=ErrorSeverity.WARNING,
             original_exception=original_exception,
