@@ -4,6 +4,7 @@ Gerenciador principal de idempotency refatorado.
 """
 
 from datetime import datetime, timedelta, timezone
+import json
 from typing import Any
 
 from redis.asyncio import Redis
@@ -169,7 +170,7 @@ class IdempotencyManager:
             IdempotencyKeyValidator.validate(idempotency_key)
 
             # Verificar tamanho da resposta
-            response_size = len(str(response_data).encode("utf-8"))
+            response_size = len(json.dumps(response_data).encode("utf-8"))
             max_size_bytes = config.max_response_size_kb * 1024
 
             if response_size > max_size_bytes:

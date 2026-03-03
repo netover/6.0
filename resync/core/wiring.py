@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from resync.services.llm_service import LLMService         # actual location
     from resync.core.skill_manager import SkillManager
     from resync.core.a2a_handler import A2AHandler             # actual location
+    from resync.core.event_bus import EventBus
 
 logger = get_logger(__name__)
 
@@ -40,6 +41,7 @@ STATE_LLM_SERVICE: Final[str] = "llm_service"
 STATE_FILE_INGESTOR: Final[str] = "file_ingestor"
 STATE_A2A_HANDLER: Final[str] = "a2a_handler"
 STATE_SKILL_MANAGER: Final[str] = "skill_manager"
+STATE_EVENT_BUS: Final[str] = "event_bus"
 
 _REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
     {
@@ -53,6 +55,7 @@ _REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
         STATE_FILE_INGESTOR,
         STATE_A2A_HANDLER,
         STATE_SKILL_MANAGER,
+        STATE_EVENT_BUS,
     }
 )
 
@@ -102,6 +105,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.knowledge.store.pgvector_store import PgVectorStore                        # was: resync.services.pg_vector_store
     from resync.services.rag_client import get_rag_client_singleton
     from resync.core.pools.pool_manager import initialize_pool_manager
+    from resync.core.event_bus import init_event_bus
 
     # ── Database initialization (idempotent: CREATE IF NOT EXISTS) ──────────
     # Must run before any ORM access. Uses check_first=True so it's safe
@@ -207,6 +211,10 @@ async def init_domain_singletons(app: FastAPI) -> None:
     file_ingestor = FileIngestor(ingest_service=ingest_service)
     a2a_handler = A2AHandler(agent_manager=agent_manager)
 
+    # Initialize and start Event Bus
+    event_bus = init_event_bus(history_size=settings.cache.hierarchy_l1_max_size or 1000)
+    event_bus.start()
+
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # redis_available is set based on IdempotencyManager initialization above.
     enterprise_state = EnterpriseState(  # type: ignore
@@ -220,6 +228,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
         file_ingestor=file_ingestor,
         a2a_handler=a2a_handler,
         skill_manager=skill_manager,
+        event_bus=event_bus,
         startup_complete=False,
         redis_available=redis_available,
         domain_shutdown_complete=False,

@@ -105,7 +105,7 @@ def add_service_context(
 def add_timestamp(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
-    event_dict["timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
+    event_dict["timestamp"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     return event_dict
 
 def add_log_level(
@@ -203,7 +203,7 @@ def protect_log_injection(
     for key, value in event_dict.items():
         if isinstance(value, str):
             if "\n" in value or "\r" in value:
-                event_dict[key] = value.replace("\n", "\n").replace("\r", "\r")
+                event_dict[key] = value.replace("\n", "\\n").replace("\r", "\\r")
     return event_dict
 
 # ============================================================================
