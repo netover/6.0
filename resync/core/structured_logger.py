@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -275,10 +276,23 @@ def configure_structured_logging(
     root_logger.setLevel(level)
 
     if persist_logs_path:
-        file_handler = logging.FileHandler(persist_logs_path, mode="w")
-        file_handler.setLevel(logging.WARNING)
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
+        try:
+            p = Path(persist_logs_path)
+            # Ensure parent directory exists to prevent FileNotFoundError on boot.
+            if p.parent:
+                p.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(str(p), mode="w")
+        except OSError as e:
+            # Don't crash the service if we can't persist logs.
+            # Logging is already configured to stdout; keep running.
+            root_logger.warning(
+                "persist_log_file_unavailable",
+                extra={"path": persist_logs_path, "error": str(e)},
+            )
+        else:
+            file_handler.setLevel(logging.WARNING)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
 
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)

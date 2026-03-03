@@ -104,6 +104,15 @@ class Settings(BaseSettings, SettingsValidators):
         description="Nível de logging",
     )
 
+    startup_log_path: Path | None = Field(
+        default=None,
+        description=(
+            "Path opcional para persistir logs de startup (warnings/errors). "
+            "Se None, apenas stdout/stderr. "
+            "Evita crash em containers/non-root."
+        ),
+    )
+
     # When enabled, re-raise programming errors (TypeError/KeyError/AttributeError/IndexError)
     # that are caught by broad exception handlers, to fail fast in staging/canary.
     # Default is False for backward compatibility.

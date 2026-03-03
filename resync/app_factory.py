@@ -200,11 +200,15 @@ class ApplicationFactory:
             Fully configured FastAPI application instance
         """
         # Configure logging EARLY - must be before any other imports that use logging
+        # P0 FIX: Avoid hardcoded paths that can crash boot in containers/non-root.
+        # Persisting startup warnings/errors is optional and env-configurable.
         configure_structured_logging(
             log_level=self.settings.log_level,
             json_logs=self.settings.log_format == "json",
             development_mode=self.settings.is_development,
-            persist_logs_path="/root/6.0/logs/startup.log",
+            persist_logs_path=(
+                str(self.settings.startup_log_path) if self.settings.startup_log_path else None
+            ),
         )
 
         # Validate settings first

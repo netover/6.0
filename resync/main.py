@@ -28,9 +28,7 @@ import os
 import sys
 from pathlib import Path
 
-# Setup Environment: Ensure project root is in sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(BASE_DIR))
 
 from resync.app_factory import create_app  # noqa: E402
 
@@ -38,6 +36,11 @@ app = create_app()
 
 def main() -> None:
     """Run a local development server."""
+    # Dev convenience only: ensure repo root is importable when running `python -m resync.main`
+    # Avoid mutating sys.path during production ASGI import.
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
+
     # Import uvicorn here to avoid loading it in production ASGI path
     # where it's not needed
     import uvicorn
