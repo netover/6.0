@@ -187,6 +187,12 @@ class ContextStore:
         self, conversation_id: int, expected_approved: bool
     ) -> bool:
         """Atomically check and flag a memory."""
+        if hasattr(self._store.conversations, "atomic_flag"):
+            return await self._store.conversations.atomic_flag(
+                conversation_id, expected_approved
+            )
+
+        # Fallback for custom repositories without atomic support.
         conv = await self._store.conversations.get_by_id(conversation_id)
         if conv and conv.is_approved == expected_approved:
             await self.flag_memory(conversation_id)

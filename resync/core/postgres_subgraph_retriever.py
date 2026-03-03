@@ -12,9 +12,16 @@ from resync.knowledge.kg_store.store import PostgresGraphStore
 
 logger = logging.getLogger(__name__)
 
+
 class PostgresSubgraphRetriever:
-    def __init__(self, store: PostgresGraphStore | None = None):
-        self.store = store or PostgresGraphStore()
+    def __init__(self, store: PostgresGraphStore | None = None) -> None:
+        self._store = store
+
+    @property
+    def store(self) -> PostgresGraphStore:
+        if self._store is None:
+            self._store = PostgresGraphStore()
+        return self._store
 
     async def get_subgraph_for_seeds(
         self,
@@ -40,7 +47,6 @@ class PostgresSubgraphRetriever:
         if not nodes:
             return ""
 
-        # Compact textual representation
         lines: list[str] = []
         lines.append("[DOCUMENT KNOWLEDGE GRAPH]\n")
         lines.append("Nodes:")

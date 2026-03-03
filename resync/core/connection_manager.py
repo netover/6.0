@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from resync.core.websocket_pool_manager import WebSocketPoolManager
 from resync.core.websocket_pool_manager import get_websocket_pool_manager
 
 # --- Logging Setup ---
@@ -28,15 +29,28 @@ class ConnectionManager:
     def __init__(self) -> None:
         """Initializes the ConnectionManager with connection pooling support."""
         self.active_connections: dict[str, WebSocket] = {}
-        self._pool_manager = None
-        self._pool_manager_lock = asyncio.Lock()
-        self._lock = asyncio.Lock()
+        self._pool_manager: WebSocketPoolManager | None = None
+        self._pool_manager_lock: asyncio.Lock | None = None
+        self._lock: asyncio.Lock | None = None
         logger.info("ConnectionManager initialized with pooling support.")
 
-    async def _get_pool_manager(self):
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Return connection-state lock, lazily bound to current event loop."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
+
+    def _get_pool_manager_lock(self) -> asyncio.Lock:
+        """Return pool-manager init lock, lazily bound to current event loop."""
+        if self._pool_manager_lock is None:
+            self._pool_manager_lock = asyncio.Lock()
+        return self._pool_manager_lock
+
+    async def _get_pool_manager(self) -> WebSocketPoolManager:
         """Get or create the WebSocket pool manager (thread-safe)."""
         if self._pool_manager is None:
-            async with self._pool_manager_lock:
+            async with self._get_pool_manager_lock():
                 if self._pool_manager is None:
                     self._pool_manager = await get_websocket_pool_manager()
         return self._pool_manager
@@ -51,7 +65,7 @@ class ConnectionManager:
         await pool_manager.connect(websocket, client_id)
 
         # Maintain backward compatibility with existing dictionary
-        async with self._lock:
+        async with self._get_lock():
             self.active_connections[client_id] = websocket
         logger.info("New WebSocket connection accepted: %s", client_id)
         logger.info("Total active connections: %d", len(self.active_connections))
@@ -62,7 +76,7 @@ class ConnectionManager:
         Integrates with the WebSocket pool manager for cleanup.
         Thread-safe: uses lock to protect active_connections modifications.
         """
-        async with self._lock:
+        async with self._get_lock():
             if client_id not in self.active_connections:
                 return
             websocket = self.active_connections.pop(client_id)
@@ -75,9 +89,6 @@ class ConnectionManager:
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
-
-            if isinstance(e, asyncio.CancelledError):
-                raise
             logger.warning("Error closing websocket for client %s: %s", client_id, e)
 
         if self._pool_manager:
@@ -101,7 +112,7 @@ class ConnectionManager:
         # Snapshot the websocket reference under lock, then release immediately.
         # Network I/O must NEVER be performed while holding the lock — a slow
         # client would otherwise serialise all connection operations system-wide.
-        async with self._lock:
+        async with self._get_lock():
             websocket = self.active_connections.get(client_id)
 
         if not websocket:
@@ -114,7 +125,7 @@ class ConnectionManager:
             logger.warning(
                 "Connection error sending to client %s: %s", client_id, e
             )
-            async with self._lock:
+            async with self._get_lock():
                 self.active_connections.pop(client_id, None)
         except RuntimeError as e:
             if "websocket state" in str(e).lower():
@@ -128,9 +139,6 @@ class ConnectionManager:
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
-
-            if isinstance(e, asyncio.CancelledError):
-                raise
             logger.error("Unexpected error sending to client %s: %s", client_id, e)
 
     async def broadcast(self, message: str) -> None:
@@ -144,38 +152,34 @@ class ConnectionManager:
         if self._pool_manager and self._pool_manager.connections:
             successful_sends = await self._pool_manager.broadcast(message)
             logger.info(
-                "broadcast_completed",
-                successful_sends=successful_sends,
-                message="clients received the message",
+                "broadcast_completed successful_sends=%d clients received the message",
+                successful_sends,
             )
             return
 
         # Fallback to legacy broadcasting for backward compatibility
-        async with self._lock:
+        async with self._get_lock():
             if not self.active_connections:
                 logger.info("Broadcast requested, but no active connections.")
                 return
             # Create a copy of the connections to iterate safely
             connections = list(self.active_connections.values())
 
-        logger.info("broadcasting_message", client_count=len(connections))
+        logger.info("broadcasting_message client_count=%d", len(connections))
         # HARDENING [P0]: asyncio.TaskGroup previne HoL blocking
         # e garante concorrência estruturada.
         # Um cliente lento ou com erro de rede não atrasa o envio para os demais.
-        tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(
-                        tg.create_task(
-                            connection.send_text(message), name=f"broadcast_text_{idx}"
-                        )
+                    tg.create_task(
+                        connection.send_text(message), name=f"broadcast_text_{idx}"
                     )
         except* asyncio.CancelledError:
             raise
         except* Exception as eg:
             for exc in eg.exceptions:
-                logger.warning("broadcast_connection_error", error=str(exc))
+                logger.warning("broadcast_connection_error error=%s", exc)
 
     async def broadcast_json(self, data: dict[str, Any]) -> None:
         """
@@ -188,14 +192,13 @@ class ConnectionManager:
         if self._pool_manager and self._pool_manager.connections:
             successful_sends = await self._pool_manager.broadcast_json(data)
             logger.info(
-                "json_broadcast_completed",
-                successful_sends=successful_sends,
-                message="clients received the data",
+                "json_broadcast_completed successful_sends=%d clients received the data",
+                successful_sends,
             )
             return
 
         # Fallback to legacy JSON broadcasting for backward compatibility
-        async with self._lock:
+        async with self._get_lock():
             if not self.active_connections:
                 logger.info("JSON broadcast requested, but no active connections.")
                 return
@@ -205,20 +208,17 @@ class ConnectionManager:
         logger.info("Broadcasting JSON data to %d clients.", len(connections))
         # HARDENING [P0]: TaskGroup para concorrência real
         # e isolamento de falhas estruturado
-        tasks = []
         try:
             async with asyncio.TaskGroup() as tg:
                 for idx, connection in enumerate(connections):
-                    tasks.append(
-                        tg.create_task(
-                            connection.send_json(data), name=f"broadcast_json_{idx}"
-                        )
+                    tg.create_task(
+                        connection.send_json(data), name=f"broadcast_json_{idx}"
                     )
         except* asyncio.CancelledError:
             raise
         except* Exception as eg:
             for exc in eg.exceptions:
-                logger.warning("json_broadcast_connection_error", error=str(exc))
+                logger.warning("json_broadcast_connection_error error=%s", exc)
 
     def get_connection_stats(self) -> dict[str, Any]:
         """

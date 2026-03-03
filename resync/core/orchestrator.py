@@ -16,7 +16,7 @@ Note:
 """
 
 import asyncio
-import random
+import secrets
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -63,7 +63,7 @@ _DEFAULT_MAX_RETRIES: int = 2
 _DEFAULT_TIMEOUT_SECONDS: int = 10
 
 #: Default per-call timeout (seconds).  Must be less than global timeout.
-_DEFAULT_PER_CALL_TIMEOUT: float = 8.0
+_DEFAULT_PER_CALL_TIMEOUT: float = 3.0
 
 #: Default number of log tail lines to fetch.
 _DEFAULT_LOG_LINES: int = 100
@@ -212,7 +212,7 @@ class ServiceOrchestrator:
                     )
                     raise
                 delay = min(2**attempt, _MAX_BACKOFF_SECONDS)
-                jitter = random.uniform(0, delay * 0.5)  # noqa: S311
+                jitter = (secrets.randbelow(1_000_000) / 1_000_000) * (delay * 0.5)
                 logger.warning(
                     "service_call_retrying",
                     task=name,
@@ -288,38 +288,11 @@ class ServiceOrchestrator:
 
         result.attempted_tasks = len(tasks)
 
-        # Fan-out with global timeout
-        task_objs: dict[str, asyncio.Task] = {}
-
-        try:
-            async with asyncio.timeout(self.timeout):
-                try:
-                    async with asyncio.TaskGroup() as tg:
-                        for name, coro in tasks.items():
-                            task_objs[name] = tg.create_task(coro, name=name)
-                except* asyncio.CancelledError:
-                    # Garantir que cancelamento cooperative seja propagado
-                    raise
-                except* Exception as eg:
-                    # Log detalhado, mas não interrompe o flow (partial failure)
-                    logger.warning(
-                        "orchestration_tasks_partial_failure",
-                        job_name=job_name,
-                        count=len(eg.exceptions),
-                    )
-        except TimeoutError:
-            logger.error(
-                "orchestration_timeout",
-                job_name=job_name,
-                timeout=self.timeout,
-                attempted=result.attempted_tasks,
-            )
-            result.errors["_global"] = f"Orchestration timed out after {self.timeout}s"
-            # Retorna resultado parcial (tasks canceladas serão tratadas no fan-in)
-            return result
-
-        # Fan-in: map results back to task names
-        self._assign_results(result, task_objs)
+        outcomes = await self._run_tasks_with_partial_failure(
+            tasks,
+            timeout=self.timeout,
+        )
+        self._assign_results(result, outcomes)
 
         logger.info(
             "orchestration_complete",
@@ -361,49 +334,26 @@ class ServiceOrchestrator:
             "failed_jobs": self._call_with_retry("failed_jobs", _failed_jobs_call),
         }
 
-        task_objs: dict[str, asyncio.Task] = {}
-        try:
-            async with asyncio.timeout(self.timeout):
-                try:
-                    async with asyncio.TaskGroup() as tg:
-                        for name, coro in tasks.items():
-                            task_objs[name] = tg.create_task(
-                                coro, name=f"health_{name}"
-                            )
-                except* asyncio.CancelledError:
-                    raise
-                except* Exception as eg:
-                    # Exceptions are extracted from task.result() below;
-                    # log so unexpected errors are observable
-                    logger.debug("health_task_group_error",
-                                 count=len(eg.exceptions))
-        except TimeoutError:
-            logger.error("health_check_timeout", timeout=self.timeout)
-            return {
-                "status": "ERROR",
-                "message": f"Health check timed out after {self.timeout}s",
-            }
+        outcomes = await self._run_tasks_with_partial_failure(
+            tasks,
+            timeout=self.timeout,
+        )
 
         health: dict[str, Any] = {"status": "HEALTHY", "details": {}}
-
-        for task_name, task in task_objs.items():
-            # Safer result extraction
-            if not task.done():
+        for task_name, outcome in outcomes.items():
+            if isinstance(outcome, TimeoutError):
                 health["status"] = "DEGRADED"
                 health["details"][task_name] = {"status": "TIMEOUT"}
-                continue
-
-            try:
-                task_result = task.result()
-                health["details"][task_name] = {
-                    "status": "OK",
-                    "data": task_result,
-                }
-            except (asyncio.CancelledError, Exception) as e:
+            elif isinstance(outcome, BaseException):
                 health["status"] = "DEGRADED"
                 health["details"][task_name] = {
                     "status": "ERROR",
-                    "error": str(e),
+                    "error": f"{type(outcome).__name__}: {outcome}",
+                }
+            else:
+                health["details"][task_name] = {
+                    "status": "OK",
+                    "data": outcome,
                 }
 
         return health
@@ -412,12 +362,31 @@ class ServiceOrchestrator:
     # Internal helpers
     # -----------------------------------------------------------------
 
+    async def _run_tasks_with_partial_failure(
+        self,
+        tasks: dict[str, Coroutine[Any, Any, Any]],
+        *,
+        timeout: float,
+    ) -> dict[str, Any]:
+        """Run fan-out tasks preserving partial results and per-task failures."""
+        names = list(tasks)
+        coroutines = list(tasks.values())
+
+        try:
+            async with asyncio.timeout(timeout):
+                outcomes = await asyncio.gather(*coroutines, return_exceptions=True)
+        except TimeoutError:
+            logger.error("orchestration_timeout", timeout=timeout, attempted=len(tasks))
+            return {name: TimeoutError(f"Task '{name}' timed out after {timeout}s") for name in names}
+
+        return dict(zip(names, outcomes, strict=True))
+
     def _assign_results(
         self,
         result: OrchestrationResult,
-        tasks: dict[str, asyncio.Task],
+        outcomes: dict[str, Any],
     ) -> None:
-        """Map task results back to ``OrchestrationResult`` fields."""
+        """Map task outcomes back to ``OrchestrationResult`` fields."""
         _field_map: dict[str, str] = {
             "status": "tws_status",
             "context": "kg_context",
@@ -426,25 +395,25 @@ class ServiceOrchestrator:
             "history": "historical_failures",
         }
 
-        for task_name, task in tasks.items():
-            # Safer extraction: only try .result() if task is actually done
-            if not task.done():
-                result.errors[task_name] = "Task timed out or not completed"
+        for task_name, outcome in outcomes.items():
+            if isinstance(outcome, TimeoutError):
+                result.errors[task_name] = str(outcome)
                 continue
-
-            try:
-                task_result = task.result()
-                attr = _field_map.get(task_name)
-                if attr:
-                    setattr(result, attr, task_result)
-            except (asyncio.CancelledError, Exception) as e:
-                result.errors[task_name] = f"{type(e).__name__}: {e}"
+            if isinstance(outcome, asyncio.CancelledError):
+                raise outcome
+            if isinstance(outcome, BaseException):
+                result.errors[task_name] = f"{type(outcome).__name__}: {outcome}"
                 logger.warning(
                     "orchestration_task_failed",
                     task=task_name,
-                    error=type(e).__name__,
-                    detail=str(e),
+                    error=type(outcome).__name__,
+                    detail=str(outcome),
                 )
+                continue
+
+            attr = _field_map.get(task_name)
+            if attr:
+                setattr(result, attr, outcome)
 
     async def _fetch_historical_failures(self, job_name: str) -> list[dict[str, Any]]:
         """Query KG for historical failures related to *job_name*.

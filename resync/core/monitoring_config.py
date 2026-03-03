@@ -9,9 +9,11 @@ Versão: 5.2
 """
 
 from enum import Enum
+import re
+import threading
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 class PollingMode(str, Enum):
     """Modos de polling."""
@@ -124,7 +126,7 @@ class MonitoringConfig(BaseModel):
     )
 
     # Webhook URL para Teams
-    teams_webhook_url: str | None = Field(
+    teams_webhook_url: SecretStr | None = Field(
         default=None,
         description="URL do webhook do Microsoft Teams",
     )
@@ -312,6 +314,17 @@ class MonitoringConfig(BaseModel):
     # MÉTODOS
     # =========================================================================
 
+    @field_validator("ws_job_filter_regex")
+    @classmethod
+    def _validate_ws_job_filter_regex(cls, value: str) -> str:
+        if not value:
+            return value
+        try:
+            re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"Invalid ws_job_filter_regex: {exc}") from exc
+        return value
+
     def to_frontend_config(self) -> dict[str, Any]:
         """Retorna configurações relevantes para o frontend."""
         return {
@@ -372,6 +385,7 @@ class MonitoringConfig(BaseModel):
 # =============================================================================
 
 DEFAULT_MONITORING_CONFIG = MonitoringConfig()
+_MONITORING_CONFIG_LOCK = threading.Lock()
 
 def get_monitoring_config() -> MonitoringConfig:
     """Retorna configuração de monitoramento atual."""
@@ -382,9 +396,8 @@ def update_monitoring_config(updates: dict[str, Any]) -> MonitoringConfig:
     """Atualiza configuração de monitoramento."""
     global DEFAULT_MONITORING_CONFIG
 
-    current_dict = DEFAULT_MONITORING_CONFIG.model_dump()
-    current_dict.update(updates)
-
-    DEFAULT_MONITORING_CONFIG = MonitoringConfig(**current_dict)
-
-    return DEFAULT_MONITORING_CONFIG
+    with _MONITORING_CONFIG_LOCK:
+        current_dict = DEFAULT_MONITORING_CONFIG.model_dump()
+        current_dict.update(updates)
+        DEFAULT_MONITORING_CONFIG = MonitoringConfig(**current_dict)
+        return DEFAULT_MONITORING_CONFIG

@@ -15,6 +15,7 @@ and dashboard capabilities including:
 
 import asyncio
 import contextlib
+import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -1045,7 +1046,6 @@ class SecurityDashboard:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1056,19 +1056,26 @@ class SecurityDashboard:
 
     def _collect_system_metrics(self) -> None:
         """Collect metrics from system components."""
-        # This would integrate with actual metric sources
-        # For demonstration, simulate some metric updates
+        simulate_metrics = os.getenv("RESYNC_SIMULATE_METRICS", "0").lower() in {
+            "1",
+            "true",
+        }
+        if not simulate_metrics:
+            logger.debug(
+                "security_dashboard_metrics_collection_skipped",
+                reason="no_real_source_configured",
+            )
+            return
 
         import random
 
-        # Simulate some realistic metric values
         self.metric_collector.update_metric(
-            "system_uptime", 99.7 + random.uniform(-0.5, 0.5)
+            "system_uptime", 99.7 + random.uniform(-0.5, 0.5)  # nosec B311
         )
-        self.metric_collector.update_metric("threats_detected", random.randint(0, 10))
-        self.metric_collector.update_metric("active_incidents", random.randint(0, 3))
+        self.metric_collector.update_metric("threats_detected", random.randint(0, 10))  # nosec B311
+        self.metric_collector.update_metric("active_incidents", random.randint(0, 3))  # nosec B311
         self.metric_collector.update_metric(
-            "compliance_score", 85.0 + random.uniform(-5, 5)
+            "compliance_score", 85.0 + random.uniform(-5, 5)  # nosec B311
         )
 
     async def _alert_checking_worker(self) -> None:
@@ -1089,7 +1096,6 @@ class SecurityDashboard:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1155,7 +1161,6 @@ class SecurityDashboard:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error

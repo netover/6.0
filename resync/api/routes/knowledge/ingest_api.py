@@ -85,6 +85,14 @@ class ConverterStatusResponse(BaseModel):
 
 # ── Helper ──────────────────────────────────────────────────────────────────
 
+
+
+def _get_settings():
+    """Lazy settings getter (patch-friendly in tests)."""
+    from resync.settings import get_settings
+
+    return get_settings()
+
 def _get_pipeline():
     """Lazy-load the pipeline to avoid importing heavy deps at module load."""
     from resync.knowledge.ingestion.pipeline import DocumentIngestionPipeline
@@ -201,7 +209,6 @@ async def ingest_batch(request: BatchIngestRequest):
 
     # Security: resolve the allowed docs root to prevent path traversal.
     # Every requested path must be inside KNOWLEDGE_DOCS_ROOT.
-    from resync.settings import get_settings as _get_settings
     _docs_root = Path(_get_settings().KNOWLEDGE_DOCS_ROOT).resolve()
 
     for fp in request.file_paths:

@@ -213,12 +213,12 @@ class SemanticCache:
         try:
             client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
             await client.ping()
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        except Exception:
             return
         try:
             stack_info = await check_redis_stack_available()
             self._redis_stack_available = bool(stack_info.get("search", False))
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        except Exception:
             self._redis_stack_available = False
         self._memory_only = not REDISVL_AVAILABLE
 

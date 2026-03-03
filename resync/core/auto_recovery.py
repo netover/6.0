@@ -5,6 +5,7 @@ Auto-Recovery System
 This module provides automatic recovery capabilities for failed components and services.
 """
 
+import asyncio
 import time
 from typing import Any
 
@@ -195,12 +196,12 @@ class AutoRecovery:
                         "timestamp": time.time(),
                         "reason": "High database error rate",
                         "recovery_strategy": "Reset connection pool",
-                        "success": self._reset_database_connections(),
+                        "success": await asyncio.to_thread(self._reset_database_connections),
                     }
                 )
 
             # Check for memory issues
-            memory_issues = self._check_memory_issues()
+            memory_issues = await asyncio.to_thread(self._check_memory_issues)
             if memory_issues:
                 actions.append(
                     {
@@ -208,7 +209,7 @@ class AutoRecovery:
                         "timestamp": time.time(),
                         "reason": "Memory usage too high",
                         "recovery_strategy": "Force garbage collection",
-                        "success": self._force_memory_cleanup(),
+                        "success": await asyncio.to_thread(self._force_memory_cleanup),
                     }
                 )
 
@@ -228,17 +229,17 @@ class AutoRecovery:
 
         try:
             # Clean up temporary files
-            temp_cleanup = self._cleanup_temp_files()
+            temp_cleanup = await asyncio.to_thread(self._cleanup_temp_files)
             if temp_cleanup:
                 actions.append(temp_cleanup)
 
             # Clean up stale connections
-            connection_cleanup = self._cleanup_stale_connections()
+            connection_cleanup = await asyncio.to_thread(self._cleanup_stale_connections)
             if connection_cleanup:
                 actions.append(connection_cleanup)
 
             # Clean up cache entries
-            cache_cleanup = self._cleanup_cache_entries()
+            cache_cleanup = await asyncio.to_thread(self._cleanup_cache_entries)
             if cache_cleanup:
                 actions.append(cache_cleanup)
 
@@ -269,7 +270,7 @@ class AutoRecovery:
                         "reason": "High pool utilization",
                         "scaling_direction": "up",
                         "target_utilization": 0.7,
-                        "success": self._scale_connection_pool("up"),
+                        "success": await asyncio.to_thread(self._scale_connection_pool, "up"),
                     }
                 )
 
@@ -282,7 +283,7 @@ class AutoRecovery:
                         "reason": "Low pool utilization",
                         "scaling_direction": "down",
                         "target_utilization": 0.5,
-                        "success": self._scale_connection_pool("down"),
+                        "success": await asyncio.to_thread(self._scale_connection_pool, "down"),
                     }
                 )
 

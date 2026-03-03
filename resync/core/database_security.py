@@ -443,21 +443,10 @@ class SecureQueryBuilder:
         else:
             columns_str = "*"
 
-        # Build base query safely using SQLAlchemy primitives.
-        # Note: table/column names cannot be bound parameters, so we rely on
-        # strict identifier validation (DatabaseInputValidator) and then build
-        # the statement via SQLAlchemy's table()/column() helpers (no f-string SQL).
-        from sqlalchemy import select, text  # local import to keep module lightweight
-        from sqlalchemy.sql import table, column
-        
-        tbl = table(validated_table)
-        if columns:
-            cols = [column(c) for c in validated_columns]
-            stmt = select(*cols).select_from(tbl)
-        else:
-            stmt = select(text("*")).select_from(tbl)
-        
-        query = str(stmt)
+        # Build base query with validated identifiers.
+        # Table/column names cannot be bind params, so we must compose the SQL
+        # string after strict whitelist validation above.
+        query = f"SELECT {columns_str} FROM {validated_table}"
         params: dict[str, Any] = {}
 
         # Add WHERE clause if provided
@@ -516,7 +505,7 @@ class SecureQueryBuilder:
         # Add LIMIT if provided
         if limit:
             validated_limit = DatabaseInputValidator.validate_limit(limit)
-            query += " LIMIT ?"
+            query += " LIMIT :limit"
             params["limit"] = validated_limit
 
         return query, params

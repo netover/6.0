@@ -121,32 +121,66 @@ def are_same_entity(name_a: str, name_b: str) -> bool:
 
 def make_node_id(entity_type: str, name: str) -> str:
     """Create a canonical node ID from entity type and name."""
-    return f"{entity_type.lower()}:{normalize_entity(name)}"
+    normalized_name = normalize_entity(name)
+    normalized_name = re.sub(r"[^a-z0-9]+", "_", normalized_name).strip("_")
+    return f"{entity_type}:{normalized_name}"
 
 
-def dedup_concepts(concepts: list[dict]) -> list[dict]:
-    """Remove duplicate concept nodes (same entity_type + normalized name)."""
-    seen: set[str] = set()
-    unique: list[dict] = []
+def _get_attr(item: object, key: str, default: str = "") -> str:
+    """Read dict-like or model-like attributes safely."""
+    if isinstance(item, dict):
+        value = item.get(key, default)
+    else:
+        value = getattr(item, key, default)
+    return value if isinstance(value, str) else default
+
+
+def dedup_concepts(concepts: list[object]) -> list[object]:
+    """Remove duplicate concept nodes and merge aliases/properties when possible."""
+    by_key: dict[str, object] = {}
     for c in concepts:
-        key = make_node_id(c.get("entity_type", "entity"), c.get("name", ""))
-        if key not in seen:
-            seen.add(key)
-            unique.append(c)
-    return unique
+        entity_type = _get_attr(c, "entity_type") or _get_attr(c, "node_type") or "entity"
+        name = _get_attr(c, "name")
+        key = make_node_id(entity_type, name)
+
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = c
+            continue
+
+        # Merge aliases for pydantic Concept models
+        if hasattr(existing, "aliases") and hasattr(c, "aliases"):
+            current_aliases = list(getattr(existing, "aliases") or [])
+            incoming_aliases = list(getattr(c, "aliases") or [])
+            merged_aliases = list(dict.fromkeys(current_aliases + incoming_aliases))
+            setattr(existing, "aliases", merged_aliases)
+
+        # Merge properties maps if available
+        if hasattr(existing, "properties") and hasattr(c, "properties"):
+            props = dict(getattr(existing, "properties") or {})
+            props.update(dict(getattr(c, "properties") or {}))
+            setattr(existing, "properties", props)
+
+    return list(by_key.values())
 
 
-def dedup_edges(edges: list[dict]) -> list[dict]:
-    """Remove duplicate edges (same source + relation_type + target)."""
-    seen: set[tuple[str, str, str]] = set()
-    unique: list[dict] = []
+def dedup_edges(edges: list[object]) -> list[object]:
+    """Remove duplicate edges (same source + relation_type + target), keeping max weight."""
+    by_key: dict[tuple[str, str, str], object] = {}
     for e in edges:
-        key = (
-            e.get("source", ""),
-            normalize_relation_type(e.get("relation_type", "")),
-            e.get("target", ""),
-        )
-        if key not in seen:
-            seen.add(key)
-            unique.append(e)
-    return unique
+        source = _get_attr(e, "source")
+        relation = normalize_relation_type(_get_attr(e, "relation_type"))
+        target = _get_attr(e, "target")
+        key = (source, relation, target)
+
+        current = by_key.get(key)
+        if current is None:
+            by_key[key] = e
+            continue
+
+        cur_weight = float(getattr(current, "weight", 0.0) or 0.0)
+        new_weight = float(getattr(e, "weight", 0.0) or 0.0)
+        if new_weight > cur_weight:
+            by_key[key] = e
+
+    return list(by_key.values())

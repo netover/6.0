@@ -209,6 +209,7 @@ class RedisStrategy:
         """
         self.config_path = Path(config_path)
         self.config = self._load_config()
+        self._get_tier_cached = lru_cache(maxsize=1024)(self._get_tier_impl)
 
         logger.info(
             "redis_strategy_initialized",
@@ -244,7 +245,6 @@ class RedisStrategy:
             )
             return RedisStrategyConfig({})
 
-    @lru_cache(maxsize=1024)
     def get_tier(self, method: str, path: str) -> RedisTier:
         """
         Determine the tier of an endpoint.
@@ -262,6 +262,9 @@ class RedisStrategy:
         3. BEST_EFFORT (can degrade)
         4. Default policy
         """
+        return self._get_tier_cached(method, path)
+
+    def _get_tier_impl(self, method: str, path: str) -> RedisTier:
         # Check READ_ONLY first
         for pattern in self.config.read_only_patterns:
             if pattern.matches(method, path):
@@ -457,14 +460,6 @@ def get_redis_strategy_status() -> dict[str, Any]:
         mode = "normal"
         degraded_endpoints = []
 
-        # Check if any degraded state tracking exists
-        if hasattr(strategy, "_degraded_endpoints"):
-            degraded_endpoints = list(strategy._degraded_endpoints)
-            if degraded_endpoints:
-                mode = "degraded"
-
-        if hasattr(strategy, "_fail_fast_active") and strategy._fail_fast_active:
-            mode = "fail_fast"
 
         return {
             "enabled": True,

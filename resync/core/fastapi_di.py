@@ -88,7 +88,7 @@ def get_redis_client():
         from resync.core.redis_init import get_redis_client as _get_redis_client
 
         return _get_redis_client()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    except RuntimeError as exc:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
@@ -127,7 +127,7 @@ async def get_file_ingestor(request: Request):
         from resync.core.wiring import get_file_ingestor as _get
 
         return _get(request)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+    except (ImportError, RuntimeError) as exc:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()

@@ -1,6 +1,7 @@
 # pylint
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ def setup_logging() -> None:
             structlog.stdlib.add_logger_name,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
+            structlog.processors.ExceptionRenderer(),
             structlog.processors.UnicodeDecoder(),
             structlog.processors.JSONRenderer(),
         ],
@@ -46,22 +47,22 @@ def setup_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
 
-    # Remove default handlers to avoid duplicates
-    root_logger.handlers.clear()
+    # Add handlers only once (avoid clearing third-party handlers)
+    if not any(getattr(h, "name", "") == "resync_console" for h in root_logger.handlers):
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.name = "resync_console"
+        console_handler.setLevel(log_level)
+        root_logger.addHandler(console_handler)
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(log_level)
-    root_logger.addHandler(console_handler)
-
-    # File handler with rotation (10MB max size, 5 backups)
-    file_handler = RotatingFileHandler(
-        log_dir / "resync.log",
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,  # 10MB
-    )
-    file_handler.setLevel(log_level)
-    root_logger.addHandler(file_handler)
+    if not any(getattr(h, "name", "") == "resync_file" for h in root_logger.handlers):
+        file_handler = RotatingFileHandler(
+            log_dir / "resync.log",
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,  # 10MB
+        )
+        file_handler.name = "resync_file"
+        file_handler.setLevel(log_level)
+        root_logger.addHandler(file_handler)
 
 def log_with_correlation(
     level: int,
@@ -113,6 +114,8 @@ def log_with_correlation(
         logger.error("LOG_EVENT", **log_entry)
     elif level == logging.CRITICAL:
         logger.critical("LOG_EVENT", **log_entry)
+
+_audit_tasks: set[asyncio.Task[Any]] = set()
 
 def log_audit_event(
     action: str,
@@ -177,7 +180,9 @@ def log_audit_event(
 
     try:
         loop = _asyncio.get_running_loop()
-        loop.create_task(_persist())
+        task = loop.create_task(_persist())
+        _audit_tasks.add(task)
+        task.add_done_callback(_audit_tasks.discard)
     except RuntimeError:
         # No running event loop (e.g. called from a sync CLI context).
         # Best-effort: run in a thread-isolated loop so we don't block.

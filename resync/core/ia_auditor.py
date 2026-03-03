@@ -1,5 +1,6 @@
 # resync/core/ia_auditor.py
 import asyncio
+import threading
 from typing import Any
 
 import httpx
@@ -43,12 +44,15 @@ audit_queue = AsyncAuditQueue()
 # Concurrency control for LLM analysis to prevent rate limiting
 # Default to 5 concurrent analyses
 _analysis_semaphore: asyncio.Semaphore | None = None
+_semaphore_lock = threading.Lock()
 
 def _get_analysis_semaphore() -> asyncio.Semaphore:
     """Get or create the analysis semaphore."""
     global _analysis_semaphore
     if _analysis_semaphore is None:
-        _analysis_semaphore = asyncio.Semaphore(5)
+        with _semaphore_lock:
+            if _analysis_semaphore is None:
+                _analysis_semaphore = asyncio.Semaphore(5)
     return _analysis_semaphore
 
 async def _validate_memory_for_analysis(mem: dict[str, Any]) -> bool:

@@ -17,12 +17,13 @@ v5.4.9: Legacy properties integrated directly (settings_legacy.py removed)
 from __future__ import annotations
 
 import threading  # [P1-07 FIX] For thread-safe singleton
+from functools import cached_property
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
 
 # Import shared types and validators from separate modules
 from .settings_types import CacheHierarchyConfig, Environment
@@ -52,7 +53,7 @@ class Settings(BaseSettings, SettingsValidators):
     # v5.9.7: Accept both APP_ENVIRONMENT (preferred) and legacy ENVIRONMENT
     environment: Environment = Field(
         default=Environment.DEVELOPMENT,
-        validation_alias=AliasChoices("ENVIRONMENT", "APP_ENVIRONMENT"),
+        validation_alias=AliasChoices("APP_ENVIRONMENT", "ENVIRONMENT"),
         description="Ambiente de execução",
     )
 
@@ -132,8 +133,8 @@ class Settings(BaseSettings, SettingsValidators):
     # CONNECTION POOLS (PostgreSQL) - v6.0 adjusted for single VM
     # For Docker/K8s: increase via environment variables
     # ============================================================================
-    db_pool_min_size: int = Field(default=2, ge=1, le=100)  # Reduced from 5
-    db_pool_max_size: int = Field(default=10, ge=1, le=1000)  # Reduced from 20
+    db_pool_min_size: int = Field(default=2, ge=1, le=100, validation_alias=AliasChoices("DB_POOL_MIN_SIZE", "APP_DB_POOL_MIN_SIZE"))  # Reduced from 5
+    db_pool_max_size: int = Field(default=10, ge=1, le=1000, validation_alias=AliasChoices("DB_POOL_MAX_SIZE", "APP_DB_POOL_MAX_SIZE"))  # Reduced from 20
     db_pool_idle_timeout: int = Field(default=600, ge=60)  # Reduced from 1200
     db_pool_connect_timeout: int = Field(default=30, ge=5)  # Reduced from 60
     db_pool_health_check_interval: int = Field(default=60, ge=10)
@@ -598,7 +599,9 @@ class Settings(BaseSettings, SettingsValidators):
     # TWS (Workload Automation)
     # ============================================================================
     tws_mock_mode: bool = Field(
-        default=True, description="Usar modo mock para TWS (desenvolvimento)"
+        default=True,
+        validation_alias=AliasChoices("TWS_MOCK_MODE", "APP_TWS_MOCK_MODE"),
+        description="Usar modo mock para TWS (desenvolvimento)",
     )
 
     tws_host: str | None = Field(default=None)
@@ -935,7 +938,7 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     # CORS
-    cors_allowed_origins: list[str] = Field(
+    cors_allowed_origins: Annotated[list[str], NoDecode] = Field(
         default=["http://localhost:3000"],
         description=(
             "Allowed CORS origins. MUST be overridden in production via "
@@ -1435,7 +1438,7 @@ class Settings(BaseSettings, SettingsValidators):
         env = self.environment
         return 400 if env == Environment.PRODUCTION else 0
 
-    @property
+    @cached_property
     def AGENT_CONFIG_PATH(self) -> Path:
         """Legacy alias computed from base_dir."""
         return self.base_dir / "config" / "agents.json"
@@ -1470,7 +1473,7 @@ class Settings(BaseSettings, SettingsValidators):
         """Legacy alias for agent_model_name."""
         return self.agent_model_name
 
-    @property
+    @cached_property
     def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
         """Legacy alias exposing cache hierarchy configuration object."""
         return CacheHierarchyConfig(
@@ -1766,17 +1769,18 @@ class Settings(BaseSettings, SettingsValidators):
         """
         fields: dict[str, Any] = {}
         for name, field_info in self.__class__.model_fields.items():
-            # [P0-08 FIX] Check BOTH exclude and repr flags
-            if field_info.exclude or (hasattr(field_info, 'repr') and not field_info.repr):
-                continue
-            
             value = getattr(self, name, None)
-            
-            # [P0-08 FIX] Mask SecretStr values
+
+            # Always mask secrets, even for repr=False/exclude fields.
             if isinstance(value, SecretStr):
                 fields[name] = "SecretStr('**********')"
-            else:
-                fields[name] = value
+                continue
+
+            # Non-secret hidden fields remain omitted.
+            if field_info.exclude or (hasattr(field_info, 'repr') and not field_info.repr):
+                continue
+
+            fields[name] = value
 
         parts = [f"{name}={value!r}" for name, value in fields.items()]
         return f"{self.__class__.__name__}({', '.join(parts)})"

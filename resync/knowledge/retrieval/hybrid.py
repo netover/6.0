@@ -420,7 +420,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
 
             return intent
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -443,7 +443,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
             except ImportError:
                 logger.warning("llm_service_not_available")
                 return None
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            except Exception as exc:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
@@ -572,7 +572,7 @@ class HybridRAG:
                     self._llm = service
             except ImportError:
                 logger.warning("LLM service not available")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+            except Exception as exc:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
@@ -626,7 +626,7 @@ class HybridRAG:
                     )
             except ImportError:
                 logger.debug("continual_learning_module_not_available")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except Exception as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
@@ -727,7 +727,7 @@ class HybridRAG:
 
                 except ImportError:
                     logger.debug("continual_learning_module_not_available")
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                except Exception as e:
                     import sys as _sys
                     from resync.core.exception_guard import maybe_reraise_programming_error
                     _exc_type, _exc, _tb = _sys.exc_info()
@@ -822,7 +822,7 @@ class HybridRAG:
                 "documents": results,
             }
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -879,7 +879,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
 
             return all_queries
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -1014,7 +1014,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 },
             }
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -1079,7 +1079,7 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
                 llm.generate(f"{formatted['system']}\n\n{formatted['user']}"),
                 timeout=30.0,
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except Exception as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()

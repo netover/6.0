@@ -5,6 +5,7 @@ LLM cost monitoring and streaming implementation for TWS optimization.
 import asyncio
 import logging
 import time
+from collections import OrderedDict, deque
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any
@@ -35,7 +36,7 @@ class LLMUsageStats:
     avg_response_time: float = 0.0
     error_rate: float = 0.0
     model_usage: dict[str, int] = field(default_factory=dict)
-    daily_costs: dict[str, float] = field(default_factory=dict)
+    daily_costs: OrderedDict[str, float] = field(default_factory=OrderedDict)
 
 class LLMCostMonitor:
     """
@@ -54,7 +55,7 @@ class LLMCostMonitor:
         # Bounded to prevent unbounded memory growth in long-running processes.
         # 10,000 records ≈ 2-5 MB depending on payload size.
         self._max_cost_history = 10_000
-        self.cost_history: list[LLMCost] = []
+        self.cost_history: deque[LLMCost] = deque(maxlen=self._max_cost_history)
         self.budget_limit = 500.0  # USD per month for 4M jobs/month
         self.cache = None  # Lazy initialization
 
@@ -97,9 +98,6 @@ class LLMCostMonitor:
         )
 
         self.cost_history.append(cost_record)
-        # Trim to avoid unbounded memory growth
-        if len(self.cost_history) > self._max_cost_history:
-            self.cost_history = self.cost_history[-self._max_cost_history :]
 
         # Update statistics
         self.usage_stats.total_requests += 1
@@ -111,10 +109,11 @@ class LLMCostMonitor:
             + response_time
         ) / self.usage_stats.total_requests
 
-        if not success:
-            self.usage_stats.error_rate = (
-                self.usage_stats.error_rate * (self.usage_stats.total_requests - 1) + 1
-            ) / self.usage_stats.total_requests
+        n = self.usage_stats.total_requests
+        error_increment = 0 if success else 1
+        self.usage_stats.error_rate = (
+            self.usage_stats.error_rate * (n - 1) + error_increment
+        ) / n
 
         # Update model usage
         self.usage_stats.model_usage[model] = (
@@ -180,6 +179,8 @@ class LLMCostMonitor:
         )
 
         self.usage_stats.daily_costs[today] = daily_cost
+        while len(self.usage_stats.daily_costs) > 90:
+            self.usage_stats.daily_costs.popitem(last=False)
 
         # Alert if approaching budget
         if daily_cost > self.budget_limit * 0.8:

@@ -137,7 +137,7 @@ class EncryptionKey:
 
     def is_expired(self) -> bool:
         """Check if key is expired."""
-        return self.expires_at and time.time() > self.expires_at
+        return self.expires_at is not None and time.time() > self.expires_at
 
     def get_fernet_key(self) -> bytes:
         """Get key in Fernet format."""
@@ -199,8 +199,8 @@ class EncryptedAuditConfig:
     enable_tamper_detection: bool = True
     forensic_mode_enabled: bool = False
 
-    # Encryption control - default to False (plaintext storage)
-    encryption_enabled: bool = False
+    # Encryption control (secure-by-default)
+    encryption_enabled: bool = True
 
 class KeyManager:
     """Secure key management for audit encryption."""
@@ -294,7 +294,7 @@ class EncryptedAuditTrail:
 
         # Core components
         self.key_manager = KeyManager(self.config)
-        self.pending_entries: deque = deque(maxlen=self.config.max_memory_entries)
+        self.pending_entries: deque[AuditEntry] = deque(maxlen=self.config.max_memory_entries)
         self.chain_hash: str = ""  # Current hash chain value
 
         # File management
@@ -835,7 +835,6 @@ class EncryptedAuditTrail:
                 await self._flush_pending_entries()
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -854,7 +853,6 @@ class EncryptedAuditTrail:
                 # to compressed .tar.gz archives
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -878,7 +876,6 @@ class EncryptedAuditTrail:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error

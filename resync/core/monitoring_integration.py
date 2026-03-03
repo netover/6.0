@@ -10,6 +10,7 @@ Version: 5.2
 """
 
 import asyncio
+import secrets
 from typing import Any
 
 import structlog
@@ -29,6 +30,7 @@ async def initialize_proactive_monitoring(
         app: FastAPI application instance
         tg: Optional TaskGroup to run background tasks in
     """
+    from resync.api.dependencies import require_authentication
     from resync.settings import settings
 
     # Check if polling is enabled
@@ -192,10 +194,11 @@ def register_dashboard_route(app: FastAPI) -> None:
     Args:
         app: FastAPI instance
     """
-    from fastapi import Request
+    from fastapi import Depends, Request
     from fastapi.responses import HTMLResponse
     from fastapi.templating import Jinja2Templates
 
+    from resync.api.dependencies import require_authentication
     from resync.settings import settings
 
     templates_dir = settings.base_dir / "templates"
@@ -207,7 +210,10 @@ def register_dashboard_route(app: FastAPI) -> None:
     templates = Jinja2Templates(directory=str(templates_dir))
 
     @app.get("/dashboard/realtime", response_class=HTMLResponse, tags=["Dashboard"])
-    def realtime_dashboard(request: Request):
+    def realtime_dashboard(
+        request: Request,
+        _: dict[str, Any] = Depends(require_authentication),
+    ):
         """TWS real-time monitoring dashboard."""
         from resync.core.monitoring_config import get_monitoring_config
 
@@ -222,7 +228,10 @@ def register_dashboard_route(app: FastAPI) -> None:
         )
 
     @app.get("/dashboard/tws", response_class=HTMLResponse, tags=["Dashboard"])
-    def tws_dashboard(request: Request):
+    def tws_dashboard(
+        request: Request,
+        _: dict[str, Any] = Depends(require_authentication),
+    ):
         """Alias for TWS monitoring dashboard."""
         from resync.core.monitoring_config import get_monitoring_config
 
@@ -286,18 +295,24 @@ def _create_mock_tws_client() -> Any:
     class MockTWSClient:
         """Mock TWS client for development and testing."""
 
+        @staticmethod
+        def _choice(options: list[str]) -> str:
+            return options[secrets.randbelow(len(options))]
+
+        @staticmethod
+        def _randint(start: int, end: int) -> int:
+            return start + secrets.randbelow((end - start) + 1)
+
         def query_workstations(self, limit: int = 100) -> dict[str, Any]:
             """Returns mock workstations."""
-            import random
-
             workstations = []
             for i in range(5):
                 ws = {
                     "name": f"WS{i + 1:03d}",
-                    "status": random.choice(["LINKED", "LINKED", "LINKED", "UNLINKED"]),
+                    "status": self._choice(["LINKED", "LINKED", "LINKED", "UNLINKED"]),
                     "agentStatus": "RUNNING",
-                    "jobsRunning": random.randint(0, 10),
-                    "jobsPending": random.randint(0, 5),
+                    "jobsRunning": self._randint(0, 10),
+                    "jobsPending": self._randint(0, 5),
                 }
                 workstations.append(ws)
 
@@ -305,37 +320,36 @@ def _create_mock_tws_client() -> Any:
 
         def get_plan_jobs(
             self,
-            status: list = None,
+            status: list[str] | None = None,
             limit: int = 500,
         ) -> dict[str, Any]:
             """Returns mock jobs."""
-            import random
             from datetime import datetime, timedelta, timezone
 
             statuses = status or ["EXEC", "READY", "SUCC", "ABEND"]
             jobs = []
 
-            for i in range(random.randint(20, 50)):
-                job_status = random.choice(statuses)
+            for i in range(self._randint(20, 50)):
+                job_status = self._choice(statuses)
                 start_time = datetime.now(timezone.utc) - timedelta(
-                    minutes=random.randint(5, 120)
+                    minutes=self._randint(5, 120)
                 )
 
                 job = {
                     "id": f"job_{i}",
                     "name": (
-                        f"JOB_{random.choice(['BATCH', 'REPORT', 'BACKUP', 'SYNC'])}"
+                        f"JOB_{self._choice(['BATCH', 'REPORT', 'BACKUP', 'SYNC'])}"
                         f"_{i:04d}"
                     ),
-                    "jobStream": f"STREAM_{random.randint(1, 5)}",
-                    "workstation": f"WS{random.randint(1, 5):03d}",
+                    "jobStream": f"STREAM_{self._randint(1, 5)}",
+                    "workstation": f"WS{self._randint(1, 5):03d}",
                     "status": job_status,
                     "returnCode": 0
                     if job_status == "SUCC"
                     else (8 if job_status == "ABEND" else None),
                     "startTime": start_time.isoformat(),
                     "endTime": (
-                        start_time + timedelta(minutes=random.randint(1, 30))
+                        start_time + timedelta(minutes=self._randint(1, 30))
                     ).isoformat()
                     if job_status in ["SUCC", "ABEND"]
                     else None,

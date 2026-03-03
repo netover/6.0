@@ -179,14 +179,17 @@ __LITELLM_MANAGER_instance: LiteLLMManager | None = None
 class _LazyLiteLLMManager:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""
 
-    __slots__ = ("_instance",)
+    __slots__ = ("_instance", "_lock")
 
     def __init__(self) -> None:
         self._instance: LiteLLMManager | None = None
+        self._lock = threading.Lock()
 
     def get_instance(self) -> LiteLLMManager:
         if self._instance is None:
-            self._instance = LiteLLMManager()
+            with self._lock:
+                if self._instance is None:
+                    self._instance = LiteLLMManager()
         return self._instance  # type: ignore[return-value]
 
     def __getattr__(self, name: str):

@@ -774,9 +774,12 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
         settings = get_settings()
         startup_timeout = getattr(settings, "startup_timeout", 60)
 
-        async with asyncio.timeout(startup_timeout):
+        total_startup_timeout = max(float(startup_timeout), 1.0) + 5.0
+        async with asyncio.timeout(total_startup_timeout):
             # 1. Canonical startup validation/health checks
-            startup_result = await run_startup_checks(settings=settings)
+            startup_result = await asyncio.wait_for(
+                run_startup_checks(settings=settings), timeout=float(startup_timeout)
+            )
             if not startup_result.get("overall_health"):
                 logger.warning(
                     "startup_health_failed",
@@ -812,70 +815,63 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                 logger.info("core_services_initialized")
 
                 # 3. Optional services...
-                optional_timeout = max(5.0, float(startup_timeout) * 0.8)
+                enable_optional_services = (
+                    getattr(settings, "startup_enable_optional_services", True) is True
+                )
+                optional_timeout = max(1.0, min(5.0, float(startup_timeout) * 0.4))
                 optional_results: list[Exception] = []
-                try:
-                    async with asyncio.timeout(optional_timeout):
-                        # Scoped TG for init; some might spawn bg tasks
-                        try:
-                            async with asyncio.TaskGroup() as init_tg:
-                                init_tg.create_task(
-                                    _init_proactive_monitoring(app, bg_tasks)
-                                )
-                                init_tg.create_task(_init_metrics_collector(app))
-                                init_tg.create_task(_init_cache_warmup(app))
-                                init_tg.create_task(_init_graphrag(app))
-                                init_tg.create_task(_init_config_system(app))
-                                init_tg.create_task(
-                                    _init_enterprise_systems(app, bg_tasks)
-                                )
-                                init_tg.create_task(
-                                    _init_health_monitoring(app, bg_tasks)
-                                )
-                                init_tg.create_task(
-                                    _init_backup_scheduler(app, bg_tasks)
-                                )
-                                init_tg.create_task(
-                                    _init_security_dashboard(app, bg_tasks)
-                                )
-                                init_tg.create_task(_init_event_bus(app, bg_tasks))
-                                init_tg.create_task(
-                                    _init_service_discovery(app, bg_tasks)
-                                )
-                        except* asyncio.CancelledError:
-                            raise
-                        except* Exception as exc_group:
-                            for exc in exc_group.exceptions:
-                                get_logger("resync.startup").warning(
-                                    "optional_service_init_failed",
-                                    error=str(exc),
-                                    type=type(exc).__name__,
-                                    exc_info=exc,
-                                )
-                except TimeoutError:
-                    get_logger("resync.startup").warning(
-                        "optional_services_init_timeout"
-                    )
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                    import sys as _sys
-                    from resync.core.exception_guard import maybe_reraise_programming_error
-                    _exc_type, _exc, _tb = _sys.exc_info()
-                    maybe_reraise_programming_error(_exc, _tb)
-
-                    optional_results.append(e)
-
-                # Re-raise critical programming errors
-                for res in optional_results:
-                    if isinstance(
-                        res,
-                        (TypeError, KeyError, AttributeError, IndexError, NameError),
-                    ):
-                        logger.critical(
-                            "critical_startup_programming_error",
-                            error=str(res),
-                            type=type(res).__name__,
+                if enable_optional_services:
+                    try:
+                        async with asyncio.timeout(optional_timeout):
+                            # Scoped TG for init; some might spawn bg tasks
+                            try:
+                                async with asyncio.TaskGroup() as init_tg:
+                                    init_tg.create_task(
+                                        _init_proactive_monitoring(app, bg_tasks)
+                                    )
+                                    init_tg.create_task(_init_metrics_collector(app))
+                                    init_tg.create_task(_init_cache_warmup(app))
+                                    init_tg.create_task(_init_graphrag(app))
+                                    init_tg.create_task(_init_config_system(app))
+                                    init_tg.create_task(
+                                        _init_enterprise_systems(app, bg_tasks)
+                                    )
+                                    init_tg.create_task(
+                                        _init_health_monitoring(app, bg_tasks)
+                                    )
+                                    init_tg.create_task(
+                                        _init_backup_scheduler(app, bg_tasks)
+                                    )
+                                    init_tg.create_task(
+                                        _init_security_dashboard(app, bg_tasks)
+                                    )
+                                    init_tg.create_task(_init_event_bus(app, bg_tasks))
+                                    init_tg.create_task(
+                                        _init_service_discovery(app, bg_tasks)
+                                    )
+                            except* asyncio.CancelledError:
+                                raise
+                            except* Exception as exc_group:
+                                for exc in exc_group.exceptions:
+                                    get_logger("resync.startup").warning(
+                                        "optional_service_init_failed",
+                                        error=str(exc),
+                                        type=type(exc).__name__,
+                                        exc_info=exc,
+                                    )
+                    except TimeoutError:
+                        get_logger("resync.startup").warning(
+                            "optional_services_init_timeout"
                         )
-                        raise res
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                        import sys as _sys
+                        from resync.core.exception_guard import maybe_reraise_programming_error
+                        _exc_type, _exc, _tb = _sys.exc_info()
+                        maybe_reraise_programming_error(_exc, _tb)
+
+                        optional_results.append(e)
+                else:
+                    logger.info("optional_services_startup_skipped")
 
                 logger.info("application_startup_completed")
                 st.startup_complete = True

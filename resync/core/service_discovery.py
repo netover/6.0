@@ -26,12 +26,12 @@ import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import Any, Callable, Coroutine
+from typing import Any, AsyncIterator, Callable, Coroutine
 
 import httpx
 import orjson
 import structlog
-from antidote import inject, injectable  # type: ignore[import-not-found]
+from antidote import inject, injectable
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -61,10 +61,10 @@ tracer = trace.get_tracer(__name__)
 
 # Prometheus client availability flag
 PROMETHEUS_AVAILABLE = False
-Counter = None
-Gauge = None
-Histogram = None
-REGISTRY = None
+Counter: Any = None
+Gauge: Any = None
+Histogram: Any = None
+REGISTRY: Any = None
 
 try:
     from prometheus_client import REGISTRY as _REGISTRY, Counter as _Counter, Gauge as _Gauge, Histogram as _Histogram
@@ -82,27 +82,27 @@ except ImportError:
 # Safe metric helpers (check if metrics are available before use)
 # =============================================================================
 
-def _inc_counter(counter, **labels) -> None:
+def _inc_counter(counter: Any, **labels: str) -> None:
     """Safely increment a counter, no-op if not available."""
     if counter is not None:
         counter.labels(**labels).inc()
 
-def _set_gauge(gauge, value: float, **labels) -> None:
+def _set_gauge(gauge: Any, value: float, **labels: str) -> None:
     """Safely set a gauge, no-op if not available."""
     if gauge is not None:
         gauge.labels(**labels).set(value)
 
-def _dec_gauge(gauge, **labels) -> None:
+def _dec_gauge(gauge: Any, **labels: str) -> None:
     """Safely decrement a gauge, no-op if not available."""
     if gauge is not None:
         gauge.labels(**labels).dec()
 
-def _observe_histogram(histogram, value: float, **labels) -> None:
+def _observe_histogram(histogram: Any, value: float, **labels: str) -> None:
     """Safely observe a histogram, no-op if not available."""
     if histogram is not None:
         histogram.labels(**labels).observe(value)
 
-def _remove_gauge(gauge, *label_values) -> None:
+def _remove_gauge(gauge: Any, *label_values: str) -> None:
     """Safely remove a gauge metric, no-op if not available."""
     if gauge is not None:
         try:
@@ -110,7 +110,7 @@ def _remove_gauge(gauge, *label_values) -> None:
         except (KeyError, ValueError):
             pass  # Metric may not exist yet
 
-def _get_or_create_metric(factory, name: str, *args, **kwargs):
+def _get_or_create_metric(factory: Any, name: str, *args: Any, **kwargs: Any) -> Any:
     """Create metric with fallback for missing prometheus_client."""
     if not PROMETHEUS_AVAILABLE or factory is None:
         return None
@@ -124,22 +124,22 @@ def _get_or_create_metric(factory, name: str, *args, **kwargs):
         return existing
 
 # Lazy-initialized metrics (created on first use)
-_prom_registrations = None
-_prom_deregistrations = None
-_prom_discoveries = None
-_prom_instances_discovered = None
-_prom_health_checks = None
-_prom_health_check_duration = None
-_prom_lb_decisions = None
-_prom_errors = None
-_prom_active_services = None
-_prom_total_instances = None
-_prom_service_instances = None
-_prom_service_healthy_instances = None
-_prom_service_active_connections = None
-_prom_service_circuit_open = None
-_prom_instance_active_connections = None
-_prom_instance_circuit_open = None
+_prom_registrations: Any = None
+_prom_deregistrations: Any = None
+_prom_discoveries: Any = None
+_prom_instances_discovered: Any = None
+_prom_health_checks: Any = None
+_prom_health_check_duration: Any = None
+_prom_lb_decisions: Any = None
+_prom_errors: Any = None
+_prom_active_services: Any = None
+_prom_total_instances: Any = None
+_prom_service_instances: Any = None
+_prom_service_healthy_instances: Any = None
+_prom_service_active_connections: Any = None
+_prom_service_circuit_open: Any = None
+_prom_instance_active_connections: Any = None
+_prom_instance_circuit_open: Any = None
 
 def _init_prometheus_metrics() -> None:
     """Initialize Prometheus metrics lazily (only when prometheus_client is available)."""
@@ -802,7 +802,7 @@ class ServiceDiscoveryManager:
 
         self._health_client: httpx.AsyncClient | None = None
         self._running = False
-        self._tasks: list[asyncio.Task] = []
+        self._tasks: list[asyncio.Task[Any]] = []
 
         # LB state
         self._round_robin_index: dict[str, int] = defaultdict(int)
@@ -942,7 +942,7 @@ class ServiceDiscoveryManager:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
                 s.connect(("8.8.8.8", 80))
-                return s.getsockname()[0]
+                return str(s.getsockname()[0])
             except OSError:
                 pass
 
@@ -1188,14 +1188,14 @@ class ServiceDiscoveryManager:
                 self._round_robin_index[service_name] = (idx + 1) % len(insts)
                 return insts[idx]
             case LoadBalancingStrategy.RANDOM:
-                return random.choice(insts)
+                return random.choice(insts)  # nosec B311
             case LoadBalancingStrategy.LEAST_CONNECTIONS:
                 return min(
                     insts,
                     key=lambda i: self._conn_counts_by_instance.get(i.instance_id, 0),
                 )
             case LoadBalancingStrategy.WEIGHTED_RANDOM:
-                return random.choices(insts, weights=[i.weight for i in insts], k=1)[0]
+                return random.choices(insts, weights=[i.weight for i in insts], k=1)[0]  # nosec B311
             case LoadBalancingStrategy.LATENCY_BASED:
                 return min(insts, key=lambda i: i.response_time_avg or float("inf"))
             case _:
@@ -1257,7 +1257,7 @@ class ServiceDiscoveryManager:
     @contextlib.asynccontextmanager
     async def borrow_instance(
         self, service_name: str, strategy: LoadBalancingStrategy | None = None
-    ):
+    ) -> AsyncIterator[ServiceInstance | None]:
         """
         Context manager obrigatório para least-connections
         correto (incrementa/decrementa com segurança).
@@ -1316,15 +1316,16 @@ class ServiceDiscoveryManager:
                     service_name=sd.service_name
                 ).observe(elapsed)
 
-                inst.response_time_avg = (
-                    elapsed
-                    if inst.response_time_avg == 0
-                    else (0.7 * inst.response_time_avg + 0.3 * elapsed)
+                current_avg = inst.response_time_avg
+                object.__setattr__(
+                    inst,
+                    "response_time_avg",
+                    elapsed if current_avg == 0 else (0.7 * current_avg + 0.3 * elapsed),
                 )
 
                 if resp.status_code == 200:
-                    inst.status = ServiceStatus.HEALTHY
-                    inst.consecutive_failures = 0
+                    object.__setattr__(inst, "status", ServiceStatus.HEALTHY)
+                    object.__setattr__(inst, "consecutive_failures", 0)
                     _prom_health_checks.labels(
                         service_name=sd.service_name, result="healthy"
                     ).inc()
@@ -1336,8 +1337,10 @@ class ServiceDiscoveryManager:
                             instance_id=inst.instance_id
                         ).set(0)
                 else:
-                    inst.status = ServiceStatus.UNHEALTHY
-                    inst.consecutive_failures += 1
+                    object.__setattr__(inst, "status", ServiceStatus.UNHEALTHY)
+                    object.__setattr__(
+                        inst, "consecutive_failures", inst.consecutive_failures + 1
+                    )
                     _prom_health_checks.labels(
                         service_name=sd.service_name, result="unhealthy"
                     ).inc()
@@ -1359,8 +1362,8 @@ class ServiceDiscoveryManager:
                             instance_id=inst.instance_id
                         ).set(1)
 
-                inst.last_health_check_mono = time.monotonic()
-                inst.last_health_check_epoch = time.time()
+                object.__setattr__(inst, "last_health_check_mono", time.monotonic())
+                object.__setattr__(inst, "last_health_check_epoch", time.time())
 
                 if inst.consecutive_failures >= sd.max_consecutive_failures:
                     logger.warning(
@@ -1387,10 +1390,12 @@ class ServiceDiscoveryManager:
                 ).inc()
                 _prom_errors.labels(error_type="health_check_exception").inc()
 
-                inst.status = ServiceStatus.UNHEALTHY
-                inst.consecutive_failures += 1
-                inst.last_health_check_mono = time.monotonic()
-                inst.last_health_check_epoch = time.time()
+                object.__setattr__(inst, "status", ServiceStatus.UNHEALTHY)
+                object.__setattr__(
+                    inst, "consecutive_failures", inst.consecutive_failures + 1
+                )
+                object.__setattr__(inst, "last_health_check_mono", time.monotonic())
+                object.__setattr__(inst, "last_health_check_epoch", time.time())
 
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 logger.error(
@@ -1430,7 +1435,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1476,7 +1480,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1505,7 +1508,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1539,7 +1541,6 @@ class ServiceDiscoveryManager:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1598,6 +1599,6 @@ def get_service_discovery_manager(
     global _sdm_instance
     if _sdm_instance is None:
         _sdm_instance = ServiceDiscoveryManager()
-    if tg is not None and hasattr(_sdm_instance, "_task_group"):
-        _sdm_instance._task_group = tg  # type: ignore[attr-defined]
+    if tg is not None:
+        setattr(_sdm_instance, "_task_group", tg)
     return _sdm_instance

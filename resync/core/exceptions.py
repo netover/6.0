@@ -490,10 +490,17 @@ class LLMOperationError(BaseAppException):
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
     ):
+        import warnings
+
+        warnings.warn(
+            "LLMOperationError is deprecated; use LLMError instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(
             message=message,
-            error_code=ErrorCode.INTERNAL_ERROR,
-            status_code=500,
+            error_code=ErrorCode.LLM_ERROR,
+            status_code=502,
             details=details,
             correlation_id=correlation_id,
             severity=ErrorSeverity.ERROR,
@@ -524,14 +531,14 @@ class CircuitBreakerError(BaseAppException):
             message=message,
             error_code=ErrorCode.CIRCUIT_BREAKER_OPEN,
             status_code=503,
-            details=details,
+            details=_details,
             correlation_id=correlation_id,
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
 
-class TimeoutError(BaseAppException):
-    """Erro de timeout.
+class OperationTimeoutError(BaseAppException):
+    """Erro de timeout de aplicação.
 
     Usado quando uma operação excede o tempo limite.
     """
@@ -544,20 +551,33 @@ class TimeoutError(BaseAppException):
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
     ):
-        if details is None:
-            details = {}
-        if timeout_seconds:
-            details["timeout_seconds"] = timeout_seconds
+        _details = details.copy() if details else {}
+        if timeout_seconds is not None:
+            _details["timeout_seconds"] = timeout_seconds
 
         super().__init__(
             message=message,
             error_code=ErrorCode.OPERATION_TIMEOUT,
             status_code=504,
-            details=details,
+            details=_details,
             correlation_id=correlation_id,
             severity=ErrorSeverity.ERROR,
             original_exception=original_exception,
         )
+
+
+class TimeoutError(OperationTimeoutError):
+    """Deprecated alias for OperationTimeoutError."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        import warnings
+
+        warnings.warn(
+            "resync.core.exceptions.TimeoutError shadows Python builtin. Use OperationTimeoutError instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
 
 # ============================================================================
 # EXCEÇÕES ESPECÍFICAS DO DOMÍNIO
@@ -1271,22 +1291,20 @@ class PoolExhaustedError(CacheError):
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
     ):
-        if details is None:
-            details = {}
+        _details = details.copy() if details else {}
         if pool_name:
-            details["pool_name"] = pool_name
+            _details["pool_name"] = pool_name
 
-        # Call BaseAppException directly to allow custom error_code/status_code
-        BaseAppException.__init__(
-            self,
+        super().__init__(
             message=message,
-            error_code=ErrorCode.POOL_EXHAUSTED,
-            status_code=503,
-            details=details,
+            cache_key=None,
+            details=_details,
             correlation_id=correlation_id,
-            severity=ErrorSeverity.WARNING,
             original_exception=original_exception,
         )
+        self.error_code = ErrorCode.POOL_EXHAUSTED
+        self.status_code = 503
+        self.severity = ErrorSeverity.WARNING
 
 class NotificationError(BaseAppException):
     """Exceção para erros durante o envio de notificações."""
@@ -1386,7 +1404,7 @@ class CacheHealthCheckError(HealthCheckError):
 
     def __init__(
         self,
-        operation: str,
+        operation: str = "unknown",
         details_info: str | None = None,
         message: str | None = None,
         correlation_id: str | None = None,
@@ -1486,7 +1504,7 @@ def get_exception_by_error_code(error_code: ErrorCode) -> type[BaseAppException]
         ErrorCode.INTEGRATION_ERROR: IntegrationError,
         ErrorCode.SERVICE_UNAVAILABLE: ServiceUnavailableError,
         ErrorCode.CIRCUIT_BREAKER_OPEN: CircuitBreakerError,
-        ErrorCode.OPERATION_TIMEOUT: TimeoutError,
+        ErrorCode.OPERATION_TIMEOUT: OperationTimeoutError,
         ErrorCode.DATABASE_ERROR: DatabaseError,
         ErrorCode.CACHE_ERROR: CacheError,
         ErrorCode.CONFIGURATION_ERROR: ConfigurationError,
@@ -1534,6 +1552,7 @@ __all__ = [
     "IntegrationError",
     "ServiceUnavailableError",
     "CircuitBreakerError",
+    "OperationTimeoutError",
     "TimeoutError",
     "PerformanceError",
     "HealthCheckError",

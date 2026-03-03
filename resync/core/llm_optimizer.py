@@ -4,6 +4,7 @@ TWS-optimized LLM integration with prompt caching and model routing.
 """
 
 import hashlib
+import threading
 import logging
 import time
 from typing import Any
@@ -25,7 +26,7 @@ llm_api_breaker = pybreaker.CircuitBreaker(
 
 logger = logging.getLogger(__name__)
 
-class TWS_LLMOptimizer:
+class TWSLLMOptimizer:
     """
     TWS-optimized LLM integration with caching and model routing.
 
@@ -40,6 +41,9 @@ class TWS_LLMOptimizer:
         """Initialize the TWS LLM optimizer."""
         self.prompt_cache = AsyncTTLCache(ttl_seconds=3600)
         self.response_cache = AsyncTTLCache(ttl_seconds=300)
+        self._ollama_available: bool | None = None
+        self._ollama_last_check: float = 0.0
+        self._ollama_check_ttl: float = 60.0
 
         # TWS-specific templates
         self.tws_templates = {
@@ -62,6 +66,27 @@ class TWS_LLMOptimizer:
                 settings, "AGENT_MODEL_NAME", "gpt-4o"
             ),  # For troubleshooting
         }
+
+    async def _is_ollama_available(self) -> bool:
+        """Check Ollama availability with short TTL cache."""
+        now = time.monotonic()
+        if (
+            self._ollama_available is not None
+            and (now - self._ollama_last_check) < self._ollama_check_ttl
+        ):
+            return self._ollama_available
+
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                response = await client.get(f"{settings.LLM_ENDPOINT}/api/tags")
+                self._ollama_available = response.status_code == 200
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+            self._ollama_available = False
+
+        self._ollama_last_check = now
+        return bool(self._ollama_available)
 
     def _match_template(self, query: str) -> str:
         """
@@ -140,27 +165,8 @@ class TWS_LLMOptimizer:
 
             # Check for local model preference
             if not is_complex and "local" in settings.ENVIRONMENT.lower():
-                # Prioritize local Ollama models for non-complex queries in local environments
-                try:
-                    # Check if Ollama is available (async I/O to avoid blocking the event loop)
-                    import httpx
-
-                    async with httpx.AsyncClient(timeout=5.0) as client:
-                        response = await client.get(
-                            f"{settings.LLM_ENDPOINT}/api/tags"
-                        )  # Assuming Ollama endpoint
-                        if response.status_code == 200:
-                            return "ollama/mistral"  # Use local model for simple queries
-                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                    import sys as _sys
-                    from resync.core.exception_guard import maybe_reraise_programming_error
-                    _exc_type, _exc, _tb = _sys.exc_info()
-                    maybe_reraise_programming_error(_exc, _tb)
-
-                    # Log Ollama availability check error and continue with normal selection
-                    logger.debug(
-                        "Ollama availability check failed, using fallback: %s", e
-                    )
+                if await self._is_ollama_available():
+                    return "ollama/mistral"  # Use local model for simple queries
 
         if is_complex:
             return self.model_routing["complex"]
@@ -203,8 +209,10 @@ class TWS_LLMOptimizer:
         template_key = self._match_template(query)
 
         # Check prompt cache
-        prompt_hash = hash(f"{template_key}:{context_str}")
-        cached_prompt = await self.prompt_cache.get(str(prompt_hash))
+        prompt_hash = hashlib.sha256(
+            f"{template_key}:{context_str}".encode()
+        ).hexdigest()
+        cached_prompt = await self.prompt_cache.get(prompt_hash)
 
         if cached_prompt:
             prompt = cached_prompt
@@ -213,7 +221,7 @@ class TWS_LLMOptimizer:
             # Generate prompt based on template
             if template_key in self.tws_templates:
                 prompt = self.tws_templates[template_key].format(**context)
-                await self.prompt_cache.set(str(prompt_hash), prompt)
+                await self.prompt_cache.set(prompt_hash, prompt)
             else:
                 prompt = query
 
@@ -293,7 +301,7 @@ class TWS_LLMOptimizer:
             Streamed response
         """
         # Check cache first
-        cache_key = f"stream_{hash(prompt)}_{model}"
+        cache_key = hashlib.sha256(f"stream:{prompt}:{model}".encode()).hexdigest()
         cached = await self.response_cache.get(cache_key)
 
         if cached:
@@ -325,7 +333,8 @@ class TWS_LLMOptimizer:
             full_response = ""
             async for chunk in response:
                 if hasattr(chunk, "choices") and len(chunk.choices) > 0:
-                    content = chunk.choices[0].get("delta", {}).get("content", "")
+                    delta = getattr(chunk.choices[0], "delta", None)
+                    content = getattr(delta, "content", None) or ""
                     if content:
                         full_response += content
 
@@ -354,14 +363,20 @@ class TWS_LLMOptimizer:
             "response_cache": self.response_cache.get_metrics(),
         }
 
-# Global instance (lazy loaded)
-_tws_llm_optimizer: TWS_LLMOptimizer | None = None
+# Backward compatibility alias
+TWS_LLMOptimizer = TWSLLMOptimizer
 
-def get_llm_optimizer() -> TWS_LLMOptimizer:
-    """Get the singleton instance of TWS_LLMOptimizer."""
+# Global instance (lazy loaded)
+_tws_llm_optimizer: TWSLLMOptimizer | None = None
+_optimizer_lock = threading.Lock()
+
+def get_llm_optimizer() -> TWSLLMOptimizer:
+    """Get the singleton instance of TWSLLMOptimizer."""
     global _tws_llm_optimizer
     if _tws_llm_optimizer is None:
-        _tws_llm_optimizer = TWS_LLMOptimizer()
+        with _optimizer_lock:
+            if _tws_llm_optimizer is None:
+                _tws_llm_optimizer = TWS_LLMOptimizer()
     return _tws_llm_optimizer
 
 def __getattr__(name: str) -> Any:

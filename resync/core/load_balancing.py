@@ -26,6 +26,7 @@ Exemplo de uso:
 from __future__ import annotations
 
 import random
+import threading
 from collections.abc import Sequence
 from enum import Enum
 from typing import Generic, TypeVar
@@ -78,6 +79,7 @@ class LoadBalancer(Generic[T]):
 
     # Class-level state for round-robin (shared across instances)
     _last_index: dict[str, int] = {}
+    _lock: threading.Lock = threading.Lock()
 
     @classmethod
     def select(
@@ -101,8 +103,8 @@ class LoadBalancer(Generic[T]):
         if len(candidates) == 1:
             return candidates[0]
 
-        # Use strategy name as key for round-robin state
-        key = strategy.value
+        # Use strategy + candidate identity as key to avoid cross-pool collisions
+        key = f"{strategy.value}:{tuple(map(id, candidates))}"
 
         match strategy:
             case LoadBalancingStrategy.ROUND_ROBIN:
@@ -151,9 +153,10 @@ class LoadBalancer(Generic[T]):
     @classmethod
     def _round_robin(cls, candidates: Sequence[T], key: str) -> T:
         """Seleciona a próxima instância em ordem cíclica."""
-        current = cls._last_index.get(key, -1)
-        next_index = (current + 1) % len(candidates)
-        cls._last_index[key] = next_index
+        with cls._lock:
+            current = cls._last_index.get(key, -1)
+            next_index = (current + 1) % len(candidates)
+            cls._last_index[key] = next_index
         return candidates[next_index]
 
     @classmethod

@@ -1,18 +1,21 @@
 import asyncio
 import contextlib
 import json
+from typing import Any, cast
 
+_orjson: Any
 try:
-    import orjson  # type: ignore
+    import orjson as _orjson
 except ImportError:  # pragma: no cover
-    orjson = None  # type: ignore
+    _orjson = None
 
 import logging
 import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+
+orjson = cast(Any, _orjson)
 
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -23,7 +26,7 @@ from resync.core.task_tracker import create_tracked_task
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
 
-def _get_settings():
+def _get_settings() -> Any:
     """Lazy import of settings to avoid circular imports."""
     from resync.settings import settings
 
@@ -73,12 +76,12 @@ class WebSocketPoolStats:
 class WebSocketPoolManager:
     """Enhanced WebSocket connection manager with pooling capabilities."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.connections: dict[str, WebSocketConnectionInfo] = {}
         self.stats = WebSocketPoolStats()
         # P0 fix: Initialize lock eagerly to prevent race condition
         self._lock: asyncio.Lock = asyncio.Lock()
-        self._cleanup_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task[Any] | None = None
         self._initialized = False
         self._shutdown = False
 
@@ -142,7 +145,6 @@ class WebSocketPoolManager:
                 await self._recompute_health_snapshot()
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -297,7 +299,7 @@ class WebSocketPoolManager:
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
 
-                logger.warning("old_ws_close_failed", client_id=client_id, error=str(e))
+                logger.warning("old_ws_close_failed client_id=%s error=%s", client_id, e)
 
         if reject:
             # To avoid ASGI state errors, accept first, then close with 1013.
@@ -308,13 +310,13 @@ class WebSocketPoolManager:
         # Accept the network connection (I/O, outside lock).
         try:
             await websocket.accept()
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        except BaseException:
             async with self._lock:
                 self._pending_accepts = max(self._pending_accepts - 1, 0)
             raise
 
         current_time = datetime.now(timezone.utc)
-        conn_info = WebSocketConnectionInfo(
+        conn_info: WebSocketConnectionInfo | None = WebSocketConnectionInfo(
             client_id=client_id,
             websocket=websocket,
             connected_at=current_time,
@@ -328,6 +330,7 @@ class WebSocketPoolManager:
                 self.stats.connection_errors += 1
                 conn_info = None
             else:
+                assert conn_info is not None
                 self.connections[client_id] = conn_info
                 self.stats.total_connections += 1
                 self.stats.active_connections = len(self.connections)

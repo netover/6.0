@@ -127,52 +127,52 @@ class EnhancedCacheManager:
             f"{failures} failed"
         )
 
-async def _warm_single_key(self, key: str, fetcher: Callable[..., object]) -> None:
-    """Warm a single cache key.
-
-    Uses atomic Redis `SET ... NX EX` to avoid TOCTOU races under concurrency.
-    """
-    try:
-        # Buscar dados
-        if inspect.iscoroutinefunction(fetcher):
-            data = await fetcher()
-        else:
-            data = await asyncio.to_thread(fetcher)
-            if inspect.isawaitable(data):
-                data = await data
-
-        # Armazenar no cache
-        import json
-
-        # Atomic write: only set if not exists (NX) with TTL (EX).
-        ok = await self.redis.set(key, json.dumps(data), ex=3600, nx=True)
-        if not ok:
-            logger.debug("Cache key already existed, skipping: %s", key)
-            return
-
-        logger.debug("Cache warmed: %s", key)
-
-    except (
-        OSError,
-        ValueError,
-        TypeError,
-        KeyError,
-        AttributeError,
-        RuntimeError,
-        TimeoutError,
-        ConnectionError,
-    ) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        # Re-raise programming errors — these are bugs, not runtime failures
-        if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+    async def _warm_single_key(self, key: str, fetcher: Callable[..., object]) -> None:
+        """Warm a single cache key.
+    
+        Uses atomic Redis `SET ... NX EX` to avoid TOCTOU races under concurrency.
+        """
+        try:
+            # Buscar dados
+            if inspect.iscoroutinefunction(fetcher):
+                data = await fetcher()
+            else:
+                data = await asyncio.to_thread(fetcher)
+                if inspect.isawaitable(data):
+                    data = await data
+    
+            # Armazenar no cache
+            import json
+    
+            # Atomic write: only set if not exists (NX) with TTL (EX).
+            ok = await self.redis.set(key, json.dumps(data), ex=3600, nx=True)
+            if not ok:
+                logger.debug("Cache key already existed, skipping: %s", key)
+                return
+    
+            logger.debug("Cache warmed: %s", key)
+    
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+    
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+    
+            # Re-raise programming errors — these are bugs, not runtime failures
+            if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
+                raise
+            logger.error("Failed to warm cache key %s: %s", key, e, exc_info=True)
             raise
-        logger.error("Failed to warm cache key %s: %s", key, e, exc_info=True)
-        raise
     async def invalidate_pattern(self, pattern: str):
         """
         Invalida cache por pattern.

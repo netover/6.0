@@ -97,7 +97,7 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
             },
         )
         return payload
-    except (JWTError, ValidationError):
+    except (JWTError, ValidationError, TypeError, ValueError):
         return None
 
 

@@ -30,6 +30,7 @@ from typing import Any
 
 import aiofiles
 import aiohttp
+from pydantic import SecretStr
 
 from resync.core.structured_logger import get_logger
 from resync.core.task_tracker import create_tracked_task
@@ -216,11 +217,11 @@ class LogAggregatorConfig:
     elasticsearch_url: str = "http://localhost:9200"
     elasticsearch_index_prefix: str = "hwa-logs"
     elasticsearch_username: str | None = None
-    elasticsearch_password: str | None = None
+    elasticsearch_password: SecretStr | None = None
 
     # Kibana configuration
     kibana_url: str | None = None
-    kibana_api_key: str | None = None
+    kibana_api_key: SecretStr | None = None
     auto_create_dashboards: bool = True
 
     # Log collection
@@ -344,7 +345,7 @@ class LogAggregator:
                     "http_user_agent": "user_agent",
                 },
             ),
-            LogParser(name="json_log", pattern=r"\{.*\}", field_mappings={}),
+            LogParser(name="json_log", pattern=r"\{.*?\}", field_mappings={}),
             LogParser(
                 name="syslog",
                 pattern=r"(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<program>\S+)(?:\[(?P<pid>\d+)\])?:\s+(?P<message>.*)",
@@ -362,16 +363,16 @@ class LogAggregator:
         if self.config.elasticsearch_username and self.config.elasticsearch_password:
             import base64
 
+            password_val = self.config.elasticsearch_password.get_secret_value()
             auth = base64.b64encode(
-                f"{self.config.elasticsearch_username}:{self.config.elasticsearch_password}".encode()
+                f"{self.config.elasticsearch_username}:{password_val}".encode()
             ).decode()
             headers["Authorization"] = f"Basic {auth}"
 
+        ssl_context: bool = self.config.enable_ssl_verification
         self.es_session = aiohttp.ClientSession(
             headers=headers,
-            connector=aiohttp.TCPConnector(
-                verify_ssl=self.config.enable_ssl_verification
-            ),
+            connector=aiohttp.TCPConnector(ssl=ssl_context),
         )
 
     async def start(self) -> None:
@@ -567,7 +568,9 @@ class LogAggregator:
             return
 
         headers = {
-            "Authorization": f"ApiKey {self.config.kibana_api_key}",
+            "Authorization": (
+                f"ApiKey {self.config.kibana_api_key.get_secret_value()}"
+            ),
             "Content-Type": "application/json",
             "kbn-xsrf": "true",
         }
@@ -754,7 +757,6 @@ class LogAggregator:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -794,10 +796,13 @@ class LogAggregator:
             if source_config.follow_file:
                 # Read from current position to end
                 await handle.seek(current_pos)
-                new_content = await handle.read()
-                if new_content:
-                    lines = new_content.splitlines()
-                    self.file_positions[source_config.name] = await handle.tell()
+                read_chunk = 1024 * 1024
+                while True:
+                    new_content = await handle.read(read_chunk)
+                    if not new_content:
+                        break
+                    lines.extend(new_content.splitlines())
+                self.file_positions[source_config.name] = await handle.tell()
             else:
                 # Read entire file
                 await handle.seek(0)
@@ -873,25 +878,18 @@ class LogAggregator:
         """Background worker for log processing and indexing."""
         while self._running:
             try:
-                # Get batch of logs
-                batch = []
-                try:
-                    for _ in range(self.config.batch_size):
-                        log_entry = self.processing_queue.get_nowait()
-                        batch.append(log_entry)
-                except asyncio.QueueEmpty:
-                    if batch:  # Process remaining batch
-                        pass
-                    else:
-                        await asyncio.sleep(0.1)  # Wait for more logs
-                        continue
+                first = await asyncio.wait_for(self.processing_queue.get(), timeout=1.0)
+                batch = [first]
+                for _ in range(self.config.batch_size - 1):
+                    with contextlib.suppress(asyncio.QueueEmpty):
+                        batch.append(self.processing_queue.get_nowait())
 
-                if batch:
-                    await self._index_log_batch(batch)
+                await self._index_log_batch(batch)
 
+            except asyncio.TimeoutError:
+                continue
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -984,7 +982,6 @@ class LogAggregator:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1093,9 +1090,6 @@ class LogAggregator:
                 "processing_workers": len(self._processing_tasks),
             },
         }
-
-# Global log aggregator instance
-_log_aggregator_instance: LogAggregator | None = None
 
 class _LazyLogAggregator:
     """Lazy proxy to avoid import-time side effects (gunicorn --preload safe)."""

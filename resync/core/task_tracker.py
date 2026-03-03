@@ -73,7 +73,7 @@ def _try_close_coroutine(coro: Coroutine[Any, Any, Any]) -> None:
     """
     try:
         coro.close()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+    except BaseException:
         # Defensive: coroutine.close() shouldn't normally fail, but never break caller.
         logger.exception("task_tracker_coroutine_close_failed")
 
@@ -118,9 +118,8 @@ def _on_task_done(task: asyncio.Task[Any]) -> None:
         exc = task.exception()
     except asyncio.CancelledError:
         # Race: in rare cases exception() may raise CancelledError
-        raise
         return
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+    except BaseException:
         logger.exception(
             "task_tracker_done_callback_exception_failed",
             extra={"task": task.get_name()},
@@ -201,13 +200,17 @@ def create_tracked_task_threadsafe(
                 coro, name=name, cancel_on_shutdown=cancel_on_shutdown
             )
             fut.set_result(t)
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except BaseException as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
+            if isinstance(e, Exception):
+                maybe_reraise_programming_error(_exc, _tb)
 
             fut.set_exception(e)
+
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
 
     loop.call_soon_threadsafe(_create)
     return fut
@@ -277,7 +280,6 @@ async def cancel_all_tasks(timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> dict[st
             try:
                 exc = t.exception()
             except asyncio.CancelledError:
-                raise
                 cancelled += 1
                 continue
             if exc is not None:

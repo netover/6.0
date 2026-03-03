@@ -24,6 +24,7 @@ Version: 5.4.2
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 import structlog
@@ -706,7 +707,6 @@ class SemanticChunker:
         if self._model is None:
             async with self._lock:
                 if self._model is None:
-                    import asyncio
                     self._model = await asyncio.to_thread(SentenceTransformer, self.model_name)
         return self._model
 

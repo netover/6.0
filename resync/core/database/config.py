@@ -23,7 +23,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from urllib.parse import quote_plus, urlparse
 
-from pydantic import SecretStr
 logger = logging.getLogger(__name__)
 
 class DatabaseDriver(str, Enum):
@@ -45,7 +44,7 @@ class DatabaseConfig:
     port: int = 5432
     name: str = "resync"
     user: str = "resync"
-    password: SecretStr = field(default_factory=lambda: SecretStr(""), repr=False)
+    password: str = field(default="", repr=False)
 
     # Connection pool settings
     # Otimizado para <100 req/s, 20 usuários simultâneos
@@ -62,7 +61,7 @@ class DatabaseConfig:
     @property
     def url(self) -> str:
         """Get async database URL for SQLAlchemy."""
-        password = self.password.get_secret_value() or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password or os.getenv("DATABASE_PASSWORD", "")
         encoded = quote_plus(password) if password else ""
         return f"postgresql+asyncpg://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
     @property
@@ -73,7 +72,7 @@ class DatabaseConfig:
         Uses asyncpg driver - Alembic must be configured for async mode.
         See alembic.ini and env.py for async configuration.
         """
-        password = self.password.get_secret_value() or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password or os.getenv("DATABASE_PASSWORD", "")
         encoded = quote_plus(password) if password else ""
         return f"postgresql+asyncpg://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
 
@@ -84,7 +83,7 @@ class DatabaseConfig:
 
         Useful for direct psql connections or third-party tools.
         """
-        password = self.password.get_secret_value() or os.getenv("DATABASE_PASSWORD", "")
+        password = self.password or os.getenv("DATABASE_PASSWORD", "")
         encoded = quote_plus(password) if password else ""
         return (
             f"postgresql://{self.user}:{encoded}@{self.host}:{self.port}/{self.name}"
@@ -120,7 +119,7 @@ def get_database_config() -> DatabaseConfig:
         port=int(os.getenv("DATABASE_PORT", "5432")),
         name=os.getenv("DATABASE_NAME", "resync"),
         user=os.getenv("DATABASE_USER", "resync"),
-        password=SecretStr(os.getenv("DATABASE_PASSWORD", "")),
+        password=os.getenv("DATABASE_PASSWORD", ""),
         # Keep env defaults aligned with the dataclass defaults (optimized values)
         pool_size=int(os.getenv("DATABASE_POOL_SIZE", "5")),
         max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
@@ -151,7 +150,7 @@ def _parse_database_url(url: str) -> DatabaseConfig:
     config.port = parsed.port or 5432
     config.name = parsed.path.lstrip("/") if parsed.path else "resync"
     config.user = parsed.username or "resync"
-    config.password = SecretStr(parsed.password or "")
+    config.password = parsed.password or ""
 
     return config
 

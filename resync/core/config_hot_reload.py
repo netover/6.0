@@ -27,6 +27,7 @@ import asyncio
 import inspect
 import json
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -100,7 +101,7 @@ class ConfigManager:
         self,
         config_dir: str = "config",
         main_config: str = "settings.json",
-    ):
+    ) -> None:
         self.config_dir = Path(config_dir)
         self.main_config = main_config
 
@@ -116,16 +117,20 @@ class ConfigManager:
         self._observer: Observer | None = None
         self._watching = False
 
-        # P0 fix: Initialize lock eagerly to prevent race condition
-        # Lock is still lazily bound to event loop but with proper initialization
-        self._lock: asyncio.Lock = asyncio.Lock()
+        # Lazy lock creation avoids pre-fork/event-loop binding issues.
+        self._lock: asyncio.Lock | None = None
+        self._lock_init = threading.Lock()
 
     @property
     def _async_lock(self) -> asyncio.Lock:
-        """Return the asyncio lock (eagerly initialized)."""
+        """Return lock bound to the running loop (lazy-init)."""
+        if self._lock is None:
+            with self._lock_init:
+                if self._lock is None:
+                    self._lock = asyncio.Lock()
         return self._lock
 
-    async def start(self, tg: asyncio.TaskGroup | None = None):
+    async def start(self, tg: asyncio.TaskGroup | None = None) -> None:
         """Start the configuration manager.
 
         Args:
@@ -168,7 +173,7 @@ class ConfigManager:
 
         logger.info("Started watching config files")
 
-    async def _on_file_change(self, filepath: str):
+    async def _on_file_change(self, filepath: str) -> None:
         """Handle config file changes."""
         logger.info("Config file changed: %s", filepath)
 
@@ -179,7 +184,7 @@ class ConfigManager:
             # Notify subscribers
             await self._notify_subscribers()
 
-    async def _load_config(self):
+    async def _load_config(self) -> None:
         """Load configuration from files."""
         config_file = self.config_dir / self.main_config
 
@@ -187,7 +192,7 @@ class ConfigManager:
             try:
                 async with aiofiles.open(config_file) as f:
                     content = await f.read()
-                    self._config = json.loads(content)
+                    self._config = await asyncio.to_thread(json.loads, content)
                 logger.info("Configuration loaded successfully")
             except json.JSONDecodeError as e:
                 logger.error("Invalid JSON in config file: %s", e)
@@ -196,13 +201,16 @@ class ConfigManager:
             self._config = self._defaults.copy()
             await self._save_config()
 
-    async def _save_config(self):
+    async def _save_config(self) -> None:
         """Save configuration to file."""
         config_file = self.config_dir / self.main_config
 
         try:
+            serialized = await asyncio.to_thread(
+                json.dumps, self._config, indent=2, default=str
+            )
             async with aiofiles.open(config_file, "w") as f:
-                await f.write(json.dumps(self._config, indent=2, default=str))
+                await f.write(serialized)
             logger.info("Configuration saved")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys

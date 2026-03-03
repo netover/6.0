@@ -10,7 +10,9 @@ Author: Resync Team
 Version: 5.9.9
 """
 
+import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -29,7 +31,13 @@ def load_config_from_file() -> dict[str, Any]:
         settings = get_settings()
         cfg = load_toml(getattr(settings, 'graphrag_config_path', 'config/graphrag.toml'))
         return cfg.get('graphrag', {}) if isinstance(cfg, dict) else {}
-    except Exception:
+    except ImportError:
+        return {}
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "DiscoveryConfig: failed to load config file, using defaults: %s",
+            exc,
+        )
         return {}
 
 class DiscoveryConfig:
@@ -151,10 +159,11 @@ Return ONLY valid JSON (no markdown, no preamble):
         self.discoveries_today = 0
         self.discoveries_this_hour = 0
         self.last_reset = datetime.now(timezone.utc)
+        self._budget_lock = asyncio.Lock()
 
         logger.info("EventDrivenDiscovery initialized")
 
-    async def on_job_failed(self, job_name: str, event_details: dict):
+    async def on_job_failed(self, job_name: str, event_details: dict) -> None:
         """
         Called when a job fails (ABEND).
 
@@ -246,7 +255,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
         return True
 
-    async def _discover_and_store(self, job_name: str, event_details: dict):
+    async def _discover_and_store(self, job_name: str, event_details: dict) -> None:
         """
         Background task: extract relationships and store in graph.
 
@@ -279,9 +288,10 @@ Return ONLY valid JSON (no markdown, no preamble):
                     cache_key, DiscoveryConfig.DISCOVERY_CACHE_DAYS * 86400, "1"
                 )
 
-            # 5. Update counters
-            self.discoveries_today += 1
-            self.discoveries_this_hour += 1
+            # 5. Update counters atomically
+            async with self._budget_lock:
+                self.discoveries_today += 1
+                self.discoveries_this_hour += 1
 
             # 6. Log success
             duration = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -465,18 +475,21 @@ Return ONLY valid JSON (no markdown, no preamble):
     def _reset_counters_if_needed(self) -> None:
         """Reset daily/hourly counters if time period elapsed."""
         now = datetime.now(timezone.utc)
+        elapsed = now - self.last_reset
 
-        # Reset daily counter
-        if (now - self.last_reset).days >= 1:
+        # Reset daily and hourly counters together.
+        if elapsed.days >= 1:
             logger.info(
                 "Resetting daily discovery counter",
                 discoveries_yesterday=self.discoveries_today,
             )
             self.discoveries_today = 0
+            self.discoveries_this_hour = 0
             self.last_reset = now
+            return
 
-        # Reset hourly counter
-        if (now - self.last_reset).total_seconds() >= 3600:
+        # Reset hourly counter without shifting daily baseline.
+        if elapsed.total_seconds() >= 3600:
             self.discoveries_this_hour = 0
 
     def get_stats(self) -> dict[str, Any]:
@@ -491,7 +504,7 @@ Return ONLY valid JSON (no markdown, no preamble):
             "last_reset": self.last_reset.isoformat(),
         }
 
-    async def invalidate_discovery_cache(self, job_name: str | None = None):
+    async def invalidate_discovery_cache(self, job_name: str | None = None) -> int:
         """
         Invalidate discovery cache for one job or all jobs.
 
@@ -514,16 +527,22 @@ Return ONLY valid JSON (no markdown, no preamble):
                 deleted = await self.redis.delete(cache_key)
                 logger.info("Invalidated discovery cache for %s", job_name)
                 return deleted
-            # Invalidate all discoveries
-            pattern = "discovered:*"
-            keys = await self.redis.keys(pattern)
+            # Invalidate all discoveries via SCAN (avoid blocking KEYS).
+            deleted = 0
+            cursor = 0
+            while True:
+                cursor, keys = await self.redis.scan(
+                    cursor=cursor,
+                    match="discovered:*",
+                    count=100,
+                )
+                if keys:
+                    deleted += await self.redis.delete(*keys)
+                if cursor == 0:
+                    break
 
-            if keys:
-                deleted = await self.redis.delete(*keys)
-                logger.info("Invalidated %s discovery cache entries", deleted)
-                return deleted
-
-            return 0
+            logger.info("Invalidated %s discovery cache entries", deleted)
+            return deleted
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys

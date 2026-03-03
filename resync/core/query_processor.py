@@ -225,7 +225,7 @@ class QueryProcessor:
                     score += 10
 
             # Score 2: Recente?
-            if any(kw in snippet.lower() for kw in ["24h", "hoje", "hoje", "recente"]):
+            if any(kw in snippet.lower() for kw in ["24h", "hoje", "recente"]):
                 score += 5
 
             # Score 3: Solução bem-sucedida?
