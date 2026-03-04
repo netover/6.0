@@ -213,12 +213,6 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 LITELLM_API_KEY=your-litellm-api-key
 
 # =============================================================================
-# LANGFUSE (Observability)
-# =============================================================================
-LANGFUSE_PUBLIC_KEY=your-langfuse-public-key
-LANGFUSE_SECRET_KEY=your-langfuse-secret-key
-LANGFUSE_HOST=https://cloud.langfuse.com
-
 # =============================================================================
 # LANGGRAPH
 # =============================================================================

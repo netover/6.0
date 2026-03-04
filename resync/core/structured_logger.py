@@ -284,14 +284,30 @@ def configure_structured_logging(
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
 
+        from logging.handlers import RotatingFileHandler
+
+        max_bytes = int(_os.getenv("LOG_MAX_BYTES", "10485760"))  # 10MB
+        backup_count = int(_os.getenv("LOG_BACKUP_COUNT", "5"))
+
         # Startup log - captures warnings/errors during boot (level=WARNING+)
-        startup_handler = logging.FileHandler(str(log_dir / "startup.log"), mode="a")
+        # Use mode="w" to truncate on each start, while still rotating by size.
+        startup_handler = RotatingFileHandler(
+            str(log_dir / "startup.log"),
+            mode="w",
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+        )
         startup_handler.setLevel(logging.WARNING)
         startup_handler.setFormatter(formatter)
         root_logger.addHandler(startup_handler)
 
         # Server stdout log - captures all application logs
-        stdout_handler = logging.FileHandler(str(log_dir / "server_stdout.log"), mode="a")
+        stdout_handler = RotatingFileHandler(
+            str(log_dir / "server_stdout.log"),
+            mode="w",
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+        )
         stdout_handler.setLevel(logging.DEBUG)
         stdout_handler.setFormatter(formatter)
         root_logger.addHandler(stdout_handler)

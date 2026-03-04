@@ -2,15 +2,12 @@
 Admin Observability Routes.
 
 Provides endpoints for monitoring and observability management:
-- LangFuse status and configuration
 - Evidently drift monitoring and reports
 - Combined observability status
 
 Endpoints:
     GET  /api/v1/admin/observability/status     - Get observability status
     POST /api/v1/admin/observability/setup      - Initialize observability
-
-    GET  /api/v1/admin/observability/langfuse/stats    - LangFuse statistics
 
     GET  /api/v1/admin/observability/evidently/stats   - Evidently statistics
     POST /api/v1/admin/observability/evidently/check   - Run drift check
@@ -25,7 +22,6 @@ from pydantic import BaseModel
 
 from resync.core.observability import (
     get_evidently_monitor,
-    get_langfuse_client,
     get_observability_config,
     get_observability_status,
     setup_observability,
@@ -40,14 +36,6 @@ router = APIRouter(prefix="/admin/observability", tags=["Admin - Observability"]
 # RESPONSE MODELS
 # =============================================================================
 
-class LangFuseStatusResponse(BaseModel):
-    """LangFuse status response."""
-
-    enabled: bool
-    configured: bool
-    connected: bool
-    host: str | None = None
-
 class EvidentlyStatusResponse(BaseModel):
     """Evidently status response."""
 
@@ -60,8 +48,6 @@ class EvidentlyStatusResponse(BaseModel):
 
 class ObservabilityStatusResponse(BaseModel):
     """Combined observability status."""
-
-    langfuse: LangFuseStatusResponse
     evidently: EvidentlyStatusResponse
     environment: str
     service_name: str
@@ -69,8 +55,6 @@ class ObservabilityStatusResponse(BaseModel):
 
 class SetupResponse(BaseModel):
     """Response from observability setup."""
-
-    langfuse: bool
     evidently: bool
     message: str
 
@@ -97,17 +81,6 @@ class DriftReportsResponse(BaseModel):
     reports: list[DriftReportSummary]
     total: int
 
-class LangFuseStatsResponse(BaseModel):
-    """LangFuse statistics response."""
-
-    enabled: bool
-    connected: bool
-    total_traces: int = 0
-    success_rate: float = 1.0
-    total_tokens: int = 0
-    total_cost_usd: float = 0.0
-    avg_latency_ms: float = 0.0
-
 class EvidentlyStatsResponse(BaseModel):
     """Evidently statistics response."""
 
@@ -127,22 +100,15 @@ async def get_status():
     """
     Get current observability status.
 
-    Returns status of LangFuse and Evidently integrations.
+    Returns status of Evidently integration.
     """
     status = get_observability_status()
 
     # Build response
-    langfuse_status = status.get("langfuse", {})
     evidently_status = status.get("evidently", {})
     evidently_stats = evidently_status.get("statistics", {}) or {}
 
     return ObservabilityStatusResponse(
-        langfuse=LangFuseStatusResponse(
-            enabled=langfuse_status.get("enabled", False),
-            configured=langfuse_status.get("configured", False),
-            connected=langfuse_status.get("connected", False),
-            host=langfuse_status.get("host"),
-        ),
         evidently=EvidentlyStatusResponse(
             enabled=evidently_status.get("enabled", False),
             active=evidently_status.get("active", False),
@@ -161,13 +127,12 @@ async def initialize_observability():
     """
     Initialize or reinitialize observability components.
 
-    Sets up LangFuse and Evidently based on configuration.
+    Sets up Evidently based on configuration.
     """
     try:
         results = await setup_observability()
 
         return SetupResponse(
-            langfuse=results.get("langfuse", False),
             evidently=results.get("evidently", False),
             message="Observability setup completed",
         )
@@ -185,49 +150,6 @@ async def initialize_observability():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from e
-
-# =============================================================================
-# LANGFUSE ENDPOINTS
-# =============================================================================
-
-@router.get("/langfuse/stats", response_model=LangFuseStatsResponse)
-async def get_langfuse_stats():
-    """
-    Get LangFuse tracing statistics.
-    """
-    config = get_observability_config().langfuse
-    client = get_langfuse_client()
-
-    # Get tracer stats if available
-    stats = {
-        "enabled": config.enabled,
-        "connected": client is not None,
-    }
-
-    try:
-        from resync.core.langfuse import get_tracer
-
-        tracer = get_tracer()
-        tracer_stats = tracer.get_statistics()
-
-        stats.update(
-            {
-                "total_traces": tracer_stats.get("total_traces", 0),
-                "success_rate": tracer_stats.get("success_rate", 1.0),
-                "total_tokens": tracer_stats.get("total_tokens", 0),
-                "total_cost_usd": tracer_stats.get("total_cost_usd", 0.0),
-                "avg_latency_ms": tracer_stats.get("avg_duration_ms", 0.0),
-            }
-        )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        logger.debug("langfuse_stats_error", error=str(e))
-
-    return LangFuseStatsResponse(**stats)
 
 # =============================================================================
 # EVIDENTLY ENDPOINTS
@@ -337,14 +259,6 @@ async def get_config():
     config = get_observability_config()
 
     return {
-        "langfuse": {
-            "enabled": config.langfuse.enabled,
-            "host": config.langfuse.host,
-            "public_key_set": bool(config.langfuse.public_key),
-            "secret_key_set": bool(config.langfuse.secret_key),
-            "sample_rate": config.langfuse.sample_rate,
-            "flush_interval_seconds": config.langfuse.flush_interval_seconds,
-        },
         "evidently": {
             "enabled": config.evidently.enabled,
             "reference_window_days": config.evidently.reference_window_days,

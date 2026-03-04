@@ -46,20 +46,11 @@ from resync.core.context import (
     set_request_id,
     set_trace_id,
 )
-from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
+from resync.core.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-# Try to import Langfuse context
-try:
-    from langfuse.decorators import langfuse_context
-
-    LANGFUSE_AVAILABLE = True
-except ImportError as exc:
-    LANGFUSE_AVAILABLE = False
-    langfuse_context = None
-    logger.warning("langfuse_context_unavailable", reason=type(exc).__name__)
 
 class CorrelationIdMiddleware:
     """ASGI middleware that injects correlation and request IDs."""
@@ -100,40 +91,6 @@ class CorrelationIdMiddleware:
         # Create a W3C-compatible trace ID from the correlation ID
         trace_id = normalize_trace_id(correlation_id)
         tid_token = set_trace_id(trace_id)
-
-        # Update Langfuse context with trace ID and potential user ID
-        if LANGFUSE_AVAILABLE and langfuse_context:
-            try:
-                # Set the trace ID for the current context
-                langfuse_context.update_current_trace(
-                    trace_id=trace_id,
-                    metadata={
-                        "request_id": request_id,
-                        "correlation_id": correlation_id,
-                        "source": "http_middleware",
-                    },
-                )
-
-                # P0-10 fix: Get user_id from request.state (already validated by auth)
-                # REMOVED: jwt.decode without verification (security vulnerability)
-                # Auth middleware validates JWT and stores user_id in state.
-                # Using that value is both more secure and more efficient.
-                user_id = state.get("user_id")
-                if user_id:
-                    hashed_user = hash_user_id(str(user_id))
-                    langfuse_context.update_current_trace(user_id=hashed_user)
-                    logger.debug(
-                        "langfuse_user_id_set",
-                        user_id_hash=hashed_user[:8],  # Log only prefix for privacy
-                    )
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
-
-                # Langfuse context updates are best-effort — log at debug level
-                logger.debug("langfuse_context_update_failed", error=type(e).__name__)
 
         # Bind to structlog contextvars if available
         if structlog:

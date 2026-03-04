@@ -296,7 +296,7 @@ Arquitetura de cache em múltiplas camadas:
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │  Dashboard   │  │    Sentry    │  │   Langfuse   │    │
+│  │  Dashboard   │  │    Sentry    │  │   Removed   │    │
 │  │  Interno     │  │  (Errors)    │  │(LLM Observab)│    │
 │  │  (Redis)    │  └──────┬───────┘  └──────┬───────┘    │
 │  └──────┬───────┘         │                  │             │

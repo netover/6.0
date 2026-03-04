@@ -1,6 +1,6 @@
 # Resync TWS Agent Prompts
-# These prompts are managed via LangFuse and can be edited through the Admin UI
-# Changes here are loaded on startup and synced with LangFuse if configured
+# These prompts are managed via YAML and can be edited through the Admin UI
+# Changes here are loaded on startup and synced with YAML if configured
 
 # =============================================================================
 # AGENT PROMPTS

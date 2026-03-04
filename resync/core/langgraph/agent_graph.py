@@ -48,7 +48,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
-from resync.core.langfuse import PromptType, get_prompt_manager
+from resync.core.prompts import PromptType, get_prompt_manager
 from resync.core.langgraph.models import Intent, RouterOutput
 from resync.core.langgraph.templates import (
     get_clarification_question,

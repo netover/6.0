@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from resync.core.interfaces import IFileIngestor, ITWSClient
     from resync.core.skill_manager import SkillManager
     from resync.services.llm_service import LLMService
+    from resync.core.agents.registry import AgentRegistry
 
 @dataclass(slots=True)
 class EnterpriseState:
@@ -51,6 +52,9 @@ class EnterpriseState:
     a2a_handler: "A2AHandler"
     skill_manager: "SkillManager"
     event_bus: "EventBus"
+
+    # Inventory/validation (admin diagnostics)
+    agent_registry: "AgentRegistry"
 
     # Lifecycle flags
     startup_complete: bool

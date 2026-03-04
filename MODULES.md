@@ -448,7 +448,7 @@ API Routes (resync/api/routes/)
     │       │       │
     │       │       ├──▶ OpenAI/Anthropic/LiteLLM
     │       │       │
-    │       │       └──▶ Langfuse (observability)
+    │       │       └──▶ Removed (observability)
     │       │
     │       ├──▶ RAG Client (services/rag_client.py)
     │       │       │

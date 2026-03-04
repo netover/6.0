@@ -546,7 +546,7 @@ async def response_generator_node(state: ParallelState) -> dict[str, Any]:
     message = state.get("message", "")
 
     try:
-        from resync.core.langfuse import get_prompt_manager
+        from resync.core.prompts import get_prompt_manager
         from resync.core.utils.llm import call_llm
 
         # Build context from aggregated data

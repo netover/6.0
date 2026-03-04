@@ -192,8 +192,7 @@ class MultiProviderEmbeddingService(Embedder):
         self._use_openai_client = self._provider in {EmbeddingProvider.OPENAI, EmbeddingProvider.AZURE}
         self._openai_client = None
         if self._use_openai_client and self._api_key:
-            from openai import AsyncOpenAI
-            self._openai_client = AsyncOpenAI(
+                        self._openai_client = AsyncOpenAI(
                 api_key=self._api_key,
                 base_url=self._api_base,
                 timeout=self._timeout

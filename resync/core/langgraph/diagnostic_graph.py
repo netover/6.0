@@ -803,6 +803,7 @@ def create_diagnostic_graph(
 
 async def diagnose_problem(
     problem_description: str,
+    tws_instance_id: str | None = None,
     skill_context: str = "",
     config: DiagnosticConfig | None = None,
 ) -> dict[str, Any]:
@@ -822,6 +823,7 @@ async def diagnose_problem(
     # Create initial state
     initial_state: DiagnosticState = {
         "problem_description": problem_description,
+        "tws_instance_id": tws_instance_id,
         "skill_context": skill_context,
         "phase": DiagnosticPhase.DIAGNOSE,
         "iteration": 0,

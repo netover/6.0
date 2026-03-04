@@ -79,7 +79,7 @@ Resync é uma plataforma de orquestração de agentes AI desenvolvida com FastAP
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      EXTERNAL SYSTEMS                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  │
-│  │ IBM TWS      │  │  OpenAI     │  │  Anthropic  │  │  Langfuse │  │
+│  │ IBM TWS      │  │  OpenAI     │  │  Anthropic  │  │  Removed │  │
 │  │ (Jobs/Work) │  │  (GPT-4)    │  │ (Claude)    │  │ (Observab) │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -232,7 +232,7 @@ docker-compose -f docker-compose.resync.yml up -d
 | **AI/ML** | LangGraph, LangChain, OpenAI, Anthropic |
 | **Database** | PostgreSQL, PgVector, SQLAlchemy |
 | **Cache** | Redis |
-| **Observability** | Langfuse, Dashboard Interno (Redis), Sentry, Structlog |
+| **Observability** | Removed, Dashboard Interno (Redis), Sentry, Structlog |
 | **Security** | JWT, bcrypt, Rate Limiting |
 
 ## 📄 Licença

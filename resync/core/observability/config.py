@@ -4,19 +4,16 @@
 Observability Configuration Module.
 
 Centralizes configuration for monitoring and observability tools:
-- LangFuse: LLM tracing, prompt management, cost tracking
 - Evidently: ML monitoring, data drift detection
 - Custom metrics: Internal Prometheus-compatible metrics
 
 Usage:
     from resync.core.observability import (
         get_observability_config,
-        setup_langfuse,
         setup_evidently,
     )
 
     # On app startup
-    await setup_langfuse()
     setup_evidently()
 """
 
@@ -35,36 +32,6 @@ logger = get_logger(__name__)
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-
-@dataclass
-class LangFuseConfig:
-    """LangFuse configuration."""
-
-    enabled: bool = field(
-        default_factory=lambda: os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
-    )
-    public_key: str = field(
-        default_factory=lambda: os.getenv("LANGFUSE_PUBLIC_KEY", "")
-    )
-    secret_key: str = field(
-        default_factory=lambda: os.getenv("LANGFUSE_SECRET_KEY", "")
-    )
-    host: str = field(
-        default_factory=lambda: os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
-    )
-
-    # Sampling
-    sample_rate: float = field(
-        default_factory=lambda: float(os.getenv("LANGFUSE_SAMPLE_RATE", "1.0"))
-    )
-
-    # Flush settings
-    flush_interval_seconds: int = 5
-    batch_size: int = 50
-
-    def is_configured(self) -> bool:
-        """Check if LangFuse is properly configured."""
-        return self.enabled and bool(self.public_key) and bool(self.secret_key)
 
 @dataclass
 class EvidentlyConfig:
@@ -99,8 +66,6 @@ class EvidentlyConfig:
 @dataclass
 class ObservabilityConfig:
     """Combined observability configuration."""
-
-    langfuse: LangFuseConfig = field(default_factory=LangFuseConfig)
     evidently: EvidentlyConfig = field(default_factory=EvidentlyConfig)
 
     # General settings
@@ -119,97 +84,6 @@ def get_observability_config() -> ObservabilityConfig:
     if _config is None:
         _config = ObservabilityConfig()
     return _config
-
-# =============================================================================
-# LANGFUSE SETUP
-# =============================================================================
-
-# LangFuse client (lazy init)
-_langfuse_client = None
-
-def setup_langfuse() -> bool:
-    """
-    Initialize LangFuse client.
-
-    Returns:
-        True if successfully initialized, False otherwise
-    """
-    global _langfuse_client
-
-    config = get_observability_config().langfuse
-
-    if not config.is_configured():
-        logger.info("langfuse_disabled", reason="not configured")
-        return False
-
-    if sys.version_info >= (3, 14):
-        logger.warning("langfuse_not_available", hint="python314_compatibility")
-        return False
-
-    try:
-        from langfuse import Langfuse
-
-        _langfuse_client = Langfuse(
-            public_key=config.public_key,
-            secret_key=config.secret_key,
-            host=config.host,
-            flush_interval=config.flush_interval_seconds,
-            max_retries=3,
-        )
-
-        # Verify connection
-        # Note: Langfuse doesn't have a direct ping, so we just check client creation
-
-        logger.info(
-            "langfuse_initialized",
-            host=config.host,
-            sample_rate=config.sample_rate,
-        )
-        return True
-
-    except ImportError as exc:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        logger.warning(
-            "langfuse_not_available",
-            hint="pip install langfuse",
-            reason=type(exc).__name__,
-        )
-        return False
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-        import sys as _sys
-        from resync.core.exception_guard import maybe_reraise_programming_error
-        _exc_type, _exc, _tb = _sys.exc_info()
-        maybe_reraise_programming_error(_exc, _tb)
-
-        logger.error("langfuse_init_failed", error=str(e))
-        return False
-
-def get_langfuse_client():
-    """Get the LangFuse client."""
-    return _langfuse_client
-
-def shutdown_langfuse() -> None:
-    """Shutdown LangFuse client gracefully."""
-    global _langfuse_client
-
-    if _langfuse_client:
-        try:
-            _langfuse_client.flush()
-            _langfuse_client.shutdown()
-            logger.info("langfuse_shutdown")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
-            logger.warning("langfuse_shutdown_error", error=str(e))
-        finally:
-            _langfuse_client = None
 
 # =============================================================================
 # EVIDENTLY SETUP
@@ -522,7 +396,6 @@ async def setup_observability() -> dict[str, bool]:
         Dict with component initialization status
     """
     results = {
-        "langfuse": setup_langfuse(),
         "evidently": setup_evidently() is not None,
     }
 
@@ -531,7 +404,6 @@ async def setup_observability() -> dict[str, bool]:
 
 async def shutdown_observability() -> None:
     """Shutdown all observability components."""
-    shutdown_langfuse()
     logger.info("observability_shutdown_complete")
 
 def get_observability_status() -> dict[str, Any]:
@@ -539,12 +411,6 @@ def get_observability_status() -> dict[str, Any]:
     config = get_observability_config()
 
     return {
-        "langfuse": {
-            "enabled": config.langfuse.enabled,
-            "configured": config.langfuse.is_configured(),
-            "connected": _langfuse_client is not None,
-            "host": config.langfuse.host if config.langfuse.is_configured() else None,
-        },
         "evidently": {
             "enabled": config.evidently.enabled,
             "active": _evidently_monitor is not None,

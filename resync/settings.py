@@ -244,8 +244,8 @@ class Settings(BaseSettings, SettingsValidators):
     agent_model_name: str = Field(default="gpt-4o")
 
     llm_model: str = Field(
-        default="ollama/qwen2.5:3b",
-        description="Modelo LLM padrão (Ollama local ou cloud)",
+        default="liteLLM-default",
+        description="Modelo/alias LLM padrão (resolvido via LiteLLM Router)",
     )
 
     # ============================================================================
@@ -321,39 +321,6 @@ class Settings(BaseSettings, SettingsValidators):
         default="gpt-4o-mini",
         description="Modelo de fallback na nuvem quando Ollama timeout/falha",
     )
-
-    # ============================================================================
-    # LANGFUSE - PROMPT MANAGEMENT & OBSERVABILITY
-    # ============================================================================
-    langfuse_enabled: bool = Field(
-        default=False,
-        description="Enable LangFuse integration for prompt management and tracing",
-    )
-
-    langfuse_public_key: str = Field(
-        default="",
-        description="LangFuse public key for API authentication",
-    )
-
-    langfuse_secret_key: SecretStr = Field(
-        default=SecretStr(""),
-        description="LangFuse secret key for API authentication",
-        exclude=True,
-        repr=False,
-    )
-
-    langfuse_host: str = Field(
-        default="https://cloud.langfuse.com",
-        description="LangFuse host URL (cloud or self-hosted)",
-    )
-
-    langfuse_trace_sample_rate: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Sample rate for LLM call tracing (1.0 = trace all)",
-    )
-
     # ============================================================================
     # LANGGRAPH - AGENT ORCHESTRATION
     # ============================================================================

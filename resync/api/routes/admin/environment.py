@@ -384,36 +384,6 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         description="Environment name (development, staging, production)",
         default_value="production",
     ),
-    # LangFuse - AI Observability
-    "LANGFUSE_ENABLED": EnvironmentVariable(
-        name="LANGFUSE_ENABLED",
-        category=VariableCategory.API,
-        description="Enable LangFuse observability (true/false)",
-        default_value="false",
-    ),
-    "LANGFUSE_PUBLIC_KEY": EnvironmentVariable(
-        name="LANGFUSE_PUBLIC_KEY",
-        category=VariableCategory.API,
-        description="LangFuse public key",
-    ),
-    "LANGFUSE_SECRET_KEY": EnvironmentVariable(
-        name="LANGFUSE_SECRET_KEY",
-        category=VariableCategory.API,
-        description="LangFuse secret key",
-        is_sensitive=True,
-    ),
-    "LANGFUSE_HOST": EnvironmentVariable(
-        name="LANGFUSE_HOST",
-        category=VariableCategory.API,
-        description="LangFuse host URL",
-        default_value="https://cloud.langfuse.com",
-    ),
-    "LANGFUSE_SAMPLE_RATE": EnvironmentVariable(
-        name="LANGFUSE_SAMPLE_RATE",
-        category=VariableCategory.API,
-        description="LangFuse trace sampling rate (0.0-1.0)",
-        default_value="1.0",
-    ),
     # Evidently - ML Monitoring
     "EVIDENTLY_ENABLED": EnvironmentVariable(
         name="EVIDENTLY_ENABLED",

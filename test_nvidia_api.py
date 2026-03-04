@@ -18,7 +18,6 @@ print(f"Using API Key: {NVIDIA_API_KEY[:20]}...")
 sys.stdout.flush()
 
 # Now import OpenAI after env is loaded
-from openai import OpenAI
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",

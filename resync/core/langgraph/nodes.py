@@ -151,7 +151,7 @@ class RouterNode(BaseNode):
 
     async def _classify_with_llm(self, message: str) -> tuple[str, float]:
         """Use LLM for classification via LiteLLM (project standard)."""
-        from resync.core.langfuse import get_prompt_manager
+        from resync.core.prompts import get_prompt_manager
         from resync.core.utils.llm import call_llm
 
         prompt_manager = get_prompt_manager()
@@ -219,7 +219,7 @@ class LLMNode(BaseNode):
     LLM interaction node.
 
     Handles prompt compilation, LLM calls, and response processing.
-    Uses LangFuse for prompt management and tracing.
+    Uses YAML prompts and no-op tracing.
 
     Usage:
         llm_node = LLMNode(config)
@@ -235,7 +235,8 @@ class LLMNode(BaseNode):
 
     async def __call__(self, state: dict[str, Any]) -> dict[str, Any]:
         """Execute LLM call via project standard (LiteLLM + call_llm with resilience)."""
-        from resync.core.langfuse import get_prompt_manager, get_tracer
+        from resync.core.prompts import get_prompt_manager
+        from resync.core.tracing import get_tracer
         from resync.core.utils.llm import call_llm
 
         # Get prompt

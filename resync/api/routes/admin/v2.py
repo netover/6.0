@@ -19,11 +19,12 @@ from typing import Any
 
 from resync.core.io_utils import read_text, write_text
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from resync.api.routes.admin.main import verify_admin_credentials
+from resync.core.types.app_state import enterprise_state_from_request
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -134,6 +135,53 @@ class RestoreRequest(BaseModel):
     backup_id: str
     confirm: bool = False
     admin_password: str | None = None
+
+
+class RegistryValidation(BaseModel):
+    ok: bool
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRegistryEntry(BaseModel):
+    kind: str
+    id: str
+    display_name: str
+    model: str | None = None
+    tools: list[str] = Field(default_factory=list)
+    validations: dict[str, RegistryValidation] = Field(default_factory=dict)
+
+
+class AgentRegistryResponse(BaseModel):
+    summary: dict[str, Any]
+    entries: list[AgentRegistryEntry]
+
+
+@router.get(
+    "/agents/registry",
+    response_model=AgentRegistryResponse,
+    summary="List all agents with startup validation status",
+)
+async def get_agents_registry(request: Request) -> AgentRegistryResponse:
+    """Inventory agents and validation results."""
+    state = enterprise_state_from_request(request)
+    reg = state.agent_registry
+    return AgentRegistryResponse(
+        summary=reg.summary,
+        entries=[
+            AgentRegistryEntry(
+                kind=e.kind,
+                id=e.id,
+                display_name=e.display_name,
+                model=e.model,
+                tools=e.tools,
+                validations={
+                    k: RegistryValidation(ok=v.ok, details=v.details)
+                    for k, v in e.validations.items()
+                },
+            )
+            for e in reg.entries
+        ],
+    )
 
 @router.get("/health/realtime", response_model=SystemHealthResponse)
 async def get_realtime_health():

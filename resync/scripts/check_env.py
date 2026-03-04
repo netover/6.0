@@ -47,7 +47,6 @@ def get_optional_warn_vars() -> list[tuple[str, str]]:
     return [
         ("OPENAI_API_KEY", "OpenAI API key for LLM features"),
         ("TWS_API_ENDPOINT", "TWS API endpoint URL"),
-        ("LANGFUSE_SECRET_KEY", "Langfuse observability secret"),
         ("GRAPHRAG_ENABLED", "Enable GraphRAG (true/false)"),
     ]
 

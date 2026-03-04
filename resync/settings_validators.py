@@ -727,14 +727,7 @@ class SettingsValidators:
                     f"Hybrid weights sum={total:.4f}, expected ≈1.0 "
                     f"when hybrid_auto_weight=False"
                 )
-
         # 5. Service credentials when enabled
-        if getattr(self, "langfuse_enabled", False):
-            if not getattr(self, "langfuse_public_key", ""):
-                errors.append("langfuse_public_key required when langfuse_enabled=True")
-            lf_secret = getattr(self, "langfuse_secret_key", None)
-            if not lf_secret or not lf_secret.get_secret_value():
-                errors.append("langfuse_secret_key required when langfuse_enabled=True")
 
         if getattr(self, "enterprise_enable_siem", False):
             if not getattr(self, "enterprise_siem_endpoint", None):

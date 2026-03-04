@@ -21,7 +21,6 @@ from .config import (
     EvidentlyMonitor,
     ObservabilityConfig,
     get_evidently_monitor,
-    get_langfuse_client,
     get_observability_config,
     get_observability_status,
     setup_observability,
@@ -61,9 +60,7 @@ __all__ = [
     # Evidently Monitor
     "EvidentlyMonitor",
     "get_evidently_monitor",
-    # Langfuse
-    "get_langfuse_client",
-    # Config
+        # Config
     "ObservabilityConfig",
     "get_observability_config",
     "get_observability_status",

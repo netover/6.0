@@ -13,19 +13,10 @@ from fastapi import WebSocket, WebSocketDisconnect, status
 from resync.core.security.rate_limiter_v2 import ws_allow_connect
 
 from resync.core.context import set_trace_id, set_user_id
-from resync.core.langfuse.trace_utils import hash_user_id, normalize_trace_id
+from resync.core.trace_utils import hash_user_id, normalize_trace_id
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
-
-try:
-    from langfuse.decorators import langfuse_context
-
-    LANGFUSE_AVAILABLE = True
-except ImportError as exc:
-    LANGFUSE_AVAILABLE = False
-    langfuse_context = None
-    logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
 
 async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
     """Verify WebSocket authentication and return user_id.
@@ -286,10 +277,6 @@ async def websocket_handler(
     set_trace_id(trace_id)
     set_user_id(user_id)
 
-    # Update Langfuse context with secure user ID
-    hashed_user = hash_user_id(user_id)
-    if LANGFUSE_AVAILABLE and langfuse_context is not None:
-        langfuse_context.update_current_trace(user_id=hashed_user)
 
     # P0-21 FIX: Verify connection was successful (not rate-limited)
     is_connected = await manager.connect(websocket, agent_id)

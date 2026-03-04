@@ -356,39 +356,6 @@ SETTINGS_SCHEMA = {
             },
         },
     },
-    "langfuse": {
-        "title": "LangFuse",
-        "icon": "fa-chart-line",
-        "description": "Observabilidade e gerenciamento de prompts",
-        "fields": {
-            "langfuse_enabled": {
-                "type": "boolean",
-                "label": "Habilitado",
-                "hot_reload": False,
-                "restart_reason": "Cliente LangFuse é inicializado uma vez",
-            },
-            "langfuse_host": {
-                "type": "text",
-                "label": "Host",
-                "hot_reload": False,
-                "restart_reason": "Host requer reconexão do cliente",
-            },
-            "langfuse_public_key": {
-                "type": "text",
-                "label": "Public Key",
-                "hot_reload": False,
-                "restart_reason": "Credenciais requerem reconexão",
-            },
-            "langfuse_trace_sample_rate": {
-                "type": "number",
-                "label": "Sample Rate",
-                "min": 0,
-                "max": 1,
-                "step": 0.1,
-                "hot_reload": True,
-            },
-        },
-    },
     "langgraph": {
         "title": "LangGraph",
         "icon": "fa-project-diagram",
@@ -1117,8 +1084,6 @@ def _select_group_for_setting_key(key: str) -> str:
         return "redis"
     if key.startswith(("db_", "database_")):
         return "database"
-    if key.startswith("langfuse_"):
-        return "langfuse"
     if key.startswith(("ollama_",)):
         return "ollama"
     if key.startswith(("llm_", "litellm_")):

@@ -42,6 +42,7 @@ STATE_FILE_INGESTOR: Final[str] = "file_ingestor"
 STATE_A2A_HANDLER: Final[str] = "a2a_handler"
 STATE_SKILL_MANAGER: Final[str] = "skill_manager"
 STATE_EVENT_BUS: Final[str] = "event_bus"
+STATE_AGENT_REGISTRY: Final[str] = "agent_registry"
 
 _REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
     {
@@ -56,6 +57,7 @@ _REQUIRED_SINGLETONS: Final[frozenset[str]] = frozenset(
         STATE_A2A_HANDLER,
         STATE_SKILL_MANAGER,
         STATE_EVENT_BUS,
+        STATE_AGENT_REGISTRY,
     }
 )
 
@@ -169,6 +171,13 @@ async def init_domain_singletons(app: FastAPI) -> None:
         settings_module=settings, tws_client_factory=lambda: tws
     )
 
+    # Build agent registry (inventory + validations)
+    from resync.core.agents.registry import build_agent_registry, validate_registry_or_raise
+
+    agent_registry = build_agent_registry(agent_manager)
+    # Strictness follows production mode by default.
+    validate_registry_or_raise(agent_registry, strict=bool(getattr(settings, "is_production", False)))
+
     # Skill manager - loads skills metadata (lightweight, no heavy IO)
     from resync.core.skill_manager import SkillManager
 
@@ -199,6 +208,10 @@ async def init_domain_singletons(app: FastAPI) -> None:
         idempotency_manager = DegradedIdempotencyManager()  # type: ignore[assignment]
 
     # LLM service with automatic fallback and circuit breakers
+    # Fail-fast LiteLLM init early (router created lazily otherwise).
+    from resync.core.litellm_init import get_litellm_router
+
+    _ = get_litellm_router()
     llm_service = await get_llm_service()
 
     # RAG client singleton (initializes and validates Config/URL)
@@ -229,6 +242,8 @@ async def init_domain_singletons(app: FastAPI) -> None:
         a2a_handler=a2a_handler,
         skill_manager=skill_manager,
         event_bus=event_bus,
+
+        agent_registry=agent_registry,
         startup_complete=False,
         valkey_available=valkey_available,
         domain_shutdown_complete=False,

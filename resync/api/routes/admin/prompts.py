@@ -2,7 +2,7 @@
 Admin API Endpoints for Prompt Management.
 
 Provides REST API endpoints for managing prompts through the admin interface.
-These endpoints allow CRUD operations on prompts stored in LangFuse/YAML.
+These endpoints allow CRUD operations on prompts stored in YAML.
 
 Endpoints:
 - GET /admin/prompts - List all prompts
@@ -23,11 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from resync.api.auth import verify_admin_credentials
-from resync.core.langfuse import (
-    PromptConfig,
-    PromptType,
-    get_prompt_manager,
-)
+from resync.core.prompts import PromptConfig, PromptType, get_prompt_manager
 
 logger = logging.getLogger(__name__)
 
