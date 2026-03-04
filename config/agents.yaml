@@ -1,0 +1,44 @@
+# ============================================================================
+# AGENT CONFIGURATIONS v6.2
+# ============================================================================
+
+defaults:
+  model: "minimaxai/minimax-m2.5"
+  memory: true
+  max_rpm: 60
+
+model_aliases:
+  default: "minimaxai/minimax-m2.5"
+  fast: "meta/llama-3.1-8b-instruct"
+  powerful: "minimaxai/minimax-m2.5"
+
+agents:
+  # General Assistant - Primary chat interface
+  - id: tws-general
+    name: "TWS General Assistant"
+    type: chat
+    role: "TWS General Assistant"
+    goal: "Provide general assistance for TWS operations"
+    backstory: |
+      I am a helpful AI assistant for IBM Workload Automation (TWS) operations,
+      providing information about system status and job execution.
+    tools:
+      - get_tws_status
+      - analyze_tws_failures
+    model: "minimaxai/minimax-m2.5"
+    memory: true
+
+  # Troubleshooting Specialist
+  - id: tws-troubleshooting
+    name: "TWS Troubleshooting Agent"
+    type: task
+    role: "TWS goal: "Help Troubleshooting Specialist"
+    users identify and resolve TWS system issues"
+    backstory: |
+      I am an expert AI assistant specialized in IBM Workload Automation (TWS)
+      troubleshooting and system monitoring.
+    tools:
+      - get_tws_status
+      - analyze_tws_failures
+    model: "minimaxai/minimax-m2.5"
+    memory: true

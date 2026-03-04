@@ -72,7 +72,7 @@ ALL_CAUGHT_EXCEPTIONS = RUNTIME_EXCEPTIONS + PROGRAMMING_EXCEPTIONS
 DEFAULT_MAX_TOKENS: int = 1024
 DEFAULT_TEMPERATURE: float = 0.1
 DEFAULT_TIMEOUT_SECONDS: float = 30.0
-DEFAULT_MODEL: str = "ollama/qwen2.5:3b"
+DEFAULT_MODEL: str = "minimaxai/minimax-m2.5"
 
 # P2-1: Extracted magic numbers for UnifiedAgent history management
 DEFAULT_MAX_HISTORY: int = 100
@@ -101,7 +101,18 @@ class Agent:
         **kwargs: Any,
     ) -> None:
         self.tools = tools or []
+        
+        # P0-08 FIX: Normalize model name for LiteLLM
+        # If model doesn't have provider prefix, add "nvidia_nim/"
+        if model and "/" not in model:
+            # Default to nvidia_nim provider
+            model = f"nvidia_nim/{model}"
+        
         self.model = model or DEFAULT_MODEL
+        
+        # P0-08 FIX: Configure LiteLLM on first agent creation
+        self._ensure_litellm_configured()
+        
         self.llm_model = self.model
         self.instructions = (
             instructions
@@ -116,6 +127,64 @@ class Agent:
 
         # NEW v6.2: Convert tools to LiteLLM format
         self._litellm_tools = self._convert_tools_to_litellm_format()
+
+    @classmethod
+    def _ensure_litellm_configured(cls) -> None:
+        """P0-08 FIX: Ensure LiteLLM is configured (runs once per process).
+        
+        Uses class-level flag to avoid redundant configuration.
+        Reads from environment variables:
+        - NVIDIA_API_KEY
+        - NVIDIA_API_BASE (optional, defaults to integrate.api.nvidia.com)
+        """
+        if hasattr(cls, '_litellm_configured'):
+            return
+        
+        try:
+            import litellm
+            import os
+            
+            # Check if Nvidia API key is set
+            nvidia_key = os.getenv('NVIDIA_API_KEY')
+            if not nvidia_key:
+                logger.warning(
+                    "litellm_nvidia_not_configured",
+                    hint="Set NVIDIA_API_KEY environment variable"
+                )
+                cls._litellm_configured = True
+                return
+            
+            # Optional: Set base URL (LiteLLM has defaults for nvidia_nim)
+            nvidia_base = os.getenv('NVIDIA_API_BASE', 'https://integrate.api.nvidia.com/v1')
+            
+            # Configure LiteLLM global settings
+            litellm.suppress_debug_info = True
+            litellm.drop_params = True  # Ignore unsupported params
+            
+            # Set Nvidia-specific environment (LiteLLM will read these)
+            os.environ['NVIDIA_API_KEY'] = nvidia_key
+            if nvidia_base:
+                os.environ['NVIDIA_API_BASE'] = nvidia_base
+            
+            logger.info(
+                "litellm_nvidia_configured",
+                api_base=nvidia_base,
+                has_api_key=True,
+                provider="nvidia_nim"
+            )
+            
+            cls._litellm_configured = True
+            
+        except ImportError:
+            logger.error("litellm_not_installed", hint="pip install litellm")
+            cls._litellm_configured = True
+        except Exception as e:
+            logger.error(
+                "litellm_config_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
+            cls._litellm_configured = True
 
     def _convert_tools_to_litellm_format(self) -> list[dict[str, Any]]:
         """Convert internal tools to LiteLLM tool schema.
