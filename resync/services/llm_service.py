@@ -290,6 +290,8 @@ class LLMService:
         self.default_presence_penalty = 0.0
         api_key = _coerce_secret(getattr(settings, "llm_api_key", None))
         base_url = getattr(settings, "llm_endpoint", None)
+        if base_url:
+            base_url = base_url.strip()
         if not base_url:
             raise IntegrationError(
                 message="Missing LLM base_url",
@@ -299,11 +301,9 @@ class LLMService:
             )
         # P0-45 Security FIX: Avoid logging even masked tokens in certain environments.
         # Plus, LiteLLM/OpenAI handle base_url natively.
-        logger.info(
-            "LLM initialized",
-            model=self.model,
-            endpoint=base_url
-        )
+        # Sanitize URL for logging: remove trailing slashes and potential query params
+        safe_endpoint = base_url.rstrip("/").split("?")[0]
+        logger.info("LLM initialized: model=%s, endpoint=%s", self.model, safe_endpoint)
         try:
             self.client = AsyncOpenAI(
                 api_key=api_key,

@@ -52,19 +52,14 @@ from resync.core.structured_logger import get_logger
 logger = get_logger(__name__)
 
 # Try to import Langfuse context
-if sys.version_info >= (3, 14):
+try:
+    from langfuse.decorators import langfuse_context
+
+    LANGFUSE_AVAILABLE = True
+except ImportError as exc:
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
-    logger.warning("langfuse_context_unavailable", reason="Python314Compatibility")
-else:
-    try:
-        from langfuse.decorators import langfuse_context
-
-        LANGFUSE_AVAILABLE = True
-    except ImportError as exc:
-        LANGFUSE_AVAILABLE = False
-        langfuse_context = None
-        logger.warning("langfuse_context_unavailable", reason=type(exc).__name__)
+    logger.warning("langfuse_context_unavailable", reason=type(exc).__name__)
 
 class CorrelationIdMiddleware:
     """ASGI middleware that injects correlation and request IDs."""

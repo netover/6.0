@@ -1,0 +1,56 @@
+{
+    "workstations": [
+        {
+            "name": "WKS_PROD_01",
+            "type": "FTA",
+            "status": "ACTIVE",
+            "os": "LINUX",
+            "version": "10.1.0"
+        },
+        {
+            "name": "WKS_DEV_02",
+            "type": "FTA",
+            "status": "ACTIVE",
+            "os": "WINDOWS",
+            "version": "10.1.0"
+        }
+    ],
+    "jobs": [
+        {
+            "id": "J123456",
+            "name": "CLEANUP_TEMP",
+            "workstation": "WKS_PROD_01",
+            "status": "SUCC",
+            "start_time": "2026-03-03T10:00:00Z",
+            "end_time": "2026-03-03T10:05:00Z",
+            "return_code": 0
+        },
+        {
+            "id": "J123457",
+            "name": "BACKUP_DB",
+            "workstation": "WKS_PROD_01",
+            "status": "FAIL",
+            "start_time": "2026-03-03T10:10:00Z",
+            "end_time": "2026-03-03T10:12:00Z",
+            "return_code": 1,
+            "error_message": "Disk full"
+        },
+        {
+            "id": "J123458",
+            "name": "PROCESS_STATS",
+            "workstation": "WKS_DEV_02",
+            "status": "EXEC",
+            "start_time": "2026-03-03T15:00:00Z",
+            "return_code": null
+        }
+    ],
+    "alerts": [
+        {
+            "id": "A001",
+            "type": "JOB_FAILURE",
+            "severity": "HIGH",
+            "message": "Job BACKUP_DB failed on WKS_PROD_01",
+            "timestamp": "2026-03-03T10:12:00Z"
+        }
+    ]
+}

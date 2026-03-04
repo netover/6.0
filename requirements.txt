@@ -48,6 +48,11 @@ anthropic==0.79.0                   # Released: Feb 7, 2026 - Claude Sonnet 4.5
 cohere==5.15.0                      # Cohere API client
 google-generativeai==0.8.3          # Gemini API
 
+# -----------------------------------------------------------------------------
+# OPENAI SDK (for NVIDIA NIM & OpenAI-compatible endpoints)
+# -----------------------------------------------------------------------------
+openai==1.63.2                      # Released: Mar 2026 - Full async support
+
 # LangChain Stack
 langchain==1.2.10
 langchain-core==1.2.17
@@ -60,7 +65,6 @@ langsmith==0.7.10
 # -----------------------------------------------------------------------------
 # OBSERVABILITY & MONITORING
 # -----------------------------------------------------------------------------
-langfuse==2.60.0                    # LLM observability platform
 opentelemetry-api==1.28.2           # OpenTelemetry base
 opentelemetry-sdk==1.28.2           # OpenTelemetry SDK
 opentelemetry-instrumentation-fastapi==0.49b2  # FastAPI auto-instrumentation

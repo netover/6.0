@@ -13,6 +13,24 @@ class ChatClient {
     init() {
         this.setupElements();
         this.setupEventListeners();
+        
+        // Check if user is authenticated before connecting
+        // Check for admin_logged_in flag (set by /admin login) or access_token
+        const isLoggedIn = sessionStorage.getItem('admin_logged_in') === '1' || 
+                          localStorage.getItem('admin_logged_in') === '1' ||
+                          sessionStorage.getItem('access_token') || 
+                          localStorage.getItem('access_token');
+        if (!isLoggedIn) {
+            this.updateStatus('disconnected', 'Please login to use chat');
+            // Save return URL so admin login can redirect back to chat
+            sessionStorage.setItem('return_url', window.location.pathname);
+            // Redirect to admin page which has login modal
+            setTimeout(() => {
+                window.location.href = '/admin';
+            }, 1500);
+            return;
+        }
+        
         this.connect();
     }
 
@@ -48,7 +66,7 @@ class ChatClient {
 
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+        const wsUrl = `${protocol}//${window.location.host}/ws/tws-general`;
 
         this.updateStatus('disconnected', 'Connecting...');
 
@@ -141,20 +159,35 @@ class ChatClient {
         this.hideTypingIndicator();
 
         // Update trace ID if present
-        if (data.trace_id && this.traceIdDisplay) {
-            this.traceId = data.trace_id;
+        if (data.correlation_id && this.traceIdDisplay) {
+            this.traceId = data.correlation_id;
             // Use textContent for trace ID to prevent XSS
-            this.traceIdDisplay.textContent = `Trace: ${data.trace_id.substring(0, 8)}...`;
+            this.traceIdDisplay.textContent = `Trace: ${data.correlation_id.substring(0, 8)}...`;
         }
 
-        // Display assistant response
-        if (data.response) {
-            this.addMessage('assistant', data.response, {
-                mode: data.routing_mode || data.mode, // Handle different formats
-                intent: data.intent,
-                confidence: data.confidence,
-                agent: data.agent_id || data.handler
+        // Handle system messages
+        if (data.type === 'system') {
+            this.addMessage('system', data.message);
+            return;
+        }
+
+        // Display assistant response - server sends "message" field, not "response"
+        if (data.message && data.is_final) {
+            // Get metadata from the response
+            const metadata = data.metadata || {};
+            this.addMessage('assistant', data.message, {
+                mode: metadata.routing_mode || data.routing_mode,
+                intent: metadata.intent,
+                confidence: metadata.confidence,
+                agent: data.agent_id
             });
+            return;
+        }
+
+        // Handle streaming/in-progress messages
+        if (data.message && !data.is_final) {
+            // This is a streaming response - could update UI to show "typing"
+            return;
         }
 
         // Handle direct text messages (some WS implementations might send raw text)

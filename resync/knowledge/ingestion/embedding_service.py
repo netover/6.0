@@ -179,7 +179,9 @@ class MultiProviderEmbeddingService(Embedder):
         
         # Load API key and base URL from config if not provided
         self._api_key = api_key or (CFG.openai_api_key.get_secret_value() if CFG.openai_api_key else os.getenv("APP_EMBEDDING_API_KEY"))
-        self._api_base = api_base or CFG.embed_api_base or os.getenv("APP_EMBEDDING_ENDPOINT")
+        self._api_base = (api_base or CFG.embed_api_base or os.getenv("APP_EMBEDDING_ENDPOINT"))
+        if self._api_base:
+            self._api_base = self._api_base.strip()
         
         self._batch_size = batch_size
         self._timeout = timeout

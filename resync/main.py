@@ -64,6 +64,7 @@ def main() -> None:
         log_level=log_level,
         reload=os.getenv("RELOAD", "false").lower() in {"1", "true", "yes", "on"},
         loop="asyncio",  # P2-05 fix: uvloop is incompatible with Python 3.14 (BaseDefaultEventLoopPolicy removed)
+        timeout_graceful_shutdown=10,  # Seconds to wait for graceful shutdown before force
     )
 
 if __name__ == "__main__":

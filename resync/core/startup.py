@@ -1037,6 +1037,22 @@ async def _shutdown_services(app: "FastAPI") -> None:
         except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.warning("task_cancel_error", error=str(e))
 
+    async def _cancel_bg_tasks() -> None:
+        """Cancel tasks in the bg_tasks TaskGroup if it exists."""
+        bg_tasks = getattr(app.state, "bg_tasks", None)
+        if bg_tasks is not None:
+            try:
+                # Cancel the TaskGroup by cancelling all its tasks
+                for task in bg_tasks._tasks:
+                    if not task.done():
+                        task.cancel()
+                # Wait for tasks to complete with timeout
+                # Note: We can't wait on a TaskGroup directly, but we wait for cancellation
+                await asyncio.sleep(0.1)  # Brief pause for cancellation to propagate
+                logger.info("bg_tasks_cancelled")
+            except Exception as e:
+                logger.warning("bg_tasks_cancel_error", error=str(e))
+
     async def _shutdown_singletons() -> None:
         try:
             with guard_programming_errors():
@@ -1066,6 +1082,8 @@ async def _shutdown_services(app: "FastAPI") -> None:
         except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
             logger.warning("health_service_shutdown_error", error=str(e))
 
+    # Cancel bg_tasks first to stop health monitoring and other background tasks
+    await _cancel_bg_tasks()
     await _cancel_tasks()
     try:
         async with asyncio.TaskGroup() as tg:

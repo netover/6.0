@@ -77,7 +77,11 @@ class AdminApp {
                 }
                 // Mark session as authenticated; cookie is already set by server.
                 sessionStorage.setItem('admin_logged_in', '1');
-                location.reload();
+                
+                // Redirect to chat page after successful login
+                const returnUrl = sessionStorage.getItem('return_url') || '/';
+                sessionStorage.removeItem('return_url');
+                window.location.href = returnUrl;
             } catch (err) {
                 alert('Login failed: ' + err.message);
                 sessionStorage.removeItem('admin_logged_in');

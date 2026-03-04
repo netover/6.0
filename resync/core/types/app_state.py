@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from resync.core.agent_router import HybridRouter
     from resync.core.connection_manager import ConnectionManager
     from resync.core.context_store import ContextStore
+    from resync.core.event_bus import EventBus
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.core.interfaces import IFileIngestor, ITWSClient
     from resync.core.skill_manager import SkillManager
@@ -49,6 +50,7 @@ class EnterpriseState:
     file_ingestor: "IFileIngestor"
     a2a_handler: "A2AHandler"
     skill_manager: "SkillManager"
+    event_bus: "EventBus"
 
     # Lifecycle flags
     startup_complete: bool

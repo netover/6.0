@@ -18,20 +18,14 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-# Python 3.14+: Langfuse intentionally disabled (compatibility not yet verified)
-if sys.version_info >= (3, 14):
+try:
+    from langfuse.decorators import langfuse_context
+
+    LANGFUSE_AVAILABLE = True
+except ImportError as exc:
     LANGFUSE_AVAILABLE = False
     langfuse_context = None
-    logger.warning("langfuse_ws_context_unavailable reason=%s", "Python314Compatibility")
-else:
-    try:
-        from langfuse.decorators import langfuse_context
-
-        LANGFUSE_AVAILABLE = True
-    except ImportError as exc:
-        LANGFUSE_AVAILABLE = False
-        langfuse_context = None
-        logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
+    logger.warning("langfuse_ws_context_unavailable reason=%s", type(exc).__name__)
 
 async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
     """Verify WebSocket authentication and return user_id.

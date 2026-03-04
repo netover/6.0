@@ -376,7 +376,19 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     if tws is not None:
         await _safe_close(tws, "tws_client")
 
-    # 9. Redis client: close last (infrastructure)
+    # 9. Cache hierarchy: close before Redis
+    try:
+        from resync.core.cache import get_cache_hierarchy
+
+        cache_hierarchy = get_cache_hierarchy()
+        await cache_hierarchy.stop()
+        logger.info("cache_hierarchy_closed")
+    except (OSError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        logger.warning(
+            "cache_hierarchy_close_error", error=type(exc).__name__, detail=str(exc)
+        )
+
+    # 10. Redis client: close last (infrastructure)
     try:
         from resync.core.redis_init import close_redis_client
 
