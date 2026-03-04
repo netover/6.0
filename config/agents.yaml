@@ -3,14 +3,14 @@
 # ============================================================================
 
 defaults:
-  model: "minimaxai/minimax-m2.5"
+  model: "openai/gpt-oss-120b:free"
   memory: true
   max_rpm: 60
 
 model_aliases:
-  default: "minimaxai/minimax-m2.5"
-  fast: "meta/llama-3.1-8b-instruct"
-  powerful: "minimaxai/minimax-m2.5"
+  default: "openai/gpt-oss-120b:free"
+  fast: "openai/gpt-oss-120b:free"
+  powerful: "openai/gpt-oss-120b:free"
 
 agents:
   # General Assistant - Primary chat interface
@@ -25,20 +25,20 @@ agents:
     tools:
       - get_tws_status
       - analyze_tws_failures
-    model: "minimaxai/minimax-m2.5"
+    model: "openai/gpt-oss-120b:free"
     memory: true
 
   # Troubleshooting Specialist
   - id: tws-troubleshooting
     name: "TWS Troubleshooting Agent"
     type: task
-    role: "TWS goal: "Help Troubleshooting Specialist"
-    users identify and resolve TWS system issues"
+    role: "TWS Troubleshooting Specialist"
+    goal: "Help users identify and resolve TWS system issues"
     backstory: |
       I am an expert AI assistant specialized in IBM Workload Automation (TWS)
       troubleshooting and system monitoring.
     tools:
       - get_tws_status
       - analyze_tws_failures
-    model: "minimaxai/minimax-m2.5"
+    model: "openai/gpt-oss-120b:free"
     memory: true

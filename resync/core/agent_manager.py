@@ -71,8 +71,8 @@ ALL_CAUGHT_EXCEPTIONS = RUNTIME_EXCEPTIONS + PROGRAMMING_EXCEPTIONS
 # P2-1: Extracted magic numbers for Agent LLM configuration
 DEFAULT_MAX_TOKENS: int = 1024
 DEFAULT_TEMPERATURE: float = 0.1
-DEFAULT_TIMEOUT_SECONDS: float = 120.0  # Increased for NVIDIA NIM models (slow startup)
-DEFAULT_MODEL: str = "minimaxai/minimax-m2.5"
+DEFAULT_TIMEOUT_SECONDS: float = 60.0  # OpenRouter timeout
+DEFAULT_MODEL: str = "openai/gpt-oss-120b:free"  # OpenRouter model
 
 # P2-1: Extracted magic numbers for UnifiedAgent history management
 DEFAULT_MAX_HISTORY: int = 100
@@ -103,10 +103,11 @@ class Agent:
         self.tools = tools or []
         
         # P0-08 FIX: Normalize model name for LiteLLM
-        # If model doesn't have provider prefix, add "nvidia_nim/"
+        # OpenRouter models already have provider prefix (e.g., "openai/gpt-oss-120b:free")
+        # If model doesn't have provider prefix, add "openrouter/"
         if model and "/" not in model:
-            # Default to nvidia_nim provider
-            model = f"nvidia_nim/{model}"
+            # Default to openrouter provider
+            model = f"openrouter/{model}"
         
         self.model = model or DEFAULT_MODEL
         
@@ -133,9 +134,9 @@ class Agent:
         """P0-08 FIX: Ensure LiteLLM is configured (runs once per process).
         
         Uses class-level flag to avoid redundant configuration.
-        Reads from environment variables:
-        - NVIDIA_API_KEY
-        - NVIDIA_API_BASE (optional, defaults to integrate.api.nvidia.com)
+        Uses OpenRouter API:
+        - OPENROUTER_API_KEY
+        - OPENROUTER_API_BASE (defaults to https://openrouter.ai/api/v1)
         """
         if hasattr(cls, '_litellm_configured'):
             return
@@ -144,33 +145,29 @@ class Agent:
             import litellm
             import os
             
-            # Check if Nvidia API key is set
-            nvidia_key = os.getenv('NVIDIA_API_KEY')
-            if not nvidia_key:
-                logger.warning(
-                    "litellm_nvidia_not_configured",
-                    hint="Set NVIDIA_API_KEY environment variable"
-                )
-                cls._litellm_configured = True
-                return
+            # Check if OpenRouter API key is set
+            openrouter_key = os.getenv('OPENROUTER_API_KEY')
+            if not openrouter_key:
+                # Use the provided API key from user
+                openrouter_key = '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'
+                os.environ['OPENROUTER_API_KEY'] = openrouter_key
             
-            # Optional: Set base URL (LiteLLM has defaults for nvidia_nim)
-            nvidia_base = os.getenv('NVIDIA_API_BASE', 'https://integrate.api.nvidia.com/v1')
+            # Set base URL for OpenRouter
+            openrouter_base = os.getenv('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1')
             
             # Configure LiteLLM global settings
             litellm.suppress_debug_info = True
             litellm.drop_params = True  # Ignore unsupported params
             
-            # Set Nvidia-specific environment (LiteLLM will read these)
-            os.environ['NVIDIA_API_KEY'] = nvidia_key
-            if nvidia_base:
-                os.environ['NVIDIA_API_BASE'] = nvidia_base
+            # Set OpenRouter-specific environment (LiteLLM will read these)
+            os.environ['OPENROUTER_API_KEY'] = openrouter_key
+            os.environ['OPENROUTER_API_BASE'] = openrouter_base
             
             logger.info(
-                "litellm_nvidia_configured",
-                api_base=nvidia_base,
+                "litellm_openrouter_configured",
+                api_base=openrouter_base,
                 has_api_key=True,
-                provider="nvidia_nim"
+                provider="openrouter"
             )
             
             cls._litellm_configured = True
@@ -630,7 +627,7 @@ class AgentManager:
                         "and system monitoring."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="nvidia_nim/minimaxai/minimax-m2.5",
+                    model_name="openai/gpt-oss-120b:free",
                     max_rpm=None,
                 ),
                 AgentConfig(
@@ -645,7 +642,7 @@ class AgentManager:
                         "information about system status and job execution."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="nvidia_nim/minimaxai/minimax-m2.5",
+                    model_name="openai/gpt-oss-120b:free",
                     max_rpm=None,
                 ),
             ]
