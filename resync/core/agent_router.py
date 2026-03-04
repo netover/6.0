@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -1390,10 +1391,11 @@ class DiagnosticHandler(BaseHandler):
 
 class HybridRouter:
     """
-    Main router that orchestrates the 3 execution paths.
+    Intelligent router that chooses the execution path based on intent.
 
-    Follows the principle of minimum autonomy:
-    use the least autonomous path that can handle the request.
+    .. deprecated:: v6.2
+       Use direct LLM agent with tool calling instead. The router logic
+       is being phased out to reduce latency and improve UX.
     """
 
     def __init__(
@@ -1402,6 +1404,12 @@ class HybridRouter:
         classifier: IntentClassifier | None = None,
         skill_manager: Any = None,
     ):
+        warnings.warn(
+            "HybridRouter is deprecated and will be removed in v7.0. "
+            "Use UnifiedAgent with tool calling instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.agent_manager = agent_manager
         self.classifier = classifier or IntentClassifier()
         self.skill_manager = skill_manager

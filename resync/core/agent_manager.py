@@ -13,6 +13,7 @@ import asyncio
 import inspect
 import threading
 from collections.abc import Callable
+import json
 from pathlib import Path
 from typing import Any, cast
 
@@ -49,7 +50,6 @@ RUNTIME_EXCEPTIONS = (
     TimeoutError,
     ConnectionError,
     ValueError,
-    RuntimeError,
 )
 
 # Programming errors that should be re-raised (bugs, not runtime failures)
@@ -58,6 +58,7 @@ PROGRAMMING_EXCEPTIONS = (
     KeyError,
     AttributeError,
     IndexError,
+    RuntimeError,
 )
 
 # All exceptions caught in handlers (for logging + fallback)
@@ -113,8 +114,101 @@ class Agent:
         self.goal = "Assist with TWS operations"
         self.backstory = description
 
+        # NEW v6.2: Convert tools to LiteLLM format
+        self._litellm_tools = self._convert_tools_to_litellm_format()
+
+    def _convert_tools_to_litellm_format(self) -> list[dict[str, Any]]:
+        """Convert internal tools to LiteLLM tool schema.
+
+        LiteLLM expects tools in OpenAI function calling format:
+        {
+            "type": "function",
+            "function": {
+                "name": "search_knowledge_base",
+                "description": "Search TWS documentation",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"}
+                    },
+                    "required": ["query"]
+                }
+            }
+        }
+        """
+        litellm_tools = []
+
+        # P0-01 FIX: Include RAG tool by default for all agents
+        # This ensures they can always search the documentation
+        try:
+            from resync.core.specialists.tools import RAGTool
+            rag = RAGTool()
+            search_func = rag.search_knowledge_base
+            if not hasattr(search_func, "__name__"):
+                search_func.__name__ = "search_knowledge_base"  # type: ignore[attr-defined]
+            
+            # Avoid duplicate registration if already in self.tools
+            if not any(getattr(t, "__name__", None) == "search_knowledge_base" for t in self.tools):
+                self.tools.append(search_func)
+        except Exception as e:
+            logger.warning("failed_to_register_rag_tool", error=str(e))
+
+        for tool in self.tools:
+            # Skip if tool doesn't have callable or metadata
+            if not callable(tool):
+                continue
+
+            tool_name = getattr(tool, "__name__", str(tool))
+            tool_doc = getattr(tool, "__doc__", None) or f"Execute {tool_name}"
+
+            # Extract function signature for parameters
+            sig = inspect.signature(tool)
+            parameters: dict[str, Any] = {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            }
+
+            for param_name, param in sig.parameters.items():
+                if param_name in ("self", "cls"):
+                    continue
+
+                param_type = "string"  # Default
+                if param.annotation != inspect.Parameter.empty:
+                    if param.annotation == int:
+                        param_type = "integer"
+                    elif param.annotation == bool:
+                        param_type = "boolean"
+
+                parameters["properties"][param_name] = {
+                    "type": param_type,
+                    "description": f"Parameter {param_name}",
+                }
+
+                if param.default == inspect.Parameter.empty:
+                    parameters["required"].append(param_name)
+
+            litellm_tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "description": tool_doc.split("\n")[0][
+                            :200
+                        ],  # First line, max 200 chars
+                        "parameters": parameters,
+                    },
+                }
+            )
+
+        return litellm_tools
+
     async def arun(self, message: str, skill_context: str = "") -> str:
-        """Process *message* via LiteLLM (async)."""
+        """Process *message* via LiteLLM (async).
+
+        v6.2: Enhanced with automatic tool calling.
+        The LLM will analyze the query and call appropriate tools.
+        """
         try:
             import litellm
 
@@ -130,40 +224,98 @@ class Agent:
             system_prompt = (
                 f"You are {self.name}.\n"
                 f"{full_instructions}\n\n"
-                # Use full_instructions em vez de self.instructions
-                f"Available tools: "
-                f"{', '.join(str(t) for t in self.tools) if self.tools else 'None'}\n\n"
-                "Respond in Portuguese (Brazilian) unless the user writes in English."
             )
+
+            # NEW v6.2: Add tool usage instructions
+            if self._litellm_tools:
+                system_prompt += "\nYou have access to the following tools:\n"
+                for tool_config in self._litellm_tools:
+                    func = tool_config["function"]
+                    system_prompt += f"- {func['name']}: {func['description']}\n"
+
+                system_prompt += (
+                    "\nIMPORTANT: When the user asks a question:\n"
+                    "1. Analyze if you need to call any tools to answer accurately\n"
+                    "2. Call search_knowledge_base for documentation/how-to questions\n"
+                    "3. Call get_tws_status for status checks\n"
+                    "4. Call analyze_failures for troubleshooting\n"
+                    "5. Synthesize the tool results into a helpful response\n"
+                    "6. Always respond in Portuguese (Brazilian) unless user writes in English\n"
+                )
 
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message},
             ]
 
+            # NEW v6.2: Call LiteLLM with tools
             response = await litellm.acompletion(
                 model=self.model,
                 messages=messages,
+                tools=self._litellm_tools if self._litellm_tools else None,
+                tool_choice="auto",  # Let LLM decide when to use tools
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=DEFAULT_TEMPERATURE,
                 timeout=DEFAULT_TIMEOUT_SECONDS,
             )
 
             # P0-1: Verificar resposta vazia antes de acessar
-            # Type narrowing for LiteLLM response - the library types are incomplete
             choices = getattr(response, "choices", None)
             if not choices or not isinstance(choices, list) or len(choices) == 0:
                 agent_logger.error("empty_response_from_llm", agent=self.name)
                 return self._fallback_response(message)
 
-            # Safely access the first choice
             first_choice = choices[0]
-            message_content = getattr(first_choice, "message", None)
-            if message_content is None:
+            message_obj = getattr(first_choice, "message", None)
+            if message_obj is None:
                 agent_logger.error("empty_message_in_response", agent=self.name)
                 return self._fallback_response(message)
 
-            content = getattr(message_content, "content", None)
+            # NEW v6.2: Check if LLM wants to call tools
+            tool_calls = getattr(message_obj, "tool_calls", None)
+
+            if tool_calls:
+                # LLM decided to call tools
+                logger.info("llm_calling_tools", count=len(tool_calls))
+
+                # Execute tool calls
+                tool_results = []
+                for tool_call in tool_calls:
+                    func_name = tool_call.function.name
+                    try:
+                        func_args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        func_args = {}
+
+                    # Find and execute the tool
+                    tool_result = await self._execute_tool(func_name, func_args)
+                    tool_results.append(
+                        {
+                            "tool_call_id": tool_call.id,
+                            "role": "tool",
+                            "name": func_name,
+                            "content": tool_result,
+                        }
+                    )
+
+                # Send tool results back to LLM for synthesis
+                messages.append(message_obj)
+                messages.extend(tool_results)
+
+                final_response = await litellm.acompletion(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=DEFAULT_MAX_TOKENS,
+                    temperature=DEFAULT_TEMPERATURE,
+                    timeout=DEFAULT_TIMEOUT_SECONDS,
+                )
+
+                final_choice = final_response.choices[0]
+                content = final_choice.message.content
+                return content if isinstance(content, str) else str(content)
+
+            # No tools called, return direct response
+            content = getattr(message_obj, "content", None)
             if content is None:
                 agent_logger.error("empty_content_in_message", agent=self.name)
                 return self._fallback_response(message)
@@ -178,6 +330,43 @@ class Agent:
         except RUNTIME_EXCEPTIONS as exc:
             agent_logger.error("agent_arun_error", error=str(exc), agent=self.name)
             return self._fallback_response(message)
+
+    async def _execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
+        """Execute a tool by name with given arguments.
+
+        Returns the tool result as a string for LLM consumption.
+        """
+        try:
+            # Find tool by name
+            tool = next(
+                (
+                    t
+                    for t in self.tools
+                    if getattr(t, "__name__", None) == tool_name
+                ),
+                None,
+            )
+
+            if tool is None:
+                return f"Error: Tool {tool_name} not found"
+
+            # Execute tool (offload blocking calls to thread if needed)
+            if inspect.iscoroutinefunction(tool):
+                result = await tool(**arguments)
+            else:
+                result = await asyncio.to_thread(tool, **arguments)
+
+            # Convert result to string for LLM
+            if isinstance(result, str):
+                return result
+            elif isinstance(result, (dict, list)):
+                return json.dumps(result, ensure_ascii=False, indent=2)
+            else:
+                return str(result)
+
+        except Exception as e:
+            logger.error("tool_execution_failed", tool=tool_name, error=str(e))
+            return f"Error executing {tool_name}: {str(e)}"
 
     def _fallback_response(self, message: str) -> str:
         """Provide a keyword-based fallback when the LLM is unavailable."""
@@ -599,9 +788,25 @@ class AgentManager:
             # Filter tools to only those allowed by this agent's config
             allowed_tools = self._tools_for_config(agent_config)
 
+            # NEW v6.2: Convert tools dict to list of callables
+            tool_callables = []
+            for tool_name, tool_func in allowed_tools.items():
+                # Ensure tool is callable
+                if callable(tool_func):
+                    # Set __name__ for tool identification
+                    if not hasattr(tool_func, "__name__"):
+                        try:
+                            tool_func.__name__ = tool_name
+                        except (AttributeError, TypeError):
+                            # Fallback if __name__ is not writable
+                            pass
+                    tool_callables.append(tool_func)
+                else:
+                    logger.warning("tool_not_callable", tool=tool_name)
+
             agent = Agent(
                 model=agent_config.model_name,
-                tools=list(allowed_tools.values()),
+                tools=tool_callables,  # Pass list of callables
                 instructions=(
                     f"You are a {agent_config.name} assistant for "
                     f"TWS operations. {agent_config.backstory}"
@@ -860,10 +1065,13 @@ class UnifiedAgent:
     ) -> str:
         """Send a message and receive a routed response.
 
+        NEW v6.2: Always calls LLM agent, which decides which tools to use.
+        The router is bypassed for better UX and simpler architecture.
+
         Args:
             message: User input.
             include_history: Prepend recent history as context.
-            use_llm_classification: Reserved for future use.
+            use_llm_classification: DEPRECATED (always uses LLM now).
             conversation_id: Session key for history isolation.
         """
         # P2-2: Parameter is intentionally reserved for future use
@@ -872,30 +1080,49 @@ class UnifiedAgent:
         # P0-3: Use lock to prevent race conditions on history access
         async with self._get_history_lock(conversation_id):
             history = self._get_history(conversation_id)
-            context: dict[str, Any] = {}
-            if include_history and history:
-                context["history"] = history[-DEFAULT_HISTORY_CONTEXT_SIZE:]
 
-            result = await self._router.route(message, context=context)
+            # Build context with history
+            context_parts = []
+            if include_history and history:
+                context_parts.append("## Histórico da Conversa")
+                for msg in history[-DEFAULT_HISTORY_CONTEXT_SIZE:]:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    context_parts.append(f"**{role}**: {content}")
+
+            # Build full prompt for LLM
+            if context_parts:
+                full_message = (
+                    "\n".join(context_parts) + f"\n\n**Nova Pergunta**: {message}"
+                )
+            else:
+                full_message = message
+
+            # NEW v6.2: Always call LLM agent (no router)
+            # The LLM will decide which tools to use via litellm tool calling
+            agent = await self._manager.get_agent("tws-general")
+
+            if agent is None:
+                logger.error("tws_general_agent_not_found")
+                response = (
+                    "Desculpe, o agente não está disponível no momento. "
+                    "Tente novamente em alguns instantes."
+                )
+            else:
+                response = await agent.arun(full_message)
 
             history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": result.response})
+            history.append({"role": "assistant", "content": response})
 
             if len(history) > self._MAX_HISTORY:
                 self._histories[conversation_id] = history[-self._TRIM_TO :]
 
-        # P1-2: Remove conversation_id from logs (sensitive data)
-        # Note: RoutingResult uses 'handler' not 'handler_name', and 'intent'/'confidence' directly
         logger.debug(
             "unified_agent_response",
-            handler=result.handler,
-            intent=result.intent,
-            confidence=result.confidence,
-            processing_time_ms=result.processing_time_ms,
-            # conversation_id removed for privacy
+            has_agent=agent is not None,
         )
 
-        return result.response
+        return response
 
     async def chat_with_metadata(
         self,
@@ -907,37 +1134,28 @@ class UnifiedAgent:
     ) -> dict[str, Any]:
         """Send a message and receive response with full metadata.
 
-        Returns a dict with keys: ``response``, ``intent``, ``confidence``,
-        ``handler``, ``tools_used``, ``entities``, ``processing_time_ms``,
-        ``tws_instance_id``.
+        NEW v6.2: Simplified - always calls LLM, no router.
+
+        Returns a dict with keys: ``response``, ``tools_used``,
+        ``processing_time_ms``, ``tws_instance_id``.
         """
-        # P0-01: Same async lock used in chat() for consistent tenant isolation
-        async with self._get_history_lock(conversation_id):
-            history = self._get_history(conversation_id)
-            context: dict[str, Any] = {}
-            if include_history and history:
-                context["history"] = history[-10:]
+        import time
 
-            if tws_instance_id:
-                context["tws_instance_id"] = tws_instance_id
-                logger.debug("tws_instance_context_set", instance_id=tws_instance_id)
+        start_time = time.time()
 
-            if extra_context:
-                context.update(extra_context)
+        # Call chat() which now always uses LLM
+        response = await self.chat(
+            message=message,
+            include_history=include_history,
+            conversation_id=conversation_id,
+        )
 
-            result = await self._router.route(message, context=context)
-
-            history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": result.response})
+        processing_time_ms = int((time.time() - start_time) * 1000)
 
         return {
-            "response": result.response,
-            "intent": result.intent,
-            "confidence": result.confidence,
-            "handler": result.handler,
-            "tools_used": result.tools_used,
-            "entities": result.entities,
-            "processing_time_ms": result.processing_time_ms,
+            "response": response,
+            "tools_used": [],  # TODO: Track from LLM tool_calls
+            "processing_time_ms": processing_time_ms,
             "tws_instance_id": tws_instance_id,
         }
 

@@ -26,6 +26,7 @@ _PROGRAMMING_ERRORS: Final[tuple[type[BaseException], ...]] = (
     KeyError,
     AttributeError,
     IndexError,
+    RuntimeError,
 )
 
 # Low-cardinality counter (safe for production dashboards)
