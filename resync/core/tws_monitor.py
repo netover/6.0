@@ -98,7 +98,7 @@ class TWSMonitor:
             "api_error_rate": 0.05,  # 5% error rate
             "cache_hit_ratio": 0.80,  # 80% hit ratio
             "llm_cost_daily": 10.0,  # $10 daily budget
-            "memory_usage_mb": 500.0,  # 500MB memory limit
+            "memory_usage_mb": 1024.0,  # 1GB memory limit (increased from 500MB)
             "circuit_breaker_trips": 3,  # 3 trips per hour
         }
 

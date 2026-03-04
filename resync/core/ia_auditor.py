@@ -209,7 +209,7 @@ async def _perform_action_on_memory(
             logger.warning("continual_learning_pipeline_error", error=str(e))
         # === END CONTINUAL LEARNING INTEGRATION ===
 
-        success = await _get_knowledge_graph().atomic_check_and_flag(
+        success = await _get_knowledge_graph().atomic_check_and_flag_with_reason(
             memory_id, reason, confidence
         )
         if success:

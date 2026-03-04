@@ -282,15 +282,19 @@ class IntentClassifier:
     _compiled_patterns: dict[Intent, list[re.Pattern[str]]] = {}
 
     def __init__(
-        self, llm_classifier: Callable[[str], Awaitable[IntentClassification]] | None = None
+        self,
+        llm_classifier: Callable[[str], Awaitable[IntentClassification]] | None = None,
+        skill_manager: Any = None,  # P2-02: Add DI for skill_manager
     ) -> None:
         """
         Initialize the classifier.
 
         Args:
             llm_classifier: Optional async function for LLM-based classification
+            skill_manager: Optional SkillManager for DI (P2-02)
         """
         self.llm_classifier = llm_classifier
+        self.skill_manager = skill_manager  # P2-02: Store for DI
         self._ensure_compiled()
 
     @classmethod
@@ -306,9 +310,11 @@ class IntentClassifier:
         """Deprecated: Patterns are now compiled at class level via _ensure_compiled."""
         self._ensure_compiled()  # Maintain compatibility if called manually
 
-    def classify(self, message: str) -> IntentClassification:
+    async def classify(self, message: str) -> IntentClassification:
         """
         Classify a user message into an intent.
+        
+        Falls back to LLM classifier if regex confidence is low.
 
         Args:
             message: The user's input message
@@ -337,7 +343,7 @@ class IntentClassifier:
                 # Score based on matches relative to total patterns
                 scores[intent] = min(1.0, match_count / max(len(patterns) * 0.3, 1))
 
-        # Determine primary intent
+        # Determine primary intent via regex
         if scores:
             sorted_intents = sorted(scores.items(), key=lambda x: x[1], reverse=True)
             primary_intent = sorted_intents[0][0]
@@ -347,6 +353,23 @@ class IntentClassifier:
             primary_intent = Intent.UNKNOWN
             confidence = 0.2
             secondary_intents = []
+
+        # P0-02 FIX: LLM fallback if confidence is low
+        if confidence < 0.6 and self.llm_classifier:
+            try:
+                logger.debug("invoking_llm_classifier_fallback", regex_confidence=confidence)
+                llm_result = await self.llm_classifier(message)
+                if llm_result and llm_result.confidence > confidence:
+                    logger.info(
+                        "llm_classifier_override",
+                        regex_intent=primary_intent.value,
+                        llm_intent=llm_result.primary_intent.value,
+                        llm_confidence=llm_result.confidence,
+                    )
+                    return llm_result
+            except Exception as e:
+                logger.warning("llm_classifier_failed", error=str(e), exc_info=True)
+                # Continue with regex if LLM fails
 
         # Extract entities
         entities = self._extract_entities(message)
@@ -370,13 +393,16 @@ class IntentClassifier:
             else:
                 suggested_routing = RoutingMode.AGENTIC
 
-        # Map Intent to Skills (gerúndio) - with validation (GAP A: Safe Mapping)
-        from resync.core.skill_manager import get_skill_manager
+        # P2-02 FIX: Use injected skill_manager or fallback to global
+        if self.skill_manager is not None:
+            sm = self.skill_manager
+        else:
+            from resync.core.skill_manager import get_skill_manager
+            sm = get_skill_manager()
 
         matched_skills: list[str] = []
 
         # Obter skills disponíveis
-        sm = get_skill_manager()
         available = {s.name for s in sm.skills_metadata}
 
         def add_if_exists(skill_name: str) -> None:
@@ -657,14 +683,13 @@ class AgenticHandler(BaseHandler):
     - Uses SkillManager.build_skill_context for O(1) lookup
 
     Executes multi-step tasks with tool use.
-    Controlled by tool_call_limit and max_steps.
+    Note: tool_call_limit and max_steps are handled by the underlying Agno Team,
+    not directly in this handler.
     """
 
     def __init__(self, agent_manager: Any = None, skill_manager: Any = None) -> None:
         super().__init__(agent_manager)
         self.skill_manager = skill_manager
-        self.tool_call_limit = 10
-        self.max_steps = 15
         self._parallel_executor = None
         self._specialist_team = None
 
@@ -739,6 +764,9 @@ class AgenticHandler(BaseHandler):
             ToolRequest,
         )
 
+        # P1-02 FIX: Extract tws_instance_id from context for tenant isolation
+        tws_instance_id = context.get("tws_instance_id")
+
         # Check for specific workstations/jobs
         workstations = classification.entities.get("workstation", [])
         job_names = classification.entities.get("job_name", [])
@@ -752,14 +780,17 @@ class AgenticHandler(BaseHandler):
                 requests.append(
                     ToolRequest(
                         tool_name="get_workstation_status",
-                        parameters={"workstation_name": ws},
+                        parameters={
+                            "workstation_name": ws,
+                            "tws_instance_id": tws_instance_id,  # P1-02: Tenant isolation
+                        },
                     )
                 )
         else:
             requests.append(
                 ToolRequest(
                     tool_name="get_workstation_status",
-                    parameters={},
+                    parameters={"tws_instance_id": tws_instance_id},  # P1-02: Tenant isolation
                 )
             )
 
@@ -770,7 +801,11 @@ class AgenticHandler(BaseHandler):
                 requests.append(
                     ToolRequest(
                         tool_name="get_job_log",
-                        parameters={"job_name": job, "max_lines": 10},
+                        parameters={
+                            "job_name": job,
+                            "max_lines": 10,
+                            "tws_instance_id": tws_instance_id,  # P1-02: Tenant isolation
+                        },
                     )
                 )
 
@@ -860,10 +895,19 @@ PERGUNTA DO USUÁRIO:
             ToolRequest,
         )
 
+        # P1-02 FIX: Extract tws_instance_id from context for tenant isolation
+        tws_instance_id = context.get("tws_instance_id")
+
         # Collect metrics and status in parallel
         requests = [
-            ToolRequest(tool_name="get_system_metrics", parameters={}),
-            ToolRequest(tool_name="get_workstation_status", parameters={}),
+            ToolRequest(
+                tool_name="get_system_metrics",
+                parameters={"tws_instance_id": tws_instance_id},  # P1-02: Tenant isolation
+            ),
+            ToolRequest(
+                tool_name="get_workstation_status",
+                parameters={"tws_instance_id": tws_instance_id},  # P1-02: Tenant isolation
+            ),
         ]
 
         responses = await self.parallel_executor.execute(
@@ -950,7 +994,8 @@ PERGUNTA DO USUÁRIO:
 
                 logger.warning("Parallel sub-agent failed: %s", e)
 
-        # Single job or fallback
+        # Single job or fallback - collect history but ALWAYS invoke agent
+        raw_history = ""
         if job_names:
             from resync.core.specialists.tools import JobLogTool
 
@@ -960,53 +1005,33 @@ PERGUNTA DO USUÁRIO:
             history = await asyncio.to_thread(job_tool.get_job_history, job_name, days=7)
             self.last_tools_used.append("get_job_history")
 
-            return (
-                f"**Análise do Job {job_name}**\n\n"
-                f"Período: últimos {history.get('period_days', 7)} dias\n"
-                f"Execuções: {history.get('total_executions', 0)}\n"
-                f"Taxa de sucesso: {history.get('success_rate', 0) * 100:.1f}%\n"
-                "Duração média: "
-                f"{history.get('avg_duration_seconds', 0) / 60:.1f} min\n"
-                f"Falhas: {history.get('failure_count', 0)}\n"
-                f"Tendência: {history.get('trend', 'estável')}"
+            # Build raw history string for agent context (NOT returning yet)
+            raw_history = (
+                f"## Histórico do Job: {job_name}\n"
+                f"- Período: últimos {history.get('period_days', 7)} dias\n"
+                f"- Execuções: {history.get('total_executions', 0)}\n"
+                f"- Taxa de sucesso: {history.get('success_rate', 0) * 100:.1f}%\n"
+                f"- Duração média: {history.get('avg_duration_seconds', 0) / 60:.1f} min\n"
+                f"- Falhas: {history.get('failure_count', 0)}\n"
+                f"- Tendência: {history.get('trend', 'estável')}\n"
             )
 
         # Buscar o conteúdo das skills (Deep Loading) usando helper
         skill_context = self._build_skill_context(classification)
 
-        # v6.0: Optionally run specialist team for complex analysis
-        if classification.primary_intent == Intent.ANALYSIS:
-            try:
-                team_summary = await self.specialist_team.analyze(
-                    query=message, context={"entities": classification.entities}
-                )
-                if team_summary:
-                    # Inject specialist team summary into skill context
-                    skill_context = (
-                        f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
-                    )
-                    self.last_tools_used.append("specialist_team")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
-
-                logger.warning("Specialist team analysis failed: %s", e)
-
-        # v6.0: Optionally run specialist team for complex analysis
+        # v6.0: Run specialist team for complex analysis (single call)
         if classification.primary_intent == Intent.ANALYSIS:
             try:
                 team_resp = await self.specialist_team.process(
                     query=message,
                     context={"entities": classification.entities},
-                    use_all_specialists=False,
+                    use_all_specialists=False,  # False for analysis (doesn't need all)
                 )
                 team_summary = getattr(team_resp, "synthesized_response", "")
                 if team_summary:
                     # Inject specialist team summary into skill context
                     skill_context = (
-                        f"# Specialist Team Analysis\n{team_summary}\n\n{skill_context}"
+                        f"# Specialist Team Findings\n{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -1017,9 +1042,21 @@ PERGUNTA DO USUÁRIO:
 
                 logger.warning("Specialist team analysis failed: %s", e)
 
-        # Quando for chamar o agente, passe a skill
+        # ALWAYS invoke the agent with history context (not returning raw data)
+        agent_prompt = f"""
+Você é um especialista TWS. Analise o cenário abaixo e forneça:
+1. **Diagnóstico**: O que os dados indicam?
+2. **Correlações**: Padrões entre falhas/duração/horários
+3. **Recomendações**: Ações priorizadas (preventivas e corretivas)
+
+{raw_history}
+
+**Pergunta do Usuário:**
+{message}
+""".strip()
+
         return await self._get_agent_response(
-            "tws-troubleshooting", message, skill_context=skill_context
+            "tws-troubleshooting", agent_prompt, skill_context=skill_context
         )
 
     async def _handle_job_management(
@@ -1106,31 +1143,10 @@ class DiagnosticHandler(BaseHandler):
             # v6.0: Run specialist team for diagnostic context (best-effort)
             # This provides additional context before LangGraph diagnosis
             try:
-                team_summary = await self.specialist_team.diagnose(
-                    query=message, context={"entities": classification.entities}
-                )
-                if team_summary:
-                    # Inject specialist team findings into skill context
-                    skill_context = (
-                        "# Specialist Team Diagnostic Findings\n"
-                        f"{team_summary}\n\n{skill_context}"
-                    )
-                    self.last_tools_used.append("specialist_team")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                import sys as _sys
-                from resync.core.exception_guard import maybe_reraise_programming_error
-                _exc_type, _exc, _tb = _sys.exc_info()
-                maybe_reraise_programming_error(_exc, _tb)
-
-                logger.warning("Specialist team diagnostic failed: %s", e)
-
-            # v6.0: Run specialist team for diagnostic context (best-effort)
-            # This provides additional context before LangGraph diagnosis
-            try:
                 team_resp = await self.specialist_team.process(
                     query=message,
                     context={"entities": classification.entities},
-                    use_all_specialists=True,
+                    use_all_specialists=True,  # True for diagnostic (full context needed)
                 )
                 team_summary = getattr(team_resp, "synthesized_response", "")
                 if team_summary:
@@ -1364,8 +1380,8 @@ class HybridRouter:
         start_time = time.time()
         context = context or {}
 
-        # Classify intent
-        classification = self.classifier.classify(message)
+        # P0-02 FIX: Classify intent (now async)
+        classification = await self.classifier.classify(message)
 
         # Determine routing mode
         routing_mode = force_mode or classification.suggested_routing

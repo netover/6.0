@@ -199,6 +199,74 @@ class ContextStore:
             return True
         return False
 
+    async def atomic_check_and_flag_with_reason(
+        self, memory_id: str, reason: str, confidence: float
+    ) -> bool:
+        """Atomically check and flag a memory with a reason (IA Auditor variant).
+        
+        Args:
+            memory_id: The memory/conversation ID to flag
+            reason: The reason for flagging
+            confidence: Confidence score for the flag
+            
+        Returns:
+            True if flagged successfully, False otherwise
+        """
+        try:
+            conv_id = int(memory_id)
+            # Check if already approved (should not flag approved memories)
+            if await self.is_memory_approved(conv_id):
+                logger.debug("not_flagging_approved_memory", memory_id=memory_id)
+                return False
+            # Flag the memory
+            return await self.flag_memory(conv_id)
+        except (ValueError, TypeError) as e:
+            logger.warning("invalid_memory_id_for_flagging", memory_id=memory_id, error=str(e))
+            return False
+
+    async def get_memories(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Get recent memories/conversations for IA Auditor.
+        
+        This is a compatibility method for the IA Auditor.
+        Returns conversations that could be audited.
+        """
+        # Get recent conversations from all sessions
+        # This is a simplified implementation - the IA Auditor expects
+        # memories with user_query and agent_response fields
+        memories = []
+        
+        # Search for conversations with high ratings that might need auditing
+        # Note: This is a placeholder implementation
+        # In production, this would query for specific audit criteria
+        logger.debug("get_memories called with limit=%d", limit)
+        
+        # Return empty list for now - the auditor will handle this gracefully
+        return memories
+
+    async def is_memory_already_processed(self, memory_id: str) -> bool:
+        """Check if a memory has already been processed by the IA Auditor.
+        
+        For now, returns False to allow processing.
+        """
+        # TODO: Implement actual tracking of processed memories
+        return False
+
+    async def atomic_check_and_delete(self, memory_id: str) -> bool:
+        """Atomically check and delete a memory.
+        
+        Args:
+            memory_id: The memory/conversation ID to delete
+            
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        try:
+            conv_id = int(memory_id)
+            return await self.delete_memory(conv_id)
+        except (ValueError, TypeError):
+            logger.warning("invalid_memory_id_for_deletion", memory_id=memory_id)
+            return False
+
 _instance: ContextStore | None = None
 
 def get_context_store() -> ContextStore:

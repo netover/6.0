@@ -261,32 +261,43 @@ async def _handle_agent_interaction(
 
             # Send final response ONCE with metadata in correct location
             # Per WebSocketMessage: routing info goes in metadata, not at top level
-            await websocket.send_json(
-                {
-                    "type": "message",
-                    "sender": "agent",
-                    "message": result.response,
-                    "agent_id": agent_id_str,
-                    "session_id": session_id,
-                    "is_final": True,
-                    "timestamp": _now_iso(),
-                    "correlation_id": result.trace_id,
-                    "metadata": {
-                        # Routing info
-                        "routing_mode": result.routing_mode.value,
-                        "intent": result.intent,
-                        "confidence": result.confidence,
-                        "handler": result.handler,
-                        "tools_used": result.tools_used,
-                        "entities": result.entities,
-                        "processing_time_ms": processing_time_ms,
-                        "requires_approval": result.requires_approval,
-                        "approval_id": result.approval_id,
-                        # Backward compatibility aliases
-                        "query_type": result.intent,
-                    },
-                }
-            )
+            response_payload = {
+                "type": "message",
+                "sender": "agent",
+                "message": result.response,
+                "agent_id": agent_id_str,
+                "session_id": session_id,
+                "is_final": True,
+                "timestamp": _now_iso(),
+                "correlation_id": result.trace_id,
+                "metadata": {
+                    # Routing info
+                    "routing_mode": result.routing_mode.value,
+                    "intent": result.intent,
+                    "confidence": result.confidence,
+                    "handler": result.handler,
+                    "tools_used": result.tools_used,
+                    "entities": result.entities,
+                    "processing_time_ms": processing_time_ms,
+                    "requires_approval": result.requires_approval,
+                    "approval_id": result.approval_id,
+                    # Backward compatibility aliases
+                    "query_type": result.intent,
+                },
+            }
+            logger.info("Sending response to WebSocket: %s", response_payload)
+            try:
+                await websocket.send_json(response_payload)
+                logger.info("Response sent successfully to WebSocket")
+            except Exception as e:
+                logger.error("Failed to send response to WebSocket: %s", e, exc_info=True)
+                # Try to send error message to client
+                await send_error_message(
+                    websocket,
+                    "Erro ao enviar resposta.",
+                    agent_id_str,
+                    session_id,
+                )
 
             logger.info(
                 "Agent '%s' response: mode=%s, intent=%s, tools=%s",
