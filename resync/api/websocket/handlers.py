@@ -226,36 +226,32 @@ manager = AgentConnectionManager()
 ConnectionManager = AgentConnectionManager
 
 
-def _build_agent_config(agent_id: str) -> dict[str, str]:
-    """Build canonical agent configuration payload for LLM responses."""
-    return {
-        "name": f"Agente {agent_id}",
-        "type": "general",
-        "description": "Assistente de IA do sistema Resync TWS",
-    }
-
 async def _generate_llm_response(agent_id: str, content: str) -> str:
-    """Helper to generate AI response with fallback handling."""
+    """P0-07 FIX: Use UnifiedAgent for consistent LLM-first behavior.
+    
+    This ensures WebSocket uses the same LLM tool calling logic as REST API.
+    """
     try:
-        from resync.services.llm_service import get_llm_service
-
-        llm_service = await get_llm_service()
-        agent_config = _build_agent_config(agent_id)
-
-        return await llm_service.generate_agent_response(
-            agent_id=agent_id,
-            user_message=content,
-            agent_config=agent_config,
+        from resync.core.agent_manager import get_unified_agent
+        
+        unified_agent = get_unified_agent()
+        
+        # NEW v6.2: Use UnifiedAgent.chat() which calls LLM with tool calling
+        response = await unified_agent.chat(
+            message=content,
+            include_history=True,  # Enable conversation context
+            conversation_id=f"ws_{agent_id}",  # Separate history per WebSocket agent
         )
+        
+        return response
+        
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
-
+        
         logger.error("Error generating AI response: %s", e)
-        # P1 fix: Do NOT reflect raw user content in the fallback response.
-        # If rendered by a frontend without escaping, this enables XSS.
         return (
             "Olá! Recebi sua mensagem. "
             "O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?"
