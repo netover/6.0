@@ -152,8 +152,8 @@ class SmokeTestRunner:
         self.verbose = verbose
         self.suite = SmokeTestSuite()
         # Ensure critical env vars are set for tests
-        os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-        os.environ.setdefault("RESYNC_REDIS_LAZY_INIT", "1")
+        os.environ.setdefault("VALKEY_URL", "valkey://localhost:6379/0")
+        os.environ.setdefault("RESYNC_VALKEY_LAZY_INIT", "1")
         os.environ.setdefault(
             "DATABASE_URL", "postgresql+asyncpg://resync:resync@localhost:5432/resync"
         )
@@ -343,8 +343,8 @@ class SmokeTestRunner:
             self._test_settings_load,
         )
         await self.run_test(
-            "Redis Strategy Config",
-            self._test_redis_strategy_config,
+            "Valkey Strategy Config",
+            self._test_valkey_strategy_config,
         )
         await self.run_test(
             "LiteLLM Config (No Hardcoded Keys)",
@@ -357,10 +357,10 @@ class SmokeTestRunner:
             print("-" * 40)
 
         await self.run_test(
-            "Redis Connection",
-            self._test_redis_connection,
-            skip_condition=lambda: os.getenv("SKIP_REDIS_TEST") == "1",
-            skip_reason="SKIP_REDIS_TEST=1",
+            "Valkey Connection",
+            self._test_valkey_connection,
+            skip_condition=lambda: os.getenv("SKIP_VALKEY_TEST") == "1",
+            skip_reason="SKIP_VALKEY_TEST=1",
         )
         await self.run_test(
             "Database Connection",
@@ -467,7 +467,7 @@ class SmokeTestRunner:
     def _test_environment_variables(self) -> None:
         """Test required environment variables."""
         required_vars = [
-            "REDIS_URL",
+            "VALKEY_URL",
         ]
 
         recommended_vars = [
@@ -501,17 +501,17 @@ class SmokeTestRunner:
         from resync.settings import settings
 
         assert settings is not None, "Settings is None"
-        assert hasattr(settings, "REDIS_URL"), "Missing REDIS_URL"
+        assert hasattr(settings, "valkey_url"), "Missing valkey_url"
         assert settings.llm_timeout > 0, "Invalid LLM timeout"
         assert settings.llm_timeout <= 60, (
             f"LLM timeout too high: {settings.llm_timeout}s (max 60s)"
         )
 
-    def _test_redis_strategy_config(self) -> None:
-        """Test Redis strategy configuration."""
-        from resync.core.redis_strategy import RedisTier, get_redis_strategy
+    def _test_valkey_strategy_config(self) -> None:
+        """Test Valkey strategy configuration."""
+        from resync.core.valkey_strategy import RedisTier, get_valkey_strategy
 
-        strategy = get_redis_strategy()
+        strategy = get_valkey_strategy()
 
         # Test tier classification
         assert strategy.get_tier("GET", "/health") == RedisTier.READ_ONLY
@@ -563,13 +563,13 @@ class SmokeTestRunner:
     # DEPENDENCY TESTS
     # =========================================================================
 
-    async def _test_redis_connection(self) -> None:
-        """Test Redis connection."""
+    async def _test_valkey_connection(self) -> None:
+        """Test Valkey connection."""
         from resync.core.cache import get_redis_client
 
         client = await get_redis_client()
         result = await client.ping()
-        assert result is True, "Redis ping failed"
+        assert result is True, "Valkey ping failed"
 
     async def _test_database_connection(self) -> None:
         """Test database connection."""
@@ -596,7 +596,7 @@ class SmokeTestRunner:
         imports = [
             "resync.core.exceptions",
             "resync.core.resilience",
-            "resync.core.redis_strategy",
+            "resync.core.valkey_strategy",
             "resync.core.structured_logger",
             # "resync.core.circuit_breaker",
             "resync.core.health.unified_health_service",
@@ -744,11 +744,11 @@ class SmokeTestRunner:
         """Test middleware can be imported."""
         from resync.api.middleware import (
             CorrelationIdMiddleware,
-            RedisValidationMiddleware,
+            ValkeyValidationMiddleware,
         )
 
         assert CorrelationIdMiddleware is not None
-        assert RedisValidationMiddleware is not None
+        assert ValkeyValidationMiddleware is not None
 
     async def _test_health_endpoint(self) -> None:
         """Test health endpoint logic."""

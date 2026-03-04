@@ -54,7 +54,7 @@ class EnterpriseState:
 
     # Lifecycle flags
     startup_complete: bool
-    redis_available: bool
+    valkey_available: bool
 
     # Test/shutdown marker
     domain_shutdown_complete: bool = False

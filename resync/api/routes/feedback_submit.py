@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from resync.core.database import Feedback, get_session
-from resync.core.redis_init import get_redis_client
+from resync.core.valkey_init import get_redis_client
 from resync.settings import get_settings
 from resync.core.security import verify_api_key
 from resync.core.security.redaction import redact_pii

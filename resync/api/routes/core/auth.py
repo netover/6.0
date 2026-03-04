@@ -40,7 +40,7 @@ from resync.api.routes.core.ip_utils import (
     sanitize_ip_for_redis_key,
 )
 from resync.core.exception_guard import maybe_reraise_programming_error
-from resync.core.redis_init import get_redis_client
+from resync.core.valkey_init import get_redis_client
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
 from resync.core.token_revocation import revoke_jti

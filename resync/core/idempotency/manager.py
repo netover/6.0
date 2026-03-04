@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
 
-from redis.asyncio import Redis
+from valkey.asyncio import Valkey
 
 from resync.core.idempotency.config import config
 from resync.core.idempotency.exceptions import (
@@ -32,15 +32,15 @@ class IdempotencyManager:
     executadas múltiplas vezes.
     """
 
-    def __init__(self, redis_client: Redis):
-        self.redis = redis_client
-        self.storage = IdempotencyStorage(redis_client)
+    def __init__(self, valkey_client: Valkey):
+        self.valkey = valkey_client
+        self.storage = IdempotencyStorage(valkey_client)
         self.metrics = IdempotencyMetrics()
 
         logger.info(
             "Idempotency manager initialized",
             ttl_hours=config.ttl_hours,
-            redis_db=config.redis_db,
+            valkey_db=config.valkey_db,
             max_response_size_kb=config.max_response_size_kb,
         )
 
@@ -526,11 +526,11 @@ class IdempotencyManager:
         }
 
     def _make_key(self, idempotency_key: str) -> str:
-        """Cria chave Redis para resposta cacheada"""
+        """Cria chave Valkey para resposta cacheada"""
         return f"{config.key_prefix}:{idempotency_key}"
 
     def _make_processing_key(self, idempotency_key: str) -> str:
-        """Cria chave Redis para marca de processamento"""
+        """Cria chave Valkey para marca de processamento"""
         return f"{config.processing_prefix}:{idempotency_key}"
 
     def _hash_request_data(self, request_data: dict[str, Any]) -> str:

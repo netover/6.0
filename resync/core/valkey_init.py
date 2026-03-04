@@ -110,21 +110,21 @@ _REDIS_CLIENT_INIT_LOCK = threading.Lock()
 _IDEMPOTENCY_MANAGER: "IdempotencyManager" | None = None
 
 
-def is_redis_available() -> bool:
+def is_valkey_available() -> bool:
     """Check if Valkey library is available."""
     return valkey is not None
 
 
-def get_redis_client() -> "valkey.Redis":  # type: ignore
+def get_valkey_client() -> "valkey.Redis":  # type: ignore
     """Return the canonical Valkey client.
 
     In production (gunicorn --preload), creating network clients during import
     can lead to subtle bugs (master process connects, workers inherit state).
 
     Therefore, **by default** this accessor only returns a client that was
-    initialized during startup (lifespan) via :class:`RedisInitializer`.
+    initialized during startup (lifespan) via :class:`ValkeyInitializer`.
 
-    - Set **RESYNC_REDIS_LAZY_INIT=1** to allow the legacy "create-on-first-use"
+    - Set **RESYNC_VALKEY_LAZY_INIT=1** to allow the legacy "create-on-first-use"
       behavior (useful for one-off scripts).
     - Set **RESYNC_DISABLE_VALKEY=1** (or ``true``) to disable Valkey entirely (tests/CI).
     """
@@ -141,7 +141,9 @@ def get_redis_client() -> "valkey.Redis":  # type: ignore
         # concurrent calls may happen (e.g., via threadpool). Guard with a lock.
         with _REDIS_CLIENT_INIT_LOCK:
             if _REDIS_CLIENT is None:
-                lazy = os.getenv("RESYNC_REDIS_LAZY_INIT", "0").strip().lower() in {
+                lazy_valkey = os.getenv("RESYNC_VALKEY_LAZY_INIT")
+                lazy_redis = os.getenv("RESYNC_REDIS_LAZY_INIT", "0")
+                lazy = (lazy_valkey or lazy_redis).strip().lower() in {
                     "1",
                     "true",
                     "yes",
@@ -149,9 +151,9 @@ def get_redis_client() -> "valkey.Redis":  # type: ignore
                 if not lazy:
                     raise RuntimeError(
                         "Valkey client not initialized. Ensure "
-                        "RedisInitializer.initialize() runs "
+                        "ValkeyInitializer.initialize() runs "
                         "during application startup (lifespan). To allow lazy init (legacy), "
-                        "set RESYNC_REDIS_LAZY_INIT=1."
+                        "set RESYNC_VALKEY_LAZY_INIT=1."
                     )
 
                 # Legacy path (scripts/dev only)
@@ -163,12 +165,12 @@ def get_redis_client() -> "valkey.Redis":  # type: ignore
                 )
 
                 _REDIS_CLIENT = valkey.from_url(url, encoding="utf-8", decode_responses=True)
-                logger.warning("Initialized Valkey client via lazy init (RESYNC_REDIS_LAZY_INIT=1).")
+                logger.warning("Initialized Valkey client via lazy init (RESYNC_VALKEY_LAZY_INIT=1).")
 
     return _REDIS_CLIENT
 
 
-async def close_redis_client() -> None:
+async def close_valkey_client() -> None:
     """Close the global Valkey client if it exists.
 
     This is the public API for shutting down the module-level client.
@@ -198,20 +200,20 @@ async def close_redis_client() -> None:
         _REDIS_CLIENT = None
 
 
-# Aliases for backward compatibility
-def get_valkey_client() -> "valkey.Redis":
-    """Alias for get_redis_client() for Valkey."""
-    return get_redis_client()
+# Legacy aliases for backward compatibility
+def get_redis_client() -> "valkey.Redis":
+    """Alias for get_valkey_client() for Redis migration."""
+    return get_valkey_client()
 
 
-def is_valkey_available() -> bool:
-    """Alias for is_redis_available() for Valkey."""
-    return is_redis_available()
+def is_redis_available() -> bool:
+    """Alias for is_valkey_available() for Redis migration."""
+    return is_valkey_available()
 
 
-async def close_valkey_client() -> None:
-    """Alias for close_redis_client() for Valkey."""
-    await close_redis_client()
+async def close_redis_client() -> None:
+    """Alias for close_valkey_client() for Redis migration."""
+    await close_valkey_client()
 
 
 def get_idempotency_manager() -> "IdempotencyManager":
@@ -230,7 +232,7 @@ def get_idempotency_manager() -> "IdempotencyManager":
     return _IDEMPOTENCY_MANAGER
 
 
-class RedisInitializer:
+class ValkeyInitializer:
     """
     Thread-safe Valkey initialization with connection pooling.
     """
@@ -248,7 +250,7 @@ class RedisInitializer:
         # Lock is still lazily bound to event loop but with proper initialization
         self._lock: asyncio.Lock = asyncio.Lock()
         self._initialized = False
-        self._client: redis.Redis | None = None  # type: ignore
+        self._client: valkey.Redis | None = None  # type: ignore
         self._health_task: asyncio.Task[Any] | None = None
 
     @property
@@ -269,7 +271,7 @@ class RedisInitializer:
         health_check_interval: int = 5,
         fatal_on_fail: bool = False,  # pylint
         redis_url: str | None = None,
-    ) -> "redis.Redis":  # type: ignore
+    ) -> "valkey.Redis":  # type: ignore
         """
         Inicializa cliente Redis com:
         - Lock concorrente
@@ -277,10 +279,10 @@ class RedisInitializer:
         - Teste RW consistente
         - Health check em background
         """
-        if _env_flag("RESYNC_DISABLE_REDIS"):
-            raise RedisInitError("Redis disabled by RESYNC_DISABLE_REDIS")
+        if _env_flag("RESYNC_DISABLE_VALKEY"):
+            raise ValkeyInitError("Valkey disabled by RESYNC_DISABLE_VALKEY")
         if valkey is None:
-            raise RedisInitError("valkey-py (valkey.asyncio) not installed.")
+            raise ValkeyInitError("valkey-py (valkey.asyncio) not installed.")
 
         async with self.lock:
             if self._initialized and self._client:
@@ -288,7 +290,7 @@ class RedisInitializer:
                     await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=1.0)
                     return self._client
                 except (RedisError, asyncio.TimeoutError):
-                    logger.warning("Existing Redis connection lost, reinitializing")
+                    logger.warning("Existing Valkey connection lost, reinitializing")
                     self._initialized = False
 
             lock_key = "resync:init:lock"
@@ -302,7 +304,7 @@ class RedisInitializer:
                     acquired = await redis_client.set(lock_key, lock_val, nx=True, ex=lock_timeout)
                     if not acquired:
                         logger.info(
-                            ("Another instance is initializing Redis, waiting... (attempt %s/%s)"),
+                            ("Another instance is initializing Valkey, waiting... (attempt %s/%s)"),
                             attempt + 1,
                             max_retries,
                         )
@@ -335,7 +337,7 @@ class RedisInitializer:
                         await redis_client.set(test_key, "ok", ex=60)
                         test_value = await redis_client.get(test_key)
                         if test_value != "ok":
-                            raise RedisInitError("Redis read/write test failed")
+                            raise ValkeyInitError("Valkey read/write test failed")
                         await redis_client.delete(test_key)
 
                         # Idempotency manager
@@ -385,9 +387,9 @@ class RedisInitializer:
                             )
 
                 except AuthenticationError as e:
-                    msg = f"Redis authentication failed: {e}"
+                    msg = f"Valkey authentication failed: {e}"
                     logger.critical(msg)
-                    raise RedisInitError(msg) from e
+                    raise ValkeyInitError(msg) from e
 
                 except (
                     OSError,
@@ -399,15 +401,15 @@ class RedisInitializer:
                     TimeoutError,
                     ConnectionError,
                 ) as e:  # pylint
-                    msg = "Unexpected error during Redis initialization"
+                    msg = "Unexpected error during Valkey initialization"
                     logger.critical(msg, exc_info=True)
-                    raise RedisInitError(f"{msg}: {e}") from e
+                    raise ValkeyInitError(f"{msg}: {e}") from e
 
-        raise RedisInitError("Redis initialization failed - unexpected fallthrough") from None
+        raise ValkeyInitError("Valkey initialization failed - unexpected fallthrough") from None
 
-    def _create_client_with_pool(self, redis_url: str | None = None) -> "redis.Redis":  # type: ignore
+    def _create_client_with_pool(self, redis_url: str | None = None) -> "valkey.Redis":  # type: ignore
         if valkey is None:
-            raise RedisInitError("valkey not installed.")
+            raise ValkeyInitError("valkey not installed.")
         keepalive_opts = {}
         # Opções portáveis
         for name in ("TCP_KEEPIDLE", "TCP_KEEPINTVL", "TCP_KEEPCNT"):
@@ -442,7 +444,7 @@ class RedisInitializer:
             retry_on_error=[RedisConnError, RedisTimeoutError, BusyLoadingError],
         )
 
-    def _initialize_idempotency(self, redis_client: "redis.Redis") -> None:  # type: ignore
+    def _initialize_idempotency(self, redis_client: "valkey.Redis") -> None:  # type: ignore
         """Initialize the global idempotency manager using the provided Redis client."""
         from resync.core.idempotency.manager import IdempotencyManager
 
@@ -457,14 +459,14 @@ class RedisInitializer:
                 if self._client:
                     await asyncio.wait_for(_ensure_awaitable_bool(self._client.ping()), timeout=2.0)
             except (RedisError, asyncio.TimeoutError):
-                logger.error("Redis health check failed - attempting reconnect", exc_info=True)
+                logger.error("Valkey health check failed - attempting reconnect", exc_info=True)
                 self._initialized = False
                 try:
                     await self.initialize(max_retries=2, fatal_on_fail=False)
-                    logger.info("Redis health-check reconnect succeeded")
+                    logger.info("Valkey health-check reconnect succeeded")
                     continue
-                except RedisInitError:
-                    logger.critical("Redis reconnect failed; stopping health check", exc_info=True)
+                except ValkeyInitError:
+                    logger.critical("Valkey reconnect failed; stopping health check", exc_info=True)
                     break
             except (OSError, ValueError) as e:
                 logger.error("Unexpected error in Redis health check: %s", e, exc_info=True)
@@ -483,19 +485,24 @@ class RedisInitializer:
                 await self._client.connection_pool.disconnect()
 
 
-# Global Redis initializer instance - lazy initialization
-_redis_initializer: RedisInitializer | None = None
-_redis_initializer_create_lock = threading.Lock()
+# Global Valkey initializer instance - lazy initialization
+_valkey_initializer: ValkeyInitializer | None = None
+_valkey_initializer_create_lock = threading.Lock()
 
 
-def get_redis_initializer() -> RedisInitializer:
+def get_valkey_initializer() -> ValkeyInitializer:
     """
     Retorna instância global do initializer com double-checked locking
     para evitar race conditions em ambientes de alta concorrência.
     """
-    global _redis_initializer  # pylint
-    if _redis_initializer is None:
-        with _redis_initializer_create_lock:
-            if _redis_initializer is None:
-                _redis_initializer = RedisInitializer()
-    return _redis_initializer
+    global _valkey_initializer  # pylint
+    if _valkey_initializer is None:
+        with _valkey_initializer_create_lock:
+            if _valkey_initializer is None:
+                _valkey_initializer = ValkeyInitializer()
+    return _valkey_initializer
+
+# Legacy aliases for backward compatibility
+RedisInitializer = ValkeyInitializer
+get_redis_initializer = get_valkey_initializer
+_redis_initializer = _valkey_initializer

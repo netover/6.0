@@ -367,7 +367,7 @@ class KeyManager:
             }
             from cryptography.fernet import Fernet
             fernet = Fernet(base64.urlsafe_b64encode(self._master_key))
-            encrypted = fernet.json.dumps(data).encode()
+            encrypted = fernet.encrypt(json.dumps(data).encode())
             self._keys_file.parent.mkdir(parents=True, exist_ok=True)
             temp_file = self._keys_file.with_suffix(".tmp")
             with open(temp_file, "wb") as f:
@@ -789,7 +789,7 @@ class EncryptedAuditTrail:
         logger.info("Encryption key rotated: %s", new_key.key_id)
         return new_key.key_id
 
-    def get_statistics(self) -> dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get audit system statistics."""
         return {
             "performance": {

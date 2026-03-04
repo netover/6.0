@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from resync.core.redis_init import get_redis_initializer
+from resync.core.valkey_init import get_redis_initializer
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)

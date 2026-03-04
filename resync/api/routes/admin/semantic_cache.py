@@ -21,10 +21,10 @@ from pydantic import BaseModel, Field
 
 from resync.api.auth import verify_admin_credentials
 from resync.core.cache.embedding_model import get_model_info, preload_model
-from resync.core.cache.redis_config import (
-    RedisDatabase,
-    check_redis_stack_available,
-    redis_health_check,
+from resync.core.cache.valkey_config import (
+    ValkeyDatabase,
+    check_valkey_stack_available,
+    valkey_health_check,
 )
 from resync.core.cache.reranker import (
     get_reranker_info,
@@ -53,10 +53,10 @@ class CacheStatsResponse(BaseModel):
     threshold: float = Field(description="Current similarity threshold")
     default_ttl: int = Field(description="Default TTL in seconds")
     max_entries: int = Field(description="Maximum entries limit")
-    redis_stack_available: bool | None = Field(
-        description="Whether Redis Stack is available"
+    valkey_stack_available: bool | None = Field(
+        description="Whether Valkey Stack is available"
     )
-    used_memory_human: str = Field(description="Redis memory usage")
+    used_memory_human: str = Field(description="Valkey memory usage")
 
 class ThresholdUpdateRequest(BaseModel):
     """Request model for updating cache threshold."""
@@ -97,9 +97,9 @@ class HealthCheckResponse(BaseModel):
     """Response model for health check."""
 
     status: str = Field(description="Overall health status")
-    redis_status: str
-    redis_latency_ms: float | None = None
-    redis_stack_available: bool
+    valkey_status: str
+    valkey_latency_ms: float | None = None
+    valkey_stack_available: bool
     embedding_model_status: str
     embedding_model_info: dict[str, Any]
     timestamp: datetime
@@ -111,14 +111,14 @@ class PreloadResponse(BaseModel):
     model_info: dict[str, Any]
     message: str
 
-class RedisInfoResponse(BaseModel):
-    """Response model for Redis server information."""
+class ValkeyInfoResponse(BaseModel):
+    """Response model for Valkey server information."""
 
-    host: str = Field(description="Redis host")
-    port: int = Field(description="Redis port")
-    database: int = Field(description="Redis database number")
+    host: str = Field(description="Valkey host")
+    port: int = Field(description="Valkey port")
+    database: int = Field(description="Valkey database number")
     connected: bool = Field(description="Connection status")
-    version: str | None = Field(description="Redis version")
+    version: str | None = Field(description="Valkey version")
     used_memory_human: str = Field(description="Used memory (human readable)")
     max_memory_human: str = Field(description="Max memory setting (human readable)")
     memory_usage_percent: float = Field(description="Memory usage percentage")
@@ -162,21 +162,21 @@ async def get_cache_stats() -> CacheStatsResponse:
 async def health_check() -> HealthCheckResponse:
     """Perform comprehensive health check of semantic cache."""
     try:
-        redis_health = await redis_health_check(RedisDatabase.SEMANTIC_CACHE)
-        stack_info = await check_redis_stack_available()
+        valkey_health = await valkey_health_check(ValkeyDatabase.SEMANTIC_CACHE)
+        stack_info = await check_valkey_stack_available()
         model_info = get_model_info()
         overall_status = "healthy"
-        if redis_health["status"] != "healthy":
+        if valkey_health["status"] != "healthy":
             overall_status = "degraded"
         if model_info["status"] == "fallback":
             overall_status = "degraded"
-        if redis_health["status"] == "unhealthy":
+        if valkey_health["status"] == "unhealthy":
             overall_status = "unhealthy"
         return HealthCheckResponse(
             status=overall_status,
-            redis_status=redis_health["status"],
-            redis_latency_ms=redis_health.get("latency_ms"),
-            redis_stack_available=stack_info.get("search", False),
+            valkey_status=valkey_health["status"],
+            valkey_latency_ms=valkey_health.get("latency_ms"),
+            valkey_stack_available=stack_info.get("search", False),
             embedding_model_status=model_info["status"],
             embedding_model_info=model_info,
             timestamp=datetime.now(timezone.utc),
@@ -192,9 +192,9 @@ async def health_check() -> HealthCheckResponse:
         logger.error("Health check failed: %s", e)
         return HealthCheckResponse(
             status="unhealthy",
-            redis_status="error",
-            redis_latency_ms=None,
-            redis_stack_available=False,
+            valkey_status="error",
+            valkey_latency_ms=None,
+            valkey_stack_available=False,
             embedding_model_status="error",
             embedding_model_info={"error": str(e)},
             timestamp=datetime.now(timezone.utc),
@@ -402,18 +402,18 @@ async def test_cache_store(
         ) from e
 
 @router.get(
-    "/redis-info",
-    summary="Get Redis server information",
-    description="Returns detailed information about Redis server, modules, and databases.",
+    "/valkey-info",
+    summary="Get Valkey server information",
+    description="Returns detailed information about Valkey server, modules, and databases.",
 )
-async def get_redis_info() -> RedisInfoResponse:
-    """Get comprehensive Redis server information."""
+async def get_valkey_info() -> ValkeyInfoResponse:
+    """Get comprehensive Valkey server information."""
     try:
-        from resync.core.cache.redis_config import get_redis_client, get_redis_config
+        from resync.core.cache.valkey_config import get_valkey_client, get_valkey_config
 
-        config = get_redis_config()
+        config = get_valkey_config()
         try:
-            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
             info = await client.info()
             connected = True
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as conn_err:
@@ -422,7 +422,7 @@ async def get_redis_info() -> RedisInfoResponse:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Redis connection failed: %s", conn_err)
+            logger.warning("Valkey connection failed: %s", conn_err)
             connected = False
             info = {}
         used_memory = info.get("used_memory_human", "0B") if info else "N/A"
@@ -438,7 +438,7 @@ async def get_redis_info() -> RedisInfoResponse:
         }
         if connected:
             try:
-                stack_info = await check_redis_stack_available()
+                stack_info = await check_valkey_stack_available()
                 modules_status = {
                     "search": stack_info.get("search", False),
                     "json": stack_info.get("ReJSON", False)
@@ -482,14 +482,14 @@ async def get_redis_info() -> RedisInfoResponse:
                 databases[db_key] = {
                     "name": db_names.get(db_num, f"DB {db_num}"),
                     "keys": keys,
-                    "active": db_num == RedisDatabase.SEMANTIC_CACHE.value,
+                    "active": db_num == ValkeyDatabase.SEMANTIC_CACHE.value,
                 }
-        return RedisInfoResponse(
+        return ValkeyInfoResponse(
             host=config.host,
             port=config.port,
-            database=RedisDatabase.SEMANTIC_CACHE.value,
+            database=ValkeyDatabase.SEMANTIC_CACHE.value,
             connected=connected,
-            version=info.get("redis_version") if info else None,
+            version=info.get("valkey_version") if info else None,
             used_memory_human=used_memory,
             max_memory_human=max_memory if max_memory != "0B" else "Unlimited",
             memory_usage_percent=round(memory_percent, 1),
@@ -512,32 +512,32 @@ async def get_redis_info() -> RedisInfoResponse:
 
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("Failed to get Redis info: %s", e)
+        logger.error("Failed to get Valkey info: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get Redis info. Check server logs for details.",
+            detail="Failed to get Valkey info. Check server logs for details.",
         ) from e
 
 @router.post(
-    "/redis-test",
-    summary="Test Redis connection",
-    description="Test Redis connection and return latency.",
+    "/valkey-test",
+    summary="Test Valkey connection",
+    description="Test Valkey connection and return latency.",
 )
-async def test_redis_connection() -> dict[str, Any]:
-    """Test Redis connection with ping."""
+async def test_valkey_connection() -> dict[str, Any]:
+    """Test Valkey connection with ping."""
     try:
         import time
 
-        from resync.core.cache.redis_config import get_redis_client
+        from resync.core.cache.valkey_config import get_valkey_client
 
         start = time.perf_counter()
-        client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+        client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
         pong = await client.ping()
         latency_ms = (time.perf_counter() - start) * 1000
         return {
             "success": pong,
             "latency_ms": round(latency_ms, 2),
-            "message": "Redis connection successful" if pong else "Redis ping failed",
+            "message": "Valkey connection successful" if pong else "Valkey ping failed",
         }
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
@@ -547,7 +547,7 @@ async def test_redis_connection() -> dict[str, Any]:
 
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("Redis connection test failed: %s", e)
+        logger.error("Valkey connection test failed: %s", e)
         return {
             "success": False,
             "latency_ms": None,

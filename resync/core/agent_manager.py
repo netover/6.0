@@ -72,7 +72,7 @@ ALL_CAUGHT_EXCEPTIONS = RUNTIME_EXCEPTIONS + PROGRAMMING_EXCEPTIONS
 DEFAULT_MAX_TOKENS: int = 1024
 DEFAULT_TEMPERATURE: float = 0.1
 DEFAULT_TIMEOUT_SECONDS: float = 60.0  # OpenRouter timeout
-DEFAULT_MODEL: str = "openai/gpt-oss-120b:free"  # OpenRouter model
+DEFAULT_MODEL: str = "openrouter/ai/qwen-2.5-72b-instruct"  # OpenRouter model
 
 # P2-1: Extracted magic numbers for UnifiedAgent history management
 DEFAULT_MAX_HISTORY: int = 100
@@ -103,7 +103,7 @@ class Agent:
         self.tools = tools or []
         
         # P0-08 FIX: Normalize model name for LiteLLM
-        # OpenRouter models already have provider prefix (e.g., "openai/gpt-oss-120b:free")
+        # OpenRouter models already have provider prefix (e.g., "openrouter/ai/qwen-2.5-72b-instruct")
         # If model doesn't have provider prefix, add "openrouter/"
         if model and "/" not in model:
             # Default to openrouter provider
@@ -627,7 +627,7 @@ class AgentManager:
                         "and system monitoring."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="openai/gpt-oss-120b:free",
+                    model_name="openrouter/ai/qwen-2.5-72b-instruct",
                     max_rpm=None,
                 ),
                 AgentConfig(
@@ -642,7 +642,7 @@ class AgentManager:
                         "information about system status and job execution."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="openai/gpt-oss-120b:free",
+                    model_name="openrouter/ai/qwen-2.5-72b-instruct",
                     max_rpm=None,
                 ),
             ]

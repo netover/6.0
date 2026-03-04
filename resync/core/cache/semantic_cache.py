@@ -3,14 +3,14 @@
 """
 Semantic Cache for LLM Responses.
 
-v6.4.1 - RedisVL Implementation Refined:
-- Unified vector search via RedisVL
+v6.4.1 - ValkeyVL Implementation Refined:
+- Unified vector search via ValkeyVL
 - Standardized SearchIndex and Schema
 - Custom Vectorizer (ResyncVectorizer)
 - Integrated Cross-Encoder Reranking
 - Hit/miss metrics and TTL support
 - Full API Parity (invalidate, threshold updates, etc.)
-- Graceful Fallback for non-Redis Stack environments
+- Graceful Fallback for non-Valkey Stack environments
 """
 
 import asyncio
@@ -27,24 +27,24 @@ try:
     from redisvl.index import SearchIndex
     from redisvl.query import VectorQuery
 
-    REDISVL_AVAILABLE = True
+    VALKEYVL_AVAILABLE = True
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
     SearchIndex = None  # type: ignore[assignment]
     VectorQuery = None  # type: ignore[assignment]
-    REDISVL_AVAILABLE = False
+    VALKEYVL_AVAILABLE = False
 
-import valkey.asyncio as redis
-from valkey.exceptions import ConnectionError, ValkeyError as RedisError, TimeoutError
+import valkey.asyncio as valkey
+from valkey.exceptions import ConnectionError, ValkeyError as ValkeyError, TimeoutError
 
 from resync.models.cache import CacheEntry, CacheResult
 from .embedding_model import (
     cosine_distance,
 )
-from .redis_config import (
-    RedisDatabase,
-    get_redis_client,
-    get_redis_config,
-    check_redis_stack_available,
+from .valkey_config import (
+    ValkeyDatabase,
+    get_valkey_client,
+    get_valkey_config,
+    check_valkey_stack_available,
 )
 from .redisvl_adapter import ResyncVectorizer
 from .reranker import (
@@ -56,7 +56,7 @@ from .reranker import (
 
 logger = logging.getLogger(__name__)
 
-# RedisVL Index Schema Definition
+# ValkeyVL Index Schema Definition
 SCHEMA: dict[str, Any] = {
     "index": {
         "name": "idx:semantic_cache_v2",
@@ -86,7 +86,7 @@ SCHEMA: dict[str, Any] = {
 
 class SemanticCache:
     """
-    Enhanced Semantic Cache using RedisVL with full API parity and fallback support.
+    Enhanced Semantic Cache using ValkeyVL with full API parity and fallback support.
     """
 
     KEY_PREFIX = str(SCHEMA["index"]["prefix"])
@@ -99,18 +99,18 @@ class SemanticCache:
         max_entries: int | None = None,
         enable_reranking: bool = True,
     ):
-        config = get_redis_config()
+        config = get_valkey_config()
         self.threshold = threshold or config.semantic_cache_threshold
         self.default_ttl = default_ttl or config.semantic_cache_ttl
         self.max_entries = max_entries or config.semantic_cache_max_entries
         self.enable_reranking = enable_reranking and is_reranker_available()
 
-        # Initialize Vectorizer and Index (best-effort if RedisVL is available)
+        # Initialize Vectorizer and Index (best-effort if ValkeyVL is available)
         self.vectorizer = ResyncVectorizer()
-        self.index = SearchIndex.from_dict(SCHEMA) if REDISVL_AVAILABLE else None
+        self.index = SearchIndex.from_dict(SCHEMA) if VALKEYVL_AVAILABLE else None
 
         self._initialized = False
-        self._redis_stack_available: bool | None = None
+        self._valkey_stack_available: bool | None = None
 
         self._stats = {
             "hits": 0,
@@ -121,16 +121,16 @@ class SemanticCache:
             "reranks": 0,
             "rerank_rejections": 0,
         }
-        self._memory_only = not REDISVL_AVAILABLE
+        self._memory_only = not VALKEYVL_AVAILABLE
         self._memory_store: OrderedDict[str, tuple[CacheEntry, float, str | None]] = (
             OrderedDict()
         )
         self._memory_lock = asyncio.Lock()
         # Explicit bool (not None) — avoids implicit None-falsy handling in conditionals.
-        self._redis_stack_available: bool = False
-        self._last_redis_check = 0.0
-        # Prevents concurrent coroutines from all racing through _try_restore_redis
-        # simultaneously when _memory_only is True (e.g. after a Redis outage).
+        self._valkey_stack_available: bool = False
+        self._last_valkey_check = 0.0
+        # Prevents concurrent coroutines from all racing through _try_restore_valkey
+        # simultaneously when _memory_only is True (e.g. after a Valkey outage).
         self._restore_lock = asyncio.Lock()
 
     async def initialize(self) -> bool:
@@ -138,19 +138,19 @@ class SemanticCache:
         if self._initialized:
             return True
 
-        if not REDISVL_AVAILABLE:
+        if not VALKEYVL_AVAILABLE:
             self._memory_only = True
-            self._redis_stack_available = False
+            self._valkey_stack_available = False
             self._initialized = True
             logger.warning(
-                "RedisVL unavailable; semantic cache running in memory-only mode"
+                "ValkeyVL unavailable; semantic cache running in memory-only mode"
             )
             return True
 
         try:
-            redis_client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            valkey_client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
             try:
-                await redis_client.ping()
+                await valkey_client.ping()
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -158,23 +158,23 @@ class SemanticCache:
                 maybe_reraise_programming_error(_exc, _tb)
 
                 self._memory_only = True
-                self._redis_stack_available = False
+                self._valkey_stack_available = False
                 self._initialized = True
-                logger.warning("SemanticCache Redis unavailable: %s", e)
+                logger.warning("SemanticCache Valkey unavailable: %s", e)
                 return True
 
-            stack_info = await check_redis_stack_available()
-            self._redis_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
+            stack_info = await check_valkey_stack_available()
+            self._valkey_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
 
-            if self._redis_stack_available:
-                self.index.set_client(redis_client)
+            if self._valkey_stack_available:
+                self.index.set_client(valkey_client)
 
                 if not await self.index.exists():
                     await self.index.create(overwrite=False)
-                    logger.info("Created new RedisVL index: %s", self.index.name)
+                    logger.info("Created new ValkeyVL index: %s", self.index.name)
             else:
                 logger.info(
-                    "Redis Stack not available. Using fallback mode (brute force)."
+                    "Valkey Stack not available. Using fallback mode (brute force)."
                 )
 
             self._initialized = True
@@ -186,7 +186,7 @@ class SemanticCache:
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.error("Failed to initialize SemanticCache: %s", e)
-            self._redis_stack_available = False  # Force fallback if init fails
+            self._valkey_stack_available = False  # Force fallback if init fails
             self._initialized = True  # Mark as initialized to allow fallback
             self._memory_only = True
             return True
@@ -195,13 +195,13 @@ class SemanticCache:
         if not self._memory_only:
             logger.warning("Semantic cache switching to memory-only mode: %s", reason)
         self._memory_only = True
-        self._redis_stack_available = False
+        self._valkey_stack_available = False
 
-    async def _try_restore_redis(self) -> None:
-        """Attempt to restore Redis connectivity after a fallback to memory-only mode.
+    async def _try_restore_valkey(self) -> None:
+        """Attempt to restore Valkey connectivity after a fallback to memory-only mode.
 
         Guarded by _restore_lock so concurrent cache lookups during an outage
-        don't all race to ping Redis simultaneously (thundering-herd prevention).
+        don't all race to ping Valkey simultaneously (thundering-herd prevention).
         """
         if not self._memory_only:
             return
@@ -210,20 +210,20 @@ class SemanticCache:
             if not self._memory_only:
                 return
             now = time.monotonic()
-            if now - self._last_redis_check < 5.0:
+            if now - self._last_valkey_check < 5.0:
                 return
-            self._last_redis_check = now
+            self._last_valkey_check = now
         try:
-            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
             await client.ping()
         except Exception:
             return
         try:
-            stack_info = await check_redis_stack_available()
-            self._redis_stack_available = bool(stack_info.get("search", False))
+            stack_info = await check_valkey_stack_available()
+            self._valkey_stack_available = bool(stack_info.get("search", False))
         except Exception:
-            self._redis_stack_available = False
-        self._memory_only = not REDISVL_AVAILABLE
+            self._valkey_stack_available = False
+        self._memory_only = not VALKEYVL_AVAILABLE
 
     async def _memory_cleanup_locked(self) -> None:
         now = time.monotonic()
@@ -341,11 +341,11 @@ class SemanticCache:
             )
 
             if self._memory_only:
-                await self._try_restore_redis()
+                await self._try_restore_valkey()
 
             if self._memory_only:
                 result = await self._search_memory(query, embedding, user_id)
-            elif self._redis_stack_available:
+            elif self._valkey_stack_available:
                 result = await self._search_redisvl(query, embedding, user_id)
             else:
                 result = await self._search_fallback(query, embedding, user_id)
@@ -380,7 +380,7 @@ class SemanticCache:
     async def _search_redisvl(
         self, query: str, embedding: list[float], user_id: str | None = None
     ) -> CacheResult:
-        """Search using RedisVL VectorQuery with user_id filtering.
+        """Search using ValkeyVL VectorQuery with user_id filtering.
 
         SECURITY: user_id filter ensures only entries belonging to the same user are returned.
 
@@ -392,7 +392,7 @@ class SemanticCache:
         # Create filter for user_id if provided
         filter_expr = None
         if user_id:
-            # Use RedisVL FilterExpression for proper user isolation at query time
+            # Use ValkeyVL FilterExpression for proper user isolation at query time
             # This is more secure than embedding user_id in the query text
             from redisvl.query.filter import Tag, FilterExpression
 
@@ -448,7 +448,7 @@ class SemanticCache:
             embedding: The pre-computed embedding vector
             user_id: The user identifier for filtering (prevents cross-user data leakage)
         """
-        client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+        client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
         best_distance = float("inf")
         best_entry = None
 
@@ -470,7 +470,7 @@ class SemanticCache:
                     # Skip entries that don't belong to the requesting user
                     continue
 
-                # Decode binary embedding if stored as bytes (RedisVL format)
+                # Decode binary embedding if stored as bytes (ValkeyVL format)
                 raw_emb = data["embedding"]
                 if isinstance(raw_emb, bytes):
                     stored_embedding = list(
@@ -552,7 +552,7 @@ class SemanticCache:
             embedding = await asyncio.to_thread(self.vectorizer.embed, cache_key_text)
 
             if self._memory_only:
-                await self._try_restore_redis()
+                await self._try_restore_valkey()
 
             if self._memory_only:
                 entry = CacheEntry(
@@ -581,11 +581,11 @@ class SemanticCache:
                 "user_id": user_id or "",
             }
 
-            if self._redis_stack_available:
+            if self._valkey_stack_available:
                 keys = await self.index.load([data])
                 key = keys[0] if keys else None
             else:
-                client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+                client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
                 if user_id:
                     key = f"{self.KEY_PREFIX}user:{user_id}:{query_hash}"
                 else:
@@ -595,7 +595,7 @@ class SemanticCache:
 
             if key:
                 effective_ttl = ttl or self.default_ttl
-                client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+                client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
                 await client.expire(key, effective_ttl)
                 self._stats["sets"] += 1
                 return True
@@ -639,7 +639,7 @@ class SemanticCache:
                 key = f"{self.KEY_PREFIX}user:{user_id}:{query_hash}"
             else:
                 key = f"{self.KEY_PREFIX}{query_hash}"
-            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
             await client.hincrby(key, "hit_count", 1)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             self._enter_memory_only("increment_hit_count_failed")
@@ -650,7 +650,7 @@ class SemanticCache:
         try:
             if self._memory_only:
                 return bool(await self._memory_invalidate_query(query))
-            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
             query_hash = self._hash_query(query)
             deleted = await client.delete(f"{self.KEY_PREFIX}{query_hash}")
             return bool(deleted)
@@ -669,7 +669,7 @@ class SemanticCache:
         try:
             if self._memory_only:
                 return await self._memory_invalidate_pattern(pattern)
-            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
             count = 0
             async for key in client.scan_iter(match=f"{self.KEY_PREFIX}*"):
                 query_text = await client.hget(key, "query_text")
@@ -695,10 +695,10 @@ class SemanticCache:
                     self._memory_store.clear()
                 self._stats = {k: 0 for k in self._stats}
                 return True
-            if self._redis_stack_available and self._initialized:
+            if self._valkey_stack_available and self._initialized:
                 await self.index.clear()
             else:
-                client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+                client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
                 async for key in client.scan_iter(match=f"{self.KEY_PREFIX}*"):
                     await client.delete(key)
 
@@ -748,7 +748,7 @@ class SemanticCache:
                     "threshold": self.threshold,
                     "default_ttl": self.default_ttl,
                     "max_entries": self.max_entries,
-                    "redis_stack_available": False,
+                    "valkey_stack_available": False,
                     "used_memory_human": "memory-only",
                     "reranking_enabled": self.enable_reranking,
                     "reranker_model": reranker_info.get("model"),
@@ -756,7 +756,7 @@ class SemanticCache:
                     "reranks_total": self._stats["reranks"],
                     "rerank_rejections": self._stats["rerank_rejections"],
                 }
-            client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+            client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
 
             count = 0
             async for _ in client.scan_iter(match=f"{self.KEY_PREFIX}*"):
@@ -789,7 +789,7 @@ class SemanticCache:
                 "threshold": self.threshold,
                 "default_ttl": self.default_ttl,
                 "max_entries": self.max_entries,
-                "redis_stack_available": self._redis_stack_available,
+                "valkey_stack_available": self._valkey_stack_available,
                 "used_memory_human": info.get("used_memory_human", "unknown"),
                 "reranking_enabled": self.enable_reranking,
                 "reranker_model": reranker_info.get("model"),
@@ -857,11 +857,11 @@ class SemanticCache:
             )
 
             if self._memory_only:
-                await self._try_restore_redis()
+                await self._try_restore_valkey()
 
             if self._memory_only:
                 result = await self._search_memory(cache_key_text, embedding, user_id)
-            elif self._redis_stack_available:
+            elif self._valkey_stack_available:
                 result = await self._search_redisvl(cache_key_text, embedding, user_id)
             else:
                 result = await self._search_fallback(cache_key_text, embedding, user_id)
@@ -975,7 +975,7 @@ class SemanticCache:
             "max_entries": self.max_entries,
             "enable_reranking": self.enable_reranking,
             "memory_only": self._memory_only,
-            "redis_stack_available": self._redis_stack_available,
+            "valkey_stack_available": self._valkey_stack_available,
         }
 
 # Singleton Management

@@ -10,7 +10,7 @@ from resync.settings_types import Environment
 
 def _reset_env(prefix: str = "APP_") -> None:
     for k in list(os.environ.keys()):
-        if k.startswith(prefix) or k in {"DATABASE_URL", "REDIS_URL", "SECRET_KEY", "ADMIN_PASSWORD"}:
+        if k.startswith(prefix) or k in {"DATABASE_URL", "VALKEY_URL", "SECRET_KEY", "ADMIN_PASSWORD"}:
             os.environ.pop(k, None)
 
 
@@ -25,16 +25,16 @@ def test_debug_legacy_alias_tracks_debug_flag() -> None:
     assert s2.DEBUG is True
 
 
-def test_redis_url_legacy_warns_and_returns_plaintext() -> None:
+def test_valkey_url_legacy_warns_and_returns_plaintext() -> None:
     _reset_env()
     settings_module.clear_settings_cache()
 
-    s = settings_module.Settings(redis_url=SecretStr("redis://localhost:6379/0"))
+    s = settings_module.Settings(valkey_url=SecretStr("valkey://localhost:6379/0"))
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         val = s.REDIS_URL
-        assert val.startswith("redis://")
+        assert val.startswith("valkey://")
         assert any(isinstance(x.message, DeprecationWarning) for x in w)
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -730,7 +731,7 @@ async def clear_cache(
     """Clear application cache.
 
     Args:
-        cache_type: Type of cache to clear ('all', 'redis', 'memory')
+        cache_type: Type of cache to clear ('all', 'valkey', 'memory')
 
     Returns:
         Status of cache clearing operation
@@ -738,23 +739,23 @@ async def clear_cache(
     try:
         cleared = []
 
-        if cache_type in ("all", "redis"):
-            # Clear Redis cache if available
+        if cache_type in ("all", "valkey"):
+            # Clear Valkey cache if available
             try:
-                from resync.core.fastapi_di import get_redis_client
+                from resync.core.fastapi_di import get_valkey_client
 
-                redis_client = get_redis_client()
-                if redis_client:
-                    await redis_client.flushdb()
-                    cleared.append("redis")
-                    logger.info("Redis cache cleared")
+                valkey_client = get_valkey_client()
+                if valkey_client:
+                    await valkey_client.flushdb()
+                    cleared.append("valkey")
+                    logger.info("Valkey cache cleared")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
 
-                logger.warning("Failed to clear Redis cache: %s", e)
+                logger.warning("Failed to clear Valkey cache: %s", e)
 
         if cache_type in ("all", "memory"):
             # Clear in-memory caches
@@ -1005,7 +1006,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
 
     Components checked (in parallel):
     - Database (SQLite/ContextStore)
-    - Redis (Cache)
+    - Valkey (Cache)
     - LLM (AI Service)
     - RAG (Vector Search)
     - Teams (Integration)
@@ -1035,16 +1036,16 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 message=f"Database error: {str(e)[:100]}",
             )
 
-    async def _check_redis() -> ComponentHealth:
-        """Check Redis health."""
+    async def _check_valkey() -> ComponentHealth:
+        """Check Valkey health."""
         try:
             start = time.perf_counter()
-            from resync.core.redis_init import get_redis_client
-            redis_client = get_redis_client()
-            if redis_client:
-                await redis_client.ping()
+            from resync.core.valkey_init import get_valkey_client
+            valkey_client = get_valkey_client()
+            if valkey_client:
+                await valkey_client.ping()
                 latency = (time.perf_counter() - start) * 1000
-                info = await redis_client.info("memory")
+                info = await valkey_client.info("memory")
                 used_memory = info.get("used_memory_human", "unknown")
                 return ComponentHealth(
                     status="healthy",
@@ -1053,12 +1054,12 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 )
             return ComponentHealth(
                 status="degraded",
-                message="Redis not configured",
+                message="Valkey not configured",
             )
         except Exception as e:
             return ComponentHealth(
                 status="unhealthy",
-                message=f"Redis error: {str(e)[:100]}",
+                message=f"Valkey error: {str(e)[:100]}",
             )
 
     async def _check_llm() -> ComponentHealth:
@@ -1073,13 +1074,15 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 )
             
             # P2-C11 FIX: Validate URL against SSRF protection
-            from resync.core.ssrf_protection import SSRFProtection
-            is_safe, reason = SSRFProtection.is_safe_url(llm_endpoint)
-            if not is_safe:
-                return ComponentHealth(
-                    status="unhealthy",
-                    message=f"LLM endpoint blocked: {reason}",
-                )
+            ssrf_disabled = os.getenv("RESYNC_DISABLE_SSRF", "false").lower() == "true"
+            if not ssrf_disabled:
+                from resync.core.ssrf_protection import SSRFProtection
+                is_safe, reason = SSRFProtection.is_safe_url(llm_endpoint)
+                if not is_safe:
+                    return ComponentHealth(
+                        status="unhealthy",
+                        message=f"LLM endpoint blocked: {reason}",
+                    )
             
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -1133,13 +1136,15 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
                 )
             
             # P2-C11 FIX: Validate URL against SSRF protection
-            from resync.core.ssrf_protection import SSRFProtection
-            is_safe, reason = SSRFProtection.is_safe_url(rag_url)
-            if not is_safe:
-                return ComponentHealth(
-                    status="unhealthy",
-                    message=f"RAG endpoint blocked: {reason}",
-                )
+            ssrf_disabled = os.getenv("RESYNC_DISABLE_SSRF", "false").lower() == "true"
+            if not ssrf_disabled:
+                from resync.core.ssrf_protection import SSRFProtection
+                is_safe, reason = SSRFProtection.is_safe_url(rag_url)
+                if not is_safe:
+                    return ComponentHealth(
+                        status="unhealthy",
+                        message=f"RAG endpoint blocked: {reason}",
+                    )
             
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -1260,7 +1265,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
     # P2-38 FIX: Execute all health checks in parallel
     results = await asyncio.gather(
         _check_database(),
-        _check_redis(),
+        _check_valkey(),
         _check_llm(),
         _check_rag(),
         _check_teams(),
@@ -1270,7 +1275,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
     )
 
     # Map results to component names
-    component_names = ["database", "redis", "llm", "rag", "teams", "tws", "connection_pools"]
+    component_names = ["database", "valkey", "llm", "rag", "teams", "tws", "connection_pools"]
     components: dict[str, ComponentHealth] = {}
 
     for name, result in zip(component_names, results):

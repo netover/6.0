@@ -15,10 +15,10 @@ import httpx
 
 from resync.core.exceptions import (
     ConfigurationError,
-    RedisAuthError,
-    RedisConnectionError,
-    RedisInitializationError,
-    RedisTimeoutError,
+    ValkeyAuthError,
+    ValkeyConnectionError,
+    ValkeyInitializationError,
+    ValkeyTimeoutError,
 )
 from resync.core.exception_guard import guard_programming_errors
 from resync.core.structured_logger import get_logger
@@ -334,39 +334,39 @@ async def _check_rag(
         deadline=deadline,
     )
 
-async def _check_redis(
+async def _check_valkey(
     settings: Settings, *, deadline: float, logger: Any, disabled: bool
 ) -> StartupCheck:
     start = time.monotonic()
     if disabled:
         logger.info(
-            "redis_startup_disabled",
-            reason="RESYNC_DISABLE_REDIS=true, skipping redis initialization",
+            "valkey_startup_disabled",
+            reason="RESYNC_DISABLE_VALKEY=true, skipping valkey initialization",
         )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="skipped",
             critical=False,
             reason_code="disabled",
-            detail="Redis disabled by RESYNC_DISABLE_REDIS",
+            detail="Valkey disabled by RESYNC_DISABLE_VALKEY",
             duration_ms=int((time.monotonic() - start) * 1000),
         )
 
     try:
-        from resync.core.redis_init import RedisInitError, get_redis_initializer
-        initializer = get_redis_initializer()
+        from resync.core.valkey_init import ValkeyInitError, get_valkey_initializer
+        initializer = get_valkey_initializer()
         with guard_programming_errors():
             await initializer.initialize(
                 max_retries=int(getattr(settings, "valkey_max_startup_retries", 5)),
                 health_check_interval=int(
                     getattr(settings, "valkey_health_check_interval", 5)
                 ),
-                redis_url=(
+                valkey_url=(
                     getattr(settings, "valkey_url", None)
                 ),
             )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="ok",
             critical=True,
             reason_code="initialized",
@@ -374,74 +374,74 @@ async def _check_redis(
         )
 
     except ConfigurationError as e:
-        logger.error("startup_redis_configuration_error", error_message=str(e))
+        logger.error("startup_valkey_configuration_error", error_message=str(e))
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="fail",
             critical=True,
             reason_code="configuration_error",
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-    except RedisAuthError as e:
+    except ValkeyAuthError as e:
         logger.error(
-            "startup_redis_authentication_error",
+            "startup_valkey_authentication_error",
             error_message=str(e),
             error_details=getattr(e, "details", None),
         )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="fail",
             critical=True,
-            reason_code="redis_auth_error",
+            reason_code="valkey_auth_error",
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-    except RedisTimeoutError as e:
+    except ValkeyTimeoutError as e:
         logger.error(
-            "startup_redis_timeout_error",
+            "startup_valkey_timeout_error",
             error_message=str(e),
             error_details=getattr(e, "details", None),
         )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="fail",
             critical=True,
-            reason_code="redis_timeout",
+            reason_code="valkey_timeout",
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-    except RedisConnectionError as e:
+    except ValkeyConnectionError as e:
         logger.error(
-            "startup_redis_connection_error",
+            "startup_valkey_connection_error",
             error_message=str(e),
             error_details=getattr(e, "details", None),
         )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="fail",
             critical=True,
-            reason_code="redis_connection_error",
+            reason_code="valkey_connection_error",
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-    except RedisInitializationError as e:
+    except ValkeyInitializationError as e:
         logger.error(
-            "startup_redis_initialization_error",
+            "startup_valkey_initialization_error",
             error_message=str(e),
             error_details=getattr(e, "details", None),
         )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="fail",
             critical=True,
-            reason_code="redis_initialization_error",
+            reason_code="valkey_initialization_error",
             detail=str(e),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
     except (OSError, ValueError, RuntimeError, ConnectionError) as e:
-        if isinstance(e, RedisInitError):
-            reason = "redis_init_error"
+        if isinstance(e, ValkeyInitError):
+            reason = "valkey_init_error"
         else:
             reason = (
                 "startup_budget_exhausted"
@@ -449,12 +449,12 @@ async def _check_redis(
                 else type(e).__name__
             )
         logger.error(
-            "startup_redis_unexpected_error",
+            "startup_valkey_unexpected_error",
             error_message=str(e),
             reason_code=reason,
         )
         return StartupCheck(
-            name="redis_connection",
+            name="valkey_connection",
             status="fail",
             critical=True,
             reason_code=reason,
@@ -470,11 +470,11 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
     started_at = time.monotonic()
     deadline = started_at + float(policy["max_total_seconds"])
 
-    redis_disabled = _parse_bool(os.getenv("RESYNC_DISABLE_REDIS")) or False
-    if redis_disabled:
-        logger.warning("redis_marked_noncritical", reason="RESYNC_DISABLE_REDIS=true")
+    valkey_disabled = _parse_bool(os.getenv("RESYNC_DISABLE_VALKEY")) or False
+    if valkey_disabled:
+        logger.warning("valkey_marked_noncritical", reason="RESYNC_DISABLE_VALKEY=true")
 
-    critical_services: list[str] = [] if redis_disabled else ["redis_connection"]
+    critical_services: list[str] = [] if valkey_disabled else ["valkey_connection"]
     if getattr(settings_obj, "require_tws_at_boot", False):
         critical_services.append("tws_reachability")
     if getattr(settings_obj, "require_llm_at_boot", False):
@@ -491,10 +491,10 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
 
     results: list[StartupCheck] = []
 
-    redis_result = await _check_redis(
-        settings_obj, deadline=deadline, logger=logger, disabled=redis_disabled
+    valkey_result = await _check_valkey(
+        settings_obj, deadline=deadline, logger=logger, disabled=valkey_disabled
     )
-    results.append(redis_result)
+    results.append(valkey_result)
 
     remaining = max(0.0, deadline - time.monotonic())
     if remaining > 0:
@@ -814,9 +814,9 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
         logger.critical(
             "application_startup_timeout",
             timeout_seconds=startup_timeout,
-            hint=f"Startup exceeded {startup_timeout}s. Check Redis/DB/networking.",
+            hint=f"Startup exceeded {startup_timeout}s. Check Valkey/DB/networking.",
             troubleshooting={
-                "redis": "Verify REDIS_URL and Redis server status.",
+                "valkey": "Verify VALKEY_URL and Valkey server status.",
                 "database": "Check DATABASE_URL and PostgreSQL availability.",
                 "network": "Ensure no firewalls block outbound TWS/LLM connections.",
             },
@@ -904,7 +904,7 @@ async def _init_graphrag(app: "FastAPI") -> None:
                 if not graphrag_enabled:
                     return
                 from resync.core.graphrag_integration import initialize_graphrag
-                from resync.core.redis_init import get_redis_client, is_redis_available
+                from resync.core.valkey_init import get_valkey_client, is_valkey_available
                 from resync.knowledge.retrieval.graph import get_knowledge_graph
                 from resync.services.llm_service import get_llm_service
                 from resync.services.tws_service import get_tws_client
@@ -912,7 +912,7 @@ async def _init_graphrag(app: "FastAPI") -> None:
                     llm_service=await get_llm_service(),
                     knowledge_graph=get_knowledge_graph(),
                     tws_client=get_tws_client(),
-                    redis_client=get_redis_client() if is_redis_available() else None,
+                    valkey_client=get_valkey_client() if is_valkey_available() else None,
                     enabled=True,
                 )
     except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as exc:

@@ -61,7 +61,7 @@ async def check_database_health() -> tuple[bool, str | None]:
 async def check_redis_health() -> tuple[bool, str | None]:
     """Check Redis connectivity."""
     try:
-        from resync.core.redis_init import get_redis_client
+        from resync.core.valkey_init import get_redis_client
 
         redis = get_redis_client()
         if redis:

@@ -57,7 +57,7 @@ def app() -> FastAPI:
         a2a_handler=MagicMock(),
         skill_manager=MagicMock(),
         startup_complete=True,
-        redis_available=False,
+        valkey_available=False,
         domain_shutdown_complete=False,
     )
 

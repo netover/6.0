@@ -25,7 +25,7 @@ from starlette.websockets import WebSocketState  # FIX P2-07: needed for safe cl
 
 from resync.api.security import decode_token, require_role
 from resync.core.metrics import runtime_metrics
-from resync.core.redis_init import get_redis_client
+from resync.core.valkey_init import get_valkey_client
 from resync.core.task_tracker import create_tracked_task  # FIX P1-04
 
 if TYPE_CHECKING:
@@ -40,15 +40,25 @@ MAX_SAMPLES = (2 * 60 * 60) // SAMPLE_INTERVAL_SECONDS  # 2 horas
 MAX_WS_CONNECTIONS = 50
 WS_SEND_TIMEOUT = 1.0  # Tempo máximo para envio em um WebSocket lento
 
-# Redis Keys
-REDIS_KEY_HISTORY = "resync:monitoring:history"
-REDIS_KEY_ALERTS = "resync:monitoring:alerts"
-REDIS_KEY_LATEST = "resync:monitoring:latest"
-REDIS_KEY_START_TIME = "resync:monitoring:start_time"
-REDIS_KEY_PREV_REQUESTS = "resync:monitoring:prev_requests"
-REDIS_KEY_PREV_WALLTIME = "resync:monitoring:prev_walltime"
-REDIS_CH_BROADCAST = "resync:monitoring:broadcast"
-REDIS_LOCK_COLLECTOR = "resync:monitoring:collector:lock"
+# Valkey Keys
+VALKEY_KEY_HISTORY = "resync:monitoring:history"
+VALKEY_KEY_ALERTS = "resync:monitoring:alerts"
+VALKEY_KEY_LATEST = "resync:monitoring:latest"
+VALKEY_KEY_START_TIME = "resync:monitoring:start_time"
+VALKEY_KEY_PREV_REQUESTS = "resync:monitoring:prev_requests"
+VALKEY_KEY_PREV_WALLTIME = "resync:monitoring:prev_walltime"
+VALKEY_CH_BROADCAST = "resync:monitoring:broadcast"
+VALKEY_LOCK_COLLECTOR = "resync:monitoring:collector:lock"
+
+# Legacy aliases for backward compatibility
+REDIS_KEY_HISTORY = VALKEY_KEY_HISTORY
+REDIS_KEY_ALERTS = VALKEY_KEY_ALERTS
+REDIS_KEY_LATEST = VALKEY_KEY_LATEST
+REDIS_KEY_START_TIME = VALKEY_KEY_START_TIME
+REDIS_KEY_PREV_REQUESTS = VALKEY_KEY_PREV_REQUESTS
+REDIS_KEY_PREV_WALLTIME = VALKEY_KEY_PREV_WALLTIME
+REDIS_CH_BROADCAST = VALKEY_CH_BROADCAST
+REDIS_LOCK_COLLECTOR = VALKEY_LOCK_COLLECTOR
 
 # ── Helpers de Serialização ──────────────────────────────────────────────────
 
@@ -110,9 +120,9 @@ def _classify_collection_error(error: Exception) -> str:
     """Classifica erro de coleta sem expor detalhes internos."""
     type_name = type(error).__name__
     mapping = {
-        "ConnectionError": "redis_connection_failed",
+        "ConnectionError": "valkey_connection_failed",
         "TimeoutError": "collection_timeout",
-        "ConnectionRefusedError": "redis_connection_refused",
+        "ConnectionRefusedError": "valkey_connection_refused",
     }
     return mapping.get(type_name, "collection_failed")
 
@@ -181,11 +191,11 @@ def _build_metric_sample(
         correlation_ids_active=_safe_int(system.get("correlation_ids_active")),
     )
 
-def _get_redis() -> "redis_async.Redis":
-    """Obtém o cliente Redis canônico da aplicação."""
-    client = get_redis_client()
+def _get_valkey() -> "valkey_async.Valkey":
+    """Obtém o cliente Valkey canônico da aplicação."""
+    client = get_valkey_client()
     if client is None:
-        raise ConnectionError("Redis client indisponível")
+        raise ConnectionError("Valkey client indisponível")
     return client
 
 def _jitter_seconds(base: float) -> float:
@@ -257,7 +267,7 @@ class MetricSample:
 # ── Dashboard Metrics Store ──────────────────────────────────────────────────
 
 class DashboardMetricsStore:
-    """Store de métricas persistido no Redis para consistência global."""
+    """Store de métricas persistido no Valkey para consistência global."""
 
     def __init__(self) -> None:
         self._cached_start_time: float | None = None
@@ -265,9 +275,9 @@ class DashboardMetricsStore:
     async def compute_rate_and_add_sample(
         self, requests_total: int, now_wall: float, sample_builder: Any
     ) -> None:
-        """Calcula RPS com estado persistido no Redis (consistente entre workers)."""
+        """Calcula RPS com estado persistido no Valkey (consistente entre workers)."""
         try:
-            redis = _get_redis()
+            valkey = _get_valkey()
             # Utilizar variáveis explícitas para as tasks
             task_req = None
             task_time = None
@@ -275,10 +285,10 @@ class DashboardMetricsStore:
             try:
                 async with asyncio.TaskGroup() as tg:
                     task_req = tg.create_task(
-                        redis.get(REDIS_KEY_PREV_REQUESTS), name="get_prev_requests"
+                        valkey.get(VALKEY_KEY_PREV_REQUESTS), name="get_prev_requests"
                     )
                     task_time = tg.create_task(
-                        redis.get(REDIS_KEY_PREV_WALLTIME), name="get_prev_walltime"
+                        valkey.get(VALKEY_KEY_PREV_WALLTIME), name="get_prev_walltime"
                     )
             except* asyncio.CancelledError:
                 # Crucial: propagar cancelamento para shutdown limpo sem group
@@ -327,9 +337,9 @@ class DashboardMetricsStore:
 
             rps = req_delta / time_delta if time_delta > 0 else 0.0
 
-            pipe = redis.pipeline()
-            pipe.set(REDIS_KEY_PREV_REQUESTS, str(requests_total))
-            pipe.set(REDIS_KEY_PREV_WALLTIME, str(now_wall))
+            pipe = valkey.pipeline()
+            pipe.set(VALKEY_KEY_PREV_REQUESTS, str(requests_total))
+            pipe.set(VALKEY_KEY_PREV_WALLTIME, str(now_wall))
             await pipe.execute()
 
             sample = sample_builder(max(0.0, rps))
@@ -377,20 +387,20 @@ class DashboardMetricsStore:
         await self.add_sample(sample)
 
     async def add_sample(self, sample: MetricSample) -> None:
-        """Persiste amostra no Redis e gera alertas."""
+        """Persiste amostra no Valkey e gera alertas."""
         try:
-            redis = _get_redis()
+            valkey = _get_valkey()
             data = json_dumps(asdict(sample))
             new_alerts = self._compute_alerts(sample)
 
-            pipe = redis.pipeline()
-            pipe.lpush(REDIS_KEY_HISTORY, data)
-            pipe.ltrim(REDIS_KEY_HISTORY, 0, MAX_SAMPLES - 1)
-            pipe.set(REDIS_KEY_LATEST, data)
+            pipe = valkey.pipeline()
+            pipe.lpush(VALKEY_KEY_HISTORY, data)
+            pipe.ltrim(VALKEY_KEY_HISTORY, 0, MAX_SAMPLES - 1)
+            pipe.set(VALKEY_KEY_LATEST, data)
             for alert in new_alerts:
-                pipe.lpush(REDIS_KEY_ALERTS, json_dumps(alert))
+                pipe.lpush(VALKEY_KEY_ALERTS, json_dumps(alert))
             if new_alerts:
-                pipe.ltrim(REDIS_KEY_ALERTS, 0, 19)
+                pipe.ltrim(VALKEY_KEY_ALERTS, 0, 19)
             await pipe.execute()
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
@@ -398,7 +408,7 @@ class DashboardMetricsStore:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.error("Falha ao persistir amostra no Redis (%s)", type(e).__name__)
+            logger.error("Falha ao persistir amostra no Valkey (%s)", type(e).__name__)
 
     def _compute_alerts(self, sample: MetricSample) -> list[dict[str, Any]]:
         """Computa alertas localmente."""
@@ -425,18 +435,18 @@ class DashboardMetricsStore:
         return new_alerts
 
     async def get_global_uptime(self) -> float:
-        """Obtém o tempo de uptime global via Redis."""
+        """Obtém o tempo de uptime global via Valkey."""
         now = time.time()
         if self._cached_start_time is not None:
             return now - self._cached_start_time
 
         try:
-            redis = _get_redis()
-            await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
-            raw = await redis.get(REDIS_KEY_START_TIME)
+            valkey = _get_valkey()
+            await valkey.set(VALKEY_KEY_START_TIME, str(now), nx=True)
+            raw = await valkey.get(VALKEY_KEY_START_TIME)
             if raw is None:
                 logger.warning(
-                    "Não foi possível determinar o tempo de início global do Redis."
+                    "Não foi possível determinar o tempo de início global do Valkey."
                 )
                 return 0.0
             self._cached_start_time = float(raw)
@@ -448,15 +458,15 @@ class DashboardMetricsStore:
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.exception(
-                "Erro ao obter uptime global do Redis (%s)", type(e).__name__
+                "Erro ao obter uptime global do Valkey (%s)", type(e).__name__
             )
             return 0.0
 
     async def get_current_metrics(self) -> dict[str, Any]:
         """Retorna métricas atuais."""
         try:
-            redis = _get_redis()
-            raw = await redis.get(REDIS_KEY_LATEST)
+            valkey = _get_valkey()
+            raw = await valkey.get(VALKEY_KEY_LATEST)
             if not raw:
                 return self._empty_response("initializing")
 
@@ -464,7 +474,7 @@ class DashboardMetricsStore:
             if not isinstance(data, dict):
                 return self._empty_response("data_error")
 
-            alerts_raw = await redis.lrange(REDIS_KEY_ALERTS, 0, 4)
+            alerts_raw = await valkey.lrange(VALKEY_KEY_ALERTS, 0, 4)
             alerts = [p for a in alerts_raw if (p := _safe_json_loads(a, "alert"))]
 
             return self._format_metrics_dict(data, alerts)
@@ -480,9 +490,9 @@ class DashboardMetricsStore:
     async def get_history(self, minutes: int = 120) -> dict[str, Any]:
         """Retorna histórico de métricas."""
         try:
-            redis = _get_redis()
+            valkey = _get_valkey()
             needed = (minutes * 60) // SAMPLE_INTERVAL_SECONDS
-            raw_list = await redis.lrange(REDIS_KEY_HISTORY, 0, needed - 1)
+            raw_list = await valkey.lrange(VALKEY_KEY_HISTORY, 0, needed - 1)
             if not raw_list:
                 return self._empty_history()
 
@@ -577,7 +587,7 @@ class DashboardMetricsStore:
 # ── WebSocket Manager ───────────────────────────────────────────────────────
 
 class WebSocketManager:
-    """Gerencia conexões WebSocket locais e sincroniza via Redis Pub/Sub."""
+    """Gerencia conexões WebSocket locais e sincroniza via Valkey Pub/Sub."""
 
     def __init__(self) -> None:
         self._clients: set[WebSocket] = set()
@@ -654,9 +664,9 @@ class WebSocketManager:
 
     async def _subscribe_to_broadcast(self):
         """Cria e subscreve um cliente pubsub para o canal de broadcast."""
-        redis = _get_redis()
-        pubsub = redis.pubsub()
-        await pubsub.subscribe(REDIS_CH_BROADCAST)
+        valkey = _get_valkey()
+        pubsub = valkey.pubsub()
+        await pubsub.subscribe(VALKEY_CH_BROADCAST)
         return pubsub
 
     async def _handle_pubsub_message(self, message: dict) -> None:
@@ -675,7 +685,7 @@ class WebSocketManager:
             return
 
         try:
-            await pubsub.unsubscribe(REDIS_CH_BROADCAST)
+            await pubsub.unsubscribe(VALKEY_CH_BROADCAST)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -699,7 +709,7 @@ class WebSocketManager:
                 logger.warning("PubSub close failed: %s", e)
 
     async def _pubsub_listener(self) -> None:
-        """Listener do Redis Pub/Sub para broadcast."""
+        """Listener do Valkey Pub/Sub para broadcast."""
         backoff = 1.0
         max_backoff = 60.0
         while not self._get_stop_event().is_set():
@@ -707,7 +717,7 @@ class WebSocketManager:
             try:
                 pubsub = await self._subscribe_to_broadcast()
                 backoff = 1.0
-                logger.info("WebSocketManager sincronizado com Redis Pub/Sub")
+                logger.info("WebSocketManager sincronizado com Valkey Pub/Sub")
                 async for message in pubsub.listen():
                     if self._get_stop_event().is_set():
                         break
@@ -822,10 +832,10 @@ def reset_singletons_for_testing() -> None:
 # ── Collector Logic ──────────────────────────────────────────────────────────
 
 async def collect_metrics_sample() -> None:
-    """Apenas um worker coleta por vez (Liderança via Redis Lock)."""
-    redis = _get_redis()
+    """Apenas um worker coleta por vez (Liderança via Valkey Lock)."""
+    valkey = _get_valkey()
 
-    lock = redis.lock(REDIS_LOCK_COLLECTOR, timeout=SAMPLE_INTERVAL_SECONDS - 1)
+    lock = valkey.lock(VALKEY_LOCK_COLLECTOR, timeout=SAMPLE_INTERVAL_SECONDS - 1)
     if not await lock.acquire(blocking=False):
         return  # Outro worker já está coletando
 
@@ -847,7 +857,7 @@ async def collect_metrics_sample() -> None:
         await store.compute_rate_and_add_sample(req_total, now_wall, build_sample)
 
         current = await store.get_current_metrics()
-        subscribers = await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+        subscribers = await valkey.publish(VALKEY_CH_BROADCAST, json_dumps(current))
         if subscribers == 0:
             logger.debug("Nenhum subscriber no canal de broadcast")
 
@@ -867,7 +877,7 @@ async def collect_metrics_sample() -> None:
             store = get_metrics_store()
             await store.add_error_sample(e)
             current = await store.get_current_metrics()
-            await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+            await valkey.publish(VALKEY_CH_BROADCAST, json_dumps(current))
         except asyncio.CancelledError:
             raise  # propagate cancellation even inside error handler
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
@@ -886,8 +896,8 @@ async def collect_metrics_sample() -> None:
 async def metrics_collector_loop() -> None:
     """Loop de coleta de métricas em background."""
     try:
-        redis = _get_redis()
-        await redis.ping()
+        valkey = _get_valkey()
+        await valkey.ping()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -895,7 +905,7 @@ async def metrics_collector_loop() -> None:
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.exception(
-            "Redis não disponível, encerrando collector (%s)", type(e).__name__
+            "Valkey não disponível, encerrando collector (%s)", type(e).__name__
         )
         return
 

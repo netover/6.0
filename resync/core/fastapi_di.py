@@ -9,7 +9,7 @@ directly** (no async generators / ``yield``). That avoids patterns like
 
 - Request-scoped objects (AgentManager, TWS client, KnowledgeGraph) are provided
   by :mod:`resync.core.wiring` and require ``Request``.
-- Process-wide singletons (Redis client, TeamsIntegration, AuditQueue) are
+- Process-wide singletons (Valkey client, TeamsIntegration, AuditQueue) are
   thin wrappers around their canonical modules.
 
 If an optional feature is not installed (e.g. RAG file ingestion), the provider
@@ -75,19 +75,19 @@ from resync.core.wiring import (  # noqa: E402
     get_tws_client,
 )
 
-def get_redis_client():
-    """Return the *canonical* Redis client singleton.
+def get_valkey_client():
+    """Return the *canonical* Valkey client singleton.
 
     The client is initialized during application startup (lifespan) via the
-    RedisInitializer. If it was not initialized, we return a 503 instead of
+    ValkeyInitializer. If it was not initialized, we return a 503 instead of
     silently creating a second client (which can be dangerous with
     gunicorn --preload).
     """
 
     try:
-        from resync.core.redis_init import get_redis_client as _get_redis_client
+        from resync.core.valkey_init import get_valkey_client as _get_valkey_client
 
-        return _get_redis_client()
+        return _get_valkey_client()
     except RuntimeError as exc:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -97,8 +97,8 @@ def get_redis_client():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "Redis client is not initialized. The application startup likely "
-                "failed or Redis is disabled in this environment."
+                "Valkey client is not initialized. The application startup likely "
+                "failed or Valkey is disabled in this environment."
             ),
         ) from exc
 
@@ -155,7 +155,7 @@ __all__ = [
     "get_llm_service",
     "get_tws_client",
     "get_teams_integration",
-    "get_redis_client",
+    "get_valkey_client",
     "get_audit_queue",
     "get_file_ingestor",
     "get_a2a_handler",

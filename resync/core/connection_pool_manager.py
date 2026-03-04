@@ -27,7 +27,7 @@ from resync.core.pools.pool_manager import (
     ConnectionPoolManager,
     get_connection_pool_manager,
 )
-from resync.core.pools.redis_pool import RedisConnectionPool
+from resync.core.pools.valkey_pool import ValkeyConnectionPool
 from resync.core.smart_pooling import SmartConnectionPool, SmartPoolConfig
 from resync.core.structured_logger import get_logger
 
@@ -431,7 +431,7 @@ class AdvancedConnectionPoolManager:
         Get a connection with intelligent pool selection.
 
         Args:
-            pool_type: Type of connection pool (db, redis, http)
+            pool_type: Type of connection pool (db, valkey, http)
             connection_id: Connection identifier
 
         Returns:
@@ -440,7 +440,7 @@ class AdvancedConnectionPoolManager:
         if not self._initialized:
             await self.initialize()
 
-        if self.smart_pool and pool_type in ["db", "redis", "http"]:
+        if self.smart_pool and pool_type in ["db", "valkey", "http"]:
             # Use smart pooling for critical connections
             async with self.smart_pool.get_connection(
                 f"{pool_type}_{connection_id}"
@@ -548,7 +548,7 @@ __all__ = [
     "ConnectionPoolConfig",
     "ConnectionPoolStats",
     "DatabaseConnectionPool",
-    "RedisConnectionPool",
+    "ValkeyConnectionPool",
     "HTTPConnectionPool",
     "ConnectionPoolManager",
     "SmartConnectionPool",

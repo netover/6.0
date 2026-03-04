@@ -22,7 +22,7 @@ class ComponentType(enum.Enum):
     """Types of system components for health monitoring."""
 
     DATABASE = "database"
-    REDIS = "redis"
+    VALKEY = "valkey"
     EXTERNAL_API = "external_api"
     FILE_SYSTEM = "file_system"
     MEMORY = "memory"
@@ -82,7 +82,7 @@ class HealthCheckConfig:
     database_connection_threshold_percent: float = (
         90.0  # Active connections warning threshold (percentage of total)
     )
-    redis_timeout_seconds: int = 5
+    valkey_timeout_seconds: int = 5
     external_api_timeout_seconds: int = 15
     file_system_threshold_percent: float = 90.0  # Disk usage warning threshold
     memory_threshold_percent: float = 85.0  # Memory usage warning threshold

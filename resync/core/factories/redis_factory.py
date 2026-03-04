@@ -215,7 +215,7 @@ async def get_redis_client(
     """
     FastAPI dependency that returns the async Redis client singleton.
 
-    Delegates to the canonical client from ``resync.core.redis_init``,
+    Delegates to the canonical client from ``resync.core.valkey_init``,
     which is initialized during application startup (lifespan).
 
     Args:
@@ -229,7 +229,7 @@ async def get_redis_client(
         async def get_cache(key: str, redis = Depends(get_redis_client)):
             return await redis.get(key)
     """
-    from resync.core.redis_init import get_redis_client as _canonical
+    from resync.core.valkey_init import get_redis_client as _canonical
 
     return _canonical()
 

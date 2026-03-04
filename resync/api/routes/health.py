@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from resync.core.database.engine import get_engine
-from resync.core.redis_init import get_redis_client
+from resync.core.valkey_init import get_redis_client
 from sqlalchemy import text
 
 router = APIRouter(tags=["Health"])

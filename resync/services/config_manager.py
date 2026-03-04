@@ -108,7 +108,7 @@ class ConfigManager:
         # Configuration file paths
         self._config_dir = Path(__file__).parent.parent.parent / "config"
         self._admin_config_path = self._config_dir / "admin_config.json"
-        self._redis_strategy_path = self._config_dir / "redis_strategy.yaml"
+        self._valkey_strategy_path = self._config_dir / "valkey_strategy.yaml"
         self._agents_config_path = self._config_dir / "agents.yaml"
 
         # Define configuration schema with defaults and metadata
@@ -281,9 +281,9 @@ class ConfigManager:
                 logger.warning("Failed to load admin config", error=str(e))
 
         # Load redis strategy YAML
-        if self._redis_strategy_path.exists():
+        if self._valkey_strategy_path.exists():
             try:
-                async with aiofiles.open(self._redis_strategy_path) as f:
+                async with aiofiles.open(self._valkey_strategy_path) as f:
                     content = await f.read()
                     data = yaml.safe_load(content) if content.strip() else None
                     if data:

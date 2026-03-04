@@ -40,9 +40,9 @@ def get_idempotency_manager(request: Request) -> IdempotencyManager:
     from resync.core.types.app_state import enterprise_state_from_request
 
     st = enterprise_state_from_request(request)
-    if not getattr(st, "redis_available", False):
+    if not getattr(st, "valkey_available", False):
         raise ServiceUnavailableError(
-            "Idempotency is unavailable because Redis is disabled or not connected."
+            "Idempotency is unavailable because Valkey is disabled or not connected."
         )
     return st.idempotency_manager
 

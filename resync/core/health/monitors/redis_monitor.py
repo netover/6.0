@@ -1,8 +1,8 @@
 # pylint
 """
-Redis Health Monitor
+Valkey Health Monitor
 
-This module provides comprehensive Redis connectivity and health monitoring
+This module provides comprehensive Valkey connectivity and health monitoring
 functionality, including connection testing, performance metrics, and
 detailed health reporting.
 """
@@ -22,11 +22,11 @@ from resync.settings import settings
 
 logger = structlog.get_logger(__name__)
 
-class RedisHealthMonitor:
+class ValkeyHealthMonitor:
     """
-    Comprehensive Redis health monitor.
+    Comprehensive Valkey health monitor.
 
-    This class provides detailed Redis health checking including:
+    This class provides detailed Valkey health checking including:
     - Connection testing and validation
     - Performance metrics collection
     - Memory usage monitoring
@@ -34,68 +34,68 @@ class RedisHealthMonitor:
     """
 
     def __init__(self):
-        """Initialize the Redis health monitor."""
+        """Initialize the Valkey health monitor."""
         self._last_check: datetime | None = None
         self._cached_result: ComponentHealth | None = None
 
-    async def check_redis_health(self) -> ComponentHealth:
+    async def check_valkey_health(self) -> ComponentHealth:
         """
-        Perform comprehensive Redis health check.
+        Perform comprehensive Valkey health check.
 
         Returns:
-            ComponentHealth: Detailed Redis health status
+            ComponentHealth: Detailed Valkey health status
         """
         start_time = time.time()
 
         try:
-            # Check Redis configuration
+            # Check Valkey configuration
             if not settings.valkey_url.get_secret_value():
                 return ComponentHealth(
-                    name="redis",
-                    component_type=ComponentType.REDIS,
+                    name="valkey",
+                    component_type=ComponentType.VALKEY,
                     status=HealthStatus.UNKNOWN,
-                    message="Redis URL not configured",
+                    message="Valkey URL not configured",
                     last_check=datetime.now(timezone.utc),
                 )
 
-            # Test actual Redis connectivity
-            import redis.asyncio as redis_async
-            from redis.exceptions import RedisError
-            from redis.exceptions import TimeoutError as RedisTimeoutError
+            # Test actual Valkey connectivity
+            import valkey.asyncio as valkey_async
+            from valkey.exceptions import ValkeyError
+            from valkey.exceptions import TimeoutError as ValkeyTimeoutError
 
             try:
-                redis_client = redis_async.from_url(settings.valkey_url.get_secret_value())
+                valkey_client = valkey_async.from_url(settings.valkey_url.get_secret_value())
 
                 # Test connectivity with ping
-                await redis_client.ping()
+                await valkey_client.ping()
 
                 # Test read/write operation
                 test_key = f"health_check_{int(time.time())}"
-                await redis_client.setex(test_key, 1, "test")  # Set with expiration
-                value = await redis_client.get(test_key)
+                await valkey_client.setex(test_key, 1, "test")  # Set with expiration
+                value = await valkey_client.get(test_key)
 
                 if value != b"test":
-                    raise RedisError("Redis read/write test failed")
+                    raise ValkeyError("Valkey read/write test failed")
 
-                # Get Redis info for additional details
-                redis_info = await redis_client.info()
+                # Get Valkey info for additional details
+                valkey_info = await valkey_client.info()
 
                 response_time = (time.time() - start_time) * 1000
 
                 health = ComponentHealth(
-                    name="redis",
-                    component_type=ComponentType.REDIS,
+                    name="valkey",
+                    component_type=ComponentType.VALKEY,
                     status=HealthStatus.HEALTHY,
-                    message="Redis connectivity test successful",
+                    message="Valkey connectivity test successful",
                     response_time_ms=response_time,
                     last_check=datetime.now(timezone.utc),
                     metadata={
-                        "redis_version": redis_info.get("redis_version"),
-                        "connected_clients": redis_info.get("connected_clients"),
-                        "used_memory": redis_info.get("used_memory_human"),
-                        "uptime_seconds": redis_info.get("uptime_in_seconds"),
+                        "valkey_version": valkey_info.get("valkey_version"),
+                        "connected_clients": valkey_info.get("connected_clients"),
+                        "used_memory": valkey_info.get("used_memory_human"),
+                        "uptime_seconds": valkey_info.get("uptime_in_seconds"),
                         "test_key_result": value.decode() if value else None,
-                        "redis_url_configured": bool(settings.valkey_url.get_secret_value()),
+                        "valkey_url_configured": bool(settings.valkey_url.get_secret_value()),
                     },
                 )
 
@@ -105,15 +105,15 @@ class RedisHealthMonitor:
 
                 return health
 
-            except (RedisError, RedisTimeoutError) as e:
+            except (ValkeyError, ValkeyTimeoutError) as e:
                 response_time = (time.time() - start_time) * 1000
 
-                logger.error("redis_connectivity_test_failed", error=str(e))
+                logger.error("valkey_connectivity_test_failed", error=str(e))
                 return ComponentHealth(
-                    name="redis",
-                    component_type=ComponentType.REDIS,
+                    name="valkey",
+                    component_type=ComponentType.VALKEY,
                     status=HealthStatus.UNHEALTHY,
-                    message=f"Redis connectivity failed: {str(e)}",
+                    message=f"Valkey connectivity failed: {str(e)}",
                     response_time_ms=response_time,
                     last_check=datetime.now(timezone.utc),
                     error_count=1,
@@ -121,14 +121,14 @@ class RedisHealthMonitor:
             finally:
                 # Close the test connection
                 try:
-                    await redis_client.close()
+                    await valkey_client.close()
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                     import sys as _sys
                     from resync.core.exception_guard import maybe_reraise_programming_error
                     _exc_type, _exc, _tb = _sys.exc_info()
                     maybe_reraise_programming_error(_exc, _tb)
 
-                    logger.debug("Redis client close error during health check: %s", e)
+                    logger.debug("Valkey client close error during health check: %s", e)
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
@@ -141,33 +141,33 @@ class RedisHealthMonitor:
             # Sanitize error message for security
             secure_message = str(e)
 
-            logger.error("redis_health_check_failed", error=str(e))
+            logger.error("valkey_health_check_failed", error=str(e))
             return ComponentHealth(
-                name="redis",
-                component_type=ComponentType.REDIS,
+                name="valkey",
+                component_type=ComponentType.VALKEY,
                 status=HealthStatus.UNHEALTHY,
-                message=f"Redis check failed: {secure_message}",
+                message=f"Valkey check failed: {secure_message}",
                 response_time_ms=response_time,
                 last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 
-    async def check_redis_health_with_retry(
-        self, max_retries: int = 3, component_name: str = "redis"
+    async def check_valkey_health_with_retry(
+        self, max_retries: int = 3, component_name: str = "valkey"
     ) -> ComponentHealth:
         """
-        Execute Redis health check with retry logic and exponential backoff.
+        Execute Valkey health check with retry logic and exponential backoff.
 
         Args:
             max_retries: Maximum number of retry attempts
             component_name: Name of the component for logging
 
         Returns:
-            ComponentHealth: Redis health status after retries
+            ComponentHealth: Valkey health status after retries
         """
         for attempt in range(max_retries):
             try:
-                return await self.check_redis_health()
+                return await self.check_valkey_health()
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -176,7 +176,7 @@ class RedisHealthMonitor:
 
                 if attempt == max_retries - 1:
                     logger.error(
-                        "redis_health_check_failed_after_retries",
+                        "valkey_health_check_failed_after_retries",
                         component_name=component_name,
                         max_retries=max_retries,
                         error=str(e),
@@ -185,7 +185,7 @@ class RedisHealthMonitor:
 
                 wait_time = 2**attempt  # 1s, 2s, 4s
                 logger.warning(
-                    "redis_health_check_failed_retrying",
+                    "valkey_health_check_failed_retrying",
                     component_name=component_name,
                     attempt=attempt + 1,
                     max_retries=max_retries,
@@ -197,9 +197,9 @@ class RedisHealthMonitor:
         # This should never be reached, but just in case
         return ComponentHealth(
             name=component_name,
-            component_type=ComponentType.REDIS,
+            component_type=ComponentType.VALKEY,
             status=HealthStatus.UNKNOWN,
-            message="Redis health check failed after all retries",
+            message="Valkey health check failed after all retries",
             last_check=datetime.now(timezone.utc),
         )
 
@@ -226,4 +226,4 @@ class RedisHealthMonitor:
         self._last_check = None
 
 # Backward compat alias
-RedisMonitor = RedisHealthMonitor
+ValkeyMonitor = ValkeyHealthMonitor

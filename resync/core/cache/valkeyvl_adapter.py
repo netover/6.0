@@ -1,9 +1,9 @@
 # pylint
 # mypy
 """
-RedisVL Adapter for Resync.
+ValkeyVL Adapter for Resync.
 
-This module provides the bridge between RedisVL and our existing
+This module provides the bridge between ValkeyVL and our existing
 embedding models and rerankers.
 """
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class ResyncVectorizer(BaseVectorizer):
     """
-    Adapter that allows RedisVL to use our local embedding model.
+    Adapter that allows ValkeyVL to use our local embedding model.
 
     This avoids redundant model loading as it uses the singleton
     instance from embedding_model.py.
@@ -35,7 +35,7 @@ class ResyncVectorizer(BaseVectorizer):
     def __init__(self, model_name: str = "local-resync") -> None:
         """Initialize the vectorizer using our existing model geometry."""
         dims = get_embedding_dimension()
-        # Note: In newer RedisVL, dims might be passed differently or inferred
+        # Note: In newer ValkeyVL, dims might be passed differently or inferred
         super().__init__(model=model_name, dims=dims)
         logger.info(f"ResyncVectorizer initialized with {dims} dimensions")
 

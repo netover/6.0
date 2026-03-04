@@ -338,6 +338,10 @@ class UnifiedTWSClient:
             raise TWSConnectionError("TWS client is not connected")
         return self._client
 
+    def get_metrics(self) -> dict[str, Any]:
+        """Alias for get_metrics_summary for backward compatibility."""
+        return self.get_metrics_summary()
+
     def get_metrics_summary(self) -> dict[str, Any]:
         success_rate = (
             self._metrics.successful_requests / self._metrics.total_requests

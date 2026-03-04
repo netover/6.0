@@ -6,7 +6,7 @@ Este módulo fornece funcionalidades para:
 - Invalidação inteligente por padrões
 - Métricas detalhadas de cache
 
-Para o volume do Resync (14k jobs/dia, ~10 req/min), Redis direto é suficiente.
+Para o volume do Resync (14k jobs/dia, ~10 req/min), Valkey direto é suficiente.
 Não há necessidade de L1 (memory) cache - seria over-engineering.
 """
 
@@ -63,23 +63,23 @@ class EnhancedCacheManager:
 
     Para o Resync:
     - Volume: 14k jobs/dia (~10 req/min)
-    - Conclusão: Redis direto é suficiente
+    - Conclusão: Valkey direto é suficiente
     - NÃO usar L1 (memory) - over-engineering para esse volume
     """
 
-    def __init__(self, redis_client=None):
+    def __init__(self, valkey_client=None):
         """
         Inicializa o cache manager.
 
         Args:
-            redis_client: Cliente Redis (se None, obtém do redis_init)
+            valkey_client: Cliente Valkey (se None, obtém do valkey_init)
         """
-        if redis_client is None:
-            from resync.core.redis_init import get_redis_client
+        if valkey_client is None:
+            from resync.core.valkey_init import get_valkey_client
 
-            self.redis = get_redis_client()
+            self.valkey = get_valkey_client()
         else:
-            self.redis = redis_client
+            self.valkey = valkey_client
 
         self.stats = CacheStats()
         self.warming_config = CacheWarmingConfig()
@@ -130,7 +130,7 @@ class EnhancedCacheManager:
     async def _warm_single_key(self, key: str, fetcher: Callable[..., object]) -> None:
         """Warm a single cache key.
     
-        Uses atomic Redis `SET ... NX EX` to avoid TOCTOU races under concurrency.
+        Uses atomic Valkey `SET ... NX EX` to avoid TOCTOU races under concurrency.
         """
         try:
             # Buscar dados
@@ -145,7 +145,7 @@ class EnhancedCacheManager:
             import json
     
             # Atomic write: only set if not exists (NX) with TTL (EX).
-            ok = await self.redis.set(key, json.dumps(data), ex=3600, nx=True)
+            ok = await self.valkey.set(key, json.dumps(data), ex=3600, nx=True)
             if not ok:
                 logger.debug("Cache key already existed, skipping: %s", key)
                 return
@@ -178,7 +178,7 @@ class EnhancedCacheManager:
         Invalida cache por pattern.
 
         Args:
-            pattern: Pattern Redis (ex: "tws:job:*")
+            pattern: Pattern Valkey (ex: "tws:job:*")
 
         Exemplo:
             # Invalidar todos os jobs
@@ -194,17 +194,17 @@ class EnhancedCacheManager:
             cursor = 0
             deleted_count = 0
 
-            # Use SCAN to avoid blocking Redis. Prefer UNLINK (async delete) to
+            # Use SCAN to avoid blocking Valkey. Prefer UNLINK (async delete) to
             # reduce latency spikes on large values.
             while True:
-                cursor, keys = await self.redis.scan(cursor, match=pattern, count=100)
+                cursor, keys = await self.valkey.scan(cursor, match=pattern, count=100)
 
                 if keys:
-                    if hasattr(self.redis, "unlink"):
-                        # UNLINK is non-blocking for Redis main thread.
-                        await self.redis.unlink(*keys)
+                    if hasattr(self.valkey, "unlink"):
+                        # UNLINK is non-blocking for Valkey main thread.
+                        await self.valkey.unlink(*keys)
                     else:
-                        await self.redis.delete(*keys)
+                        await self.valkey.delete(*keys)
                     deleted_count += len(keys)
 
                     # Yield control to avoid monopolizing the event loop on large scans.
@@ -245,7 +245,7 @@ class EnhancedCacheManager:
         ]
 
         try:
-            await self.redis.delete(*patterns)
+            await self.valkey.delete(*patterns)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -263,18 +263,18 @@ class EnhancedCacheManager:
         Returns:
             Dict com estatísticas
         """
-        # Obter info do Redis
+        # Obter info do Valkey
         try:
-            redis_info = await self.redis.info("stats")
-            keyspace_info = await self.redis.info("keyspace")
+            valkey_info = await self.valkey.info("stats")
+            keyspace_info = await self.valkey.info("keyspace")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.error("Failed to get Redis info: %s", e)
-            redis_info = {}
+            logger.error("Failed to get Valkey info: %s", e)
+            valkey_info = {}
             keyspace_info = {}
 
         return {
@@ -288,7 +288,7 @@ class EnhancedCacheManager:
             "last_warmup": (
                 self.stats.last_warmup.isoformat() if self.stats.last_warmup else None
             ),
-            "redis_stats": redis_info,
+            "valkey_stats": valkey_info,
             "keyspace": keyspace_info,
         }
 
@@ -340,7 +340,7 @@ async def warmup_cache_on_startup():
 
     # Registrar warmers padrão
     try:
-        from resync.services.tws_service import get_tws_client
+        from resync.services.tws_unified import get_tws_client
 
         tws_client = await get_tws_client()
 

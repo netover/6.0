@@ -111,7 +111,7 @@ def test_p0_08_secretstr_masked_in_repr() -> None:
             "APP_ENVIRONMENT": "development",
             "SECRET_KEY": "my_super_secret_key_12345",
             "ADMIN_PASSWORD": "TestPass123!",
-            "REDIS_URL": "redis://user:password@localhost:6379/0",
+            "VALKEY_URL": "valkey://user:password@localhost:6379/0",
         },
         clear=True,
     ):

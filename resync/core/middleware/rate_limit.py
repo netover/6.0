@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from resync.core.redis_init import get_redis_client
+from resync.core.valkey_init import get_redis_client
 from resync.settings import get_settings
 
 _LUA = """

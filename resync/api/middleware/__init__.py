@@ -21,14 +21,27 @@ from .csrf_protection import CSRFMiddleware
 # Optional middleware (may require optional deps / configuration).
 # Import lazily and degrade gracefully when unavailable.
 try:  # pragma: no cover
-    from .redis_validation import RedisHealthMiddleware, RedisValidationMiddleware
+    from .redis_validation import (
+        RedisHealthMiddleware as ValkeyHealthMiddleware,
+    )
+    from .redis_validation import (
+        RedisValidationMiddleware as ValkeyValidationMiddleware,
+    )
+
+    # Legacy aliases
+    RedisHealthMiddleware = ValkeyHealthMiddleware
+    RedisValidationMiddleware = ValkeyValidationMiddleware
 except ImportError:  # pragma: no cover
+    ValkeyHealthMiddleware = None  # type: ignore[assignment]
+    ValkeyValidationMiddleware = None  # type: ignore[assignment]
     RedisHealthMiddleware = None  # type: ignore[assignment]
     RedisValidationMiddleware = None  # type: ignore[assignment]
 
 __all__ = [
     "CorrelationIdMiddleware",
     "CSRFMiddleware",
+    "ValkeyHealthMiddleware",
+    "ValkeyValidationMiddleware",
     "RedisHealthMiddleware",
     "RedisValidationMiddleware",
 ]

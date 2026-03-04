@@ -1508,33 +1508,33 @@ class Settings(BaseSettings, SettingsValidators):
 
     @property
     def REDIS_POOL_MIN_SIZE(self) -> int:
-        """Legacy alias for redis_pool_min_size."""
-        return self.redis_pool_min_size
+        """Legacy alias for valkey_pool_min_size (DEPRECATED)."""
+        return self.valkey_pool_min_size
 
     @property
     def REDIS_POOL_MAX_SIZE(self) -> int:
-        """Legacy alias for redis_pool_max_size."""
-        return self.redis_pool_max_size
+        """Legacy alias for valkey_pool_max_size (DEPRECATED)."""
+        return self.valkey_pool_max_size
 
     @property
     def REDIS_POOL_IDLE_TIMEOUT(self) -> int:
-        """Legacy alias for redis_pool_idle_timeout."""
-        return self.redis_pool_idle_timeout
+        """Legacy alias for valkey_pool_idle_timeout (DEPRECATED)."""
+        return self.valkey_pool_idle_timeout
 
     @property
     def REDIS_POOL_CONNECT_TIMEOUT(self) -> int:
-        """Legacy alias for redis_pool_connect_timeout."""
-        return self.redis_pool_connect_timeout
+        """Legacy alias for valkey_pool_connect_timeout (DEPRECATED)."""
+        return self.valkey_pool_connect_timeout
 
     @property
     def REDIS_POOL_HEALTH_CHECK_INTERVAL(self) -> int:
-        """Legacy alias for redis_pool_health_check_interval."""
-        return self.redis_pool_health_check_interval
+        """Legacy alias for valkey_pool_health_check_interval (DEPRECATED)."""
+        return self.valkey_pool_health_check_interval
 
     @property
     def REDIS_POOL_MAX_LIFETIME(self) -> int:
-        """Legacy alias for redis_pool_max_lifetime."""
-        return self.redis_pool_max_lifetime
+        """Legacy alias for valkey_pool_max_lifetime (DEPRECATED)."""
+        return self.valkey_pool_max_lifetime
 
     @property
     def HTTP_POOL_MIN_SIZE(self) -> int:

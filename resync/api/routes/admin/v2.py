@@ -3,7 +3,7 @@ Admin Interface 2.0 - Extended Routes
 
 Real implementations for:
 - Health monitoring (connected to UnifiedHealthService)
-- Resilience controls (Circuit Breakers, Redis Strategy)
+- Resilience controls (Circuit Breakers, Valkey Strategy)
 - RAG configuration (Chunking strategies)
 - System operations (Backup, Restore, Maintenance)
 
@@ -78,8 +78,8 @@ class CircuitBreakerListResponse(BaseModel):
     open_count: int
     critical_open_count: int
 
-class RedisStrategyStatus(BaseModel):
-    """Redis fail-fast strategy status"""
+class ValkeyStrategyStatus(BaseModel):
+    """Valkey fail-fast strategy status"""
 
     enabled: bool
     mode: str
@@ -142,7 +142,7 @@ async def get_realtime_health():
 
     Connects to actual health checkers for:
     - Database
-    - Redis
+    - Valkey
     - TWS
     - LLM providers
     - RAG/Vector store
@@ -153,27 +153,27 @@ async def get_realtime_health():
     services: list[ServiceHealth] = []
     overall_healthy = True
     try:
-        from resync.core.health.monitors.redis_monitor import RedisMonitor
+        from resync.core.health.monitors.valkey_monitor import ValkeyMonitor
 
-        redis_monitor = RedisMonitor()
-        redis_health = await redis_monitor.check_health()
+        valkey_monitor = ValkeyMonitor()
+        valkey_health = await valkey_monitor.check_health()
         services.append(
             ServiceHealth(
-                name="redis",
+                name="valkey",
                 status=HealthStatus.HEALTHY
-                if redis_health.get("healthy")
+                if valkey_health.get("healthy")
                 else HealthStatus.UNHEALTHY,
-                latency_ms=redis_health.get("latency_ms"),
-                message=redis_health.get("message"),
+                latency_ms=valkey_health.get("latency_ms"),
+                message=valkey_health.get("message"),
                 last_check=datetime.now(timezone.utc),
                 details={
-                    "connected": redis_health.get("connected", False),
-                    "memory_used": redis_health.get("memory_used"),
-                    "clients": redis_health.get("connected_clients"),
+                    "connected": valkey_health.get("connected", False),
+                    "memory_used": valkey_health.get("memory_used"),
+                    "clients": valkey_health.get("connected_clients"),
                 },
             )
         )
-        if not redis_health.get("healthy"):
+        if not valkey_health.get("healthy"):
             overall_healthy = False
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
@@ -183,13 +183,13 @@ async def get_realtime_health():
 
         services.append(
             ServiceHealth(
-                name="redis",
+                name="valkey",
                 status=HealthStatus.UNKNOWN,
                 message=str(e),
                 last_check=datetime.now(timezone.utc),
             )
         )
-        logger.warning("Redis health check failed", extra={"error": str(e)})
+        logger.warning("Valkey health check failed", extra={"error": str(e)})
     try:
         from resync.core.health.health_checkers.database_health_checker import (
             DatabaseHealthChecker,
@@ -333,7 +333,7 @@ async def get_resilience_status():
     """Get status of all resilience components"""
     response = {
         "circuit_breakers": [],
-        "redis_strategy": None,
+        "valkey_strategy": None,
         "degraded_endpoints": [],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -353,18 +353,18 @@ async def get_resilience_status():
 
         logger.warning("Failed to get circuit breaker health", extra={"error": str(e)})
     try:
-        from resync.core.redis_strategy import get_redis_strategy_status
+        from resync.core.valkey_strategy import get_valkey_strategy_status
 
-        redis_status = get_redis_strategy_status()
-        response["redis_strategy"] = redis_status
+        valkey_status = get_valkey_strategy_status()
+        response["valkey_strategy"] = valkey_status
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
-        logger.warning("Failed to get redis strategy", extra={"error": str(e)})
-        response["redis_strategy"] = {"enabled": False, "error": str(e)}
+        logger.warning("Failed to get valkey strategy", extra={"error": str(e)})
+        response["valkey_strategy"] = {"enabled": False, "error": str(e)}
     return response
 
 @router.get("/resilience/breakers", response_model=CircuitBreakerListResponse)
@@ -482,12 +482,12 @@ async def update_resilience_config(config: ResilienceConfigRequest):
         changes = []
         if config.fail_fast_enabled is not None:
             event = await manager.set(
-                "redis.fail_fast_enabled", config.fail_fast_enabled, user="admin"
+                "valkey.fail_fast_enabled", config.fail_fast_enabled, user="admin"
             )
             changes.append(event.key)
         if config.fail_fast_timeout is not None:
             event = await manager.set(
-                "redis.fail_fast_timeout", config.fail_fast_timeout, user="admin"
+                "valkey.fail_fast_timeout", config.fail_fast_timeout, user="admin"
             )
             changes.append(event.key)
         return {

@@ -104,15 +104,15 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
         correlation_id = get_correlation_id()
 
-        # Redis is required to enforce idempotency. When Redis is explicitly
+        # Valkey is required to enforce idempotency. When Valkey is explicitly
         # disabled or unavailable, degrade gracefully:
         # - required-idempotency endpoints → 503
         # - optional endpoints → pass-through
-        if getattr(self.idempotency_manager, "redis", None) is None:
+        if getattr(self.idempotency_manager, "valkey", None) is None:
             if self._requires_idempotency(request):
                 raise HTTPException(
                     status_code=503,
-                    detail="Idempotency requires Redis, but Redis is disabled or unavailable",
+                    detail="Idempotency requires Valkey, but Valkey is disabled or unavailable",
                 )
             return await call_next(request)
 

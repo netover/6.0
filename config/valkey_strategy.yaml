@@ -15,7 +15,7 @@ runtime:
         degraded_behavior: "query_tws_direct"
     critical:
       - pattern: "POST /tws/execute/job"
-        reason: "Job execution requires Redis"
+        reason: "Job execution requires Valkey"
 
 monitoring:
   alert_on_degraded: true

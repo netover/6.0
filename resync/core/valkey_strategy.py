@@ -1,17 +1,17 @@
 # pylint
 """
-Redis FAIL-FAST Strategy Module
+Valkey FAIL-FAST Strategy Module
 
-Manages Redis dependency strategy per endpoint with documented tiers:
-- READ_ONLY: Never needs Redis (health checks, docs)
+Manages Valkey dependency strategy per endpoint with documented tiers:
+- READ_ONLY: Never needs Valkey (health checks, docs)
 - BEST_EFFORT: Cache optional, degrades gracefully (TWS queries, RAG)
-- CRITICAL: Redis required, returns 503 if unavailable (TWS operations)
+- CRITICAL: Valkey required, returns 503 if unavailable (TWS operations)
 
 Usage:
-    strategy = get_redis_strategy()
+    strategy = get_valkey_strategy()
     tier = strategy.get_tier("POST", "/tws/execute/job1")
 
-    if not redis_available and strategy.should_fail_fast(
+    if not valkey_available and strategy.should_fail_fast(
         "POST", "/tws/execute/job1", False
     ):
         raise HTTPException(503)
@@ -36,12 +36,12 @@ logger = structlog.get_logger(__name__)
 # ENUMS
 # =============================================================================
 
-class RedisTier(str, Enum):
-    """Redis dependency tier for endpoints."""
+class ValkeyTier(str, Enum):
+    """Valkey dependency tier for endpoints."""
 
-    READ_ONLY = "read_only"  # Never needs Redis
+    READ_ONLY = "read_only"  # Never needs Valkey
     BEST_EFFORT = "best_effort"  # Cache optional, can degrade
-    CRITICAL = "critical"  # Redis required, 503 if unavailable
+    CRITICAL = "critical"  # Valkey required, 503 if unavailable
 
 class DegradedBehavior(str, Enum):
     """Possible degradation behaviors for BEST_EFFORT endpoints."""
@@ -98,8 +98,8 @@ class EndpointPattern:
 # CONFIGURATION
 # =============================================================================
 
-class RedisStrategyConfig:
-    """Parsed configuration for Redis strategy."""
+class ValkeyStrategyConfig:
+    """Parsed configuration for Valkey strategy."""
 
     def __init__(self, config_dict: dict) -> None:
         # Startup config
@@ -122,7 +122,7 @@ class RedisStrategyConfig:
         # Default policy
         default = runtime.get("default_policy", "fail_fast")
         self.default_tier = (
-            RedisTier.CRITICAL if default == "fail_fast" else RedisTier.BEST_EFFORT
+            ValkeyTier.CRITICAL if default == "fail_fast" else ValkeyTier.BEST_EFFORT
         )
 
         # Monitoring config
@@ -171,7 +171,7 @@ class RedisStrategyConfig:
                 configs.append(
                     {
                         "pattern": EndpointPattern(pattern),
-                        "reason": item.get("reason", "Redis required"),
+                        "reason": item.get("reason", "Valkey required"),
                         "http_status": item.get("http_status", 503),
                         "retry_after": item.get("retry_after", 60),
                     }
@@ -179,28 +179,28 @@ class RedisStrategyConfig:
         return configs
 
 # =============================================================================
-# REDIS STRATEGY
+# VALKEY STRATEGY
 # =============================================================================
 
-class RedisStrategy:
+class ValkeyStrategy:
     """
-    Redis dependency strategy manager.
+    Valkey dependency strategy manager.
 
-    Determines the Redis dependency tier for each endpoint and provides
+    Determines the Valkey dependency tier for each endpoint and provides
     configuration for degradation behavior.
 
     Usage:
-        strategy = RedisStrategy("config/redis_strategy.yaml")
+        strategy = ValkeyStrategy("config/valkey_strategy.yaml")
         tier = strategy.get_tier("POST", "/tws/execute/job1")
-        # RedisTier.CRITICAL
+        # ValkeyTier.CRITICAL
 
-        if not redis_available and strategy.should_fail_fast(
+        if not valkey_available and strategy.should_fail_fast(
         "POST", "/tws/execute/job1", False
     ):
             raise HTTPException(503)
     """
 
-    def __init__(self, config_path: str = "config/redis_strategy.yaml") -> None:
+    def __init__(self, config_path: str = "config/valkey_strategy.yaml") -> None:
         """
         Initialize strategy with configuration file.
 
@@ -212,26 +212,26 @@ class RedisStrategy:
         self._get_tier_cached = lru_cache(maxsize=1024)(self._get_tier_impl)
 
         logger.info(
-            "redis_strategy_initialized",
+            "valkey_strategy_initialized",
             config_path=str(self.config_path),
             fail_fast=self.config.startup_fail_fast,
             default_tier=self.config.default_tier.value,
         )
 
-    def _load_config(self) -> RedisStrategyConfig:
+    def _load_config(self) -> ValkeyStrategyConfig:
         """Load and validate configuration."""
         if not self.config_path.exists():
             logger.warning(
-                "redis_strategy_config_not_found",
+                "valkey_strategy_config_not_found",
                 path=str(self.config_path),
                 using_defaults=True,
             )
-            return RedisStrategyConfig({})
+            return ValkeyStrategyConfig({})
 
         try:
             with open(self.config_path) as f:
                 config_dict = yaml.safe_load(f) or {}
-            return RedisStrategyConfig(config_dict)
+            return ValkeyStrategyConfig(config_dict)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -239,13 +239,13 @@ class RedisStrategy:
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.error(
-                "redis_strategy_config_error",
+                "valkey_strategy_config_error",
                 error=str(e),
                 using_defaults=True,
             )
-            return RedisStrategyConfig({})
+            return ValkeyStrategyConfig({})
 
-    def get_tier(self, method: str, path: str) -> RedisTier:
+    def get_tier(self, method: str, path: str) -> ValkeyTier:
         """
         Determine the tier of an endpoint.
 
@@ -254,43 +254,43 @@ class RedisStrategy:
             path: Request path (/tws/execute/job1)
 
         Returns:
-            RedisTier: Tier of the endpoint
+            ValkeyTier: Tier of the endpoint
 
         Order of precedence:
-        1. READ_ONLY (never needs Redis)
-        2. CRITICAL (must have Redis)
+        1. READ_ONLY (never needs Valkey)
+        2. CRITICAL (must have Valkey)
         3. BEST_EFFORT (can degrade)
         4. Default policy
         """
         return self._get_tier_cached(method, path)
 
-    def _get_tier_impl(self, method: str, path: str) -> RedisTier:
+    def _get_tier_impl(self, method: str, path: str) -> ValkeyTier:
         # Check READ_ONLY first
         for pattern in self.config.read_only_patterns:
             if pattern.matches(method, path):
-                return RedisTier.READ_ONLY
+                return ValkeyTier.READ_ONLY
 
         # Check CRITICAL (takes precedence over BEST_EFFORT)
         for config in self.config.critical_configs:
             if config["pattern"].matches(method, path):
-                return RedisTier.CRITICAL
+                return ValkeyTier.CRITICAL
 
         # Check BEST_EFFORT
         for config in self.config.best_effort_configs:
             if config["pattern"].matches(method, path):
-                return RedisTier.BEST_EFFORT
+                return ValkeyTier.BEST_EFFORT
 
         # Default
         return self.config.default_tier
 
-    def is_redis_required(self, method: str, path: str) -> bool:
+    def is_valkey_required(self, method: str, path: str) -> bool:
         """
-        Check if Redis is required for this endpoint.
+        Check if Valkey is required for this endpoint.
 
         Returns:
             True if tier is CRITICAL, False otherwise
         """
-        return self.get_tier(method, path) == RedisTier.CRITICAL
+        return self.get_tier(method, path) == ValkeyTier.CRITICAL
 
     def get_degraded_config(self, method: str, path: str) -> dict[str, Any] | None:
         """
@@ -325,34 +325,34 @@ class RedisStrategy:
                 }
         return None
 
-    def should_fail_fast(self, method: str, path: str, redis_available: bool) -> bool:
+    def should_fail_fast(self, method: str, path: str, valkey_available: bool) -> bool:
         """
         Decide if request should return 503 or be allowed.
 
         Args:
             method: HTTP method
             path: Request path
-            redis_available: Whether Redis is available
+            valkey_available: Whether Valkey is available
 
         Returns:
             True if should return 503, False if can continue
         """
-        # If Redis is UP, always allow
-        if redis_available:
+        # If Valkey is UP, always allow
+        if valkey_available:
             return False
 
-        # If Redis is DOWN, depends on tier
+        # If Valkey is DOWN, depends on tier
         tier = self.get_tier(method, path)
 
-        # READ_ONLY: never needs Redis
-        if tier == RedisTier.READ_ONLY:
+        # READ_ONLY: never needs Valkey
+        if tier == ValkeyTier.READ_ONLY:
             return False
 
         # BEST_EFFORT: degrades but doesn't fail
-        if tier == RedisTier.BEST_EFFORT:
+        if tier == ValkeyTier.BEST_EFFORT:
             return False
 
-        # CRITICAL: fails without Redis
+        # CRITICAL: fails without Valkey
         return True
 
     def get_startup_config(self) -> dict[str, Any]:
@@ -375,12 +375,12 @@ class RedisStrategy:
 # SINGLETON
 # =============================================================================
 
-_strategy_instance: RedisStrategy | None = None
+_strategy_instance: ValkeyStrategy | None = None
 _strategy_lock = __import__("threading").Lock()
 
-def get_redis_strategy() -> RedisStrategy:
+def get_valkey_strategy() -> ValkeyStrategy:
     """
-    Get singleton RedisStrategy instance.
+    Get singleton ValkeyStrategy instance.
 
     Thread-safe: uses double-checked locking to prevent duplicate initialization
     when multiple threads call this concurrently during startup.
@@ -394,28 +394,28 @@ def get_redis_strategy() -> RedisStrategy:
             if _strategy_instance is None:
                 # Try multiple config paths
                 config_paths = [
-                    "config/redis_strategy.yaml",
+                    "config/valkey_strategy.yaml",
                     os.path.join(
                         os.path.dirname(__file__),
                         "..",
                         "..",
                         "config",
-                        "redis_strategy.yaml",
+                        "valkey_strategy.yaml",
                     ),
-                    "/app/config/redis_strategy.yaml",
+                    "/app/config/valkey_strategy.yaml",
                 ]
 
                 for path in config_paths:
                     if Path(path).exists():
-                        _strategy_instance = RedisStrategy(path)
+                        _strategy_instance = ValkeyStrategy(path)
                         return _strategy_instance
 
                 # Use default config
-                _strategy_instance = RedisStrategy("config/redis_strategy.yaml")
+                _strategy_instance = ValkeyStrategy("config/valkey_strategy.yaml")
 
     return _strategy_instance
 
-def reset_redis_strategy() -> None:
+def reset_valkey_strategy() -> None:
     """Reset singleton for testing purposes."""
     global _strategy_instance
     with _strategy_lock:
@@ -427,19 +427,19 @@ def reset_redis_strategy() -> None:
 
 def is_endpoint_critical(method: str, path: str) -> bool:
     """Check if endpoint is CRITICAL tier."""
-    return get_redis_strategy().get_tier(method, path) == RedisTier.CRITICAL
+    return get_valkey_strategy().get_tier(method, path) == ValkeyTier.CRITICAL
 
 def is_endpoint_read_only(method: str, path: str) -> bool:
     """Check if endpoint is READ_ONLY tier."""
-    return get_redis_strategy().get_tier(method, path) == RedisTier.READ_ONLY
+    return get_valkey_strategy().get_tier(method, path) == ValkeyTier.READ_ONLY
 
 def get_endpoint_tier(method: str, path: str) -> str:
     """Get tier name for endpoint."""
-    return get_redis_strategy().get_tier(method, path).value
+    return get_valkey_strategy().get_tier(method, path).value
 
-def get_redis_strategy_status() -> dict[str, Any]:
+def get_valkey_strategy_status() -> dict[str, Any]:
     """
-    Get current Redis strategy status for admin UI.
+    Get current Valkey strategy status for admin UI.
 
     Returns dict with:
     - enabled: bool
@@ -449,7 +449,7 @@ def get_redis_strategy_status() -> dict[str, Any]:
     - healthy: bool
     """
     try:
-        strategy = get_redis_strategy()
+        strategy = get_valkey_strategy()
 
         # Get configuration
         startup_config = strategy.get_startup_config()
@@ -479,7 +479,7 @@ def get_redis_strategy_status() -> dict[str, Any]:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.warning("Failed to get redis strategy status", error=str(e))
+        logger.warning("Failed to get valkey strategy status", error=str(e))
         return {
             "enabled": False,
             "mode": "unknown",

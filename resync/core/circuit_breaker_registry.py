@@ -74,7 +74,7 @@ class CircuitBreakers(str, Enum):
     LLM_OPENROUTER = "llm_openrouter"  # OpenRouter specifically
 
     # Internal Services
-    REDIS = "redis"  # Redis operations
+    VALKEY = "valkey"  # Valkey operations
     DATABASE = "database"  # Database queries
     RAG_RETRIEVAL = "rag_retrieval"  # RAG retrieval operations
     RAG_EMBEDDING = "rag_embedding"  # Embedding generation
@@ -137,12 +137,12 @@ CIRCUIT_BREAKER_SPECS: dict[CircuitBreakers, CircuitBreakerSpec] = {
         description="OpenRouter API calls",
         critical=False,
     ),
-    # Redis - low tolerance (should be reliable), fast recovery
-    CircuitBreakers.REDIS: CircuitBreakerSpec(
-        name=CircuitBreakers.REDIS,
+    # Valkey - low tolerance (should be reliable), fast recovery
+    CircuitBreakers.VALKEY: CircuitBreakerSpec(
+        name=CircuitBreakers.VALKEY,
         failure_threshold=3,
         recovery_timeout=30,
-        description="Redis operations",
+        description="Valkey operations",
         critical=True,
     ),
     # Database - low tolerance, fast recovery

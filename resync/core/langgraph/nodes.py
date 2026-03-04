@@ -28,7 +28,7 @@ from typing import Any
 
 # [FIX] Import Central Config
 from resync.core.llm_config import get_llm_config
-from resync.core.redis_init import get_redis_client
+from resync.core.valkey_init import get_redis_client
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)

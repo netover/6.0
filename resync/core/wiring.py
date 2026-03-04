@@ -82,7 +82,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     the main service graph, respecting dependency order (e.g. LLM -> Agent).
 
     Raises:
-        RuntimeError: If critical infrastructure (DB/Redis) is missing and
+        RuntimeError: If critical infrastructure (DB/Valkey) is missing and
                       cannot be compensated for (e.g. degraded mode).
     """
     settings = get_settings()
@@ -98,7 +98,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     from resync.core.agent_router import HybridRouter          # was: resync.core.hybrid_router (not found)
     from resync.core.idempotency.manager import IdempotencyManager
     from resync.services.llm_service import get_llm_service    # was: resync.core.llm_service (not found)
-    from resync.core.redis_init import get_redis_client
+    from resync.core.valkey_init import get_valkey_client
     from resync.core.a2a_handler import A2AHandler             # was: resync.services.a2a_handler (not found)
     from resync.knowledge.ingestion.embedding_service import MultiProviderEmbeddingService  # was: resync.services.embedding_service
     from resync.knowledge.ingestion.ingest import IngestService                             # was: resync.services.ingest_service
@@ -179,20 +179,20 @@ async def init_domain_singletons(app: FastAPI) -> None:
         agent_manager=agent_manager, skill_manager=skill_manager
     )
 
-    # Idempotency manager depends on Redis client.
-    # If Redis failed during startup checks but strict=False (degraded mode),
+    # Idempotency manager depends on Valkey client.
+    # If Valkey failed during startup checks but strict=False (degraded mode),
     # we use a degraded manager that fails fast with HTTP 503.
-    redis_available = False
+    valkey_available = False
     try:
-        idempotency_manager = IdempotencyManager(get_redis_client())
-        redis_available = True
+        idempotency_manager = IdempotencyManager(get_valkey_client())
+        valkey_available = True
     except RuntimeError:
-        # Redis not available — use degraded manager that fails fast.
+        # Valkey not available — use degraded manager that fails fast.
         # Endpoints requiring idempotency return HTTP 503
         # (correct for degraded mode).
         logger.warning(
             "idempotency_manager_degraded_mode",
-            hint="Redis unavailable. Idempotent endpoints will return 503.",
+            hint="Valkey unavailable. Idempotent endpoints will return 503.",
         )
         from resync.core.idempotency.degraded import DegradedIdempotencyManager
 
@@ -216,7 +216,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     event_bus.start()
 
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
-    # redis_available is set based on IdempotencyManager initialization above.
+    # valkey_available is set based on IdempotencyManager initialization above.
     enterprise_state = EnterpriseState(  # type: ignore
         connection_manager=connection_manager,
         knowledge_graph=knowledge_graph,
@@ -230,7 +230,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
         skill_manager=skill_manager,
         event_bus=event_bus,
         startup_complete=False,
-        redis_available=redis_available,
+        valkey_available=valkey_available,
         domain_shutdown_complete=False,
     )
     app.state.enterprise_state = enterprise_state
@@ -323,7 +323,7 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
 
     logger.info("starting_graceful_shutdown")
 
-    # 1. Agent Manager (high-level service - may use TWS, LLM, Redis)
+    # 1. Agent Manager (high-level service - may use TWS, LLM, Valkey)
     am = getattr(st, STATE_AGENT_MANAGER, None)
     if am is not None:
         await _safe_close(am, "agent_manager")
@@ -376,7 +376,7 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
     if tws is not None:
         await _safe_close(tws, "tws_client")
 
-    # 9. Cache hierarchy: close before Redis
+    # 9. Cache hierarchy: close before Valkey
     try:
         from resync.core.cache import get_cache_hierarchy
 
@@ -388,15 +388,15 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
             "cache_hierarchy_close_error", error=type(exc).__name__, detail=str(exc)
         )
 
-    # 10. Redis client: close last (infrastructure)
+    # 10. Valkey client: close last (infrastructure)
     try:
-        from resync.core.redis_init import close_redis_client
+        from resync.core.valkey_init import close_valkey_client
 
-        await close_redis_client()
-        logger.info("redis_client_closed")
+        await close_valkey_client()
+        logger.info("valkey_client_closed")
     except (OSError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
-            "redis_client_close_error", error=type(exc).__name__, detail=str(exc)
+            "valkey_client_close_error", error=type(exc).__name__, detail=str(exc)
         )
 
     logger.info("domain_singletons_shutdown_completed")

@@ -1,7 +1,7 @@
 # resync/core/cache/valkey_client.py
 from typing import Optional, Any
 import valkey
-from valkey import asyncio as aioredis
+from valkey import asyncio as aiovalkey
 from resync.settings import Settings
 
 class ValkeyClient:
@@ -9,12 +9,12 @@ class ValkeyClient:
     
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._client: Optional[aioredis.Valkey] = None
-        self._pool: Optional[aioredis.ConnectionPool] = None
+        self._client: Optional[aiovalkey.Valkey] = None
+        self._pool: Optional[aiovalkey.ConnectionPool] = None
     
     async def connect(self) -> None:
         """Conecta ao Valkey com connection pooling"""
-        self._pool = aioredis.ConnectionPool(
+        self._pool = aiovalkey.ConnectionPool(
             host=self.settings.VALKEY_HOST if hasattr(self.settings, 'VALKEY_HOST') else 'localhost',
             port=self.settings.VALKEY_PORT if hasattr(self.settings, 'VALKEY_PORT') else 6379,
             db=self.settings.VALKEY_DB if hasattr(self.settings, 'VALKEY_DB') else 0,
@@ -28,7 +28,7 @@ class ValkeyClient:
             health_check_interval=30,
         )
         
-        self._client = aioredis.Valkey(
+        self._client = aiovalkey.Valkey(
             connection_pool=self._pool,
             single_connection_client=False
         )

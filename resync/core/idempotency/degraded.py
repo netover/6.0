@@ -1,7 +1,7 @@
-"""Degraded idempotency manager for when Redis is unavailable.
+"""Degraded idempotency manager for when Valkey is unavailable.
 
 This module provides a fail-fast implementation that returns HTTP 503
-when Redis is down, instead of silently failing with AttributeError.
+when Valkey is down, instead of silently failing with AttributeError.
 """
 
 from typing import Any
@@ -9,9 +9,9 @@ from typing import Any
 from fastapi import HTTPException, status
 
 class DegradedIdempotencyManager:
-    """No-op idempotency manager that fails fast when Redis is unavailable.
+    """No-op idempotency manager that fails fast when Valkey is unavailable.
 
-    This manager is used in degraded mode when Redis fails during startup
+    This manager is used in degraded mode when Valkey fails during startup
     but strict=False allows the application to continue running.
 
     All idempotent operations will return HTTP 503 Service Unavailable,
@@ -32,7 +32,7 @@ class DegradedIdempotencyManager:
         """
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Idempotency service temporarily unavailable (Redis down)",
+            detail="Idempotency service temporarily unavailable (Valkey down)",
             headers={"Retry-After": "60"},  # Suggest retry in 60 seconds
         )
 
@@ -54,7 +54,7 @@ class DegradedIdempotencyManager:
         """
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Idempotency service temporarily unavailable (Redis down)",
+            detail="Idempotency service temporarily unavailable (Valkey down)",
             headers={"Retry-After": "60"},
         )
 
@@ -69,7 +69,7 @@ class DegradedIdempotencyManager:
         """
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Idempotency service temporarily unavailable (Redis down)",
+            detail="Idempotency service temporarily unavailable (Valkey down)",
             headers={"Retry-After": "60"},
         )
 

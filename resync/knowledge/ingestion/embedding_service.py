@@ -328,6 +328,13 @@ class MultiProviderEmbeddingService(Embedder):
         if "bge-" in model_lower or "mistral-embed" in model_lower:
             return 1024
 
+        # NVIDIA models via OpenRouter
+        if "nvidia/" in model_lower:
+            if "llama-nemotron-embed" in model_lower:
+                return 2048  # llama-nemotron-embed-vl-1b-v2 has 2048 dimensions
+            if "nv-embed" in model_lower:
+                return 1024  # nv-embedqa-e5-v5 has 1024 dimensions
+
         return None
 
     async def embed(
@@ -422,13 +429,9 @@ class MultiProviderEmbeddingService(Embedder):
             # Simple retry logic for the specialized client
             for attempt in range(self._retry_attempts):
                 try:
-                    response = await asyncio.wait_for(
-                        self._openai_client.embeddings.create(
-                            model=self._model,
-                            input=batch,
-                        ),
-                        timeout=timeout + 5.0
-                    )
+                    # For NVIDIA models via OpenRouter, skip and use LiteLLM instead
+                    # The OpenAI client doesn't support input_type parameter properly
+                    return await self._embed_with_litellm(texts, timeout=timeout)
                     
                     batch_embeddings = [item.embedding for item in response.data]
                     all_embeddings.extend(batch_embeddings)
@@ -482,6 +485,22 @@ class MultiProviderEmbeddingService(Embedder):
                 params["input_type"] = self._extra_params.get(
                     "input_type", "search_document"
                 )
+            
+            # NVIDIA models via OpenRouter need special handling
+            if "nvidia/" in self._model.lower():
+                # For NVIDIA models via OpenRouter, we need to add the provider
+                # The format should be provider/model for LiteLLM
+                # But since we're using openrouter as the api_base, we need special handling
+                
+                # Add input_type for NVIDIA models
+                if "nemotron" in self._model.lower():
+                    params["input_type"] = self._extra_params.get("input_type", "query")
+                
+                # LiteLLM needs to know this is OpenRouter - add custom params
+                # For OpenRouter, the model should be prefixed with "openrouter/"
+                if "openrouter.ai" in str(self._api_base).lower():
+                    # Let LiteLLM know this is OpenRouter
+                    params["custom_llm_provider"] = "openrouter"
 
             # Add any extra parameters
             params.update(self._extra_params)

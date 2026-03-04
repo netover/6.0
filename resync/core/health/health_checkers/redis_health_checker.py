@@ -1,8 +1,8 @@
 # pylint
 """
-Redis Health Checker
+Valkey Health Checker
 
-This module provides health checking functionality for Redis cache connections.
+This module provides health checking functionality for Valkey cache connections.
 """
 
 import time
@@ -21,72 +21,72 @@ from .base_health_checker import BaseHealthChecker
 
 logger = structlog.get_logger(__name__)
 
-class RedisHealthChecker(BaseHealthChecker):
+class ValkeyHealthChecker(BaseHealthChecker):
     """
-    Health checker for Redis cache connectivity and performance.
+    Health checker for Valkey cache connectivity and performance.
     """
 
     @property
     def component_name(self) -> str:
-        return "redis"
+        return "valkey"
 
     @property
     def component_type(self) -> ComponentType:
-        return ComponentType.REDIS
+        return ComponentType.VALKEY
 
     async def check_health(self) -> ComponentHealth:
         """
-        Check Redis health and connectivity.
+        Check Valkey health and connectivity.
 
         Returns:
-            ComponentHealth: Redis health status
+            ComponentHealth: Valkey health status
         """
         start_time = time.time()
 
         try:
-            # Check Redis configuration
+            # Check Valkey configuration
             from resync.settings import settings
 
-            if not settings.REDIS_URL:
+            if not settings.valkey_url:
                 return ComponentHealth(
                     name=self.component_name,
                     component_type=self.component_type,
                     status=HealthStatus.UNKNOWN,
-                    message="Redis URL not configured",
+                    message="Valkey URL not configured",
                     last_check=datetime.now(timezone.utc),
                 )
 
-            # Test actual Redis connectivity
-            from valkey.exceptions import ValkeyError as RedisError
-            from valkey.exceptions import TimeoutError as RedisTimeoutError
+            # Test actual Valkey connectivity
+            from valkey.exceptions import ValkeyError as ValkeyError
+            from valkey.exceptions import TimeoutError as ValkeyTimeoutError
 
-            from resync.core.redis_init import get_redis_client, is_redis_available
+            from resync.core.valkey_init import get_valkey_client, is_valkey_available
 
             try:
-                if not is_redis_available():
+                if not is_valkey_available():
                     return ComponentHealth(
                         name=self.component_name,
                         component_type=self.component_type,
                         status=HealthStatus.UNKNOWN,
-                        message="Valkey/Redis library not available",
+                        message="Valkey/Valkey library not available",
                         last_check=datetime.now(timezone.utc),
                     )
                 # Use shared connection pool (prevents connection churn)
-                redis_client = get_redis_client()
+                valkey_client = get_valkey_client()
 
                 # Test connectivity with ping
-                await redis_client.ping()
+                await valkey_client.ping()
 
                 # Test read/write operation
                 test_key = f"health_check_{int(time.time())}"
-                await redis_client.setex(test_key, 1, "test")  # Set with expiration
-                value = await redis_client.get(test_key)
+                await valkey_client.setex(test_key, 1, "test")  # Set with expiration
+                value = await valkey_client.get(test_key)
 
                 if value != "test" and value != b"test":
-                    raise RedisError("Redis read/write test failed")
+                    raise ValkeyError("Valkey read/write test failed")
 
-                # Get Redis info for additional details
-                redis_info = await redis_client.info()
+                # Get Valkey info for additional details
+                valkey_info = await valkey_client.info()
 
                 response_time = (time.time() - start_time) * 1000
 
@@ -94,26 +94,26 @@ class RedisHealthChecker(BaseHealthChecker):
                     name=self.component_name,
                     component_type=self.component_type,
                     status=HealthStatus.HEALTHY,
-                    message="Redis connectivity test successful",
+                    message="Valkey connectivity test successful",
                     response_time_ms=response_time,
                     last_check=datetime.now(timezone.utc),
                     metadata={
-                        "redis_version": redis_info.get("redis_version"),
-                        "connected_clients": redis_info.get("connected_clients"),
-                        "used_memory": redis_info.get("used_memory_human"),
-                        "uptime_seconds": redis_info.get("uptime_in_seconds"),
+                        "valkey_version": valkey_info.get("valkey_version"),
+                        "connected_clients": valkey_info.get("connected_clients"),
+                        "used_memory": valkey_info.get("used_memory_human"),
+                        "uptime_seconds": valkey_info.get("uptime_in_seconds"),
                         "test_key_result": str(value),
                     },
                 )
-            except (RedisError, RedisTimeoutError) as e:
+            except (ValkeyError, ValkeyTimeoutError) as e:
                 response_time = (time.time() - start_time) * 1000
 
-                logger.error("redis_connectivity_test_failed", error=str(e))
+                logger.error("valkey_connectivity_test_failed", error=str(e))
                 return ComponentHealth(
                     name=self.component_name,
                     component_type=self.component_type,
                     status=HealthStatus.UNHEALTHY,
-                    message=f"Redis connectivity failed: {str(e)}",
+                    message=f"Valkey connectivity failed: {str(e)}",
                     response_time_ms=response_time,
                     last_check=datetime.now(timezone.utc),
                     error_count=1,
@@ -127,23 +127,23 @@ class RedisHealthChecker(BaseHealthChecker):
             maybe_reraise_programming_error(_exc, _tb)
 
             response_time = (time.time() - start_time) * 1000
-            logger.error("redis_health_check_failed", error=str(e))
+            logger.error("valkey_health_check_failed", error=str(e))
             return ComponentHealth(
                 name=self.component_name,
                 component_type=self.component_type,
                 status=HealthStatus.UNHEALTHY,
-                message=f"Redis check failed: {str(e)}",
+                message=f"Valkey check failed: {str(e)}",
                 response_time_ms=response_time,
                 last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 
     def _get_status_for_exception(self, exception: Exception) -> ComponentType:
-        """Determine health status based on Redis exception type."""
-        return ComponentType.REDIS
+        """Determine health status based on Valkey exception type."""
+        return ComponentType.VALKEY
 
     def get_component_config(self) -> dict[str, Any]:
-        """Get Redis-specific configuration."""
+        """Get Valkey-specific configuration."""
         return {
             "timeout_seconds": self.config.timeout_seconds,
             "retry_attempts": 2,

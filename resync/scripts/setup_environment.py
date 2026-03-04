@@ -5,7 +5,7 @@ Setup Completo para Resync v6.2.0
 
 Este script instala e configura todos os pré-requisitos:
 1. PostgreSQL
-2. Redis
+2. Valkey
 3. Dependências Python
 
 Usage:
@@ -97,10 +97,10 @@ def setup_postgres() -> None:
     else:
         print("❌ Script install_postgres.py não encontrado")
 
-def setup_redis() -> None:
-    """Configura Redis."""
+def setup_valkey() -> None:
+    """Configura Valkey."""
     print("\n" + "=" * 60)
-    print("CONFIGURANDO REDIS")
+    print("CONFIGURANDO VALKEY")
     print("=" * 60)
 
     script_path = Path(__file__).parent / "install_redis.py"
@@ -115,7 +115,7 @@ def setup_docker() -> None:
     print("CONFIGURANDO COM DOCKER")
     print("=" * 60)
 
-    # Docker Compose para PostgreSQL e Redis
+    # Docker Compose para PostgreSQL e Valkey
     docker_compose = """
 version: '3.8'
 
@@ -138,23 +138,23 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: resync-redis
+  valkey:
+    image: valkey/valkey:7.2
+    container_name: resync-valkey
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - valkey_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
 
 volumes:
   postgres_data:
-  redis_data:
+  valkey_data:
 """
 
     docker_file = Path(DOCKER_COMPOSE_FILE)
@@ -164,7 +164,7 @@ volumes:
     print("\nIniciando containers...")
     try:
         run_command(["docker-compose", "-f", DOCKER_COMPOSE_FILE, "up", "-d"])
-        print("✅ Containers PostgreSQL e Redis iniciados!")
+        print("✅ Containers PostgreSQL e Valkey iniciados!")
     except FileNotFoundError:
         # Tenta docker compose v2
         try:
@@ -191,10 +191,12 @@ DATABASE_POOL_SIZE=5
 DATABASE_MAX_OVERFLOW=10
 
 # =============================================================================
-# REDIS
+# VALKEY
 # =============================================================================
-REDIS_URL=redis://localhost:6379/0
-REDIS_CACHE_URL=redis://localhost:6379/1
+VALKEY_URL=valkey://localhost:6379/0
+# Legacy fallback (deprecated)
+REDIS_URL=valkey://localhost:6379/0
+VALKEY_CACHE_URL=valkey://localhost:6379/1
 
 # =============================================================================
 # AUTH
@@ -277,17 +279,24 @@ def verify_setup() -> None:
     except FileNotFoundError:
         print("⚠️  PostgreSQL: cliente não encontrado")
 
-    # Verificar Redis
+    # Verificar Valkey
     try:
         result = subprocess.run(
-            ["redis-cli", "ping"], capture_output=True, text=True, check=False
+            ["valkey-cli", "ping"], capture_output=True, text=True, check=False
         )
         if result.returncode == 0 and "PONG" in result.stdout:
-            print("✅ Redis conectado")
+            print("✅ Valkey conectado")
         else:
-            print("❌ Redis não conectado")
+            # Fallback for redis-cli if valkey-cli not in path
+            result = subprocess.run(
+                ["redis-cli", "ping"], capture_output=True, text=True, check=False
+            )
+            if result.returncode == 0 and "PONG" in result.stdout:
+                print("✅ Valkey conectado (via redis-cli)")
+            else:
+                print("❌ Valkey não conectado")
     except FileNotFoundError:
-        print("⚠️  Redis: cliente não encontrado")
+        print("⚠️  Valkey: cliente não encontrado")
 
     # Verificar Python deps
     venv_python = (
@@ -338,7 +347,7 @@ def main() -> None:
             setup_docker()
         else:
             setup_postgres()
-            setup_redis()
+            setup_valkey()
 
     # Criar arquivo .env
     create_env_file()

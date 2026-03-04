@@ -22,11 +22,11 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    import valkey.asyncio as redis_async
+    import valkey.asyncio as valkey_async
 
 logger = logging.getLogger(__name__)
 
-class RedisDatabase(IntEnum):
+class ValkeyDatabase(IntEnum):
     """
     Redis database separation by purpose.
 
@@ -45,7 +45,7 @@ class RedisDatabase(IntEnum):
     IDEMPOTENCY = 4  # Idempotency keys for request deduplication
     # DBs 5-15: Reserved for future use
 
-class RedisConfig:
+class ValkeyConfig:
     """
     Configuration holder for Redis connections.
 
@@ -143,7 +143,7 @@ class RedisConfig:
             os.getenv("SEMANTIC_CACHE_MAX_ENTRIES", "100000")
         )
 
-    def get_url(self, db: RedisDatabase = RedisDatabase.CONNECTIONS) -> str:
+    def get_url(self, db: ValkeyDatabase = ValkeyDatabase.CONNECTIONS) -> str:
         """
         Build Redis URL for specific database.
 
@@ -155,27 +155,27 @@ class RedisConfig:
     def __repr__(self) -> str:
         """Safe repr that never shows password."""
         return (
-            f"RedisConfig(host={self.host}, port={self.port}, "
+            f"ValkeyConfig(host={self.host}, port={self.port}, "
             f"password={'***' if self.password else None})"
         )
 
 # Global config instance (singleton pattern)
 @lru_cache(maxsize=1)
-def get_redis_config() -> RedisConfig:
+def get_valkey_config() -> ValkeyConfig:
     """
     Get singleton Redis configuration.
 
     Uses lru_cache for thread-safe singleton pattern.
     """
-    return RedisConfig()
+    return ValkeyConfig()
 
 # Connection pool cache (one per database)
-_connection_pools: dict[RedisDatabase, Any] = {}
+_connection_pools: dict[ValkeyDatabase, Any] = {}
 
-def get_redis_client(
-    db: RedisDatabase = RedisDatabase.CONNECTIONS,
+def get_valkey_client(
+    db: ValkeyDatabase = ValkeyDatabase.CONNECTIONS,
     decode_responses: bool = True,
-) -> "redis_async.Redis":
+) -> "valkey_async.Redis":
     """
     Get Redis client for specific database with connection pooling.
 
@@ -197,7 +197,7 @@ def get_redis_client(
             "valkey not installed. Run: pip install valkey[hiredis]"
         ) from e
 
-    config = get_redis_config()
+    config = get_valkey_config()
     url = config.get_url(db)
 
     # Check cache to avoid creating a new pool for every request
@@ -216,7 +216,7 @@ def get_redis_client(
     _connection_pools[db] = client
     return client
 
-async def check_redis_stack_available() -> dict[str, bool | str]:
+async def check_valkey_stack_available() -> dict[str, bool | str]:
     """
     Check if Redis Stack modules are available.
 
@@ -239,7 +239,7 @@ async def check_redis_stack_available() -> dict[str, bool | str]:
     }
 
     try:
-        client = get_redis_client(RedisDatabase.SEMANTIC_CACHE)
+        client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
 
         # Get Redis version
         info = await client.info("server")
@@ -315,8 +315,8 @@ async def close_all_pools() -> None:
     _connection_pools.clear()
 
 # Health check utility
-async def redis_health_check(
-    db: RedisDatabase = RedisDatabase.CONNECTIONS,
+async def valkey_health_check(
+    db: ValkeyDatabase = ValkeyDatabase.CONNECTIONS,
 ) -> dict[str, Any]:
     """
     Perform health check on specific Redis database.
@@ -334,7 +334,7 @@ async def redis_health_check(
     }
 
     try:
-        client = get_redis_client(db)
+        client = get_valkey_client(db)
 
         start = time.perf_counter()
         pong = await client.ping()
@@ -364,12 +364,27 @@ async def redis_health_check(
 
     return result
 
+# Legacy aliases for backward compatibility
+RedisDatabase = ValkeyDatabase
+RedisConfig = ValkeyConfig
+get_redis_config = get_valkey_config
+get_redis_client = get_valkey_client
+check_redis_stack_available = check_valkey_stack_available
+redis_health_check = valkey_health_check
+
 __all__ = [
+    "ValkeyDatabase",
+    "ValkeyConfig",
+    "get_valkey_config",
+    "get_valkey_client",
+    "check_valkey_stack_available",
+    "close_all_pools",
+    "valkey_health_check",
+    # Legacy
     "RedisDatabase",
     "RedisConfig",
     "get_redis_config",
     "get_redis_client",
     "check_redis_stack_available",
-    "close_all_pools",
     "redis_health_check",
 ]

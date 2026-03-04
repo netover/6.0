@@ -27,7 +27,7 @@ def _require(condition: bool, message: str) -> None:
 MOCKED_IMPORT_MODULES = (
     "fastapi",
     "fastapi.responses",
-    "resync.core.redis_init",
+    "resync.core.valkey_init",
     "resync.api.security",
     "resync.core.metrics",
     "structlog",

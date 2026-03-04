@@ -313,7 +313,7 @@ async def log_cache_node(state: ParallelState) -> dict[str, Any]:
     logger.debug("parallel_node_start", node=source_name)
 
     try:
-        from resync.core.redis_init import get_redis_client
+        from resync.core.valkey_init import get_redis_client
 
         job_name = state.get("job_name")
         state.get("message", "")

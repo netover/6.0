@@ -26,18 +26,18 @@ from starlette.types import ASGIApp
 logger = structlog.get_logger(__name__)
 
 # Lazy import to avoid circular dependencies
-_redis_strategy = None
+_valkey_strategy = None
 
-def get_redis_strategy():
+def get_valkey_strategy():
     """Lazy load Valkey strategy to avoid import issues."""
-    global _redis_strategy
-    if _redis_strategy is None:
-        from resync.core.redis_strategy import get_redis_strategy as _get_strategy
+    global _valkey_strategy
+    if _valkey_strategy is None:
+        from resync.core.valkey_strategy import get_valkey_strategy as _get_strategy
 
-        _redis_strategy = _get_strategy()
-    return _redis_strategy
+        _valkey_strategy = _get_strategy()
+    return _valkey_strategy
 
-class RedisValidationMiddleware(BaseHTTPMiddleware):
+class ValkeyValidationMiddleware(BaseHTTPMiddleware):
     """
     Middleware que valida disponibilidade de Valkey por tier de endpoint.
 
@@ -61,7 +61,7 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
     def strategy(self):
         """Lazy load strategy."""
         if self._strategy is None:
-            self._strategy = get_redis_strategy()
+            self._strategy = get_valkey_strategy()
         return self._strategy
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -78,34 +78,36 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
         method = request.method
 
         # Import here to avoid issues
-        from resync.core.redis_strategy import RedisTier
+        from resync.core.valkey_strategy import ValkeyTier
 
         tier = self.strategy.get_tier(method, path)
 
-        # Check Redis availability from app state
-        redis_available = getattr(request.app.state, "redis_available", True)
+        # Check Valkey availability from app state
+        valkey_available = getattr(request.app.state, "valkey_available", True)
 
         # Log validation
         logger.debug(
-            "redis_validation_check",
+            "valkey_validation_check",
             method=method,
             path=path,
             tier=tier.value,
-            redis_available=redis_available,
+            valkey_available=valkey_available,
         )
 
         # TIER 1: READ_ONLY - Always allow
-        if tier == RedisTier.READ_ONLY:
+        if tier == ValkeyTier.READ_ONLY:
             response = await call_next(request)
-            response.headers["X-Redis-Status"] = (
-                "available" if redis_available else "unavailable"
+            response.headers["X-Valkey-Status"] = (
+                "available" if valkey_available else "unavailable"
             )
+            # Legacy header for backward compatibility
+            response.headers["X-Redis-Status"] = response.headers["X-Valkey-Status"]
             return response
 
-        # TIER 3: CRITICAL - Fail fast if Redis down
-        if tier == RedisTier.CRITICAL and not redis_available:
+        # TIER 3: CRITICAL - Fail fast if Valkey down
+        if tier == ValkeyTier.CRITICAL and not valkey_available:
             logger.warning(
-                "redis_critical_endpoint_blocked",
+                "valkey_critical_endpoint_blocked",
                 method=method,
                 path=path,
                 tier="critical",
@@ -114,9 +116,9 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
             # Get detailed config
             critical_config = self.strategy.get_critical_config(method, path)
             reason = (
-                critical_config.get("reason", "Redis required for this operation")
+                critical_config.get("reason", "Valkey required for this operation")
                 if critical_config
-                else "Redis required"
+                else "Valkey required"
             )
             retry_after = (
                 critical_config.get("retry_after", 60) if critical_config else 60
@@ -130,21 +132,22 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
                     "tier": "critical",
                     "endpoint": f"{method} {path}",
                     "retry_after": retry_after,
-                    "message": "Redis is required for this operation. Please try again later.",
+                    "message": "Valkey is required for this operation. Please try again later.",
                 },
                 headers={
                     "Retry-After": str(retry_after),
+                    "X-Valkey-Status": "unavailable",
                     "X-Redis-Status": "unavailable",
                 },
             )
 
         # TIER 2: BEST_EFFORT - Degrade gracefully
-        if tier == RedisTier.BEST_EFFORT and not redis_available:
+        if tier == ValkeyTier.BEST_EFFORT and not valkey_available:
             # Get degradation config
             degraded_config = self.strategy.get_degraded_config(method, path)
 
             logger.info(
-                "redis_degraded_mode_request",
+                "valkey_degraded_mode_request",
                 method=method,
                 path=path,
                 tier="best_effort",
@@ -175,9 +178,10 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
             raise
 
         # Add standard headers
-        response.headers["X-Redis-Status"] = (
-            "available" if redis_available else "unavailable"
+        response.headers["X-Valkey-Status"] = (
+            "available" if valkey_available else "unavailable"
         )
+        response.headers["X-Redis-Status"] = response.headers["X-Valkey-Status"]
 
         # Add degradation headers if applicable
         if getattr(request.state, "degraded_mode", False):
@@ -196,20 +200,26 @@ class RedisValidationMiddleware(BaseHTTPMiddleware):
 
         return response
 
-class RedisHealthMiddleware(BaseHTTPMiddleware):
+class ValkeyHealthMiddleware(BaseHTTPMiddleware):
     """
-    Middleware simplificado que apenas adiciona status do Redis aos headers.
+    Middleware simplificado que apenas adiciona status do Valkey aos headers.
 
     Usar quando não precisar de validação por tier, apenas informação.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Adiciona header de status Redis."""
+        """Adiciona header de status Valkey."""
         response = await call_next(request)
 
-        redis_available = getattr(request.app.state, "redis_available", True)
-        response.headers["X-Redis-Status"] = (
-            "available" if redis_available else "unavailable"
+        valkey_available = getattr(request.app.state, "valkey_available", True)
+        response.headers["X-Valkey-Status"] = (
+            "available" if valkey_available else "unavailable"
         )
+        response.headers["X-Redis-Status"] = response.headers["X-Valkey-Status"]
 
         return response
+
+
+# Legacy aliases for backward compatibility
+RedisValidationMiddleware = ValkeyValidationMiddleware
+RedisHealthMiddleware = ValkeyHealthMiddleware

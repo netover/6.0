@@ -2,7 +2,7 @@
 Abstração de armazenamento para o sistema de idempotency.
 """
 
-from redis.asyncio import Redis
+from valkey.asyncio import Valkey
 
 from resync.core.idempotency.exceptions import IdempotencyStorageError
 from resync.core.idempotency.models import IdempotencyRecord
@@ -10,29 +10,29 @@ from resync.core.idempotency.models import IdempotencyRecord
 class IdempotencyStorage:
     """Abstração de armazenamento para o sistema de idempotency"""
 
-    def __init__(self, redis_client: Redis | None) -> None:
-        self.redis = redis_client
+    def __init__(self, valkey_client: Valkey | None) -> None:
+        self.valkey = valkey_client
 
-    def _ensure_redis(self) -> Redis:
-        """Return the Redis client or raise a descriptive error.
+    def _ensure_valkey(self) -> Valkey:
+        """Return the Valkey client or raise a descriptive error.
 
-        When Redis is disabled/unavailable, wiring may create the manager with
-        ``redis_client=None``. In that case, raise a clear IdempotencyStorageError
+        When Valkey is disabled/unavailable, wiring may create the manager with
+        ``valkey_client=None``. In that case, raise a clear IdempotencyStorageError
         instead of letting a NoneType AttributeError leak out.
         """
-        if self.redis is None:
+        if self.valkey is None:
             raise IdempotencyStorageError(
-                "Redis client not available (idempotency disabled)"
+                "Valkey client not available (idempotency disabled)"
             )
-        return self.redis
+        return self.valkey
 
     async def get(self, key: str) -> IdempotencyRecord | None:
         """Recupera registro de idempotency"""
         try:
             import json
 
-            redis = self._ensure_redis()
-            cached_data = await redis.get(key)
+            valkey = self._ensure_valkey()
+            cached_data = await valkey.get(key)
             if not cached_data:
                 return None
 
@@ -58,8 +58,8 @@ class IdempotencyStorage:
 
             data = record.to_dict()
             serialized_data = json.dumps(data, default=str)
-            redis = self._ensure_redis()
-            success = await redis.set(key, serialized_data, ex=ttl_seconds, nx=True)
+            valkey = self._ensure_valkey()
+            success = await valkey.set(key, serialized_data, ex=ttl_seconds, nx=True)
             return bool(success)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
@@ -79,7 +79,7 @@ class IdempotencyStorage:
     ) -> bool:
         """Armazena registro SOMENTE se a chave NÃO existir (atômico).
 
-        Usa ``SET key value NX EX ttl`` do Redis — operação atômica que evita
+        Usa ``SET key value NX EX ttl`` do Valkey — operação atômica que evita
         race conditions entre requests concorrentes com a mesma chave.
 
         Returns:
@@ -90,8 +90,8 @@ class IdempotencyStorage:
 
             data = record.to_dict()
             serialized_data = json.dumps(data, default=str)
-            redis = self._ensure_redis()
-            result = await redis.set(key, serialized_data, nx=True, ex=ttl_seconds)
+            valkey = self._ensure_valkey()
+            result = await valkey.set(key, serialized_data, nx=True, ex=ttl_seconds)
             return result is not None and bool(result)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
@@ -108,8 +108,8 @@ class IdempotencyStorage:
     async def exists(self, key: str) -> bool:
         """Verifica se chave existe"""
         try:
-            redis = self._ensure_redis()
-            return bool(await redis.exists(key))
+            valkey = self._ensure_valkey()
+            return bool(await valkey.exists(key))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -124,8 +124,8 @@ class IdempotencyStorage:
     async def delete(self, key: str) -> bool:
         """Remove chave"""
         try:
-            redis = self._ensure_redis()
-            deleted = await redis.delete(key)
+            valkey = self._ensure_valkey()
+            deleted = await valkey.delete(key)
             return deleted > 0
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys

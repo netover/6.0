@@ -4,8 +4,9 @@ TWS-optimized LLM integration with prompt caching and model routing.
 """
 
 import hashlib
-import threading
 import logging
+import os
+import threading
 import time
 from typing import Any
 
@@ -82,12 +83,14 @@ class TWSLLMOptimizer:
             return False
         
         # P2-C11 FIX: Validate URL against SSRF protection
-        from resync.core.ssrf_protection import SSRFProtection
-        is_safe, reason = SSRFProtection.is_safe_url(llm_endpoint)
-        if not is_safe:
-            logger.warning("LLM endpoint blocked by SSRF protection: %s", reason)
-            self._ollama_available = False
-            return False
+        ssrf_disabled = os.getenv("RESYNC_DISABLE_SSRF", "false").lower() == "true"
+        if not ssrf_disabled:
+            from resync.core.ssrf_protection import SSRFProtection
+            is_safe, reason = SSRFProtection.is_safe_url(llm_endpoint)
+            if not is_safe:
+                logger.warning("LLM endpoint blocked by SSRF protection: %s", reason)
+                self._ollama_available = False
+                return False
         
         try:
             import httpx
