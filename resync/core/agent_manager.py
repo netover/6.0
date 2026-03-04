@@ -580,7 +580,7 @@ class AgentManager:
                         "and system monitoring."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="minimaxai/minimax-m2.5",
+                    model_name="nvidia_nim/minimaxai/minimax-m2.5",
                     max_rpm=None,
                 ),
                 AgentConfig(
@@ -595,7 +595,7 @@ class AgentManager:
                         "information about system status and job execution."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="minimaxai/minimax-m2.5",
+                    model_name="nvidia_nim/minimaxai/minimax-m2.5",
                     max_rpm=None,
                 ),
             ]
