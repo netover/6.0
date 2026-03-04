@@ -194,31 +194,25 @@ async def _handle_agent_interaction(
     data: str,
 ) -> None:
     """
-    Handles the core logic of agent interaction using HybridRouter.
-
-    v6.0 REFACTORING:
-    - Uses HybridRouter as single source of truth
-    - Gets dependencies from enterprise_state (not Depends injection)
-    - Sends only ONE final response (no double is_final)
-    - Proper ContextStore integration with correct signature
-    - Normalized payload per WebSocketMessage validation model
+    P0-CRITICAL FIX: Use UnifiedAgent.chat() instead of HybridRouter.
+    
+    This ensures WebSocket uses the same LLM tool calling logic as REST API.
+    HybridRouter is now deprecated in favor of direct LLM tool calling.
     """
     from resync.core.context_store import ContextStore
+    from resync.core.agent_manager import get_unified_agent
 
     sanitized = sanitize_input(data)
 
-    # Get enterprise state (includes hybrid_router and knowledge_graph)
+    # Get enterprise state
     st = enterprise_state_from_app(websocket.app)
-    router = st.hybrid_router
-    kg: ContextStore = st.knowledge_graph  # Now properly typed as ContextStore
+    kg: ContextStore = st.knowledge_graph
 
     # Get or create session_id from query params
     session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
     agent_id_str = str(agent_id)
 
     # Send user's message back to UI for display
-    # Per WebSocketMessage model:
-    # type, sender, message, agent_id, session_id, timestamp, metadata
     await websocket.send_json(
         {
             "type": "message",
@@ -233,9 +227,9 @@ async def _handle_agent_interaction(
     )
 
     try:
-        # Serialize a session end-to-end to preserve conversation ordering
+        # Serialize session to preserve conversation ordering
         async with _session_locks[session_id]:
-            # Persist user turn (best-effort, don't block on failure)
+            # Persist user turn (best-effort)
             try:
                 await kg.add_conversation(
                     session_id=session_id,
@@ -246,52 +240,43 @@ async def _handle_agent_interaction(
             except INFRA_ERRORS as e:
                 _exc_type, _exc, _tb = sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
-
                 logger.warning("Failed to persist user message: %s", e)
 
-            # Route via HybridRouter (single source of truth)
+            # P0-FIX: Use UnifiedAgent instead of HybridRouter
             start_time = time.time()
-
-            result = await router.route(
-                sanitized,
-                context={"agent_id": agent_id_str, "session_id": session_id},
+            
+            unified_agent = get_unified_agent()
+            response = await unified_agent.chat(
+                message=sanitized,
+                include_history=True,
+                conversation_id=session_id,  # Use session_id for history isolation
             )
 
             processing_time_ms = int((time.time() - start_time) * 1000)
 
-            # Send final response ONCE with metadata in correct location
-            # Per WebSocketMessage: routing info goes in metadata, not at top level
+            # Send final response with simplified metadata (no routing_mode)
             response_payload = {
                 "type": "message",
                 "sender": "agent",
-                "message": result.response,
+                "message": response,
                 "agent_id": agent_id_str,
                 "session_id": session_id,
                 "is_final": True,
                 "timestamp": _now_iso(),
-                "correlation_id": result.trace_id,
+                "correlation_id": None,  # Add trace ID if available
                 "metadata": {
-                    # Routing info
-                    "routing_mode": result.routing_mode.value,
-                    "intent": result.intent,
-                    "confidence": result.confidence,
-                    "handler": result.handler,
-                    "tools_used": result.tools_used,
-                    "entities": result.entities,
                     "processing_time_ms": processing_time_ms,
-                    "requires_approval": result.requires_approval,
-                    "approval_id": result.approval_id,
-                    # Backward compatibility aliases
-                    "query_type": result.intent,
+                    "handler": "UnifiedAgent",
+                    "tools_used": [],  # TODO: Extract from LLM tool_calls
                 },
             }
             logger.info("Sending response to WebSocket: %s", response_payload)
+            
             try:
                 await websocket.send_json(response_payload)
                 logger.info("Response sent successfully to WebSocket")
             except Exception as e:
                 logger.error("Failed to send response to WebSocket: %s", e, exc_info=True)
-                # Try to send error message to client
                 await send_error_message(
                     websocket,
                     "Erro ao enviar resposta.",
@@ -300,43 +285,35 @@ async def _handle_agent_interaction(
                 )
 
             logger.info(
-                "Agent '%s' response: mode=%s, intent=%s, tools=%s",
+                "Agent '%s' response via UnifiedAgent, processing_time=%dms",
                 agent_id,
-                result.routing_mode.value,
-                result.intent,
-                result.tools_used,
+                processing_time_ms,
             )
 
-            # Persist assistant turn (best-effort, don't block on failure)
+            # Persist assistant turn (best-effort)
             try:
                 await kg.add_conversation(
                     session_id=session_id,
                     role="assistant",
-                    content=result.response,
+                    content=response,
                     metadata={
                         "agent_id": agent_id_str,
-                        "routing_mode": result.routing_mode.value,
-                        "intent": result.intent,
-                        "confidence": result.confidence,
-                        "tools_used": result.tools_used,
-                        "entities": result.entities,
                         "processing_time_ms": processing_time_ms,
+                        "handler": "UnifiedAgent",
                     },
                 )
             except INFRA_ERRORS as e:
                 _exc_type, _exc, _tb = sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
-
                 logger.warning("Failed to persist assistant message: %s", e)
 
-            # Schedule the IA Auditor via bounded queue
+            # Schedule auditor
             logger.info("Queueing IA Auditor execution trigger.")
             await _schedule_auditor_run()
 
     except INFRA_ERRORS as e:
         _exc_type, _exc, _tb = sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
-
         logger.error("Error in agent interaction: %s", e, exc_info=True)
         await send_error_message(
             websocket,
