@@ -71,7 +71,7 @@ ALL_CAUGHT_EXCEPTIONS = RUNTIME_EXCEPTIONS + PROGRAMMING_EXCEPTIONS
 # P2-1: Extracted magic numbers for Agent LLM configuration
 DEFAULT_MAX_TOKENS: int = 1024
 DEFAULT_TEMPERATURE: float = 0.1
-DEFAULT_TIMEOUT_SECONDS: float = 30.0
+DEFAULT_TIMEOUT_SECONDS: float = 120.0  # Increased for NVIDIA NIM models (slow startup)
 DEFAULT_MODEL: str = "minimaxai/minimax-m2.5"
 
 # P2-1: Extracted magic numbers for UnifiedAgent history management
@@ -272,10 +272,68 @@ class Agent:
 
         return litellm_tools
 
+    async def _call_litellm_with_retry(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Any:
+        """Call LiteLLM with retry logic for timeouts.
+        
+        v6.2.1: Added retry with exponential backoff for timeout errors.
+        """
+        import litellm
+        
+        # Configuration for retries
+        max_retries = 3
+        base_timeout = DEFAULT_TIMEOUT_SECONDS
+        
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # Increase timeout with each retry
+                timeout = base_timeout * (1 + attempt * 0.5)
+                
+                response = await litellm.acompletion(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto" if tools else None,
+                    max_tokens=DEFAULT_MAX_TOKENS,
+                    temperature=DEFAULT_TEMPERATURE,
+                    timeout=timeout,
+                )
+                return response
+            except Exception as e:
+                error_str = str(e).lower()
+                is_timeout = (
+                    "timeout" in error_str or
+                    "timed out" in error_str or
+                    isinstance(e, (asyncio.TimeoutError, TimeoutError))
+                )
+                
+                if is_timeout and attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(
+                        "llm_timeout_retry",
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        wait_seconds=wait_time,
+                        error=str(e)[:200],
+                    )
+                    await asyncio.sleep(wait_time)
+                    last_error = e
+                    continue
+                else:
+                    raise
+        
+        # If we get here, all retries failed
+        raise last_error if last_error else RuntimeError("LLM call failed")
+
     async def arun(self, message: str, skill_context: str = "") -> str:
         """Process *message* via LiteLLM (async).
 
         v6.2: Enhanced with automatic tool calling.
+        v6.2.1: Added retry logic for timeout errors.
         The LLM will analyze the query and call appropriate tools.
         """
         try:
@@ -317,15 +375,10 @@ class Agent:
                 {"role": "user", "content": message},
             ]
 
-            # NEW v6.2: Call LiteLLM with tools
-            response = await litellm.acompletion(
-                model=self.model,
+            # NEW v6.2: Call LiteLLM with tools (with retry for timeouts)
+            response = await self._call_litellm_with_retry(
                 messages=messages,
                 tools=self._litellm_tools if self._litellm_tools else None,
-                tool_choice="auto",  # Let LLM decide when to use tools
-                max_tokens=DEFAULT_MAX_TOKENS,
-                temperature=DEFAULT_TEMPERATURE,
-                timeout=DEFAULT_TIMEOUT_SECONDS,
             )
 
             # P0-1: Verificar resposta vazia antes de acessar
@@ -367,16 +420,13 @@ class Agent:
                         }
                     )
 
-                # Send tool results back to LLM for synthesis
+                # Send tool results back to LLM for synthesis (with retry for timeouts)
                 messages.append(message_obj)
                 messages.extend(tool_results)
 
-                final_response = await litellm.acompletion(
-                    model=self.model,
+                final_response = await self._call_litellm_with_retry(
                     messages=messages,
-                    max_tokens=DEFAULT_MAX_TOKENS,
-                    temperature=DEFAULT_TEMPERATURE,
-                    timeout=DEFAULT_TIMEOUT_SECONDS,
+                    tools=None,  # No tools on synthesis call
                 )
 
                 final_choice = final_response.choices[0]
