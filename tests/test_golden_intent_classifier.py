@@ -17,8 +17,9 @@ def classifier() -> IntentClassifier:
     return IntentClassifier()
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("case", load_golden_cases())
-def test_intent_classification_golden_cases(
+async def test_intent_classification_golden_cases(
     classifier: IntentClassifier,
     case: dict[str, object],
 ) -> None:
@@ -30,7 +31,7 @@ def test_intent_classification_golden_cases(
     expected_routing = case.get("expected_routing")
     expected_entities = case.get("entities", {})
 
-    result = classifier.classify(message)
+    result = await classifier.classify(message)
 
     # Validate Primary Intent
     assert result.primary_intent.value == expected_intent, (
@@ -67,13 +68,14 @@ def test_intent_classification_golden_cases(
             )
 
 
-def test_intent_classifier_thresholds(classifier: IntentClassifier) -> None:
+@pytest.mark.asyncio
+async def test_intent_classifier_thresholds(classifier: IntentClassifier) -> None:
     """Test confidence thresholds and classification logic directly."""
     # High confidence greeting
-    res = classifier.classify("Oi")
+    res = await classifier.classify("Oi")
     assert res.is_high_confidence or res.confidence > 0.5
 
     # Low confidence/Unknown
-    res = classifier.classify("xpto random sequence")
+    res = await classifier.classify("xpto random sequence")
     assert res.primary_intent == Intent.UNKNOWN
     assert res.needs_clarification

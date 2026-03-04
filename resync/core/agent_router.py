@@ -33,7 +33,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Protocol
 
 import structlog
@@ -73,7 +73,7 @@ ACTION_TRIGGERS = [
     "diagnosticar",
 ]
 
-class RoutingMode(str, Enum):
+class RoutingMode(StrEnum):
     """
     Routing modes for hybrid agent system.
 
@@ -91,7 +91,7 @@ class RoutingMode(str, Enum):
 # INTENT CLASSIFICATION
 # =============================================================================
 
-class Intent(str, Enum):
+class Intent(StrEnum):
     """
     Classified intents for user messages.
     Each intent maps to a routing mode.
@@ -359,7 +359,12 @@ class IntentClassifier:
             try:
                 logger.debug("invoking_llm_classifier_fallback", regex_confidence=confidence)
                 llm_result = await self.llm_classifier(message)
-                if llm_result and llm_result.confidence > confidence:
+                # P0-02: Validate type before accessing attributes (prevents AttributeError)
+                if (
+                    llm_result
+                    and isinstance(llm_result, IntentClassification)
+                    and llm_result.confidence > confidence
+                ):
                     logger.info(
                         "llm_classifier_override",
                         regex_intent=primary_intent.value,
@@ -367,6 +372,13 @@ class IntentClassifier:
                         llm_confidence=llm_result.confidence,
                     )
                     return llm_result
+                elif llm_result is not None and not isinstance(llm_result, IntentClassification):
+                    logger.warning(
+                        "llm_classifier_returned_invalid_type",
+                        result_type=type(llm_result).__name__,
+                    )
+            except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+                raise
             except Exception as e:
                 logger.warning("llm_classifier_failed", error=str(e), exc_info=True)
                 # Continue with regex if LLM fails
@@ -467,6 +479,7 @@ class RoutingResult:
     tools_used: list[str] = field(default_factory=list)
     entities: dict[str, Any] = field(default_factory=dict)
     processing_time_ms: int = 0
+    tws_instance_id: str | None = None  # P1-05: Tenant isolation tracking
     trace_id: str | None = None
 
     # HITL status
@@ -636,8 +649,12 @@ class RAGOnlyHandler(BaseHandler):
             # Fallback to general response
             return self._general_response(classification)
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (  # noqa: E501
+            OSError, ValueError, TypeError, KeyError,
+            AttributeError, RuntimeError, TimeoutError, ConnectionError,
+        ) as e:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
@@ -743,8 +760,12 @@ class AgenticHandler(BaseHandler):
                 "tws-general", message, skill_context=skill_context
             )
 
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (  # noqa: E501
+            OSError, ValueError, TypeError, KeyError,
+            AttributeError, RuntimeError, TimeoutError, ConnectionError,
+        ) as e:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
@@ -986,8 +1007,12 @@ PERGUNTA DO USUÁRIO:
                 response += f"\n_Analisados {len(job_names)} jobs em paralelo_"
                 return response
 
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (  # noqa: E501
+                OSError, ValueError, TypeError, KeyError,
+                AttributeError, RuntimeError, TimeoutError, ConnectionError,
+            ) as e:
                 import sys as _sys
+
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
@@ -996,13 +1021,16 @@ PERGUNTA DO USUÁRIO:
 
         # Single job or fallback - collect history but ALWAYS invoke agent
         raw_history = ""
+        tws_instance_id = context.get("tws_instance_id")
         if job_names:
             from resync.core.specialists.tools import JobLogTool
 
             job_tool = JobLogTool()
             job_name = job_names[0]
 
-            history = await asyncio.to_thread(job_tool.get_job_history, job_name, days=7)
+            history = await asyncio.to_thread(
+                job_tool.get_job_history, job_name, days=7, tws_instance_id=tws_instance_id
+            )
             self.last_tools_used.append("get_job_history")
 
             # Build raw history string for agent context (NOT returning yet)
@@ -1024,7 +1052,10 @@ PERGUNTA DO USUÁRIO:
             try:
                 team_resp = await self.specialist_team.process(
                     query=message,
-                    context={"entities": classification.entities},
+                    context={
+                        "entities": classification.entities,
+                        "tws_instance_id": tws_instance_id,
+                    },
                     use_all_specialists=False,  # False for analysis (doesn't need all)
                 )
                 team_summary = getattr(team_resp, "synthesized_response", "")
@@ -1034,8 +1065,12 @@ PERGUNTA DO USUÁRIO:
                         f"# Specialist Team Findings\n{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (  # noqa: E501
+                OSError, ValueError, TypeError, KeyError,
+                AttributeError, RuntimeError, TimeoutError, ConnectionError,
+            ) as e:
                 import sys as _sys
+
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
@@ -1145,7 +1180,10 @@ class DiagnosticHandler(BaseHandler):
             try:
                 team_resp = await self.specialist_team.process(
                     query=message,
-                    context={"entities": classification.entities},
+                    context={
+                        "entities": classification.entities,
+                        "tws_instance_id": context.get("tws_instance_id"),
+                    },
                     use_all_specialists=True,  # True for diagnostic (full context needed)
                 )
                 team_summary = getattr(team_resp, "synthesized_response", "")
@@ -1156,8 +1194,12 @@ class DiagnosticHandler(BaseHandler):
                         f"{team_summary}\n\n{skill_context}"
                     )
                     self.last_tools_used.append("specialist_team")
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+            except (  # noqa: E501
+                OSError, ValueError, TypeError, KeyError,
+                AttributeError, RuntimeError, TimeoutError, ConnectionError,
+            ) as e:
                 import sys as _sys
+
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
@@ -1201,38 +1243,41 @@ class DiagnosticHandler(BaseHandler):
                 return "\n".join(response_parts)
 
             # Fallback to manual analysis
-            return await asyncio.to_thread(
-                self._manual_troubleshooting,
-                message,
-                classification,
+            return await self._manual_troubleshooting(
+                message, classification, tws_instance_id=context.get("tws_instance_id")
             )
 
         except ImportError:
             logger.warning("LangGraph not available, using fallback")
-            return await asyncio.to_thread(
-                self._manual_troubleshooting,
-                message,
-                classification,
+            return await self._manual_troubleshooting(
+                message, classification, tws_instance_id=context.get("tws_instance_id")
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (  # noqa: E501
+            OSError, ValueError, TypeError, KeyError,
+            AttributeError, RuntimeError, TimeoutError, ConnectionError,
+        ) as e:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.error("Diagnostic handler error: %s", e)
-            return await asyncio.to_thread(
-                self._manual_troubleshooting,
-                message,
-                classification,
+            return await self._manual_troubleshooting(
+                message, classification, tws_instance_id=context.get("tws_instance_id")
             )
 
-    def _manual_troubleshooting(
+    async def _manual_troubleshooting(
         self,
         message: str,
         classification: IntentClassification,
+        tws_instance_id: str | None = None,
     ) -> str:
-        """Manual troubleshooting when LangGraph is not available."""
+        """Manual troubleshooting when LangGraph is not available.
+        
+        P1-04 FIX: Converted to async. Blocking tool calls (DB/API) are
+        offloaded via asyncio.to_thread to avoid saturating the ThreadPool.
+        """
         from resync.core.specialists.tools import (
             JobLogTool,
             SearchHistoryTool,
@@ -1247,10 +1292,12 @@ class DiagnosticHandler(BaseHandler):
 
         job_tool = JobLogTool()
 
-        # Analyze ABEND codes
+        # Analyze ABEND codes (P1-04: offload blocking I/O)
         if abend_codes:
             for code in abend_codes[:2]:
-                analysis = job_tool.analyze_abend_code(code)
+                analysis = await asyncio.to_thread(
+                    job_tool.analyze_abend_code, code, tws_instance_id=tws_instance_id
+                )
                 self.last_tools_used.append("analyze_abend_code")
 
                 response_parts.append(
@@ -1268,7 +1315,9 @@ class DiagnosticHandler(BaseHandler):
             for code in error_codes[:2]:
                 try:
                     rc = int(code.replace("RC=", "").strip())
-                    analysis = job_tool.analyze_return_code(rc)
+                    analysis = job_tool.analyze_return_code(
+                        rc, tws_instance_id=tws_instance_id
+                    )
                     self.last_tools_used.append("analyze_return_code")
 
                     response_parts.append(
@@ -1282,9 +1331,11 @@ class DiagnosticHandler(BaseHandler):
                         "suppressed_exception", error=str(exc), exc_info=True
                     )  # was: pass
 
-        # Get job log if job name provided
+        # Get job log if job name provided (P1-04: offload blocking TWS API call)
         if job_names:
-            log = job_tool.get_job_log(job_names[0])
+            log = await asyncio.to_thread(
+                job_tool.get_job_log, job_names[0], tws_instance_id=tws_instance_id
+            )
             self.last_tools_used.append("get_job_log")
 
             response_parts.append(f"\n**Log do Job {job_names[0]}:**")
@@ -1295,15 +1346,25 @@ class DiagnosticHandler(BaseHandler):
         # Search history for similar incidents
         try:
             history_tool = SearchHistoryTool()
-            history = history_tool.search_history(message, limit=3)
+            # P1-04: offload blocking DB query
+            history = await asyncio.to_thread(
+                history_tool.search_history,
+                message,
+                limit=3,
+                tws_instance_id=tws_instance_id,
+            )
             self.last_tools_used.append("search_history")
 
             if history.get("recommendations"):
                 response_parts.append("\n**Baseado em incidentes similares:**")
                 for rec in history["recommendations"][:2]:
                     response_parts.append(f"• {rec}")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
+        except (  # noqa: E501
+            OSError, ValueError, TypeError, KeyError,
+            AttributeError, RuntimeError, TimeoutError, ConnectionError,
+        ) as exc:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
@@ -1405,8 +1466,12 @@ class HybridRouter:
             tools_used = (
                 handler.last_tools_used if hasattr(handler, "last_tools_used") else []
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (  # noqa: E501
+            OSError, ValueError, TypeError, KeyError,
+            AttributeError, RuntimeError, TimeoutError, ConnectionError,
+        ) as e:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
@@ -1426,6 +1491,7 @@ class HybridRouter:
             tools_used=tools_used,
             entities=classification.entities,
             processing_time_ms=processing_time,
+            tws_instance_id=context.get("tws_instance_id"),
         )
 
         # Record decision in metrics (Phase 2)
@@ -1438,8 +1504,12 @@ class HybridRouter:
                 trace_id=get_trace_id(),
                 message=message,
             )
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (  # noqa: E501
+            OSError, ValueError, TypeError, KeyError,
+            AttributeError, RuntimeError, TimeoutError, ConnectionError,
+        ) as e:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)

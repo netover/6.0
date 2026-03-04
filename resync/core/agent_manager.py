@@ -49,6 +49,7 @@ RUNTIME_EXCEPTIONS = (
     TimeoutError,
     ConnectionError,
     ValueError,
+    RuntimeError,
 )
 
 # Programming errors that should be re-raised (bugs, not runtime failures)
@@ -57,7 +58,6 @@ PROGRAMMING_EXCEPTIONS = (
     KeyError,
     AttributeError,
     IndexError,
-    RuntimeError,
 )
 
 # All exceptions caught in handlers (for logging + fallback)
@@ -172,7 +172,7 @@ class Agent:
 
         except asyncio.CancelledError:
             raise
-        except PROGRAMMING_EXCEPTIONS as exc:
+        except PROGRAMMING_EXCEPTIONS:
             # Re-raise programming errors — these are bugs, not runtime failures
             raise
         except RUNTIME_EXCEPTIONS as exc:
@@ -262,6 +262,7 @@ def _discover_tools() -> dict[str, Any]:
         }
     except (ImportError, AttributeError) as exc:
         import sys as _sys
+
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
@@ -428,24 +429,24 @@ class AgentManager:
 
         If the file is missing or invalid the hardcoded defaults are kept.
         """
-        if config_path is None:
-            search_paths = [
-                Path("config/agents.yaml"),
-                Path(__file__).parent.parent.parent / "config" / "agents.yaml",
-                Path("/app/config/agents.yaml"),
-            ]
+        search_paths = [
+            Path("config/agents.yaml"),
+            Path(__file__).parent.parent.parent / "config" / "agents.yaml",
+            Path("/app/config/agents.yaml"),
+        ]
 
-            def _find_existing_config() -> Path | None:
-                return next((p for p in search_paths if p.exists()), None)
+        def _find_and_validate() -> tuple[Path | None, bool]:
+            if config_path is None:
+                config_file = next((p for p in search_paths if p.exists()), None)
+            else:
+                config_file = Path(config_path)
+            
+            exists = config_file is not None and config_file.exists()
+            return config_file, exists
+        
+        config_file, exists = await asyncio.to_thread(_find_and_validate)
 
-            config_file = await asyncio.to_thread(_find_existing_config)
-        else:
-            config_file = Path(config_path)
-
-        def _exists(path: Path | None) -> bool:
-            return path is not None and path.exists()
-
-        if not await asyncio.to_thread(_exists, config_file):
+        if not exists:
             logger.warning(
                 "agent_config_not_found",
                 searched_paths=(
@@ -617,7 +618,7 @@ class AgentManager:
             )
             return agent
 
-        except PROGRAMMING_EXCEPTIONS as exc:
+        except PROGRAMMING_EXCEPTIONS:
             # Re-raise programming errors — these are bugs, not runtime failures
             raise
         except RUNTIME_EXCEPTIONS as exc:
@@ -819,26 +820,36 @@ class UnifiedAgent:
         self._manager = agent_manager or get_agent_manager()
         self._router = create_router(self._manager, skill_manager=skill_manager)
         # Per-conversation history with an LRU cache to prevent OOM
-        self._histories: LRUCache[str, list[dict[str, str]]] = LRUCache(maxsize=self._HISTORY_CACHE_SIZE)
-        # P0-3: Locks per conversation_id to prevent race conditions
-        self._history_locks: dict[str, asyncio.Lock] = {}
+        self._histories: LRUCache[str, list[dict[str, str]]] = LRUCache(
+            maxsize=self._HISTORY_CACHE_SIZE
+        )
+        # P0-01 & P0-04: Two-layer locking
+        # asyncio.Lock for async callers; threading.RLock for sync helpers.
+        # Fixed P0-04: Added _history_locks_lock to guard dictionary access.
+        self._history_locks: dict[str, asyncio.Lock] = {}   # chat / chat_with_metadata
+        self._history_locks_lock = threading.Lock()         # P0-04 FIX: Guard for the dict
+        self._sync_locks: dict[str, threading.RLock] = {}   # for sync _get_history (sync)
         logger.info(
             "unified_agent_initialized",
             skill_manager_enabled=skill_manager is not None,
         )
 
     def _get_history_lock(self, conversation_id: str) -> asyncio.Lock:
-        """P0-3: Get or create a lock for the given conversation_id."""
-        if conversation_id not in self._history_locks:
-            self._history_locks[conversation_id] = asyncio.Lock()
-        return self._history_locks[conversation_id]
+        """P0-04 FIX: Thread-safe Lock retrieval/creation."""
+        with self._history_locks_lock:
+            if conversation_id not in self._history_locks:
+                self._history_locks[conversation_id] = asyncio.Lock()
+            return self._history_locks[conversation_id]
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
-        history = cast(list[dict[str, str]] | None, self._histories.get(conversation_id))
-        if history is None:
-            history = []
-            self._histories[conversation_id] = history
-        return history
+        """P0-01 FIX: Thread-safe sync history access with threading.RLock."""
+        lock = self._sync_locks.setdefault(conversation_id, threading.RLock())
+        with lock:
+            history = cast(list[dict[str, str]] | None, self._histories.get(conversation_id))
+            if history is None:
+                history = []
+                self._histories[conversation_id] = history
+            return history
 
     async def chat(
         self,
@@ -900,22 +911,24 @@ class UnifiedAgent:
         ``handler``, ``tools_used``, ``entities``, ``processing_time_ms``,
         ``tws_instance_id``.
         """
-        history = self._get_history(conversation_id)
-        context: dict[str, Any] = {}
-        if include_history and history:
-            context["history"] = history[-10:]
+        # P0-01: Same async lock used in chat() for consistent tenant isolation
+        async with self._get_history_lock(conversation_id):
+            history = self._get_history(conversation_id)
+            context: dict[str, Any] = {}
+            if include_history and history:
+                context["history"] = history[-10:]
 
-        if tws_instance_id:
-            context["tws_instance_id"] = tws_instance_id
-            logger.debug("tws_instance_context_set", instance_id=tws_instance_id)
+            if tws_instance_id:
+                context["tws_instance_id"] = tws_instance_id
+                logger.debug("tws_instance_context_set", instance_id=tws_instance_id)
 
-        if extra_context:
-            context.update(extra_context)
+            if extra_context:
+                context.update(extra_context)
 
-        result = await self._router.route(message, context=context)
+            result = await self._router.route(message, context=context)
 
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": result.response})
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": result.response})
 
         return {
             "response": result.response,
@@ -1018,4 +1031,4 @@ class _UnifiedAgentProxy:
 
 
 #: Module-level singleton used by ``resync.api.routes.core.chat``.
-unified_agent: "_UnifiedAgentProxy" = _UnifiedAgentProxy()
+unified_agent: _UnifiedAgentProxy = _UnifiedAgentProxy()
