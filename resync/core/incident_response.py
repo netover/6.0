@@ -653,7 +653,7 @@ class NotificationManager:
     def _format_incident_notification(self, incident: Incident, event_type: str) -> str:
         """Format incident notification message."""
         detected_at_str = datetime.fromtimestamp(
-            incident.detected_at, tz=timezone.utc
+            incident.detected_at, tz=datetime.UTC
         ).strftime("%Y-%m-%d %H:%M:%S")
         return f"""
 INCIDENT {event_type}: {incident.incident_id}

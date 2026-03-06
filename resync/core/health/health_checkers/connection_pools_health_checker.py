@@ -55,7 +55,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                     component_type=self.component_type,
                     status=HealthStatus.UNKNOWN,
                     message="Connection pool manager not available",
-                    last_check=datetime.now(timezone.utc),
+                    last_check=datetime.now(datetime.UTC),
                 )
 
             # Check pool status
@@ -69,7 +69,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                     status=HealthStatus.UNHEALTHY,
                     message="Connection pools statistics unavailable (empty/null)",
                     response_time_ms=response_time,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=datetime.now(datetime.UTC),
                     metadata={"pool_stats": "empty or null"},
                 )
 
@@ -122,7 +122,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 status=status,
                 message=message,
                 response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 metadata=enhanced_metadata,
             )
 
@@ -140,7 +140,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Connection pools check failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 error_count=1,
             )
 

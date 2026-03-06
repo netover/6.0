@@ -420,7 +420,7 @@ class ContinualLearningMetrics:
                 "feedback_total": self.store.get_counter(MetricNames.FEEDBACK_TOTAL),
                 "feedback_positive_rate": self._calc_positive_rate(),
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(datetime.UTC).isoformat(),
         }
 
     def _calc_positive_rate(self) -> float:

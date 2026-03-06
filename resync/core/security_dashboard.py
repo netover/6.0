@@ -1070,12 +1070,12 @@ class SecurityDashboard:
         import random
 
         self.metric_collector.update_metric(
-            "system_uptime", 99.7 + random.uniform(-0.5, 0.5)  # nosec B311
+            "system_uptime", 99.7 + random.uniform(-0.5, 0.5)  # noqa: S311 - synthetic demo metrics, non-cryptographic randomness
         )
-        self.metric_collector.update_metric("threats_detected", random.randint(0, 10))  # nosec B311
-        self.metric_collector.update_metric("active_incidents", random.randint(0, 3))  # nosec B311
+        self.metric_collector.update_metric("threats_detected", random.randint(0, 10))  # noqa: S311 - synthetic demo metrics, non-cryptographic randomness
+        self.metric_collector.update_metric("active_incidents", random.randint(0, 3))  # noqa: S311 - synthetic demo metrics, non-cryptographic randomness
         self.metric_collector.update_metric(
-            "compliance_score", 85.0 + random.uniform(-5, 5)  # nosec B311
+            "compliance_score", 85.0 + random.uniform(-5, 5)  # noqa: S311 - synthetic demo metrics, non-cryptographic randomness
         )
 
     async def _alert_checking_worker(self) -> None:

@@ -1,8 +1,11 @@
 # resync/core/cache/valkey_client.py
 from typing import Optional, Any
+import logging
 import valkey
 from valkey import asyncio as aiovalkey
 from resync.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 class ValkeyClient:
     """Cliente Valkey 9 com Multi-DB e Hash Field Expiration"""
@@ -81,10 +84,10 @@ class ValkeyClient:
         # Note: hexpire is expected to be available in Valkey 9 client
         try:
             await self._client.hexpire(key, ex, field)  # Novo no Valkey 9
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fallback for client versions that don't have hexpire yet
             # or if using a generic valkey client that doesn't support it
-            pass
+            logger.debug("valkey_hexpire_not_supported", key=key, field=field, exc_info=True)
     
     async def use_db(self, db: int) -> None:
         """

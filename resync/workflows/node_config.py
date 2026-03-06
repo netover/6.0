@@ -42,7 +42,7 @@ class NodeConfig:
     legacy_mode: NodeMode = NodeMode.OPTIMIZED
 
     @classmethod
-    def from_env(cls) -> "NodeConfig":
+    def from_env(cls) -> NodeConfig:
         """Create config from environment variables."""
         # Legacy: map old WORKFLOW_MODE to new config
         workflow_mode = os.getenv("WORKFLOW_MODE", "optimized").lower()

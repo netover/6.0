@@ -15,28 +15,23 @@ Security / privacy notes:
 """
 
 from __future__ import annotations
-from __future__ import annotations
 
 import asyncio
-
-
 from typing import Literal
 
+import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from resync.core.async_utils import classify_exception, with_timeout
 from resync.core.database import Feedback, get_session
+from resync.core.logging_compat import log_event
+from resync.core.security import verify_api_key
 from resync.core.valkey_init import get_valkey_client
 from resync.settings import get_settings
-from resync.core.security import verify_api_key
-from resync.core.security.redaction import redact_pii
-from resync.core.logging_compat import log_event
 
-
-router = APIRouter(prefix="/api/v1/feedback", tags=["Feedback"])
-
-import structlog
 logger = structlog.get_logger(__name__)
+router = APIRouter(prefix="/api/v1/feedback", tags=["Feedback"])
 
 
 class SubmitChatFeedbackRequest(BaseModel):
@@ -103,11 +98,23 @@ async def submit_chat_feedback(
         """
         settings = get_settings()
         try:
-            ok = await with_timeout(valkey.eval(lua, 1, key, "30", "60"), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.eval(rate_limit)')
+            ok = await with_timeout(
+                valkey.eval(lua, 1, key, "30", "60"),
+                getattr(settings, "valkey_health_timeout", 2.0),
+                op="valkey.eval(rate_limit)",
+            )
         except Exception as e:
             reason, status_code = classify_exception(e)
-            logger.debug('feedback rate-limit valkey eval failed (%s, %s): %s', reason, status_code, str(e), exc_info=True)
-            ok = bool(getattr(get_settings(), "rate_limit_fail_open_feedback", True))  # degrade (configurável)
+            logger.debug(
+                "feedback rate-limit valkey eval failed (%s, %s): %s",
+                reason,
+                status_code,
+                str(e),
+                exc_info=True,
+            )
+            ok = bool(
+                getattr(get_settings(), "rate_limit_fail_open_feedback", True)
+            )  # degrade (configurável)
         if int(ok) != 1:
             log_event(logger, "warning", "feedback_rate_limited", client_ip=client_ip)
             raise HTTPException(status_code=429, detail="Too many requests")
@@ -118,7 +125,9 @@ async def submit_chat_feedback(
             raise
         env = str(getattr(settings, "environment", "")).lower()
         if env in {"prod", "production"}:
-            raise HTTPException(status_code=503, detail="Rate limiter unavailable")
+            raise HTTPException(
+                status_code=503, detail="Rate limiter unavailable"
+            ) from e
         # Non-prod: fail-open to avoid breaking chat UX during local/dev setups.
 
     trace_id = req.trace_id.strip()
@@ -140,7 +149,9 @@ async def submit_chat_feedback(
     is_positive = True if req.rating >= 4 else False if req.rating <= 2 else None
 
     query_id = (
-        f"chat:{trace_id}:{req.message_index}" if req.message_index is not None else f"chat:{trace_id}"
+        f"chat:{trace_id}:{req.message_index}"
+        if req.message_index is not None
+        else f"chat:{trace_id}"
     )
 
     try:

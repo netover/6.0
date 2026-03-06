@@ -145,7 +145,7 @@ class CircuitBreakerManager:
                 "last_failure": stats.get("last_failure_time"),
                 "latency_p95": stats.get("latency_percentiles", {}).get("p95", 0),
                 "our_stats": our_stats,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -162,7 +162,7 @@ class CircuitBreakerManager:
             return {
                 "name": breaker_name,
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }
 
     async def get_all_circuit_breaker_statuses(self) -> dict[str, dict[str, Any]]:
@@ -284,7 +284,7 @@ class CircuitBreakerManager:
             "half_open_breakers": 0,
             "unknown_breakers": 0,
             "breaker_names": list(all_statuses.keys()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
         }
 
         for status in all_statuses.values():
@@ -318,16 +318,16 @@ class CircuitBreakerManager:
 
             stats = self._breaker_stats[breaker_name]
             stats["total_calls"] += 1
-            stats["last_call"] = datetime.now(timezone.utc)
+            stats["last_call"] = datetime.now(datetime.UTC)
 
             if reset:
                 stats["resets"] += 1
             elif success:
                 stats["successful_calls"] += 1
-                stats["last_success"] = datetime.now(timezone.utc)
+                stats["last_success"] = datetime.now(datetime.UTC)
             else:
                 stats["failed_calls"] += 1
-                stats["last_failure"] = datetime.now(timezone.utc)
+                stats["last_failure"] = datetime.now(datetime.UTC)
 
     def get_registered_breakers(self) -> list[str]:
         """Get list of registered circuit breaker names."""
@@ -347,7 +347,7 @@ class CircuitBreakerManager:
         Returns:
             Number of statistics entries cleaned up
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=max_age_hours)
         cleaned_count = 0
 
         async with self._lock:
@@ -381,5 +381,5 @@ class CircuitBreakerManager:
         return {
             "registered_breakers": len(self._circuit_breakers),
             "tracked_stats": len(self._breaker_stats),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
         }

@@ -181,7 +181,7 @@ class DistributedAuditLock:
                 ttls = await pipe.execute()
                 keys_to_delete = [
                     k
-                    for k, ttl in zip(decoded_keys, ttls)
+                    for k, ttl in zip(decoded_keys, ttls, strict=False)
                     if ttl is None or ttl <= max_age
                 ]
                 if keys_to_delete:

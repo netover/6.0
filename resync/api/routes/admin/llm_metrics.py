@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -10,6 +11,7 @@ from resync.core.litellm_hooks import VALKEY_LLM_METRICS_HASH, VALKEY_LLM_RECENT
 from resync.core.valkey_init import get_valkey_client, is_valkey_available
 
 router = APIRouter(prefix="/llm", tags=["Admin - LLM"])
+logger = logging.getLogger(__name__)
 
 
 class LLMMetricsSummary(BaseModel):
@@ -80,6 +82,7 @@ async def get_llm_metrics() -> LLMMetricsResponse:
             if isinstance(obj, dict):
                 recent.append(obj)
         except Exception:
+            logger.debug("llm_metrics_recent_item_decode_failed", exc_info=True)
             continue
 
     return LLMMetricsResponse(summary=summary, recent=recent)

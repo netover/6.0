@@ -156,7 +156,7 @@ class RagComponentsManager:
                 self._vector_store = None
                 self._retriever = None
                 self._ingest_service = None
-                raise HTTPException(status_code=503, detail="RAG system is currently unavailable.")
+                raise HTTPException(status_code=503, detail="RAG system is currently unavailable.") from e
 
         return (
             self._embedding_service,

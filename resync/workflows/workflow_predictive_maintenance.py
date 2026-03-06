@@ -573,7 +573,7 @@ async def _execute_actions_node_impl(
         "actions_executed": actions_executed,
         "execution_results": execution_results,
         "status": "completed",
-        "completed_at": datetime.now(timezone.utc),
+        "completed_at": datetime.now(datetime.UTC),
     }
 
 async def execute_preventive_action(
@@ -798,7 +798,7 @@ async def run_predictive_maintenance(
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.error("invalid_workflow_request", job_name=job_name[:20], error=str(e))
-        raise ValueError(f"Invalid parameters: {e}")
+        raise ValueError(f"Invalid parameters: {e}") from e
 
     job_name = request.job_name
     lookback_days = request.lookback_days
@@ -864,7 +864,7 @@ async def run_predictive_maintenance(
             "actions_executed": [],
             "execution_results": {},
             "workflow_id": workflow_id,
-            "started_at": datetime.now(timezone.utc),
+            "started_at": datetime.now(datetime.UTC),
             "completed_at": None,
             "status": "running",
             "error": None,
@@ -922,7 +922,7 @@ async def approve_workflow(
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.error("invalid_approval_request", workflow_id=workflow_id, error=str(e))
-        raise ValueError(f"Invalid parameters: {e}")
+        raise ValueError(f"Invalid parameters: {e}") from e
 
     workflow_id = request.workflow_id
 

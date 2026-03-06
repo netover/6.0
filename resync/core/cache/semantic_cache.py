@@ -421,7 +421,7 @@ class SemanticCache:
                     response=match["response"],
                     embedding=embedding,
                     timestamp=datetime.fromtimestamp(
-                        float(match.get("timestamp", 0)), tz=timezone.utc
+                        float(match.get("timestamp", 0)), tz=datetime.UTC
                     ),
                     hit_count=int(match.get("hit_count", 0)),
                     metadata=json.loads(match.get("metadata", "{}")),
@@ -571,7 +571,7 @@ class SemanticCache:
                 "query_hash": query_hash,
                 "response": response,
                 "embedding": embedding,
-                "timestamp": datetime.now(timezone.utc).timestamp(),
+                "timestamp": datetime.now(datetime.UTC).timestamp(),
                 "hit_count": 0,
                 "metadata": json.dumps(metadata_payload),
                 "user_id": user_id or "",

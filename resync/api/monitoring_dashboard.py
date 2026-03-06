@@ -283,7 +283,7 @@ class DashboardMetricsStore:
                     )
             except* asyncio.CancelledError:
                 # Crucial: propagar cancelamento para shutdown limpo sem group
-                raise asyncio.CancelledError()
+                raise asyncio.CancelledError() from None
             except* Exception as exc_group:
                 logger.error(
                     "storage_state_fetch_failure",

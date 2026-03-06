@@ -1188,14 +1188,14 @@ class ServiceDiscoveryManager:
                 self._round_robin_index[service_name] = (idx + 1) % len(insts)
                 return insts[idx]
             case LoadBalancingStrategy.RANDOM:
-                return random.choice(insts)  # nosec B311
+                return random.choice(insts)  # noqa: S311 - non-crypto load balancing randomness
             case LoadBalancingStrategy.LEAST_CONNECTIONS:
                 return min(
                     insts,
                     key=lambda i: self._conn_counts_by_instance.get(i.instance_id, 0),
                 )
             case LoadBalancingStrategy.WEIGHTED_RANDOM:
-                return random.choices(insts, weights=[i.weight for i in insts], k=1)[0]  # nosec B311
+                return random.choices(insts, weights=[i.weight for i in insts], k=1)[0]  # noqa: S311 - non-crypto load balancing randomness
             case LoadBalancingStrategy.LATENCY_BASED:
                 return min(insts, key=lambda i: i.response_time_avg or float("inf"))
             case _:

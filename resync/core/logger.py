@@ -39,7 +39,7 @@ def setup_logging() -> None:
     )
 
     # Create logs directory with YYYYMMDD format if it doesn't exist
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    today = datetime.now(datetime.UTC).strftime("%Y%m%d")
     log_dir = Path("logs") / today
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -146,7 +146,7 @@ def log_audit_event(
         event_type="audit",
         correlation_id=correlation_id,
         severity=severity,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(datetime.UTC).isoformat(),
     )
 
     # Schedule async DB persist without blocking the caller.

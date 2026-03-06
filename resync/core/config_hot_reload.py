@@ -62,7 +62,7 @@ class ConfigChange:
     key: str
     old_value: Any
     new_value: Any
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     source: str = "api"  # api, file, env
 
 class ConfigFileHandler(FileSystemEventHandler):

@@ -126,7 +126,7 @@ class HealthMonitoringAggregator:
 
         # Generate the complete report
         report = HealthReport(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(datetime.UTC),
             overall_status=overall_status,
             component_health=health_result.components,
             performance_metrics=health_result.performance_metrics,
@@ -141,7 +141,7 @@ class HealthMonitoringAggregator:
         )
 
         # Cache the report for a short time to avoid excessive checks
-        self._last_collection_time = datetime.now(timezone.utc)
+        self._last_collection_time = datetime.now(datetime.UTC)
         self._cached_report = report
 
         return report
@@ -240,7 +240,7 @@ class HealthMonitoringAggregator:
 
         return OverallHealthStatus(
             status=overall_status,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(datetime.UTC),
             total_components=total_components,
             healthy_components=healthy_count,
             degraded_components=degraded_count,
@@ -363,7 +363,7 @@ class HealthMonitoringAggregator:
         if self._last_collection_time is None:
             return True
 
-        age = datetime.now(timezone.utc) - self._last_collection_time
+        age = datetime.now(datetime.UTC) - self._last_collection_time
         return age.total_seconds() > max_age_seconds
 
     def get_cached_report(self) -> HealthReport | None:

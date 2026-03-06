@@ -434,9 +434,9 @@ class ContextEnricher:
         # Check for time-related queries
         time_patterns = {
             r"\b(?:hoje|today)\b": "hoje, "
-            + datetime.now(timezone.utc).strftime("%d/%m/%Y"),
+            + datetime.now(datetime.UTC).strftime("%d/%m/%Y"),
             r"\b(?:ontem|yesterday)\b": "ontem, "
-            + (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%d/%m/%Y"),
+            + (datetime.now(datetime.UTC) - timedelta(days=1)).strftime("%d/%m/%Y"),
             r"\b(?:esta semana|this week)\b": "semana atual",
             r"\b(?:manhã|morning)\b": "período matutino (06h-12h)",
             r"\b(?:tarde|afternoon)\b": "período vespertino (12h-18h)",

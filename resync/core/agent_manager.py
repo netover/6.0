@@ -342,17 +342,8 @@ class Agent:
                 dumped = tool_call.model_dump()  # type: ignore[attr-defined]
                 if isinstance(dumped, dict):
                     return dumped
-            except Exception:
-                pass
-
-        # Pydantic v1
-        if hasattr(tool_call, "dict"):
-            try:
-                dumped = tool_call.dict()  # type: ignore[attr-defined]
-                if isinstance(dumped, dict):
-                    return dumped
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001
+                logger.debug("tool_call_model_dump_failed", exc_info=True)
 
         func = getattr(tool_call, "function", None)
         return {

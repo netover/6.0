@@ -25,7 +25,7 @@ import time
 from collections import defaultdict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -405,6 +405,7 @@ class APIGateway:
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
+
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
@@ -579,7 +580,8 @@ class APIGateway:
 
             import random
 
-            rand = random.randint(1, total_weight)
+            # Non-cryptographic random is intentional for load-balancing distribution.
+            rand = random.randint(1, total_weight)  # noqa: S311
             for i, weight in enumerate(cumulative_weights):
                 if rand <= weight:
                     return available_endpoints[i]
@@ -681,7 +683,7 @@ class APIGateway:
                         body=response_data,
                     )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise web.HTTPGatewayTimeout(text="Service timeout") from None
         except aiohttp.ClientError as e:
             logger.error("Service request failed: %s", e)
@@ -769,7 +771,7 @@ class APIGateway:
                 "error": {
                     "code": status,
                     "message": message,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
             },
             status=status,
@@ -791,8 +793,12 @@ class APIGateway:
                     self.cache.pop(key, None)
                     self.cache_ttl.pop(key, None)
 
-                # Clean old request counts (older than 1 hour)
-                cutoff_time = current_time - 3600
+                # Clean old request counts using configured rate-limit windows.
+                max_window_seconds = max(
+                    (rule.window_seconds for rule in self.rate_limits.values()),
+                    default=3600,
+                )
+                cutoff_time = current_time - max_window_seconds
                 keys_to_remove: list[str] = []
                 for _key, requests in self.request_counts.items():
                     while requests and requests[0] < cutoff_time:
@@ -812,6 +818,7 @@ class APIGateway:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
+
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
@@ -836,6 +843,7 @@ class APIGateway:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
+
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
@@ -863,6 +871,7 @@ class APIGateway:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
+
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)

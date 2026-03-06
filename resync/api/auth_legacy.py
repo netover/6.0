@@ -235,10 +235,11 @@ class SecureAuthenticator:
 
 # Global authenticator instance
 authenticator = SecureAuthenticator()
+security_dependency = Depends(security)
 
 def verify_admin_credentials(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = security_dependency,
 ) -> str | None:
     """
     Verify admin credentials for protected endpoints using JWT tokens.

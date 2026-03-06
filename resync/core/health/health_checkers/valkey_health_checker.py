@@ -53,7 +53,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                     component_type=self.component_type,
                     status=HealthStatus.UNKNOWN,
                     message="Valkey URL not configured",
-                    last_check=datetime.now(timezone.utc),
+                    last_check=datetime.now(datetime.UTC),
                 )
 
             # Test actual Valkey connectivity
@@ -69,7 +69,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                         component_type=self.component_type,
                         status=HealthStatus.UNKNOWN,
                         message="Valkey/Valkey library not available",
-                        last_check=datetime.now(timezone.utc),
+                        last_check=datetime.now(datetime.UTC),
                     )
                 # Use shared connection pool (prevents connection churn)
                 valkey_client = get_valkey_client()
@@ -96,7 +96,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                     status=HealthStatus.HEALTHY,
                     message="Valkey connectivity test successful",
                     response_time_ms=response_time,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=datetime.now(datetime.UTC),
                     metadata={
                         "valkey_version": valkey_info.get("valkey_version"),
                         "connected_clients": valkey_info.get("connected_clients"),
@@ -115,7 +115,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                     status=HealthStatus.UNHEALTHY,
                     message=f"Valkey connectivity failed: {str(e)}",
                     response_time_ms=response_time,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=datetime.now(datetime.UTC),
                     error_count=1,
                 )
             # No finally block needed as we don't close the shared pool
@@ -134,7 +134,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Valkey check failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 error_count=1,
             )
 

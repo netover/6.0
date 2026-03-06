@@ -40,6 +40,7 @@ except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
 from resync.api.security import decode_token
+from resync.core.metrics.runtime_metrics import RuntimeMetricsCollector
 
 logger = logging.getLogger(__name__)
 

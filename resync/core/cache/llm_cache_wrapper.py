@@ -241,7 +241,7 @@ async def cached_llm_call(
                 metadata={
                     **(metadata or {}),
                     "llm_latency_ms": llm_call_ms,
-                    "cached_at": datetime.now(timezone.utc).isoformat(),
+                    "cached_at": datetime.now(datetime.UTC).isoformat(),
                 },
             )
         )

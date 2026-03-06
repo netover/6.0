@@ -54,40 +54,40 @@ class TWSQueryProcessor:
     # Padrões de tempo
     TIME_PATTERNS = {
         r"ontem": lambda _m=None: (
-            datetime.now(timezone.utc).replace(hour=0, minute=0, second=0)
+            datetime.now(datetime.UTC).replace(hour=0, minute=0, second=0)
             - timedelta(days=1),
-            datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
+            datetime.now(datetime.UTC).replace(hour=0, minute=0, second=0),
         ),
         r"hoje": lambda _m=None: (
-            datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC).replace(hour=0, minute=0, second=0),
+            datetime.now(datetime.UTC),
         ),
         r"esta semana|essa semana|semana atual": lambda _m=None: (
-            datetime.now(timezone.utc)
-            - timedelta(days=datetime.now(timezone.utc).weekday()),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC)
+            - timedelta(days=datetime.now(datetime.UTC).weekday()),
+            datetime.now(datetime.UTC),
         ),
         r"semana passada|última semana": lambda _m=None: (
-            datetime.now(timezone.utc)
-            - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
-            datetime.now(timezone.utc)
-            - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(datetime.UTC)
+            - timedelta(days=datetime.now(datetime.UTC).weekday() + 7),
+            datetime.now(datetime.UTC)
+            - timedelta(days=datetime.now(datetime.UTC).weekday()),
         ),
         r"este mês|esse mês|mês atual": lambda _m=None: (
-            datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC).replace(day=1, hour=0, minute=0, second=0),
+            datetime.now(datetime.UTC),
         ),
         r"últimos? (\d+) dias?": lambda m: (
-            datetime.now(timezone.utc) - timedelta(days=int(m.group(1))),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC) - timedelta(days=int(m.group(1))),
+            datetime.now(datetime.UTC),
         ),
         r"últimas? (\d+) horas?": lambda m: (
-            datetime.now(timezone.utc) - timedelta(hours=int(m.group(1))),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC) - timedelta(hours=int(m.group(1))),
+            datetime.now(datetime.UTC),
         ),
         r"últimos? (\d+) minutos?": lambda m: (
-            datetime.now(timezone.utc) - timedelta(minutes=int(m.group(1))),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC) - timedelta(minutes=int(m.group(1))),
+            datetime.now(datetime.UTC),
         ),
     }
 
@@ -220,8 +220,8 @@ class TWSQueryProcessor:
 
         # Default: últimas 24 horas
         return (
-            datetime.now(timezone.utc) - timedelta(hours=24),
-            datetime.now(timezone.utc),
+            datetime.now(datetime.UTC) - timedelta(hours=24),
+            datetime.now(datetime.UTC),
         )
 
     def _extract_entities(self, query: str) -> list[str]:
@@ -737,7 +737,7 @@ class TWSQueryProcessor:
 
     def _format_period(self, start: datetime, end: datetime) -> str:
         """Formata período para exibição."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(datetime.UTC)
 
         # Verifica se é hoje
         if start.date() == now.date():

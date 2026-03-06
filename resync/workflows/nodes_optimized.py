@@ -106,7 +106,7 @@ except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, 
 # ---------------------------------------------------------------------------
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(datetime.UTC)
 
 def _predictive_enabled() -> bool:
     """Central gate for predictive workflows.
@@ -156,7 +156,7 @@ def _pearson_corr(x: list[float], y: list[float]) -> float | None:
     # pure python fallback
     mx = sum(x) / len(x)
     my = sum(y) / len(y)
-    num = sum((a - mx) * (b - my) for a, b in zip(x, y))
+    num = sum((a - mx) * (b - my) for a, b in zip(x, y, strict=False))
     denx = sum((a - mx) ** 2 for a in x) ** 0.5
     deny = sum((b - my) ** 2 for b in y) ** 0.5
     if denx == 0 or deny == 0:

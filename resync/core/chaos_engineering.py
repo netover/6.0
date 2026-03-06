@@ -219,12 +219,12 @@ class ChaosEngineer:
                 nonlocal operations, errors
                 for i in range(100):
                     try:
-                        op = random.choice(["set", "get", "delete"])
-                        key = f"fuzz_key_{worker_id}_{i}_{random.randint(0, 10)}"
+                        op = random.choice(["set", "get", "delete"])  # noqa: S311 - chaos testing uses non-crypto randomness
+                        key = f"fuzz_key_{worker_id}_{i}_{random.randint(0, 10)}"  # noqa: S311 - chaos testing uses non-crypto randomness
                         value = f"fuzz_value_{worker_id}_{i}"
 
                         if op == "set":
-                            await cache.set(key, value, random.randint(1, 30))
+                            await cache.set(key, value, random.randint(1, 30))  # noqa: S311 - chaos testing uses non-crypto randomness
                         elif op == "get":
                             await cache.get(key)
                         elif op == "delete":
@@ -361,7 +361,7 @@ class ChaosEngineer:
                     "user_query": f"Chaos query {i}",
                     "agent_response": f"Chaos response {i}",
                     "ia_audit_reason": "chaos_test",
-                    "ia_audit_confidence": random.random(),
+                    "ia_audit_confidence": random.random(),  # noqa: S311 - chaos testing uses non-crypto randomness
                 }
                 for i in range(50)
             ]
@@ -504,7 +504,7 @@ class ChaosEngineer:
             original_import = __import__
 
             def failing_import(name: str, *args: Any, **kwargs: Any) -> Any:
-                if random.random() < 0.1 and "agent" in name:
+                if random.random() < 0.1 and "agent" in name:  # noqa: S311 - chaos testing uses non-crypto randomness
                     raise ImportError(f"Simulated network failure for {name}")
                 return original_import(name, *args, **kwargs)
 

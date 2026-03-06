@@ -148,8 +148,8 @@ async def test_cancel_all_tasks_collects_errors_for_failed_tasks_and_logs_error(
         never = asyncio.Event()
         try:
             await never.wait()
-        except asyncio.CancelledError:
-            raise RuntimeError("cleanup failed boom")
+        except asyncio.CancelledError as e:
+            raise RuntimeError("cleanup failed boom") from e
 
     _ = create_tracked_task(failing_on_cancel(), name="will-fail-on-cancel")
 

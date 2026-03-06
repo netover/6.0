@@ -52,7 +52,7 @@ class AgentFeedback(BaseModel):
     feedback_type: FeedbackType
     user_comment: str | None = None
     correct: bool  # True if feedback is positive
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
 
     # TWS/HWA specific context
     job_name: str | None = None
@@ -72,7 +72,7 @@ class DetectedPattern(BaseModel):
     # TWS/HWA specific
     job_pattern: str | None = None  # e.g., "BACKUP_*", "ETL_*"
 
-    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
 
 class ImprovementSuggestion(BaseModel):
     """Suggested improvement to agent behavior."""
@@ -89,7 +89,7 @@ class ImprovementSuggestion(BaseModel):
 
     status: str = "pending"  # pending, testing, approved, rejected, deployed
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
     approved_by: str | None = None
     approved_at: datetime | None = None
 
@@ -109,7 +109,7 @@ class SandboxTestResult(BaseModel):
 
     safe_to_deploy: bool
 
-    tested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    tested_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
 
 # =============================================================================
 # Feedback Collection
@@ -245,7 +245,7 @@ class AgentFeedbackCollector:
 
     def _generate_id(self) -> str:
         """Generate unique feedback ID."""
-        return f"feedback_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        return f"feedback_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
 # =============================================================================
 # Pattern Detection
@@ -454,7 +454,7 @@ Output JSON format:
         """Load recent feedback from disk."""
         import json
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(datetime.UTC) - timedelta(days=days)
         feedbacks = []
 
         feedback_dir = Path("data/agent_feedback")
@@ -487,7 +487,7 @@ Output JSON format:
 
     def _generate_id(self) -> str:
         """Generate unique pattern ID."""
-        return f"pattern_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        return f"pattern_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
 # =============================================================================
 # Improvement Suggester
@@ -636,7 +636,7 @@ When analyzing jobs:
 
     def _generate_id(self) -> str:
         """Generate unique suggestion ID."""
-        return f"suggestion_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        return f"suggestion_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
 # =============================================================================
 # Sandbox Testing

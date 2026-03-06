@@ -446,7 +446,7 @@ class SecureQueryBuilder:
         # Build base query with validated identifiers.
         # Table/column names cannot be bind params, so we must compose the SQL
         # string after strict whitelist validation above.
-        query = f"SELECT {columns_str} FROM {validated_table}"
+        query = f"SELECT {columns_str} FROM {validated_table}"  # noqa: S608 - identifiers are whitelist-validated above
         params: dict[str, Any] = {}
 
         # Add WHERE clause if provided

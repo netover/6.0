@@ -32,7 +32,7 @@ class WorkstationMetricsHistory(Base):
 
     # Reception Timestamp (Audit)
     received_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True
+        DateTime, nullable=False, default=lambda: datetime.now(datetime.UTC), index=True
     )
 
     __table_args__ = (

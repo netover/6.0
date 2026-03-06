@@ -285,7 +285,7 @@ class MetricsRegistry:
     def export_json(self) -> dict[str, Any]:
         """Export all metrics to JSON format."""
         result: dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
             "metrics": {},
         }
 

@@ -235,15 +235,15 @@ async def upload_rag_file(
             tag_list,
         )
         upload_response = FileUploadResponse(
-            filename=original_filename,
+            filename=safe_filename,
             status="processing",
             file_id=file_id,
-            upload_time=datetime.now(timezone.utc).isoformat(),
+            upload_time=datetime.now(datetime.UTC).isoformat(),
         )
         logger_instance.info(
             "rag_file_uploaded",
             user_id=current_user.get("user_id"),
-            filename=original_filename,
+            filename=safe_filename,
             file_id=file_id,
             file_size=file.size,
             tags=tag_list,

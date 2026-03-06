@@ -96,7 +96,7 @@ class IngestService:
         existing_shas = await self.store.exists_batch_by_sha256(
             shas, collection=CFG.collection_read
         )
-        for i, (ck_norm, sha) in enumerate(zip(normalized, shas)):
+        for i, (ck_norm, sha) in enumerate(zip(normalized, shas, strict=False)):
             if sha in existing_shas:
                 continue
             chunk_id = f"{doc_id}#c{i:06d}"

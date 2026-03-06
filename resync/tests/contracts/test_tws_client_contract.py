@@ -46,7 +46,7 @@ async def tws_client(isolated_settings):
     client = OptimizedTWSClient(
         base_url="http://test-tws",
         username="test_user",
-        password="test_password_for_unit_tests_only",  # nosec B106 - test fixture only
+        password="test_password_for_unit_tests_only",  # noqa: S106 - test fixture only
         engine_name="test_engine",
         engine_owner="test_owner",
         settings=isolated_settings,

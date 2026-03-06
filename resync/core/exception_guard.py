@@ -13,6 +13,7 @@ IMPORTANT:
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from contextlib import contextmanager
@@ -20,6 +21,8 @@ from types import TracebackType
 from typing import Any, Final, Generator
 
 from resync.core.metrics_compat import Counter
+
+_logger = logging.getLogger(__name__)
 
 _PROGRAMMING_ERRORS: Final[tuple[type[BaseException], ...]] = (
     TypeError,
@@ -112,7 +115,7 @@ def maybe_reraise_programming_error(
             )
     except Exception:
         # Metrics must never break exception flow.
-        pass
+        _logger.debug("programming_error_metric_record_failed", exc_info=True)
 
     if settings is None:
         try:

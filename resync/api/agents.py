@@ -14,6 +14,8 @@ agents_router = APIRouter(prefix="/agents", tags=["agents"])
 
 logger = logging.getLogger(__name__)
 
+agent_manager_dependency = Depends(get_agent_manager)
+
 class AgentSummary(BaseModel):
     id: str
     name: str
@@ -25,7 +27,7 @@ class AgentSummary(BaseModel):
 @agents_router.get("/all", response_model=list[AgentSummary])
 async def list_all_agents(
     request: Request,
-    agent_manager: Any = Depends(get_agent_manager),
+    agent_manager: Any = agent_manager_dependency,
 ) -> list[AgentSummary]:
     """
     Lists the configuration of all available agents.
@@ -51,7 +53,7 @@ async def list_all_agents(
 async def get_agent_details(
     agent_id: SafeAgentID,
     request: Request,
-    agent_manager: Any = Depends(get_agent_manager),
+    agent_manager: Any = agent_manager_dependency,
 ):
     """
     Retrieves the detailed configuration of a specific agent by its ID.

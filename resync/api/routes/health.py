@@ -18,7 +18,7 @@ router = APIRouter(tags=["Health"])
 @router.get("/health/live")
 async def live() -> dict[str, str]:
     """Cheap liveness probe."""
-    return {"status": "ok", "ts": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ok", "ts": datetime.now(datetime.UTC).isoformat()}
 
 @router.get("/health/ready")
 async def ready() -> dict[str, str]:
@@ -31,16 +31,16 @@ async def ready() -> dict[str, str]:
         async with asyncio.timeout(3.0):
             async with engine.begin() as conn:
                 await conn.execute(text("SELECT 1"))
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
         raise HTTPException(
             status_code=503,
             detail="Database readiness timeout"
-        )
+        ) from exc
     except Exception as e:
         raise HTTPException(
             status_code=503,
             detail=f"Database readiness failed: {e}"
-        )
+        ) from e
     
     # Valkey readiness: required if APP_VALKEY_URL is set in production
     valkey_required = bool(os.getenv('APP_VALKEY_URL')) and os.getenv('APP_ENVIRONMENT','').lower() in {'prod','production'}
@@ -52,12 +52,12 @@ async def ready() -> dict[str, str]:
                 if not valkey:
                     raise RuntimeError('Valkey client not available')
                 await with_timeout(valkey.ping(), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.ping')
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=503, detail="Valkey readiness timeout")
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="Valkey readiness timeout") from exc
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"Valkey connection failed: {e}")
+            raise HTTPException(status_code=503, detail=f"Valkey connection failed: {e}") from e
     
-    return {"status": "ready", "ts": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ready", "ts": datetime.now(datetime.UTC).isoformat()}
 
 
 @router.get("/health/llm")
@@ -81,8 +81,8 @@ async def llm_health(deep: bool = False) -> dict[str, str]:
                     messages=[{"role": "user", "content": "ping"}],
                     max_tokens=1,
                 )
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=503, detail="LLM deep health timeout")
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="LLM deep health timeout") from exc
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"LLM deep health failed: {e}")
-    return {"status": "ok", "ts": datetime.now(timezone.utc).isoformat()}
+            raise HTTPException(status_code=503, detail=f"LLM deep health failed: {e}") from e
+    return {"status": "ok", "ts": datetime.now(datetime.UTC).isoformat()}

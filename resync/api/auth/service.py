@@ -247,7 +247,7 @@ class AuthService:
 
         return Token(
             access_token=token,
-            token_type="bearer",
+            token_type="bearer",  # noqa: S106 - OAuth2 token type literal
             expires_in=self.access_token_expire_minutes * 60,
         )
 

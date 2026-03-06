@@ -487,7 +487,7 @@ class SmartConnectionPool:
         # Simulate occasional failures (1% failure rate)
         import random
 
-        return random.random() > 0.01
+        return random.random() > 0.01  # noqa: S311 - synthetic failure simulation, non-cryptographic randomness
 
     def get_pool_stats(self) -> dict[str, Any]:
         """Get comprehensive pool statistics."""

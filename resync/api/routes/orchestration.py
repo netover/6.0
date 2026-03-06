@@ -11,6 +11,7 @@ Critical fixes applied:
 
 import asyncio
 import logging
+import os
 from uuid import UUID
 
 from fastapi import (
@@ -39,6 +40,35 @@ from resync.core.orchestration.events import event_bus, EventType, Orchestration
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orchestration", tags=["Orchestration"])
+
+
+def _resolve_ws_user_id(websocket: WebSocket) -> str | None:
+    """Resolve authenticated user id from WS token (header/query)."""
+    token = websocket.query_params.get("token")
+    if not token:
+        auth_header = websocket.headers.get("authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header[7:]
+
+    if not token:
+        return None
+
+    try:
+        from resync.core.jwt_utils import decode_access_token
+
+        payload = decode_access_token(token)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+
+    return str(user_id)
+
 
 # Dependency for Runner
 def get_runner(request: Request):
@@ -93,7 +123,7 @@ async def create_config(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail=f"Invalid step configuration: {str(e)}"
-        )
+        ) from e
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -101,7 +131,7 @@ async def create_config(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail=f"Validation error: {str(e)}"
-        )
+        ) from e
 
     config = await repo.create(
         name=name, strategy=strategy, steps=steps_to_store, description=description
@@ -148,7 +178,7 @@ async def execute_workflow(
         )
         return {"trace_id": trace_id, "status": "accepted"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -156,7 +186,7 @@ async def execute_workflow(
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.error("Execution start failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/status/{trace_id}")
 async def get_execution_status(trace_id: str, db: AsyncSession = Depends(get_database)):
@@ -205,9 +235,16 @@ async def websocket_execute(
     
     P0-15 fix: Proper subscription cleanup to prevent memory leak.
     """
+    user_id = _resolve_ws_user_id(websocket)
+    if not user_id:
+        await websocket.accept()
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+        return
+
     await websocket.accept()
 
-    queue: asyncio.Queue = asyncio.Queue()
+    queue_maxsize = int(os.environ.get("ORCHESTRATION_WS_QUEUE_MAXSIZE", "1000"))
+    queue: asyncio.Queue[OrchestrationEvent] = asyncio.Queue(maxsize=queue_maxsize)
     subscription_id: str | None = None  # Initialize for finally block
     trace_id: str | None = None  # Initialize for logging
 
@@ -218,13 +255,16 @@ async def websocket_execute(
 
         # Start execution
         trace_id = await runner.start_execution(
-            config_id, input_data, user_id="ws_user"
+            config_id, input_data, user_id=user_id
         )
 
         # Subscribe to events for this trace_id
         async def filtered_handler(event: OrchestrationEvent):
             if event.trace_id == trace_id:
-                await queue.put(event)
+                try:
+                    queue.put_nowait(event)
+                except asyncio.QueueFull:
+                    logger.warning("orchestration_ws_queue_full", trace_id=trace_id, maxsize=queue_maxsize)
 
         # P0-15 fix: Move subscription inside try to ensure it's set before cleanup
         subscription_id = event_bus.subscribe_all(filtered_handler)

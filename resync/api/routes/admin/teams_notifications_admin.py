@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from resync.api.routes.admin.main import verify_admin_credentials
 from resync.core.database.models.teams_notifications import (
@@ -203,7 +204,7 @@ async def update_channel(
     if update_data.icon:
         channel.icon = update_data.icon
 
-    channel.updated_at = datetime.now(timezone.utc)
+    channel.updated_at = datetime.now(datetime.UTC)
     await db.commit()
     await db.refresh(channel)
 
@@ -385,7 +386,7 @@ async def update_config(config_data: ConfigUpdate, db: AsyncSession = Depends(ge
     for field, value in config_data.model_dump(exclude_unset=True).items():
         setattr(config, field, value)
 
-    config.updated_at = datetime.now(timezone.utc)
+    config.updated_at = datetime.now(datetime.UTC)
     await db.commit()
     await run_in_threadpool(db.refresh, config)
 
@@ -409,7 +410,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         total_mappings = db.query(func.count(TeamsJobMapping.id)).scalar()
         total_rules = db.query(func.count(TeamsPatternRule.id)).scalar()
 
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(datetime.UTC).date()
         notifications_sent_today = (
             db.query(func.count(TeamsNotificationLog.id))
             .filter(
@@ -516,7 +517,7 @@ async def send_test_notification(test_data: dict = None, db: AsyncSession = Depe
         instance_name="TEST_INSTANCE",
         return_code=999,
         error_message=error_message,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(datetime.UTC).isoformat(),
     )
 
     if success:

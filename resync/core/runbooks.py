@@ -16,8 +16,8 @@ class IncidentRunbook:
     def __init__(self, title: str, description: str) -> None:
         self.title = title
         self.description = description
-        self.created_at = datetime.datetime.now(timezone.utc)
-        self.last_updated = datetime.datetime.now(timezone.utc)
+        self.created_at = datetime.datetime.now(datetime.UTC)
+        self.last_updated = datetime.datetime.now(datetime.UTC)
 
     def execute(self, context: dict) -> dict:
         """Execute the runbook with the given context"""

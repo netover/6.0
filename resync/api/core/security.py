@@ -145,7 +145,7 @@ def require_permissions(
     from fastapi import Depends, HTTPException, status
 
     def permission_checker(
-        current_user: dict[str, Any] = Depends(get_current_user),
+        current_user: dict[str, Any] = Depends(get_current_user),  # noqa: B008
     ) -> dict[str, Any]:
         if not check_permissions(required_permissions, current_user.get("permissions", [])):
             raise HTTPException(
@@ -161,7 +161,7 @@ def require_role(required_roles: list[str]) -> Any:
     from fastapi import Depends, HTTPException, status
 
     def role_checker(
-        current_user: dict[str, Any] = Depends(get_current_user),
+        current_user: dict[str, Any] = Depends(get_current_user),  # noqa: B008
     ) -> dict[str, Any]:
         user_role = current_user.get("role", "")
         if user_role not in required_roles:

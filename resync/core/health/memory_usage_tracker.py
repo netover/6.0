@@ -121,7 +121,7 @@ class MemoryUsageTracker:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("failed_to_record_memory_usage", error=str(e))
-            return {"timestamp": datetime.now(timezone.utc), "error": str(e)}
+            return {"timestamp": datetime.now(datetime.UTC), "error": str(e)}
 
     def record_memory_usage_sync(self) -> dict[str, Any]:
         """
@@ -140,7 +140,7 @@ class MemoryUsageTracker:
 
             # Calculate memory usage
             memory_data = {
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(datetime.UTC),
                 "system_memory_percent": memory.percent,
                 "system_memory_used_gb": memory.used / (1024**3),
                 "system_memory_available_gb": memory.available / (1024**3),
@@ -177,7 +177,7 @@ class MemoryUsageTracker:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             logger.error("failed_to_record_memory_usage_sync", error=str(e))
-            return {"timestamp": datetime.now(timezone.utc), "error": str(e)}
+            return {"timestamp": datetime.now(datetime.UTC), "error": str(e)}
 
     def _check_memory_alerts(self, memory_data: dict[str, Any]) -> None:
         """Check for memory usage alerts and warnings."""
@@ -246,7 +246,7 @@ class MemoryUsageTracker:
         Returns:
             List of memory usage records
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=hours)
 
         # Filter by time
         filtered_history = [
@@ -414,7 +414,7 @@ class MemoryUsageTracker:
                 "memory_before_mb": before_memory.get("process_memory_rss_mb", 0),
                 "memory_after_mb": after_memory.get("process_memory_rss_mb", 0),
                 "memory_freed_mb": memory_freed_mb,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }
 
             logger.info(
@@ -436,7 +436,7 @@ class MemoryUsageTracker:
             return {
                 "gc_performed": False,
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }
 
     def get_memory_summary(self) -> dict[str, Any]:
@@ -502,5 +502,5 @@ class MemoryUsageTracker:
             logger.error("failed_to_get_memory_summary", error=str(e))
             return {
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }

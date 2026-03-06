@@ -52,6 +52,7 @@ import time
 from dataclasses import dataclass
 from typing import Annotated, Any, TypedDict
 
+from resync.core.langgraph.state_delta import wrap_langgraph_node
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 

@@ -91,7 +91,7 @@ async def fetch_metrics_node(state: CapacityForecastState) -> CapacityForecastSt
     logger.info("capacity_forecast.fetch_metrics", resource_id=state["resource_id"])
 
     # Mock data for demonstration/fallback
-    dates = pd.date_range(end=datetime.now(timezone.utc), periods=30, freq="D")
+    dates = pd.date_range(end=datetime.now(datetime.UTC), periods=30, freq="D")
 
     # Simulate CPU usage with a slight upward trend
     cpu_usage = [
@@ -141,7 +141,7 @@ def forecast_node(state: CapacityForecastState) -> CapacityForecastState:
     forecast_horizon = state["forecast_days"]
     forecast_data = {}
 
-    start_date = datetime.now(timezone.utc)
+    start_date = datetime.now(datetime.UTC)
 
     for metric, trend in state["trends"].items():
         if trend["type"] == "linear":

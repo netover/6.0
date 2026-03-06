@@ -154,11 +154,11 @@ class LLMFactory:
         # Lazy import to avoid hard dependency on langchain if not needed
         try:
             from langchain_community.chat_models import ChatLiteLLM
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "langchain_community is required for get_langchain_llm. "
                 "Please install it with `pip install langchain-community`."
-            )
+            ) from exc
 
         # Determine effective configuration
         effective_model = model or getattr(settings, "LLM_MODEL", "gpt-4o")

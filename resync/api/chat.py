@@ -42,6 +42,7 @@ from resync.core.interfaces import IAgentManager
 from resync.core.security import SafeAgentID, sanitize_input, validate_input
 from resync.core.task_tracker import create_tracked_task
 from resync.core.types.app_state import enterprise_state_from_app
+from resync.core.trace_utils import hash_user_id
 
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
@@ -91,6 +92,18 @@ class SupportsAgentMeta(Protocol):
 def _now_iso() -> str:
     """Get current timestamp in ISO format."""
     return datetime.now(UTC).isoformat()
+
+
+def _session_id_for_websocket(websocket: WebSocket) -> str:
+    """Return stable server-side session id for this websocket connection."""
+    existing = getattr(websocket.state, "session_id", None)
+    if existing:
+        return str(existing)
+
+    user_id = getattr(websocket.state, "user_id", None)
+    if user_id:
+        return f"ws:{hash_user_id(str(user_id))}:{id(websocket)}"
+    return f"ws:{id(websocket)}"
 
 
 async def send_error_message(
@@ -219,8 +232,8 @@ async def _handle_agent_interaction(
     st = enterprise_state_from_app(websocket.app)
     kg: ContextStore = st.knowledge_graph
 
-    # Get or create session_id from query params
-    session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+    # Get or create server-side session_id
+    session_id = _session_id_for_websocket(websocket)
     agent_id_str = str(agent_id)
 
     # Send user's message back to UI for display
@@ -352,7 +365,7 @@ async def _setup_websocket_session(
     agent = await maybe_agent if inspect.isawaitable(maybe_agent) else maybe_agent
 
     agent_id_str = str(agent_id)
-    session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+    session_id = _session_id_for_websocket(websocket)
 
     if not agent:
         logger.warning("Agent '%s' not found.", agent_id)
@@ -506,11 +519,20 @@ async def websocket_endpoint(
 
             payload = await verify_token_async(token)
             is_valid = bool(payload)
+            if is_valid:
+                subject = payload.get("sub") if isinstance(payload, dict) else getattr(payload, "sub", None)
+                if subject:
+                    websocket.state.user_id = str(subject)
         except INFRA_ERRORS:
             from resync.api.auth.service import get_auth_service
 
             auth_service = get_auth_service()
-            is_valid = await asyncio.to_thread(auth_service.verify_token, token)
+            verified_payload = await asyncio.to_thread(auth_service.verify_token, token)
+            is_valid = bool(verified_payload)
+            if is_valid:
+                subject = verified_payload.get("sub") if isinstance(verified_payload, dict) else getattr(verified_payload, "sub", None)
+                if subject:
+                    websocket.state.user_id = str(subject)
 
         if not is_valid:
             await websocket.close(code=1008, reason="Authentication required")
@@ -525,8 +547,9 @@ async def websocket_endpoint(
     await websocket.accept()
 
     agent_id_str: str = str(agent_id)
+    websocket.state.session_id = _session_id_for_websocket(websocket)
     # Compute once to avoid race conditions / wrong cleanup after disconnects
-    session_id_for_cleanup: str = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+    session_id_for_cleanup: str = _session_id_for_websocket(websocket)
 
 
     try:
@@ -598,7 +621,7 @@ async def _validate_input(
     # Input validation and size check
     if len(raw_data) > 10000:  # Limit message size to 10KB
         agent_id_str = str(agent_id)
-        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+        session_id = _session_id_for_websocket(websocket)
         await send_error_message(
             websocket,
             "Mensagem muito longa. Máximo de 10.000 caracteres permitido.",
@@ -610,7 +633,7 @@ async def _validate_input(
     result = validate_input(raw_data, max_length=10000)
     if not result.is_valid:
         agent_id_str = str(agent_id)
-        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+        session_id = _session_id_for_websocket(websocket)
         await send_error_message(websocket, "Conteúdo inválido.", agent_id_str, session_id)
         return {"is_valid": False}
 

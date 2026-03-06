@@ -102,7 +102,7 @@ class DriftAlert:
     current_value: float
     threshold: float
     message: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -240,7 +240,7 @@ class MonitoringDataCollector:
         """Record a query for monitoring."""
         record = {
             "query_id": query_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
             "query_length": len(query_text),
             "word_count": len(query_text.split()),
             "intent": intent or "unknown",
@@ -275,7 +275,7 @@ class MonitoringDataCollector:
         """Record a response for monitoring."""
         record = {
             "query_id": query_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
             "response_length": len(response_text),
             "word_count": len(response_text.split()),
             "specialists_count": len(specialists_used),
@@ -301,7 +301,7 @@ class MonitoringDataCollector:
         """Record user feedback for monitoring."""
         record = {
             "query_id": query_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
             "rating": rating,
             "helpful": helpful,
             "action_taken": action_taken,
@@ -320,7 +320,7 @@ class MonitoringDataCollector:
 
         file_path = (
             self.storage_path
-            / f"queries_{datetime.now(timezone.utc).strftime('%Y%m%d_%H')}.jsonl"
+            / f"queries_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H')}.jsonl"
         )
         with open(file_path, "a") as f:
             for record in self._query_buffer:
@@ -335,7 +335,7 @@ class MonitoringDataCollector:
 
         file_path = (
             self.storage_path
-            / f"responses_{datetime.now(timezone.utc).strftime('%Y%m%d_%H')}.jsonl"
+            / f"responses_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H')}.jsonl"
         )
         with open(file_path, "a") as f:
             for record in self._response_buffer:
@@ -350,7 +350,7 @@ class MonitoringDataCollector:
 
         file_path = (
             self.storage_path
-            / f"feedback_{datetime.now(timezone.utc).strftime('%Y%m%d_%H')}.jsonl"
+            / f"feedback_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H')}.jsonl"
         )
         with open(file_path, "a") as f:
             for record in self._feedback_buffer:
@@ -421,7 +421,7 @@ class MonitoringDataCollector:
             Number of files deleted
         """
         deleted_count = 0
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        cutoff_date = datetime.now(datetime.UTC) - timedelta(days=retention_days)
         cutoff_str = cutoff_date.strftime("%Y%m%d")
 
         try:
@@ -525,7 +525,7 @@ class DriftDetector:
             # Save report
             report_path = (
                 self.reports_path
-                / f"data_drift_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
+                / f"data_drift_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.html"
             )
             report.save_html(str(report_path))
 
@@ -591,7 +591,7 @@ class DriftDetector:
 
             report_path = (
                 self.reports_path
-                / f"prediction_drift_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
+                / f"prediction_drift_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.html"
             )
             report.save_html(str(report_path))
 
@@ -663,7 +663,7 @@ class DriftDetector:
 
             report_path = (
                 self.reports_path
-                / f"target_drift_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
+                / f"target_drift_{datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.html"
             )
             report.save_html(str(report_path))
 
@@ -839,7 +839,7 @@ class AIMonitoringService:
         self._apply_resource_limits()
 
         results = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
             "data_drift": None,
             "prediction_drift": None,
             "target_drift": None,
@@ -849,7 +849,7 @@ class AIMonitoringService:
 
         try:
             # Define time windows
-            now = datetime.now(timezone.utc)
+            now = datetime.now(datetime.UTC)
             reference_start = now - timedelta(days=self.config.reference_window_days)
             reference_end = now - timedelta(hours=self.config.current_window_hours)
             current_start = reference_end
@@ -941,7 +941,7 @@ class AIMonitoringService:
             results["error"] = str(e)
 
         results["duration_seconds"] = time.time() - start_time
-        self._last_run = datetime.now(timezone.utc)
+        self._last_run = datetime.now(datetime.UTC)
 
         logger.info(
             "monitoring_run_completed",
@@ -1048,7 +1048,7 @@ class AIMonitoringService:
                 [
                     a
                     for a in self._alerts
-                    if a.timestamp > datetime.now(timezone.utc) - timedelta(hours=24)
+                    if a.timestamp > datetime.now(datetime.UTC) - timedelta(hours=24)
                 ]
             ),
             "evidently_available": EVIDENTLY_AVAILABLE,

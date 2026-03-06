@@ -119,7 +119,7 @@ class EnhancedCacheManager:
         successes = sum(1 for r in results if not isinstance(r, Exception))
         failures = len(results) - successes
 
-        self.stats.last_warmup = datetime.now(timezone.utc)
+        self.stats.last_warmup = datetime.now(datetime.UTC)
 
         logger.info(
             "Cache warming complete: "

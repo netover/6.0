@@ -46,7 +46,7 @@ class TeamsPermissionsManager:
             }
 
         # Atualiza last_activity
-        user.last_activity = datetime.now(timezone.utc)
+        user.last_activity = datetime.now(datetime.UTC)
         self.db.commit()
 
         # Verifica permissão baseada no tipo de comando
@@ -111,7 +111,7 @@ class TeamsPermissionsManager:
         if can_execute is not None:
             user.can_execute_commands = can_execute
 
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = datetime.now(datetime.UTC)
         self.db.commit()
         self.db.refresh(user)
 

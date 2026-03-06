@@ -41,10 +41,11 @@ from resync.api.routes.core.ip_utils import (
 )
 from resync.core.async_utils import classify_exception, with_timeout
 from resync.core.exception_guard import maybe_reraise_programming_error
-from resync.core.valkey_init import get_valkey_client
+from resync.core.jwt_utils import unwrap_secret
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
 from resync.core.token_revocation import revoke_jti
+from resync.core.valkey_init import get_valkey_client
 from resync.settings import get_settings, settings
 
 logger = get_logger(__name__)
@@ -105,8 +106,6 @@ def _is_secret_key_secure(secret: str | None) -> bool:
         "dev-secret-key-change-me-in-production-minimum-32-chars",
     }
     return secret not in known_insecure and secret != _get_dev_fallback_secret()
-
-from resync.core.jwt_utils import unwrap_secret
 
 def _get_configured_secret_key() -> str | None:
     """Fetch the configured JWT secret key as a raw string (never masked)."""
@@ -270,12 +269,22 @@ class SecureAuthenticator:
         # Success - clear failed attempts (distributed) with sanitized IP
         try:
             valkey = get_valkey_client()
-            settings = get_settings()
+            app_settings = get_settings()
             try:
-                await with_timeout(valkey.delete(f"{self._valkey_prefix}:{sanitized_ip}"), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.delete')
+                await with_timeout(
+                    valkey.delete(f"{self._valkey_prefix}:{sanitized_ip}"),
+                    getattr(app_settings, "valkey_health_timeout", 2.0),
+                    op="valkey.delete",
+                )
             except Exception as e:
                 reason, status_code = classify_exception(e)
-                logger.debug('valkey.delete failed (%s, %s): %s', reason, status_code, str(e), exc_info=True)
+                logger.debug(
+                    "valkey.delete failed (%s, %s): %s",
+                    reason,
+                    status_code,
+                    str(e),
+                    exc_info=True,
+                )
         except INFRA_ERRORS as exc:
             maybe_reraise_programming_error(exc, exc.__traceback__)
 
@@ -389,7 +398,7 @@ class SecureAuthenticator:
             """
 
             
-            settings = get_settings()
+            app_settings = get_settings()
             try:
                 result = await with_timeout(
                     valkey.eval(
@@ -403,7 +412,7 @@ class SecureAuthenticator:
                         str(success),
                         secrets.token_hex(8),
                     ),
-                    getattr(settings, "valkey_health_timeout", 2.0),
+                    getattr(app_settings, "valkey_health_timeout", 2.0),
                     op="valkey.eval(auth_rate_limit)",
                 )
             except Exception as e:
@@ -417,7 +426,9 @@ class SecureAuthenticator:
                 )
                 # Backend do rate limiter indisponível.
                 # Default conservador: bloquear em /auth; pode ser alterado via settings.
-                fail_open = bool(getattr(settings, "rate_limit_fail_open_auth", False))
+                fail_open = bool(
+                    getattr(app_settings, "rate_limit_fail_open_auth", False)
+                )
                 return (not fail_open, 0, 0)
 
             is_locked = bool(result[0])

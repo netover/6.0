@@ -65,6 +65,7 @@ from resync.core.exceptions import (
     LLMError,
     LLMProvider5xxError,
     LLMNetworkError,
+    LLMRateLimitError,
     LLMTimeoutError,
 )
 from resync.core.resilience import (
@@ -515,6 +516,7 @@ class LLMService:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
+            error_str = str(e).lower()
             classified = classify_exception(e)
             if classified.reason == "rate_limit":
                 raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
@@ -679,17 +681,11 @@ class LLMService:
                 self._metrics.fallback_reasons["network"] = (
                     self._metrics.fallback_reasons.get("network", 0) + 1
                 )
-
-                last_error = e
-                fallback_reason = FallbackReason.RATE_LIMIT
-                self._metrics.fallback_reasons["rate_limit"] = (
-                    self._metrics.fallback_reasons.get("rate_limit", 0) + 1
-                )
                 self._metrics.model_failures[current_model] = (
                     self._metrics.model_failures.get(current_model, 0) + 1
                 )
                 logger.warning(
-                    "llm_rate_limit_falling_back",
+                    "llm_network_falling_back",
                     model=current_model,
                 )
 
