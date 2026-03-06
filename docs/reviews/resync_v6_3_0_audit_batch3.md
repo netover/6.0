@@ -80,6 +80,25 @@ _Status da auditoria: 2026-03-06 (snapshot; itens podem ter sido corrigidos depo
 - Evento registra `user_email` e preview da mensagem em log estruturado.
 - Impacto: aumenta risco de exposição de dados pessoais em pipeline de logs/monitoramento.
 - Referências: `resync/api/routes/teams_webhook.py` linhas 213-219.
+### 1) [🔴 Crítico] Falha de runtime no rate-limit de feedback (símbolos não importados)
+- `feedback_submit.py` usa `with_timeout` e `classify_exception`, mas o módulo não importa esses símbolos.
+- Impacto: em caminho de rate-limit/erro do Valkey, pode ocorrer `NameError` e resposta 500 em produção.
+
+### 2) [🟠 Segurança] Exposição de detalhes internos no endpoint de readiness/LLM health
+- O endpoint retorna `detail=f"...{e}"` para erros de banco, Valkey e LLM.
+- Impacto: vaza mensagens internas de infraestrutura/driver para clientes, facilitando reconnaissance.
+
+### 3) [🟠 Segurança] Exposição de detalhes internos no health core
+- `core/health.py` também inclui exceção original em `detail` (`Health check system error: ...`).
+- Impacto: mesma classe de vazamento de informação operacional/sensível em superfície pública de health.
+
+### 4) [⚪ Qualidade] Import duplicado em `feedback_submit.py`
+- Há duplicação de `from __future__ import annotations`.
+- Impacto: não quebra runtime, mas reduz qualidade e sinaliza falha de lint/revisão.
+
+### 5) [⚪ Qualidade/Observabilidade] Logging com PII no webhook de Teams
+- Evento registra `user_email` e preview da mensagem em log estruturado.
+- Impacto: aumenta risco de exposição de dados pessoais em pipeline de logs/monitoramento.
 
 ## Pesquisa de versões (internet)
 Consulta direta ao PyPI JSON API para componentes centrais:
