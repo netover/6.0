@@ -63,7 +63,7 @@ async def revoke_jti(jti: str, exp_unix: int | None = None) -> None:
         key = f"{_PREFIX}{jti}"
         ttl = None
         if exp_unix is not None:
-            now = int(datetime.now(timezone.utc).timestamp())
+            now = int(datetime.now(datetime.UTC).timestamp())
             ttl = max(exp_unix - now, 1)
         if ttl:
             await valkey.set(key, "1", ex=ttl)

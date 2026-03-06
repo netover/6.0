@@ -27,7 +27,7 @@ class Backoff:
         # Apply jitter (+/- jitter*delay)
         if self.jitter:
             spread = delay * float(self.jitter)
-            delay = max(0.0, delay + random.uniform(-spread, spread))
+            delay = max(0.0, delay + random.uniform(-spread, spread))  # noqa: S311 - jitter is non-crypto by design
         # Increase for next time
         self._current = min(float(self.max_seconds), self._current * float(self.factor))
         return delay
@@ -107,7 +107,8 @@ async def run_resilient_loop(
                 try:
                     logger.warning("Resilient loop '%s' step timed out after %ss", name, step_timeout_seconds)
                 except Exception:
-                    pass
+                    # logging must never break loop progression
+                    _ = None
             delay = bo.next_delay()
             _record_loop_stat(name, duration_s=duration, ok=False, delay_s=delay)
             await asyncio.sleep(delay)
@@ -121,7 +122,7 @@ async def run_resilient_loop(
                     logger.error("Resilient loop '%s' step failed: %s", name, e, exc_info=True)
                 except Exception:
                     # logging must never break the loop
-                    pass
+                    _ = None
             delay = bo.next_delay()
             _record_loop_stat(name, duration_s=duration, ok=False, delay_s=delay)
             await asyncio.sleep(delay)

@@ -203,7 +203,7 @@ class CacheWarmer:
 
         try:
             # Query to get most frequent queries
-            datetime.now(timezone.utc) - timedelta(days=days)
+            datetime.now(datetime.UTC) - timedelta(days=days)
 
             # DEBT: Implement real DB query for cache warming history (low priority)
             # Retuning 0 for now
@@ -286,7 +286,7 @@ class CacheWarmer:
                         "source": "cache_warmer",
                         "category": wq.category,
                         "priority": wq.priority,
-                        "warmed_at": datetime.now(timezone.utc).isoformat(),
+                        "warmed_at": datetime.now(datetime.UTC).isoformat(),
                     }
 
                     if hasattr(result, "documents"):
@@ -349,7 +349,7 @@ class CacheWarmer:
             }
 
         self._warming_in_progress = True
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(datetime.UTC)
 
         try:
             results = {
@@ -361,7 +361,7 @@ class CacheWarmer:
             if include_history:
                 results["historical"] = self.warm_from_history()
 
-            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+            duration = (datetime.now(datetime.UTC) - start_time).total_seconds()
             self._stats.last_warm = start_time
             self._stats.duration_seconds = duration
 

@@ -96,7 +96,7 @@ class TeamsNotification:
     title: str
     message: str
     severity: str = "info"
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     job_id: str | None = None
     job_status: str | None = None
     instance_name: str | None = None
@@ -481,7 +481,7 @@ class TeamsIntegration:
                     source="teams",
                     message=message,
                     context=context,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(datetime.UTC),
                 )
                 logger.debug("conversation_stored_in_knowledge_graph")
         except ImportError:
@@ -524,7 +524,7 @@ class TeamsIntegration:
             "job_notifications": self.config.enable_job_notifications,
             "monitored_instances": len(self.config.monitored_tws_instances),
             "rate_limiting": self.config.rate_limit_enabled,
-            "last_check": datetime.now(timezone.utc).isoformat(),
+            "last_check": datetime.now(datetime.UTC).isoformat(),
             "statistics": self._stats.copy(),
         }
 

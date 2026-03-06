@@ -27,12 +27,12 @@ class ResourceInfo:
     resource_id: str
     resource_type: str
     resource_instance: Any = field(default=None, repr=False)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_lifetime_seconds(self) -> float:
         """Get the lifetime of the resource in seconds."""
-        return (datetime.now(timezone.utc) - self.created_at).total_seconds()
+        return (datetime.now(datetime.UTC) - self.created_at).total_seconds()
 
 class ManagedResource(Generic[T]):
     """
@@ -44,7 +44,7 @@ class ManagedResource(Generic[T]):
     def __init__(self, resource_id: str, resource_type: str):
         self.resource_id = resource_id
         self.resource_type = resource_type
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(datetime.UTC)
         self._closed = False
 
     async def __aenter__(self) -> Self:
@@ -78,7 +78,7 @@ class ManagedResource(Generic[T]):
                 await self._cleanup()
                 self._closed = True
                 lifetime = (
-                    datetime.now(timezone.utc) - self.created_at
+                    datetime.now(datetime.UTC) - self.created_at
                 ).total_seconds()
                 logger.debug(
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "
@@ -100,7 +100,7 @@ class ManagedResource(Generic[T]):
                 self._cleanup_sync()
                 self._closed = True
                 lifetime = (
-                    datetime.now(timezone.utc) - self.created_at
+                    datetime.now(datetime.UTC) - self.created_at
                 ).total_seconds()
                 logger.debug(
                     f"Closed resource: {self.resource_id} ({self.resource_type}), "

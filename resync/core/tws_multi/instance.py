@@ -81,8 +81,8 @@ class TWSInstanceConfig:
     sort_order: int = 0
 
     # Metadata
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     created_by: str = ""
 
     def to_dict(self) -> dict[str, Any]:

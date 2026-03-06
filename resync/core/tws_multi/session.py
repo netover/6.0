@@ -36,8 +36,8 @@ class TWSSession:
 
     # State
     connected: bool = False
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    last_activity: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
 
     # View state (preserved per session)
     current_view: str = "dashboard"  # dashboard, jobs, schedules, logs
@@ -67,7 +67,7 @@ class TWSSession:
 
     def record_activity(self, action: str) -> None:
         """Record user activity."""
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = datetime.now(datetime.UTC)
         self.actions_count += 1
         self.last_action = action
 
@@ -81,7 +81,7 @@ class TWSSession:
     @property
     def is_active(self) -> bool:
         """Check if session is still active (activity in last 30 minutes)."""
-        return (datetime.now(timezone.utc) - self.last_activity).total_seconds() < 1800
+        return (datetime.now(datetime.UTC) - self.last_activity).total_seconds() < 1800
 
 class SessionManager:
     """

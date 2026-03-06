@@ -34,7 +34,7 @@ class A2ATask:
         self.method = method
         self.params = params
         self.state = TaskState.SUBMITTED
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(datetime.UTC)
         self.updated_at = self.created_at
         self.result: Any = None
         self.error: str | None = None
@@ -44,7 +44,7 @@ class A2ATask:
     ) -> None:
         """Update task state and timestamp."""
         self.state = state
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(datetime.UTC)
         if result is not None:
             self.result = result
         if error is not None:

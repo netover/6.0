@@ -29,8 +29,8 @@ class ErrorCode(str, Enum):
     # Erros de Autenticação (401)
     AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
-    TOKEN_EXPIRED = "TOKEN_EXPIRED"
-    TOKEN_INVALID = "TOKEN_INVALID"
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"  # noqa: S105 - enum label, not credential
+    TOKEN_INVALID = "TOKEN_INVALID"  # noqa: S105 - enum label, not credential
 
     # Erros de Autorização (403)
     AUTHORIZATION_FAILED = "AUTHORIZATION_FAILED"
@@ -182,7 +182,7 @@ class BaseAppException(Exception):
         self.details = details or {}
         self.correlation_id = correlation_id
         self.severity = severity
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now(datetime.UTC)
         self.original_exception = original_exception
 
     def to_dict(self) -> dict[str, Any]:

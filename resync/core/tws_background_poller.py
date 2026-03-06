@@ -266,7 +266,7 @@ class TWSBackgroundPoller:
             return
 
         self._is_running = True
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(datetime.UTC)
         if tg:
             self._polling_task = tg.create_task(
                 self._polling_loop(), name="polling_loop"
@@ -429,7 +429,7 @@ class TWSBackgroundPoller:
                 system_health = "degraded"
 
             return SystemSnapshot(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(datetime.UTC),
                 workstations=workstations,
                 jobs=jobs,
                 total_jobs_today=len(jobs),
@@ -468,7 +468,7 @@ class TWSBackgroundPoller:
                 agent_status=item.get("agentStatus", "UNKNOWN"),
                 jobs_running=item.get("jobsRunning", 0),
                 jobs_pending=item.get("jobsPending", 0),
-                last_seen=datetime.now(timezone.utc),
+                last_seen=datetime.now(datetime.UTC),
             )
             workstations.append(ws)
 
@@ -504,7 +504,7 @@ class TWSBackgroundPoller:
             if start_time and end_time:
                 duration = (end_time - start_time).total_seconds()
             elif start_time:
-                duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+                duration = (datetime.now(datetime.UTC) - start_time).total_seconds()
 
             job = JobStatus(
                 job_id=str(item.get("id", item.get("jobId", ""))),
@@ -765,7 +765,7 @@ class TWSBackgroundPoller:
             event_id=f"evt_{int(time.time())}_{self._event_counter}",
             event_type=event_type,
             severity=severity,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(datetime.UTC),
             source=source,
             message=message,
             details=details,
@@ -842,7 +842,7 @@ class TWSBackgroundPoller:
         """Retorna métricas do poller."""
         uptime = None
         if self._start_time:
-            uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+            uptime = (datetime.now(datetime.UTC) - self._start_time).total_seconds()
 
         return {
             "is_running": self._is_running,

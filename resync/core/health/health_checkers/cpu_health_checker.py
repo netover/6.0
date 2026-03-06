@@ -81,7 +81,7 @@ class CpuHealthChecker(BaseHealthChecker):
                 status=status,
                 message=message,
                 response_time_ms=response_time_ms(start_time),
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 metadata={
                     "cpu_usage_percent": cpu_percent,
                     "cpu_samples": [round(s, 1) for s in cpu_samples],

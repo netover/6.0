@@ -77,7 +77,7 @@ class HealthAlerting:
     ) -> None:
         """Add alerts to history for tracking and analysis."""
         alert_entry = {
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(datetime.UTC),
             "alerts": alerts.copy(),
             "component_count": len(components),
             "unhealthy_count": sum(
@@ -107,7 +107,7 @@ class HealthAlerting:
         Returns:
             List of alert history entries
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=hours)
 
         filtered_history = [
             entry for entry in self.alert_history if entry["timestamp"] >= cutoff_time
@@ -130,7 +130,7 @@ class HealthAlerting:
         total_alerts = sum(len(entry["alerts"]) for entry in self.alert_history)
 
         # Calculate alerts per hour over the last 24 hours
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
+        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=24)
         recent_alerts = [
             entry for entry in self.alert_history if entry["timestamp"] >= cutoff_time
         ]
@@ -241,14 +241,14 @@ class HealthReporting:
             "healthy_percentage": round(healthy_percentage, 1),
             "components": component_details,
             "report_metadata": {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(datetime.UTC).isoformat(),
                 "report_version": "1.0",
             },
         }
 
         # Cache the report
         self._report_cache = report
-        self._last_report_time = datetime.now(timezone.utc)
+        self._last_report_time = datetime.now(datetime.UTC)
 
         return report
 
@@ -263,7 +263,7 @@ class HealthReporting:
             return None
 
         age_seconds = (
-            datetime.now(timezone.utc) - self._last_report_time
+            datetime.now(datetime.UTC) - self._last_report_time
         ).total_seconds()
         if age_seconds > self.cache_duration_seconds:
             return None
@@ -350,7 +350,7 @@ class HealthStatusAggregator:
             return {
                 "overall_status": "unknown",
                 "total_checks": 0,
-                "aggregation_timestamp": datetime.now(timezone.utc).isoformat(),
+                "aggregation_timestamp": datetime.now(datetime.UTC).isoformat(),
             }
 
         # Combine all components from all results
@@ -371,7 +371,7 @@ class HealthStatusAggregator:
             "total_components": len(all_components),
             "components": all_components,
             "trends": trends,
-            "aggregation_timestamp": datetime.now(timezone.utc).isoformat(),
+            "aggregation_timestamp": datetime.now(datetime.UTC).isoformat(),
             "aggregation_metadata": {
                 "sources": len(health_results),
                 "aggregation_version": "1.0",
@@ -380,7 +380,7 @@ class HealthStatusAggregator:
 
         # Cache the aggregation
         self._aggregation_cache = aggregation
-        self._last_aggregation = datetime.now(timezone.utc)
+        self._last_aggregation = datetime.now(datetime.UTC)
 
         return aggregation
 
@@ -429,7 +429,7 @@ class HealthStatusAggregator:
 
         # Consider cache stale after 60 seconds
         age_seconds = (
-            datetime.now(timezone.utc) - self._last_aggregation
+            datetime.now(datetime.UTC) - self._last_aggregation
         ).total_seconds()
         if age_seconds > 60:
             return None

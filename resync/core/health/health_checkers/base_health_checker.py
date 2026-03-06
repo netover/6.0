@@ -103,7 +103,7 @@ class BaseHealthChecker(ABC):
                 status=self._get_status_for_exception(e),
                 message=f"Health check failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 error_count=1,
             )
 

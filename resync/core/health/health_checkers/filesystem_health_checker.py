@@ -74,7 +74,7 @@ class FileSystemHealthChecker(BaseHealthChecker):
                 status=status,
                 message=message,
                 response_time_ms=response_time_ms(start_time),
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 metadata={
                     "disk_usage_percent": disk_usage_percent,
                     "disk_free_gb": disk_usage.free / (1024**3),

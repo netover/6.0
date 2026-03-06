@@ -162,7 +162,7 @@ class LoadBalancer(Generic[T]):
     @classmethod
     def _random(cls, candidates: Sequence[T]) -> T:
         """Seleciona uma instância aleatoriamente."""
-        return random.choice(candidates)
+        return random.choice(candidates)  # noqa: S311 - load balancing randomness is non-crypto  # noqa: S311 - load balancing randomness is non-crypto  # noqa: S311 - load balancing randomness is non-crypto  # noqa: S311 - load balancing randomness is non-crypto
 
     @classmethod
     def _weighted_random(cls, candidates: Sequence[T]) -> T:
@@ -183,11 +183,11 @@ class LoadBalancer(Generic[T]):
 
         # If all weights are equal, use simple random
         if len(set(weights)) == 1:
-            return random.choice(candidates)
+            return random.choice(candidates)  # noqa: S311 - load balancing randomness is non-crypto
 
         # Weighted random selection
         total = sum(weights)
-        r = random.uniform(0, total)
+        r = random.uniform(0, total)  # noqa: S311 - load balancing randomness is non-crypto
         cumulative = 0
         for i, w in enumerate(weights):
             cumulative += w
@@ -212,7 +212,7 @@ class LoadBalancer(Generic[T]):
         """
         if not conn_counts:
             # Fall back to random if no connection data
-            return random.choice(candidates)
+            return random.choice(candidates)  # noqa: S311 - load balancing randomness is non-crypto
 
         # Find candidate with lowest connection count
         best_candidate: T | None = None
@@ -263,7 +263,7 @@ class LoadBalancer(Generic[T]):
 
         # If no latency data available, fall back to random
         if best_candidate is None or best_latency == float("inf"):
-            return random.choice(candidates)
+            return random.choice(candidates)  # noqa: S311 - load balancing randomness is non-crypto
 
         return best_candidate
 

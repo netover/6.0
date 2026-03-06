@@ -136,7 +136,7 @@ class HealthHistoryManager:
                     )
 
                 # Check if cleanup is needed based on age
-                cutoff_date = datetime.now(timezone.utc) - timedelta(
+                cutoff_date = datetime.now(datetime.UTC) - timedelta(
                     days=self.history_retention_days
                 )
                 original_size = len(self.health_history)
@@ -254,7 +254,7 @@ class HealthHistoryManager:
         Returns:
             List of health status history entries
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=hours)
 
         # Filter by time
         filtered_history = [
@@ -290,7 +290,7 @@ class HealthHistoryManager:
         Returns:
             List of status changes for the component
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=hours)
 
         # Filter entries that contain the component
         component_history = []

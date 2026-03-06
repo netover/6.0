@@ -87,7 +87,7 @@ class CacheHealthChecker(BaseHealthChecker):
                 status=HealthStatus.HEALTHY,
                 message="Cache hierarchy operational",
                 response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 metadata=metrics,
             )
 
@@ -105,7 +105,7 @@ class CacheHealthChecker(BaseHealthChecker):
                 status=HealthStatus.DEGRADED,
                 message=f"Cache hierarchy issues: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 error_count=1,
             )
 

@@ -1,3 +1,4 @@
+# ruff: noqa: S608
 # pylint
 # mypy
 """
@@ -179,6 +180,14 @@ class PgVectorStore(VectorStore):
                 )
         logger.debug("batch_upserted", extra={"collection": col, "count": len(ids)})
 
+
+    def _validated_dimension_sql(self) -> int:
+        """Return validated embedding dimension safe for SQL type modifiers."""
+        dim = int(self._dim)
+        if dim < 1 or dim > 65535:
+            raise ValueError(f"Invalid embedding dimension: {dim}")
+        return dim
+
     async def query(
         self,
         vector: list[float],
@@ -242,7 +251,9 @@ class PgVectorStore(VectorStore):
                 param_idx += 1
         candidates = max(top_k * 10, 50)
         # Use parameterized query for candidates limit
-        query = f"""
+        dim_sql = self._validated_dimension_sql()
+
+        query = f"""  # noqa: S608 - dynamic SQL parts are validated and values parameterized
             WITH binary_candidates AS (
                 -- Phase 1: Fast binary search with HNSW
                 SELECT
@@ -252,8 +263,8 @@ class PgVectorStore(VectorStore):
                 WHERE collection_name = $3
                 {filter_clause}
                 ORDER BY
-                    binary_quantize(embedding_half)::bit({self._dim})
-                    <~> $2::bit({self._dim})
+                    binary_quantize(embedding_half)::bit({dim_sql})
+                    <~> $2::bit({dim_sql})
                 LIMIT ${param_idx}
             )
             -- Phase 2: Precise halfvec rescoring

@@ -144,7 +144,7 @@ class TWSInstanceManager:
                     self._instances.values(), key=lambda x: x.config.sort_order
                 )
             ],
-            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "saved_at": datetime.now(datetime.UTC).isoformat(),
         }
 
         with open(self.config_path, "w") as f:
@@ -198,7 +198,7 @@ class TWSInstanceManager:
             if hasattr(config, key):
                 setattr(config, key, value)
 
-        config.updated_at = datetime.now(timezone.utc)
+        config.updated_at = datetime.now(datetime.UTC)
         self._save_instances()
 
         logger.info("Updated TWS instance: %s", config.name)
@@ -255,7 +255,7 @@ class TWSInstanceManager:
 
             if response.status_code == 200:
                 instance.status = TWSInstanceStatus.CONNECTED
-                instance.last_connected = datetime.now(timezone.utc)
+                instance.last_connected = datetime.now(datetime.UTC)
                 instance.error_count = 0
                 instance.last_error = None
                 self._clients[instance_id] = client
@@ -302,7 +302,7 @@ class TWSInstanceManager:
             return {"success": False, "error": "Instance not found"}
 
         config = instance.config
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(datetime.UTC)
 
         try:
             async with httpx.AsyncClient(
@@ -312,7 +312,7 @@ class TWSInstanceManager:
                 response = await client.get(f"{instance.connection_url}/twsd/health")
 
                 latency = (
-                    datetime.now(timezone.utc) - start_time
+                    datetime.now(datetime.UTC) - start_time
                 ).total_seconds() * 1000
 
                 return {

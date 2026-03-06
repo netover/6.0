@@ -54,7 +54,7 @@ class PerformanceMetricsCollector:
                 "memory_total_gb": memory.total / (1024**3),
                 "process_memory_mb": process_memory_mb,
                 "timestamp": time.time(),
-                "collection_time": datetime.now(timezone.utc).isoformat(),
+                "collection_time": datetime.now(datetime.UTC).isoformat(),
             }
 
         try:
@@ -71,7 +71,7 @@ class PerformanceMetricsCollector:
             return {
                 "error": str(e),
                 "timestamp": time.time(),
-                "collection_time": datetime.now(timezone.utc).isoformat(),
+                "collection_time": datetime.now(datetime.UTC).isoformat(),
             }
 
     def get_system_performance_metrics(self) -> dict[str, Any]:
@@ -104,7 +104,7 @@ class PerformanceMetricsCollector:
                 "memory_total_gb": memory.total / (1024**3),
                 "process_memory_mb": process_memory_mb,
                 "timestamp": time.time(),
-                "collection_time": datetime.now(timezone.utc).isoformat(),
+                "collection_time": datetime.now(datetime.UTC).isoformat(),
             }
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -120,7 +120,7 @@ class PerformanceMetricsCollector:
             return {
                 "error": str(e),
                 "timestamp": time.time(),
-                "collection_time": datetime.now(timezone.utc).isoformat(),
+                "collection_time": datetime.now(datetime.UTC).isoformat(),
             }
 
     async def get_connection_pool_metrics(self) -> dict[str, Any]:
@@ -167,14 +167,14 @@ class PerformanceMetricsCollector:
                 "system": system_metrics,
                 "connection_pools": pool_metrics,
                 "collection_metadata": {
-                    "collected_at": datetime.now(timezone.utc).isoformat(),
+                    "collected_at": datetime.now(datetime.UTC).isoformat(),
                     "metrics_version": "1.0",
                     "components_included": ["system", "connection_pools"],
                 },
             }
 
             # Cache the results
-            self._last_collection_time = datetime.now(timezone.utc)
+            self._last_collection_time = datetime.now(datetime.UTC)
             self._cached_metrics = comprehensive_metrics
 
             return comprehensive_metrics
@@ -194,7 +194,7 @@ class PerformanceMetricsCollector:
             return {
                 "error": str(e),
                 "timestamp": time.time(),
-                "collection_time": datetime.now(timezone.utc).isoformat(),
+                "collection_time": datetime.now(datetime.UTC).isoformat(),
             }
 
     def get_cached_metrics(self) -> dict[str, Any] | None:
@@ -210,7 +210,7 @@ class PerformanceMetricsCollector:
         # Consider cache stale after 30 seconds
         if self._last_collection_time:
             age_seconds = (
-                datetime.now(timezone.utc) - self._last_collection_time
+                datetime.now(datetime.UTC) - self._last_collection_time
             ).total_seconds()
             if age_seconds > 30:
                 return None
@@ -310,5 +310,5 @@ class PerformanceMetricsCollector:
             return {
                 "status": "error",
                 "message": f"Failed to generate performance summary: {str(e)}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }

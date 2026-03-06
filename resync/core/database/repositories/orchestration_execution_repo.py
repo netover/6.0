@@ -134,7 +134,7 @@ class OrchestrationExecutionRepository:
             values["estimated_cost"] = estimated_cost
 
         if status == "running" and not output:
-            values["started_at"] = datetime.now(timezone.utc)
+            values["started_at"] = datetime.now(datetime.UTC)
 
         await self._session.execute(
             update(OrchestrationExecution)
@@ -288,10 +288,10 @@ class OrchestrationStepRunRepository:
             values["estimated_cost"] = estimated_cost
 
         if status == "running" and latency_ms is None:
-            values["started_at"] = datetime.now(timezone.utc)
+            values["started_at"] = datetime.now(datetime.UTC)
 
         if status in ("completed", "failed", "skipped"):
-            values["completed_at"] = datetime.now(timezone.utc)
+            values["completed_at"] = datetime.now(datetime.UTC)
 
         await self._session.execute(
             update(OrchestrationStepRun)

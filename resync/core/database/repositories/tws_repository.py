@@ -41,7 +41,7 @@ class JobStatus:
     start_time: datetime | None = None
     end_time: datetime | None = None
     return_code: int | None = None
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -67,8 +67,8 @@ class PatternMatch:
     description: str
     confidence: float
     occurrences: int = 1
-    first_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    first_seen: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    last_seen: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     pattern_data: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -226,7 +226,7 @@ class TWSEventRepository(TimestampedRepository[TWSEvent]):
             event_id,
             acknowledged=True,
             acknowledged_by=acknowledged_by,
-            acknowledged_at=datetime.now(timezone.utc),
+            acknowledged_at=datetime.now(datetime.UTC),
         )
 
     async def get_events_by_severity(
@@ -359,7 +359,7 @@ class TWSProblemSolutionRepository(BaseRepository[TWSProblemSolution]):
                 .values(
                     {
                         increment_column: increment_column + 1,
-                        TWSProblemSolution.last_used: datetime.now(timezone.utc),
+                        TWSProblemSolution.last_used: datetime.now(datetime.UTC),
                     }
                 )
                 .returning(TWSProblemSolution)
@@ -417,7 +417,7 @@ class TWSStore:
         self, hours: int = 24, limit: int = 100
     ) -> list[TWSJobStatus]:
         """Get recently failed jobs."""
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = datetime.now(datetime.UTC) - timedelta(hours=hours)
         return await self.jobs.get_failed_jobs(since, limit)
 
     async def get_status_summary(self) -> dict[str, int]:
@@ -484,7 +484,7 @@ class TWSStore:
     # Cleanup Methods
     async def cleanup_old_data(self, days: int = 30) -> dict[str, int]:
         """Clean up old data."""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(datetime.UTC) - timedelta(days=days)
 
         deleted = {
             "jobs": await self.jobs.delete_older_than(cutoff),

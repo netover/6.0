@@ -116,7 +116,7 @@ class Subscriber:
     subscriber_id: str
     callback: collections.abc.Callable[..., Any]
     subscription_types: set[SubscriptionType]
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     events_received: int = 0
 
 @dataclass(slots=True)
@@ -126,7 +126,7 @@ class WebSocketClient:
     client_id: str
     websocket: WebSocketProtocol  # tipado via Protocol, não Any
     subscription_types: set[SubscriptionType]
-    connected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    connected_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
     messages_sent: int = 0
     last_ping: datetime | None = None
 
@@ -206,12 +206,12 @@ class EventBus:
         # Guard obrigatório — asyncio.Lock/Queue exigem loop ativo no Python 3.10+
         try:
             self._loop = asyncio.get_running_loop()
-        except RuntimeError:
+        except RuntimeError as exc:
             raise RuntimeError(
                 "EventBus.start() deve ser chamado em contexto "
                 "assíncrono ativo. "
                 "Garanta que start() seja chamado em um lifespan ou handler async."
-            )
+            ) from exc
 
         # Inicialização de primitivas no loop correto
         self._websocket_lock = asyncio.Lock()
@@ -377,7 +377,7 @@ class EventBus:
         message = {
             "type": "recent_events",
             "events": recent,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
         }
 
         try:
@@ -434,7 +434,7 @@ class EventBus:
             event_data = {"data": str(event)}
 
         if "timestamp" not in event_data:
-            event_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+            event_data["timestamp"] = datetime.now(datetime.UTC).isoformat()
 
         queue = self._event_queue
 

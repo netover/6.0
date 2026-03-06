@@ -52,7 +52,7 @@ class WebSocketPoolHealthChecker(BaseHealthChecker):
                 status=HealthStatus.HEALTHY,
                 message="WebSocket pool service available",
                 response_time_ms=response_time_ms(start_time),
-                last_check=datetime.now(timezone.utc),
+                last_check=datetime.now(datetime.UTC),
                 metadata={
                     "pool_status": "available",
                     "connections": "unknown",  # Would be populated by actual WebSocket pool manager

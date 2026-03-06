@@ -1,3 +1,4 @@
+# ruff: noqa: S608
 """
 PgVector Service - PostgreSQL Vector Similarity Search.
 
@@ -210,15 +211,17 @@ class PgVectorService:
             params.append(float(score_threshold))
             param_idx += 1
 
-        query = f"""
+        dim_sql = self._validated_dimension_sql()
+
+        query = f"""  # noqa: S608 - dynamic SQL parts are validated and values parameterized
             WITH binary_candidates AS (
                 SELECT document_id, chunk_id, content, metadata, embedding_half
                 FROM document_embeddings
                 WHERE collection_name = $3
                 {filter_clause}
                 ORDER BY
-                    binary_quantize(embedding_half)::bit({self._embedding_dimension})
-                    <~> $2::bit({self._embedding_dimension})
+                    binary_quantize(embedding_half)::bit({dim_sql})
+                    <~> $2::bit({dim_sql})
                 LIMIT ${candidates_param_idx}
             ),
             rescored AS (

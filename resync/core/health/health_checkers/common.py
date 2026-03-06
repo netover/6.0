@@ -63,6 +63,6 @@ def build_error_health(
         status=ctx.status,
         message=ctx.message,
         response_time_ms=response_time_ms(ctx.start_time),
-        last_check=datetime.now(timezone.utc),
+        last_check=datetime.now(datetime.UTC),
         error_count=1,
     )
