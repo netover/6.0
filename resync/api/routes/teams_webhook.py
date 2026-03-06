@@ -134,7 +134,7 @@ async def teams_outgoing_webhook_endpoint(
             request.body(),
             timeout=30.0  # 30 seconds timeout
         )
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
         logger.warning(
             "teams_webhook_request_body_timeout",
             hint="Client sent headers but no body within 30s"
@@ -142,7 +142,7 @@ async def teams_outgoing_webhook_endpoint(
         raise HTTPException(
             status_code=status.HTTP_408_REQUEST_TIMEOUT,
             detail="Request body not received within timeout period",
-        )
+        ) from exc
 
     # Valida assinatura HMAC
     # NOTE: security_token is a secret and must be unwrapped explicitly.

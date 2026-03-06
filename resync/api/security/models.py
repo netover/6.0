@@ -52,6 +52,6 @@ class OAuthToken(BaseModel):
     """Token model for authentication."""
 
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105 - OAuth token type literal
     refresh_token: str
     expires_in: int

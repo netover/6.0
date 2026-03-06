@@ -27,7 +27,7 @@ except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, 
 
 router = APIRouter(tags=["Monitoring - Prometheus"])
 
-_METRICS_TOKEN_ENV: Final[str] = "METRICS_TOKEN"
+_METRICS_TOKEN_ENV: Final[str] = "METRICS_TOKEN"  # noqa: S105 - env var name, not credential
 
 def _is_authorized(request: Request) -> bool:
     """

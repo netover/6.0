@@ -93,7 +93,7 @@ async def create_config(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail=f"Invalid step configuration: {str(e)}"
-        )
+        ) from e
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -101,7 +101,7 @@ async def create_config(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail=f"Validation error: {str(e)}"
-        )
+        ) from e
 
     config = await repo.create(
         name=name, strategy=strategy, steps=steps_to_store, description=description
@@ -148,7 +148,7 @@ async def execute_workflow(
         )
         return {"trace_id": trace_id, "status": "accepted"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -156,7 +156,7 @@ async def execute_workflow(
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.error("Execution start failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/status/{trace_id}")
 async def get_execution_status(trace_id: str, db: AsyncSession = Depends(get_database)):

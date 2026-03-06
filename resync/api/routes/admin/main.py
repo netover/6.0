@@ -1278,7 +1278,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
     component_names = ["database", "valkey", "llm", "rag", "teams", "tws", "connection_pools"]
     components: dict[str, ComponentHealth] = {}
 
-    for name, result in zip(component_names, results):
+    for name, result in zip(component_names, results, strict=False):
         if isinstance(result, Exception):
             components[name] = ComponentHealth(
                 status="unhealthy",

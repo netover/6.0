@@ -216,7 +216,7 @@ async def receive_workstation_metrics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to store metrics",
-        )
+        ) from e
 
 @router.get(
     "/workstation/{workstation_name}",
