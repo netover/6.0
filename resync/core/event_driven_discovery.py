@@ -11,6 +11,8 @@ Version: 5.9.9
 """
 
 import asyncio
+from resync.core.async_utils import with_timeout, classify_exception
+from resync.settings import get_settings
 import json
 import logging
 from datetime import datetime, timezone
@@ -33,6 +35,8 @@ def load_config_from_file() -> dict[str, Any]:
         return cfg.get('graphrag', {}) if isinstance(cfg, dict) else {}
     except ImportError:
         return {}
+    except asyncio.CancelledError:
+        raise
     except Exception as exc:
         logging.getLogger(__name__).warning(
             "DiscoveryConfig: failed to load config file, using defaults: %s",
@@ -140,7 +144,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 }}
 """)
 
-    def __init__(self, llm_service, knowledge_graph, tws_client, redis_client=None) -> None:
+    def __init__(self, llm_service, knowledge_graph, tws_client, valkey_client=None) -> None:
         """
         Initialize event-driven discovery.
 
@@ -148,12 +152,12 @@ Return ONLY valid JSON (no markdown, no preamble):
             llm_service: LLM service for extraction
             knowledge_graph: Knowledge graph instance
             tws_client: TWS client for fetching logs
-            redis_client: Redis for caching (optional)
+            valkey_client: Valkey for caching (optional)
         """
         self.llm = llm_service
         self.kg = knowledge_graph
         self.tws = tws_client
-        self.redis = redis_client
+        self.valkey = valkey_client
 
         # Counters for budget control
         self.discoveries_today = 0
@@ -232,9 +236,9 @@ Return ONLY valid JSON (no markdown, no preamble):
             True if job should be discovered
         """
         # Already discovered recently?
-        if self.redis:
+        if self.valkey:
             cache_key = f"discovered:{job_name}"
-            if await self.redis.exists(cache_key):
+            if await self.valkey.exists(cache_key):
                 logger.debug("Job %s discovered recently, skipping", job_name)
                 return False
 
@@ -282,9 +286,9 @@ Return ONLY valid JSON (no markdown, no preamble):
             stored_count = await self._store_relations(job_name, relations)
 
             # 4. Mark as discovered (cache)
-            if self.redis:
+            if self.valkey:
                 cache_key = f"discovered:{job_name}"
-                await self.redis.setex(
+                await self.valkey.setex(
                     cache_key, DiscoveryConfig.DISCOVERY_CACHE_DAYS * 86400, "1"
                 )
 
@@ -516,28 +520,45 @@ Return ONLY valid JSON (no markdown, no preamble):
         Returns:
             Number of cache entries invalidated
         """
-        if not self.redis:
-            logger.warning("Cannot invalidate cache - Redis not available")
+        if not self.valkey:
+            logger.warning("Cannot invalidate cache - Valkey not available")
             return 0
 
         try:
             if job_name:
                 # Invalidate specific job
                 cache_key = f"discovered:{job_name}"
-                deleted = await self.redis.delete(cache_key)
+                deleted = await self.valkey.delete(cache_key)
                 logger.info("Invalidated discovery cache for %s", job_name)
                 return deleted
             # Invalidate all discoveries via SCAN (avoid blocking KEYS).
             deleted = 0
             cursor = 0
+            
             while True:
-                cursor, keys = await self.redis.scan(
-                    cursor=cursor,
-                    match="discovered:*",
-                    count=100,
-                )
+                settings = get_settings()
+                try:
+                    cursor, keys = await with_timeout(
+                        self.valkey.scan(
+                            cursor=cursor,
+                            match="discovered:*",
+                            count=100,
+                        ),
+                        getattr(settings, "valkey_health_timeout", 2.0),
+                        op="valkey.scan(discovery_invalidate)",
+                    )
+                except Exception as e:
+                    reason, status_code = classify_exception(e)
+                    self.logger.debug(
+                        "valkey.scan failed (%s, %s): %s",
+                        reason,
+                        status_code,
+                        str(e),
+                        exc_info=True,
+                    )
+                    break
                 if keys:
-                    deleted += await self.redis.delete(*keys)
+                    deleted += await self.valkey.delete(*keys)
                 if cursor == 0:
                     break
 
@@ -553,7 +574,7 @@ Return ONLY valid JSON (no markdown, no preamble):
             logger.error("Failed to invalidate cache: %s", e, exc_info=True)
             return 0
 
-def get_discovery_service(llm_service, knowledge_graph, tws_client, redis_client):
+def get_discovery_service(llm_service, knowledge_graph, tws_client, valkey_client):
     """
     Factory function to get EventDrivenDiscovery instance.
 
@@ -561,9 +582,9 @@ def get_discovery_service(llm_service, knowledge_graph, tws_client, redis_client
         llm_service: LLM service instance
         knowledge_graph: Knowledge graph instance
         tws_client: TWS client instance
-        redis_client: Redis client instance (optional)
+        valkey_client: Valkey client instance (optional)
 
     Returns:
         EventDrivenDiscovery instance
     """
-    return EventDrivenDiscovery(llm_service, knowledge_graph, tws_client, redis_client)
+    return EventDrivenDiscovery(llm_service, knowledge_graph, tws_client, valkey_client)

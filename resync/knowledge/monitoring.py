@@ -69,7 +69,7 @@ try:
     cache_hits_total: Counter | _NoOpMetric = Counter(
         "rag_cache_hits_total",
         "Cache hits for embedding lookups",
-        ["layer"],  # "redis" | "local"
+        ["layer"],  # "valkey" | "local"
     )
 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as _exc:  # noqa: BLE001
     # Em testes sem Prometheus registry, não quebrar o import.

@@ -13,7 +13,7 @@ set -euo pipefail
 # Required env:
 #  - APP_DATABASE_URL
 # Optional:
-#  - APP_REDIS_URL
+#  - APP_VALKEY_URL
 #  - RESYNC_BASE_URL (default http://127.0.0.1:8000)
 #  - RESYNC_WS_URL   (default ws://127.0.0.1:8000/ws)
 

@@ -19,14 +19,29 @@ import inspect  # compatibility shim
 import importlib  # [P3-01] Modern Python 3 API for dynamic imports
 import os
 import warnings
+import json
+
+# Optional dependencies (kept optional to avoid startup failures in minimal installs)
+try:
+    import orjson  # type: ignore
+except ImportError:  # pragma: no cover
+    orjson = None  # type: ignore
+
+_JSON_DECODE_ERRORS = (ValueError, json.JSONDecodeError) + (
+    (orjson.JSONDecodeError,) if orjson is not None else ()
+)
+
+try:
+    from slowapi.errors import RateLimitExceeded  # type: ignore
+except ImportError:  # pragma: no cover
+    class RateLimitExceeded(Exception):
+        """Fallback RateLimitExceeded when slowapi is not installed."""
+        pass
+
 from typing import TYPE_CHECKING, Any
 
-import orjson  # [P2-02] top-level import — not per-request
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from fastapi.templating import Jinja2Templates
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-from slowapi.errors import RateLimitExceeded
 from starlette.requests import ClientDisconnect
 from starlette.responses import (
     FileResponse,
@@ -180,8 +195,8 @@ class ApplicationFactory:
         """
         self._settings = settings  # None = lazy resolution
         self.app: FastAPI
-        self.templates: Jinja2Templates | None = None
-        self.template_env: Environment | None = None
+        self.templates: Any = None  # Jinja2Templates when installed
+        self.template_env: Any = None  # jinja2.Environment when installed
 
     @property
     def settings(self) -> "Settings":
@@ -247,7 +262,7 @@ class ApplicationFactory:
         """Validate critical settings before application startup."""
         errors = []
 
-        # Redis/Valkey configuration
+        # Valkey/Valkey configuration
         if self.settings.valkey_pool_min_size > self.settings.valkey_pool_max_size:
             max_sz = self.settings.valkey_pool_max_size
             min_sz = self.settings.valkey_pool_min_size
@@ -309,6 +324,14 @@ class ApplicationFactory:
 
     def _setup_templates(self) -> None:
         """Configure Jinja2 template engine."""
+        # Lazy import to keep templates optional (avoid startup crash when jinja2 isn't installed)
+        try:
+            from fastapi.templating import Jinja2Templates
+            from jinja2 import Environment, FileSystemLoader, select_autoescape
+        except ImportError as e:  # pragma: no cover
+            logger.warning("jinja2_not_installed", error=str(e))
+            return
+
         templates_dir = self.settings.base_dir / "templates"
 
         if not templates_dir.exists():
@@ -541,6 +564,7 @@ class ApplicationFactory:
             ("resync.api.agents", "agents_router", "agents_router"),
             ("resync.api.chat", "chat_router", "chat_router"),
             ("resync.api.unified_config_api", "router", "unified_config_router"),  # [P2-04]
+            ("resync.api.unified_config_api", "admin_router", "unified_config_ui_router"),
         ]
 
         for module_path, router_name, log_name in essential_routers:
@@ -614,10 +638,11 @@ class ApplicationFactory:
 
         # v5.9.9: GraphRAG admin endpoints
         try:
-            from resync.api.graphrag_admin import router as graphrag_admin_router
+            from resync.api.graphrag_admin import router as graphrag_admin_ui_router
 
-            self.app.include_router(graphrag_admin_router)
+            self.app.include_router(graphrag_admin_ui_router)
             logger.info("graphrag_admin_endpoints_registered", prefix="/api/admin/graphrag")
+            logger.info("graphrag_admin_ui_endpoints_registered", prefix="/admin/graphrag")
         except ImportError as e:
             if self.settings.is_development:
                 logger.error("graphrag_admin_not_available", error=str(e))
@@ -626,10 +651,11 @@ class ApplicationFactory:
 
         # v6.1: Document Knowledge Graph (DKG) admin endpoints
         try:
-            from resync.api.document_kg_admin import router as dkg_admin_router
+            from resync.api.document_kg_admin import router as dkg_admin_ui_router
 
-            self.app.include_router(dkg_admin_router)
+            self.app.include_router(dkg_admin_ui_router)
             logger.info("document_kg_admin_endpoints_registered", prefix="/api/admin/kg")
+            logger.info("document_kg_admin_ui_endpoints_registered", prefix="/admin/kg")
         except ImportError as e:
             if self.settings.is_development:
                 logger.error("document_kg_admin_not_available", error=str(e))
@@ -665,12 +691,23 @@ class ApplicationFactory:
             from resync.api.routes.admin.backup import router as backup_router
             from resync.api.routes.admin.config import router as admin_config_router
             from resync.api.routes.admin.connectors import router as connectors_router
+            from resync.api.routes.admin.llm_metrics import router as llm_metrics_router
+            from resync.api.routes.admin.tasks import router as tasks_router
+
+            from resync.api.routes.admin.litellm_config import router as litellm_config_router
+            from resync.api.routes.admin.litellm_health import router as litellm_health_router
             from resync.api.routes.admin.environment import router as environment_router
             from resync.api.routes.admin.feedback_curation import (
                 router as feedback_curation_router,
             )
             from resync.api.routes.admin.notification_admin import (
                 router as notification_admin_router,
+            )
+            from resync.api.routes.admin.rag_stats import (
+                router as rag_stats_router,
+            )
+            from resync.api.routes.admin.routing import (
+                router as routing_admin_router,
             )
             from resync.api.routes.admin.rag_reranker import (
                 router as rag_reranker_router,
@@ -741,6 +778,8 @@ class ApplicationFactory:
                 (teams_router, "/api/v1/admin", ["Admin - Teams"]),
                 (teams_webhook_admin_router, "/api", ["Admin - Teams Webhook Users"]),
                 (notification_admin_router, "/api/v1/admin", ["Admin - Notifications"]),
+                (rag_stats_router, "/api/v1/admin", ["Admin - RAG Stats"]),
+                (routing_admin_router, "/api/v1/admin", ["Admin - Routing"]),
                 (
                     teams_notifications_admin_router,
                     "/api",
@@ -757,6 +796,10 @@ class ApplicationFactory:
                 ),
                 (environment_router, "/api/v1/admin", ["Admin - Environment"]),
                 (connectors_router, "/api/v1/admin", ["Admin - Connectors"]),
+                (llm_metrics_router, "/api/v1/admin", ["Admin - LLM Metrics"]),
+                (tasks_router, "/api/v1/admin", ["Admin - Tasks"]),
+                (litellm_config_router, "/api/v1/admin", ["Admin - LiteLLM Config"]),
+                (litellm_health_router, "/api/v1/admin", ["Admin - LiteLLM Health"]),
                 (feedback_curation_router, "", ["Admin - Feedback Curation"]),
                 (admin_api_keys_router, "/api/v1/admin", ["Admin - API Keys"]),
                 (admin_v2_router, "/api/v2/admin", ["Admin V2"]),
@@ -923,8 +966,12 @@ class ApplicationFactory:
 
             # [P2-02] orjson imported at module top-level — no per-request import cost
             try:
-                report_data: object = orjson.loads(b"".join(chunks))
-            except (ValueError, orjson.JSONDecodeError) as e:
+                raw_bytes = b"".join(chunks)
+                if orjson is not None:
+                    report_data: object = orjson.loads(raw_bytes)
+                else:
+                    report_data = json.loads(raw_bytes.decode("utf-8"))
+            except _JSON_DECODE_ERRORS as e:
                 logger.warning(
                     "csp_invalid_json",
                     error=str(e),

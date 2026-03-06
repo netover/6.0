@@ -53,7 +53,7 @@ class CORSMetrics:
     
     Python 3.13+ free-threaded mode: If deployed without GIL, lock overhead
     increases but consistency is maintained. For high-throughput scenarios,
-    consider using Redis/StatsD for metrics instead.
+    consider using Valkey/StatsD for metrics instead.
     """
 
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)

@@ -30,8 +30,8 @@ def get_required_vars() -> list[tuple[str, str]]:
     return [
         ("SECRET_KEY", "JWT signing key (use SecretStr in production)"),
         ("APP_SECRET_KEY", "JWT signing key (alternative - with APP_ prefix)"),
-        ("REDIS_URL", "Redis connection string (redis://host:port/db)"),
-        ("APP_REDIS_URL", "Redis connection string (alternative - with APP_ prefix)"),
+        ("VALKEY_URL", "Valkey connection string (valkey://host:port/db)"),
+        ("APP_VALKEY_URL", "Valkey connection string (alternative - with APP_ prefix)"),
         ("DATABASE_URL", "PostgreSQL connection string"),
         (
             "APP_DATABASE_URL",
@@ -75,13 +75,13 @@ def check_required_vars() -> tuple[bool, list[str]]:
     # Group variables by their base name (with or without APP_ prefix)
     var_groups = {
         "SECRET_KEY": ["SECRET_KEY", "APP_SECRET_KEY"],
-        "REDIS_URL": ["REDIS_URL", "APP_REDIS_URL"],
+        "VALKEY_URL": ["VALKEY_URL", "APP_VALKEY_URL"],
         "DATABASE_URL": ["DATABASE_URL", "APP_DATABASE_URL"],
     }
 
     descriptions = {
         "SECRET_KEY": "JWT signing key (use SecretStr in production)",
-        "REDIS_URL": "Redis connection string (redis://host:port/db)",
+        "VALKEY_URL": "Valkey connection string (valkey://host:port/db)",
         "DATABASE_URL": "PostgreSQL connection string",
     }
 

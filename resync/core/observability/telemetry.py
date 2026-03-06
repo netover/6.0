@@ -107,7 +107,7 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
 
     This configures:
     - Tracer provider with OTLP exporter
-    - Auto-instrumentation for FastAPI, SQLAlchemy, Redis, httpx
+    - Auto-instrumentation for FastAPI, SQLAlchemy, Valkey, httpx
     - Resource attributes for service identification
 
     Args:
@@ -213,12 +213,12 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
 
         logger.warning("SQLAlchemy instrumentation failed: %s", e)
 
-    # Redis
+    # Valkey
     try:
-        from opentelemetry.instrumentation.redis import RedisInstrumentor
+        from opentelemetry.instrumentation.valkey import ValkeyInstrumentor
 
-        RedisInstrumentor().instrument()
-        logger.debug("Redis instrumented")
+        ValkeyInstrumentor().instrument()
+        logger.debug("Valkey instrumented")
     except ImportError:
         pass
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -227,7 +227,7 @@ def _instrument_frameworks(app: FastAPI | None = None) -> None:
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
-        logger.warning("Redis instrumentation failed: %s", e)
+        logger.warning("Valkey instrumentation failed: %s", e)
 
     # HTTPX
     try:

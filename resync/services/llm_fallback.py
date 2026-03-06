@@ -58,11 +58,13 @@ from typing import Any
 
 import structlog
 
+from resync.core.async_utils import classify_exception
 from resync.core.exceptions import (
     CircuitBreakerError,
     LLMAuthenticationError,
     LLMError,
-    LLMRateLimitError,
+    LLMProvider5xxError,
+    LLMNetworkError,
     LLMTimeoutError,
 )
 from resync.core.resilience import (
@@ -97,6 +99,9 @@ class FallbackReason(str, Enum):
     TIMEOUT = "timeout"
     RATE_LIMIT = "rate_limit"
     ERROR = "error"
+    PROVIDER_5XX = "provider_5xx"
+    NETWORK = "network"
+    OTHER = "other"
     CIRCUIT_OPEN = "circuit_open"
     COST = "cost_optimization"
 
@@ -424,6 +429,7 @@ class LLMService:
         try:
             # Use litellm for unified interface
             import litellm
+            from resync.core.litellm_init import get_litellm_router
 
             # v5.2.3.21: Disable LiteLLM's verbose logging in production
             litellm.suppress_debug_info = True
@@ -473,7 +479,7 @@ class LLMService:
 
             # Make the call with timeout
             response = await TimeoutManager.with_timeout(
-                litellm.acompletion(**llm_kwargs),
+                get_litellm_router().acompletion(**llm_kwargs),
                 model_config.timeout_seconds,
             )
 
@@ -509,11 +515,17 @@ class LLMService:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            error_str = str(e).lower()
-            if "rate" in error_str and "limit" in error_str:
+            classified = classify_exception(e)
+            if classified.reason == "rate_limit":
                 raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
-            if "auth" in error_str or "401" in str(e):
+            if classified.reason == "timeout":
+                raise LLMTimeoutError(f"LLM request timed out: {e}") from e
+            if classified.reason == "auth":
                 raise LLMAuthenticationError(f"Authentication failed: {e}") from e
+            if classified.reason == "provider_5xx":
+                raise LLMProvider5xxError(f"Provider/server error: {e}") from e
+            if classified.reason == "network":
+                raise LLMNetworkError(f"Network error: {e}") from e
             # v5.2.3.21: Better error handling for Ollama connection issues
             if "connection" in error_str or "refused" in error_str:
                 raise LLMError(
@@ -648,6 +660,26 @@ class LLMService:
                 )
 
             except LLMRateLimitError as e:
+                last_error = e
+                fallback_reason = FallbackReason.RATE_LIMIT
+                self._metrics.fallback_reasons["rate_limit"] = (
+                    self._metrics.fallback_reasons.get("rate_limit", 0) + 1
+                )
+
+            except LLMProvider5xxError as e:
+                last_error = e
+                fallback_reason = FallbackReason.PROVIDER_5XX
+                self._metrics.fallback_reasons["provider_5xx"] = (
+                    self._metrics.fallback_reasons.get("provider_5xx", 0) + 1
+                )
+
+            except LLMNetworkError as e:
+                last_error = e
+                fallback_reason = FallbackReason.NETWORK
+                self._metrics.fallback_reasons["network"] = (
+                    self._metrics.fallback_reasons.get("network", 0) + 1
+                )
+
                 last_error = e
                 fallback_reason = FallbackReason.RATE_LIMIT
                 self._metrics.fallback_reasons["rate_limit"] = (
@@ -812,6 +844,7 @@ class LLMService:
         import os
 
         import litellm
+        from resync.core.litellm_init import get_litellm_router
 
         api_key = (
             os.getenv(model_config.api_key_env, "") if model_config.api_key_env else ""
@@ -840,7 +873,7 @@ class LLMService:
             llm_kwargs["api_base"] = model_config.api_base
 
         try:
-            response = await litellm.acompletion(**llm_kwargs)
+            response = await get_litellm_router().acompletion(**llm_kwargs)
 
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:

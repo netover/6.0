@@ -24,6 +24,7 @@ Usage:
 """
 
 import asyncio
+from resync.core.task_registry import create_tracked_task
 import inspect
 import json
 import logging
@@ -83,7 +84,7 @@ class ConfigFileHandler(FileSystemEventHandler):
 
             if loop and loop.is_running():
                 loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(self.callback(event.src_path))
+                    lambda: create_tracked_task(self.callback(event.src_path))
                 )
             else:
                 logger.warning(

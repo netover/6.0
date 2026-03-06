@@ -127,7 +127,7 @@ class L1Cache:
 
 class CacheHierarchy:
     """
-    Two-tier cache hierarchy with L1 (in-memory) and L2 (Redis-backed).
+    Two-tier cache hierarchy with L1 (in-memory) and L2 (Valkey-backed).
     """
 
     def __init__(

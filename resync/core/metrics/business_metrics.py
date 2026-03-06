@@ -96,6 +96,22 @@ llm_cache_hit_rate = create_gauge(
     labels=["model"],
 )
 
+# Total accumulated cost (USD) as reported by LiteLLM pricing tables.
+# This is a best-effort signal; some providers/models may return 0.
+llm_cost_usd_total = create_counter(
+    "resync_llm_cost_usd_total",
+    "Total accumulated LLM cost in USD (best-effort)",
+    labels=["provider", "model"],
+)
+
+
+# Total number of times we fell back to an alternate model due to retryable errors.
+llm_fallbacks_total = create_counter(
+    "resync_llm_fallbacks_total",
+    "Total number of LLM model fallbacks triggered (retryable errors like 429/timeout/5xx)",
+    labels=["reason", "from_model", "to_model"],
+)
+
 # =============================================================================
 # AGENT & ORCHESTRATION
 # =============================================================================

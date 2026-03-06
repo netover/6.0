@@ -174,12 +174,12 @@ def mock_db_session():
 
 
 @pytest.fixture
-async def redis_client():
+async def valkey_client():
     """Create a Valkey client for testing."""
     import valkey.asyncio as valkey
 
-    redis_url = os.getenv("TEST_VALKEY_URL", "valkey://localhost:6379/15")
-    client = valkey.from_url(redis_url)
+    valkey_url = os.getenv("TEST_VALKEY_URL", "valkey://localhost:6379/15")
+    client = valkey.from_url(valkey_url)
 
     # Clear test database
     await client.flushdb()

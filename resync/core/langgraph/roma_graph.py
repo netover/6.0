@@ -5,6 +5,7 @@
 from typing import Any
 
 from resync.core.langgraph.roma_models import RomaState
+from resync.core.langgraph.state_delta import wrap_langgraph_node
 from resync.core.langgraph.roma_nodes import (
     aggregator_node,
     atomizer_node,
@@ -37,11 +38,11 @@ def create_roma_graph() -> Any:
         return FallbackRomaGraph()
 
     workflow = StateGraph(RomaState)
-    workflow.add_node("atomizer", atomizer_node)
-    workflow.add_node("planner", planner_node)
-    workflow.add_node("executor", executor_node)
-    workflow.add_node("aggregator", aggregator_node)
-    workflow.add_node("verifier", verifier_node)
+    workflow.add_node("atomizer", wrap_langgraph_node(atomizer_node))
+    workflow.add_node("planner", wrap_langgraph_node(planner_node))
+    workflow.add_node("executor", wrap_langgraph_node(executor_node))
+    workflow.add_node("aggregator", wrap_langgraph_node(aggregator_node))
+    workflow.add_node("verifier", wrap_langgraph_node(verifier_node))
 
     workflow.set_entry_point("atomizer")
     workflow.add_conditional_edges(

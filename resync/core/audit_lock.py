@@ -12,8 +12,8 @@ from contextlib import asynccontextmanager
 from typing import Any, cast
 
 import structlog
-from redis.asyncio import Redis as AsyncRedis
-from redis.exceptions import RedisError
+from valkey.asyncio import Valkey as AsyncValkey
+from valkey.exceptions import ValkeyError
 
 from resync.core.exceptions import AuditError, DatabaseError
 from resync.settings import settings
@@ -24,10 +24,10 @@ def _redact_url_credentials(url: str) -> str:
     """Redact credentials from a URL for safe logging.
 
     Args:
-        url: The URL to redact (e.g., 'redis://user:password@host:6379/0')
+        url: The URL to redact (e.g., 'valkey://user:password@host:6379/0')
 
     Returns:
-        The URL with credentials redacted (e.g., 'redis://***:***@host:6379/0')
+        The URL with credentials redacted (e.g., 'valkey://***:***@host:6379/0')
     """
     if not url:
         return url
@@ -37,54 +37,54 @@ def _redact_url_credentials(url: str) -> str:
 
 class DistributedAuditLock:
     """
-    A distributed lock implementation using Redis for audit operations.
+    A distributed lock implementation using Valkey for audit operations.
 
     This class provides atomic locking to prevent race conditions when multiple
     IA Auditor processes attempt to process the same memory simultaneously.
     """
 
-    def __init__(self, redis_url: str | None = None) -> None:
+    def __init__(self, valkey_url: str | None = None) -> None:
         """
         Initialize the distributed audit lock.
 
         Args:
-            redis_url: Redis connection URL.
+            valkey_url: Valkey connection URL.
                 Defaults to environment variable or localhost.
         """
-        self.redis_url: str = str(
-            redis_url
+        self.valkey_url: str = str(
+            valkey_url
             or settings.valkey_url.get_secret_value()
-            or "redis://localhost:6379/1"
+            or "valkey://localhost:6379/1"
         )
-        self.client: AsyncRedis | None = None
+        self.client: AsyncValkey | None = None
         self._lock_prefix: str = "audit_lock"
         self.release_script_sha: str | None = None
         logger.info(
-            "DistributedAuditLock initialized with Redis",
-            redis_url=_redact_url_credentials(self.redis_url),
+            "DistributedAuditLock initialized with Valkey",
+            valkey_url=_redact_url_credentials(self.valkey_url),
         )
 
     async def connect(self) -> None:
-        """Initialize Redis connection."""
+        """Initialize Valkey connection."""
         if self.client is None:
-            self.client = AsyncRedis.from_url(self.redis_url)
+            self.client = AsyncValkey.from_url(self.valkey_url)
             lua_script = (
-                '\n            if redis.call("get", KEYS[1]) == ARGV[1] then\n'
-                '                return redis.call("del", KEYS[1])\n'
+                '\n            if valkey.call("get", KEYS[1]) == ARGV[1] then\n'
+                '                return valkey.call("del", KEYS[1])\n'
                 '            else\n'
                 '                return 0\n'
                 '            end\n            '
             )
             self.release_script_sha = await self.client.script_load(lua_script)
             await self.client.ping()
-            logger.info("DistributedAuditLock connected to Redis")
+            logger.info("DistributedAuditLock connected to Valkey")
 
     async def disconnect(self) -> None:
-        """Close Redis connection."""
+        """Close Valkey connection."""
         if self.client:
             await self.client.aclose()
             self.client = None
-            logger.info("DistributedAuditLock disconnected from Redis")
+            logger.info("DistributedAuditLock disconnected from Valkey")
 
     def _get_lock_key(self, memory_id: str) -> str:
         """
@@ -113,7 +113,7 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-        self.client = cast(AsyncRedis, self.client)
+        self.client = cast(AsyncValkey, self.client)
         lock_key = self._get_lock_key(memory_id)
         return AuditLockContext(self.client, lock_key, timeout, self.release_script_sha)
 
@@ -129,7 +129,7 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-        self.client = cast(AsyncRedis, self.client)
+        self.client = cast(AsyncValkey, self.client)
         lock_key = self._get_lock_key(memory_id)
         return int(await self.client.exists(lock_key)) == 1
 
@@ -145,7 +145,7 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-        self.client = cast(AsyncRedis, self.client)
+        self.client = cast(AsyncValkey, self.client)
         lock_key = self._get_lock_key(memory_id)
         result = await self.client.delete(lock_key)
         if result:
@@ -166,7 +166,7 @@ class DistributedAuditLock:
         """
         if self.client is None:
             await self.connect()
-        self.client = cast(AsyncRedis, self.client)
+        self.client = cast(AsyncValkey, self.client)
         try:
             cleaned_count: int = 0
             lock_pattern = f"{self._lock_prefix}:*"
@@ -190,9 +190,9 @@ class DistributedAuditLock:
             if cleaned_count > 0:
                 logger.info("Cleaned up %d expired audit locks", cleaned_count)
             return cleaned_count
-        except RedisError as e:
-            logger.error("Redis error cleaning up expired audit locks: %s", e)
-            raise DatabaseError(f"Redis error during audit lock cleanup: {e}") from e
+        except ValkeyError as e:
+            logger.error("Valkey error cleaning up expired audit locks: %s", e)
+            raise DatabaseError(f"Valkey error during audit lock cleanup: {e}") from e
         except UnicodeDecodeError as e:
             logger.error("Unicode decode error in audit lock cleanup: %s", e)
             raise AuditError(f"Unicode decode error in audit lock cleanup: {e}") from e
@@ -225,7 +225,7 @@ class AuditLockContext:
 
     def __init__(
         self,
-        client: AsyncRedis,
+        client: AsyncValkey,
         lock_key: str,
         timeout: int,
         release_script_sha: str | None = None,
@@ -234,11 +234,11 @@ class AuditLockContext:
         Initialize the lock context.
 
         Args:
-            client: Redis async client.
+            client: Valkey async client.
             lock_key: The lock key to acquire.
             timeout: Lock timeout in seconds.
         """
-        self.client: AsyncRedis = client
+        self.client: AsyncValkey = client
         self.lock_key: str = lock_key
         self.timeout: int = timeout
         self.lock_value: str | None = None
@@ -282,8 +282,8 @@ class AuditLockContext:
             else:
                 logger.warning("Using eval fallback - script not loaded")
                 lua_script = (
-                    '\n                if redis.call("get", KEYS[1]) == ARGV[1] then\n'
-                    '                    return redis.call("del", KEYS[1])\n'
+                    '\n                if valkey.call("get", KEYS[1]) == ARGV[1] then\n'
+                    '                    return valkey.call("del", KEYS[1])\n'
                     '                else\n'
                     '                    return 0\n'
                     '                end\n                '
@@ -304,9 +304,9 @@ class AuditLockContext:
                     logger.debug(
                         "Audit lock %s was already expired/removed", self.lock_key
                     )
-        except RedisError as e:
-            logger.error("Redis error during lock release: %s", e)
-            raise DatabaseError(f"Redis error during lock release: {e}") from e
+        except ValkeyError as e:
+            logger.error("Valkey error during lock release: %s", e)
+            raise DatabaseError(f"Valkey error during lock release: {e}") from e
         except ValueError as e:
             logger.error("Value error during lock release: %s", e)
             raise AuditError(f"Value error during lock release: {e}") from e

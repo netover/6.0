@@ -21,7 +21,7 @@ async def test_semantic_cache_memory_mode_user_isolation(
     monkeypatch.setattr(sc, "ResyncVectorizer", _DummyVectorizer)
     monkeypatch.setattr(
         sc,
-        "get_redis_config",
+        "get_valkey_config",
         lambda: SimpleNamespace(
             semantic_cache_threshold=0.2,
             semantic_cache_ttl=60,
@@ -52,7 +52,7 @@ async def test_semantic_cache_memory_mode_invalidate_pattern(
     monkeypatch.setattr(sc, "ResyncVectorizer", _DummyVectorizer)
     monkeypatch.setattr(
         sc,
-        "get_redis_config",
+        "get_valkey_config",
         lambda: SimpleNamespace(
             semantic_cache_threshold=0.2,
             semantic_cache_ttl=60,

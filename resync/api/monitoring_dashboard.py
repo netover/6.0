@@ -50,15 +50,6 @@ VALKEY_KEY_PREV_WALLTIME = "resync:monitoring:prev_walltime"
 VALKEY_CH_BROADCAST = "resync:monitoring:broadcast"
 VALKEY_LOCK_COLLECTOR = "resync:monitoring:collector:lock"
 
-# Legacy aliases for backward compatibility
-REDIS_KEY_HISTORY = VALKEY_KEY_HISTORY
-REDIS_KEY_ALERTS = VALKEY_KEY_ALERTS
-REDIS_KEY_LATEST = VALKEY_KEY_LATEST
-REDIS_KEY_START_TIME = VALKEY_KEY_START_TIME
-REDIS_KEY_PREV_REQUESTS = VALKEY_KEY_PREV_REQUESTS
-REDIS_KEY_PREV_WALLTIME = VALKEY_KEY_PREV_WALLTIME
-REDIS_CH_BROADCAST = VALKEY_CH_BROADCAST
-REDIS_LOCK_COLLECTOR = VALKEY_LOCK_COLLECTOR
 
 # ── Helpers de Serialização ──────────────────────────────────────────────────
 
@@ -912,16 +903,17 @@ async def metrics_collector_loop() -> None:
     ws_manager = get_ws_manager()
     await ws_manager.start_sync()
     try:
-        while True:
+        from resync.core.loop_utils import run_resilient_loop
+        async def _step():
             try:
                 await collect_metrics_sample()
             except asyncio.CancelledError:
                 raise
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-                logger.exception(
-                    "Erro no collector loop ao executar collect_metrics_sample"
-                )
+                logger.exception("Erro no collector loop ao executar collect_metrics_sample")
             await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+
+        await run_resilient_loop("monitoring_dashboard.collector", _step, logger=logger, step_timeout_seconds=None)
     finally:
         await ws_manager.stop()
 

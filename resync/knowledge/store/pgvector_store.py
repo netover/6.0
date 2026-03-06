@@ -507,14 +507,14 @@ class PgVectorStore(VectorStore):
                 """
                 SELECT
                     document_id,
-                    chunk_index,
+                    chunk_id AS chunk_index,
                     content,
                     metadata,
                     created_at,
                     updated_at
                 FROM document_embeddings
                 WHERE collection_name = $1
-                ORDER BY document_id, chunk_index
+                ORDER BY document_id, chunk_id
                 LIMIT $2 OFFSET $3
                 """,
                 col,

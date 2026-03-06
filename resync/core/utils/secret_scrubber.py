@@ -44,9 +44,9 @@ SENSITIVE_PATTERNS = [
     r"database[_-]?password",
     r"db[_-]?password",
     r"postgres[_-]?password",
-    # Redis
-    r"redis[_-]?password",
-    r"redis[_-]?auth",
+    # Valkey
+    r"valkey[_-]?password",
+    r"valkey[_-]?auth",
     # JWT
     r"jwt[_-]?secret",
     # Session

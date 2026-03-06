@@ -19,6 +19,7 @@ v5.2.3.24: Added query classification cache and performance metrics.
 from __future__ import annotations
 
 import asyncio
+from resync.core.task_registry import create_tracked_task
 import gzip
 import hashlib
 import json
@@ -703,6 +704,7 @@ class HybridRetriever:
         self.config = config or HybridRetrieverConfig()
         self.bm25_index: BM25Index | None = None
         self._index_built = False
+        self._bm25_build_lock = asyncio.Lock()
         self._pending_save_task: asyncio.Task | None = None
         self._reranker: IReranker = create_reranker(
             enabled=self.config.enable_reranking
@@ -771,58 +773,61 @@ class HybridRetriever:
         """Build BM25 index if not already built, using persistent storage."""
         if self._index_built:
             return
-        index_path = INDEX_STORAGE_PATH
-        try:
-            import asyncio
-
-            logger.info(
-                "Attempting to load persisted BM25 index", extra={"path": index_path}
-            )
-            self.bm25_index = await asyncio.to_thread(BM25Index.load, index_path)
-            if self.bm25_index and self.bm25_index.documents:
-                self._index_built = True
-                logger.info(
-                    "BM25 index loaded from disk",
-                    extra={"num_docs": len(self.bm25_index.documents)},
-                )
+        async with self._bm25_build_lock:
+            if self._index_built:
                 return
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
-            logger.warning(
-                "BM25 index load failed, will rebuild", extra={"error": str(e)}
-            )
-        logger.info("Building fresh BM25 index from database")
-        try:
-            from resync.knowledge.store import get_vector_store
-
-            store = get_vector_store()
-            documents = await store.get_all_documents(collection=collection)
-            if documents:
-                self.bm25_index = BM25Index(
-                    k1=self.config.bm25_k1,
-                    b=self.config.bm25_b,
-                    field_boosts=self.config.field_boosts,
-                )
+            index_path = INDEX_STORAGE_PATH
+            try:
                 import asyncio
-                await asyncio.to_thread(self.bm25_index.build_index, documents)
-                self._index_built = True
-                self._pending_save_task = asyncio.create_task(
-                    self._save_index_async(index_path)
-                )
-                logger.info("BM25 index built and saved: %d docs", len(documents))
-            else:
-                logger.warning("No documents found for BM25 indexing")
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
 
-            logger.error("Failed to build BM25 index: %s", e)
+                logger.info(
+                    "Attempting to load persisted BM25 index", extra={"path": index_path}
+                )
+                self.bm25_index = await asyncio.to_thread(BM25Index.load, index_path)
+                if self.bm25_index and self.bm25_index.documents:
+                    self._index_built = True
+                    logger.info(
+                        "BM25 index loaded from disk",
+                        extra={"num_docs": len(self.bm25_index.documents)},
+                    )
+                    return
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
+                logger.warning(
+                    "BM25 index load failed, will rebuild", extra={"error": str(e)}
+                )
+            logger.info("Building fresh BM25 index from database")
+            try:
+                from resync.knowledge.store import get_vector_store
+
+                store = await get_vector_store()
+                documents = await store.get_all_documents(collection=collection)
+                if documents:
+                    self.bm25_index = BM25Index(
+                        k1=self.config.bm25_k1,
+                        b=self.config.bm25_b,
+                        field_boosts=self.config.field_boosts,
+                    )
+                    import asyncio
+                    await asyncio.to_thread(self.bm25_index.build_index, documents)
+                    self._index_built = True
+                    self._pending_save_task = create_tracked_task(
+                        self._save_index_async(index_path)
+                    )
+                    logger.info("BM25 index built and saved: %d docs", len(documents))
+                else:
+                    logger.warning("No documents found for BM25 indexing")
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+                import sys as _sys
+                from resync.core.exception_guard import maybe_reraise_programming_error
+                _exc_type, _exc, _tb = _sys.exc_info()
+                maybe_reraise_programming_error(_exc, _tb)
+
+                logger.error("Failed to build BM25 index: %s", e)
 
     async def _save_index_async(self, path: str) -> None:
         """Save BM25 index in background (non-blocking)."""

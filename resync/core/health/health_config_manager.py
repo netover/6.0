@@ -98,7 +98,7 @@ class HealthCheckConfigurationManager:
                 "timeout_seconds": config_dict.get("timeout_seconds", 30),
                 "retry_attempts": 3,
             },
-            "redis": {
+            "valkey": {
                 "timeout_seconds": config_dict.get("timeout_seconds", 30),
                 "retry_attempts": 2,
             },
@@ -437,7 +437,7 @@ class HealthCheckConfigurationManager:
         # All core components are enabled by default
         enabled_components = {
             "database",
-            "redis",
+            "valkey",
             "cache_hierarchy",
             "file_system",
             "memory",
@@ -461,7 +461,7 @@ class HealthCheckConfigurationManager:
         """
         component_configs = {
             "database": {"max_retries": 3, "backoff_multiplier": 2},
-            "redis": {"max_retries": 2, "backoff_multiplier": 2},
+            "valkey": {"max_retries": 2, "backoff_multiplier": 2},
             "cache_hierarchy": {"max_retries": 2, "backoff_multiplier": 2},
             "file_system": {"max_retries": 2, "backoff_multiplier": 2},
             "memory": {"max_retries": 1, "backoff_multiplier": 1},

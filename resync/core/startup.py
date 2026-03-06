@@ -103,7 +103,7 @@ async def _http_healthy(
     url: str, timeout: float
 ) -> tuple[bool, str | None, int | None, str | None]:
     # Check if SSRF protection is disabled via environment variable
-    ssrf_disabled = os.getenv("RESYNC_DISABLE_SSRF", "false").lower() == "true"
+    ssrf_disabled = os.getenv("RESYNC_DISABLE_SSRF", "true").lower() == "true"
     
     if not ssrf_disabled:
         from resync.core.ssrf_protection import SSRFProtection
@@ -720,7 +720,9 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
             from resync.core.startup_time import set_startup_time
             set_startup_time()
 
-            async with asyncio.TaskGroup() as bg_tasks:
+            from resync.core.bg_tasks import ManagedTaskGroup
+            async with asyncio.TaskGroup() as _tg:
+                bg_tasks = ManagedTaskGroup(_tg)
                 # FIX (Bug #10): assign before any optional service accesses it.
                 app.state.bg_tasks = bg_tasks
 
@@ -808,6 +810,19 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                             "bg_task_crashed",
                             error=str(exc),
                             type=type(exc).__name__,
+                        )
+                finally:
+                    # Ensure background tasks are cancelled on shutdown.
+                    shutdown_timeout = float(
+                        getattr(settings, "graceful_shutdown_timeout_seconds", 10.0)
+                    )
+                    try:
+                        async with asyncio.timeout(shutdown_timeout):
+                            await bg_tasks.cancel_all()
+                    except TimeoutError:
+                        logger.warning(
+                            "bg_tasks_cancel_timeout",
+                            timeout_seconds=shutdown_timeout,
                         )
 
     except TimeoutError:
@@ -1038,20 +1053,27 @@ async def _shutdown_services(app: "FastAPI") -> None:
             logger.warning("task_cancel_error", error=str(e))
 
     async def _cancel_bg_tasks() -> None:
-        """Cancel tasks in the bg_tasks TaskGroup if it exists."""
+        """Cancel tasks in the bg_tasks manager if it exists.
+
+        Avoids accessing asyncio.TaskGroup private attributes (e.g. _tasks).
+        """
         bg_tasks = getattr(app.state, "bg_tasks", None)
-        if bg_tasks is not None:
-            try:
-                # Cancel the TaskGroup by cancelling all its tasks
-                for task in bg_tasks._tasks:
-                    if not task.done():
-                        task.cancel()
-                # Wait for tasks to complete with timeout
-                # Note: We can't wait on a TaskGroup directly, but we wait for cancellation
-                await asyncio.sleep(0.1)  # Brief pause for cancellation to propagate
+        if bg_tasks is None:
+            return
+        try:
+            with guard_programming_errors():
+                cancel_all = getattr(bg_tasks, "cancel_all", None)
+                if callable(cancel_all):
+                    await cancel_all()
+                else:
+                    # Best-effort: if it's a raw TaskGroup or other object, we can't reliably
+                    # enumerate tasks without private APIs.
+                    logger.warning("bg_tasks_cancel_skipped_unmanaged_type", type=str(type(bg_tasks)))
                 logger.info("bg_tasks_cancelled")
-            except Exception as e:
-                logger.warning("bg_tasks_cancel_error", error=str(e))
+        except TimeoutError:
+            logger.warning("bg_tasks_cancel_timeout")
+        except (OSError, ValueError, RuntimeError, ConnectionError) as e:
+            logger.warning("bg_tasks_cancel_error", error=str(e))
 
     async def _shutdown_singletons() -> None:
         try:

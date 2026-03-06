@@ -34,7 +34,7 @@ def get_idempotency_manager(request: Request) -> IdempotencyManager:
     """Get IdempotencyManager from the canonical enterprise state.
 
     The HTTP path uses a single typed container stored on ``app.state.enterprise_state``.
-    This dependency fails fast with 503 when Redis is unavailable, rather than returning
+    This dependency fails fast with 503 when Valkey is unavailable, rather than returning
     a degraded object with a mismatched interface (which would crash later).
     """
     from resync.core.types.app_state import enterprise_state_from_request
@@ -144,7 +144,7 @@ async def get_current_user(
         Um dicionário representando o usuário ou None se não autenticado.
 
     Raises:
-        AuthenticationError: Se houver erro de infraestrutura (Redis, parsing, etc)
+        AuthenticationError: Se houver erro de infraestrutura (Valkey, parsing, etc)
     """
     if not credentials:
         return None
@@ -175,7 +175,7 @@ async def get_current_user(
         maybe_reraise_programming_error(_exc, _tb)
 
         # BUG FIX: Log and re-raise infrastructure errors instead of silently swallowing them
-        # This prevents masking serious issues like Redis unavailability or token parsing errors
+        # This prevents masking serious issues like Valkey unavailability or token parsing errors
         logger.error("Authentication infrastructure error", error=str(e), exc_info=True)
         # Re-raise as authentication error to inform the client appropriately
         raise AuthenticationError(

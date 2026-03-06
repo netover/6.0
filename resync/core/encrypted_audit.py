@@ -305,8 +305,12 @@ class KeyManager:
             try:
                 with open(master_key_file, "rb") as f:
                     return base64.b64decode(f.read())
+            except asyncio.CancelledError:
+                raise
             except Exception:
-                pass
+
+                import logging
+                logging.getLogger(__name__).debug("Ignored exception in /mnt/data/proj_v5/resync/core/encrypted_audit.py", exc_info=True)
         
         new_master_key = secrets.token_bytes(32)
         try:
@@ -314,7 +318,10 @@ class KeyManager:
             with open(master_key_file, "wb") as f:
                 f.write(base64.b64encode(new_master_key))
             os.chmod(master_key_file, 0o600)
+        except asyncio.CancelledError:
+            raise
         except Exception:
+
             logger.warning("Could not persist master key - keys will not survive restart")
         return new_master_key
 

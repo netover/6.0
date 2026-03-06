@@ -86,7 +86,7 @@ class CoreHealthResponse(BaseModel):
     summary: dict[str, Any]
 
 # Core components that are critical for system operation
-CORE_COMPONENTS = {"database", "redis", "connection_pools", "file_system"}
+CORE_COMPONENTS = {"database", "valkey", "connection_pools", "file_system"}
 
 @router.get("/", response_model=HealthSummaryResponse)
 async def get_health_summary(
@@ -537,62 +537,62 @@ async def recover_component(component_name: str) -> dict[str, Any]:
             },
         ) from e
 
-@router.get("/redis")
-async def get_redis_health() -> dict[str, Any]:
+@router.get("/valkey")
+async def get_valkey_health() -> dict[str, Any]:
     """
-    Get detailed Redis health check with connection validation.
+    Get detailed Valkey health check with connection validation.
 
-    This endpoint performs explicit Redis connectivity testing and returns
+    This endpoint performs explicit Valkey connectivity testing and returns
     critical status information for idempotency guarantee validation.
 
     Returns:
-        dict[str, Any]: Redis health status with connection details
+        dict[str, Any]: Valkey health status with connection details
     """
     try:
         health_service = await get_unified_health_service()
         health_result = await health_service.perform_comprehensive_health_check()
 
-        redis_component = health_result.components.get("redis")
+        valkey_component = health_result.components.get("valkey")
 
-        if not redis_component:
+        if not valkey_component:
             return {
                 "status": "critical",
-                "message": "Redis component not found in health check",
+                "message": "Valkey component not found in health check",
                 "idempotency_safe": False,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        # Additional Redis-specific validation
-        redis_details = {
-            "status": redis_component.status.value,
-            "status_color": get_status_color(redis_component.status),
-            "message": redis_component.message,
+        # Additional Valkey-specific validation
+        valkey_details = {
+            "status": valkey_component.status.value,
+            "status_color": get_status_color(valkey_component.status),
+            "message": valkey_component.message,
             "last_check": (
-                redis_component.last_check.isoformat()
-                if redis_component.last_check
+                valkey_component.last_check.isoformat()
+                if valkey_component.last_check
                 else None
             ),
-            "response_time_ms": redis_component.response_time_ms,
-            "details": redis_component.metadata or {},
+            "response_time_ms": valkey_component.response_time_ms,
+            "details": valkey_component.metadata or {},
         }
 
         # Determine if system can guarantee idempotency
-        idempotency_safe = redis_component.status == HealthStatus.HEALTHY
+        idempotency_safe = valkey_component.status == HealthStatus.HEALTHY
 
         if not idempotency_safe:
             logger.warning(
-                "Redis health check failed - idempotency may be compromised",
-                extra={"redis_status": redis_component.status.value},
+                "Valkey health check failed - idempotency may be compromised",
+                extra={"valkey_status": valkey_component.status.value},
             )
 
         return {
             "status": "healthy" if idempotency_safe else "critical",
             "idempotency_safe": idempotency_safe,
-            "redis": redis_details,
+            "valkey": valkey_details,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "correlation_id": health_result.correlation_id,
             "warning": (
-                "Redis unavailable - idempotency guarantees compromised"
+                "Valkey unavailable - idempotency guarantees compromised"
                 if not idempotency_safe
                 else None
             ),
@@ -609,14 +609,14 @@ async def get_redis_health() -> dict[str, Any]:
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(e, PROGRAMMING_ERRORS):
             raise
-        logger.error("Error checking Redis health: %s", e, exc_info=True)
+        logger.error("Error checking Valkey health: %s", e, exc_info=True)
         return {
             "status": "critical",
             "idempotency_safe": False,
             "error": str(e),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "warning": (
-                "Redis health check failed - system cannot "
+                "Valkey health check failed - system cannot "
                 "guarantee idempotency"
             ),
         }
@@ -636,9 +636,9 @@ async def list_components() -> dict[str, list[dict[str, str]]]:
             "description": "Database connectivity and performance",
         },
         {
-            "name": "redis",
-            "type": ComponentType.REDIS.value,
-            "description": "Redis cache connectivity",
+            "name": "valkey",
+            "type": ComponentType.VALKEY.value,
+            "description": "Valkey cache connectivity",
         },
         {
             "name": "cache_hierarchy",

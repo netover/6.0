@@ -36,5 +36,5 @@ python scripts/init_db.py
 
 echo "✅ Install complete."
 echo "Next:"
-echo "  - Export APP_DATABASE_URL and APP_REDIS_URL (or configure .env)"
+echo "  - Export APP_DATABASE_URL and APP_VALKEY_URL (or configure .env)"
 echo "  - Run: source $VENV_DIR/bin/activate && uvicorn resync.main:app --host 0.0.0.0 --port 8000"

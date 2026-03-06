@@ -58,23 +58,23 @@ content = content.replace(old_add_error, new_add_error)
 
 # 3.3 Improve get_global_uptime
 old_uptime = """    async def get_global_uptime(self) -> float:
-        redis = get_redis_client()
+        valkey = get_valkey_client()
         try:
             now = time.time()
-            was_set = await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
-            raw = await redis.get(REDIS_KEY_START_TIME)
+            was_set = await valkey.set(VALKEY_KEY_START_TIME, str(now), nx=True)
+            raw = await valkey.get(VALKEY_KEY_START_TIME)
             return now - float(raw or now)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError): return 0.0"""
 
 new_uptime = """    async def get_global_uptime(self) -> float:
-        redis = get_redis_client()
+        valkey = get_valkey_client()
         try:
             now = time.time()
-            await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
-            raw = await redis.get(REDIS_KEY_START_TIME)
+            await valkey.set(VALKEY_KEY_START_TIME, str(now), nx=True)
+            raw = await valkey.get(VALKEY_KEY_START_TIME)
             return now - float(raw or now)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-            logger.debug("Falha ao obter uptime global do Redis")
+            logger.debug("Falha ao obter uptime global do Valkey")
             return 0.0"""
 content = content.replace(old_uptime, new_uptime)
 
@@ -115,19 +115,19 @@ content = content.replace(
 
 # 3.1 Fix lock management in collect_metrics_sample
 old_collect = """async def collect_metrics_sample() -> None:
-    \"\"\"Apenas um worker coleta por vez (Liderança via Redis Lock).\"\"\"
-    redis = get_redis_client()
-    if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=8, nx=True):
+    \"\"\"Apenas um worker coleta por vez (Liderança via Valkey Lock).\"\"\"
+    valkey = get_valkey_client()
+    if not await valkey.set(VALKEY_LOCK_COLLECTOR, "leader", ex=8, nx=True):
         return
 
     try:
         snapshot = runtime_metrics.get_snapshot()"""
 
 new_collect = """async def collect_metrics_sample() -> None:
-    \"\"\"Apenas um worker coleta por vez (Liderança via Redis Lock).\"\"\"
-    redis = get_redis_client()
+    \"\"\"Apenas um worker coleta por vez (Liderança via Valkey Lock).\"\"\"
+    valkey = get_valkey_client()
     # Aumentado TTL para 15s para maior segurança contra sobreposição
-    if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=15, nx=True):
+    if not await valkey.set(VALKEY_LOCK_COLLECTOR, "leader", ex=15, nx=True):
         return
 
     try:
@@ -145,11 +145,11 @@ content = content.replace(old_collect, new_collect)
 #        ...
 #    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
 #        ...
-#        await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+#        await valkey.publish(VALKEY_CH_BROADCAST, json_dumps(current))
 
 # To be safe, I'll replace the whole function.
 
-old_collect_func = r"async def collect_metrics_sample\(\) -> None:.*?await redis\.publish\(REDIS_CH_BROADCAST, json_dumps\(current\)\)"
+old_collect_func = r"async def collect_metrics_sample\(\) -> None:.*?await valkey\.publish\(VALKEY_CH_BROADCAST, json_dumps\(current\)\)"
 # Wait, there's another publish in the try block.
 
 # I'll re-read the file to be sure about the structure of collect_metrics_sample

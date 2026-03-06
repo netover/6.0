@@ -199,7 +199,7 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         description="Allowed CORS origins (comma-separated)",
         default_value="*",
     ),
-    # Cache (Valkey - Redis Alternative)
+    # Cache (Valkey - Valkey Alternative)
     "VALKEY_HOST": EnvironmentVariable(
         name="VALKEY_HOST",
         category=VariableCategory.CACHE,
@@ -226,28 +226,28 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         default_value="0",
         validation_pattern=r"^\d+$",
     ),
-    # Legacy Redis variables (for backward compatibility)
-    "REDIS_HOST": EnvironmentVariable(
-        name="REDIS_HOST",
+    # Legacy Valkey variables (for backward compatibility)
+    "VALKEY_HOST": EnvironmentVariable(
+        name="VALKEY_HOST",
         category=VariableCategory.CACHE,
         description="Valkey server hostname (legacy alias)",
         default_value="localhost",
     ),
-    "REDIS_PORT": EnvironmentVariable(
-        name="REDIS_PORT",
+    "VALKEY_PORT": EnvironmentVariable(
+        name="VALKEY_PORT",
         category=VariableCategory.CACHE,
         description="Valkey server port (legacy alias)",
         default_value="6379",
         validation_pattern=r"^\d+$",
     ),
-    "REDIS_PASSWORD": EnvironmentVariable(
-        name="REDIS_PASSWORD",
+    "VALKEY_PASSWORD": EnvironmentVariable(
+        name="VALKEY_PASSWORD",
         category=VariableCategory.CACHE,
         description="Valkey password (legacy alias)",
         is_sensitive=True,
     ),
-    "REDIS_DB": EnvironmentVariable(
-        name="REDIS_DB",
+    "VALKEY_DB": EnvironmentVariable(
+        name="VALKEY_DB",
         category=VariableCategory.CACHE,
         description="Valkey database number (legacy alias)",
         default_value="0",

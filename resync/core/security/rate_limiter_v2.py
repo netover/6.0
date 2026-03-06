@@ -8,7 +8,7 @@ Why not depend on external libraries?
   sliding-window limiter is reliable, low-dependency, and easy to audit.
 - Each Gunicorn worker maintains its own limiter (acceptable for this scale).
 - If you later deploy behind a load balancer / multiple nodes, you can switch
-  to a Redis-backed limiter without changing the call sites.
+  to a Valkey-backed limiter without changing the call sites.
 
 Design goals:
 - Fail-closed in production ONLY if explicitly enabled (RATE_LIMIT_ENABLED=true).
@@ -24,6 +24,7 @@ References:
 from __future__ import annotations
 
 import asyncio
+from resync.core.task_registry import create_tracked_task
 import functools
 import os
 import re
@@ -58,6 +59,10 @@ API_LIMIT_WINDOW_SECONDS = _env_int("RATE_LIMIT_API_WINDOW_SECONDS", 60)
 
 WS_CONNECT_LIMIT_REQUESTS = _env_int("RATE_LIMIT_WS_CONNECT_REQUESTS", 20)
 WS_CONNECT_WINDOW_SECONDS = _env_int("RATE_LIMIT_WS_CONNECT_WINDOW_SECONDS", 60)
+
+# Per-message rate limit (per client IP). Protects LLM spend and CPU.
+WS_MESSAGE_LIMIT_REQUESTS = _env_int("RATE_LIMIT_WS_MESSAGE_REQUESTS", 60)
+WS_MESSAGE_WINDOW_SECONDS = _env_int("RATE_LIMIT_WS_MESSAGE_WINDOW_SECONDS", 60)
 
 # Comma-separated path prefixes that bypass rate limiting.
 # Health endpoints should be cheap and always reachable by monitoring.
@@ -98,11 +103,12 @@ class SlidingWindowLimiter:
     def _ensure_cleanup_task(self) -> None:
         """Start best-effort background cleanup task once per worker process."""
         if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            self._cleanup_task = create_tracked_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
         """Evict stale limiter keys to avoid unbounded memory growth."""
-        while True:
+        from resync.core.loop_utils import run_resilient_loop
+        async def _step():
             await asyncio.sleep(self._cleanup_interval_seconds)
             now = time.monotonic()
             stale_cutoff = now - float(self._stale_after_seconds)
@@ -226,6 +232,14 @@ async def ws_allow_connect(client_ip: str) -> tuple[bool, int]:
         return True, 0
     key = f"ws:{client_ip}"
     return await _LIMITER.allow(key, Limit(WS_CONNECT_LIMIT_REQUESTS, WS_CONNECT_WINDOW_SECONDS))
+
+
+async def ws_allow_message(client_ip: str) -> tuple[bool, int]:
+    """Rate limit for websocket messages (not connects)."""
+    if not RATE_LIMIT_ENABLED:
+        return True, 0
+    key = f"wsmsg:{client_ip}"
+    return await _LIMITER.allow(key, Limit(WS_MESSAGE_LIMIT_REQUESTS, WS_MESSAGE_WINDOW_SECONDS))
 
 def setup_rate_limiting(app) -> None:
     """

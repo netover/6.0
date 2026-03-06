@@ -6,7 +6,7 @@ Enables follow-up questions like:
 - "Show me job X" -> "What's the error?" -> "Restart it"
 
 Storage backends:
-- Redis (recommended for production)
+- Valkey (recommended for production)
 - In-memory (fallback for development)
 """
 
@@ -203,12 +203,12 @@ class MemoryStore(ABC):
         """List active session IDs."""
 
 # =============================================================================
-# REDIS MEMORY STORE
+# VALKEY MEMORY STORE
 # =============================================================================
 
-class RedisMemoryStore(MemoryStore):
+class ValkeyMemoryStore(MemoryStore):
     """
-    Redis-backed memory store for production use.
+    Valkey-backed memory store for production use.
 
     Features:
     - Automatic TTL expiration
@@ -218,37 +218,37 @@ class RedisMemoryStore(MemoryStore):
 
     def __init__(
         self,
-        redis_url: str | None = None,
+        valkey_url: str | None = None,
         key_prefix: str = "resync:memory:",
         ttl_seconds: int = 3600,  # 1 hour default
     ):
         self.key_prefix = key_prefix
         self.ttl_seconds = ttl_seconds
-        self._redis = None
-        self._redis_url = redis_url
+        self._valkey = None
+        self._valkey_url = valkey_url
 
-    async def _get_redis(self):
-        """Lazy initialize Redis connection."""
-        if self._redis is None:
+    async def _get_valkey(self):
+        """Lazy initialize Valkey connection."""
+        if self._valkey is None:
             try:
-                import redis.asyncio as aioredis
+                import valkey.asyncio as aioredis
 
-                redis_url = self._redis_url
-                if not redis_url:
+                valkey_url = self._valkey_url
+                if not valkey_url:
                     from resync.settings import settings
 
-                    redis_url = settings.valkey_url
+                    valkey_url = settings.valkey_url
 
-                # `redis.asyncio.from_url` returns a client instance (not awaitable).
+                # `valkey.asyncio.from_url` returns a client instance (not awaitable).
                 # Also ensure SecretStr values are unwrapped.
-                if hasattr(redis_url, "get_secret_value"):
-                    redis_url = redis_url.get_secret_value()
-                self._redis = aioredis.from_url(
-                    str(redis_url),
+                if hasattr(valkey_url, "get_secret_value"):
+                    valkey_url = valkey_url.get_secret_value()
+                self._valkey = aioredis.from_url(
+                    str(valkey_url),
                     encoding="utf-8",
                     decode_responses=True,
                 )
-                logger.info("Redis memory store connected")
+                logger.info("Valkey memory store connected")
 
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
@@ -256,33 +256,33 @@ class RedisMemoryStore(MemoryStore):
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
 
-                logger.error("Redis connection failed: %s", e)
+                logger.error("Valkey connection failed: %s", e)
                 raise
 
-        return self._redis
+        return self._valkey
 
     def _key(self, session_id: str) -> str:
-        """Generate Redis key for session."""
+        """Generate Valkey key for session."""
         return f"{self.key_prefix}{session_id}"
 
     async def save_context(self, context: ConversationContext) -> None:
-        """Save context to Redis with TTL."""
-        redis = await self._get_redis()
+        """Save context to Valkey with TTL."""
+        valkey = await self._get_valkey()
         key = self._key(context.session_id)
 
         data = json.dumps(context.to_dict())
-        await redis.setex(key, self.ttl_seconds, data)
+        await valkey.setex(key, self.ttl_seconds, data)
 
         logger.debug(
             "Saved context %s, %s messages", context.session_id, len(context.messages)
         )
 
     async def load_context(self, session_id: str) -> ConversationContext | None:
-        """Load context from Redis."""
-        redis = await self._get_redis()
+        """Load context from Valkey."""
+        valkey = await self._get_valkey()
         key = self._key(session_id)
 
-        data = await redis.get(key)
+        data = await valkey.get(key)
         if not data:
             return None
 
@@ -298,20 +298,20 @@ class RedisMemoryStore(MemoryStore):
             return None
 
     async def delete_context(self, session_id: str) -> bool:
-        """Delete context from Redis."""
-        redis = await self._get_redis()
+        """Delete context from Valkey."""
+        valkey = await self._get_valkey()
         key = self._key(session_id)
 
-        result = await redis.delete(key)
+        result = await valkey.delete(key)
         return result > 0
 
     async def list_sessions(self, limit: int = 100) -> list[str]:
         """List active sessions."""
-        redis = await self._get_redis()
+        valkey = await self._get_valkey()
         pattern = f"{self.key_prefix}*"
 
         keys = []
-        async for key in redis.scan_iter(pattern, count=limit):
+        async for key in valkey.scan_iter(pattern, count=limit):
             session_id = key.replace(self.key_prefix, "")
             keys.append(session_id)
             if len(keys) >= limit:
@@ -320,10 +320,10 @@ class RedisMemoryStore(MemoryStore):
         return keys
 
     async def close(self) -> None:
-        """Close Redis connection."""
-        if self._redis:
-            await self._redis.close()
-            self._redis = None
+        """Close Valkey connection."""
+        if self._valkey:
+            await self._valkey.close()
+            self._valkey = None
 
 # =============================================================================
 # IN-MEMORY STORE (FALLBACK)
@@ -333,7 +333,7 @@ class InMemoryStore(MemoryStore):
     """
     In-memory store for development/testing.
 
-    WARNING: Data is lost on restart. Use Redis for production.
+    WARNING: Data is lost on restart. Use Valkey for production.
     """
 
     def __init__(self, max_sessions: int = 1000):
@@ -413,17 +413,17 @@ class ConversationMemory:
         if self._store is not None:
             return self._store
 
-        # Try Redis first, fall back to in-memory
+        # Try Valkey first, fall back to in-memory
         try:
             from resync.settings import settings
 
-            if not getattr(settings, "disable_redis", False):
-                self._store = RedisMemoryStore(
+            if not getattr(settings, "disable_valkey", False):
+                self._store = ValkeyMemoryStore(
                     ttl_seconds=self._timeout,
                 )
                 # Test connection
-                await self._store._get_redis()
-                logger.info("Using Redis for conversation memory")
+                await self._store._get_valkey()
+                logger.info("Using Valkey for conversation memory")
                 return self._store
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -432,7 +432,7 @@ class ConversationMemory:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Redis not available for memory: %s", e)
+            logger.warning("Valkey not available for memory: %s", e)
 
         # Fall back to in-memory
         self._store = InMemoryStore()
@@ -558,7 +558,7 @@ __all__ = [
     "Message",
     "ConversationContext",
     "MemoryStore",
-    "RedisMemoryStore",
+    "ValkeyMemoryStore",
     "InMemoryStore",
     "ConversationMemory",
     "get_conversation_memory",

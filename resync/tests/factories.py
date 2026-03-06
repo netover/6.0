@@ -390,7 +390,7 @@ class HealthCheckFactory(DictFactory):
             "status": "healthy",
             "checks": {
                 "database": {"status": "healthy", "latency_ms": 5},
-                "redis": {"status": "healthy", "latency_ms": 2},
+                "valkey": {"status": "healthy", "latency_ms": 2},
                 "tws": {"status": "healthy", "connections": 3},
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -404,7 +404,7 @@ class HealthCheckFactory(DictFactory):
             "status": "degraded",
             "checks": {
                 "database": {"status": "healthy", "latency_ms": 150},
-                "redis": {"status": "degraded", "latency_ms": 500},
+                "valkey": {"status": "degraded", "latency_ms": 500},
                 "tws": {"status": "healthy", "connections": 1},
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -418,7 +418,7 @@ class HealthCheckFactory(DictFactory):
             "status": "unhealthy",
             "checks": {
                 "database": {"status": "unhealthy", "error": "Connection refused"},
-                "redis": {"status": "healthy", "latency_ms": 2},
+                "valkey": {"status": "healthy", "latency_ms": 2},
                 "tws": {"status": "unhealthy", "error": "Timeout"},
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),

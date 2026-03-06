@@ -22,7 +22,7 @@ from resync.knowledge.retrieval.hybrid_retriever import INDEX_STORAGE_PATH
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/admin/rag", tags=["RAG Admin"])
+router = APIRouter(prefix="/rag", tags=["RAG Admin"])
 
 class IndexStatus(BaseModel):
     """Status do índice BM25."""

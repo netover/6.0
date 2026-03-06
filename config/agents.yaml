@@ -3,14 +3,14 @@
 # ============================================================================
 
 defaults:
-  model: "openrouter/ai/qwen-2.5-72b-instruct"
+  model: "openrouter/free"
   memory: true
   max_rpm: 60
 
 model_aliases:
-  default: "openrouter/ai/qwen-2.5-72b-instruct"
-  fast: "openrouter/ai/qwen-2.5-72b-instruct"
-  powerful: "openrouter/ai/qwen-2.5-72b-instruct"
+  default: "openrouter/free"
+  fast: "openrouter/free"
+  powerful: "openrouter/free"
 
 agents:
   # General Assistant - Primary chat interface
@@ -25,7 +25,7 @@ agents:
     tools:
       - get_tws_status
       - analyze_tws_failures
-    model: "openrouter/ai/qwen-2.5-72b-instruct"
+    model: "openrouter/free"
     memory: true
 
   # Troubleshooting Specialist
@@ -40,5 +40,5 @@ agents:
     tools:
       - get_tws_status
       - analyze_tws_failures
-    model: "openrouter/ai/qwen-2.5-72b-instruct"
+    model: "openrouter/free"
     memory: true

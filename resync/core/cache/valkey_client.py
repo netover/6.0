@@ -83,7 +83,7 @@ class ValkeyClient:
             await self._client.hexpire(key, ex, field)  # Novo no Valkey 9
         except Exception:
             # Fallback for client versions that don't have hexpire yet
-            # or if using a generic redis client that doesn't support it
+            # or if using a generic valkey client that doesn't support it
             pass
     
     async def use_db(self, db: int) -> None:

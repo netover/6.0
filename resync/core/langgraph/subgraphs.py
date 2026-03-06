@@ -29,6 +29,7 @@ import json
 import re
 import time
 from typing import Annotated, Any, TypedDict
+from resync.core.langgraph.state_delta import wrap_langgraph_node
 
 from resync.core.structured_logger import get_logger
 
@@ -228,9 +229,9 @@ def create_diagnostic_subgraph():
 
     graph = StateGraph(DiagnosticSubgraphState)
 
-    graph.add_node("diagnose", _diagnose_node)
-    graph.add_node("research", _research_node)
-    graph.add_node("synthesize", _synthesize_diagnosis_node)
+    graph.add_node("diagnose", wrap_langgraph_node(_diagnose_node))
+    graph.add_node("research", wrap_langgraph_node(_research_node))
+    graph.add_node("synthesize", wrap_langgraph_node(_synthesize_diagnosis_node))
 
     graph.set_entry_point("diagnose")
 
@@ -436,10 +437,10 @@ def create_parallel_subgraph():
 
     graph = StateGraph(ParallelFetchState)
 
-    graph.add_node("fetch_tws", _fetch_tws_status)
-    graph.add_node("fetch_rag", _fetch_rag_context)
-    graph.add_node("fetch_logs", _fetch_logs)
-    graph.add_node("aggregate", _aggregate_results)
+    graph.add_node("fetch_tws", wrap_langgraph_node(_fetch_tws_status))
+    graph.add_node("fetch_rag", wrap_langgraph_node(_fetch_rag_context))
+    graph.add_node("fetch_logs", wrap_langgraph_node(_fetch_logs))
+    graph.add_node("aggregate", wrap_langgraph_node(_aggregate_results))
 
     graph.set_entry_point("fetch_tws")  # Will be parallelized via Send
 
@@ -557,8 +558,8 @@ def create_approval_subgraph():
 
     graph = StateGraph(ApprovalState)
 
-    graph.add_node("request_approval", _request_approval_node)
-    graph.add_node("execute", _execute_action_node)
+    graph.add_node("request_approval", wrap_langgraph_node(_request_approval_node))
+    graph.add_node("execute", wrap_langgraph_node(_execute_action_node))
 
     graph.set_entry_point("request_approval")
 

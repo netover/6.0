@@ -128,7 +128,7 @@ def test_admin_ui_renders_and_serves_css() -> None:
     """
 
     # ------------------------------------------------------------------
-    # Layer 1: Minimal render check (no database/redis required)
+    # Layer 1: Minimal render check (no database/valkey required)
     # ------------------------------------------------------------------
     from fastapi import FastAPI
     from fastapi.responses import HTMLResponse

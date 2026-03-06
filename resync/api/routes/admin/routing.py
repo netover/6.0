@@ -3,7 +3,7 @@ from typing import Any
 from resync.api.routes.core.auth import verify_admin_credentials
 from resync.core.metrics.runtime_metrics import runtime_metrics
 
-router = APIRouter(prefix="/admin/routing", tags=["Admin", "Routing"])
+router = APIRouter(prefix="/routing", tags=["Admin", "Routing"])
 
 @router.get("/recent", summary="Get recent routing decisions")
 async def get_recent_decisions(

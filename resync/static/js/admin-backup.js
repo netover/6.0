@@ -7,10 +7,10 @@ class AdminBackup {
     constructor(app) {
         this.app = app;
         this.api = app.api;
-        // The backup router has a prefix '/admin/backup' and is mounted under '/api/v1/admin'
-        // resulting in '/api/v1/admin/admin/backup'. 
-        // If this 404s, try '/api/v1/admin/backup' (if backend changed).
-        this.basePath = '/api/v1/admin/admin/backup';
+        // The backup router is mounted under '/api/v1/admin' and exposes endpoints at:
+        //   /api/v1/admin/backup
+        // (Older builds mistakenly generated a duplicated '/admin' segment.)
+        this.basePath = '/api/v1/admin/backup';
     }
 
     async loadBackupView() {

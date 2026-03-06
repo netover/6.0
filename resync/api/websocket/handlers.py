@@ -8,9 +8,10 @@ import os
 import time
 import sys
 import orjson
+import uuid
 
 from fastapi import WebSocket, WebSocketDisconnect, status
-from resync.core.security.rate_limiter_v2 import ws_allow_connect
+from resync.core.security.rate_limiter_v2 import ws_allow_connect, ws_allow_message
 
 from resync.core.context import set_trace_id, set_user_id
 from resync.core.trace_utils import hash_user_id, normalize_trace_id
@@ -217,7 +218,7 @@ manager = AgentConnectionManager()
 ConnectionManager = AgentConnectionManager
 
 
-async def _generate_llm_response(agent_id: str, content: str) -> str:
+async def _generate_llm_response(agent_id: str, content: str, *, conversation_id: str) -> str:
     """P0-07 FIX: Use UnifiedAgent for consistent LLM-first behavior.
     
     This ensures WebSocket uses the same LLM tool calling logic as REST API.
@@ -230,8 +231,9 @@ async def _generate_llm_response(agent_id: str, content: str) -> str:
         # NEW v6.2: Use UnifiedAgent.chat() which calls LLM with tool calling
         response = await unified_agent.chat(
             message=content,
+            agent_id=agent_id,
             include_history=True,  # Enable conversation context
-            conversation_id=f"ws_{agent_id}",  # Separate history per WebSocket agent
+            conversation_id=conversation_id,  # Strict per-connection isolation
         )
         
         return response
@@ -276,6 +278,12 @@ async def websocket_handler(
     )
     set_trace_id(trace_id)
     set_user_id(user_id)
+
+    # Strict per-connection conversation id (prevents cross-user history leakage)
+    conversation_id = websocket.query_params.get("session_id")
+    if not conversation_id:
+        conversation_id = f"ws:{hash_user_id(user_id)}:{uuid.uuid4().hex}"
+    websocket.state.conversation_id = conversation_id
 
 
     # P0-21 FIX: Verify connection was successful (not rate-limited)
@@ -336,8 +344,36 @@ async def websocket_handler(
                     is_json = False
 
                 if message_type == "chat_message" or not is_json:
+                    # Rate limit message bursts (per IP). Protects CPU + LLM cost.
+                    client_ip = getattr(getattr(websocket, "client", None), "host", None) or "unknown"
+                    allowed_msg, retry_after = await ws_allow_message(client_ip)
+                    if not allowed_msg:
+                        await manager.send_personal_message(
+                            orjson.dumps({
+                                "type": "error",
+                                "message": f"Rate limit exceeded. Retry after ~{retry_after}s",
+                                "agent_id": agent_id,
+                            }).decode("utf-8"),
+                            websocket,
+                        )
+                        continue
+
                     # Process message with AI agent
                     content = message_data.get("content", data if not is_json else "")
+
+                    want_stream = bool(message_data.get("stream")) if is_json else True
+                    stream_id = uuid.uuid4().hex
+
+                    if want_stream:
+                        await manager.send_personal_message(
+                            orjson.dumps({
+                                "type": "stream_start",
+                                "stream_id": stream_id,
+                                "agent_id": agent_id,
+                                "is_final": False,
+                            }).decode("utf-8"),
+                            websocket,
+                        )
 
                     # Send initial streaming response
                     response = {
@@ -351,17 +387,53 @@ async def websocket_handler(
                     await manager.send_personal_message(orjson.dumps(response).decode("utf-8"), websocket)
 
                     # Generate AI response
-                    ai_response = await _generate_llm_response(agent_id, content)
+                    try:
+                        ai_response = await _generate_llm_response(
+                            agent_id,
+                            content,
+                            conversation_id=conversation_id,
+                        )
+                    except Exception as e:
+                        # Ensure clients waiting for streaming get a terminal event.
+                        err_msg = str(e)
+                        await manager.send_personal_message(
+                            orjson.dumps({
+                                "type": "error",
+                                "message": err_msg,
+                                "agent_id": agent_id,
+                                "stream_id": stream_id,
+                                "is_final": True,
+                            }).decode("utf-8"),
+                            websocket,
+                        )
+                        continue
+
+                    # Pseudo-streaming (safe even when tool-calling is used):
+                    # chunk the final response into small deltas.
+                    if want_stream:
+                        for i in range(0, len(ai_response), 120):
+                            delta = ai_response[i : i + 120]
+                            await manager.send_personal_message(
+                                orjson.dumps({
+                                    "type": "stream",
+                                    "stream_id": stream_id,
+                                    "delta": delta,
+                                    "agent_id": agent_id,
+                                    "is_final": False,
+                                }).decode("utf-8"),
+                                websocket,
+                            )
 
                     # Send final response
-                    final_response = {
-                        "type": "message",
-                        "message": ai_response,
-                        "agent_id": agent_id,
-                        "is_final": True,
-                    }
                     await manager.send_personal_message(
-                        orjson.dumps(final_response).decode("utf-8"), websocket
+                        orjson.dumps({
+                            "type": "message",
+                            "message": ai_response,
+                            "agent_id": agent_id,
+                            "stream_id": stream_id,
+                            "is_final": True,
+                        }).decode("utf-8"),
+                        websocket,
                     )
 
                 elif message_type == "heartbeat":
@@ -418,3 +490,15 @@ async def websocket_handler(
     finally:
         # P1 fix: Guaranteed cleanup on all exit paths
         await manager.disconnect(websocket)
+
+        # Best-effort: clear per-connection in-memory history to prevent leaks.
+        try:
+            from resync.core.agent_manager import get_unified_agent
+
+            get_unified_agent().clear_history(conversation_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+
+            import logging
+            logging.getLogger(__name__).debug("Ignored exception in /mnt/data/proj_v5/resync/api/websocket/handlers.py", exc_info=True)

@@ -5,7 +5,7 @@ to avoid circular imports.
 """
 
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class Environment(str, Enum):
     """Ambientes suportados."""
@@ -147,6 +147,4 @@ class CacheConfig(BaseModel):
         description="Enable cache mutex to prevent duplicate computations",
     )
 
-    class Config:
-        """Pydantic config."""
-        frozen = True  # Immutable after construction
+    model_config = ConfigDict(frozen=True)

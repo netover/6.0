@@ -56,6 +56,7 @@ from resync.core.langgraph.templates import (
     render_template,
 )
 from resync.core.metrics import runtime_metrics
+from resync.core.langgraph.state_delta import wrap_langgraph_node
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 
@@ -373,6 +374,7 @@ async def router_node(state: AgentState) -> AgentState:
 
     Uses Pydantic model for guaranteed JSON parsing.
     """
+    state = dict(state)
     import re
 
     logger.debug("router_node_start", message=state.get("message", "")[:50])
@@ -387,6 +389,8 @@ async def router_node(state: AgentState) -> AgentState:
     transient_defaults: dict[str, Any] = {
         "execution_plan": None,
         "plan_step_index": 0,
+        "plan_iterations": 0,
+        "regeneration_count": 0,
         "plan_failed": False,
         "rescue_used": False,
         "orchestration_result": None,
@@ -397,6 +401,8 @@ async def router_node(state: AgentState) -> AgentState:
         "needs_refinement": False,
         "doc_kg_context": "",
         "max_verification_attempts": state.get("max_verification_attempts", 3),
+        "max_plan_iterations": state.get("max_plan_iterations", int(getattr(settings, "langgraph_max_plan_iterations", 25) or 25)),
+        "max_regenerations": state.get("max_regenerations", int(getattr(settings, "langgraph_max_regenerations", 3) or 3)),
     }
     for k, default in transient_defaults.items():
         state[k] = default  # type: ignore[typeddict-item]
@@ -586,6 +592,7 @@ async def document_kg_context_node(state: AgentState) -> AgentState:
 
     Runs between router and planner/handlers in the v6.1 graph.
     """
+    state = dict(state)
     state["current_node"] = "document_kg_context"
     try:
         from resync.core.document_graphrag import DocumentGraphRAG
@@ -611,6 +618,7 @@ async def document_kg_context_node(state: AgentState) -> AgentState:
 
 def _fallback_router(state: AgentState) -> AgentState:
     """Fallback using keyword matching."""
+    state = dict(state)
     message = state.get("message", "").lower()
 
     if any(kw in message for kw in ["status", "estado", "workstation"]):
@@ -630,6 +638,7 @@ def _fallback_router(state: AgentState) -> AgentState:
 
 def clarification_node(state: AgentState) -> AgentState:
     """Generate clarification question for missing entities."""
+    state = dict(state)
     missing = state.get("missing_entities", [])
     intent = state.get("intent", Intent.GENERAL)
     entities = state.get("entities", {})
@@ -661,6 +670,7 @@ def planner_node(state: AgentState) -> AgentState:
     - STATUS / TROUBLESHOOT / ACTION use templates (no LLM cost).
     - Other intents bypass planning.
     """
+    state = dict(state)
     state["current_node"] = "planner"
 
     from resync.core.langgraph.plan_templates import create_plan
@@ -696,8 +706,17 @@ def _step_completed(plan: dict[str, Any], step_id: str) -> bool:
 
 async def plan_executor_node(state: AgentState) -> AgentState:
     """Execute one step of the plan (looped by the graph)."""
+    state = dict(state)
 
     state["current_node"] = "plan_executor"
+
+    # Guardrail: prevent infinite loops / runaway plan execution
+    state["plan_iterations"] = int(state.get("plan_iterations", 0) or 0) + 1
+    max_iters = int(state.get("max_plan_iterations", int(getattr(settings, "langgraph_max_plan_iterations", 25) or 25)) or 25)
+    if max_iters > 0 and int(state["plan_iterations"]) > max_iters:
+        logger.warning("langgraph_plan_iteration_limit", iterations=state["plan_iterations"], max_iters=max_iters)
+        state["plan_failed"] = True
+        return state
     plan = state.get("execution_plan")
     if not plan:
         return state
@@ -774,6 +793,7 @@ async def plan_executor_node(state: AgentState) -> AgentState:
 
 def _after_plan_executor(state: AgentState) -> str:
     """Decide next hop after executing a plan step."""
+    state = dict(state)
 
     if state.get("plan_failed"):
         # Template failed; use rescue path for troubleshoot only.
@@ -840,6 +860,7 @@ async def _execute_orchestrator_collect(
 
 def _execute_analyze_evidence(state: AgentState) -> AgentState:
     """Extract lightweight signals from the collected evidence."""
+    state = dict(state)
     raw = state.get("raw_data", {}) or {}
     status = raw.get("status") or {}
 
@@ -859,6 +880,7 @@ def _execute_analyze_evidence(state: AgentState) -> AgentState:
 
 async def _execute_validate_action(state: AgentState) -> AgentState:
     """Validate if an action is allowed for the current job status."""
+    state = dict(state)
     from resync.core.factories import get_tws_client_singleton
 
     entities = state.get("entities", {})
@@ -895,6 +917,7 @@ async def _execute_validate_action(state: AgentState) -> AgentState:
 
 def _execute_request_approval(state: AgentState) -> AgentState:
     """Request HITL approval via LangGraph interrupt when available."""
+    state = dict(state)
     entities = state.get("entities", {})
     job_name = entities.get("job_name", "unknown")
     action_type = entities.get("action_type", "unknown")
@@ -922,6 +945,7 @@ def _execute_request_approval(state: AgentState) -> AgentState:
 
 async def _execute_tws_action(state: AgentState) -> AgentState:
     """Execute an action against TWS."""
+    state = dict(state)
     from resync.core.factories import get_tws_client_singleton
 
     entities = state.get("entities", {})
@@ -944,6 +968,7 @@ async def _execute_verification_once(state: AgentState) -> AgentState:
     Uses backoff (2s, 4s, 6s...) and sets raw_data['_verification_retry']=True
     to keep the plan executor on the verification step.
     """
+    state = dict(state)
     import asyncio
 
     from resync.core.factories import get_tws_client_singleton
@@ -1003,6 +1028,7 @@ async def llm_rescue_node(state: AgentState) -> AgentState:
 
     For troubleshooting, we fall back to the existing incident pipeline.
     """
+    state = dict(state)
 
     state["current_node"] = "llm_rescue"
     state["rescue_used"] = True
@@ -1013,6 +1039,7 @@ async def llm_rescue_node(state: AgentState) -> AgentState:
 
 async def output_critique_node(state: AgentState) -> AgentState:
     """LLM-based critique for high-risk paths only (troubleshoot/diagnostic)."""
+    state = dict(state)
 
     state["current_node"] = "output_critique"
     retries = int(state.get("critique_retries", 0) or 0)
@@ -1063,12 +1090,14 @@ async def output_critique_node(state: AgentState) -> AgentState:
     return state
 
 def _after_critique(state: AgentState) -> str:
+    state = dict(state)
     if state.get("needs_refinement") and (state.get("critique_retries", 0) or 0) < 2:
         return "synthesizer"
     return "hallucination_check"
 
 async def status_handler_node(state: AgentState) -> AgentState:
     """Handle job status queries."""
+    state = dict(state)
     from resync.core.factories import get_tws_client_singleton
 
     state["current_node"] = "status_handler"
@@ -1138,6 +1167,7 @@ async def troubleshoot_handler_node(state: AgentState) -> AgentState:
     - Root cause hypothesis
     - Suggested actions
     """
+    state = dict(state)
     state["current_node"] = "troubleshoot_handler"
     job_name = state.get("entities", {}).get("job_name")
     message = state.get("message", "")
@@ -1280,6 +1310,7 @@ async def _fallback_troubleshoot(
 
 async def query_handler_node(state: AgentState) -> AgentState:
     """Handle RAG queries."""
+    state = dict(state)
     from resync.services.rag_client import RAGClient
 
     state["current_node"] = "query_handler"
@@ -1334,6 +1365,7 @@ async def action_handler_node(state: AgentState) -> AgentState:
 
     LangGraph 0.3 feature: Uses interrupt() instead of custom approval flow.
     """
+    state = dict(state)
     state["current_node"] = "action_handler"
 
     entities = state.get("entities", {})
@@ -1400,6 +1432,7 @@ async def action_handler_node(state: AgentState) -> AgentState:
 
 async def general_handler_node(state: AgentState) -> AgentState:
     """Handle general conversation."""
+    state = dict(state)
     from resync.core.utils.llm import call_llm
 
     state["current_node"] = "general_handler"
@@ -1438,6 +1471,7 @@ async def general_handler_node(state: AgentState) -> AgentState:
 
 def synthesizer_node(state: AgentState) -> AgentState:
     """Synthesize user-friendly response from raw data."""
+    state = dict(state)
     state["current_node"] = "synthesizer"
 
     # Skip if already have good response
@@ -1535,6 +1569,7 @@ def synthesizer_node(state: AgentState) -> AgentState:
 
 async def hallucination_check_node(state: AgentState) -> AgentState:
     """Check response for hallucinations."""
+    state = dict(state)
     from resync.core.langgraph.hallucination_grader import grade_hallucination
 
     state["current_node"] = "hallucination_check"
@@ -1573,6 +1608,7 @@ async def hallucination_check_node(state: AgentState) -> AgentState:
 
 def _get_next_node(state: AgentState) -> str:
     """Route from router to appropriate handler."""
+    state = dict(state)
     if state.get("needs_clarification"):
         return "clarification"
 
@@ -1591,12 +1627,14 @@ def _get_next_node(state: AgentState) -> str:
 
 def _get_next_node_v6_1(state: AgentState) -> str:
     """v6.1 Golden Path routing: clarification goes direct, everything else through DKG context."""
+    state = dict(state)
     if state.get("needs_clarification"):
         return "clarification"
     return "document_kg_context"
 
 def _after_dkg_context(state: AgentState) -> str:
     """Route from DKG context node to the appropriate handler or planner."""
+    state = dict(state)
     intent = state.get("intent", Intent.GENERAL)
     if intent in {Intent.STATUS, Intent.TROUBLESHOOT, Intent.ACTION}:
         return "planner"
@@ -1610,6 +1648,7 @@ def _after_dkg_context(state: AgentState) -> str:
 
 def _should_retry(state: AgentState) -> str:
     """Check if we should retry or proceed."""
+    state = dict(state)
     if state.get("tool_error") and state.get("retry_count", 0) < state.get(
         "max_retries", 3
     ):
@@ -1618,7 +1657,14 @@ def _should_retry(state: AgentState) -> str:
 
 def _should_regenerate(state: AgentState) -> str:
     """Check if we should regenerate due to hallucination."""
+    state = dict(state)
     if not state.get("is_grounded", True):
+        # Guardrail: prevent infinite regenerate loops
+        state["regeneration_count"] = int(state.get("regeneration_count", 0) or 0) + 1
+        max_regen = int(state.get("max_regenerations", int(getattr(settings, "langgraph_max_regenerations", 3) or 3)) or 3)
+        if max_regen > 0 and state["regeneration_count"] > max_regen:
+            logger.warning("langgraph_regeneration_limit", count=state["regeneration_count"], max_regen=max_regen)
+            return "end"
         if state.get("hallucination_retry_count", 0) < 2:
             return "regenerate"
     return "end"
@@ -1650,27 +1696,27 @@ def create_tws_agent_graph(
     graph = StateGraph(AgentState)
 
     # Add nodes
-    graph.add_node("router", router_node)
-    graph.add_node("document_kg_context", document_kg_context_node)
-    graph.add_node("clarification", clarification_node)
+    graph.add_node("router", wrap_langgraph_node(router_node))
+    graph.add_node("document_kg_context", wrap_langgraph_node(document_kg_context_node))
+    graph.add_node("clarification", wrap_langgraph_node(clarification_node))
 
     # v6.1 Golden Path
-    graph.add_node("planner", planner_node)
-    graph.add_node("plan_executor", plan_executor_node)
-    graph.add_node("llm_rescue", llm_rescue_node)
+    graph.add_node("planner", wrap_langgraph_node(planner_node))
+    graph.add_node("plan_executor", wrap_langgraph_node(plan_executor_node))
+    graph.add_node("llm_rescue", wrap_langgraph_node(llm_rescue_node))
     if config.enable_output_critique:
-        graph.add_node("output_critique", output_critique_node)
+        graph.add_node("output_critique", wrap_langgraph_node(output_critique_node))
 
     # Direct handlers (kept for simple intents / fallbacks)
-    graph.add_node("status_handler", status_handler_node)
-    graph.add_node("troubleshoot_handler", troubleshoot_handler_node)
-    graph.add_node("query_handler", query_handler_node)
-    graph.add_node("action_handler", action_handler_node)
-    graph.add_node("general_handler", general_handler_node)
-    graph.add_node("synthesizer", synthesizer_node)
+    graph.add_node("status_handler", wrap_langgraph_node(status_handler_node))
+    graph.add_node("troubleshoot_handler", wrap_langgraph_node(troubleshoot_handler_node))
+    graph.add_node("query_handler", wrap_langgraph_node(query_handler_node))
+    graph.add_node("action_handler", wrap_langgraph_node(action_handler_node))
+    graph.add_node("general_handler", wrap_langgraph_node(general_handler_node))
+    graph.add_node("synthesizer", wrap_langgraph_node(synthesizer_node))
 
     if config.enable_hallucination_check:
-        graph.add_node("hallucination_check", hallucination_check_node)
+        graph.add_node("hallucination_check", wrap_langgraph_node(hallucination_check_node))
 
     # Entry point
     graph.set_entry_point("router")
@@ -1726,6 +1772,7 @@ def create_tws_agent_graph(
     if config.enable_output_critique and config.enable_hallucination_check:
 
         def _after_synthesizer(state: AgentState) -> str:
+            state = dict(state)
             return (
                 "output_critique"
                 if state.get("intent") == Intent.TROUBLESHOOT
@@ -1791,7 +1838,7 @@ def create_router_graph() -> Any:
         return FallbackGraph(AgentGraphConfig())
 
     graph = StateGraph(AgentState)
-    graph.add_node("router", router_node)
+    graph.add_node("router", wrap_langgraph_node(router_node))
     graph.set_entry_point("router")
     graph.add_edge("router", END)
 
@@ -1835,6 +1882,8 @@ class FallbackGraph:
             # v6.1 transient fields
             "execution_plan": None,
             "plan_step_index": 0,
+        "plan_iterations": 0,
+        "regeneration_count": 0,
             "plan_failed": False,
             "rescue_used": False,
             "orchestration_result": None,

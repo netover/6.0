@@ -65,46 +65,43 @@
             <nav>
                 <div class="nav-group">
                     <p class="nav-group-title">Monitoring</p>
-                    <a href="#health" class="nav-link">
-                        <span style="margin-right: 12px;">❤️</span> System Health
-                    </a>
-                    <a href="#routing" class="nav-link">
-                        <span style="margin-right: 12px;">🔀</span> Routing Decisions
-                    </a>
+                    <a href="#health" class="nav-link"><span style="margin-right: 12px;">❤️</span> System Health</a>
+                    <a href="#routing" class="nav-link"><span style="margin-right: 12px;">🔀</span> Routing Decisions</a>
+                </div>
+
+                <div class="nav-group">
+                    <p class="nav-group-title">Agents</p>
+                    <a href="#agents-registry" class="nav-link"><span style="margin-right: 12px;">🧾</span> Registry &amp; Status</a>
                 </div>
 
                 <div class="nav-group">
                     <p class="nav-group-title">Configuration</p>
-                    <a href="#teams-config" class="nav-link">
-                        <span style="margin-right: 12px;">💬</span> Teams Integration
-                    </a>
-                    <a href="#tws-config" class="nav-link">
-                        <span style="margin-right: 12px;">⚙️</span> TWS Setup
-                    </a>
-                    <a href="#litellm-config" class="nav-link">
-                        <span style="margin-right: 12px;">🧠</span> AI Models
-                    </a>
+                    <a href="#teams-config" class="nav-link"><span style="margin-right: 12px;">💬</span> Teams Integration</a>
+                    <a href="#tws-config" class="nav-link"><span style="margin-right: 12px;">⚙️</span> TWS Setup</a>
+                    <a href="#tws-instances" class="nav-link"><span style="margin-right: 12px;">🗂️</span> TWS Instances</a>
+                    <a href="#litellm-config" class="nav-link"><span style="margin-right: 12px;">🧠</span> AI Models (LiteLLM)</a>
+                    <a href="#graphrag" class="nav-link"><span style="margin-right: 12px;">🕸️</span> LangGraph / GraphRAG</a>
+                    <a href="#enterprise-overview" class="nav-link"><span style="margin-right: 12px;">🏢</span> Enterprise</a>
                 </div>
 
                 <div class="nav-group">
-                    <p class="nav-group-title">Specialized</p>
-                    <a href="#threshold-tuning" class="nav-link">
-                        <span style="margin-right: 12px;">🧪</span> Auto tunning
-                    </a>
-                    <a href="#graphrag" class="nav-link">
-                        <span style="margin-right: 12px;">🕸️</span> GraphRAG
-                    </a>
-                    <a href="#audit" class="nav-link">
-                        <span style="margin-right: 12px;">📜</span> Audit Log
-                    </a>
+                    <p class="nav-group-title">Access</p>
+                    <a href="#users" class="nav-link"><span style="margin-right: 12px;">👥</span> Users</a>
+                    <a href="#api-keys" class="nav-link"><span style="margin-right: 12px;">🔑</span> API Keys</a>
+                </div>
+
+                <div class="nav-group">
+                    <p class="nav-group-title">Tools</p>
+                    <a href="#rag-reranker" class="nav-link"><span style="margin-right: 12px;">📚</span> RAG Reranker</a>
+                    <a href="#threshold-tuning" class="nav-link"><span style="margin-right: 12px;">🧪</span> Auto Tuning</a>
+                    <a href="#backup" class="nav-link"><span style="margin-right: 12px;">💾</span> Backup &amp; Restore</a>
+                    <a href="#audit" class="nav-link"><span style="margin-right: 12px;">📜</span> Audit Log</a>
+                    <a href="#feedback" class="nav-link"><span style="margin-right: 12px;">🗳️</span> Feedback Curation</a>
+                    <a href="#advanced" class="nav-link"><span style="margin-right: 12px;">🧩</span> Advanced APIs</a>
                 </div>
 
                 <div class="nav-group" style="margin-top: auto;">
-                    <a href="#enterprise-overview" class="nav-link">
-                        <span style="margin-right: 12px;">🏢</span> Enterprise
-                    </a>
-                    <button id="logoutBtn" class="btn btn-neu"
-                        style="width: 100%; margin-top: 1rem; justify-content: center;">
+                    <button id="logoutBtn" class="btn btn-neu" style="width: 100%; margin-top: 1rem; justify-content: center;">
                         <span>🚪</span> Logout
                     </button>
                 </div>
@@ -129,6 +126,8 @@
     <script src="/static/js/admin-feedback.js"></script>
     <script src="/static/js/admin-rag.js"></script>
     <script src="/static/js/admin-tuning.js"></script>
+    <script src="/static/js/admin-agents.js"></script>
+    <script src="/static/js/admin-advanced.js"></script>
     <script src="/static/js/admin-core.js"></script>
 </body>
 

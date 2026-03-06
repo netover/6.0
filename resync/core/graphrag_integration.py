@@ -33,7 +33,7 @@ class GraphRAGIntegration:
         llm_service,
         knowledge_graph,
         tws_client,
-        redis_client=None,
+        valkey_client=None,
         enabled: bool = True,
     ):
         """
@@ -43,7 +43,7 @@ class GraphRAGIntegration:
             llm_service: LLM service instance
             knowledge_graph: Knowledge graph instance
             tws_client: TWS client instance
-            redis_client: Redis client (optional)
+            valkey_client: Valkey client (optional)
             enabled: Enable/disable GraphRAG features
         """
         self.enabled = enabled
@@ -58,10 +58,10 @@ class GraphRAGIntegration:
         # Initialize components
         self.subgraph_retriever = SubgraphRetriever(knowledge_graph)
         self.discovery_service = EventDrivenDiscovery(
-            llm_service, knowledge_graph, tws_client, redis_client
+            llm_service, knowledge_graph, tws_client, valkey_client
         )
         self.cache_validator = SmartCacheValidator(
-            tws_client, redis_client, knowledge_graph, self.discovery_service
+            tws_client, valkey_client, knowledge_graph, self.discovery_service
         )
 
         logger.info("GraphRAG integration initialized with smart cache validation")
@@ -167,7 +167,7 @@ class GraphRAGIntegration:
 _graphrag_integration: GraphRAGIntegration | None = None
 
 def initialize_graphrag(
-    llm_service, knowledge_graph, tws_client, redis_client=None, enabled: bool = True
+    llm_service, knowledge_graph, tws_client, valkey_client=None, enabled: bool = True
 ):
     """
     Initialize global GraphRAG integration.
@@ -178,7 +178,7 @@ def initialize_graphrag(
         llm_service: LLM service instance
         knowledge_graph: Knowledge graph instance
         tws_client: TWS client instance
-        redis_client: Redis client (optional)
+        valkey_client: Valkey client (optional)
         enabled: Enable/disable GraphRAG
     """
     global _graphrag_integration
@@ -187,7 +187,7 @@ def initialize_graphrag(
         llm_service=llm_service,
         knowledge_graph=knowledge_graph,
         tws_client=tws_client,
-        redis_client=redis_client,
+        valkey_client=valkey_client,
         enabled=enabled,
     )
 

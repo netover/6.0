@@ -360,7 +360,7 @@ class UnifiedHealthService:
         statuses = [c.status for c in components.values()]
 
         # Any critical component unhealthy = overall unhealthy
-        critical_components = {"database", "redis"}
+        critical_components = {"database", "valkey"}
         for name, health in components.items():
             if name in critical_components and health.status == HealthStatus.UNHEALTHY:
                 return HealthStatus.UNHEALTHY

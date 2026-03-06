@@ -3,7 +3,7 @@ Backends Package - Service Discovery Backend Interfaces
 
 Este pacote contém interfaces abstratas para diferentes backends de service discovery,
 permitindo desacoplamento entre o ServiceDiscoveryManager e os provedores específicos
-(Consul, Kubernetes, Redis, etc.).
+(Consul, Kubernetes, Valkey, etc.).
 
 Exports:
     BackendInterface: Interface abstrata para backends de discovery

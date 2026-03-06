@@ -207,7 +207,7 @@ async def verify_token_async(token: str) -> dict[str, Any] | None:
 
     - Decodes JWT
     - Checks expiration
-    - Checks Redis-backed JTI revocation list (if enabled)
+    - Checks Valkey-backed JTI revocation list (if enabled)
 
     Prefer this from FastAPI dependencies.
     """

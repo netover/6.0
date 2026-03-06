@@ -221,19 +221,19 @@ SETTINGS_SCHEMA = {
             },
         },
     },
-    "redis": {
-        "title": "Redis Cache",
+    "valkey": {
+        "title": "Valkey Cache",
         "icon": "fa-bolt",
-        "description": "Configurações de cache Redis",
+        "description": "Configurações de cache Valkey",
         "fields": {
-            "redis_url": {
+            "valkey_url": {
                 "type": "text",
                 "label": "URL de Conexão",
-                "placeholder": "redis://localhost:6379/0",
+                "placeholder": "valkey://localhost:6379/0",
                 "hot_reload": False,
-                "restart_reason": "URL do Redis requer reconexão",
+                "restart_reason": "URL do Valkey requer reconexão",
             },
-            "redis_min_connections": {
+            "valkey_min_connections": {
                 "type": "number",
                 "label": "Min Connections",
                 "min": 1,
@@ -241,7 +241,7 @@ SETTINGS_SCHEMA = {
                 "hot_reload": False,
                 "restart_reason": "Pool de conexões é criado na inicialização",
             },
-            "redis_max_connections": {
+            "valkey_max_connections": {
                 "type": "number",
                 "label": "Max Connections",
                 "min": 1,
@@ -249,27 +249,27 @@ SETTINGS_SCHEMA = {
                 "hot_reload": False,
                 "restart_reason": "Pool de conexões é criado na inicialização",
             },
-            "redis_timeout": {
+            "valkey_timeout": {
                 "type": "number",
                 "label": "Timeout (s)",
                 "min": 1,
                 "hot_reload": True,
             },
-            "redis_pool_min_size": {
+            "valkey_pool_min_size": {
                 "type": "number",
                 "label": "Pool Min",
                 "min": 1,
                 "hot_reload": False,
                 "restart_reason": "Pool é criado na inicialização",
             },
-            "redis_pool_max_size": {
+            "valkey_pool_max_size": {
                 "type": "number",
                 "label": "Pool Max",
                 "min": 1,
                 "hot_reload": False,
                 "restart_reason": "Pool é criado na inicialização",
             },
-            "redis_health_check_interval": {
+            "valkey_health_check_interval": {
                 "type": "number",
                 "label": "Health Check (s)",
                 "min": 1,
@@ -1080,8 +1080,8 @@ def _select_group_for_setting_key(key: str) -> str:
         return "tws"
     if key.startswith("cors_"):
         return "cors"
-    if key.startswith("redis_"):
-        return "redis"
+    if key.startswith("valkey_"):
+        return "valkey"
     if key.startswith(("db_", "database_")):
         return "database"
     if key.startswith(("ollama_",)):
@@ -1364,7 +1364,7 @@ async def get_section_settings(section_key: str) -> dict[str, Any]:
     """Get settings for a specific section.
 
     Args:
-        section_key: The section identifier (e.g., 'llm', 'tws', 'redis')
+        section_key: The section identifier (e.g., 'llm', 'tws', 'valkey')
 
     Returns:
         Section schema and current values.

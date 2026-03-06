@@ -33,7 +33,7 @@ def test_valkey_url_legacy_warns_and_returns_plaintext() -> None:
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        val = s.REDIS_URL
+        val = s.VALKEY_URL
         assert val.startswith("valkey://")
         assert any(isinstance(x.message, DeprecationWarning) for x in w)
 

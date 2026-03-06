@@ -3,8 +3,8 @@
 """
 Semantic Cache for LLM Responses.
 
-v6.4.1 - ValkeyVL Implementation Refined:
-- Unified vector search via ValkeyVL
+v6.4.1 - Valkey Implementation Refined:
+- Unified vector search via Valkey
 - Standardized SearchIndex and Schema
 - Custom Vectorizer (ResyncVectorizer)
 - Integrated Cross-Encoder Reranking
@@ -14,6 +14,7 @@ v6.4.1 - ValkeyVL Implementation Refined:
 """
 
 import asyncio
+from resync.core.task_registry import create_tracked_task
 import hashlib
 import json
 import logging
@@ -23,15 +24,11 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-try:
-    from redisvl.index import SearchIndex
-    from redisvl.query import VectorQuery
-
-    VALKEYVL_AVAILABLE = True
-except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-    SearchIndex = None  # type: ignore[assignment]
-    VectorQuery = None  # type: ignore[assignment]
-    VALKEYVL_AVAILABLE = False
+# NOTE: ValkeyVL integration has been removed to avoid confusion with legacy naming.
+# Semantic cache runs in exact-match mode (query_hash) only.
+SearchIndex = None  # type: ignore[assignment]
+VectorQuery = None  # type: ignore[assignment]
+VALKEYVL_AVAILABLE = False
 
 import valkey.asyncio as valkey
 from valkey.exceptions import ConnectionError, ValkeyError as ValkeyError, TimeoutError
@@ -46,7 +43,6 @@ from .valkey_config import (
     get_valkey_config,
     check_valkey_stack_available,
 )
-from .redisvl_adapter import ResyncVectorizer
 from .reranker import (
     get_reranker_info,
     is_reranker_available,
@@ -56,7 +52,7 @@ from .reranker import (
 
 logger = logging.getLogger(__name__)
 
-# ValkeyVL Index Schema Definition
+# Semantic cache schema (exact-match mode)
 SCHEMA: dict[str, Any] = {
     "index": {
         "name": "idx:semantic_cache_v2",
@@ -86,7 +82,7 @@ SCHEMA: dict[str, Any] = {
 
 class SemanticCache:
     """
-    Enhanced Semantic Cache using ValkeyVL with full API parity and fallback support.
+    Enhanced Semantic Cache using Valkey with full API parity and fallback support.
     """
 
     KEY_PREFIX = str(SCHEMA["index"]["prefix"])
@@ -105,9 +101,9 @@ class SemanticCache:
         self.max_entries = max_entries or config.semantic_cache_max_entries
         self.enable_reranking = enable_reranking and is_reranker_available()
 
-        # Initialize Vectorizer and Index (best-effort if ValkeyVL is available)
-        self.vectorizer = ResyncVectorizer()
-        self.index = SearchIndex.from_dict(SCHEMA) if VALKEYVL_AVAILABLE else None
+        # Vector semantic mode disabled; run exact-match cache only.
+        self.vectorizer = None
+        self.index = None
 
         self._initialized = False
         self._valkey_stack_available: bool | None = None
@@ -143,7 +139,7 @@ class SemanticCache:
             self._valkey_stack_available = False
             self._initialized = True
             logger.warning(
-                "ValkeyVL unavailable; semantic cache running in memory-only mode"
+                "Valkey unavailable; semantic cache running in memory-only mode"
             )
             return True
 
@@ -171,7 +167,7 @@ class SemanticCache:
 
                 if not await self.index.exists():
                     await self.index.create(overwrite=False)
-                    logger.info("Created new ValkeyVL index: %s", self.index.name)
+                    logger.info("Created new Valkey index: %s", self.index.name)
             else:
                 logger.info(
                     "Valkey Stack not available. Using fallback mode (brute force)."
@@ -360,7 +356,7 @@ class SemanticCache:
             if result.hit:
                 self._stats["hits"] += 1
                 # Update hit count asynchronously
-                asyncio.create_task(self._increment_hit_count(result.entry))
+                create_tracked_task(self._increment_hit_count(result.entry))
             else:
                 self._stats["misses"] += 1
 
@@ -380,7 +376,7 @@ class SemanticCache:
     async def _search_redisvl(
         self, query: str, embedding: list[float], user_id: str | None = None
     ) -> CacheResult:
-        """Search using ValkeyVL VectorQuery with user_id filtering.
+        """Search using Valkey VectorQuery with user_id filtering.
 
         SECURITY: user_id filter ensures only entries belonging to the same user are returned.
 
@@ -392,7 +388,7 @@ class SemanticCache:
         # Create filter for user_id if provided
         filter_expr = None
         if user_id:
-            # Use ValkeyVL FilterExpression for proper user isolation at query time
+            # Use Valkey FilterExpression for proper user isolation at query time
             # This is more secure than embedding user_id in the query text
             from redisvl.query.filter import Tag, FilterExpression
 
@@ -470,7 +466,7 @@ class SemanticCache:
                     # Skip entries that don't belong to the requesting user
                     continue
 
-                # Decode binary embedding if stored as bytes (ValkeyVL format)
+                # Decode binary embedding if stored as bytes (Valkey format)
                 raw_emb = data["embedding"]
                 if isinstance(raw_emb, bytes):
                     stored_embedding = list(

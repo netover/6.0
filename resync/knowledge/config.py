@@ -283,12 +283,12 @@ class RagConfig(BaseSettings):
 
     # Embeddings
     embed_model: str = Field(
-        default="nvidia/nv-embedqa-e5-v5",
+        default="openrouter/nvidia/llama-nemotron-embed-vl-1b-v2:free",
         min_length=1,
         description="Modelo de embedding (OpenAI, NVIDIA ou Local via LiteLLM)",
     )
     embed_dim: int = Field(
-        default=1024,
+        default=2048,
         ge=MIN_EMBED_DIM,
         le=MAX_EMBED_DIM,
         description=(

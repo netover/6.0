@@ -88,10 +88,10 @@ def mask_sensitive_data(data: str, mask_char: str = "*") -> str:
         return mask_char * len(data)
     return data[:2] + mask_char * (len(data) - 4) + data[-2:]
 
-def validate_redis_connection(redis_client) -> bool:
-    """Validate Redis connection"""
+def validate_valkey_connection(valkey_client) -> bool:
+    """Validate Valkey connection"""
     try:
-        redis_client.ping()
+        valkey_client.ping()
         return True
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
@@ -101,7 +101,7 @@ def validate_redis_connection(redis_client) -> bool:
 
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        logger.error("Redis connection error: %s", str(e), exc_info=True)
+        logger.error("Valkey connection error: %s", str(e), exc_info=True)
         return False
 
 def create_error_response(

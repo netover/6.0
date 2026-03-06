@@ -28,7 +28,7 @@ from typing import Any
 
 # [FIX] Import Central Config
 from resync.core.llm_config import get_llm_config
-from resync.core.valkey_init import get_redis_client
+from resync.core.valkey_init import get_valkey_client
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -135,19 +135,21 @@ class RouterNode(BaseNode):
         else:
             intent, confidence = self._classify_with_keywords(message)
 
-        state["intent"] = intent
-        state["confidence"] = confidence
-        state["_next"] = f"{intent}_handler"
-        state["current_node"] = self.name
+        updates: dict[str, Any] = {
+            "intent": intent,
+            "confidence": confidence,
+            "_next": f"{intent}_handler",
+            "current_node": self.name,
+        }
 
         logger.debug(
             "router_classified",
             intent=intent,
             confidence=confidence,
-            next_node=state["_next"],
+            next_node=updates["_next"],
         )
 
-        return state
+        return updates
 
     async def _classify_with_llm(self, message: str) -> tuple[str, float]:
         """Use LLM for classification via LiteLLM (project standard)."""
@@ -301,11 +303,11 @@ class LLMNode(BaseNode):
 
             trace.output = response
 
-        state["llm_response"] = response
-        state["llm_messages"] = messages
-        state["current_node"] = self.name
-
-        return state
+        return {
+            "llm_response": response,
+            "llm_messages": messages,
+            "current_node": self.name,
+        }
 
 # =============================================================================
 # TOOL NODE
@@ -365,10 +367,12 @@ class ToolNode(BaseNode):
                     timeout=self.config.timeout_seconds,
                 )
 
-                state["tool_name"] = self.config.tool_name
-                state["tool_output"] = result
-                state["tool_error"] = None
-                state["current_node"] = self.name
+                updates: dict[str, Any] = {
+                    "tool_name": self.config.tool_name,
+                    "tool_output": result,
+                    "tool_error": None,
+                    "current_node": self.name,
+                }
 
                 logger.debug(
                     "tool_executed",
@@ -376,7 +380,7 @@ class ToolNode(BaseNode):
                     success=True,
                 )
 
-                return state
+                return updates
 
             except asyncio.TimeoutError:
                 last_error = f"Tool {self.config.tool_name} timed out after {self.config.timeout_seconds}s"
@@ -399,16 +403,16 @@ class ToolNode(BaseNode):
                 )
 
         # All retries exhausted
-        state["tool_error"] = last_error
-        state["current_node"] = self.name
-
         logger.error(
             "tool_failed",
             tool=self.config.tool_name,
             error=last_error,
         )
 
-        return state
+        return {
+            "tool_error": last_error,
+            "current_node": self.name,
+        }
 
     async def _execute_tool(self, tool_input: dict[str, Any]) -> Any:
         """Execute the tool function."""
@@ -483,15 +487,18 @@ class ValidationNode(BaseNode):
             errors.append(f"Tool error: {state['tool_error']}")
 
         if errors:
-            state["validation_error"] = "; ".join(errors)
-            state["_should_retry"] = self.config.retry_on_error
             logger.warning("validation_failed", errors=errors)
+            return {
+                "validation_error": "; ".join(errors),
+                "_should_retry": self.config.retry_on_error,
+                "current_node": self.name,
+            }
         else:
-            state["validation_error"] = None
-            state["_should_retry"] = False
-
-        state["current_node"] = self.name
-        return state
+            return {
+                "validation_error": None,
+                "_should_retry": False,
+                "current_node": self.name,
+            }
 
 # =============================================================================
 # HUMAN APPROVAL NODE
@@ -547,7 +554,7 @@ class HumanApprovalNode(BaseNode):
     Human-in-the-loop approval node.
 
     Pauses execution and waits for human approval before
-    executing sensitive actions. Uses Redis for persistence.
+    executing sensitive actions. Uses Valkey for persistence.
 
     Usage:
         approval_node = HumanApprovalNode()
@@ -559,7 +566,7 @@ class HumanApprovalNode(BaseNode):
     """
 
     name = "human_approval"
-    REDIS_PREFIX = "approval:"
+    VALKEY_PREFIX = "approval:"
 
     def __init__(
         self,
@@ -588,11 +595,11 @@ class HumanApprovalNode(BaseNode):
             expires_at=now + timedelta(seconds=self.timeout_seconds),
         )
 
-        # Store in Redis
+        # Store in Valkey
         try:
-            redis = get_redis_client()
-            key = f"{self.REDIS_PREFIX}{approval_id}"
-            await redis.setex(
+            valkey = get_valkey_client()
+            key = f"{self.VALKEY_PREFIX}{approval_id}"
+            await valkey.setex(
                 key,
                 self.timeout_seconds,
                 json.dumps(request.to_dict()),
@@ -606,10 +613,12 @@ class HumanApprovalNode(BaseNode):
             logger.error("approval_persistence_failed", error=str(e))
             raise RuntimeError(f"Failed to persist approval request: {e}")
 
-        state["requires_approval"] = True
-        state["approval_id"] = approval_id
-        state["approval_status"] = "pending"
-        state["current_node"] = self.name
+        updates: dict[str, Any] = {
+            "requires_approval": True,
+            "approval_id": approval_id,
+            "approval_status": "pending",
+            "current_node": self.name,
+        }
 
         logger.info(
             "approval_requested",
@@ -618,15 +627,15 @@ class HumanApprovalNode(BaseNode):
             user_id=user_id,
         )
 
-        return state
+        return updates
 
     @classmethod
     async def approve(cls, approval_id: str, approved_by: str) -> bool:
         """Approve a pending request."""
-        redis = get_redis_client()
-        key = f"{cls.REDIS_PREFIX}{approval_id}"
+        valkey = get_valkey_client()
+        key = f"{cls.VALKEY_PREFIX}{approval_id}"
 
-        data_str = await redis.get(key)
+        data_str = await valkey.get(key)
         if not data_str:
             return False
 
@@ -647,12 +656,12 @@ class HumanApprovalNode(BaseNode):
         request.approved_by = approved_by
         request.approved_at = datetime.now(timezone.utc)
 
-        # Update Redis
-        ttl = await redis.ttl(key)
+        # Update Valkey
+        ttl = await valkey.ttl(key)
         if ttl < 0:
             ttl = 300
 
-        await redis.setex(key, ttl, json.dumps(request.to_dict()))
+        await valkey.setex(key, ttl, json.dumps(request.to_dict()))
 
         logger.info(
             "approval_granted", approval_id=approval_id, approved_by=approved_by
@@ -662,10 +671,10 @@ class HumanApprovalNode(BaseNode):
     @classmethod
     async def reject(cls, approval_id: str, rejected_by: str, reason: str = "") -> bool:
         """Reject a pending request."""
-        redis = get_redis_client()
-        key = f"{cls.REDIS_PREFIX}{approval_id}"
+        valkey = get_valkey_client()
+        key = f"{cls.VALKEY_PREFIX}{approval_id}"
 
-        data_str = await redis.get(key)
+        data_str = await valkey.get(key)
         if not data_str:
             return False
 
@@ -680,12 +689,12 @@ class HumanApprovalNode(BaseNode):
 
         request.status = "rejected"
 
-        # Update Redis
-        ttl = await redis.ttl(key)
+        # Update Valkey
+        ttl = await valkey.ttl(key)
         if ttl < 0:
             ttl = 300
 
-        await redis.setex(key, ttl, json.dumps(request.to_dict()))
+        await valkey.setex(key, ttl, json.dumps(request.to_dict()))
 
         logger.info(
             "approval_rejected", approval_id=approval_id, rejected_by=rejected_by
@@ -695,10 +704,10 @@ class HumanApprovalNode(BaseNode):
     @classmethod
     async def get_status(cls, approval_id: str) -> str | None:
         """Get the status of an approval request."""
-        redis = get_redis_client()
-        key = f"{cls.REDIS_PREFIX}{approval_id}"
+        valkey = get_valkey_client()
+        key = f"{cls.VALKEY_PREFIX}{approval_id}"
 
-        data_str = await redis.get(key)
+        data_str = await valkey.get(key)
         if not data_str:
             return None
 
@@ -714,23 +723,20 @@ class HumanApprovalNode(BaseNode):
         # Note: Scanning keys is inefficient. In production, maintain a set of pending IDs.
         # For now, we'll scan (assuming low volume) or just return empty as strict implementation requiressets.
         # But to be useful without Set structure:
-        redis = get_redis_client()
+        valkey = get_valkey_client()
         keys = []
-        async for key in redis.scan_iter(f"{cls.REDIS_PREFIX}*"):
+        async for key in valkey.scan_iter(f"{cls.VALKEY_PREFIX}*"):
             keys.append(key)
 
         pending = []
         for key in keys:
-            data_str = await redis.get(key)
+            data_str = await valkey.get(key)
             if data_str:
                 try:
-                    data = json.loads(data_str)
-                    # Note: data might be bytes in some redis clients, but get_redis_client typically returns str if decode_responses=True
-                    # Assuming decode_responses=True based on other usage. If not, needs decode.
-                    if isinstance(data, bytes):
-                        data = json.loads(data.decode("utf-8"))
-                    else:
-                        data = json.loads(data)
+                    raw: str | bytes = data_str
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8")
+                    data = json.loads(raw)
 
                     request = ApprovalRequest.from_dict(data)
                     if request.status == "pending":

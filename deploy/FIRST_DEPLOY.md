@@ -2,7 +2,7 @@
 
 ## Prerequisites
 - PostgreSQL 15+ running and accessible
-- Redis 7+ running and accessible
+- Valkey 7+ running and accessible
 - Python 3.14+ or Docker
 
 ---
@@ -17,7 +17,7 @@ chmod 600 .env
 #   APP_SECRET_KEY      → python -c "import secrets; print(secrets.token_hex(32))"
 #   APP_ADMIN_PASSWORD  → strong password (min 8 chars)
 #   APP_DATABASE_URL    → postgresql+asyncpg://user:pass@host:5432/dbname
-#   APP_REDIS_URL       → redis://:password@host:6379/0
+#   APP_VALKEY_URL       → valkey://:password@host:6379/0
 #   APP_CORS_ALLOWED_ORIGINS → https://yourdomain.com
 #   TRUSTED_HOSTS       → yourdomain.com
 ```
@@ -58,7 +58,7 @@ curl http://localhost:8000/health
 | `APP_SECRET_KEY` | JWT signing key (≥32 chars) | `secrets.token_hex(32)` |
 | `APP_ADMIN_PASSWORD` | Admin panel password (≥8 chars) | `MyStr0ngP@ss` |
 | `APP_DATABASE_URL` | PostgreSQL connection URL | `postgresql+asyncpg://...` |
-| `APP_REDIS_URL` | Redis connection URL | `redis://:pass@host:6379/0` |
+| `APP_VALKEY_URL` | Valkey connection URL | `valkey://:pass@host:6379/0` |
 | `APP_CORS_ALLOWED_ORIGINS` | Allowed frontend origins | `https://app.example.com` |
 | `TRUSTED_HOSTS` | Allowed Host header values | `app.example.com` |
 | `PROMETHEUS_MULTIPROC_DIR` | Prometheus metrics dir | `/tmp/prometheus_multiproc` |
@@ -75,7 +75,7 @@ curl http://localhost:8000/health
 - [ ] `.env` file has `chmod 600` permissions
 - [ ] `.env` is in `.gitignore` (never committed)
 - [ ] PostgreSQL password is not the default
-- [ ] Redis requires authentication (`requirepass` in redis.conf)
+- [ ] Valkey requires authentication (`requirepass` in valkey.conf)
 - [ ] Container runs as non-root user (Dockerfile: `USER resync`)
 - [ ] HTTPS is configured in nginx (port 443 + TLS)
 

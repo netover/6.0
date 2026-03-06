@@ -35,7 +35,7 @@ class CacheEntry:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for Redis storage."""
+        """Convert to dictionary for Valkey storage."""
         return {
             "query": self.query,
             "query_text": self.query,
@@ -48,7 +48,7 @@ class CacheEntry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CacheEntry":
-        """Create from Redis hash data."""
+        """Create from Valkey hash data."""
         query = data.get("query") or data.get("query_text") or ""
 
         raw_embedding = data.get("embedding", "[]")

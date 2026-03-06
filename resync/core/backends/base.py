@@ -3,7 +3,7 @@ Base Interfaces and Models for Service Discovery Backends
 
 Este módulo fornece a interface abstrata e modelos base para backends de service discovery,
 permitindo desacoplamento entre o ServiceDiscoveryManager e provedores específicos
-(Consul, Kubernetes, Redis, etc.).
+(Consul, Kubernetes, Valkey, etc.).
 
 Classes:
     BackendInterface: Interface abstrata que todos os backends devem implementar
@@ -202,7 +202,7 @@ class BackendInterface(ABC):
     Interface abstrata para backends de service discovery.
 
     Esta interface define os métodos que todos os backends de discovery
-    (Consul, Kubernetes, Redis, etc.) devem implementar.
+    (Consul, Kubernetes, Valkey, etc.) devem implementar.
 
     Attributes:
         backend_name: Nome identificador do backend

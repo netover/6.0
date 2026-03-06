@@ -509,13 +509,13 @@ class SmokeTestRunner:
 
     def _test_valkey_strategy_config(self) -> None:
         """Test Valkey strategy configuration."""
-        from resync.core.valkey_strategy import RedisTier, get_valkey_strategy
+        from resync.core.valkey_strategy import ValkeyTier, get_valkey_strategy
 
         strategy = get_valkey_strategy()
 
         # Test tier classification
-        assert strategy.get_tier("GET", "/health") == RedisTier.READ_ONLY
-        assert strategy.get_tier("POST", "/tws/execute/job") == RedisTier.CRITICAL
+        assert strategy.get_tier("GET", "/health") == ValkeyTier.READ_ONLY
+        assert strategy.get_tier("POST", "/tws/execute/job") == ValkeyTier.CRITICAL
 
         # Test startup config
         startup = strategy.get_startup_config()
@@ -565,9 +565,9 @@ class SmokeTestRunner:
 
     async def _test_valkey_connection(self) -> None:
         """Test Valkey connection."""
-        from resync.core.cache import get_redis_client
+        from resync.core.cache import get_valkey_client
 
-        client = await get_redis_client()
+        client = await get_valkey_client()
         result = await client.ping()
         assert result is True, "Valkey ping failed"
 

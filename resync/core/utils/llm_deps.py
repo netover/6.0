@@ -37,9 +37,9 @@ def get_litellm_exceptions() -> tuple[type, ...]:
 
 def get_acompletion() -> Any:
     """Lazy load litellm.acompletion function."""
-    from litellm import acompletion
+    from resync.core.litellm_init import get_litellm_router
 
-    return acompletion
+    return get_litellm_router().acompletion
 
 def get_available_models() -> Any:
     """Lazy load litellm.get_available_models function."""

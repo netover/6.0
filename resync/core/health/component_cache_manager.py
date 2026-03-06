@@ -306,7 +306,7 @@ class ComponentCacheConfig:
         # Default expiry times for different component types
         self.default_expiry_seconds = 300  # 5 minutes
         self.database_expiry_seconds = 60  # 1 minute (databases change frequently)
-        self.redis_expiry_seconds = 120  # 2 minutes
+        self.valkey_expiry_seconds = 120  # 2 minutes
         self.cache_expiry_seconds = 180  # 3 minutes
         self.filesystem_expiry_seconds = 600  # 10 minutes (less dynamic)
         self.memory_expiry_seconds = 30  # 30 seconds (very dynamic)
@@ -333,7 +333,7 @@ class ComponentCacheConfig:
         """
         expiry_map = {
             "database": self.database_expiry_seconds,
-            "redis": self.redis_expiry_seconds,
+            "valkey": self.valkey_expiry_seconds,
             "cache_hierarchy": self.cache_expiry_seconds,
             "file_system": self.filesystem_expiry_seconds,
             "memory": self.memory_expiry_seconds,
@@ -347,7 +347,7 @@ class ComponentCacheConfig:
         return {
             "default_expiry_seconds": self.default_expiry_seconds,
             "database_expiry_seconds": self.database_expiry_seconds,
-            "redis_expiry_seconds": self.redis_expiry_seconds,
+            "valkey_expiry_seconds": self.valkey_expiry_seconds,
             "cache_expiry_seconds": self.cache_expiry_seconds,
             "filesystem_expiry_seconds": self.filesystem_expiry_seconds,
             "memory_expiry_seconds": self.memory_expiry_seconds,

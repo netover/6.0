@@ -195,7 +195,7 @@ DATABASE_MAX_OVERFLOW=10
 # =============================================================================
 VALKEY_URL=valkey://localhost:6379/0
 # Legacy fallback (deprecated)
-REDIS_URL=valkey://localhost:6379/0
+VALKEY_URL=valkey://localhost:6379/0
 VALKEY_CACHE_URL=valkey://localhost:6379/1
 
 # =============================================================================
@@ -281,12 +281,12 @@ def verify_setup() -> None:
         if result.returncode == 0 and "PONG" in result.stdout:
             print("✅ Valkey conectado")
         else:
-            # Fallback for redis-cli if valkey-cli not in path
+            # Fallback for valkey-cli if valkey-cli not in path
             result = subprocess.run(
-                ["redis-cli", "ping"], capture_output=True, text=True, check=False
+                ["valkey-cli", "ping"], capture_output=True, text=True, check=False
             )
             if result.returncode == 0 and "PONG" in result.stdout:
-                print("✅ Valkey conectado (via redis-cli)")
+                print("✅ Valkey conectado (via valkey-cli)")
             else:
                 print("❌ Valkey não conectado")
     except FileNotFoundError:
@@ -309,7 +309,7 @@ def main() -> None:
         "--skip-db", action="store_true", help="Pula configuração de banco de dados"
     )
     parser.add_argument(
-        "--docker", action="store_true", help="Usa Docker para PostgreSQL e Redis"
+        "--docker", action="store_true", help="Usa Docker para PostgreSQL e Valkey"
     )
     parser.add_argument(
         "--skip-deps",

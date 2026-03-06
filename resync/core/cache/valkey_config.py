@@ -1,17 +1,17 @@
 """
-Centralized Redis Configuration for Semantic Caching.
+Centralized Valkey Configuration for Semantic Caching.
 
-v5.3.16 - Redis configuration with:
+v5.3.16 - Valkey configuration with:
 - Database separation by purpose
 - Connection pooling with lazy initialization
-- Support for Redis Stack (RediSearch) when available
-- Graceful fallback to Redis OSS
+- Support for Valkey Stack (RediSearch) when available
+- Graceful fallback to Valkey OSS
 
 Design decisions (30 years of experience speaking):
 1. Never hardcode passwords - always from environment
 2. Lazy initialization - don't connect until needed
 3. Connection pooling - reuse TCP connections
-4. Graceful degradation - system works even if Redis fails
+4. Graceful degradation - system works even if Valkey fails
 """
 
 import logging
@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
 
 class ValkeyDatabase(IntEnum):
     """
-    Redis database separation by purpose.
+    Valkey database separation by purpose.
 
     Why separate DBs?
     - Isolation: different TTLs, different eviction policies
     - Debugging: easier to inspect specific data
     - Performance: FLUSHDB affects only one purpose
 
-    Note: Redis supports DBs 0-15 by default.
+    Note: Valkey supports DBs 0-15 by default.
     """
 
     CONNECTIONS = 0  # Connection pools, health checks (existing usage)
@@ -47,29 +47,29 @@ class ValkeyDatabase(IntEnum):
 
 class ValkeyConfig:
     """
-    Configuration holder for Redis connections.
+    Configuration holder for Valkey connections.
 
     All values come from environment variables with sensible defaults.
     Never expose passwords in logs or error messages.
     """
 
     def __init__(self) -> None:
-        # v5.9.7: Prefer consolidated app settings (supports APP_REDIS_URL + legacy REDIS_URL).
+        # v5.9.7: Prefer consolidated app settings (supports APP_VALKEY_URL + legacy VALKEY_URL).
         # Environment variables still take precedence for backwards compatibility.
         try:
             from resync.settings import settings as app_settings
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover
             app_settings = None  # type: ignore
 
-        redis_url = None
+        valkey_url = None
         if app_settings is not None:
-            redis_url = getattr(app_settings, "valkey_url", None)
+            valkey_url = getattr(app_settings, "valkey_url", None)
             # Handle Pydantic SecretStr if applicable
-            if hasattr(redis_url, "get_secret_value"):
-                redis_url = redis_url.get_secret_value()  # type: ignore[union-attr]
+            if hasattr(valkey_url, "get_secret_value"):
+                valkey_url = valkey_url.get_secret_value()  # type: ignore[union-attr]
 
-        redis_url = redis_url or os.getenv("APP_VALKEY_URL") or "valkey://localhost:6379/0"
-        parsed = urlparse(redis_url) if redis_url else None
+        valkey_url = valkey_url or os.getenv("APP_VALKEY_URL") or "valkey://localhost:6379/0"
+        parsed = urlparse(valkey_url) if valkey_url else None
 
         # Base connection settings
         self.host: str = os.getenv("APP_VALKEY_HOST") or (
@@ -145,9 +145,9 @@ class ValkeyConfig:
 
     def get_url(self, db: ValkeyDatabase = ValkeyDatabase.CONNECTIONS) -> str:
         """
-        Build Redis URL for specific database.
+        Build Valkey URL for specific database.
 
-        Format: redis://[:password@]host:port/db
+        Format: valkey://[:password@]host:port/db
         """
         auth = f":{self.password}@" if self.password else ""
         return f"valkey://{auth}{self.host}:{self.port}/{db.value}"
@@ -163,7 +163,7 @@ class ValkeyConfig:
 @lru_cache(maxsize=1)
 def get_valkey_config() -> ValkeyConfig:
     """
-    Get singleton Redis configuration.
+    Get singleton Valkey configuration.
 
     Uses lru_cache for thread-safe singleton pattern.
     """
@@ -175,20 +175,20 @@ _connection_pools: dict[ValkeyDatabase, Any] = {}
 def get_valkey_client(
     db: ValkeyDatabase = ValkeyDatabase.CONNECTIONS,
     decode_responses: bool = True,
-) -> "valkey_async.Redis":
+) -> "valkey_async.Valkey":
     """
-    Get Redis client for specific database with connection pooling.
+    Get Valkey client for specific database with connection pooling.
 
     Args:
-        db: Which Redis database to connect to
+        db: Which Valkey database to connect to
         decode_responses: If True, return strings instead of bytes
 
     Returns:
-        Async Redis client with connection pool
+        Async Valkey client with connection pool
 
     Raises:
-        RuntimeError: If redis-py not installed
-        ConnectionError: If Redis is unreachable
+        RuntimeError: If valkey-py not installed
+        ConnectionError: If Valkey is unreachable
     """
     try:
         from valkey.asyncio import from_url
@@ -218,16 +218,16 @@ def get_valkey_client(
 
 async def check_valkey_stack_available() -> dict[str, bool | str]:
     """
-    Check if Redis Stack modules are available.
+    Check if Valkey Stack modules are available.
 
     Returns dict with module availability:
     - search: RediSearch (required for semantic cache)
     - json: ReJSON
-    - bloom: RedisBloom
-    - timeseries: RedisTimeSeries
+    - bloom: Valkey Bloom
+    - timeseries: Valkey TimeSeries
 
     Why this matters:
-    - With Redis Stack: Use native vector search (faster, more features)
+    - With Valkey Stack: Use native vector search (faster, more features)
     - Without: Fallback to Python-based similarity (works but slower)
     """
     result = {
@@ -241,7 +241,7 @@ async def check_valkey_stack_available() -> dict[str, bool | str]:
     try:
         client = get_valkey_client(ValkeyDatabase.SEMANTIC_CACHE)
 
-        # Get Redis version
+        # Get Valkey version
         info = await client.info("server")
         result["redis_version"] = info.get("redis_version", "unknown")
 
@@ -256,7 +256,7 @@ async def check_valkey_stack_available() -> dict[str, bool | str]:
             result["timeseries"] = "timeseries" in module_names
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-            # MODULE LIST not available (older Redis or disabled)
+            # MODULE LIST not available (older Valkey or disabled)
             # Try specific commands to detect modules
             try:
                 await client.execute_command("FT._LIST")
@@ -283,25 +283,25 @@ async def check_valkey_stack_available() -> dict[str, bool | str]:
                     result["json"] = True
 
         logger.info(
-            f"Redis Stack check: version={result['redis_version']}, "
+            f"Valkey Stack check: version={result['redis_version']}, "
             f"search={result['search']}, json={result['json']}"
         )
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-        logger.warning("Failed to check Redis Stack availability", exc_info=True)
+        logger.warning("Failed to check Valkey Stack availability", exc_info=True)
 
     return result  # type: ignore[return-value]
 
 async def close_all_pools() -> None:
     """
-    Close all Redis connection pools.
+    Close all Valkey connection pools.
 
     Call this during application shutdown to release resources cleanly.
     """
     for db, pool in _connection_pools.items():
         try:
             await pool.disconnect()
-            logger.info("Closed Redis pool", extra={"db": db.name})
+            logger.info("Closed Valkey pool", extra={"db": db.name})
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -309,7 +309,7 @@ async def close_all_pools() -> None:
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.warning(
-                "Error closing Redis pool", extra={"db": db.name, "error": str(e)}
+                "Error closing Valkey pool", extra={"db": db.name, "error": str(e)}
             )
 
     _connection_pools.clear()
@@ -319,7 +319,7 @@ async def valkey_health_check(
     db: ValkeyDatabase = ValkeyDatabase.CONNECTIONS,
 ) -> dict[str, Any]:
     """
-    Perform health check on specific Redis database.
+    Perform health check on specific Valkey database.
 
     Returns:
         Dict with status, latency, and error info if any
@@ -359,18 +359,10 @@ async def valkey_health_check(
 
         result["error"] = str(e)
         logger.error(
-            "Redis health check failed", extra={"db": db.name, "error": str(e)}
+            "Valkey health check failed", extra={"db": db.name, "error": str(e)}
         )
 
     return result
-
-# Legacy aliases for backward compatibility
-RedisDatabase = ValkeyDatabase
-RedisConfig = ValkeyConfig
-get_redis_config = get_valkey_config
-get_redis_client = get_valkey_client
-check_redis_stack_available = check_valkey_stack_available
-redis_health_check = valkey_health_check
 
 __all__ = [
     "ValkeyDatabase",
@@ -380,11 +372,4 @@ __all__ = [
     "check_valkey_stack_available",
     "close_all_pools",
     "valkey_health_check",
-    # Legacy
-    "RedisDatabase",
-    "RedisConfig",
-    "get_redis_config",
-    "get_redis_client",
-    "check_redis_stack_available",
-    "redis_health_check",
 ]

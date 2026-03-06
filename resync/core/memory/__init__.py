@@ -16,7 +16,7 @@ from .conversation_memory import (
     InMemoryStore,
     MemoryStore,
     Message,
-    RedisMemoryStore,
+    ValkeyMemoryStore,
     get_conversation_memory,
 )
 from .integration import (
@@ -50,7 +50,7 @@ from .long_term_memory import (
     MemoryType,
     ProceduralCategory,
     ProceduralMemory,
-    RedisLongTermStore,
+    ValkeyLongTermStore,
     RetrievalMode,
     # Singleton
     get_long_term_memory,
@@ -61,7 +61,7 @@ __all__ = [
     "Message",
     "ConversationContext",
     "MemoryStore",
-    "RedisMemoryStore",
+    "ValkeyMemoryStore",
     "InMemoryStore",
     "ConversationMemory",
     "get_conversation_memory",
@@ -75,7 +75,7 @@ __all__ = [
     "ProceduralMemory",
     "LongTermMemoryStore",
     "InMemoryLongTermStore",
-    "RedisLongTermStore",
+    "ValkeyLongTermStore",
     "MemoryExtractor",
     "LongTermMemoryManager",
     "get_long_term_memory",

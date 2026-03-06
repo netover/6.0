@@ -99,12 +99,12 @@ class ErrorCode(str, Enum):
     CACHE_MISS = "CACHE_MISS"
     POOL_EXHAUSTED = "POOL_EXHAUSTED"
 
-    # Erros de Redis
-    REDIS_ERROR = "REDIS_ERROR"
-    REDIS_CONNECTION_ERROR = "REDIS_CONNECTION_ERROR"
-    REDIS_AUTH_ERROR = "REDIS_AUTH_ERROR"
-    REDIS_TIMEOUT_ERROR = "REDIS_TIMEOUT_ERROR"
-    REDIS_INITIALIZATION_ERROR = "REDIS_INITIALIZATION_ERROR"
+    # Erros de Valkey
+    VALKEY_ERROR = "VALKEY_ERROR"
+    VALKEY_CONNECTION_ERROR = "VALKEY_CONNECTION_ERROR"
+    VALKEY_AUTH_ERROR = "VALKEY_AUTH_ERROR"
+    VALKEY_TIMEOUT_ERROR = "VALKEY_TIMEOUT_ERROR"
+    VALKEY_INITIALIZATION_ERROR = "VALKEY_INITIALIZATION_ERROR"
 
     # Erros de Configuração
     CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
@@ -655,19 +655,19 @@ class InvalidConfigError(ConfigurationError):
         )
         self.error_code = ErrorCode.INVALID_CONFIGURATION
 
-class RedisError(BaseAppException):
-    """Exceção base para erros relacionados ao Redis."""
+class ValkeyError(BaseAppException):
+    """Exceção base para erros relacionados ao Valkey."""
 
     def __init__(
         self,
-        message: str = "Redis error",
+        message: str = "Valkey error",
         details: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
     ):
         super().__init__(
             message=message,
-            error_code=ErrorCode.REDIS_ERROR,
+            error_code=ErrorCode.VALKEY_ERROR,
             status_code=500,
             details=details,
             correlation_id=correlation_id,
@@ -675,12 +675,12 @@ class RedisError(BaseAppException):
             original_exception=original_exception,
         )
 
-class RedisInitializationError(RedisError):
-    """Erro ao inicializar Redis."""
+class ValkeyInitializationError(ValkeyError):
+    """Erro ao inicializar Valkey."""
 
     def __init__(
         self,
-        message: str = "Redis initialization error",
+        message: str = "Valkey initialization error",
         details: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
@@ -691,15 +691,15 @@ class RedisInitializationError(RedisError):
             correlation_id=correlation_id,
             original_exception=original_exception,
         )
-        self.error_code = ErrorCode.REDIS_INITIALIZATION_ERROR
+        self.error_code = ErrorCode.VALKEY_INITIALIZATION_ERROR
         self.severity = ErrorSeverity.CRITICAL
 
-class RedisConnectionError(RedisInitializationError):
-    """Erro de conexão ao Redis."""
+class ValkeyConnectionError(ValkeyInitializationError):
+    """Erro de conexão ao Valkey."""
 
     def __init__(
         self,
-        message: str = "Redis connection error",
+        message: str = "Valkey connection error",
         details: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
@@ -710,14 +710,14 @@ class RedisConnectionError(RedisInitializationError):
             correlation_id=correlation_id,
             original_exception=original_exception,
         )
-        self.error_code = ErrorCode.REDIS_CONNECTION_ERROR
+        self.error_code = ErrorCode.VALKEY_CONNECTION_ERROR
 
-class RedisAuthError(RedisInitializationError):
-    """Erro de autenticação Redis."""
+class ValkeyAuthError(ValkeyInitializationError):
+    """Erro de autenticação Valkey."""
 
     def __init__(
         self,
-        message: str = "Redis authentication error",
+        message: str = "Valkey authentication error",
         details: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         original_exception: Exception | None = None,
@@ -728,14 +728,14 @@ class RedisAuthError(RedisInitializationError):
             correlation_id=correlation_id,
             original_exception=original_exception,
         )
-        self.error_code = ErrorCode.REDIS_AUTH_ERROR
+        self.error_code = ErrorCode.VALKEY_AUTH_ERROR
 
-class RedisTimeoutError(RedisInitializationError):
-    """Timeout em operação Redis."""
+class ValkeyTimeoutError(ValkeyInitializationError):
+    """Timeout em operação Valkey."""
 
     def __init__(
         self,
-        message: str = "Redis timeout error",
+        message: str = "Valkey timeout error",
         timeout_seconds: float | None = None,
         details: dict[str, Any] | None = None,
         correlation_id: str | None = None,
@@ -752,7 +752,29 @@ class RedisTimeoutError(RedisInitializationError):
             correlation_id=correlation_id,
             original_exception=original_exception,
         )
-        self.error_code = ErrorCode.REDIS_TIMEOUT_ERROR
+        self.error_code = ErrorCode.VALKEY_TIMEOUT_ERROR
+
+# ---------------------------------------------------------------------------
+# Valkey naming compatibility
+# ---------------------------------------------------------------------------
+# The project uses Valkey (Valkey protocol compatible). Many parts of the codebase
+# have migrated to Valkey naming; we keep Valkey* exception names as thin wrappers
+# over the existing Valkey* exceptions to avoid startup/import regressions.
+
+class ValkeyError(ValkeyError):
+    """Base exception for Valkey-related errors (canonical Valkey error)."""
+
+class ValkeyInitializationError(ValkeyInitializationError):
+    """Error initializing Valkey (canonical Valkey initialization error)."""
+
+class ValkeyConnectionError(ValkeyConnectionError):
+    """Error connecting to Valkey (canonical Valkey connection error)."""
+
+class ValkeyAuthError(ValkeyAuthError):
+    """Authentication error for Valkey (canonical Valkey auth error)."""
+
+class ValkeyTimeoutError(ValkeyTimeoutError):
+    """Timeout error for Valkey (canonical Valkey timeout error)."""
 
 class AgentError(BaseAppException):
     """Exceção para erros relacionados à criação ou gerenciamento de agentes."""
@@ -1534,11 +1556,11 @@ def get_exception_by_error_code(error_code: ErrorCode) -> type[BaseAppException]
         ErrorCode.DATABASE_ERROR: DatabaseError,
         ErrorCode.CACHE_ERROR: CacheError,
         ErrorCode.CONFIGURATION_ERROR: ConfigurationError,
-        ErrorCode.REDIS_ERROR: RedisError,
-        ErrorCode.REDIS_CONNECTION_ERROR: RedisConnectionError,
-        ErrorCode.REDIS_AUTH_ERROR: RedisAuthError,
-        ErrorCode.REDIS_TIMEOUT_ERROR: RedisTimeoutError,
-        ErrorCode.REDIS_INITIALIZATION_ERROR: RedisInitializationError,
+        ErrorCode.VALKEY_ERROR: ValkeyError,
+        ErrorCode.VALKEY_CONNECTION_ERROR: ValkeyConnectionError,
+        ErrorCode.VALKEY_AUTH_ERROR: ValkeyAuthError,
+        ErrorCode.VALKEY_TIMEOUT_ERROR: ValkeyTimeoutError,
+        ErrorCode.VALKEY_INITIALIZATION_ERROR: ValkeyInitializationError,
         ErrorCode.TWS_CONNECTION_ERROR: TWSConnectionError,
         ErrorCode.LLM_ERROR: LLMError,
         ErrorCode.NETWORK_ERROR: NetworkError,
@@ -1587,11 +1609,11 @@ __all__ = [
     # Domain Specific
     "ConfigurationError",
     "InvalidConfigError",
-    "RedisError",
-    "RedisInitializationError",
-    "RedisConnectionError",
-    "RedisAuthError",
-    "RedisTimeoutError",
+    "ValkeyError",
+    "ValkeyInitializationError",
+    "ValkeyConnectionError",
+    "ValkeyAuthError",
+    "ValkeyTimeoutError",
     "AgentError",
     "TWSConnectionError",
     "TWSAuthenticationError",
@@ -1622,3 +1644,11 @@ __all__ = [
     # Utilities
     "get_exception_by_error_code",
 ]
+
+
+class LLMProvider5xxError(IntegrationError):
+    """Provider/server (5xx) errors for LLM calls."""
+
+
+class LLMNetworkError(IntegrationError):
+    """Network-level errors (DNS/connection reset/refused) for LLM calls."""

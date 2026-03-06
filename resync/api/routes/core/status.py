@@ -7,13 +7,46 @@ import platform
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Response
+from pydantic import BaseModel
 
 from resync.api.dependencies_v2 import get_logger
 from resync.api.models.responses_v2 import SystemStatusResponse
+from resync.core.async_utils import with_timeout, classify_exception
+from resync.settings import get_settings
 
 router = APIRouter()
 
-# In-memory status store (replace with Redis/DB in production)
+
+class LivenessResponse(BaseModel):
+    status: str
+    timestamp: str
+
+
+class DependencyCheck(BaseModel):
+    healthy: bool
+    error: str | None = None
+    critical: bool | None = None
+
+
+class ReadinessResponse(BaseModel):
+    status: str
+    timestamp: str
+    checks: dict[str, object]
+
+
+class DetailedHealthResponse(BaseModel):
+    status: str
+    timestamp: str
+    version: str
+    checks: dict[str, object]
+
+
+class WorkstationRegistrationResponse(BaseModel):
+    message: str
+    workstation: dict[str, str]
+
+
+# In-memory status store (replace with Valkey/DB in production)
 _status_store = {
     "workstations": [],
     "jobs": [],
@@ -58,16 +91,16 @@ async def check_database_health() -> tuple[bool, str | None]:
             raise
         return False, str(e)
 
-async def check_redis_health() -> tuple[bool, str | None]:
-    """Check Redis connectivity."""
+async def check_valkey_health() -> tuple[bool, str | None]:
+    """Check Valkey connectivity."""
     try:
-        from resync.core.valkey_init import get_redis_client
-
-        redis = get_redis_client()
-        if redis:
-            await redis.ping()
+        from resync.core.valkey_init import get_valkey_client
+        valkey = get_valkey_client()
+        if valkey:
+            settings = get_settings()
+            await with_timeout(valkey.ping(), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.ping')
             return True, None
-        return True, "Redis not configured (optional)"
+        return True, "Valkey not configured (optional)"
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -79,17 +112,17 @@ async def check_redis_health() -> tuple[bool, str | None]:
             raise
         return False, str(e)
 
-@router.get("/liveness")
-async def liveness_probe():
+@router.get("/liveness", response_model=LivenessResponse)
+async def liveness_probe() -> LivenessResponse:
     """
     Kubernetes Liveness Probe.
     Returns 200 if the application is running.
     Use for: livenessProbe in k8s deployment.
     """
-    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return LivenessResponse(status="alive", timestamp=datetime.now(timezone.utc).isoformat())
 
-@router.get("/readiness")
-async def readiness_probe(response: Response, logger_instance=Depends(get_logger)):
+@router.get("/readiness", response_model=ReadinessResponse)
+async def readiness_probe(response: Response, logger_instance=Depends(get_logger)) -> ReadinessResponse:
     """
     Kubernetes Readiness Probe.
     Returns 200 only if ALL critical dependencies are healthy.
@@ -97,7 +130,7 @@ async def readiness_probe(response: Response, logger_instance=Depends(get_logger
 
     Checks:
     - Database connectivity (critical)
-    - Redis connectivity (optional, degrades gracefully)
+    - Valkey connectivity (optional, degrades gracefully)
     """
     checks = {}
     is_ready = True
@@ -111,20 +144,20 @@ async def readiness_probe(response: Response, logger_instance=Depends(get_logger
             "readiness_check_failed", component="database", error=db_error
         )
 
-    # Check Redis (optional - degrades gracefully)
-    redis_healthy, redis_error = await check_redis_health()
-    checks["redis"] = {
-        "healthy": redis_healthy,
-        "error": redis_error,
-        "critical": False,  # Redis is optional
+    # Check Valkey (optional - degrades gracefully)
+    valkey_healthy, valkey_error = await check_valkey_health()
+    checks["valkey"] = {
+        "healthy": valkey_healthy,
+        "error": valkey_error,
+        "critical": False,
     }
     if (
-        not redis_healthy
-        and redis_error
-        and "not configured" not in redis_error.lower()
+        not valkey_healthy
+        and valkey_error
+        and "not configured" not in valkey_error.lower()
     ):
         logger_instance.warning(
-            "readiness_check_degraded", component="redis", error=redis_error
+            "readiness_check_degraded", component="valkey", error=valkey_error
         )
 
     # Add system metrics
@@ -139,12 +172,12 @@ async def readiness_probe(response: Response, logger_instance=Depends(get_logger
     if not is_ready:
         response.status_code = 503  # Service Unavailable
 
-    return result
+    return ReadinessResponse(**result)
 
-@router.get("/health/detailed")
+@router.get("/health/detailed", response_model=DetailedHealthResponse)
 async def detailed_health_check(
     response: Response, logger_instance=Depends(get_logger)
-):
+) -> DetailedHealthResponse:
     """
     Detailed health check for monitoring dashboards.
     Returns comprehensive status of all components.
@@ -163,20 +196,20 @@ async def detailed_health_check(
     if not db_healthy:
         overall_healthy = False
 
-    # Redis check
-    redis_healthy, redis_error = await check_redis_health()
-    checks["redis"] = {
+    # Valkey check
+    valkey_healthy, valkey_error = await check_valkey_health()
+    checks["valkey"] = {
         "status": "healthy"
-        if redis_healthy
+        if valkey_healthy
         else (
-            "degraded" if "not configured" in str(redis_error or "") else "unhealthy"
+            "degraded" if "not configured" in str(valkey_error or "") else "unhealthy"
         ),
-        "error": redis_error,
+        "error": valkey_error,
     }
     if (
-        not redis_healthy
-        and redis_error
-        and "not configured" not in redis_error.lower()
+        not valkey_healthy
+        and valkey_error
+        and "not configured" not in valkey_error.lower()
     ):
         degraded = True
 
@@ -198,18 +231,18 @@ async def detailed_health_check(
     else:
         status = "healthy"
 
-    return {
-        "status": status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "5.3.19",
-        "checks": checks,
-    }
+    return DetailedHealthResponse(
+        status=status,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        version="5.3.19",
+        checks=checks,
+    )
 
 @router.get("/status", response_model=SystemStatusResponse)
 async def get_system_status(logger_instance=Depends(get_logger)):
     """Get system status including workstations and jobs"""
     try:
-        # Get status from store (production: use Redis/database)
+        # Get status from store (production: use Valkey/database)
         workstations = _status_store.get("workstations", [])
         jobs = _status_store.get("jobs", [])
 
@@ -247,7 +280,7 @@ async def get_system_status(logger_instance=Depends(get_logger)):
             workstations=[], jobs=[], timestamp=datetime.now(timezone.utc).isoformat()
         )
 
-@router.post("/status/workstation")
+@router.post("/status/workstation", response_model=WorkstationRegistrationResponse)
 async def register_workstation(
     name: str, status: str = "online", logger_instance=Depends(get_logger)
 ):

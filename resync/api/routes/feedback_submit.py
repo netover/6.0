@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from resync.core.database import Feedback, get_session
-from resync.core.valkey_init import get_redis_client
+from resync.core.valkey_init import get_valkey_client
 from resync.settings import get_settings
 from resync.core.security import verify_api_key
 from resync.core.security.redaction import redact_pii
@@ -81,27 +81,33 @@ async def submit_chat_feedback(
         if (not provided) or (not verify_api_key(provided, required_hash)):
             raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Best-effort Redis-backed fixed-window rate limit (atomic, Lua).
+    # Best-effort Valkey-backed fixed-window rate limit (atomic, Lua).
     # Default: 30 requests per 60 seconds per client IP.
     # In production, fail-closed if rate limiter is unavailable (configurable by env).
     try:
-        redis = get_redis_client()
+        valkey = get_valkey_client()
         client_ip = (request.client.host if request.client else "unknown") or "unknown"
         key = f"rate:feedback_submit:{client_ip}"
         lua = """
         local key = KEYS[1]
         local limit = tonumber(ARGV[1])
         local ttl = tonumber(ARGV[2])
-        local current = redis.call('INCR', key)
+        local current = valkey.call('INCR', key)
         if current == 1 then
-          redis.call('EXPIRE', key, ttl)
+          valkey.call('EXPIRE', key, ttl)
         end
         if current > limit then
           return 0
         end
         return 1
         """
-        ok = await redis.eval(lua, 1, key, "30", "60")
+        settings = get_settings()
+        try:
+            ok = await with_timeout(valkey.eval(lua, 1, key, "30", "60"), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.eval(rate_limit)')
+        except Exception as e:
+            reason, status_code = classify_exception(e)
+            logger.debug('feedback rate-limit valkey eval failed (%s, %s): %s', reason, status_code, str(e), exc_info=True)
+            ok = bool(getattr(get_settings(), "rate_limit_fail_open_feedback", True))  # degrade (configurável)
         if int(ok) != 1:
             log_event(logger, "warning", "feedback_rate_limited", client_ip=client_ip)
             raise HTTPException(status_code=429, detail="Too many requests")

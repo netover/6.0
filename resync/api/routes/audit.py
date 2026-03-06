@@ -63,6 +63,11 @@ class AuditAction(str, Enum):
     LLM_QUERY = "llm_query"
     CORS_VIOLATION = "cors_violation"
 
+class ReviewMemoryResponse(BaseModel):
+    status: str
+    memory_id: str
+
+
 class AuditRecordResponse(BaseModel):
     """Response model for audit records."""
 
@@ -227,7 +232,7 @@ def get_flagged_memories(
             detail="Error retrieving flagged memories. Check server logs for details.",
         ) from e
 
-@router.post("/review")
+@router.post("/review", response_model=ReviewMemoryResponse)
 async def review_memory(
     request: Request,
     review: ReviewAction,

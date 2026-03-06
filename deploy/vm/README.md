@@ -3,21 +3,21 @@
 ## 1) Install system packages (Ubuntu/Debian)
 - Python 3.14
 - build-essential, python3.14-venv, libpq-dev
-- PostgreSQL 14+ and Redis 6+
+- PostgreSQL 14+ and Valkey 6+
 
-## 2) Configure Postgres & Redis
+## 2) Configure Postgres & Valkey
 ```bash
 export RESYNC_DB_PASS='strong_password'
 ./deploy/vm/configure_postgres.sh
 
-export RESYNC_REDIS_PASS='strong_redis_password'
-./deploy/vm/configure_redis.sh
+export RESYNC_VALKEY_PASS='strong_valkey_password'
+./deploy/vm/configure_valkey.sh
 ```
 
 ## 3) Configure environment
 ```bash
 export APP_DATABASE_URL='postgresql+asyncpg://resync:strong_password@localhost:5432/resync'
-export APP_REDIS_URL='redis://:strong_redis_password@127.0.0.1:6379/0'
+export APP_VALKEY_URL='valkey://:strong_valkey_password@127.0.0.1:6379/0'
 ```
 
 ## 4) Install + init schema

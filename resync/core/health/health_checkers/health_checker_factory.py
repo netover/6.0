@@ -13,7 +13,8 @@ from .cpu_health_checker import CpuHealthChecker
 from .database_health_checker import DatabaseHealthChecker
 from .filesystem_health_checker import FileSystemHealthChecker
 from .memory_health_checker import MemoryHealthChecker
-from .redis_health_checker import RedisHealthChecker
+from .valkey_health_checker import ValkeyHealthChecker
+from .valkey_health_checker import ValkeyHealthChecker
 from .tws_monitor_health_checker import TWSMonitorHealthChecker
 from .websocket_pool_health_checker import WebSocketPoolHealthChecker
 
@@ -35,7 +36,8 @@ class HealthCheckerFactory:
         self._checkers: dict[str, BaseHealthChecker] = {}
         self._checker_classes: dict[str, type[BaseHealthChecker]] = {
             "database": DatabaseHealthChecker,
-            "redis": RedisHealthChecker,
+            "valkey": ValkeyHealthChecker,
+            "valkey": ValkeyHealthChecker,
             "cache_hierarchy": CacheHealthChecker,
             "file_system": FileSystemHealthChecker,
             "memory": MemoryHealthChecker,
@@ -98,7 +100,7 @@ class HealthCheckerFactory:
         # All core components are enabled by default
         enabled_components = {
             "database",
-            "redis",
+            "valkey",
             "cache_hierarchy",
             "file_system",
             "memory",

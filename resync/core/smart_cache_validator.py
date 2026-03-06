@@ -144,7 +144,7 @@ class SmartCacheValidator:
 
         Args:
             tws_client: TWS client for fetching job dependencies
-            cache_client: Redis client for cache operations
+            cache_client: Valkey client for cache operations
             knowledge_graph: Knowledge graph instance
             discovery_service: Auto-discovery service (optional)
         """
@@ -436,7 +436,7 @@ def get_cache_validator(
 
     Args:
         tws_client: TWS client instance
-        cache_client: Redis client instance
+        cache_client: Valkey client instance
         knowledge_graph: Knowledge graph instance
         discovery_service: Discovery service instance (optional)
 

@@ -116,7 +116,8 @@ class RagComponentsManager:
             # P0-17 FIX: Offload synchronous blocking instantiation into thread pool
             def _init_sync_services():
                 emb = EmbeddingService()
-                vs = get_vector_store()
+                from resync.knowledge.store.pgvector_store import get_vector_store_sync
+                vs = get_vector_store_sync()
                 ret = RagRetriever(emb, vs)
                 ing = IngestService(emb, vs)
                 return emb, vs, ret, ing
@@ -266,6 +267,16 @@ async def chat_message(
     # v5.7.1 FIX: Removed global logger injection to prevent context contamination
     # logger = logger_instance
 
+    # Resolve user identifier for logs/auditing (do not hardcode in production)
+    user_id: str = (
+        (current_user or {}).get("sub")
+        or (current_user or {}).get("user_id")
+        or (current_user or {}).get("id")
+        or (current_user or {}).get("email")
+        or ("operator" if is_operator else "anonymous")
+    )
+
+
     try:
         # v5.4.0: Get or create conversation session
         session_id = x_session_id or (
@@ -285,20 +296,11 @@ async def chat_message(
         if x_routing_mode:
             try:
                 force_mode = RoutingMode(x_routing_mode)
-            except (
-                OSError,
-                ValueError,
-                TypeError,
-                KeyError,
-                AttributeError,
-                RuntimeError,
-                TimeoutError,
-                ConnectionError,
-            ):
+            except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid X-Routing-Mode: {x_routing_mode}",
-                )
+                ) from None
 
         # v5.4.1: Use HybridRouter if available
         if _use_hybrid_router:
@@ -317,7 +319,7 @@ async def chat_message(
 
             logger_instance.info(
                 "chat_message_processed",
-                user_id="test_user",
+                user_id=user_id,
                 session_id=context.session_id,
                 routing_mode=result.routing_mode.value,
                 intent=result.intent,
@@ -376,7 +378,7 @@ async def chat_message(
 
         logger_instance.info(
             "chat_message_processed",
-            user_id="test_user",
+            user_id=user_id,
             session_id=context.session_id,
             intent=result["intent"],
             confidence=result["confidence"],
@@ -430,7 +432,7 @@ async def chat_message(
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
-        logger_instance.error("chat_message_error", error=str(e), user_id="test_user")
+        logger_instance.error("chat_message_error", error=str(e), user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process chat message",
@@ -581,6 +583,15 @@ async def clear_chat_history(
             detail="Not authenticated",
         )
 
+
+    user_id: str = (
+        current_user.get("sub")
+        or current_user.get("user_id")
+        or current_user.get("id")
+        or current_user.get("email")
+        or "anonymous"
+    )
+
     # v5.4.1: Clear from memory if session provided
     if x_session_id:
         try:
@@ -615,7 +626,7 @@ async def clear_chat_history(
     if not _use_hybrid_router:
         unified_agent.clear_history()
 
-    logger_instance.info("chat_history_cleared", user_id="test_user")
+    logger_instance.info("chat_history_cleared", user_id=user_id)
     return {"message": "Chat history cleared successfully"}
 
 

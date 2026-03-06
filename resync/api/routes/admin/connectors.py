@@ -5,7 +5,7 @@ Admin Connector Management Routes.
 Provides endpoints for managing external connections:
 - TWS/HWA instances
 - Database connections
-- Message queues (Redis, RabbitMQ)
+- Message queues (Valkey, RabbitMQ)
 - External APIs
 - Notification channels
 """
@@ -31,7 +31,7 @@ class ConnectorType(str, Enum):
 
     TWS = "tws"
     DATABASE = "database"
-    REDIS = "redis"
+    VALKEY = "valkey"
     RABBITMQ = "rabbitmq"
     API = "api"
     SMTP = "smtp"
@@ -332,7 +332,7 @@ async def get_connector_types():
                 "name": "Database",
                 "description": "SQL Database connection",
             },
-            {"type": "redis", "name": "Redis", "description": "Redis cache/queue"},
+            {"type": "valkey", "name": "Valkey", "description": "Valkey cache/queue"},
             {"type": "rabbitmq", "name": "RabbitMQ", "description": "Message queue"},
             {
                 "type": "api",

@@ -718,12 +718,12 @@ class EnhancedSecurityValidator:
         Returns:
             RateLimitInfo with current status
         """
-        # In a real implementation, this would use Redis or similar
+        # In a real implementation, this would use Valkey or similar
         # For now, we'll simulate with in-memory storage
         current_time = time.time()
 
         # Simulate rate limiting logic
-        # In production, this would use atomic operations in Redis
+        # In production, this would use atomic operations in Valkey
         remaining = max(0, limit - 1)  # Simplified for example
 
         return RateLimitInfo(

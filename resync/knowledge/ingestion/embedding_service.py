@@ -29,6 +29,7 @@ from typing import Any
 from resync.knowledge.config import CFG
 from resync.knowledge.interfaces import Embedder
 from resync.core.exceptions import IntegrationError
+from resync.core.litellm_init import get_litellm_router
 
 import structlog
 
@@ -38,6 +39,7 @@ class EmbeddingProvider(str, Enum):
     """Supported embedding providers."""
 
     OPENAI = "openai"
+    OPENROUTER = "openrouter"
     AZURE = "azure"
     COHERE = "cohere"
     HUGGINGFACE = "huggingface"
@@ -126,6 +128,7 @@ class MultiProviderEmbeddingService(Embedder):
     PROVIDER_PREFIXES = {
         "text-embedding-": EmbeddingProvider.OPENAI,
         "openai/": EmbeddingProvider.OPENAI,
+        "openrouter/": EmbeddingProvider.OPENROUTER,
         "azure/": EmbeddingProvider.AZURE,
         "cohere/": EmbeddingProvider.COHERE,
         "embed-": EmbeddingProvider.COHERE,  # Cohere model names
@@ -179,6 +182,8 @@ class MultiProviderEmbeddingService(Embedder):
         
         # Load API key and base URL from config if not provided
         self._api_key = api_key or (CFG.openai_api_key.get_secret_value() if CFG.openai_api_key else os.getenv("APP_EMBEDDING_API_KEY"))
+        if (not self._api_key) and (self._provider == EmbeddingProvider.OPENROUTER or self._model.lower().startswith("openrouter/")):
+            self._api_key = os.getenv("OPENROUTER_API_KEY")
         self._api_base = (api_base or CFG.embed_api_base or os.getenv("APP_EMBEDDING_ENDPOINT"))
         if self._api_base:
             self._api_base = self._api_base.strip()
@@ -187,16 +192,8 @@ class MultiProviderEmbeddingService(Embedder):
         self._timeout = timeout
         self._retry_attempts = retry_attempts
         self._extra_params = extra_params
-        
-        # Initialize OpenAI client if using OpenAI-compatible provider
-        self._use_openai_client = self._provider in {EmbeddingProvider.OPENAI, EmbeddingProvider.AZURE}
+        # LiteLLM is the only execution path (no direct OpenAI client)
         self._openai_client = None
-        if self._use_openai_client and self._api_key:
-                        self._openai_client = AsyncOpenAI(
-                api_key=self._api_key,
-                base_url=self._api_base,
-                timeout=self._timeout
-            )
 
         # Check LiteLLM availability
         self._litellm_available = self._check_litellm()
@@ -227,6 +224,9 @@ class MultiProviderEmbeddingService(Embedder):
             # Check for API keys based on provider
             if self._provider == EmbeddingProvider.OPENAI:
                 if self._api_key or os.getenv("OPENAI_API_KEY"):
+                    return True
+            elif self._provider == EmbeddingProvider.OPENROUTER:
+                if self._api_key or os.getenv("OPENROUTER_API_KEY"):
                     return True
             elif self._provider == EmbeddingProvider.AZURE:
                 if os.getenv("AZURE_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY"):
@@ -381,17 +381,6 @@ class MultiProviderEmbeddingService(Embedder):
 
         self._stats["total_requests"] += 1
         self._stats["total_texts"] += len(texts)
-
-        if self._openai_client:
-            try:
-                return await self._embed_with_openai(texts, timeout=timeout)
-            except Exception as e:
-                logger.warning(
-                    "OpenAI_embedding_failed",
-                    error=str(e),
-                    message="Falling back to LiteLLM/Hash",
-                )
-        
         if self._litellm_available:
             try:
                 return await self._embed_with_litellm(texts, timeout=timeout)
@@ -411,46 +400,6 @@ class MultiProviderEmbeddingService(Embedder):
         # Fallback to hash-based embeddings
         self._stats["fallback_calls"] += 1
         return [self._hash_vec(t) for t in texts]
-
-    async def _embed_with_openai(
-        self, texts: list[str], timeout: float = 60.0
-    ) -> list[list[float]]:
-        """Embed texts using specialized AsyncOpenAI client for NVIDIA/OpenAI."""
-        if not self._openai_client:
-            raise IntegrationError("OpenAI client not initialized")
-
-        all_embeddings: list[list[float]] = []
-
-        # Process in batches
-        for i in range(0, len(texts), self._batch_size):
-            batch = texts[i : i + self._batch_size]
-            
-            # Simple retry logic for the specialized client
-            for attempt in range(self._retry_attempts):
-                try:
-                    # For NVIDIA models via OpenRouter, skip and use LiteLLM instead
-                    # The OpenAI client doesn't support input_type parameter properly
-                    return await self._embed_with_litellm(texts, timeout=timeout)
-                    
-                    batch_embeddings = [item.embedding for item in response.data]
-                    all_embeddings.extend(batch_embeddings)
-                    self._stats["litellm_calls"] += 1  # Reusing stats counter
-                    break
-                    
-                except Exception as e:
-                    if attempt < self._retry_attempts - 1:
-                        wait_time = (2 ** attempt) + random.uniform(0, 1)
-                        logger.warning(
-                            "openai_embedding_retry",
-                            attempt=attempt+1,
-                            wait_time=wait_time,
-                            error=str(e)
-                        )
-                        await asyncio.sleep(wait_time)
-                    else:
-                        raise
-
-        return all_embeddings
 
     async def _embed_with_litellm(
         self, texts: list[str], timeout: float = 60.0
@@ -508,7 +457,7 @@ class MultiProviderEmbeddingService(Embedder):
             for attempt in range(self._retry_attempts):
                 try:
                     response = await asyncio.wait_for(
-                        asyncio.to_thread(litellm.embedding, **params),
+                        asyncio.to_thread(get_litellm_router().embedding, **params),
                         timeout=timeout + 2.0
                     )
 

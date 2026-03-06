@@ -584,24 +584,14 @@ async def collect_metrics_sample() -> MetricSample:
 async def metrics_collector_loop():
     """Loop de coleta de métricas em background."""
     store = get_metrics_store()
+    from resync.core.loop_utils import run_resilient_loop
 
-    while True:
-        try:
-            sample = await collect_metrics_sample()
-            await store.add_sample(sample)
-        except asyncio.CancelledError:
-            raise
-            logger.info("Metrics collector loop cancelled")
-            raise  # Must re-raise for proper shutdown
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-            import sys as _sys
-            from resync.core.exception_guard import maybe_reraise_programming_error
-            _exc_type, _exc, _tb = _sys.exc_info()
-            maybe_reraise_programming_error(_exc, _tb)
-
-            logger.error("Erro no collector loop: %s", e)
-
+    async def _step():
+        sample = await collect_metrics_sample()
+        await store.add_sample(sample)
         await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+
+    await run_resilient_loop("monitoring.metrics_collector", _step, logger=logger, step_timeout_seconds=None)
 
 async def _start_metrics_collector_async() -> None:
     """Start collector under lock to avoid duplicate background tasks."""
@@ -742,13 +732,13 @@ async def websocket_metrics(websocket: WebSocket) -> None:
     try:
         store = get_metrics_store()
 
-        while True:
-            # Enviar métricas atuais
+        from resync.core.loop_utils import run_resilient_loop
+        async def _step():
             metrics = await store.get_current_metrics()
             await websocket.send_json(metrics)
-
-            # Aguardar próximo intervalo
             await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+
+        await run_resilient_loop("monitoring.websocket_metrics_push", _step, logger=logger, step_timeout_seconds=None)
 
     except WebSocketDisconnect:
         logger.info("monitoring_ws_disconnected")

@@ -61,28 +61,28 @@ def _patched_import_mocks() -> Iterator[None]:
             else:
                 sys.modules[name] = module
 
-async def test_dashboard_redis_integration() -> None:
-    """Validate Redis persistence and pub/sub broadcast paths."""
+async def test_dashboard_valkey_integration() -> None:
+    """Validate Valkey persistence and pub/sub broadcast paths."""
     with _patched_import_mocks():
         from resync.api.monitoring_dashboard import (
-            REDIS_CH_BROADCAST,
-            REDIS_KEY_LATEST,
-            REDIS_KEY_START_TIME,
+            VALKEY_CH_BROADCAST,
+            VALKEY_KEY_LATEST,
+            VALKEY_KEY_START_TIME,
             DashboardMetricsStore,
             MetricSample,
             collect_metrics_sample,
             get_ws_manager,
         )
 
-    print("Running test_dashboard_redis_integration...")
+    print("Running test_dashboard_valkey_integration...")
 
     mock_redis = MagicMock()
     mock_redis.set = AsyncMock(return_value=True)
 
     async def _mock_get(key: str) -> str | None:
-        if key == REDIS_KEY_START_TIME:
+        if key == VALKEY_KEY_START_TIME:
             return str(time.time() - 60.0)
-        if key == REDIS_KEY_LATEST:
+        if key == VALKEY_KEY_LATEST:
             return '{"status": "ok", "api": {"requests_per_sec": 0}}'
         return None
 
@@ -105,7 +105,7 @@ async def test_dashboard_redis_integration() -> None:
 
     with (
         patch(
-            "resync.api.monitoring_dashboard.get_redis_client", return_value=mock_redis
+            "resync.api.monitoring_dashboard.get_valkey_client", return_value=mock_redis
         ),
         patch("resync.api.monitoring_dashboard._verify_ws_admin", return_value="admin"),
         patch("resync.core.metrics.runtime_metrics") as mock_metrics,
@@ -134,7 +134,7 @@ async def test_dashboard_redis_integration() -> None:
         await store.add_sample(sample)
         mock_pipeline.lpush.assert_called_once_with(ANY, ANY)
         lpush_args, _ = mock_pipeline.lpush.call_args
-        _require(bool(lpush_args[0]), "Redis key for lpush is empty.")
+        _require(bool(lpush_args[0]), "Valkey key for lpush is empty.")
 
         payload = json.loads(lpush_args[1])
         _require(payload["requests_total"] == 100, "Unexpected requests_total payload.")
@@ -144,7 +144,7 @@ async def test_dashboard_redis_integration() -> None:
         mock_pipeline.reset_mock()
 
         await collect_metrics_sample()
-        mock_redis.publish.assert_called_once_with(REDIS_CH_BROADCAST, ANY)
+        mock_redis.publish.assert_called_once_with(VALKEY_CH_BROADCAST, ANY)
 
         mock_ws = AsyncMock()
         mock_ws.send_text = AsyncMock()
@@ -161,7 +161,7 @@ async def test_dashboard_redis_integration() -> None:
         mock_ws.send_text.assert_called_once_with('{"status": "sync_test"}')
         await ws_manager.disconnect(mock_ws)
 
-    print("test_dashboard_redis_integration passed!")
+    print("test_dashboard_valkey_integration passed!")
 
 async def test_workflows_history() -> None:
     """Validate history mappers default and float handling."""
@@ -284,16 +284,16 @@ async def main() -> int:
         print("\nABORTING: Settings validation failed.")
         return 1
 
-    # 2. Redis Integration
+    # 2. Valkey Integration
     try:
-        await test_dashboard_redis_integration()
+        await test_dashboard_valkey_integration()
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
-        print(f"test_dashboard_redis_integration FAILED: {e}")
+        print(f"test_dashboard_valkey_integration FAILED: {e}")
         success = False
 
     # 3. Workflows History

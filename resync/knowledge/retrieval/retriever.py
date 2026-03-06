@@ -68,5 +68,7 @@ def get_retriever() -> "RagRetriever":
     """Return a shared RagRetriever instance."""
     global _retriever_instance
     if _retriever_instance is None:
-        _retriever_instance = RagRetriever()
+        from resync.knowledge.ingestion.embedding_service import EmbeddingService
+        from resync.knowledge.store.pgvector_store import get_vector_store_sync
+        _retriever_instance = RagRetriever(EmbeddingService(), get_vector_store_sync())
     return _retriever_instance

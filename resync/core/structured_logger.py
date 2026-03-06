@@ -143,8 +143,8 @@ def censor_sensitive_data(
         "db_url",
         "connection_string",
         "conn_str",
-        "redis_url",
-        "redis_password",
+        "valkey_url",
+        "valkey_password",
         "encryption_key",
         "signing_key",
         "jwt_secret",
@@ -217,6 +217,11 @@ def configure_structured_logging(
     persist_logs_path: str | None = None,
 ) -> None:
     level = getattr(logging, log_level.upper())
+
+    if structlog is None:  # pragma: no cover
+        raise ModuleNotFoundError(
+            "structlog is required for Resync logging. Install it (see requirements.txt)."
+        )
 
     shared_processors: list[StructlogProcessor] = [
         structlog.contextvars.merge_contextvars,
@@ -343,13 +348,70 @@ def configure_structured_logging(
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
+class FallbackLogger:
+    """Structlog-compatible logger wrapper used when structlog isn't installed.
+
+    Many parts of the codebase use structlog-style calls like:
+        logger.info("event_name", key=value)
+
+    The standard-library logging API does not accept arbitrary keyword args, so
+    this wrapper serializes kwargs into `extra` and a readable message.
+    """
+
+    def __init__(self, base: logging.Logger, context: dict[str, Any] | None = None) -> None:
+        self._base = base
+        self._context = context or {}
+
+    def bind(self, **kwargs: Any) -> "FallbackLogger":
+        ctx = dict(self._context)
+        ctx.update(kwargs)
+        return FallbackLogger(self._base, ctx)
+
+    def unbind(self, *keys: str) -> "FallbackLogger":
+        ctx = dict(self._context)
+        for k in keys:
+            ctx.pop(k, None)
+        return FallbackLogger(self._base, ctx)
+
+    def _log(self, level: int, event: str, **kwargs: Any) -> None:
+        payload = dict(self._context)
+        payload.update(kwargs)
+        # Keep message readable even without JSON formatting.
+        if payload:
+            msg = f"{event} | {payload}"
+        else:
+            msg = event
+        self._base.log(level, msg)
+
+    def debug(self, event: str, **kwargs: Any) -> None:
+        self._log(logging.DEBUG, event, **kwargs)
+
+    def info(self, event: str, **kwargs: Any) -> None:
+        self._log(logging.INFO, event, **kwargs)
+
+    def warning(self, event: str, **kwargs: Any) -> None:
+        self._log(logging.WARNING, event, **kwargs)
+
+    def error(self, event: str, **kwargs: Any) -> None:
+        self._log(logging.ERROR, event, **kwargs)
+
+    def critical(self, event: str, **kwargs: Any) -> None:
+        self._log(logging.CRITICAL, event, **kwargs)
+
+    # Common structlog aliases used in some codebases
+    warn = warning
+
+
 def get_logger(name: str | None = None):
+    """Return a structlog-compatible logger.
+
+    If structlog is available, returns structlog.get_logger().
+    Otherwise returns a FallbackLogger wrapper around stdlib logging.
+    """
     if structlog is None:
         base = logging.getLogger(name or __name__)
-        # Fallback implementation omitted for brevity/safety
-        return base
+        return FallbackLogger(base)
     return structlog.get_logger(name) if name else structlog.get_logger()
-
 # ============================================================================
 # LOGGING HELPERS
 # ============================================================================

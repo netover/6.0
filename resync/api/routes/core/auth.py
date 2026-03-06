@@ -7,7 +7,7 @@ and integrates with the application's security middleware.
 
 Security Features:
 - IP spoofing protection
-- Redis Lua injection prevention
+- Valkey Lua injection prevention
 - CSRF protection via SameSite cookies
 - JWT token leakage prevention
 - Constant-time authentication
@@ -37,10 +37,10 @@ from resync.api.core import security as jwt_security
 from resync.api.core.security import decode_access_token
 from resync.api.routes.core.ip_utils import (
     get_trusted_client_ip,
-    sanitize_ip_for_redis_key,
+    sanitize_ip_for_valkey_key,
 )
 from resync.core.exception_guard import maybe_reraise_programming_error
-from resync.core.valkey_init import get_redis_client
+from resync.core.valkey_init import get_valkey_client
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
 from resync.core.token_revocation import revoke_jti
@@ -151,7 +151,7 @@ class SecureAuthenticator:
     def __init__(self) -> None:
         self._lockout_duration_seconds = 15 * 60  # 15 minutes
         self._max_attempts = 5
-        self._redis_prefix = "resync:auth:lockout"
+        self._valkey_prefix = "resync:auth:lockout"
 
         # HKDF-derived auth key (CWE-916)
         self._auth_key: bytes | None = None
@@ -210,7 +210,7 @@ class SecureAuthenticator:
 
         # Atomically check lockout and prepare to record attempt (TASK-010)
         # Sanitize IP to prevent Lua injection (TASK-004)
-        sanitized_ip = sanitize_ip_for_redis_key(request_ip)
+        sanitized_ip = sanitize_ip_for_valkey_key(request_ip)
         is_locked, remaining, _ = await self._check_and_record_attempt(
             sanitized_ip, success=True
         )
@@ -268,13 +268,18 @@ class SecureAuthenticator:
 
         # Success - clear failed attempts (distributed) with sanitized IP
         try:
-            redis = get_redis_client()
-            await redis.delete(f"{self._redis_prefix}:{sanitized_ip}")
+            valkey = get_valkey_client()
+            settings = get_settings()
+            try:
+                await with_timeout(valkey.delete(f"{self._valkey_prefix}:{sanitized_ip}"), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.delete')
+            except Exception as e:
+                reason, status_code = classify_exception(e)
+                logger.debug('valkey.delete failed (%s, %s): %s', reason, status_code, str(e), exc_info=True)
         except INFRA_ERRORS as exc:
             maybe_reraise_programming_error(exc, exc.__traceback__)
 
-            # Non-fatal: if Redis is down, lockout TTL will expire naturally
-            logger.debug("redis_lockout_clear_failed", error=str(exc))
+            # Non-fatal: if Valkey is down, lockout TTL will expire naturally
+            logger.debug("valkey_lockout_clear_failed", error=str(exc))
 
         logger.info(
             "auth_success",
@@ -305,7 +310,7 @@ class SecureAuthenticator:
         """Check if IP is locked out and return remaining minutes.
 
         Uses the same atomic Lua path as `_check_and_record_attempt` (with success=True),
-        avoiding TOCTOU races between Redis calls.
+        avoiding TOCTOU races between Valkey calls.
         """
         try:
             is_locked, remaining_minutes, _ = await self._check_and_record_attempt(
@@ -315,7 +320,7 @@ class SecureAuthenticator:
         except INFRA_ERRORS as exc:
             maybe_reraise_programming_error(exc, exc.__traceback__)
 
-            logger.error("redis_lockout_check_failed", error=str(exc))
+            logger.error("valkey_lockout_check_failed", error=str(exc))
             return False, 0
     # Removed: _record_failed_attempt is now part of _check_and_record_attempt
     # to prevent TOCTOU race conditions
@@ -326,19 +331,19 @@ class SecureAuthenticator:
         """Atomically check lockout state and record attempt.
 
         This prevents TOCTOU race conditions by combining check + record in a single
-        Redis Lua script that executes atomically.
+        Valkey Lua script that executes atomically.
 
         Args:
-            ip: Client IP address (should be sanitized via sanitize_ip_for_redis_key)
+            ip: Client IP address (should be sanitized via sanitize_ip_for_valkey_key)
             success: Whether the authentication succeeded
 
         Returns:
             (is_locked, remaining_minutes, attempt_count)
         """
         try:
-            redis = get_redis_client()
-            # Use sanitized IP for Redis key (TASK-004)
-            key = f"{self._redis_prefix}:{ip}"
+            valkey = get_valkey_client()
+            # Use sanitized IP for Valkey key (TASK-004)
+            key = f"{self._valkey_prefix}:{ip}"
             now = time.time()
             cutoff = now - self._lockout_duration_seconds
 
@@ -353,16 +358,16 @@ class SecureAuthenticator:
             local success = ARGV[5] == 'true'
 
             -- Remove old attempts
-            redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
+            valkey.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
 
             -- Count recent attempts
-            local count = redis.call('ZCARD', key)
+            local count = valkey.call('ZCARD', key)
 
             -- Check if locked
             local is_locked = 0
             local remaining = 0
             if count >= max_attempts then
-                local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+                local oldest = valkey.call('ZRANGE', key, 0, 0, 'WITHSCORES')
                 if #oldest > 0 then
                     local oldest_time = tonumber(oldest[2])
                     local unlock_time = oldest_time + lockout_duration
@@ -374,25 +379,44 @@ class SecureAuthenticator:
             -- Record failed attempt (only if not success)
             if not success and is_locked == 0 then
                 local nonce = ARGV[6]
-                redis.call('ZADD', key, now, tostring(now) .. ':' .. nonce)
-                redis.call('EXPIRE', key, lockout_duration * 2)
+                valkey.call('ZADD', key, now, tostring(now) .. ':' .. nonce)
+                valkey.call('EXPIRE', key, lockout_duration * 2)
                 count = count + 1
             end
 
             return {is_locked, remaining, count}
             """
 
-            result = await redis.eval(
-                lua_script,
-                1,  # number of keys
-                key,
-                str(now),
-                str(cutoff),
-                str(self._max_attempts),
-                str(self._lockout_duration_seconds),
-                str(success),
-                secrets.token_hex(8),
-            )
+            
+            settings = get_settings()
+            try:
+                result = await with_timeout(
+                    valkey.eval(
+                        lua_script,
+                        1,  # number of keys
+                        key,
+                        str(now),
+                        str(cutoff),
+                        str(self._max_attempts),
+                        str(self._lockout_duration_seconds),
+                        str(success),
+                        secrets.token_hex(8),
+                    ),
+                    getattr(settings, "valkey_health_timeout", 2.0),
+                    op="valkey.eval(auth_rate_limit)",
+                )
+            except Exception as e:
+                reason, status_code = classify_exception(e)
+                logger.debug(
+                    "valkey.eval failed (%s, %s): %s",
+                    reason,
+                    status_code,
+                    str(e),
+                    exc_info=True,
+                )
+                # Backend do rate limiter indisponível.
+                # Default conservador: bloquear em /auth; pode ser alterado via settings.
+                return bool(getattr(settings, "rate_limit_fail_open_auth", False))
 
             is_locked = bool(result[0])
             remaining_minutes = int(result[1] / 60) + 1 if result[1] > 0 else 0
@@ -410,7 +434,7 @@ class SecureAuthenticator:
         except INFRA_ERRORS as e:
             maybe_reraise_programming_error(e, e.__traceback__)
 
-            logger.error("redis_lockout_check_failed", error=str(e))
+            logger.error("valkey_lockout_check_failed", error=str(e))
             return False, 0, 0
 
 # Global authenticator singleton (lazy init; thread-safe)
@@ -690,7 +714,7 @@ async def logout(request: Request) -> Response:
     Logout user (invalidate token) and clear secure cookie.
 
     This endpoint:
-    1. Revokes the JWT token on the server side by adding JTI to Redis blacklist
+    1. Revokes the JWT token on the server side by adding JTI to Valkey blacklist
     2. Clears the access_token cookie from the client
 
     This ensures that even if a token was stolen, it cannot be used after logout.

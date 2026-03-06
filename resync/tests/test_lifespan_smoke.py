@@ -23,7 +23,6 @@ REQUIRED_STATE_KEYS = [
 ]
 
 
-@pytest.mark.skip(reason="Fails in sandbox")
 def test_lifespan_initializes_app_state_singletons() -> None:
     from unittest.mock import MagicMock
 
@@ -36,6 +35,7 @@ def test_lifespan_initializes_app_state_singletons() -> None:
         patch(
             "resync.core.startup.run_startup_checks", new_callable=AsyncMock
         ) as mock_checks,
+        patch("resync.core.litellm_init.get_litellm_router", return_value=object()),
         patch("resync.core.startup._init_cache_warmup", new_callable=AsyncMock),
         patch("resync.core.startup._init_graphrag", new_callable=AsyncMock),
         patch("resync.core.startup._init_metrics_collector", new_callable=AsyncMock),

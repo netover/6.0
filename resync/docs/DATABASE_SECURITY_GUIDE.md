@@ -6,7 +6,7 @@ This guide provides comprehensive database security practices for the Resync pro
 
 The Resync project implements multiple database technologies:
 - **SQLite** - Primary database for audit logs and queue management
-- **Redis** - Used for caching and stream processing  
+- **Valkey** - Used for caching and stream processing  
 - **Neo4j** - Knowledge graph operations with Cypher queries
 - **Connection Pooling** - Advanced pooling with SQLAlchemy 2.x
 
@@ -437,7 +437,7 @@ locust -f resync/tests/locustfile.py \
 #### Security Updates
 ```bash
 # Update security dependencies
-pip install --upgrade sqlalchemy aiosqlite redis neo4j
+pip install --upgrade sqlalchemy aiosqlite valkey neo4j
 
 # Review and apply security patches
 git fetch origin security

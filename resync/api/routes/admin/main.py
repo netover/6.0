@@ -199,7 +199,7 @@ async def get_admin_config(
 
         # Get system configuration - P0-A5 FIX: Don't expose sensitive credentials
         system_config = {
-            "llm_endpoint": getattr(settings, "LLM_ENDPOINT", None),
+            "llm_endpoint": getattr(settings, "llm_endpoint", None),
             # admin_username removed - should never be exposed in API responses
             "debug": getattr(settings, "DEBUG", False),
             "environment": getattr(settings, "APP_ENV", "development"),
@@ -289,7 +289,7 @@ async def update_teams_config(
 
         # P0-A5 FIX: Don't expose sensitive credentials
         system_config = {
-            "llm_endpoint": getattr(settings, "LLM_ENDPOINT", None),
+            "llm_endpoint": getattr(settings, "llm_endpoint", None),
             # admin_username removed - should never be exposed in API responses
             "debug": getattr(settings, "DEBUG", False),
             "environment": getattr(settings, "APP_ENV", "development"),
@@ -1066,7 +1066,7 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
         """Check LLM health."""
         try:
             start = time.perf_counter()
-            llm_endpoint = getattr(settings, "LLM_ENDPOINT", None)
+            llm_endpoint = getattr(settings, "llm_endpoint", None)
             if not llm_endpoint:
                 return ComponentHealth(
                     status="degraded",

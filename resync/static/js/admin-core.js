@@ -24,6 +24,8 @@ class AdminApp {
         this.feedback = new AdminFeedback(this); // Init Feedback
         this.rag = new AdminRAG(this);       // Init RAG
         this.tuning = new AdminTuning(this); // Init Tuning
+        this.agents = new AdminAgents(this); // Init Agents
+        this.advanced = new AdminAdvanced(this); // Init Advanced
         this.init();
     }
 
@@ -108,6 +110,9 @@ class AdminApp {
         this.router.addRoute('health', () => this.loadHealthView());
         this.router.addRoute('routing', () => this.loadRoutingView());
 
+        // Agents
+        this.router.addRoute('agents-registry', () => this.agents.loadRegistryView());
+
         // Configuration Routes (via AdminConfig)
         this.router.addRoute('teams-config', () => this.config.loadTeamsView());
         this.router.addRoute('tws-config', () => this.config.loadSettingsView('tws'));
@@ -124,6 +129,7 @@ class AdminApp {
         this.router.addRoute('backup', () => this.backup.loadBackupView());
         this.router.addRoute('audit', () => this.audit.loadAuditView());
         this.router.addRoute('feedback', () => this.feedback.loadFeedbackView());
+        this.router.addRoute('advanced', () => this.advanced.loadAdvancedView());
 
         // Enterprise
         this.router.addRoute('enterprise-overview', () => this.config.loadSettingsView('enterprise'));
@@ -132,7 +138,7 @@ class AdminApp {
     setupEventListeners() {
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
-                // Ask server to revoke the JWT (Redis JTI blacklist).
+                // Ask server to revoke the JWT (Valkey JTI blacklist).
                 await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
             } catch (_) { /* Non-fatal: cookie will expire on its own */ }
             sessionStorage.removeItem('admin_logged_in');

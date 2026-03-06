@@ -56,7 +56,7 @@ class ValkeyPool:
                 self._client = get_valkey_client()
         return self._client
 
-# Adicionar alias para compatibilidade
+# Canonical Valkey pool aliases
 ValkeyConnectionPool = ValkeyPool
-RedisPool = ValkeyPool
-RedisConnectionPool = ValkeyPool
+ValkeyPoolAlias = ValkeyPool
+ValkeyConnectionPoolAlias = ValkeyPool

@@ -23,9 +23,9 @@ alembic==1.18.4                     # Released: Jan 14, 2026
 psycopg2-binary==2.9.10             # PostgreSQL adapter (sync fallback)
 
 # -----------------------------------------------------------------------------
-# VALKEY (Redis Alternative) - VERSION 9 FOR VM
+# VALKEY (Valkey Alternative) - VERSION 9 FOR VM
 # -----------------------------------------------------------------------------
-valkey==6.1.1                       # Valkey Python client (fork of redis-py)
+valkey==6.1.1                       # Valkey Python client (fork of valkey-py)
 hiredis==3.3.0                      # Fast C parser for Valkey (latest available)
 
 # -----------------------------------------------------------------------------

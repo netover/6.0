@@ -313,20 +313,19 @@ async def log_cache_node(state: ParallelState) -> dict[str, Any]:
     logger.debug("parallel_node_start", node=source_name)
 
     try:
-        from resync.core.valkey_init import get_redis_client
-
+        from resync.core.valkey_init import get_valkey_client
         job_name = state.get("job_name")
         state.get("message", "")
 
         # Try to get cached logs
-        redis_client = get_redis_client()
+        valkey_client = get_valkey_client()
 
         logs_data = {}
-        if redis_client:
+        if valkey_client:
             # Get recent error patterns
             error_key = f"resync:errors:recent:{job_name or 'global'}"
             cached_errors = await asyncio.wait_for(
-                redis_client.get(error_key),
+                valkey_client.get(error_key),
                 timeout=2.0,
             )
 
@@ -337,7 +336,7 @@ async def log_cache_node(state: ParallelState) -> dict[str, Any]:
             if job_name:
                 history_key = f"resync:job:history:{job_name}"
                 cached_history = await asyncio.wait_for(
-                    redis_client.get(history_key),
+                    valkey_client.get(history_key),
                     timeout=2.0,
                 )
                 if cached_history:
@@ -680,17 +679,17 @@ def create_parallel_troubleshoot_graph(
 
     # Add parallel data fetching nodes
     if config.enable_tws_status:
-        graph.add_node("tws_status", tws_status_node)
+        graph.add_node("tws_status", wrap_langgraph_node(tws_status_node))
     if config.enable_rag_search:
-        graph.add_node("rag_search", rag_search_node)
+        graph.add_node("rag_search", wrap_langgraph_node(rag_search_node))
     if config.enable_log_cache:
-        graph.add_node("log_cache", log_cache_node)
+        graph.add_node("log_cache", wrap_langgraph_node(log_cache_node))
     if config.enable_metrics:
-        graph.add_node("metrics", metrics_node)
+        graph.add_node("metrics", wrap_langgraph_node(metrics_node))
 
     # Add aggregator and response generator
-    graph.add_node("aggregator", aggregator_node)
-    graph.add_node("response_generator", response_generator_node)
+    graph.add_node("aggregator", wrap_langgraph_node(aggregator_node))
+    graph.add_node("response_generator", wrap_langgraph_node(response_generator_node))
 
     # Set entry point - fan out to all data sources
     # LangGraph will execute these in parallel automatically

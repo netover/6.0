@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
+router = APIRouter(prefix="/admin/kg", tags=["KG Admin"])
 from fastapi import APIRouter, Depends, Query, Request
 
 from resync.api.routes.core.auth import verify_admin_credentials
@@ -22,9 +23,9 @@ def get_kg_store(request: Request) -> PostgresGraphStore:
     """Retorna singleton já inicializado do app state."""
     return request.app.state.enterprise_state.kg_store
 
-router = APIRouter(prefix="/api/admin/kg", tags=["KG Admin"])
 
 @router.get("/health", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/health", deprecated=True, dependencies=[Depends(verify_admin_credentials)])
 async def kg_health(
     store: PostgresGraphStore = Depends(get_kg_store),
 ) -> dict:
@@ -32,6 +33,7 @@ async def kg_health(
     return {"status": "ok" if ok else "degraded"}
 
 @router.get("/stats", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/stats", deprecated=True, dependencies=[Depends(verify_admin_credentials)])
 async def kg_stats(
     store: PostgresGraphStore = Depends(get_kg_store),
     tenant: Annotated[str, Query()] = "default",
@@ -40,6 +42,7 @@ async def kg_stats(
     return await store.stats(tenant=tenant, graph_version=graph_version)
 
 @router.get("/subgraph", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/subgraph", deprecated=True, dependencies=[Depends(verify_admin_credentials)])
 async def kg_subgraph(
     seed: Annotated[list[str], Query(description="node_id(s) or name(s)")],
     tenant: Annotated[str, Query()] = "default",

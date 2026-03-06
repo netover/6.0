@@ -89,8 +89,8 @@ def get_trusted_client_ip(request: Request) -> str:
     # Fallback: direct connection IP
     return request.client.host if request.client else "unknown"
 
-def sanitize_ip_for_redis_key(ip: str) -> str:
-    """Sanitize IP address for Redis key usage.
+def sanitize_ip_for_valkey_key(ip: str) -> str:
+    """Sanitize IP address for Valkey key usage.
 
     Security:
         - Validates IPv4/IPv6 format
@@ -101,7 +101,7 @@ def sanitize_ip_for_redis_key(ip: str) -> str:
         ip: Client IP address (possibly malicious)
 
     Returns:
-        Sanitized IP or hash suitable for Redis key
+        Sanitized IP or hash suitable for Valkey key
     """
     import hashlib
 

@@ -45,6 +45,7 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypedDict
+from resync.core.langgraph.state_delta import wrap_langgraph_node
 
 logger = logging.getLogger(__name__)
 
@@ -761,10 +762,10 @@ def create_diagnostic_graph(
     graph = StateGraph(DiagnosticState)
 
     # Add nodes
-    graph.add_node("diagnose", diagnose)
-    graph.add_node("research", research)
-    graph.add_node("verify", verify)
-    graph.add_node("propose", propose)
+    graph.add_node("diagnose", wrap_langgraph_node(diagnose))
+    graph.add_node("research", wrap_langgraph_node(research))
+    graph.add_node("verify", wrap_langgraph_node(verify))
+    graph.add_node("propose", wrap_langgraph_node(propose))
 
     # Add edges
     graph.add_edge("diagnose", "research")

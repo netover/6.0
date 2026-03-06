@@ -75,7 +75,7 @@ async def verify_db_init() -> None:
 
     async with async_engine.begin() as conn:
         # Verify schemas exist (learning, security, etc.); adjust list if schema list changes.
-                schemas = ["tws", "context", "audit", "analytics", "learning", "metrics"]
+        schemas = ["tws", "context", "audit", "analytics", "learning", "metrics"]
         for s in schemas:
             q = text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = :s")
             res = await conn.execute(q, {"s": s})

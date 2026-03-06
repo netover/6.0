@@ -120,19 +120,19 @@ class ConfigManager:
     def _build_schema(self) -> dict[str, dict[str, Any]]:
         """Build configuration schema with metadata"""
         return {
-            # Redis Configuration
-            "redis.url": {
-                "default": "redis://localhost:6379",
-                "env_var": "REDIS_URL",
+            # Valkey Configuration
+            "valkey.url": {
+                "default": "valkey://localhost:6379",
+                "env_var": "VALKEY_URL",
                 "restart": RestartRequirement.GRACEFUL,
-                "description": "Redis connection URL",
+                "description": "Valkey connection URL",
             },
-            "redis.fail_fast_enabled": {
+            "valkey.fail_fast_enabled": {
                 "default": True,
                 "restart": RestartRequirement.NONE,
-                "description": "Enable Redis fail-fast strategy",
+                "description": "Enable Valkey fail-fast strategy",
             },
-            "redis.fail_fast_timeout": {
+            "valkey.fail_fast_timeout": {
                 "default": 5.0,
                 "restart": RestartRequirement.NONE,
                 "description": "Fail-fast timeout in seconds",
@@ -280,21 +280,21 @@ class ConfigManager:
 
                 logger.warning("Failed to load admin config", error=str(e))
 
-        # Load redis strategy YAML
+        # Load valkey strategy YAML
         if self._valkey_strategy_path.exists():
             try:
                 async with aiofiles.open(self._valkey_strategy_path) as f:
                     content = await f.read()
                     data = yaml.safe_load(content) if content.strip() else None
                     if data:
-                        self._flatten_config(data, self._file_config, "redis.")
+                        self._flatten_config(data, self._file_config, "valkey.")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
 
-                logger.warning("Failed to load redis strategy", error=str(e))
+                logger.warning("Failed to load valkey strategy", error=str(e))
 
         # Load agents config YAML
         if self._agents_config_path.exists():

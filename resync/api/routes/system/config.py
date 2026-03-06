@@ -100,6 +100,19 @@ class SystemResourcesResponse(BaseModel):
     active_workers: int
     uptime_seconds: float
 
+
+class GCResponse(BaseModel):
+    success: bool
+    objects_collected: int
+    memory_before_mb: float
+    memory_after_mb: float
+    memory_freed_mb: float
+
+
+class CacheClearResponse(BaseModel):
+    success: bool
+    message: str
+
 # =============================================================================
 # CONFIGURATION DEFINITIONS
 # =============================================================================
@@ -197,7 +210,7 @@ def get_config_definitions() -> list[ConfigCategory]:
                     name="valkey_pool_min_size",
                     value=settings.valkey_pool_min_size,
                     type="int",
-                    description="Minimum Valkey/Redis connections in pool",
+                    description="Minimum Valkey/Valkey connections in pool",
                     default=5,
                     min_value=1,
                     max_value=100,
@@ -209,7 +222,7 @@ def get_config_definitions() -> list[ConfigCategory]:
                     name="valkey_pool_max_size",
                     value=settings.valkey_pool_max_size,
                     type="int",
-                    description="Maximum Valkey/Redis connections in pool",
+                    description="Maximum Valkey/Valkey connections in pool",
                     default=20,
                     min_value=1,
                     max_value=1000,
@@ -1137,8 +1150,8 @@ async def get_system_resources():
             detail="Failed to get resources. Check server logs for details.",
         ) from e
 
-@router.post("/gc")
-async def trigger_garbage_collection():
+@router.post("/gc", response_model=GCResponse)
+async def trigger_garbage_collection() -> GCResponse:
     """
     Trigger garbage collection to free memory.
     """
@@ -1168,16 +1181,16 @@ async def trigger_garbage_collection():
         "gc_triggered", objects_collected=collected, memory_freed_mb=round(freed, 1)
     )
 
-    return {
-        "success": True,
-        "objects_collected": collected,
-        "memory_before_mb": round(before, 1),
-        "memory_after_mb": round(after, 1),
-        "memory_freed_mb": round(freed, 1),
-    }
+    return GCResponse(
+        success=True,
+        objects_collected=collected,
+        memory_before_mb=round(before, 1),
+        memory_after_mb=round(after, 1),
+        memory_freed_mb=round(freed, 1),
+    )
 
-@router.post("/cache/clear")
-async def clear_cache():
+@router.post("/cache/clear", response_model=CacheClearResponse)
+async def clear_cache() -> CacheClearResponse:
     """
     Clear all caches.
     """
@@ -1192,14 +1205,15 @@ async def clear_cache():
             from resync.core.metrics import get_metrics_store
 
             store = get_metrics_store()
-            # Don't actually clear metrics, just flush
-            await store._flush_buffer()
+            flush = getattr(store, "flush", None)
+            if callable(flush):
+                await flush()
         except ImportError:
             pass
 
         logger.info("cache_cleared")
 
-        return {"success": True, "message": "Caches cleared successfully"}
+        return CacheClearResponse(success=True, message="Caches cleared successfully")
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys

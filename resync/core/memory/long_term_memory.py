@@ -581,53 +581,53 @@ class InMemoryLongTermStore(LongTermMemoryStore):
         ]
 
 # =============================================================================
-# REDIS STORE (Production)
+# VALKEY STORE (Production)
 # =============================================================================
 
-class RedisLongTermStore(LongTermMemoryStore):
+class ValkeyLongTermStore(LongTermMemoryStore):
     """
-    Redis-backed long-term memory store for production.
+    Valkey-backed long-term memory store for production.
 
-    Uses Redis for persistence and optional vector search.
+    Uses Valkey for persistence and optional vector search.
     """
 
     def __init__(
         self,
-        redis_url: str | None = None,
+        valkey_url: str | None = None,
         key_prefix: str = "resync:ltm:",
     ):
-        self._redis = None
-        self._redis_url = redis_url
+        self._valkey = None
+        self._valkey_url = valkey_url
         self._key_prefix = key_prefix
 
-    async def _get_redis(self):
-        """Lazy initialize Redis connection."""
-        if self._redis is None:
+    async def _get_valkey(self):
+        """Lazy initialize Valkey connection."""
+        if self._valkey is None:
             try:
-                import redis.asyncio as aioredis
+                import valkey.asyncio as aioredis
 
-                redis_url = self._redis_url
-                if not redis_url:
+                valkey_url = self._valkey_url
+                if not valkey_url:
                     from resync.settings import settings
 
-                    redis_url = getattr(settings, "redis_url", "redis://localhost:6379")
+                    valkey_url = getattr(settings, "valkey_url", "valkey://localhost:6379")
 
-                self._redis = await aioredis.from_url(
-                    redis_url,
+                self._valkey = await aioredis.from_url(
+                    valkey_url,
                     encoding="utf-8",
                     decode_responses=True,
                 )
-                logger.info("Redis long-term memory store connected")
+                logger.info("Valkey long-term memory store connected")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
                 _exc_type, _exc, _tb = _sys.exc_info()
                 maybe_reraise_programming_error(_exc, _tb)
 
-                logger.error("Redis connection failed: %s", e)
+                logger.error("Valkey connection failed: %s", e)
                 raise
 
-        return self._redis
+        return self._valkey
 
     def _memory_key(self, memory_id: str) -> str:
         return f"{self._key_prefix}memory:{memory_id}"
@@ -636,18 +636,18 @@ class RedisLongTermStore(LongTermMemoryStore):
         return f"{self._key_prefix}user:{user_id}:memories"
 
     async def save_memory(self, memory: Memory) -> None:
-        redis = await self._get_redis()
+        valkey = await self._get_valkey()
 
         data = json.dumps(memory.to_dict())
-        await redis.set(self._memory_key(memory.id), data)
-        await redis.sadd(self._user_index_key(memory.user_id), memory.id)
+        await valkey.set(self._memory_key(memory.id), data)
+        await valkey.sadd(self._user_index_key(memory.user_id), memory.id)
 
-        logger.debug("Saved memory %s to Redis", memory.id)
+        logger.debug("Saved memory %s to Valkey", memory.id)
 
     async def get_memory(self, memory_id: str) -> Memory | None:
-        redis = await self._get_redis()
+        valkey = await self._get_valkey()
 
-        data = await redis.get(self._memory_key(memory_id))
+        data = await valkey.get(self._memory_key(memory_id))
         if not data:
             return None
 
@@ -666,14 +666,14 @@ class RedisLongTermStore(LongTermMemoryStore):
             return None
 
     async def delete_memory(self, memory_id: str) -> bool:
-        redis = await self._get_redis()
+        valkey = await self._get_valkey()
 
         memory = await self.get_memory(memory_id)
         if not memory:
             return False
 
-        await redis.delete(self._memory_key(memory_id))
-        await redis.srem(self._user_index_key(memory.user_id), memory_id)
+        await valkey.delete(self._memory_key(memory_id))
+        await valkey.srem(self._user_index_key(memory.user_id), memory_id)
 
         return True
 
@@ -684,9 +684,9 @@ class RedisLongTermStore(LongTermMemoryStore):
         category: str | None = None,
         min_confidence: float = 0.0,
     ) -> list[Memory]:
-        redis = await self._get_redis()
+        valkey = await self._get_valkey()
 
-        memory_ids = await redis.smembers(self._user_index_key(user_id))
+        memory_ids = await valkey.smembers(self._user_index_key(user_id))
         results = []
 
         for mid in memory_ids:
@@ -727,7 +727,7 @@ class RedisLongTermStore(LongTermMemoryStore):
         query: str,
         limit: int = 10,
     ) -> list[Memory]:
-        # For production, this should use Redis Search or external vector DB
+        # For production, this should use Valkey Search or external vector DB
         # For now, use simple keyword matching
         memories = await self.get_user_memories(user_id)
         query_lower = query.lower()
@@ -756,9 +756,9 @@ class RedisLongTermStore(LongTermMemoryStore):
         ]
 
     async def close(self) -> None:
-        if self._redis:
-            await self._redis.close()
-            self._redis = None
+        if self._valkey:
+            await self._valkey.close()
+            self._valkey = None
 
 # =============================================================================
 # LLM MEMORY EXTRACTOR
@@ -993,13 +993,13 @@ class LongTermMemoryManager:
         if self._store is not None:
             return self._store
 
-        # Try Redis first
+        # Try Valkey first
         try:
             from resync.settings import settings
 
-            if not getattr(settings, "disable_redis", False):
-                self._store = RedisLongTermStore()
-                logger.info("Using Redis for long-term memory")
+            if not getattr(settings, "disable_valkey", False):
+                self._store = ValkeyLongTermStore()
+                logger.info("Using Valkey for long-term memory")
                 return self._store
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
@@ -1007,7 +1007,7 @@ class LongTermMemoryManager:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Redis not available for LTM: %s", e)
+            logger.warning("Valkey not available for LTM: %s", e)
 
         # Fallback to in-memory
         self._store = InMemoryLongTermStore()
@@ -1391,7 +1391,7 @@ __all__ = [
     # Stores
     "LongTermMemoryStore",
     "InMemoryLongTermStore",
-    "RedisLongTermStore",
+    "ValkeyLongTermStore",
     # Core classes
     "MemoryExtractor",
     "LongTermMemoryManager",

@@ -46,6 +46,21 @@ class RuntimeMetricsCollector:
             "api_requests_failed", "Failed API requests"
         )
         self.api_errors_total = create_counter("api_errors_total", "Total API errors")
+        
+
+        # LLM (dashboard snapshot expects these)
+        self.llm_requests_total = create_counter(
+            "resync_runtime_llm_requests_total",
+            "Runtime LLM requests total (for dashboards)",
+        )
+        self.llm_tokens_used_total = create_counter(
+            "resync_runtime_llm_tokens_used_total",
+            "Runtime LLM tokens used total (for dashboards)",
+        )
+        self.llm_errors_total = create_counter(
+            "resync_runtime_llm_errors_total",
+            "Runtime LLM errors total (for dashboards)",
+        )
         self.api_response_time = create_histogram(
             "api_response_time", "API response time"
         )
@@ -477,6 +492,11 @@ class RuntimeMetricsCollector:
                 "api_requests_total": int(getattr(self, "api_requests_total").get_sum()),
                 "api_errors_total": int(getattr(self, "api_errors_total").get_sum()),
             },
+            "llm": {
+                "requests": int(getattr(self, "llm_requests_total").get_sum()),
+                "tokens_used": int(getattr(self, "llm_tokens_used_total").get_sum()),
+                "errors": int(getattr(self, "llm_errors_total").get_sum()),
+            },
         }
         return snapshot
 
@@ -492,4 +512,3 @@ def get_runtime_metrics() -> RuntimeMetricsCollector:
 
 # Convenience reference
 runtime_metrics = get_runtime_metrics()
-

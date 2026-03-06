@@ -15,7 +15,7 @@ import threading
 from collections.abc import Callable
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, TypedDict
 
 import aiofiles  # type: ignore[import-untyped]
 import structlog
@@ -50,6 +50,7 @@ RUNTIME_EXCEPTIONS = (
     TimeoutError,
     ConnectionError,
     ValueError,
+    ImportError,
 )
 
 # Programming errors that should be re-raised (bugs, not runtime failures)
@@ -72,7 +73,7 @@ ALL_CAUGHT_EXCEPTIONS = RUNTIME_EXCEPTIONS + PROGRAMMING_EXCEPTIONS
 DEFAULT_MAX_TOKENS: int = 1024
 DEFAULT_TEMPERATURE: float = 0.1
 DEFAULT_TIMEOUT_SECONDS: float = 60.0  # OpenRouter timeout
-DEFAULT_MODEL: str = "openrouter/ai/qwen-2.5-72b-instruct"  # OpenRouter model
+DEFAULT_MODEL: str = "openrouter/free"  # OpenRouter model
 
 # P2-1: Extracted magic numbers for UnifiedAgent history management
 DEFAULT_MAX_HISTORY: int = 100
@@ -103,7 +104,7 @@ class Agent:
         self.tools = tools or []
         
         # P0-08 FIX: Normalize model name for LiteLLM
-        # OpenRouter models already have provider prefix (e.g., "openrouter/ai/qwen-2.5-72b-instruct")
+        # OpenRouter models already have provider prefix (e.g., "openrouter/free")
         # If model doesn't have provider prefix, add "openrouter/"
         if model and "/" not in model:
             # Default to openrouter provider
@@ -129,59 +130,30 @@ class Agent:
         # NEW v6.2: Convert tools to LiteLLM format
         self._litellm_tools = self._convert_tools_to_litellm_format()
 
+
+
     @classmethod
     def _ensure_litellm_configured(cls) -> None:
-        """P0-08 FIX: Ensure LiteLLM is configured (runs once per process).
-        
-        Uses class-level flag to avoid redundant configuration.
-        Uses OpenRouter API:
-        - OPENROUTER_API_KEY
-        - OPENROUTER_API_BASE (defaults to https://openrouter.ai/api/v1)
+        """Ensure LiteLLM router is initialized once per process.
+
+        This function must **never** hardcode credentials. It relies on environment
+        variables / settings (e.g., OPENAI_API_KEY / OPENROUTER_API_KEY) to be
+        provided by the runtime.
         """
-        if hasattr(cls, '_litellm_configured'):
+        if hasattr(cls, "_litellm_configured"):
             return
-        
+
         try:
-            import litellm
-            import os
-            
-            # Check if OpenRouter API key is set
-            openrouter_key = os.getenv('OPENROUTER_API_KEY')
-            if not openrouter_key:
-                # Use the provided API key from user
-                openrouter_key = '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'
-                os.environ['OPENROUTER_API_KEY'] = openrouter_key
-            
-            # Set base URL for OpenRouter
-            openrouter_base = os.getenv('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1')
-            
-            # Configure LiteLLM global settings
-            litellm.suppress_debug_info = True
-            litellm.drop_params = True  # Ignore unsupported params
-            
-            # Set OpenRouter-specific environment (LiteLLM will read these)
-            os.environ['OPENROUTER_API_KEY'] = openrouter_key
-            os.environ['OPENROUTER_API_BASE'] = openrouter_base
-            
-            logger.info(
-                "litellm_openrouter_configured",
-                api_base=openrouter_base,
-                has_api_key=True,
-                provider="openrouter"
-            )
-            
-            cls._litellm_configured = True
-            
-        except ImportError:
-            logger.error("litellm_not_installed", hint="pip install litellm")
-            cls._litellm_configured = True
-        except Exception as e:
-            logger.error(
-                "litellm_config_failed",
-                error=str(e),
-                error_type=type(e).__name__
-            )
-            cls._litellm_configured = True
+            from resync.core.litellm_init import get_litellm_router
+
+            router = get_litellm_router()
+            if router is None:
+                logger.warning("litellm_router_not_initialized")
+        except Exception as e:  # noqa: BLE001
+            logger.exception("litellm_config_failed: %s", e)
+        finally:
+            # Mark as attempted to avoid repeated side effects
+            setattr(cls, "_litellm_configured", True)
 
     def _convert_tools_to_litellm_format(self) -> list[dict[str, Any]]:
         """Convert internal tools to LiteLLM tool schema.
@@ -274,57 +246,141 @@ class Agent:
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
     ) -> Any:
-        """Call LiteLLM with retry logic for timeouts.
-        
-        v6.2.1: Added retry with exponential backoff for timeout errors.
+        """Call LiteLLM with retry + model fallback for transient failures.
+
+        - Retries with exponential backoff on timeouts / 429 / 5xx.
+        - Switches models on retryable failures (real fallback), using:
+          [self.model, tws-fallback, openrouter-free, settings.llm_fallback_model, gpt-fallback, gpt-cheap].
         """
-        import litellm
-        
-        # Configuration for retries
+        from resync.core.litellm_init import get_litellm_router
+
         max_retries = 3
         base_timeout = DEFAULT_TIMEOUT_SECONDS
-        
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                # Increase timeout with each retry
-                timeout = base_timeout * (1 + attempt * 0.5)
-                
-                response = await litellm.acompletion(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools,
-                    tool_choice="auto" if tools else None,
-                    max_tokens=DEFAULT_MAX_TOKENS,
-                    temperature=DEFAULT_TEMPERATURE,
-                    timeout=timeout,
-                )
-                return response
-            except Exception as e:
-                error_str = str(e).lower()
-                is_timeout = (
-                    "timeout" in error_str or
-                    "timed out" in error_str or
-                    isinstance(e, (asyncio.TimeoutError, TimeoutError))
-                )
-                
-                if is_timeout and attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+
+        candidates: list[str] = [self.model]
+        for cand in [
+            "tws-fallback",
+            "openrouter-free",
+            getattr(settings, "llm_fallback_model", None),
+            "gpt-fallback",
+            "gpt-cheap",
+        ]:
+            if cand and str(cand) not in candidates:
+                candidates.append(str(cand))
+
+        def _is_retryable(exc: Exception) -> bool:
+            s = str(exc).lower()
+            return (
+                "timeout" in s
+                or "timed out" in s
+                or "deadline exceeded" in s
+                or "429" in s
+                or "rate limit" in s
+                or "too many requests" in s
+                or "502" in s
+                or "503" in s
+                or "504" in s
+                or "service unavailable" in s
+                or "temporarily unavailable" in s
+                or isinstance(exc, (asyncio.TimeoutError, TimeoutError))
+            )
+
+        last_error: Exception | None = None
+
+        for cand_model in candidates:
+            for attempt in range(max_retries):
+                try:
+                    timeout = base_timeout * (1 + attempt * 0.5)
+
+                    router = get_litellm_router()
+                    if router is None:
+                        raise RuntimeError("LiteLLM router not initialized")
+
+                    return await router.acompletion(
+                        model=cand_model,
+                        messages=messages,
+                        tools=tools,
+                        tool_choice="auto" if tools else None,
+                        max_tokens=DEFAULT_MAX_TOKENS,
+                        temperature=DEFAULT_TEMPERATURE,
+                        timeout=timeout,
+                    )
+
+                except Exception as e:  # noqa: BLE001
+                    last_error = e
+
+                    if (not _is_retryable(e)) or attempt >= max_retries - 1:
+                        # Switch to next candidate model
+                        break
+
+                    wait_time = 2 ** attempt  # 1s, 2s, 4s
                     logger.warning(
-                        "llm_timeout_retry",
+                        "llm_retryable_error_retry",
+                        model=cand_model,
                         attempt=attempt + 1,
                         max_retries=max_retries,
                         wait_seconds=wait_time,
                         error=str(e)[:200],
                     )
                     await asyncio.sleep(wait_time)
-                    last_error = e
-                    continue
-                else:
-                    raise
-        
-        # If we get here, all retries failed
+
         raise last_error if last_error else RuntimeError("LLM call failed")
+
+
+
+    @staticmethod
+    def _tool_call_to_openai_dict(tool_call: Any) -> dict[str, Any]:
+        """Convert a LiteLLM/OpenAI tool_call object into a plain JSON-serializable dict."""
+        if tool_call is None:
+            return {}
+        if isinstance(tool_call, dict):
+            return tool_call
+
+        # Pydantic v2
+        if hasattr(tool_call, "model_dump"):
+            try:
+                dumped = tool_call.model_dump()  # type: ignore[attr-defined]
+                if isinstance(dumped, dict):
+                    return dumped
+            except Exception:
+                pass
+
+        # Pydantic v1
+        if hasattr(tool_call, "dict"):
+            try:
+                dumped = tool_call.dict()  # type: ignore[attr-defined]
+                if isinstance(dumped, dict):
+                    return dumped
+            except Exception:
+                pass
+
+        func = getattr(tool_call, "function", None)
+        return {
+            "id": getattr(tool_call, "id", None),
+            "type": getattr(tool_call, "type", "function"),
+            "function": {
+                "name": getattr(func, "name", None),
+                "arguments": getattr(func, "arguments", None),
+            },
+        }
+
+    @classmethod
+    def _assistant_message_to_openai_dict(cls, message_obj: Any, tool_calls: list[Any]) -> dict[str, Any]:
+        """Build an OpenAI-compatible assistant message for tool calling flows."""
+        role = getattr(message_obj, "role", None) or "assistant"
+        content = getattr(message_obj, "content", None)
+        if content is None:
+            content_str = ""
+        elif isinstance(content, str):
+            content_str = content
+        else:
+            content_str = str(content)
+
+        return {
+            "role": role,
+            "content": content_str,
+            "tool_calls": [cls._tool_call_to_openai_dict(tc) for tc in tool_calls],
+        }
 
     async def arun(self, message: str, skill_context: str = "") -> str:
         """Process *message* via LiteLLM (async).
@@ -335,6 +391,7 @@ class Agent:
         """
         try:
             import litellm
+            from resync.core.litellm_init import get_litellm_router
 
             litellm.suppress_debug_info = True
 
@@ -396,6 +453,17 @@ class Agent:
             if tool_calls:
                 # LLM decided to call tools
                 logger.info("llm_calling_tools", count=len(tool_calls))
+                # Guardrail: prevent runaway tool-call explosions
+                max_tool_calls = int(getattr(settings, "llm_max_tool_calls_per_turn", 6) or 6)
+                if max_tool_calls > 0 and len(tool_calls) > max_tool_calls:
+                    logger.warning(
+                        "llm_tool_calls_truncated",
+                        requested=len(tool_calls),
+                        allowed=max_tool_calls,
+                        agent=self.name,
+                    )
+                    tool_calls = tool_calls[:max_tool_calls]
+
 
                 # Execute tool calls
                 tool_results = []
@@ -418,7 +486,14 @@ class Agent:
                     )
 
                 # Send tool results back to LLM for synthesis (with retry for timeouts)
-                messages.append(message_obj)
+                # Send tool results back to LLM for synthesis (with retry for timeouts)
+                # NOTE: `message_obj` is a LiteLLM/OpenAI Message object; convert it to a plain dict
+                # to keep `messages` JSON-serializable and OpenAI-compatible.
+                assistant_tool_message: dict[str, Any] = self._assistant_message_to_openai_dict(
+                    message_obj,
+                    list(tool_calls),
+                )
+                messages.append(assistant_tool_message)
                 messages.extend(tool_results)
 
                 final_response = await self._call_litellm_with_retry(
@@ -426,9 +501,19 @@ class Agent:
                     tools=None,  # No tools on synthesis call
                 )
 
-                final_choice = final_response.choices[0]
-                content = final_choice.message.content
-                return content if isinstance(content, str) else str(content)
+                final_choices = getattr(final_response, "choices", None)
+                if not final_choices or not isinstance(final_choices, list):
+                    agent_logger.error("empty_synthesis_response_from_llm", agent=self.name)
+                    return self._fallback_response(message)
+
+                final_choice = final_choices[0]
+                final_message = getattr(final_choice, "message", None)
+                final_content = getattr(final_message, "content", None)
+                if final_content is None:
+                    agent_logger.error("empty_synthesis_content_in_message", agent=self.name)
+                    return self._fallback_response(message)
+
+                return final_content if isinstance(final_content, str) else str(final_content)
 
             # No tools called, return direct response
             content = getattr(message_obj, "content", None)
@@ -627,7 +712,7 @@ class AgentManager:
                         "and system monitoring."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="openrouter/ai/qwen-2.5-72b-instruct",
+                    model_name="openrouter/free",
                     max_rpm=None,
                 ),
                 AgentConfig(
@@ -642,7 +727,7 @@ class AgentManager:
                         "information about system status and job execution."
                     ),
                     tools=["get_tws_status", "analyze_tws_failures"],
-                    model_name="openrouter/ai/qwen-2.5-72b-instruct",
+                    model_name="openrouter/free",
                     max_rpm=None,
                 ),
             ]
@@ -1114,6 +1199,24 @@ def get_agent_manager() -> AgentManager:
 # UNIFIED AGENT INTERFACE
 # =============================================================================
 
+
+class ChatWithMetadataResult(TypedDict):
+    """Return type for :meth:`UnifiedAgent.chat_with_metadata`.
+
+    Keys are designed to match what the HTTP chat route expects, even when the
+    unified agent is used as a fallback (i.e., when HybridRouter is unavailable).
+    """
+
+    response: str
+    intent: str
+    confidence: float
+    handler: str
+    entities: dict[str, Any]
+    tools_used: list[Any]
+    processing_time_ms: int
+    tws_instance_id: str | None
+
+
 class UnifiedAgent:
     """High-level chat interface with automatic intent routing.
 
@@ -1160,7 +1263,26 @@ class UnifiedAgent:
         with self._history_locks_lock:
             if conversation_id not in self._history_locks:
                 self._history_locks[conversation_id] = asyncio.Lock()
+            # Prevent unbounded growth (conversation IDs can be attacker-controlled)
+            if len(self._history_locks) > (self._HISTORY_CACHE_SIZE * 2):
+                self._prune_lock_dicts_unlocked()
             return self._history_locks[conversation_id]
+
+    def _prune_lock_dicts_unlocked(self) -> None:
+        """Best-effort cleanup for lock dictionaries.
+
+        LRUCache evicts histories automatically, but the lock dicts would otherwise
+        grow without bound. We prune keys that are no longer present in the history cache.
+        Must be called under self._history_locks_lock.
+        """
+        try:
+            live_ids = set(self._histories.keys())
+        except Exception:
+            return
+        stale = [cid for cid in self._history_locks.keys() if cid not in live_ids]
+        for cid in stale:
+            self._history_locks.pop(cid, None)
+            self._sync_locks.pop(cid, None)
 
     def _get_history(self, conversation_id: str) -> list[dict[str, str]]:
         """P0-01 FIX: Thread-safe sync history access with threading.RLock."""
@@ -1175,6 +1297,7 @@ class UnifiedAgent:
     async def chat(
         self,
         message: str,
+        agent_id: str | None = None,
         include_history: bool = True,
         use_llm_classification: bool = False,
         conversation_id: str = "_default",
@@ -1186,6 +1309,7 @@ class UnifiedAgent:
 
         Args:
             message: User input.
+            agent_id: Identificador do agente a ser usado (default: tws-general).
             include_history: Prepend recent history as context.
             use_llm_classification: DEPRECATED (always uses LLM now).
             conversation_id: Session key for history isolation.
@@ -1216,7 +1340,7 @@ class UnifiedAgent:
 
             # NEW v6.2: Always call LLM agent (no router)
             # The LLM will decide which tools to use via litellm tool calling
-            agent = await self._manager.get_agent("tws-general")
+            agent = await self._manager.get_agent(agent_id or "tws-general")
 
             if agent is None:
                 logger.error("tws_general_agent_not_found")
@@ -1230,8 +1354,27 @@ class UnifiedAgent:
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": response})
 
+            # Extra guard: cap history by approximate character budget to avoid
+            # runaway prompt growth (proxy for token budget).
+            max_chars = int(getattr(settings, "llm_history_max_chars", 12000))
+            if max_chars > 0:
+                # Keep recent messages until within budget.
+                total = 0
+                kept: list[dict[str, str]] = []
+                for msg in reversed(history):
+                    total += len(msg.get("content", ""))
+                    kept.append(msg)
+                    if total >= max_chars:
+                        break
+                history[:] = list(reversed(kept))
+
             if len(history) > self._MAX_HISTORY:
                 self._histories[conversation_id] = history[-self._TRIM_TO :]
+
+        # Best-effort prune lock dicts after LRU churn
+        with self._history_locks_lock:
+            if len(self._history_locks) > (self._HISTORY_CACHE_SIZE * 2):
+                self._prune_lock_dicts_unlocked()
 
         logger.debug(
             "unified_agent_response",
@@ -1243,17 +1386,19 @@ class UnifiedAgent:
     async def chat_with_metadata(
         self,
         message: str,
+        agent_id: str | None = None,
         include_history: bool = True,
         tws_instance_id: str | None = None,
         extra_context: dict[str, Any] | None = None,
         conversation_id: str = "_default",
-    ) -> dict[str, Any]:
+    ) -> ChatWithMetadataResult:
         """Send a message and receive response with full metadata.
 
         NEW v6.2: Simplified - always calls LLM, no router.
 
-        Returns a dict with keys: ``response``, ``tools_used``,
-        ``processing_time_ms``, ``tws_instance_id``.
+        Returns a dict compatible with the HTTP chat route, including:
+        ``response``, ``intent``, ``confidence``, ``handler``, ``entities``,
+        ``tools_used``, ``processing_time_ms``, ``tws_instance_id``.
         """
         import time
 
@@ -1264,12 +1409,19 @@ class UnifiedAgent:
             message=message,
             include_history=include_history,
             conversation_id=conversation_id,
+            agent_id=agent_id,
         )
 
         processing_time_ms = int((time.time() - start_time) * 1000)
 
+        handler: str = agent_id or "tws-general"
+
         return {
             "response": response,
+            "intent": "general",
+            "confidence": 1.0,
+            "handler": handler,
+            "entities": {},
             "tools_used": [],  # TODO: Track from LLM tool_calls
             "processing_time_ms": processing_time_ms,
             "tws_instance_id": tws_instance_id,
@@ -1278,6 +1430,11 @@ class UnifiedAgent:
     def clear_history(self, conversation_id: str = "_default") -> None:
         """Clear history for a specific conversation."""
         self._histories.pop(conversation_id, None)
+        # Remove associated locks to prevent unbounded growth.
+        with self._history_locks_lock:
+            self._history_locks.pop(conversation_id, None)
+            self._sync_locks.pop(conversation_id, None)
+            self._prune_lock_dicts_unlocked()
         logger.debug("conversation_history_cleared", conversation_id=conversation_id)
 
     def get_history(self, conversation_id: str = "_default") -> list[dict[str, str]]:

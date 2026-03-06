@@ -14,7 +14,7 @@ class BaseCache(ABC):
 
     This class defines the core cache operations that all cache implementations
     must support. Concrete implementations should inherit from this class and
-    provide specific storage mechanisms (e.g., in-memory, Redis, file-based).
+    provide specific storage mechanisms (e.g., in-memory, Valkey, file-based).
     """
 
     @abstractmethod

@@ -219,7 +219,7 @@ class HealthCheckUtils:
         """
         return {
             "database": ComponentType.DATABASE,
-            "redis": ComponentType.REDIS,
+            "valkey": ComponentType.VALKEY,
             "cache_hierarchy": ComponentType.CACHE,
             "file_system": ComponentType.FILE_SYSTEM,
             "memory": ComponentType.MEMORY,

@@ -4,13 +4,13 @@ This module provides REST API endpoints for cache management operations,
 including cache statistics, cache clearing, and cache health monitoring.
 It supports both memory and Valkey-based caching with detailed metrics.
 
-v6.3: Migrated from Redis to Valkey.
+v6.3: Standardized on Valkey.
 
 Critical fixes applied:
-- P0-14: Thread-safe redis_manager initialization with asyncio.Lock
+- P0-14: Thread-safe valkey_manager initialization with asyncio.Lock
 - P2-35: Removed password from authentication failure logs
-- P1-25: Async get_redis_connection with asyncio.to_thread
-- P2-37: Async RedisCacheManager methods to prevent event loop blocking
+- P1-25: Async get_valkey_connection with asyncio.to_thread
+- P2-37: Async ValkeyCacheManager methods to prevent event loop blocking
 """
 
 from __future__ import annotations
@@ -23,22 +23,22 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 try:
-    from valkey import Valkey as Redis
-    from valkey.exceptions import ConnectionError as RedisConnectionError
-    from valkey.exceptions import TimeoutError as RedisTimeoutError
+    from valkey import Valkey as Valkey
+    from valkey.exceptions import ConnectionError as ValkeyConnectionError
+    from valkey.exceptions import TimeoutError as ValkeyTimeoutError
 except ImportError:
-    # Fallback to redis-py for backward compatibility
+    # Fallback to valkey-py for backward compatibility
     try:
-        from redis import Redis
-        from redis.exceptions import ConnectionError as RedisConnectionError
-        from redis.exceptions import TimeoutError as RedisTimeoutError
+        from valkey import Valkey
+        from valkey.exceptions import ConnectionError as ValkeyConnectionError
+        from valkey.exceptions import TimeoutError as ValkeyTimeoutError
     except ImportError:
-        Redis = None  # type: ignore
+        Valkey = None  # type: ignore
 
-        class RedisConnectionError(Exception):
+        class ValkeyConnectionError(Exception):
             """Dummy exception when Valkey is not available."""
 
-        class RedisTimeoutError(Exception):
+        class ValkeyTimeoutError(Exception):
             """Dummy exception when Valkey is not available."""
 
 from pydantic import BaseModel
@@ -57,8 +57,8 @@ __all__ = [
     "CacheInvalidationResponse",
     "CacheStats",
     "ConnectionPoolValidator",
-    "get_redis_connection",
-    "RedisCacheManager",
+    "get_valkey_connection",
+    "ValkeyCacheManager",
     "validate_connection_pool",
     "verify_admin_credentials",
     "invalidate_tws_cache",
@@ -132,19 +132,19 @@ class ConnectionPoolValidator:
         )
         return True
 
-async def get_redis_connection() -> Redis | None:
+async def get_valkey_connection() -> Valkey | None:
     """
-    Get a Redis connection using connection pooling and validation.
+    Get a Valkey connection using connection pooling and validation.
     
-    P1-25 fix: Offloads blocking Redis I/O to thread pool.
+    P1-25 fix: Offloads blocking Valkey I/O to thread pool.
 
     Returns:
-        Redis connection object or None if connection fails
+        Valkey connection object or None if connection fails
     """
-    def _sync_connect() -> Redis | None:
-        """Synchronous Redis connection logic."""
+    def _sync_connect() -> Valkey | None:
+        """Synchronous Valkey connection logic."""
         try:
-            redis_client = Redis.from_url(
+            valkey_client = Valkey.from_url(
                 settings.valkey_url.get_secret_value(),
                 decode_responses=True,
                 socket_connect_timeout=5,
@@ -152,32 +152,32 @@ async def get_redis_connection() -> Redis | None:
                 retry_on_timeout=True,
             )
             # Test the connection
-            redis_client.ping()
-            logger.info("Successfully connected to Redis")
-            return redis_client
-        except (RedisConnectionError, RedisTimeoutError) as e:
-            logger.error("Failed to connect to Redis: %s", e)
+            valkey_client.ping()
+            logger.info("Successfully connected to Valkey")
+            return valkey_client
+        except (ValkeyConnectionError, ValkeyTimeoutError) as e:
+            logger.error("Failed to connect to Valkey: %s", e)
             return None
         except (OSError, ValueError, RuntimeError) as e:
-            logger.error("Unexpected error when connecting to Redis: %s", e)
+            logger.error("Unexpected error when connecting to Valkey: %s", e)
             return None
     
-    # P1-25 fix: Run blocking Redis operations in thread pool
+    # P1-25 fix: Run blocking Valkey operations in thread pool
     return await asyncio.to_thread(_sync_connect)
 
-class RedisCacheManager:
+class ValkeyCacheManager:
     """
-    Enhanced Redis cache manager with optimized caching strategies.
+    Enhanced Valkey cache manager with optimized caching strategies.
     
     P2-37 fix: All methods are async to prevent event loop blocking.
     """
 
-    def __init__(self, redis_client: Redis):
-        self.redis_client = redis_client
+    def __init__(self, valkey_client: Valkey):
+        self.valkey_client = valkey_client
 
     async def get(self, key: str) -> str | None:
         """
-        Retrieve a value from Redis cache.
+        Retrieve a value from Valkey cache.
 
         Args:
             key: The cache key
@@ -187,13 +187,13 @@ class RedisCacheManager:
         """
         def _sync_get():
             try:
-                value = self.redis_client.get(key)
+                value = self.valkey_client.get(key)
                 if value is not None:
                     logger.debug("Cache hit for key: %s", key)
                 else:
                     logger.debug("Cache miss for key: %s", key)
                 return value
-            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, ValkeyTimeoutError, ValkeyConnectionError) as e:
                 logger.error("Error retrieving from cache: %s", e)
                 return None
         
@@ -202,7 +202,7 @@ class RedisCacheManager:
 
     async def set(self, key: str, value: str, expire: int = 3600) -> bool:
         """
-        Set a value in Redis cache.
+        Set a value in Valkey cache.
 
         Args:
             key: The cache key
@@ -214,10 +214,10 @@ class RedisCacheManager:
         """
         def _sync_set():
             try:
-                self.redis_client.setex(key, expire, value)
+                self.valkey_client.setex(key, expire, value)
                 logger.debug("Set cache key: %s with expire: %s", key, expire)
                 return True
-            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, ValkeyTimeoutError, ValkeyConnectionError) as e:
                 logger.error("Error setting cache: %s", e)
                 return False
         
@@ -226,7 +226,7 @@ class RedisCacheManager:
 
     async def delete(self, key: str) -> bool:
         """
-        Delete a key from Redis cache.
+        Delete a key from Valkey cache.
 
         Args:
             key: The cache key to delete
@@ -236,10 +236,10 @@ class RedisCacheManager:
         """
         def _sync_delete():
             try:
-                deleted = self.redis_client.delete(key)
+                deleted = self.valkey_client.delete(key)
                 logger.debug("Deleted cache key: %s, count: %s", key, deleted)
                 return bool(deleted)
-            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, ValkeyTimeoutError, ValkeyConnectionError) as e:
                 logger.error("Error deleting cache: %s", e)
                 return False
         
@@ -258,28 +258,28 @@ class RedisCacheManager:
         """
         def _sync_clear_pattern():
             try:
-                # Use SCAN to avoid blocking Redis in production
+                # Use SCAN to avoid blocking Valkey in production
                 keys_to_delete: list[str] = []
                 total_deleted = 0
                 batch_size = getattr(settings, "VALKEY_DELETE_BATCH_SIZE", 1000)
 
-                for key in self.redis_client.scan_iter(match=pattern, count=batch_size):
+                for key in self.valkey_client.scan_iter(match=pattern, count=batch_size):
                     # Ensure keys are strings (scan_iter might yield bytes)
                     if isinstance(key, bytes):
                         key = key.decode("utf-8")
 
                     keys_to_delete.append(key)
                     if len(keys_to_delete) >= batch_size:
-                        total_deleted += self.redis_client.delete(*keys_to_delete)
+                        total_deleted += self.valkey_client.delete(*keys_to_delete)
                         keys_to_delete = []
 
                 # Delete any remaining keys
                 if keys_to_delete:
-                    total_deleted += self.redis_client.delete(*keys_to_delete)
+                    total_deleted += self.valkey_client.delete(*keys_to_delete)
 
                 logger.debug("Cleared %s keys matching pattern: %s", total_deleted, pattern)
                 return total_deleted
-            except (OSError, ValueError, RuntimeError, RedisTimeoutError, RedisConnectionError) as e:
+            except (OSError, ValueError, RuntimeError, ValkeyTimeoutError, ValkeyConnectionError) as e:
                 logger.error("Error clearing pattern: %s", e)
                 return 0
         
@@ -294,7 +294,7 @@ class RedisCacheManager:
             CacheStats object with statistics
         """
         def _sync_get_stats():
-            info = self.redis_client.info()
+            info = self.valkey_client.info()
             keyspace = info.get("Keyspace", {})
             hits = int(info.get("keyspace_hits", 0))
             misses = int(info.get("keyspace_misses", 0))
@@ -307,37 +307,37 @@ class RedisCacheManager:
         return await asyncio.to_thread(_sync_get_stats)
 
 # P0-14 fix: Thread-safe initialization with asyncio.Lock
-redis_manager: RedisCacheManager | None = None
-_redis_manager_lock = asyncio.Lock()
+valkey_manager: ValkeyCacheManager | None = None
+_valkey_manager_lock = asyncio.Lock()
 
-async def _get_or_create_redis_manager() -> RedisCacheManager | None:
+async def _get_or_create_valkey_manager() -> ValkeyCacheManager | None:
     """
-    Thread-safe initialization of global redis_manager.
+    Thread-safe initialization of global valkey_manager.
     Uses double-check locking pattern with asyncio.Lock.
     
     Returns:
-        RedisCacheManager instance or None if Redis is unavailable
+        ValkeyCacheManager instance or None if Valkey is unavailable
     """
-    global redis_manager
+    global valkey_manager
     
     # First check without lock (fast path)
-    if redis_manager is not None:
-        return redis_manager
+    if valkey_manager is not None:
+        return valkey_manager
     
     # Acquire lock for initialization
-    async with _redis_manager_lock:
+    async with _valkey_manager_lock:
         # Double-check after acquiring lock
-        if redis_manager is not None:
-            return redis_manager
+        if valkey_manager is not None:
+            return valkey_manager
         
-        redis_client = await get_redis_connection()
-        if redis_client:
-            redis_manager = RedisCacheManager(redis_client)
-            logger.info("redis_manager_initialized_successfully")
+        valkey_client = await get_valkey_connection()
+        if valkey_client:
+            valkey_manager = ValkeyCacheManager(valkey_client)
+            logger.info("valkey_manager_initialized_successfully")
         else:
-            logger.warning("redis_manager_initialization_failed_redis_unavailable")
+            logger.warning("valkey_manager_initialization_failed_valkey_unavailable")
         
-        return redis_manager
+        return valkey_manager
 
 def validate_connection_pool() -> bool:
     """
@@ -356,7 +356,7 @@ def validate_connection_pool() -> bool:
         _exc_type, _exc, _tb = _sys.exc_info()
         maybe_reraise_programming_error(_exc, _tb)
 
-        logger.error("Error parsing Redis connection settings: %s", e)
+        logger.error("Error parsing Valkey connection settings: %s", e)
         return False
 
     return ConnectionPoolValidator.validate_connection_pool(min_conn, max_conn, timeout)
@@ -438,10 +438,10 @@ async def invalidate_tws_cache(
             scope,
         )
 
-        manager = await _get_or_create_redis_manager()
+        manager = await _get_or_create_valkey_manager()
         if manager is None:
             logger.warning(
-                "Could not connect to Redis, proceeding with TWS client invalidation only"
+                "Could not connect to Valkey, proceeding with TWS client invalidation only"
             )
 
         if scope == "system":
@@ -494,12 +494,12 @@ async def get_cache_stats(
     """
     await verify_admin_credentials(creds)
 
-    manager = await _get_or_create_redis_manager()
+    manager = await _get_or_create_valkey_manager()
     if manager is None:
-        logger.error("Could not connect to Redis for stats")
+        logger.error("Could not connect to Valkey for stats")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not connect to Redis for cache statistics.",
+            detail="Could not connect to Valkey for cache statistics.",
         )
 
     stats = await manager.get_cache_stats()

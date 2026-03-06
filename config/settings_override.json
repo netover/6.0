@@ -30,7 +30,7 @@
   "llm_fallback_model": "gpt-4o-mini",
   "auditor_model_name": "gpt-3.5-turbo",
   "agent_model_name": "gpt-4o",
-  "llm_api_key": "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",
+  "llm_api_key": "",
   "llm_compact_history_enabled": true,
   "llm_context_safety_margin_tokens": 512,
   "llm_compact_history_min_recent_messages": 6,

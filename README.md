@@ -143,7 +143,7 @@ resync/
 - Python 3.14+
 - Pydantic v2+ (>=2.10)
 - PostgreSQL 14+ (com extensão pgvector)
-- Redis 6+
+- Valkey 6+
 
 ### Instalação
 
@@ -231,10 +231,22 @@ docker-compose -f docker-compose.resync.yml up -d
 | **API** | FastAPI, Starlette, Uvicorn |
 | **AI/ML** | LangGraph, LangChain, OpenAI, Anthropic |
 | **Database** | PostgreSQL, PgVector, SQLAlchemy |
-| **Cache** | Redis |
-| **Observability** | Removed, Dashboard Interno (Redis), Sentry, Structlog |
+| **Cache** | Valkey |
+| **Observability** | Removed, Dashboard Interno (Valkey), Sentry, Structlog |
 | **Security** | JWT, bcrypt, Rate Limiting |
 
 ## 📄 Licença
 
 MIT License - see file `LICENSE` for details.
+
+
+## Internal health checks and SSRF protection
+
+Resync performs internal HTTP health probes during startup (e.g., checking dependent services/monitors).
+By default, SSRF protection blocks private/internal IP ranges for safety.
+
+In corporate/on-prem environments where health checks intentionally target internal infrastructure,
+set `RESYNC_DISABLE_SSRF=true` to allow these internal URLs.
+
+- Default: `RESYNC_DISABLE_SSRF=false`
+- Corporate/on-prem: `RESYNC_DISABLE_SSRF=true`

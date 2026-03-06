@@ -125,7 +125,7 @@ Este documento detalha cada módulo do projeto Resync, sua responsabilidade e ar
 | `database_security_middleware.py` | Segurança de banco |
 | `compression.py` | Compressão de responses |
 | `correlation_id.py` | Correlation ID para tracing |
-| `redis_validation.py` | Validação Redis |
+| `valkey_validation.py` | Validação Valkey |
 
 ---
 
@@ -203,7 +203,7 @@ Sistema de cache em múltiplas camadas.
 | `llm_cache_wrapper.py` | Wrapper de cache para LLM |
 | `memory_manager.py` | Gerenciamento de memória |
 | `query_cache.py` | Cache de queries |
-| `redis_config.py` | Configuração Redis |
+| `valkey_config.py` | Configuração Valkey |
 | `reranker.py` | Cache de reranker |
 | `semantic_cache.py` | Cache semântico |
 | `mixins/` | Mixins de cache (health, metrics, etc) |
@@ -289,7 +289,7 @@ Controle de idempotência para requests.
 | `startup.py` | Inicialização da app |
 | `wiring.py` | DI wiring |
 | `structured_logger.py` | Logging estruturado |
-| `redis_init.py` | Inicialização Redis |
+| `valkey_init.py` | Inicialização Valkey |
 | `exceptions.py` | Exceções customizadas |
 | `context.py` | Contexto |
 | `constants.py` | Constantes |
@@ -426,7 +426,7 @@ Controle de idempotência para requests.
 |---------|-----------|
 | `setup_environment.py` | **Setup completo** - Instala dependências e configura banco |
 | `install_postgresql.py` | **Script PostgreSQL** - Instalação e configuração |
-| `install_redis.py` | **Script Redis** - Instalação e configuração |
+| `install_valkey.py` | **Script Valkey** - Instalação e configuração |
 | `check_env.py` | Verificação de ambiente |
 | `manual_verify.py` | Verificação manual |
 
@@ -498,5 +498,5 @@ Core Layer
     ├── depends on: Database, Cache, Utils
     │
     ▼
-Data Layer (PostgreSQL + Redis)
+Data Layer (PostgreSQL + Valkey)
 ```

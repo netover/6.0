@@ -12,14 +12,16 @@ from .database_health_checker import DatabaseHealthChecker
 from .filesystem_health_checker import FileSystemHealthChecker
 from .health_checker_factory import HealthCheckerFactory
 from .memory_health_checker import MemoryHealthChecker
-from .redis_health_checker import RedisHealthChecker
+from .valkey_health_checker import ValkeyHealthChecker
+from .valkey_health_checker import ValkeyHealthChecker
 from .tws_monitor_health_checker import TWSMonitorHealthChecker
 from .websocket_pool_health_checker import WebSocketPoolHealthChecker
 
 __all__ = [
     "BaseHealthChecker",
     "DatabaseHealthChecker",
-    "RedisHealthChecker",
+    "ValkeyHealthChecker",
+    "ValkeyHealthChecker",
     "CacheHealthChecker",
     "FileSystemHealthChecker",
     "MemoryHealthChecker",

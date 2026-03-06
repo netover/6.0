@@ -6,7 +6,7 @@ providing centralized configuration management with environment variable
 support, validation, and type safety.
 
 Settings are organized into logical groups:
-- Database and Redis configuration
+- Database and Valkey configuration
 - TWS integration settings
 - Security and authentication
 - Logging and monitoring
@@ -36,6 +36,11 @@ class Settings(BaseSettings, SettingsValidators):
     Todas as configurações podem ser sobrescritas via variáveis de ambiente
     com o prefixo APP_ (ex: APP_ENVIRONMENT=production).
     """
+    valkey_health_timeout: float = 2.0
+    rate_limit_fail_open_auth: bool = False
+    rate_limit_fail_open_feedback: bool = True
+    valkey_backend_name: str = "valkey"
+
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -156,7 +161,7 @@ class Settings(BaseSettings, SettingsValidators):
     db_pool_max_lifetime: int = Field(default=1800, ge=300)
 
     # ============================================================================
-    # VALKEY (Redis) - v6.3 unified
+    # VALKEY (Valkey) - v6.3 unified
     # ============================================================================
 
     valkey_url: SecretStr = Field(
@@ -222,7 +227,7 @@ class Settings(BaseSettings, SettingsValidators):
     # LLM
     # ============================================================================
     llm_endpoint: str = Field(
-        default="https://integrate.api.nvidia.com/v1",
+        default="https://openrouter.ai/api/v1",
         description="Endpoint da API LLM - usado como fallback se Ollama falhar",
     )
 
@@ -240,8 +245,21 @@ class Settings(BaseSettings, SettingsValidators):
         description="Timeout para chamadas LLM em segundos (8s para fallback rápido ao cloud)",
     )
 
-    auditor_model_name: str = Field(default="gpt-3.5-turbo")
-    agent_model_name: str = Field(default="gpt-4o")
+    
+    llm_cache_enabled: bool = Field(
+        default=True,
+        description="Habilita semantic cache do LiteLLM via Valkey (reduz custo/latência)",
+    )
+
+    llm_cache_ttl_seconds: int = Field(
+        default=3600,
+        ge=0,
+        le=7 * 24 * 3600,
+        description="TTL do semantic cache do LiteLLM (segundos). 0 desativa expiração.",
+    )
+
+    auditor_model_name: str = Field(default="liteLLM-default")
+    agent_model_name: str = Field(default="liteLLM-default")
 
     llm_model: str = Field(
         default="liteLLM-default",
@@ -252,7 +270,7 @@ class Settings(BaseSettings, SettingsValidators):
     # OLLAMA - LOCAL LLM (v5.2.3.21)
     # ============================================================================
     ollama_enabled: bool = Field(
-        default=True,
+        default=False,
         description="Habilitar Ollama como provider primário de LLM",
     )
 
@@ -318,8 +336,15 @@ class Settings(BaseSettings, SettingsValidators):
 
     # Fallback cloud model quando Ollama falha
     llm_fallback_model: str = Field(
-        default="gpt-4o-mini",
+        default="openrouter-free",
         description="Modelo de fallback na nuvem quando Ollama timeout/falha",
+    )
+
+    llm_max_tool_calls_per_turn: int = Field(
+        default=6,
+        ge=0,
+        le=50,
+        description="Limite máximo de tool-calls por turno para evitar loops/runaway (0 desativa)",
     )
     # ============================================================================
     # LANGGRAPH - AGENT ORCHESTRATION
@@ -333,6 +358,27 @@ class Settings(BaseSettings, SettingsValidators):
         default=24,
         ge=1,
         description="Time-to-live for LangGraph checkpoints in hours",
+    )
+
+    langgraph_memory_store_max_items: int = Field(
+        default=5000,
+        ge=100,
+        le=200000,
+        description="Limite de itens no InMemoryStore do LangGraph antes de rotacionar (evita crescimento infinito)",
+    )
+
+    langgraph_max_plan_iterations: int = Field(
+        default=25,
+        ge=1,
+        le=500,
+        description="Limite de iterações do executor de plano no LangGraph (evita loops infinitos)",
+    )
+
+    langgraph_max_regenerations: int = Field(
+        default=3,
+        ge=0,
+        le=20,
+        description="Limite de regenerações por checagem de alucinação no LangGraph (evita loops)",
     )
 
     langgraph_max_retries: int = Field(
@@ -1269,7 +1315,7 @@ class Settings(BaseSettings, SettingsValidators):
         return self.debug
 
     @property
-    def REDIS_URL(self) -> str:
+    def VALKEY_URL(self) -> str:
         """Legacy alias for valkey_url (DEPRECATED).
 
         This returns the Valkey URL in plaintext for backward compatibility.
@@ -1283,7 +1329,7 @@ class Settings(BaseSettings, SettingsValidators):
         import warnings
 
         warnings.warn(
-            "settings.REDIS_URL exposes credentials in plaintext and is deprecated. "
+            "settings.VALKEY_URL exposes credentials in plaintext and is deprecated. "
             "Use settings.valkey_url.get_secret_value() explicitly.",
             DeprecationWarning,
             stacklevel=2,
@@ -1291,7 +1337,7 @@ class Settings(BaseSettings, SettingsValidators):
         return self.valkey_url.get_secret_value()
 
     @property
-    def redis_url_secret(self) -> SecretStr:
+    def valkey_url_secret(self) -> SecretStr:
         """Safe access to the Valkey URL without automatic SecretStr unwrap.
 
         .. deprecated:: 6.3.0
@@ -1474,32 +1520,32 @@ class Settings(BaseSettings, SettingsValidators):
         return self.db_pool_max_lifetime
 
     @property
-    def REDIS_POOL_MIN_SIZE(self) -> int:
+    def VALKEY_POOL_MIN_SIZE(self) -> int:
         """Legacy alias for valkey_pool_min_size (DEPRECATED)."""
         return self.valkey_pool_min_size
 
     @property
-    def REDIS_POOL_MAX_SIZE(self) -> int:
+    def VALKEY_POOL_MAX_SIZE(self) -> int:
         """Legacy alias for valkey_pool_max_size (DEPRECATED)."""
         return self.valkey_pool_max_size
 
     @property
-    def REDIS_POOL_IDLE_TIMEOUT(self) -> int:
+    def VALKEY_POOL_IDLE_TIMEOUT(self) -> int:
         """Legacy alias for valkey_pool_idle_timeout (DEPRECATED)."""
         return self.valkey_pool_idle_timeout
 
     @property
-    def REDIS_POOL_CONNECT_TIMEOUT(self) -> int:
+    def VALKEY_POOL_CONNECT_TIMEOUT(self) -> int:
         """Legacy alias for valkey_pool_connect_timeout (DEPRECATED)."""
         return self.valkey_pool_connect_timeout
 
     @property
-    def REDIS_POOL_HEALTH_CHECK_INTERVAL(self) -> int:
+    def VALKEY_POOL_HEALTH_CHECK_INTERVAL(self) -> int:
         """Legacy alias for valkey_pool_health_check_interval (DEPRECATED)."""
         return self.valkey_pool_health_check_interval
 
     @property
-    def REDIS_POOL_MAX_LIFETIME(self) -> int:
+    def VALKEY_POOL_MAX_LIFETIME(self) -> int:
         """Legacy alias for valkey_pool_max_lifetime (DEPRECATED)."""
         return self.valkey_pool_max_lifetime
 
@@ -1631,12 +1677,12 @@ class Settings(BaseSettings, SettingsValidators):
         default=5.0,
         description="Timeout in seconds for LLM service health check HTTP request",
     )
-    STARTUP_REDIS_HEALTH_RETRIES: int = Field(
+    STARTUP_VALKEY_HEALTH_RETRIES: int = Field(
         ge=1,
         default=1,
         description="Max retry attempts for Valkey connectivity check at startup",
     )
-    STARTUP_REDIS_HEALTH_TIMEOUT: float = Field(
+    STARTUP_VALKEY_HEALTH_TIMEOUT: float = Field(
         gt=0,
         default=3.0,
         description="Timeout in seconds for Valkey health check at startup",

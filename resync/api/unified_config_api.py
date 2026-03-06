@@ -71,7 +71,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/api/admin/config", tags=["configuration"])
+router = APIRouter(prefix="/admin/config-api", tags=["configuration"])
 
 # Strict identifier pattern reused across path params and field validators
 _SAFE_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -135,7 +135,7 @@ async def _get_manager() -> Any:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/all", response_model=dict[str, Any])
+@router.get("/all", response_model=dict[str, Any], deprecated=True)
 async def get_all_configs(
     # [P0-01] require_role from resync.api.core.security
     # includes: decode_access_token → JTI revocation → role check
@@ -158,7 +158,7 @@ async def get_all_configs(
         ) from e
 
 
-@router.post("/{config_name}/update", response_model=dict[str, Any])
+@router.post("/{config_name}/update", response_model=dict[str, Any], deprecated=True)
 async def update_config(
     request: ConfigUpdateRequest,
     config_name: str = FastApiPath(
@@ -207,7 +207,7 @@ async def update_config(
         ) from e
 
 
-@router.get("/status", response_model=dict[str, Any])
+@router.get("/status", response_model=dict[str, Any], deprecated=True)
 async def get_config_status(
     _: dict[str, Any] = Depends(require_role(["admin"])),
 ) -> dict[str, Any]:
@@ -233,7 +233,7 @@ async def get_config_status(
         ) from e
 
 
-@router.post("/reload", response_model=ConfigReloadResponse)
+@router.post("/reload", response_model=ConfigReloadResponse, deprecated=True)
 @limiter.limit("5/minute")  # [P1-03]
 async def reload_all_configs(
     request: Request,  # required by slowapi
@@ -269,7 +269,7 @@ async def reload_all_configs(
         )
 
 
-@router.get("/backups", response_model=dict[str, Any])
+@router.get("/backups", response_model=dict[str, Any], deprecated=True)
 async def list_config_backups(
     _: dict[str, Any] = Depends(require_role(["admin"])),
 ) -> dict[str, Any]:
@@ -308,7 +308,7 @@ async def list_config_backups(
         ) from e
 
 
-@router.post("/backups/{filename}/restore", response_model=dict[str, Any])
+@router.post("/backups/{filename}/restore", response_model=dict[str, Any], deprecated=True)
 @limiter.limit("3/minute")  # [P1-03]
 async def restore_config_backup(
     request: Request,
@@ -398,7 +398,7 @@ async def restore_config_backup(
         ) from e
 
 
-@router.get("/{config_name}", response_model=dict[str, Any])
+@router.get("/{config_name}", response_model=dict[str, Any], deprecated=True)
 async def get_config(
     config_name: str = FastApiPath(
         ...,

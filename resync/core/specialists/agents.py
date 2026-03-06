@@ -81,6 +81,7 @@ async def _call_llm(
     """
     try:
         import litellm
+        from resync.core.litellm_init import get_litellm_router
 
         litellm.suppress_debug_info = True
 
@@ -89,7 +90,7 @@ async def _call_llm(
             {"role": "user", "content": prompt},
         ]
 
-        response = await litellm.acompletion(
+        response = await get_litellm_router().acompletion(
             model=model,
             messages=messages,
             max_tokens=max_tokens,

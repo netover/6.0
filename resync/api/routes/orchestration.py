@@ -94,6 +94,8 @@ async def create_config(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail=f"Invalid step configuration: {str(e)}"
         )
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.error("Step validation failed: %s", str(e))
         raise HTTPException(

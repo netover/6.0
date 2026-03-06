@@ -18,7 +18,8 @@ from resync.core.task_tracker import create_tracked_task
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/api/admin/graphrag", tags=["graphrag-admin"])
+router = APIRouter(prefix="/admin/graphrag", tags=["graphrag-admin"])
+
 
 class CacheInvalidationRequest(BaseModel):
     """Request to invalidate discovery cache."""
@@ -30,7 +31,6 @@ class DiscoveryTriggerRequest(BaseModel):
 
     job_name: str
     force: bool = False  # Bypass filters
-
 @router.get("/stats")
 async def get_graphrag_stats():
     """
@@ -58,7 +58,6 @@ async def get_graphrag_stats():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 @router.post("/cache/invalidate")
 async def invalidate_discovery_cache(request: CacheInvalidationRequest):
     """
@@ -108,7 +107,6 @@ async def invalidate_discovery_cache(request: CacheInvalidationRequest):
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 @router.post("/discover")
 async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
     """
@@ -174,7 +172,6 @@ async def trigger_manual_discovery(request: DiscoveryTriggerRequest):
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 @router.post("/validation/reset-stats")
 async def reset_validation_stats():
     """
@@ -208,7 +205,6 @@ async def reset_validation_stats():
             status_code=500,
             detail="Internal server error. Check server logs for details.",
         ) from None
-
 @router.get("/config")
 async def get_discovery_config():
     """
@@ -254,7 +250,6 @@ class ConfigUpdateRequest(BaseModel):
     validate_on_abend: bool | None = None
     validate_on_failed: bool | None = None
     auto_invalidate: bool | None = None
-
 @router.post("/config/update")
 async def update_config(request: ConfigUpdateRequest):
     """

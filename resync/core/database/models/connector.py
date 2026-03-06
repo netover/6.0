@@ -22,7 +22,7 @@ class Connector(Base):
     """
     Model for external connectors.
     
-    Stores configuration for TWS, Database, Redis, RabbitMQ, etc.
+    Stores configuration for TWS, Database, Valkey, RabbitMQ, etc.
     """
 
     __tablename__ = "connectors"

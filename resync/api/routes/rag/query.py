@@ -27,6 +27,7 @@ from fastapi import (
 from resync.api.dependencies_v2 import get_current_user, get_logger
 from resync.api.models.requests import FileUploadValidation
 from resync.api.models.responses_v2 import FileUploadResponse
+from pydantic import BaseModel
 from ...services.rag_service import RAGIntegrationService, get_rag_service
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,53 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".json"}
+
+
+class RagSearchResult(BaseModel):
+    chunk_id: str
+    doc_id: str
+    content: str
+    score: float
+    metadata: dict[str, object] | None = None
+
+
+class RagSearchResponse(BaseModel):
+    query: str
+    results: list[RagSearchResult]
+    total: int
+
+
+class RagFileSummary(BaseModel):
+    file_id: str
+    filename: str
+    status: str
+    chunks_count: int
+    created_at: object
+    processed_at: object | None = None
+
+
+class RagFileListResponse(BaseModel):
+    files: list[RagFileSummary]
+    total: int
+
+
+class RagFileDetailResponse(BaseModel):
+    file_id: str
+    filename: str
+    status: str
+    chunks_count: int
+    created_at: object
+    processed_at: object | None = None
+    metadata: dict[str, object] | None = None
+
+
+class RagDeleteResponse(BaseModel):
+    message: str
+    file_id: str
+
+
+class RagStatsResponse(BaseModel):
+    stats: dict[str, object]
 
 def get_rag() -> RAGIntegrationService:
     """Dependency to get RAG service."""
@@ -222,7 +270,7 @@ async def upload_rag_file(
             detail="Failed to process file upload",
         ) from e
 
-@router.get("/rag/search")
+@router.get("/rag/search", response_model=RagSearchResponse)
 async def search_rag(
     query: str = Query(..., description="Search query", min_length=1),
     top_k: int = Query(default=10, ge=1, le=100, description="Number of results"),
@@ -243,20 +291,20 @@ async def search_rag(
             query=query[:50],
             results_count=len(results),
         )
-        return {
-            "query": query,
-            "results": [
-                {
-                    "chunk_id": r.chunk_id,
-                    "doc_id": r.doc_id,
-                    "content": r.content,
-                    "score": r.score,
-                    "metadata": r.metadata,
-                }
+        return RagSearchResponse(
+            query=query,
+            results=[
+                RagSearchResult(
+                    chunk_id=r.chunk_id,
+                    doc_id=r.doc_id,
+                    content=r.content,
+                    score=r.score,
+                    metadata=r.metadata,
+                )
                 for r in results
             ],
-            "total": len(results),
-        }
+            total=len(results),
+        )
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -270,7 +318,7 @@ async def search_rag(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Search failed"
         ) from e
 
-@router.get("/rag/files")
+@router.get("/rag/files", response_model=RagFileListResponse)
 async def list_rag_files(
     status_filter: str | None = Query(default=None, description="Filter by status"),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -297,7 +345,7 @@ async def list_rag_files(
             user_id=current_user.get("user_id"),
             file_count=len(files),
         )
-        return {"files": files, "total": len(files)}
+        return RagFileListResponse(files=[RagFileSummary(**file_data) for file_data in files], total=len(files))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
         from resync.core.exception_guard import maybe_reraise_programming_error
@@ -312,7 +360,7 @@ async def list_rag_files(
             detail="Failed to list RAG files",
         ) from e
 
-@router.get("/rag/files/{file_id}")
+@router.get("/rag/files/{file_id}", response_model=RagFileDetailResponse)
 async def get_rag_file(
     file_id: str,
     current_user: dict = Depends(get_current_user),
@@ -326,17 +374,17 @@ async def get_rag_file(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document {file_id} not found",
         )
-    return {
-        "file_id": doc.file_id,
-        "filename": doc.filename,
-        "status": doc.status,
-        "chunks_count": doc.chunks_count,
-        "created_at": doc.created_at,
-        "processed_at": doc.processed_at,
-        "metadata": doc.metadata,
-    }
+    return RagFileDetailResponse(
+        file_id=doc.file_id,
+        filename=doc.filename,
+        status=doc.status,
+        chunks_count=doc.chunks_count,
+        created_at=doc.created_at,
+        processed_at=doc.processed_at,
+        metadata=doc.metadata,
+    )
 
-@router.delete("/rag/files/{file_id}")
+@router.delete("/rag/files/{file_id}", response_model=RagDeleteResponse)
 async def delete_rag_file(
     file_id: str,
     current_user: dict = Depends(get_current_user),
@@ -354,7 +402,7 @@ async def delete_rag_file(
         logger_instance.info(
             "rag_file_deleted", user_id=current_user.get("user_id"), file_id=file_id
         )
-        return {"message": "File deleted successfully", "file_id": file_id}
+        return RagDeleteResponse(message="File deleted successfully", file_id=file_id)
     except HTTPException:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -371,10 +419,10 @@ async def delete_rag_file(
             detail="Failed to delete RAG file",
         ) from e
 
-@router.get("/rag/stats")
+@router.get("/rag/stats", response_model=RagStatsResponse)
 async def get_rag_stats(
     current_user: dict = Depends(get_current_user),
     rag_service: RAGIntegrationService = Depends(get_rag),
 ):
     """Get RAG system statistics."""
-    return await rag_service.get_stats()
+    return RagStatsResponse(stats=await rag_service.get_stats())

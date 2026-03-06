@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -84,12 +85,15 @@ def get_database_url() -> str:
 
 _checkpointer_instance: AsyncPostgresSaver | None = None
 _checkpointer_lock: asyncio.Lock | None = None
+_checkpointer_lock_bootstrap = threading.Lock()
 
 def _get_checkpointer_lock() -> asyncio.Lock:
     """Lazily create the asyncio lock (must be inside a running event loop)."""
     global _checkpointer_lock
     if _checkpointer_lock is None:
-        _checkpointer_lock = asyncio.Lock()
+        with _checkpointer_lock_bootstrap:
+            if _checkpointer_lock is None:
+                _checkpointer_lock = asyncio.Lock()
     return _checkpointer_lock
 
 async def get_checkpointer() -> AsyncPostgresSaver | None:
@@ -197,6 +201,7 @@ except ImportError:
 
 _memory_store_instance = None
 _memory_store_lock = threading.Lock()
+_memory_store_created_at = 0.0
 
 def get_memory_store():
     """
@@ -209,15 +214,45 @@ def get_memory_store():
         InMemoryStore instance or None if unavailable
     """
     global _memory_store_instance
+    global _memory_store_created_at
 
     if not MEMORY_STORE_AVAILABLE:
         return None
 
-    if _memory_store_instance is None:
+    # Prevent unbounded in-memory growth: rotate the store after TTL.
+    ttl_hours = float(getattr(settings, "langgraph_checkpoint_ttl_hours", 24))
+    ttl_s = max(3600.0, ttl_hours * 3600.0)
+    now = time.time()
+
+    if _memory_store_instance is None or (_memory_store_created_at and (now - _memory_store_created_at) > ttl_s):
         with _memory_store_lock:
-            if _memory_store_instance is None:
+            if _memory_store_instance is None or (_memory_store_created_at and (now - _memory_store_created_at) > ttl_s):
                 _memory_store_instance = InMemoryStore()
+                _memory_store_created_at = now
                 logger.info("memory_store_initialized")
+
+    # Hard cap to avoid unbounded checkpoint memory growth in long-running servers.
+    max_items = int(getattr(settings, "langgraph_memory_store_max_items", 5000) or 5000)
+    try:
+        if max_items > 0 and _memory_store_instance is not None:
+            # Best-effort: InMemoryStore implementation details vary by version.
+            size = None
+            for attr in ("_data", "data", "_store", "store", "_items"):
+                if hasattr(_memory_store_instance, attr):
+                    obj = getattr(_memory_store_instance, attr)
+                    if isinstance(obj, dict):
+                        size = len(obj)
+                        break
+            if size is None and hasattr(_memory_store_instance, "__dict__"):
+                # fallback estimate: count dict-valued attributes
+                size = sum(len(v) for v in _memory_store_instance.__dict__.values() if isinstance(v, dict))
+            if size is not None and size > max_items:
+                logger.warning("memory_store_rotated_max_items", size=size, max_items=max_items)
+                _memory_store_instance = InMemoryStore()
+                _memory_store_created_at = time.time()
+    except Exception:
+        # Never fail requests due to memory-store introspection.
+        pass
 
     return _memory_store_instance
 

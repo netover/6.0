@@ -9,7 +9,7 @@ from resync.core.security.auth import get_current_admin
 from resync.services.notification.email_service import get_email_service
 from resync.settings import get_settings
 
-router = APIRouter(prefix="/admin/notifications", tags=["admin", "notifications"])
+router = APIRouter(prefix="/notifications", tags=["admin", "notifications"])
 
 class SMTPConfigUpdate(BaseModel):
     enabled: bool

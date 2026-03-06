@@ -19,6 +19,7 @@ import asyncio
 import contextlib
 import inspect
 import logging
+import os
 import sys
 import time
 from collections import defaultdict
@@ -53,6 +54,7 @@ _bg_tasks: set[asyncio.Task[Any]] = set()
 
 # Bound concurrent writes per conversation to preserve ordering across sockets
 _session_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+_SESSION_LOCKS_MAXSIZE = int(os.getenv("WS_SESSION_LOCKS_MAXSIZE", "5000"))
 
 # Bounded in-process audit scheduling to avoid unbounded fire-and-forget growth
 _AUDITOR_QUEUE_MAXSIZE = 256
@@ -146,21 +148,30 @@ async def run_auditor_safely() -> None:
 
 
 async def _auditor_worker() -> None:
-    """Consume queued audit triggers with bounded worker concurrency."""
+    """Consume queued audit triggers with bounded worker concurrency.
+
+    Important: ``asyncio.Queue.task_done()`` must only be called for items that
+    were successfully retrieved via ``get()``. If the task is cancelled while
+    blocked on ``get()``, calling ``task_done()`` would corrupt the queue's
+    unfinished-task counter and can deadlock ``queue.join()``.
+    """
     global _auditor_queue
     if _auditor_queue is None:
         return
 
     while True:
+        got_item: bool = False
         try:
             await _auditor_queue.get()
+            got_item = True
             await run_auditor_safely()
         except asyncio.CancelledError:
             raise
         except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError):
             logger.error("IA Auditor worker failed while processing queue item", exc_info=True)
         finally:
-            _auditor_queue.task_done()
+            if got_item:
+                _auditor_queue.task_done()
 
 
 async def _ensure_auditor_workers() -> None:
@@ -220,7 +231,7 @@ async def _handle_agent_interaction(
             "message": sanitized,
             "agent_id": agent_id_str,
             "session_id": session_id,
-            "is_final": False,
+            "is_final": True,
             "timestamp": _now_iso(),
             "metadata": {},
         }
@@ -248,6 +259,7 @@ async def _handle_agent_interaction(
             unified_agent = get_unified_agent()
             response = await unified_agent.chat(
                 message=sanitized,
+                agent_id=agent_id_str,
                 include_history=True,
                 conversation_id=session_id,  # Use session_id for history isolation
             )
@@ -371,6 +383,30 @@ async def _setup_websocket_session(
     return agent, session_id
 
 
+
+async def _ws_allow_message_checked(websocket: WebSocket) -> tuple[bool, int]:
+    """Best-effort per-message WebSocket rate limiting.
+
+    Returns:
+        (allowed, retry_after_seconds)
+
+    Behavior:
+      - Fails **open** on infrastructure/network errors (to preserve availability).
+      - Re-raises programming errors (TypeError/AttributeError/etc.) so they are
+        not silently swallowed and do not accidentally bypass rate limiting.
+    """
+    from resync.core.security.rate_limiter_v2 import ws_allow_message
+
+    client_ip: str = getattr(getattr(websocket, "client", None), "host", None) or "unknown"
+    try:
+        return await ws_allow_message(client_ip)
+    except asyncio.CancelledError:
+        raise
+    except (OSError, ConnectionError, TimeoutError) as rate_err:
+        logger.warning("ws_rate_limiter_infra_error", error=str(rate_err)[:200])
+        return True, 0
+
+
 async def _message_processing_loop(
     websocket: WebSocket,
     agent: SupportsAgentMeta | Any,
@@ -415,6 +451,17 @@ async def _message_processing_loop(
             raise WebSocketDisconnect(code=1001, reason="Inactivity timeout") from None
 
         logger.info("Received message for agent '%s': %s...", agent_id, raw_data[:200])
+
+        # Per-message rate limiting (defense-in-depth; protects LLM cost)
+        allowed, retry_after = await _ws_allow_message_checked(websocket)
+        if not allowed:
+            await send_error_message(
+                websocket,
+                f"Rate limit excedido. Tente novamente em ~{retry_after}s.",
+                str(agent_id),
+                session_id,
+            )
+            continue
 
         validation = await _validate_input(raw_data, agent_id, websocket)
         if not validation["is_valid"]:
@@ -477,8 +524,14 @@ async def websocket_endpoint(
 
     await websocket.accept()
 
+    agent_id_str: str = str(agent_id)
+    # Compute once to avoid race conditions / wrong cleanup after disconnects
+    session_id_for_cleanup: str = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
+
+
     try:
         agent, session_id = await _setup_websocket_session(websocket, agent_id)
+        session_id_for_cleanup = session_id
         # Note: No knowledge_graph passed - it's now obtained from enterprise_state
         await _message_processing_loop(websocket, agent, agent_id, session_id)
     except WebSocketDisconnect:
@@ -497,28 +550,37 @@ async def websocket_endpoint(
             exc,
             exc_info=True,
         )
-        agent_id_str = str(agent_id)
-        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(
             websocket,
             "Ocorreu um erro com o agente. Tente novamente.",
             agent_id_str,
-            session_id,
+            session_id_for_cleanup,
         )
     except INFRA_ERRORS_NON_TIMEOUT as _e:  # pylint: disable=broad-exception-caught
         # Re-raise programming errors — these are bugs, not runtime failures
         if isinstance(_e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.critical("Unhandled exception in WebSocket for agent '%s'", agent_id, exc_info=True)
-        agent_id_str = str(agent_id)
-        session_id = websocket.query_params.get("session_id") or f"ws:{id(websocket)}"
         await send_error_message(
             websocket,
             "Ocorreu um erro inesperado no servidor.",
             agent_id_str,
-            session_id,
+            session_id_for_cleanup,
         )
     finally:
+        # Best-effort cleanup: prevent unbounded growth if clients set random session_ids.
+        try:
+            _session_locks.pop(session_id_for_cleanup, None)
+            # Opportunistic pruning if under attack
+            if len(_session_locks) > _SESSION_LOCKS_MAXSIZE:
+                # Drop arbitrary oldest-ish keys (dict order in Py3.7+ preserves insertion).
+                for k in list(_session_locks.keys())[: max(1, len(_session_locks) - _SESSION_LOCKS_MAXSIZE)]:
+                    _session_locks.pop(k, None)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.debug("ws_session_lock_cleanup_failed", exc_info=True)
+
         # Guarantee WebSocket is closed, even after unexpected errors
         with contextlib.suppress(
             RuntimeError,

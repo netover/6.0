@@ -6,17 +6,16 @@ from typing import Any
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from resync.core.valkey_init import get_redis_client
+from resync.core.valkey_init import get_valkey_client
 from resync.settings import get_settings
 
 _LUA = """
 local key = KEYS[1]
 local limit = tonumber(ARGV[1])
 local ttl = tonumber(ARGV[2])
-local current = redis.call('INCR', key)
+local current = valkey.call('INCR', key)
 if current == 1 then
-  redis.call('EXPIRE', key, ttl)
+  valkey.call('EXPIRE', key, ttl)
 end
 if current > limit then
   return 0
@@ -71,9 +70,9 @@ def _client_ip(request: Request) -> str:
     return "unknown"
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Global Redis-backed rate limiter with per-path rules.
+    """Global Valkey-backed rate limiter with per-path rules.
 
-    Disabled if Redis is not configured. Fail-closed in production when Redis is unavailable.
+    Disabled if Valkey is not configured. Fail-closed in production when Valkey is unavailable.
     """
 
     def __init__(self, app: Any) -> None:
@@ -91,18 +90,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         try:
-            redis = self._redis or get_redis_client()
-            self._redis = redis
+            valkey = self._redis or get_valkey_client()
+            self._redis = valkey
             rule = self._rules.get(request.url.path, self._default)
             ip = _client_ip(request)
             key = f"rate:{request.url.path}:{ip}"
-            ok = await redis.eval(_LUA, 1, key, str(rule.limit), str(rule.window_seconds))
+            ok = await valkey.eval(_LUA, 1, key, str(rule.limit), str(rule.window_seconds))
             if int(ok) != 1:
                 resp = Response("Too Many Requests", status_code=429)
                 resp.headers["Retry-After"] = str(rule.window_seconds)
                 resp.headers["X-RateLimit-Limit"] = str(rule.limit)
                 resp.headers["X-RateLimit-Reset"] = str(rule.window_seconds)
-                # Remaining is unknown without additional Redis call; set to 0 for clarity.
+                # Remaining is unknown without additional Valkey call; set to 0 for clarity.
                 resp.headers["X-RateLimit-Remaining"] = "0"
                 return resp
         except asyncio.CancelledError:

@@ -23,7 +23,7 @@ startup_logger = structlog.get_logger("resync.startup.validation")
 
 # Required environment variables for different components
 REQUIRED_ENV_VARS = {
-    "redis": ["APP_VALKEY_URL"],
+    "valkey": ["APP_VALKEY_URL"],
     "tws": ["TWS_HOST", "TWS_PORT", "TWS_USER", "TWS_PASSWORD"],
     "llm": ["LLM_ENDPOINT", "LLM_API_KEY"],
     "security": ["ADMIN_USERNAME", "ADMIN_PASSWORD", "SECRET_KEY"],
@@ -95,17 +95,17 @@ def validate_environment_variables() -> dict[str, str]:
                             validated_vars[var_name] = value
                     except ValueError:
                         invalid_vars.append(f"{var_name}={value} (must be integer)")
-                elif var_name in ["REDIS_URL", "LLM_ENDPOINT"]:
+                elif var_name in ["VALKEY_URL", "LLM_ENDPOINT"]:
                     # Use urllib.parse for flexible URL validation.
                     # Accept any scheme with scheme and netloc/path.
-                    # Supports redis+sentinel:// and other extended
+                    # Supports valkey+sentinel:// and other extended
                     # schemes while still rejecting malformed values.
                     # See SECURITY_CONFIGURATION_GUIDE.md for accepted formats.
                     from urllib.parse import urlparse
 
                     parsed = urlparse(value)
                     # Valid URL needs scheme and netloc (host:port)
-                    # or path (Unix sockets). redis+sentinel is valid.
+                    # or path (Unix sockets). valkey+sentinel is valid.
                     # urlparse handles plus signs in schemes.
                     if not parsed.scheme or not (parsed.netloc or parsed.path):
                         invalid_vars.append(
@@ -160,9 +160,9 @@ def validate_environment_variables() -> dict[str, str]:
 
     return validated_vars
 
-async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) -> bool:
+async def validate_valkey_connection(max_retries: int = 3, timeout: float = 5.0) -> bool:
     """
-    Validate Redis connection with retry logic.
+    Validate Valkey connection with retry logic.
 
     Args:
         max_retries: Maximum number of connection attempts
@@ -172,27 +172,27 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
         True if connection successful
 
     Raises:
-        DependencyUnavailableError: If Redis is unavailable after retries
+        DependencyUnavailableError: If Valkey is unavailable after retries
     """
     startup_logger.info(
-        "validating_redis_connection_started", max_retries=max_retries, timeout=timeout
+        "validating_valkey_connection_started", max_retries=max_retries, timeout=timeout
     )
 
-    redis_url = os.getenv("APP_VALKEY_URL")
-    if not redis_url:
-        raise ConfigurationValidationError("REDIS_URL environment variable not set")
+    valkey_url = os.getenv("APP_VALKEY_URL")
+    if not valkey_url:
+        raise ConfigurationValidationError("VALKEY_URL environment variable not set")
 
     for attempt in range(max_retries):
         start_time = time.time()
 
         try:
             # Import here to avoid circular dependencies
-            from redis.asyncio import ConnectionError as RedisConnectionError
-            from redis.asyncio import Redis
-            from redis.asyncio import TimeoutError as RedisTimeoutError
+            from valkey.asyncio import ConnectionError as ValkeyConnectionError
+            from valkey.asyncio import Valkey
+            from valkey.asyncio import TimeoutError as ValkeyTimeoutError
 
-            client = Redis.from_url(
-                redis_url, socket_connect_timeout=timeout, socket_timeout=timeout
+            client = Valkey.from_url(
+                valkey_url, socket_connect_timeout=timeout, socket_timeout=timeout
             )
 
             # Test connection (sync or async depending on stub/runtime)
@@ -206,17 +206,17 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
 
             duration = time.time() - start_time
             startup_logger.info(
-                "redis_connection_validated",
+                "valkey_connection_validated",
                 attempt=attempt + 1,
                 duration_ms=int(duration * 1000),
-                redis_host=redis_url.split("@")[-1] if "@" in redis_url else redis_url,
+                valkey_host=valkey_url.split("@")[-1] if "@" in valkey_url else valkey_url,
             )
             return True
 
-        except (RedisConnectionError, RedisTimeoutError) as e:
+        except (ValkeyConnectionError, ValkeyTimeoutError) as e:
             duration = time.time() - start_time
             startup_logger.warning(
-                "redis_connection_attempt_failed",
+                "valkey_connection_attempt_failed",
                 attempt=attempt + 1,
                 max_retries=max_retries,
                 duration_ms=int(duration * 1000),
@@ -232,16 +232,16 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
                 # Final failure
                 raise DependencyUnavailableError(
                     (
-                        f"Redis unavailable after {max_retries} attempts: "
+                        f"Valkey unavailable after {max_retries} attempts: "
                         f"{type(e).__name__}"
                     ),
-                    "redis",
+                    "valkey",
                     {
                         "attempts": max_retries,
                         "last_error": str(e),
-                        "redis_url": redis_url.split("@")[-1]
-                        if "@" in redis_url
-                        else redis_url,
+                        "valkey_url": valkey_url.split("@")[-1]
+                        if "@" in valkey_url
+                        else valkey_url,
                     },
                 ) from e
 
@@ -253,14 +253,14 @@ async def validate_redis_connection(max_retries: int = 3, timeout: float = 5.0) 
 
             # Unexpected error
             startup_logger.error(
-                "redis_unexpected_error",
+                "valkey_unexpected_error",
                 error_type=type(e).__name__,
                 error_message=str(e)
                 if os.getenv("ENVIRONMENT") != "production"
                 else None,
             )
             raise StartupError(
-                f"Unexpected Redis validation error: {type(e).__name__}",
+                f"Unexpected Valkey validation error: {type(e).__name__}",
                 {"error": str(e)},
             ) from e
 
@@ -407,7 +407,7 @@ async def validate_all_settings() -> "Settings":
     1. Environment variables
     2. Security settings
     3. TWS configuration
-    4. Redis connection
+    4. Valkey connection
 
     Returns:
         Validated Settings object
@@ -432,8 +432,8 @@ async def validate_all_settings() -> "Settings":
         # Step 3: Validate TWS configuration
         validation_results["tws"] = validate_tws_configuration()
 
-        # Step 4: Validate Redis connection (async operation)
-        await validate_redis_connection()
+        # Step 4: Validate Valkey connection (async operation)
+        await validate_valkey_connection()
 
         # Step 5: Load and return settings
         from resync.settings import load_settings

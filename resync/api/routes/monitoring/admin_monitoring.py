@@ -236,7 +236,7 @@ def _collect_services_health() -> list[ServiceHealth]:
             name="PostgreSQL", status="healthy", latency_ms=12.5, last_check=now_iso
         ),
         ServiceHealth(
-            name="Redis Cache", status="healthy", latency_ms=2.1, last_check=now_iso
+            name="Valkey Cache", status="healthy", latency_ms=2.1, last_check=now_iso
         ),
         ServiceHealth(
             name="RAG/pgvector", status="healthy", latency_ms=150.0, last_check=now_iso
@@ -314,10 +314,13 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
 
     logger.info("monitoring websocket connected")
     try:
-        while True:
+        from resync.core.loop_utils import run_resilient_loop
+        async def _step():
             dashboard = await _build_dashboard()
             await websocket.send_bytes(orjson.dumps(dashboard.model_dump(mode="json")))
             await asyncio.sleep(_WS_CONFIG.interval_seconds)
+
+        await run_resilient_loop("admin_monitoring.websocket_push", _step, logger=logger, step_timeout_seconds=None)
     except WebSocketDisconnect:
         logger.info("monitoring websocket disconnected")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:

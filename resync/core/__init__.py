@@ -24,7 +24,7 @@ from resync.core.exceptions import (
     InvalidConfigError,
     LLMError,
     PoolExhaustedError,
-    RedisConnectionError,
+    ValkeyConnectionError,
     ToolProcessingError,
 )
 
@@ -282,7 +282,7 @@ __all__ = [
     "AgentExecutionError",
     "AuthenticationError",
     "LLMError",
-    "RedisConnectionError",
+    "ValkeyConnectionError",
 ]
 if "AsyncTTLCache" in _LAZY_EXPORTS:
     __all__.append("AsyncTTLCache")

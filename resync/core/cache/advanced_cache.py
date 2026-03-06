@@ -6,7 +6,7 @@ Advanced Application Cache with Intelligent Invalidation.
 This module provides an intelligent caching system with:
 - Dependency-based automatic invalidation
 - Dynamic TTL based on usage patterns
-- Hierarchical caching (memory -> Redis -> database)
+- Hierarchical caching (memory -> Valkey -> database)
 - Cache warming and predictive loading
 - Performance metrics and monitoring
 - Cascade invalidation for related data
@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from resync.core.valkey_init import get_redis_initializer
+from resync.core.valkey_init import get_valkey_initializer
 from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -111,7 +111,7 @@ class CacheStats:
 
     # Layer statistics
     memory_hits: int = 0
-    redis_hits: int = 0
+    valkey_hits: int = 0
     database_hits: int = 0
 
     def hit_rate(self) -> float:
@@ -204,7 +204,7 @@ class AdvancedCacheManager:
     Intelligent cache manager with automatic invalidation and hierarchical caching.
 
     Features:
-    - Multi-layer caching (memory -> Redis -> database)
+    - Multi-layer caching (memory -> Valkey -> database)
     - Dependency-based invalidation
     - Dynamic TTL adjustment
     - Cache warming and predictive loading
@@ -216,9 +216,9 @@ class AdvancedCacheManager:
         self.stats = CacheStats()
         self.dependency_graph = CacheDependencyGraph()
 
-        # Redis integration
-        self.redis_client = None
-        self.redis_enabled = False
+        # Valkey integration
+        self.valkey_client = None
+        self.valkey_enabled = False
 
         # Background tasks
         self._cleanup_task: asyncio.Task | None = None  # type: ignore[annotation-unchecked]
@@ -245,20 +245,20 @@ class AdvancedCacheManager:
         if self._running:
             return
 
-        # Initialize Redis client
+        # Initialize Valkey client
         try:
-            redis_init = await get_redis_initializer()
-            self.redis_client = await redis_init.initialize()
-            self.redis_enabled = True
-            logger.info("Redis integration enabled for advanced caching")
+            valkey_init = await get_valkey_initializer()
+            self.valkey_client = await valkey_init.initialize()
+            self.valkey_enabled = True
+            logger.info("Valkey integration enabled for advanced caching")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Redis not available for caching: %s", e)
-            self.redis_enabled = False
+            logger.warning("Valkey not available for caching: %s", e)
+            self.valkey_enabled = False
 
         self._running = True
 
@@ -292,8 +292,8 @@ class AdvancedCacheManager:
         # Clear caches
         async with self._lock:
             self.memory_cache.clear()
-            if self.redis_client:
-                # Clear Redis cache (optional - depends on use case)
+            if self.valkey_client:
+                # Clear Valkey cache (optional - depends on use case)
                 pass
 
         logger.info("Advanced cache manager shutdown")
@@ -327,13 +327,13 @@ class AdvancedCacheManager:
             self._record_hit("memory", time.time() - start_time)
             return value
 
-        # Try Redis cache
-        if self.redis_enabled:
+        # Try Valkey cache
+        if self.valkey_enabled:
             value = await self._get_from_redis(key)
             if value is not None:
                 # Promote to memory cache
                 await self._set_memory(key, value, ttl or 300, dependencies, tags)  # type: ignore[attr-defined]
-                self._record_hit("redis", time.time() - start_time)
+                self._record_hit("valkey", time.time() - start_time)
                 return value
 
         # Cache miss - fetch from source
@@ -385,8 +385,8 @@ class AdvancedCacheManager:
         # Set in memory
         await self._set_memory_entry(entry)
 
-        # Set in Redis if enabled
-        if self.redis_enabled:
+        # Set in Valkey if enabled
+        if self.valkey_enabled:
             await self._set_redis(key, value, ttl)
 
         # Update dependency graph
@@ -419,8 +419,8 @@ class AdvancedCacheManager:
                 del self.memory_cache[key]
                 invalidated += 1
 
-            if self.redis_enabled:
-                await self.redis_client.delete(key)
+            if self.valkey_enabled:
+                await self.valkey_client.delete(key)
 
             # Cascade invalidation
             if cascade:
@@ -430,8 +430,8 @@ class AdvancedCacheManager:
                         del self.memory_cache[cascade_key]
                         invalidated += 1
 
-                    if self.redis_enabled:
-                        await self.redis_client.delete(cascade_key)
+                    if self.valkey_enabled:
+                        await self.valkey_client.delete(cascade_key)
 
                 # Clean up dependency graph
                 self.dependency_graph.remove_key(key)
@@ -540,12 +540,12 @@ class AdvancedCacheManager:
                 "evictions": self.stats.eviction_count,
                 "invalidations": self.stats.invalidation_count,
                 "memory_hits": self.stats.memory_hits,
-                "redis_hits": self.stats.redis_hits,
+                "valkey_hits": self.stats.valkey_hits,
                 "database_hits": self.stats.database_hits,
             },
             "layers": {
                 "memory_enabled": True,
-                "redis_enabled": self.redis_enabled,
+                "valkey_enabled": self.valkey_enabled,
                 "database_enabled": True,
             },
         }
@@ -587,12 +587,12 @@ class AdvancedCacheManager:
             self.memory_cache[entry.key] = entry
 
     async def _get_from_redis(self, key: str) -> Any:
-        """Get value from Redis cache."""
-        if not self.redis_enabled or not self.redis_client:
+        """Get value from Valkey cache."""
+        if not self.valkey_enabled or not self.valkey_client:
             return None
 
         try:
-            value_json = await self.redis_client.get(key)
+            value_json = await self.valkey_client.get(key)
             if value_json:
                 return json.loads(value_json)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -601,25 +601,25 @@ class AdvancedCacheManager:
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Redis get error for key %s: %s", key, e)
+            logger.warning("Valkey get error for key %s: %s", key, e)
 
         return None
 
     async def _set_redis(self, key: str, value: Any, ttl: int) -> None:
-        """Set value in Redis cache."""
-        if not self.redis_enabled or not self.redis_client:
+        """Set value in Valkey cache."""
+        if not self.valkey_enabled or not self.valkey_client:
             return
 
         try:
             value_json = json.dumps(value)
-            await self.redis_client.set(key, value_json, ex=ttl)
+            await self.valkey_client.set(key, value_json, ex=ttl)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            logger.warning("Redis set error for key %s: %s", key, e)
+            logger.warning("Valkey set error for key %s: %s", key, e)
 
     def _calculate_ttl(self, key: str, value: Any) -> int:
         """Calculate appropriate TTL based on key patterns and value characteristics."""
@@ -681,8 +681,8 @@ class AdvancedCacheManager:
         # Layer-specific hits
         if layer == "memory":
             self.stats.memory_hits += 1
-        elif layer == "redis":
-            self.stats.redis_hits += 1
+        elif layer == "valkey":
+            self.stats.valkey_hits += 1
         elif layer == "database":
             self.stats.database_hits += 1
 

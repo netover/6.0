@@ -284,7 +284,7 @@ class SmartConnectionPool:
 
         try:
             # In real implementation this would create
-            # actual database/redis/http connections
+            # actual database/valkey/http connections
             # For now, simulate connection creation
             connection = f"mock_connection_{connection_id}"
 

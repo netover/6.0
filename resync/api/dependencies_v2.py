@@ -15,6 +15,7 @@ from fastapi import HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database import get_db_session
+from resync.core.task_registry import cancel_all_tracked_tasks
 from resync.core.database.repositories import (
     ContextStore,
     FeedbackStore,
@@ -206,6 +207,9 @@ async def cleanup_dependencies():
     Called during application shutdown. No locking needed as this
     runs in a single-threaded shutdown context.
     """
+
+    # Cancel any tracked background tasks before closing stores
+    await cancel_all_tracked_tasks()
     global _tws_store, _context_store, _metrics_store, _feedback_store
 
     if _tws_store:

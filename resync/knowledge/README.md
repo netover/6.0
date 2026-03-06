@@ -16,7 +16,7 @@ This microservice implements a complete Qdrant-based RAG pipeline with:
 - **Internal metrics** for latency and throughput
 - **Snapshot-based versioning** for zero-downtime rollbacks
 
-> ✅ **No FAISS, Chroma, or Redis** — pure Qdrant architecture.
+> ✅ **No FAISS, Chroma, or Valkey** — pure Qdrant architecture.
 
 ---
 

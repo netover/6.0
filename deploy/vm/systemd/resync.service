@@ -1,7 +1,7 @@
 [Unit]
 Description=Resync FastAPI Service
-After=network.target postgresql.service redis-server.service
-Wants=postgresql.service redis-server.service
+After=network.target postgresql.service valkey-server.service
+Wants=postgresql.service valkey-server.service
 
 [Service]
 Type=simple

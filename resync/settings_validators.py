@@ -204,19 +204,19 @@ class SettingsValidators:
 
     @field_validator("valkey_url", "rate_limit_storage_uri")
     @classmethod
-    def validate_redis_url(cls, v: SecretStr | str) -> SecretStr | str:
-        """Validate Redis/Valkey URL format."""
+    def validate_valkey_url(cls, v: SecretStr | str) -> SecretStr | str:
+        """Validate Valkey URL format."""
         val = v.get_secret_value() if isinstance(v, SecretStr) else v
-        if not val.startswith(("redis://", "rediss://", "valkey://", "valkeys://")):
+        if not val.startswith(("valkey://", "valkeys://")):
             raise ValueError(
-                "Redis/Valkey URL must start with 'redis://', 'rediss://', 'valkey://' or 'valkeys://'. "
+                "Valkey URL must start with 'valkey://' or 'valkeys://'. "
                 "Example: valkey://localhost:6379/0"
             )
         try:
             parsed = urlparse(val)
             if not parsed.hostname:
                 # Do not include the full URL in the error message as it may contain credentials
-                raise ValueError("Redis URL missing hostname")
+                raise ValueError("Valkey URL missing hostname")
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -225,7 +225,7 @@ class SettingsValidators:
 
             # Mask the URL in the error message
             redacted = _redact_sensitive(val)
-            raise ValueError(f"Invalid Redis URL format: {redacted}") from e
+            raise ValueError(f"Invalid Valkey URL format: {redacted}") from e
         return v
 
     @field_validator("database_url")
@@ -668,7 +668,7 @@ class SettingsValidators:
         errors = []
 
         # [P2-08 FIX] Pool size checks removed — already validated by @field_validator
-        # (validate_db_pool_sizes, validate_redis_pool_sizes, etc.)
+        # (validate_db_pool_sizes, validate_valkey_pool_sizes, etc.)
         # Keeping them here would be redundant and add ~30% validation overhead.
 
         # 1. Pool lifetime must be > idle timeout

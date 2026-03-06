@@ -20,8 +20,8 @@ Usage:
     from resync.core.langgraph.incident_response import handle_incident
 
     await handle_incident(
-        error="RedisTimeoutError: Connection refused on port 6379",
-        component="redis_pool",
+        error="ValkeyTimeoutError: Connection refused on port 7000",
+        component="valkey_pool",
         severity="critical",
         output_channel="teams"  # or "chat"
     )
@@ -577,11 +577,11 @@ def create_incident_response_graph() -> Any | None:
     graph = StateGraph(IncidentState)
 
     # Add nodes
-    graph.add_node("intercept", intercept_node)
-    graph.add_node("enrichment", enrichment_node)
-    graph.add_node("analysis", analysis_node)
-    graph.add_node("output", output_node)
-    graph.add_node("send_notification", send_notification_node)
+    graph.add_node("intercept", wrap_langgraph_node(intercept_node))
+    graph.add_node("enrichment", wrap_langgraph_node(enrichment_node))
+    graph.add_node("analysis", wrap_langgraph_node(analysis_node))
+    graph.add_node("output", wrap_langgraph_node(output_node))
+    graph.add_node("send_notification", wrap_langgraph_node(send_notification_node))
 
     # Define flow
     graph.set_entry_point("intercept")
@@ -624,7 +624,7 @@ async def handle_incident(
 
     Args:
         error: Error message or description
-        component: Affected component (redis, database, tws, api, etc.)
+        component: Affected component (valkey, database, tws, api, etc.)
         severity: Incident severity (low, medium, high, critical)
         output_channel: Where to send output (teams, chat, both, log_only)
         traceback: Optional full traceback
@@ -637,8 +637,8 @@ async def handle_incident(
     Examples:
         # From anomaly_detector
         await handle_incident(
-            error="RedisTimeoutError: Connection refused",
-            component="redis_pool",
+            error="ValkeyTimeoutError: Connection refused",
+            component="valkey_pool",
             severity="critical",
             output_channel="teams"
         )

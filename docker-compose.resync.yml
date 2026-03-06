@@ -20,20 +20,20 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: resync-redis
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: resync-valkey
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - valkey_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
 
 volumes:
   postgres_data:
-  redis_data:
+  valkey_data:

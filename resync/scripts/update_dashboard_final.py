@@ -31,12 +31,12 @@ new_add_error = """async def add_error_sample(self, error: Exception) -> None:
 content = re.sub(add_error_pattern, new_add_error, content, flags=re.DOTALL)
 
 # 2. Update collect_metrics_sample
-collect_pattern = r"async def collect_metrics_sample\(\) -> None:.*?await redis\.publish\(REDIS_CH_BROADCAST, json_dumps\(current\)\)"
+collect_pattern = r"async def collect_metrics_sample\(\) -> None:.*?await valkey\.publish\(VALKEY_CH_BROADCAST, json_dumps\(current\)\)"
 new_collect = """async def collect_metrics_sample() -> None:
-    \"\"\"Apenas um worker coleta por vez (Liderança via Redis Lock).\"\"\"
-    redis = get_redis_client()
+    \"\"\"Apenas um worker coleta por vez (Liderança via Valkey Lock).\"\"\"
+    valkey = get_valkey_client()
     # Aumentado TTL para 15s para maior segurança contra sobreposição
-    if not await redis.set(REDIS_LOCK_COLLECTOR, "leader", ex=15, nx=True):
+    if not await valkey.set(VALKEY_LOCK_COLLECTOR, "leader", ex=15, nx=True):
         return
 
     try:
@@ -62,7 +62,7 @@ new_collect = """async def collect_metrics_sample() -> None:
         await _metrics_store.compute_rate_and_add_sample(req_total, now_mono, build_sample)
 
         current = await _metrics_store.get_current_metrics()
-        subscribers = await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+        subscribers = await valkey.publish(VALKEY_CH_BROADCAST, json_dumps(current))
         if subscribers == 0: logger.debug("Nenhum subscriber no canal de broadcast")
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -75,26 +75,26 @@ new_collect = """async def collect_metrics_sample() -> None:
         try:
             await _metrics_store.add_error_sample(e)
             current = await _metrics_store.get_current_metrics()
-            await redis.publish(REDIS_CH_BROADCAST, json_dumps(current))
+            await valkey.publish(VALKEY_CH_BROADCAST, json_dumps(current))
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
             logger.debug("Falha ao persistir/broadcast amostra de erro")
     finally:
         # Libera o lock explicitamente após a coleta
-        await redis.delete(REDIS_LOCK_COLLECTOR)"""
+        await valkey.delete(VALKEY_LOCK_COLLECTOR)"""
 
 content = re.sub(collect_pattern, new_collect, content, flags=re.DOTALL)
 
 # 3. Update get_global_uptime for better exception handling and unused variable
 uptime_pattern = r"async def get_global_uptime\(self\) -> float:.*?return 0\.0"
 new_uptime = """async def get_global_uptime(self) -> float:
-        redis = get_redis_client()
+        valkey = get_valkey_client()
         try:
             now = time.time()
-            await redis.set(REDIS_KEY_START_TIME, str(now), nx=True)
-            raw = await redis.get(REDIS_KEY_START_TIME)
+            await valkey.set(VALKEY_KEY_START_TIME, str(now), nx=True)
+            raw = await valkey.get(VALKEY_KEY_START_TIME)
             return now - float(raw or now)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-            logger.debug("Falha ao obter uptime global do Redis")
+            logger.debug("Falha ao obter uptime global do Valkey")
             return 0.0"""
 content = re.sub(uptime_pattern, new_uptime, content, flags=re.DOTALL)
 

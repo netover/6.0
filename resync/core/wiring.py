@@ -226,7 +226,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
 
     # Initialize and start Event Bus
     event_bus = init_event_bus(history_size=settings.cache.hierarchy_l1_max_size or 1000)
-    event_bus.start()
+    # EventBus is started under lifespan TaskGroup in startup.py (_init_event_bus)
 
     # Flags initialised to safe defaults; lifespan will flip startup_complete.
     # valkey_available is set based on IdempotencyManager initialization above.

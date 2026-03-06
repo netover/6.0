@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Test script to validate NVIDIA API connection with MiniMax model - non-streaming version."""
+"""Manual test script to validate NVIDIA API connection.
+
+NOTE: This file is intentionally NOT a pytest test.
+Pytest will collect `test_*.py` files by default; we skip at import time.
+"""
+
+if __name__ != "__main__":
+    import pytest
+
+    pytest.skip("manual script (not part of automated test suite)", allow_module_level=True)
 
 import os
 import sys

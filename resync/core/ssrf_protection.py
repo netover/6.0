@@ -61,7 +61,7 @@ class SSRFProtection:
     DANGEROUS_PORTS: Set[int] = {
         22, 23,           # SSH, Telnet
         3306, 5432,      # MySQL, PostgreSQL
-        27017, 6379,     # MongoDB, Redis
+        27017, 6379,     # MongoDB, Valkey
         11211,           # Memcached
         8500,            # Consul
         2375, 2376,      # Docker

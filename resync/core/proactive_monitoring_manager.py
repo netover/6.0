@@ -345,31 +345,25 @@ class ProactiveMonitoringManager:
 
     async def _pattern_detection_loop(self) -> None:
         """Loop de detecção de padrões."""
-        while True:
-            try:
-                interval = self._config.pattern_detection_interval_minutes * 60
-                await asyncio.sleep(interval)
+        from resync.core.loop_utils import run_resilient_loop
 
-                if self._status_store:
-                    patterns = await self._status_store.detect_patterns()
+        async def _step():
+            interval = self._config.pattern_detection_interval_minutes * 60
+            await asyncio.sleep(interval)
 
-                    # Publica padrões significativos
-                    for pattern in patterns:
-                        if pattern.confidence >= self._config.pattern_min_confidence:
-                            await self._publish_pattern(pattern)
+            if self._status_store:
+                patterns = await self._status_store.detect_patterns()
 
-                    logger.info(
-                        "pattern_detection_completed",
-                        patterns_found=len(patterns),
-                    )
+                # Publica padrões significativos
+                for pattern in patterns:
+                    if pattern.confidence >= self._config.pattern_min_confidence:
+                        await self._publish_pattern(pattern)
 
-            except asyncio.CancelledError:
-                raise
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                maybe_reraise_programming_error(e, e.__traceback__)
-
-                logger.error("pattern_detection_error", error=str(e))
-                await asyncio.sleep(60)  # Wait before retry
+                logger.info(
+                    "pattern_detection_completed",
+                    patterns_found=len(patterns),
+                )
+        await run_resilient_loop("proactive_monitoring.pattern_detection", _step, logger=logger, step_timeout_seconds=None)
 
     async def _publish_pattern(self, pattern: Any) -> None:
         """Publica um padrão detectado."""
@@ -399,29 +393,23 @@ class ProactiveMonitoringManager:
     async def _cleanup_loop(self) -> None:
         """Loop de limpeza de dados antigos."""
         # Executa às 03:00 todos os dias
-        while True:
-            try:
-                # Calcula tempo até próxima execução (03:00)
-                now = datetime.now(timezone.utc)
-                next_run = now.replace(hour=3, minute=0, second=0, microsecond=0)
-                if next_run <= now:
-                    # Add one day safely (avoids end-of-month ValueError)
-                    next_run = next_run + timedelta(days=1)
+        from resync.core.loop_utils import run_resilient_loop
 
-                wait_seconds = (next_run - now).total_seconds()
-                await asyncio.sleep(wait_seconds)
+        async def _step():
+            # Calcula tempo até próxima execução (03:00)
+            now = datetime.now(timezone.utc)
+            next_run = now.replace(hour=3, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                # Add one day safely (avoids end-of-month ValueError)
+                next_run = next_run + timedelta(days=1)
 
-                if self._status_store:
-                    deleted = await self._status_store.cleanup_old_data()
-                    logger.info("scheduled_cleanup_completed", deleted=deleted)
+            wait_seconds = (next_run - now).total_seconds()
+            await asyncio.sleep(wait_seconds)
 
-            except asyncio.CancelledError:
-                raise
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
-                maybe_reraise_programming_error(e, e.__traceback__)
-
-                logger.error("cleanup_error", error=str(e))
-                await asyncio.sleep(3600)  # Wait 1h before retry
+            if self._status_store:
+                deleted = await self._status_store.cleanup_old_data()
+                logger.info("scheduled_cleanup_completed", deleted=deleted)
+        await run_resilient_loop("proactive_monitoring.cleanup", _step, logger=logger, step_timeout_seconds=None)
 
     # =========================================================================
     # PUBLIC API
