@@ -713,6 +713,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
         logger.warning(
             "Monitoring Dashboard WebSocket auth failed - rejecting connection"
         )
+        await websocket.accept()
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION, reason="Admin authentication required"
         )
@@ -720,6 +721,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
 
     async with _clients_lock:
         if len(connected_clients) >= MAX_WS_CONNECTIONS:
+            await websocket.accept()
             await websocket.close(
                 code=status.WS_1013_TRY_AGAIN_LATER,
                 reason="Connection limit reached",

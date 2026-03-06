@@ -42,6 +42,7 @@ from resync.core.interfaces import IAgentManager
 from resync.core.security import SafeAgentID, sanitize_input, validate_input
 from resync.core.task_tracker import create_tracked_task
 from resync.core.types.app_state import enterprise_state_from_app
+from resync.core.trace_utils import hash_user_id
 
 # --- Logging Setup ---
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ def _session_id_for_websocket(websocket: WebSocket) -> str:
 
     user_id = getattr(websocket.state, "user_id", None)
     if user_id:
-        return f"ws:{user_id}:{id(websocket)}"
+        return f"ws:{hash_user_id(str(user_id))}:{id(websocket)}"
     return f"ws:{id(websocket)}"
 
 
