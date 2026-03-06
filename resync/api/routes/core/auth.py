@@ -41,10 +41,11 @@ from resync.api.routes.core.ip_utils import (
 )
 from resync.core.async_utils import classify_exception, with_timeout
 from resync.core.exception_guard import maybe_reraise_programming_error
-from resync.core.valkey_init import get_valkey_client
+from resync.core.jwt_utils import unwrap_secret
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
 from resync.core.token_revocation import revoke_jti
+from resync.core.valkey_init import get_valkey_client
 from resync.settings import get_settings, settings
 
 logger = get_logger(__name__)
@@ -105,8 +106,6 @@ def _is_secret_key_secure(secret: str | None) -> bool:
         "dev-secret-key-change-me-in-production-minimum-32-chars",
     }
     return secret not in known_insecure and secret != _get_dev_fallback_secret()
-
-from resync.core.jwt_utils import unwrap_secret
 
 def _get_configured_secret_key() -> str | None:
     """Fetch the configured JWT secret key as a raw string (never masked)."""
@@ -279,7 +278,13 @@ class SecureAuthenticator:
                 )
             except Exception as e:
                 reason, status_code = classify_exception(e)
-                logger.debug('valkey.delete failed (%s, %s): %s', reason, status_code, str(e), exc_info=True)
+                logger.debug(
+                    "valkey.delete failed (%s, %s): %s",
+                    reason,
+                    status_code,
+                    str(e),
+                    exc_info=True,
+                )
         except INFRA_ERRORS as exc:
             maybe_reraise_programming_error(exc, exc.__traceback__)
 

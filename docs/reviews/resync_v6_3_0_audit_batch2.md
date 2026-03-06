@@ -34,23 +34,34 @@
 
 ## Findings confirmados
 
+_Status da auditoria: 2026-03-06 (snapshot; alguns pontos podem já ter sido corrigidos em commits posteriores)._ 
+
 ### 1) [🔴 Crítico] Erro de runtime no rate-limit de feedback por símbolos não importados
+
 - `feedback_submit.py` usa `with_timeout` e `classify_exception`, mas não importa esses símbolos no módulo.
 - Impacto em produção: caminho de rate-limit pode disparar `NameError`, gerando falha 500 no endpoint de feedback.
+- Referências: `resync/api/routes/feedback_submit.py` linhas 28-33 e 106-109 (estado no momento da auditoria).
 
 ### 2) [🟠 Segurança] Path traversal/leitura arbitrária em streaming de logs
+
 - Em `/admin/logs/stream`, o parâmetro `file` entra direto em `logs_dir / file` sem validação de containment (por exemplo `../` ou caminho absoluto).
 - Impacto em produção: leitura não autorizada de arquivos locais se endpoint estiver acessível a credenciais comprometidas.
+- Referências: `resync/api/routes/admin/v2.py` linhas 832-837 (estado no momento da auditoria).
 
 ### 3) [🟠 Segurança] Exposição de detalhes internos em health endpoints
+
 - `health.py` retorna `detail` com interpolação da exceção (`{e}`) para falhas de DB/Valkey/LLM deep check.
 - Impacto em produção: vazamento de informações internas (mensagens de driver, hostnames, erro de autenticação), aumentando superfície de reconhecimento.
+- Referências: `resync/api/routes/health.py` linhas 39-43, 57-58 e 86-87 (estado no momento da auditoria).
 
 ### 4) [⚪ Qualidade] Duplicidade de import `from __future__ import annotations`
+
 - O mesmo import aparece duas vezes no topo de `feedback_submit.py`.
 - Impacto: não quebra runtime, mas indica falha de higiene de código e revisão estática.
+- Referências: `resync/api/routes/feedback_submit.py` linhas 17-18 (estado no momento da auditoria).
 
 ## Pesquisa de versões (internet + lock local)
+
 Fonte local: `requirements.txt` e `requirements-dev.txt`.
 Fonte externa: consulta direta ao PyPI JSON API.
 

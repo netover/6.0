@@ -8,9 +8,9 @@ Runs:
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +19,8 @@ MIGRATION_TEST = ROOT / "tests" / "test_valkey_naming_migration.py"
 
 def run(cmd: list[str]) -> None:
     print("+", " ".join(cmd))
-    subprocess.check_call(cmd, cwd=str(ROOT))
+    # Safe in this context: command vectors are static in this module.
+    subprocess.check_call(cmd, cwd=str(ROOT))  # noqa: S603
 
 def main() -> int:
     run([sys.executable, "-m", "compileall", "-q", "resync"])
