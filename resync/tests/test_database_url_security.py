@@ -26,7 +26,7 @@ def test_database_url_insecure_password_allowed_outside_production(monkeypatch) 
     # Should not raise
     cfg = get_database_config()
     assert cfg.user == "resync"
-    assert cfg.password == "password"
+    assert cfg.password == "password"  # noqa: S105 - test fixture value
 
 
 def test_database_url_safe_password_allowed_in_production(monkeypatch) -> None:
@@ -37,7 +37,7 @@ def test_database_url_safe_password_allowed_in_production(monkeypatch) -> None:
 
     # Should not raise
     cfg = get_database_config()
-    assert cfg.password == "secure_long_password_123!"
+    assert cfg.password == "secure_long_password_123!"  # noqa: S105 - test fixture value
 
 
 def test_database_url_no_password_allowed_in_production(monkeypatch) -> None:

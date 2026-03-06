@@ -218,13 +218,14 @@ class TWSRelation:
         safe_table = sanitize_sql_identifier(table_name)
         tenant_val = self.tenant_id if self.tenant_id else "default"
 
-        sql = f"""
-        INSERT INTO {safe_table}
+        sql_template = """
+        INSERT INTO __TABLE__
             (from_node, to_node, relation_type, properties, weight, tenant_id)
         VALUES ($1, $2, $3, $4::jsonb, $5, $6)
         ON CONFLICT (from_node, to_node, relation_type, tenant_id)
         DO UPDATE SET properties = EXCLUDED.properties, weight = EXCLUDED.weight
         """
+        sql = sql_template.replace("__TABLE__", safe_table)
         params: list[Any] = [
             self.from_node,
             self.to_node,
@@ -245,19 +246,36 @@ class TWSQueryPatterns:
     @staticmethod
     def get_all_dependencies(job_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para obter todas as dependências de um job."""
-        params: list[Any] = [job_name]
-        tenant_filter = ""
         if tenant_id:
-            tenant_filter = "AND r.tenant_id = $2"
-            params.append(tenant_id)
-        
-        sql = f"""
+            sql = """
+            WITH RECURSIVE deps AS (
+                SELECT from_node, to_node, relation_type, 1 as depth
+                FROM kg_relations
+                WHERE to_node = $1
+                AND relation_type IN ('depends_on', 'follows', 'needs')
+                AND tenant_id = $2
+
+                UNION ALL
+
+                SELECT r.from_node, r.to_node, r.relation_type, d.depth + 1
+                FROM kg_relations r
+                JOIN deps d ON r.to_node = d.from_node
+                WHERE d.depth < 10
+                AND r.relation_type IN ('depends_on', 'follows', 'needs')
+                AND r.tenant_id = $2
+            )
+            SELECT DISTINCT from_node, to_node, relation_type, depth
+            FROM deps
+            ORDER BY depth
+            """
+            return sql, [job_name, tenant_id]
+
+        sql = """
         WITH RECURSIVE deps AS (
             SELECT from_node, to_node, relation_type, 1 as depth
             FROM kg_relations
             WHERE to_node = $1
             AND relation_type IN ('depends_on', 'follows', 'needs')
-            {tenant_filter.replace('r.', '')}
 
             UNION ALL
 
@@ -266,30 +284,45 @@ class TWSQueryPatterns:
             JOIN deps d ON r.to_node = d.from_node
             WHERE d.depth < 10
             AND r.relation_type IN ('depends_on', 'follows', 'needs')
-            {tenant_filter}
         )
         SELECT DISTINCT from_node, to_node, relation_type, depth
         FROM deps
         ORDER BY depth
         """
-        return sql, params
+        return sql, [job_name]
 
     @staticmethod
     def get_impact_analysis(job_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para análise de impacto (jobs downstream)."""
-        params: list[Any] = [job_name]
-        tenant_filter = ""
         if tenant_id:
-            tenant_filter = "AND r.tenant_id = $2"
-            params.append(tenant_id)
-            
-        sql = f"""
+            sql = """
+            WITH RECURSIVE impact AS (
+                SELECT from_node, to_node, relation_type, 1 as depth
+                FROM kg_relations
+                WHERE from_node = $1
+                AND relation_type IN ('triggers', 'predecessor_of')
+                AND tenant_id = $2
+
+                UNION ALL
+
+                SELECT r.from_node, r.to_node, r.relation_type, i.depth + 1
+                FROM kg_relations r
+                JOIN impact i ON r.from_node = i.to_node
+                WHERE i.depth < 10
+                AND r.tenant_id = $2
+            )
+            SELECT DISTINCT to_node as affected_job, depth as distance
+            FROM impact
+            ORDER BY depth
+            """
+            return sql, [job_name, tenant_id]
+
+        sql = """
         WITH RECURSIVE impact AS (
             SELECT from_node, to_node, relation_type, 1 as depth
             FROM kg_relations
             WHERE from_node = $1
             AND relation_type IN ('triggers', 'predecessor_of')
-            {tenant_filter.replace('r.', '')}
 
             UNION ALL
 
@@ -297,24 +330,30 @@ class TWSQueryPatterns:
             FROM kg_relations r
             JOIN impact i ON r.from_node = i.to_node
             WHERE i.depth < 10
-            {tenant_filter}
         )
         SELECT DISTINCT to_node as affected_job, depth as distance
         FROM impact
         ORDER BY depth
         """
-        return sql, params
+        return sql, [job_name]
 
     @staticmethod
     def get_resource_conflicts(resource_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para encontrar conflitos de recursos."""
-        params: list[Any] = [resource_name]
-        tenant_filter = ""
         if tenant_id:
-            tenant_filter = "AND tenant_id = $2"
-            params.append(tenant_id)
-            
-        sql = f"""
+            sql = """
+            SELECT DISTINCT r1.from_node as job1, r2.from_node as job2
+            FROM kg_relations r1
+            JOIN kg_relations r2 ON r1.to_node = r2.to_node
+            WHERE r1.to_node = $1
+            AND r1.relation_type = 'allocates'
+            AND r2.relation_type = 'allocates'
+            AND r1.from_node < r2.from_node
+            AND r1.tenant_id = $2
+            """
+            return sql, [resource_name, tenant_id]
+
+        sql = """
         SELECT DISTINCT r1.from_node as job1, r2.from_node as job2
         FROM kg_relations r1
         JOIN kg_relations r2 ON r1.to_node = r2.to_node
@@ -322,26 +361,42 @@ class TWSQueryPatterns:
         AND r1.relation_type = 'allocates'
         AND r2.relation_type = 'allocates'
         AND r1.from_node < r2.from_node
-        {tenant_filter.replace('tenant_id', 'r1.tenant_id')}
         """
-        return sql, params
+        return sql, [resource_name]
 
     @staticmethod
     def get_critical_path(schedule_name: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para encontrar o caminho crítico de um schedule."""
-        params: list[Any] = [schedule_name]
-        tenant_filter = ""
         if tenant_id:
-            tenant_filter = "AND r.tenant_id = $2"
-            params.append(tenant_id)
-            
-        sql = f"""
+            sql = """
+            WITH schedule_jobs AS (
+                SELECT to_node as job_name
+                FROM kg_relations
+                WHERE from_node = $1
+                AND relation_type = 'contains'
+                AND tenant_id = $2
+            ),
+            job_chains AS (
+                SELECT r.from_node, r.to_node,
+                       COALESCE((r.properties->>'duration')::int, 0) as duration
+                FROM kg_relations r
+                JOIN schedule_jobs sj ON r.from_node = sj.job_name
+                WHERE r.relation_type IN ('depends_on', 'follows')
+                AND r.tenant_id = $2
+            )
+            SELECT from_node, to_node, duration,
+                   SUM(duration) OVER (ORDER BY from_node) as cumulative_duration
+            FROM job_chains
+            ORDER BY cumulative_duration DESC
+            """
+            return sql, [schedule_name, tenant_id]
+
+        sql = """
         WITH schedule_jobs AS (
             SELECT to_node as job_name
             FROM kg_relations
             WHERE from_node = $1
             AND relation_type = 'contains'
-            {tenant_filter.replace('r.', '')}
         ),
         job_chains AS (
             SELECT r.from_node, r.to_node,
@@ -349,32 +404,34 @@ class TWSQueryPatterns:
             FROM kg_relations r
             JOIN schedule_jobs sj ON r.from_node = sj.job_name
             WHERE r.relation_type IN ('depends_on', 'follows')
-            {tenant_filter}
         )
         SELECT from_node, to_node, duration,
                SUM(duration) OVER (ORDER BY from_node) as cumulative_duration
         FROM job_chains
         ORDER BY cumulative_duration DESC
         """
-        return sql, params
+        return sql, [schedule_name]
 
     @staticmethod
     def get_jobs_by_workstation(workstation: str, tenant_id: str | None = None) -> tuple[str, list[Any]]:
         """Query para obter jobs de uma workstation."""
-        params: list[Any] = [workstation]
-        tenant_filter = ""
         if tenant_id:
-            tenant_filter = "AND tenant_id = $2"
-            params.append(tenant_id)
-            
-        sql = f"""
+            sql = """
+            SELECT from_node as job_name, properties
+            FROM kg_relations
+            WHERE to_node = $1
+            AND relation_type = 'runs_on'
+            AND tenant_id = $2
+            """
+            return sql, [workstation, tenant_id]
+
+        sql = """
         SELECT from_node as job_name, properties
         FROM kg_relations
         WHERE to_node = $1
         AND relation_type = 'runs_on'
-        {tenant_filter}
         """
-        return sql, params
+        return sql, [workstation]
 
 # =============================================================================
 # RELATION BUILDER

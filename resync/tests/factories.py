@@ -88,7 +88,7 @@ class DictFactory:
                     def random_element(self, elements):
                         import random
 
-                        return random.choice(list(elements))
+                        return random.choice(list(elements))  # noqa: S311 - test data randomness only
 
                     def date_time_this_year(self):
                         return datetime.now(timezone.utc)

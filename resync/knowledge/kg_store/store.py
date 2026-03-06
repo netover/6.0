@@ -303,51 +303,96 @@ class PostgresGraphStore:
         pool = await self._get_pool()
         async with pool.acquire(timeout=5.0) as conn:
             async with asyncio.timeout(timeout):
-                params: list[Any] = [tenant, graph_version, seed_node_ids, depth]
-                doc_filter = ""
+                limit = int(max_edges)
                 if doc_id:
-                    doc_filter = "AND (evidence->>'doc_id') = $5"
-                    params.append(doc_id)
-                rows = await conn.fetch(
-                f"""
-                WITH RECURSIVE walk AS (
-                    SELECT
-                        e.source_id,
-                        e.target_id,
-                        e.relation_type,
-                        e.weight,
-                        e.evidence,
-                        1 AS lvl,
-                        ARRAY[e.source_id, e.target_id] AS path
-                    FROM kg_edges e
-                    WHERE e.tenant=$1 AND e.graph_version=$2
-                      AND (e.source_id = ANY($3) OR e.target_id = ANY($3))
-                      {doc_filter}
+                    rows = await conn.fetch(
+                        """
+                        WITH RECURSIVE walk AS (
+                            SELECT
+                                e.source_id,
+                                e.target_id,
+                                e.relation_type,
+                                e.weight,
+                                e.evidence,
+                                1 AS lvl,
+                                ARRAY[e.source_id, e.target_id] AS path
+                            FROM kg_edges e
+                            WHERE e.tenant=$1 AND e.graph_version=$2
+                              AND (e.source_id = ANY($3) OR e.target_id = ANY($3))
+                              AND (e.evidence->>'doc_id') = $5
 
-                    UNION ALL
+                            UNION ALL
 
-                    SELECT
-                        e.source_id,
-                        e.target_id,
-                        e.relation_type,
-                        e.weight,
-                        e.evidence,
-                        w.lvl + 1 AS lvl,
-                        w.path || ARRAY[e.source_id, e.target_id] AS path
-                    FROM kg_edges e
-                    JOIN walk w
-                      ON (e.source_id = w.target_id OR e.target_id = w.target_id)
-                    WHERE e.tenant=$1 AND e.graph_version=$2
-                      AND w.lvl < $4
-                      AND NOT (e.target_id = ANY(w.path))
-                      {doc_filter}
-                )
-                SELECT source_id, target_id, relation_type, weight, evidence
-                FROM walk
-                LIMIT {int(max_edges)}
-                """,
-                *params,
-            )
+                            SELECT
+                                e.source_id,
+                                e.target_id,
+                                e.relation_type,
+                                e.weight,
+                                e.evidence,
+                                w.lvl + 1 AS lvl,
+                                w.path || ARRAY[e.source_id, e.target_id] AS path
+                            FROM kg_edges e
+                            JOIN walk w
+                              ON (e.source_id = w.target_id OR e.target_id = w.target_id)
+                            WHERE e.tenant=$1 AND e.graph_version=$2
+                              AND w.lvl < $4
+                              AND NOT (e.target_id = ANY(w.path))
+                              AND (e.evidence->>'doc_id') = $5
+                        )
+                        SELECT source_id, target_id, relation_type, weight, evidence
+                        FROM walk
+                        LIMIT $6
+                        """,
+                        tenant,
+                        graph_version,
+                        seed_node_ids,
+                        depth,
+                        doc_id,
+                        limit,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                        WITH RECURSIVE walk AS (
+                            SELECT
+                                e.source_id,
+                                e.target_id,
+                                e.relation_type,
+                                e.weight,
+                                e.evidence,
+                                1 AS lvl,
+                                ARRAY[e.source_id, e.target_id] AS path
+                            FROM kg_edges e
+                            WHERE e.tenant=$1 AND e.graph_version=$2
+                              AND (e.source_id = ANY($3) OR e.target_id = ANY($3))
+
+                            UNION ALL
+
+                            SELECT
+                                e.source_id,
+                                e.target_id,
+                                e.relation_type,
+                                e.weight,
+                                e.evidence,
+                                w.lvl + 1 AS lvl,
+                                w.path || ARRAY[e.source_id, e.target_id] AS path
+                            FROM kg_edges e
+                            JOIN walk w
+                              ON (e.source_id = w.target_id OR e.target_id = w.target_id)
+                            WHERE e.tenant=$1 AND e.graph_version=$2
+                              AND w.lvl < $4
+                              AND NOT (e.target_id = ANY(w.path))
+                        )
+                        SELECT source_id, target_id, relation_type, weight, evidence
+                        FROM walk
+                        LIMIT $5
+                        """,
+                        tenant,
+                        graph_version,
+                        seed_node_ids,
+                        depth,
+                        limit,
+                    )
                 edges = [
                     {
                         "source_id": r["source_id"],

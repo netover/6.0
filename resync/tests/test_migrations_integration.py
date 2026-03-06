@@ -21,7 +21,7 @@ def test_alembic_upgrade_head_runs() -> None:
     env["APP_DATABASE_URL"] = database_url
 
     # Run alembic in a subprocess to match real usage.
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: S603 - controlled test invocation
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         env=env,
         capture_output=True,
