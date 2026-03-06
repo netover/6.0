@@ -129,7 +129,7 @@ class AgentConnectionManager:
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send message to specific WebSocket connection"""
         try:
-            await websocket.send_text(message)
+            await asyncio.wait_for(websocket.send_text(message), timeout=self._send_timeout_seconds)
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
@@ -280,9 +280,7 @@ async def websocket_handler(
     set_user_id(user_id)
 
     # Strict per-connection conversation id (prevents cross-user history leakage)
-    conversation_id = websocket.query_params.get("session_id")
-    if not conversation_id:
-        conversation_id = f"ws:{hash_user_id(user_id)}:{uuid.uuid4().hex}"
+    conversation_id = f"ws:{hash_user_id(user_id)}:{uuid.uuid4().hex}"
     websocket.state.conversation_id = conversation_id
 
 
@@ -393,13 +391,13 @@ async def websocket_handler(
                             content,
                             conversation_id=conversation_id,
                         )
-                    except Exception as e:
+                    except Exception:
                         # Ensure clients waiting for streaming get a terminal event.
-                        err_msg = str(e)
+                        logger.exception("ws_llm_response_failed", agent_id=agent_id)
                         await manager.send_personal_message(
                             orjson.dumps({
                                 "type": "error",
-                                "message": err_msg,
+                                "message": "Falha ao processar mensagem.",
                                 "agent_id": agent_id,
                                 "stream_id": stream_id,
                                 "is_final": True,

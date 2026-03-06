@@ -743,7 +743,6 @@ async def websocket_metrics(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("monitoring_ws_disconnected")
     except asyncio.CancelledError:
-        raise
         logger.info("monitoring_ws_cancelled")
         raise  # Must re-raise CancelledError for proper shutdown
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
