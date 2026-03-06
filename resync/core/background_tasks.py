@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING, AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from resync.core.database import get_db_session
+
+if TYPE_CHECKING:
+    from resync.core.memory.conversation_memory import ConversationMemory
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,6 @@ def _get_thread_lock() -> threading.Lock:
     """Get or create the thread lock for synchronous memory access."""
     global _conversation_memory_thread_lock
     if _conversation_memory_thread_lock is None:
-        import threading
         _conversation_memory_thread_lock = threading.Lock()
     return _conversation_memory_thread_lock
 

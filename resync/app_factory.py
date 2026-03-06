@@ -567,7 +567,7 @@ class ApplicationFactory:
             ("resync.api.unified_config_api", "admin_router", "unified_config_ui_router"),
         ]
 
-        for module_path, router_name, log_name in essential_routers:
+        for module_path, router_name, _log_name in essential_routers:
             try:
                 # [P3-01] Modern importlib API replaces legacy __import__
                 mod = importlib.import_module(module_path)
@@ -593,7 +593,7 @@ class ApplicationFactory:
             ("resync.api.routes.performance", "router", "performance_router"),
         ]
 
-        for module_path, router_name, log_name in optional_routers:
+        for module_path, router_name, _log_name in optional_routers:
             try:
                 # [P3-01] Modern importlib API replaces legacy __import__
                 mod = importlib.import_module(module_path)
