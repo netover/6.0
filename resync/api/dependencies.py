@@ -131,9 +131,10 @@ async def get_correlation_id(
 # ============================================================================
 
 security = HTTPBearer(auto_error=False)
+security_dependency = Depends(security)
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = security_dependency,
 ) -> dict[str, Any] | None:
     """Obtém usuário atual a partir do token JWT.
 
@@ -184,7 +185,7 @@ async def get_current_user(
         ) from e
 
 async def require_authentication(
-    user: dict[str, Any] | None = Depends(get_current_user),
+    user: dict[str, Any] | None = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Garante que um usuário esteja autenticado.
 
