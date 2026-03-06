@@ -270,9 +270,13 @@ class SecureAuthenticator:
         # Success - clear failed attempts (distributed) with sanitized IP
         try:
             valkey = get_valkey_client()
-            settings = get_settings()
+            app_settings = get_settings()
             try:
-                await with_timeout(valkey.delete(f"{self._valkey_prefix}:{sanitized_ip}"), getattr(settings, 'valkey_health_timeout', 2.0), op='valkey.delete')
+                await with_timeout(
+                    valkey.delete(f"{self._valkey_prefix}:{sanitized_ip}"),
+                    getattr(app_settings, "valkey_health_timeout", 2.0),
+                    op="valkey.delete",
+                )
             except Exception as e:
                 reason, status_code = classify_exception(e)
                 logger.debug('valkey.delete failed (%s, %s): %s', reason, status_code, str(e), exc_info=True)
@@ -389,7 +393,7 @@ class SecureAuthenticator:
             """
 
             
-            settings = get_settings()
+            app_settings = get_settings()
             try:
                 result = await with_timeout(
                     valkey.eval(
@@ -403,7 +407,7 @@ class SecureAuthenticator:
                         str(success),
                         secrets.token_hex(8),
                     ),
-                    getattr(settings, "valkey_health_timeout", 2.0),
+                    getattr(app_settings, "valkey_health_timeout", 2.0),
                     op="valkey.eval(auth_rate_limit)",
                 )
             except Exception as e:
@@ -417,7 +421,9 @@ class SecureAuthenticator:
                 )
                 # Backend do rate limiter indisponível.
                 # Default conservador: bloquear em /auth; pode ser alterado via settings.
-                fail_open = bool(getattr(settings, "rate_limit_fail_open_auth", False))
+                fail_open = bool(
+                    getattr(app_settings, "rate_limit_fail_open_auth", False)
+                )
                 return (not fail_open, 0, 0)
 
             is_locked = bool(result[0])
