@@ -12,7 +12,7 @@ _METRICS_HISTORY_LIMIT = 5000
 
 def _cutoff_from_days(days: int) -> datetime:
     safe_days = max(1, int(days or 1))
-    return datetime.now(timezone.utc) - timedelta(days=safe_days)
+    return datetime.now(datetime.UTC) - timedelta(days=safe_days)
 
 async def fetch_job_history(
     *,
@@ -288,7 +288,7 @@ async def correlate_metrics(
         b = b[:n]
         ma = sum(a) / n
         mb = sum(b) / n
-        num = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+        num = sum((x - ma) * (y - mb) for x, y in zip(a, b, strict=False))
         da = sum((x - ma) ** 2 for x in a) ** 0.5
         db = sum((y - mb) ** 2 for y in b) ** 0.5
         if da == 0.0 or db == 0.0:

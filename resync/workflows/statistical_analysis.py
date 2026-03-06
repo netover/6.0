@@ -204,7 +204,7 @@ def pearson_corr(x: list[float], y: list[float]) -> float | None:
 
     mx = sum(x) / len(x)
     my = sum(y) / len(y)
-    numerator = sum((a - mx) * (b - my) for a, b in zip(x, y))
+    numerator = sum((a - mx) * (b - my) for a, b in zip(x, y, strict=False))
     denx = sum((a - mx) ** 2 for a in x) ** 0.5
     deny = sum((b - my) ** 2 for b in y) ** 0.5
 
@@ -450,10 +450,10 @@ def linear_regression(
     if sxx == 0:
         return y_mean, 0.0, 0.0
 
-    slope = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_values, y_values)) / sxx
+    slope = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_values, y_values, strict=False)) / sxx
     intercept = y_mean - slope * x_mean
 
-    residuals = [y - (intercept + slope * x) for x, y in zip(x_values, y_values)]
+    residuals = [y - (intercept + slope * x) for x, y in zip(x_values, y_values, strict=False)]
     sse = sum(r**2 for r in residuals)
     dof = max(1, n - 2)
     residual_std = (sse / dof) ** 0.5

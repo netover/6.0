@@ -345,15 +345,6 @@ class Agent:
             except Exception:  # noqa: BLE001
                 logger.debug("tool_call_model_dump_failed", exc_info=True)
 
-        # Pydantic v1
-        if hasattr(tool_call, "dict"):
-            try:
-                dumped = tool_call.dict()  # type: ignore[attr-defined]
-                if isinstance(dumped, dict):
-                    return dumped
-            except Exception:  # noqa: BLE001
-                logger.debug("tool_call_dict_dump_failed", exc_info=True)
-
         func = getattr(tool_call, "function", None)
         return {
             "id": getattr(tool_call, "id", None),

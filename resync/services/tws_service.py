@@ -265,7 +265,7 @@ class OptimizedTWSClient:
             """
 
             cap = min(backoff_base * (2**attempt_idx), backoff_max)
-            return random.uniform(0, cap)
+            return random.uniform(0, cap)  # noqa: S311 - non-crypto jitter for retry backoff
 
         def _parse_retry_after(value: str) -> int | None:
             """Parse Retry-After, which can be delay-seconds or an HTTP-date."""
