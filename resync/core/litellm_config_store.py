@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,8 @@ import json
 CONFIG_PATH = Path(__file__).resolve().parent / "litellm_config.yaml"
 
 HISTORY_LIST_KEY = "resync:llm:config:history:v1"  # LPUSH json entries, LTRIM 0..49
+
+logger = logging.getLogger(__name__)
 
 def _json_dumps(obj: Any) -> str:
     return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
@@ -59,7 +62,7 @@ async def get_history(limit: int = 20) -> list[dict[str, Any]]:
         except asyncio.CancelledError:
             raise
         except Exception:
-
+            logger.debug("litellm_config_store_recent_item_decode_failed", exc_info=True)
             continue
     return out
 

@@ -26,6 +26,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import threading
 import time
@@ -36,6 +37,7 @@ from resync.core.structured_logger import get_logger
 from resync.settings import settings
 
 logger = get_logger(__name__)
+_logger = logging.getLogger(__name__)
 
 # Try to import native LangGraph checkpointer
 try:
@@ -252,7 +254,7 @@ def get_memory_store():
                 _memory_store_created_at = time.time()
     except Exception:
         # Never fail requests due to memory-store introspection.
-        pass
+        _logger.debug("memory_store_introspection_failed", exc_info=True)
 
     return _memory_store_instance
 

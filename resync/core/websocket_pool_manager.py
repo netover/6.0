@@ -330,7 +330,9 @@ class WebSocketPoolManager:
                 self.stats.connection_errors += 1
                 conn_info = None
             else:
-                assert conn_info is not None
+                if conn_info is None:
+                    self.stats.connection_errors += 1
+                    return None
                 self.connections[client_id] = conn_info
                 self.stats.total_connections += 1
                 self.stats.active_connections = len(self.connections)
