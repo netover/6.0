@@ -39,12 +39,13 @@ from resync.api.routes.core.ip_utils import (
     get_trusted_client_ip,
     sanitize_ip_for_valkey_key,
 )
+from resync.core.async_utils import classify_exception, with_timeout
 from resync.core.exception_guard import maybe_reraise_programming_error
 from resync.core.valkey_init import get_valkey_client
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
 from resync.core.token_revocation import revoke_jti
-from resync.settings import settings
+from resync.settings import get_settings, settings
 
 logger = get_logger(__name__)
 
@@ -416,7 +417,8 @@ class SecureAuthenticator:
                 )
                 # Backend do rate limiter indisponível.
                 # Default conservador: bloquear em /auth; pode ser alterado via settings.
-                return bool(getattr(settings, "rate_limit_fail_open_auth", False))
+                fail_open = bool(getattr(settings, "rate_limit_fail_open_auth", False))
+                return (not fail_open, 0, 0)
 
             is_locked = bool(result[0])
             remaining_minutes = int(result[1] / 60) + 1 if result[1] > 0 else 0
@@ -514,7 +516,7 @@ async def verify_admin_credentials(
             logger.info(
                 "token_expired",
                 extra={
-                    "token_prefix": token[:8] + "..." if token else "None",
+                    "has_token": has_token,
                     "ip": request.client.host if request.client else "unknown",
                 },
             )

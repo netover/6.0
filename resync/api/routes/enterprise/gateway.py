@@ -19,6 +19,7 @@ This module provides a comprehensive API Gateway with enterprise-grade features 
 import asyncio
 import contextlib
 import hashlib
+import hmac
 import re
 import time
 from collections import defaultdict, deque
@@ -514,12 +515,22 @@ class APIGateway:
 
         # API Key authentication
         api_key = request.headers.get("X-API-Key")
-        if api_key and api_key.startswith("api_key_"):
-            # This would validate API key (simplified)
+        if api_key and self._is_valid_api_key(api_key):
             request["api_key_valid"] = True
             return {"authenticated": True}
 
         return {"authenticated": False, "reason": "Invalid authentication"}
+
+    def _is_valid_api_key(self, api_key: str) -> bool:
+        """Validate API key against configured keys using constant-time compare."""
+        configured_keys = self.config.get("api_keys")
+        if not isinstance(configured_keys, list) or not configured_keys:
+            return False
+
+        for configured in configured_keys:
+            if isinstance(configured, str) and hmac.compare_digest(api_key, configured):
+                return True
+        return False
 
     def _find_route(self, request: web.Request) -> RouteConfiguration | None:
         """Find matching route configuration."""
@@ -782,9 +793,15 @@ class APIGateway:
 
                 # Clean old request counts (older than 1 hour)
                 cutoff_time = current_time - 3600
+                keys_to_remove: list[str] = []
                 for _key, requests in self.request_counts.items():
                     while requests and requests[0] < cutoff_time:
                         requests.popleft()
+                    if not requests:
+                        keys_to_remove.append(_key)
+
+                for _key in keys_to_remove:
+                    self.request_counts.pop(_key, None)
 
                 if expired_keys:
                     logger.debug(
