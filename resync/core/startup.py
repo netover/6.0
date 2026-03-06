@@ -92,7 +92,7 @@ async def _tcp_reachable(
             pass
         _ = reader
         return True, None
-    except TimeoutError:
+    except TimeoutError as exc:
         return False, "timeout"
     except OSError as e:
         return False, f"os_error:{type(e).__name__}"
@@ -540,7 +540,7 @@ async def run_startup_checks(*, settings: Settings | None = None) -> dict[str, A
                             type=type(exc).__name__,
                             exc_info=exc,
                         )
-        except TimeoutError:
+        except TimeoutError as exc:
             logger.warning("startup_checks_total_timeout")
         except (OSError, ValueError, RuntimeError, ConnectionError) as exc:
             _exc_type, _exc, _tb = sys.exc_info()
@@ -789,7 +789,7 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                                 failed_count=len(optional_results),
                                 failed_types=[type(e).__name__ for e in optional_results],
                             )
-                    except TimeoutError:
+                    except TimeoutError as exc:
                         get_logger("resync.startup").warning(
                             "optional_services_init_timeout"
                         )
@@ -819,13 +819,13 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                     try:
                         async with asyncio.timeout(shutdown_timeout):
                             await bg_tasks.cancel_all()
-                    except TimeoutError:
+                    except TimeoutError as exc:
                         logger.warning(
                             "bg_tasks_cancel_timeout",
                             timeout_seconds=shutdown_timeout,
                         )
 
-    except TimeoutError:
+    except TimeoutError as exc:
         logger.critical(
             "application_startup_timeout",
             timeout_seconds=startup_timeout,
@@ -838,7 +838,7 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
         )
         raise ConfigurationError(
             f"Application startup exceeded {startup_timeout}s timeout"
-        )
+        ) from exc
     except (OSError, ValueError, RuntimeError, ConnectionError, ConfigurationError) as exc:
         # [FIX BUG #5] ConfigurationError now caught, isinstance check removed (was dead code)
         _exc_type, _exc, _tb = sys.exc_info()
@@ -1047,7 +1047,7 @@ async def _shutdown_services(app: "FastAPI") -> None:
             with guard_programming_errors():
                 await asyncio.wait_for(cancel_all_tasks(timeout=5.0), timeout=7.0)
                 logger.info("background_tasks_cancelled")
-        except TimeoutError:
+        except TimeoutError as exc:
             logger.warning("task_cancel_timeout")
         except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.warning("task_cancel_error", error=str(e))
@@ -1070,7 +1070,7 @@ async def _shutdown_services(app: "FastAPI") -> None:
                     # enumerate tasks without private APIs.
                     logger.warning("bg_tasks_cancel_skipped_unmanaged_type", type=str(type(bg_tasks)))
                 logger.info("bg_tasks_cancelled")
-        except TimeoutError:
+        except TimeoutError as exc:
             logger.warning("bg_tasks_cancel_timeout")
         except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.warning("bg_tasks_cancel_error", error=str(e))
@@ -1080,7 +1080,7 @@ async def _shutdown_services(app: "FastAPI") -> None:
             with guard_programming_errors():
                 await asyncio.wait_for(shutdown_domain_singletons(app), timeout=10.0)
                 logger.info("domain_singletons_shutdown")
-        except TimeoutError:
+        except TimeoutError as exc:
             logger.error("singleton_shutdown_timeout")
         except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.error("domain_shutdown_error", error=str(e))
@@ -1090,7 +1090,7 @@ async def _shutdown_services(app: "FastAPI") -> None:
             with guard_programming_errors():
                 await asyncio.wait_for(shutdown_tws_monitor(), timeout=5.0)
                 logger.info("tws_monitor_shutdown")
-        except TimeoutError:
+        except TimeoutError as exc:
             logger.warning("tws_monitor_shutdown_timeout")
         except (OSError, ValueError, RuntimeError, ConnectionError) as e:
             logger.warning("tws_monitor_shutdown_error", error=str(e))

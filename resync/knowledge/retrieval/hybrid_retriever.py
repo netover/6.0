@@ -880,7 +880,7 @@ class HybridRetriever:
         results_list = results_list[:min_len]
         weights = weights[:min_len]
 
-        for results, weight in zip(results_list, weights):
+        for results, weight in zip(results_list, weights, strict=False):
             for rank, doc in enumerate(results, start=1):
                 doc_id = (
                     doc.get("id")

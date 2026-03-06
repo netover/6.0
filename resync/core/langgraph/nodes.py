@@ -611,7 +611,7 @@ class HumanApprovalNode(BaseNode):
             maybe_reraise_programming_error(_exc, _tb)
 
             logger.error("approval_persistence_failed", error=str(e))
-            raise RuntimeError(f"Failed to persist approval request: {e}")
+            raise RuntimeError(f"Failed to persist approval request: {e}") from e
 
         updates: dict[str, Any] = {
             "requires_approval": True,

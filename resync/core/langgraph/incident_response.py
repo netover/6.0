@@ -45,6 +45,7 @@ from typing import Any, Callable, TypedDict
 
 from pydantic import BaseModel, Field
 
+from resync.core.langgraph.state_delta import wrap_langgraph_node
 from resync.core.structured_logger import get_logger
 from resync.settings import settings
 

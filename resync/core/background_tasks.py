@@ -57,7 +57,7 @@ async def get_background_db_session() -> AsyncGenerator[AsyncSession, None]:
 # =============================================================================
 
 
-_conversation_memory_instance: "ConversationMemory | None" = None
+_conversation_memory_instance: ConversationMemory | None = None
 _conversation_memory_lock: asyncio.Lock | None = None
 _conversation_memory_thread_lock: threading.Lock | None = None
 
@@ -78,7 +78,7 @@ def _get_thread_lock() -> threading.Lock:
     return _conversation_memory_thread_lock
 
 
-async def get_conversation_memory_safe() -> "ConversationMemory":
+async def get_conversation_memory_safe() -> ConversationMemory:
     """
     Thread-safe singleton getter for ConversationMemory.
     
@@ -107,7 +107,7 @@ async def get_conversation_memory_safe() -> "ConversationMemory":
     return _conversation_memory_instance
 
 
-def get_conversation_memory() -> "ConversationMemory":
+def get_conversation_memory() -> ConversationMemory:
     """
     Synchronous singleton getter for ConversationMemory.
     
