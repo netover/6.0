@@ -63,7 +63,7 @@ async def revoke_jti(jti: str, exp_unix: int | None = None) -> None:
         key = f"{_PREFIX}{jti}"
         ttl = None
         if exp_unix is not None:
-            now = int(datetime.now(datetime.UTC).timestamp())
+            now = int(datetime.now(timezone.utc).timestamp())
             ttl = max(exp_unix - now, 1)
         if ttl:
             await valkey.set(key, "1", ex=ttl)
@@ -77,3 +77,4 @@ async def revoke_jti(jti: str, exp_unix: int | None = None) -> None:
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.warning("token_revocation_store_failed", error=str(e))
+

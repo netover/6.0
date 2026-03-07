@@ -50,7 +50,7 @@ class MetricPoint:
 
     name: str
     value: float
-    timestamp: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tags: dict[str, str] = field(default_factory=dict)
     unit: str | None = None
 
@@ -128,13 +128,13 @@ class LightweightMetricsStore:
         self, metric_name: str, hours: int = 24
     ) -> list[dict[str, Any]]:
         """Get metric values for last N hours."""
-        end = datetime.now(datetime.UTC)
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=hours)
         return await self.query(metric_name, start, end)
 
     async def get_stats(self, metric_name: str, hours: int = 24) -> dict[str, float]:
         """Get aggregate stats for a metric."""
-        end = datetime.now(datetime.UTC)
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=hours)
         return await self._store.data_points.get_metric_stats(metric_name, start, end)
 
@@ -193,7 +193,7 @@ class LightweightMetricsStore:
             "storage": {"raw_records": raw_records, "aggregated_records": 0},
             "counters": counters,
             "gauges": gauges,
-            "timestamp": datetime.now(datetime.UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     async def get_metric_names(self) -> list[str]:
@@ -221,7 +221,7 @@ class LightweightMetricsStore:
         """Aggregate metrics into time buckets."""
         if period not in {"minute", "hour", "day"}:
             period = "hour"
-        end = datetime.now(datetime.UTC)
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=hours)
         async with self._store.data_points._get_session() as session:
             bucket = func.date_trunc(period, MetricDataPoint.timestamp).label("bucket")
@@ -287,3 +287,4 @@ async def record_timing(name: str, duration_ms: float) -> MetricDataPoint:
     """Record a timing/latency metric."""
     store = get_metrics_store()
     return await store.record_latency(name, duration_ms)
+

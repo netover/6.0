@@ -89,13 +89,13 @@ class User(Base):
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
         index=True,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     last_login: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -212,7 +212,7 @@ class AuditLog(Base):
     # When
     timestamp: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
         index=True,
     )
 
@@ -257,3 +257,4 @@ class AuditLog(Base):
         }
 
 __all__ = ["User", "UserRole", "AuditLog"]
+

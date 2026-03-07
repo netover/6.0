@@ -119,7 +119,7 @@ class UserRepository:
             return None
 
         # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.now(datetime.UTC):
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
             return None
 
         # Check if user is active
@@ -142,7 +142,7 @@ class UserRepository:
 
         # Lock account if too many failed attempts
         if user.failed_login_attempts >= self.MAX_FAILED_ATTEMPTS:
-            user.locked_until = datetime.now(datetime.UTC) + self.LOCKOUT_DURATION
+            user.locked_until = datetime.now(timezone.utc) + self.LOCKOUT_DURATION
 
         await self.session.commit()
 
@@ -150,7 +150,7 @@ class UserRepository:
         """Handle successful login."""
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login = datetime.now(datetime.UTC)
+        user.last_login = datetime.now(timezone.utc)
 
         await self.session.commit()
 
@@ -178,7 +178,7 @@ class UserRepository:
             if hasattr(user, key):
                 setattr(user, key, value)
 
-        user.updated_at = datetime.now(datetime.UTC)
+        user.updated_at = datetime.now(timezone.utc)
         await self.session.commit()
         await self.session.refresh(user)
 
@@ -220,7 +220,7 @@ class UserRepository:
             return False
 
         user.hashed_password = new_hashed_password
-        user.updated_at = datetime.now(datetime.UTC)
+        user.updated_at = datetime.now(timezone.utc)
         await self.session.commit()
 
         return True
@@ -275,3 +275,4 @@ class UserRepository:
 UserService = UserRepository
 
 __all__ = ["UserRepository", "UserService"]
+

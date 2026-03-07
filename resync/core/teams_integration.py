@@ -96,7 +96,7 @@ class TeamsNotification:
     title: str
     message: str
     severity: str = "info"
-    timestamp: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     job_id: str | None = None
     job_status: str | None = None
     instance_name: str | None = None
@@ -481,7 +481,7 @@ class TeamsIntegration:
                     source="teams",
                     message=message,
                     context=context,
-                    timestamp=datetime.now(datetime.UTC),
+                    timestamp=datetime.now(timezone.utc),
                 )
                 logger.debug("conversation_stored_in_knowledge_graph")
         except ImportError:
@@ -524,7 +524,7 @@ class TeamsIntegration:
             "job_notifications": self.config.enable_job_notifications,
             "monitored_instances": len(self.config.monitored_tws_instances),
             "rate_limiting": self.config.rate_limit_enabled,
-            "last_check": datetime.now(datetime.UTC).isoformat(),
+            "last_check": datetime.now(timezone.utc).isoformat(),
             "statistics": self._stats.copy(),
         }
 
@@ -602,3 +602,4 @@ async def send_teams_alert(
     """Send a Teams alert notification."""
     integration = get_teams_integration()
     return await integration.send_alert(title, message, severity, **kwargs)
+

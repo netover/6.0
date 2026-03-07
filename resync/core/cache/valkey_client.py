@@ -1,9 +1,15 @@
-# resync/core/cache/valkey_client.py
-from typing import Optional, Any
 import logging
-import valkey
-from valkey import asyncio as aiovalkey
+from typing import Any, TYPE_CHECKING, Optional
+
+try:
+    from valkey import asyncio as aiovalkey
+except ImportError:  # pragma: no cover - optional dependency
+    aiovalkey = None
+
 from resync.settings import Settings
+
+if TYPE_CHECKING:
+    from valkey.asyncio import ConnectionPool, Valkey
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +18,14 @@ class ValkeyClient:
     
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._client: Optional[aiovalkey.Valkey] = None
-        self._pool: Optional[aiovalkey.ConnectionPool] = None
+        self._client: Optional["Valkey"] = None
+        self._pool: Optional["ConnectionPool"] = None
     
     async def connect(self) -> None:
         """Conecta ao Valkey com connection pooling"""
+        if aiovalkey is None:
+            raise RuntimeError("valkey-py not installed")
+
         self._pool = aiovalkey.ConnectionPool(
             host=self.settings.VALKEY_HOST if hasattr(self.settings, 'VALKEY_HOST') else 'localhost',
             port=self.settings.VALKEY_PORT if hasattr(self.settings, 'VALKEY_PORT') else 6379,

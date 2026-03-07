@@ -77,7 +77,7 @@ class CacheValidationStats:
         self.validations_failed = 0
         self.cache_invalidations = 0
         self.dependencies_changed = []
-        self.last_reset = datetime.now(datetime.UTC)
+        self.last_reset = datetime.now(timezone.utc)
 
     def record_validation(
         self, job_name: str, is_valid: bool, changes: dict[str, set] | None = None
@@ -95,7 +95,7 @@ class CacheValidationStats:
                 self.dependencies_changed.append(
                     {
                         "job_name": job_name,
-                        "timestamp": datetime.now(datetime.UTC).isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "added": list(changes.get("added", set())),
                         "removed": list(changes.get("removed", set())),
                     }
@@ -126,7 +126,7 @@ class CacheValidationStats:
         self.validations_failed = 0
         self.cache_invalidations = 0
         self.dependencies_changed = []
-        self.last_reset = datetime.now(datetime.UTC)
+        self.last_reset = datetime.now(timezone.utc)
 
 class SmartCacheValidator:
     """
@@ -274,7 +274,7 @@ class SmartCacheValidator:
             elif not isinstance(cached_at, datetime):
                 return 999  # Unknown age - treat as old
 
-            age = datetime.now(datetime.UTC) - cached_at
+            age = datetime.now(timezone.utc) - cached_at
             return age.days
 
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -446,3 +446,4 @@ def get_cache_validator(
     return SmartCacheValidator(
         tws_client, cache_client, knowledge_graph, discovery_service
     )
+

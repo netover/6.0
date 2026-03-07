@@ -21,11 +21,11 @@ class TeamsWebhookUser(Base):
     role = Column(String(50), default="viewer")  # viewer, operator, admin
     can_execute_commands = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(datetime.UTC))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     last_activity = Column(DateTime)
 
@@ -47,7 +47,8 @@ class TeamsWebhookAudit(Base):
     was_authorized = Column(Boolean)
     response_sent = Column(Boolean)
     error_message = Column(Text)
-    timestamp = Column(DateTime, default=lambda: datetime.now(datetime.UTC), index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     def __repr__(self):
         return f"<TeamsWebhookAudit(user={self.user_email}, type={self.command_type})>"
+

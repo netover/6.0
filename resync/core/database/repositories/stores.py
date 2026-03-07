@@ -317,7 +317,7 @@ class AuditQueueRepository(BaseRepository[AuditQueueItem]):
     async def mark_completed(self, item_id: int) -> AuditQueueItem | None:
         """Mark item as completed."""
         return await self.update(
-            item_id, status="completed", completed_at=datetime.now(datetime.UTC)
+            item_id, status="completed", completed_at=datetime.now(timezone.utc)
         )
 
     async def mark_failed(
@@ -367,7 +367,7 @@ class UserProfileRepository(BaseRepository[UserProfile]):
         """Update user activity stats."""
         profile = await self.get_or_create(user_id)
 
-        updates = {"last_active": datetime.now(datetime.UTC)}
+        updates = {"last_active": datetime.now(timezone.utc)}
         if increment_sessions:
             updates["total_sessions"] = profile.total_sessions + 1
         if increment_queries:
@@ -398,7 +398,7 @@ class SessionHistoryRepository(TimestampedRepository[SessionHistory]):
         """End a session."""
         session = await self.find_one({"session_id": session_id})
         if session:
-            ended_at = datetime.now(datetime.UTC)
+            ended_at = datetime.now(timezone.utc)
             duration = int((ended_at - session.started_at).total_seconds())
             return await self.update(
                 session.id, ended_at=ended_at, duration_seconds=duration
@@ -502,14 +502,14 @@ class LearningThresholdRepository(BaseRepository[LearningThreshold]):
                 {
                     "old_value": threshold.current_value,
                     "new_value": value,
-                    "timestamp": datetime.now(datetime.UTC).isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
 
             return await self.update(
                 threshold.id,
                 current_value=value,
-                last_adjusted=datetime.now(datetime.UTC),
+                last_adjusted=datetime.now(timezone.utc),
                 adjustment_history=history,
             )
         return await self.create(
@@ -562,7 +562,7 @@ class ActiveLearningRepository(BaseRepository[ActiveLearningCandidate]):
             status="reviewed",
             selected_label=selected_label,
             reviewer_id=reviewer_id,
-            reviewed_at=datetime.now(datetime.UTC),
+            reviewed_at=datetime.now(timezone.utc),
         )
 
 class FeedbackStore:
@@ -663,5 +663,6 @@ class MetricsStore:
 
     async def cleanup(self, days: int = 30) -> int:
         """Clean up old metrics."""
-        cutoff = datetime.now(datetime.UTC) - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return await self.data_points.delete_older_than(cutoff)
+

@@ -204,7 +204,7 @@ async def update_channel(
     if update_data.icon:
         channel.icon = update_data.icon
 
-    channel.updated_at = datetime.now(datetime.UTC)
+    channel.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(channel)
 
@@ -386,7 +386,7 @@ async def update_config(config_data: ConfigUpdate, db: AsyncSession = Depends(ge
     for field, value in config_data.model_dump(exclude_unset=True).items():
         setattr(config, field, value)
 
-    config.updated_at = datetime.now(datetime.UTC)
+    config.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await run_in_threadpool(db.refresh, config)
 
@@ -410,7 +410,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         total_mappings = db.query(func.count(TeamsJobMapping.id)).scalar()
         total_rules = db.query(func.count(TeamsPatternRule.id)).scalar()
 
-        today = datetime.now(datetime.UTC).date()
+        today = datetime.now(timezone.utc).date()
         notifications_sent_today = (
             db.query(func.count(TeamsNotificationLog.id))
             .filter(
@@ -517,7 +517,7 @@ async def send_test_notification(test_data: dict = None, db: AsyncSession = Depe
         instance_name="TEST_INSTANCE",
         return_code=999,
         error_message=error_message,
-        timestamp=datetime.now(datetime.UTC).isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
     if success:
@@ -537,3 +537,4 @@ def _mask_webhook_url(url: str) -> str:
     if len(url) > 50:
         return url[:25] + "..." + url[-10:]
     return url[:15] + "..."
+

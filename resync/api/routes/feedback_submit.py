@@ -113,8 +113,8 @@ async def submit_chat_feedback(
                 exc_info=True,
             )
             ok = bool(
-                getattr(get_settings(), "rate_limit_fail_open_feedback", True)
-            )  # degrade (configurável)
+                getattr(get_settings(), "rate_limit_fail_open_feedback", False)
+            )
         if int(ok) != 1:
             log_event(logger, "warning", "feedback_rate_limited", client_ip=client_ip)
             raise HTTPException(status_code=429, detail="Too many requests")

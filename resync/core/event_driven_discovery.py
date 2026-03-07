@@ -162,7 +162,7 @@ Return ONLY valid JSON (no markdown, no preamble):
         # Counters for budget control
         self.discoveries_today = 0
         self.discoveries_this_hour = 0
-        self.last_reset = datetime.now(datetime.UTC)
+        self.last_reset = datetime.now(timezone.utc)
         self._budget_lock = asyncio.Lock()
 
         logger.info("EventDrivenDiscovery initialized")
@@ -265,7 +265,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
         This runs asynchronously - user never waits for this!
         """
-        start_time = datetime.now(datetime.UTC)
+        start_time = datetime.now(timezone.utc)
 
         try:
             # 1. Fetch job logs
@@ -298,7 +298,7 @@ Return ONLY valid JSON (no markdown, no preamble):
                 self.discoveries_this_hour += 1
 
             # 6. Log success
-            duration = (datetime.now(datetime.UTC) - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             logger.info(
                 "Discovery completed",
                 job_name=job_name,
@@ -412,7 +412,7 @@ Return ONLY valid JSON (no markdown, no preamble):
                     relation=dep["relation"],
                     target=dep["target"],
                     properties={
-                        "discovered_at": datetime.now(datetime.UTC).isoformat(),
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
                         "confidence": dep.get("confidence", 0.8),
                         "source": "auto_discovery",
                     },
@@ -429,7 +429,7 @@ Return ONLY valid JSON (no markdown, no preamble):
                         "error_type": error["error_type"],
                         "description": error.get("description", ""),
                         "confidence": error.get("confidence", 0.8),
-                        "discovered_at": datetime.now(datetime.UTC).isoformat(),
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )
                 stored += 1
@@ -442,7 +442,7 @@ Return ONLY valid JSON (no markdown, no preamble):
                     target=cause["cause"],
                     properties={
                         "confidence": cause.get("confidence", 0.8),
-                        "discovered_at": datetime.now(datetime.UTC).isoformat(),
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )
                 stored += 1
@@ -478,7 +478,7 @@ Return ONLY valid JSON (no markdown, no preamble):
 
     def _reset_counters_if_needed(self) -> None:
         """Reset daily/hourly counters if time period elapsed."""
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         elapsed = now - self.last_reset
 
         # Reset daily and hourly counters together.

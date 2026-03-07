@@ -48,7 +48,7 @@ class WebSocketConnectionInfo:
 
     def update_activity(self) -> None:
         """Update last activity timestamp."""
-        self.last_activity = datetime.now(datetime.UTC)
+        self.last_activity = datetime.now(timezone.utc)
 
     def mark_error(self) -> None:
         """Mark connection as having an error."""
@@ -155,7 +155,7 @@ class WebSocketPoolManager:
 
     async def _cleanup_connections(self) -> None:
         """Clean up stale and unhealthy WebSocket connections."""
-        current_time = datetime.now(datetime.UTC)
+        current_time = datetime.now(timezone.utc)
         connections_to_remove = []
 
         # Collect connections to remove under lock
@@ -315,7 +315,7 @@ class WebSocketPoolManager:
                 self._pending_accepts = max(self._pending_accepts - 1, 0)
             raise
 
-        current_time = datetime.now(datetime.UTC)
+        current_time = datetime.now(timezone.utc)
         conn_info: WebSocketConnectionInfo | None = WebSocketConnectionInfo(
             client_id=client_id,
             websocket=websocket,

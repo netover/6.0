@@ -22,12 +22,12 @@ class TeamsChannel(Base):
     color = Column(String(20), default="#0078D4")  # Cor no frontend
     icon = Column(String(20), default="📢")  # Emoji/ícone
     created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(datetime.UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     last_notification_sent = Column(DateTime(timezone=True))
     notification_count = Column(Integer, default=0)
@@ -46,12 +46,12 @@ class TeamsJobMapping(Base):
     priority = Column(Integer, default=0)  # Para ordenação
     is_active = Column(Boolean, default=True)
     created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(datetime.UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     def __repr__(self):
@@ -70,12 +70,12 @@ class TeamsPatternRule(Base):
     pattern_type = Column(String(20), default="glob")  # glob, regex, prefix, suffix
     is_active = Column(Boolean, default=True)
     created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(datetime.UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     match_count = Column(Integer, default=0)
 
@@ -107,8 +107,8 @@ class TeamsNotificationConfig(Base):
     mention_text = Column(String(100), default="@Operations")
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.now(datetime.UTC),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     def __repr__(self):
@@ -130,9 +130,10 @@ class TeamsNotificationLog(Base):
     notification_sent = Column(Boolean, default=False)
     response_status = Column(Integer)
     error = Column(Text)
-    timestamp = Column(DateTime, default=lambda: datetime.now(datetime.UTC), index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     def __repr__(self):
         return (
             f"<TeamsNotificationLog(job={self.job_name}, channel={self.channel_name})>"
         )
+

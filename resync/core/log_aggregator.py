@@ -90,7 +90,7 @@ class LogEntry:
         """Convert log entry to dictionary."""
         return {
             "@timestamp": datetime.fromtimestamp(
-                self.timestamp, tz=datetime.UTC
+                self.timestamp, tz=timezone.utc
             ).isoformat(),
             "level": self.level.value,
             "message": self.message,
@@ -528,11 +528,11 @@ class LogAggregator:
             }
             if start_time:
                 range_filter["range"]["@timestamp"]["gte"] = datetime.fromtimestamp(
-                    start_time, tz=datetime.UTC
+                    start_time, tz=timezone.utc
                 ).isoformat()
             if end_time:
                 range_filter["range"]["@timestamp"]["lte"] = datetime.fromtimestamp(
-                    end_time, tz=datetime.UTC
+                    end_time, tz=timezone.utc
                 ).isoformat()
 
             es_query["query"]["bool"]["filter"] = [range_filter]
@@ -914,7 +914,7 @@ class LogAggregator:
             bulk_data = []
             index_name = (
                 f"{self.config.elasticsearch_index_prefix}-"
-                f"{datetime.now(datetime.UTC).strftime('%Y-%m-%d')}"
+                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
             )
 
             for log_entry in batch:
@@ -1002,7 +1002,7 @@ class LogAggregator:
 
         try:
             cutoff_date = (
-                datetime.now(datetime.UTC) - timedelta(days=self.config.retention_days)
+                datetime.now(timezone.utc) - timedelta(days=self.config.retention_days)
             ).strftime("%Y-%m-%d")
 
             # Get all indices matching pattern
@@ -1115,3 +1115,4 @@ async def get_log_aggregator() -> LogAggregator:
     if not instance._running:
         await instance.start()
     return instance
+

@@ -325,27 +325,25 @@ class APIGateway:
             if not security_result["allowed"]:
                 return self._create_error_response(403, security_result["reason"])
 
-            # 2. Rate limiting
-            rate_limit_result = await self._check_rate_limits(request)
-            if not rate_limit_result["allowed"]:
-                self.metrics["rate_limited_requests"] += 1
-                return self._create_error_response(429, "Rate limit exceeded")
-
-            # 3. Authentication
-            if request.get(
-                "route_config", RouteConfiguration("", "")
-            ).authentication_required:
-                auth_result = await self._authenticate_request(request)
-                if not auth_result["authenticated"]:
-                    return self._create_error_response(401, "Authentication required")
-
-            # 4. Route matching
+            # 2. Route matching
             route_config = self._find_route(request)
             if not route_config:
                 return self._create_error_response(404, "Route not found")
 
             # Store route config in request for later use
             request["route_config"] = route_config
+
+            # 3. Rate limiting
+            rate_limit_result = await self._check_rate_limits(request)
+            if not rate_limit_result["allowed"]:
+                self.metrics["rate_limited_requests"] += 1
+                return self._create_error_response(429, "Rate limit exceeded")
+
+            # 4. Authentication
+            if route_config.authentication_required:
+                auth_result = await self._authenticate_request(request)
+                if not auth_result["authenticated"]:
+                    return self._create_error_response(401, "Authentication required")
 
             # 5. Service discovery and load balancing
             service_endpoint = await self._select_service_endpoint(
@@ -435,7 +433,7 @@ class APIGateway:
 
     async def _check_rate_limits(self, request: web.Request) -> dict[str, Any]:
         """Check rate limits for request."""
-        route_config = getattr(request, "route_config", None)
+        route_config = request.get("route_config")
         rule_name = (
             route_config.rate_limit.get("rule", "default")
             if route_config and route_config.rate_limit
