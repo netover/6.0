@@ -8,7 +8,7 @@ import pytest
 
 @pytest.mark.integration
 def test_alembic_upgrade_head_runs() -> None:
-    """Runs `alembic upgrade head` against DATABASE_URL.
+    """Runs `alembic upgrade head` against APP_DATABASE_URL.
 
     This is intentionally a black-box test: if migrations are broken, the command fails.
     """
@@ -16,7 +16,7 @@ def test_alembic_upgrade_head_runs() -> None:
     if not database_url:
         pytest.skip("APP_DATABASE_URL not set")
 
-    # Ensure alembic sees APP_DATABASE_URL
+    # Ensure alembic sees the canonical variable regardless of how it was provided.
     env = dict(os.environ)
     env["APP_DATABASE_URL"] = database_url
 

@@ -323,12 +323,10 @@ def get_cache_hierarchy() -> CacheHierarchy:
     global cache_hierarchy
     if cache_hierarchy is None:
         cache_hierarchy = CacheHierarchy(
-            l1_max_size=settings.CACHE_HIERARCHY.L1_MAX_SIZE,
-            l2_ttl_seconds=settings.CACHE_HIERARCHY.L2_TTL_SECONDS,
-            l2_cleanup_interval=settings.CACHE_HIERARCHY.L2_CLEANUP_INTERVAL,
-            enable_encryption=getattr(
-                settings.CACHE_HIERARCHY, "CACHE_ENCRYPTION_ENABLED", False
-            ),
-            key_prefix=getattr(settings.CACHE_HIERARCHY, "CACHE_KEY_PREFIX", "cache:"),
+            l1_max_size=settings.cache.hierarchy_l1_max_size,
+            l2_ttl_seconds=settings.cache.hierarchy_l2_ttl,
+            l2_cleanup_interval=settings.cache.hierarchy_l2_cleanup_interval,
+            enable_encryption=False,
+            key_prefix="cache:",
         )
     return cache_hierarchy

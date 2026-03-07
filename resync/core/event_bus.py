@@ -249,6 +249,17 @@ class EventBus:
                 await self._processor_task
             self._processor_task = None
 
+        clients: list[WebSocketClient] = []
+        if self._websocket_lock is not None:
+            async with self._websocket_lock:
+                clients = list(self._websocket_clients.values())
+                self._websocket_clients.clear()
+
+        for client in clients:
+            with contextlib.suppress(Exception):
+                async with asyncio.timeout(self.config.websocket_send_timeout):
+                    await client.websocket.close(code=1001)
+
         logger.info(
             "event_bus_stopped",
             events_published=self._events_published,
@@ -736,11 +747,11 @@ class EventBus:
         async with self._websocket_lock:
             clients = list(self._websocket_clients.values())
 
-        async def _send(client: WebSocketClient) -> bool:
+        async def _send(client: WebSocketClient) -> str | None:
             try:
                 async with asyncio.timeout(self.config.websocket_send_timeout):
                     await client.websocket.send_text(msg_json)
-                return True
+                return None
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -752,15 +763,27 @@ class EventBus:
                     client_id=client.client_id,
                     error=str(e),
                 )
-                return False
+                return client.client_id
 
         results = await asyncio.gather(
             *[_send(c) for c in clients],
             return_exceptions=True,
         )
 
-        delivered = sum(1 for r in results if isinstance(r, bool) and r)
-        failed = len(results) - delivered
+        disconnected: list[str] = []
+        delivered = 0
+        for r in results:
+            if r is None:
+                delivered += 1
+            elif isinstance(r, str):
+                disconnected.append(r)
+            elif isinstance(r, Exception):
+                logger.debug("broadcast_message_exception", error=str(r))
+
+        failed = len(disconnected) + sum(1 for r in results if isinstance(r, Exception))
+
+        for client_id in disconnected:
+            await self.unregister_websocket(client_id)
 
         if failed > 0:
             logger.debug(

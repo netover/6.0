@@ -8,8 +8,8 @@ with proper security controls, lazy initialization, and production-grade
 error handling.
 
 Environment variables:
-    ENVIRONMENT: deployment environment (development|staging|production)
-    DATABASE_URL: PostgreSQL connection URL (required in production)
+    APP_ENVIRONMENT: deployment environment (development|staging|production)
+    APP_DATABASE_URL: PostgreSQL connection URL (required in production)
     RAG_*: all other settings use the RAG_ prefix (e.g. RAG_EMBED_MODEL)
 
 Intended stack:
@@ -103,7 +103,7 @@ SENSITIVE_QS_KEYS: Final[frozenset[str]] = frozenset(
 
 def _current_environment() -> str:
     """Return normalized deployment environment."""
-    return os.getenv("ENVIRONMENT", "development").strip().lower() or "development"
+    return os.getenv("APP_ENVIRONMENT", "development").strip().lower() or "development"
 
 def _is_weak_password(password: str) -> bool:
     """
@@ -158,11 +158,11 @@ def _sanitize_db_url(url: str) -> str:
 
         return urlunparse(parsed._replace(netloc=netloc))
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-        return "[DATABASE_URL_REDACTED]"
+        return "[APP_DATABASE_URL_REDACTED]"
 
 def _validate_database_url_raw(url: str, environment: str) -> str:
     """
-    Validate DATABASE_URL format and security requirements.
+    Validate APP_DATABASE_URL format and security requirements.
 
     Returns the original URL if valid, raises ValueError otherwise.
     """
@@ -170,37 +170,37 @@ def _validate_database_url_raw(url: str, environment: str) -> str:
         parsed = urlparse(url)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
         logger.error(
-        "database_url_parse_failed",
-            hint="Check DATABASE_URL format (postgresql+asyncpg://user:pass@host:5432/dbname)",
+            "database_url_parse_failed",
+            hint="Check APP_DATABASE_URL format (postgresql+asyncpg://user:pass@host:5432/dbname)",
         )
         raise ValueError(
-            "DATABASE_URL parsing failed. Expected format: "
+            "APP_DATABASE_URL parsing failed. Expected format: "
             "postgresql+asyncpg://user:pass@host:5432/dbname"
         ) from None
 
     if not parsed.scheme:
-        raise ValueError("DATABASE_URL missing scheme. Use postgresql+asyncpg://")
+        raise ValueError("APP_DATABASE_URL missing scheme. Use postgresql+asyncpg://")
 
     if parsed.scheme not in VALID_DB_SCHEMES:
         raise ValueError(
-            f"DATABASE_URL scheme '{parsed.scheme}' not supported. "
+            f"APP_DATABASE_URL scheme '{parsed.scheme}' not supported. "
             f"Valid schemes: {', '.join(sorted(VALID_DB_SCHEMES))}"
         )
 
     if not parsed.hostname:
-        raise ValueError("DATABASE_URL missing hostname")
+        raise ValueError("APP_DATABASE_URL missing hostname")
 
     if parsed.port is not None and not (1 <= parsed.port <= 65535):
-        raise ValueError(f"DATABASE_URL port {parsed.port} outside valid range (1-65535)")
+        raise ValueError(f"APP_DATABASE_URL port {parsed.port} outside valid range (1-65535)")
 
     if not parsed.path or parsed.path in ("/", ""):
-        raise ValueError("DATABASE_URL missing database name (path component)")
+        raise ValueError("APP_DATABASE_URL missing database name (path component)")
 
     if environment == "production":
         if not parsed.username:
-            raise ValueError("DATABASE_URL must include username in production")
+            raise ValueError("APP_DATABASE_URL must include username in production")
         if not parsed.password:
-            raise ValueError("DATABASE_URL must include password in production")
+            raise ValueError("APP_DATABASE_URL must include password in production")
         if parsed.scheme == "postgresql":
             raise ValueError(
                 "Sync postgresql:// scheme not allowed in production. "
@@ -208,7 +208,7 @@ def _validate_database_url_raw(url: str, environment: str) -> str:
             )
         if _is_weak_password(parsed.password):
             raise ValueError(
-                "DATABASE_URL password is too weak. "
+                "APP_DATABASE_URL password is too weak. "
                 "Use a password with at least 12 characters."
             )
 
@@ -235,8 +235,8 @@ class RagConfig(BaseSettings):
     RAG/pgvector configuration (immutable, validated, async-stack aware).
 
     Loads settings from:
-        - ENVIRONMENT / RAG_ENVIRONMENT
-        - DATABASE_URL (sem prefixo)
+        - APP_ENVIRONMENT / RAG_ENVIRONMENT
+        - APP_DATABASE_URL
         - RAG_* for all other fields
 
     Safe to share across async WebSocket handlers, metric collectors, and RAG services.
@@ -421,7 +421,7 @@ class RagConfig(BaseSettings):
         """
         Always validate database_url, regardless of source (env or default).
 
-        Fecha o bypass original: DATABASE_URL do ambiente não passa mais "cru".
+        Fecha o bypass original: APP_DATABASE_URL do ambiente não passa mais "cru".
         """
         env = str(info.data.get("environment", "development")).strip().lower() or "development"
         raw = v.get_secret_value().strip()
@@ -429,7 +429,7 @@ class RagConfig(BaseSettings):
         if not raw:
             if env == "production":
                 raise ValueError(
-                    "DATABASE_URL must be set in production. "
+                    "APP_DATABASE_URL must be set in production. "
                     "Format: postgresql+asyncpg://user:pass@host:5432/dbname"
                 )
             # fallback seguro dev
@@ -516,7 +516,7 @@ def get_config() -> RagConfig:
     return RagConfig()
 
 # FIX P0-04: Original code had `CFG = get_config()` at module level, which
-# instantiated RagConfig() immediately on import, triggering DATABASE_URL
+# instantiated RagConfig() immediately on import, triggering APP_DATABASE_URL
 # validation. In CI / fresh dev environments without env vars this caused
 # ValidationError, making the entire resync.knowledge package unimportable.
 #

@@ -27,6 +27,14 @@ llm_api_breaker = pybreaker.CircuitBreaker(
 
 logger = logging.getLogger(__name__)
 
+
+def _secret_value(secret: Any) -> str | None:
+    if secret is None:
+        return None
+    if hasattr(secret, "get_secret_value"):
+        return secret.get_secret_value()
+    return str(secret)
+
 class TWSLLMOptimizer:
     """
     TWS-optimized LLM integration with caching and model routing.
@@ -58,13 +66,13 @@ class TWSLLMOptimizer:
         # Model routing based on complexity
         self.model_routing = {
             "simple": getattr(
-                settings, "AUDITOR_MODEL_NAME", "gpt-3.5-turbo"
+                settings, "auditor_model_name", "gpt-3.5-turbo"
             ),  # For basic queries
             "complex": getattr(
-                settings, "AGENT_MODEL_NAME", "gpt-4o"
+                settings, "agent_model_name", "gpt-4o"
             ),  # For complex analysis
             "troubleshooting": getattr(
-                settings, "AGENT_MODEL_NAME", "gpt-4o"
+                settings, "agent_model_name", "gpt-4o"
             ),  # For troubleshooting
         }
 
@@ -77,7 +85,7 @@ class TWSLLMOptimizer:
         ):
             return self._ollama_available
 
-        llm_endpoint = getattr(settings, "LLM_ENDPOINT", None)
+        llm_endpoint = settings.llm_endpoint
         if not llm_endpoint:
             self._ollama_available = False
             return False
@@ -180,7 +188,9 @@ class TWSLLMOptimizer:
                     logger.debug("GPT-4 model selection failed, using fallback: %s", e)
 
             # Check for local model preference
-            if not is_complex and "local" in settings.ENVIRONMENT.lower():
+            environment = getattr(settings, "environment", "development")
+            env_name = environment.value if hasattr(environment, "value") else str(environment)
+            if not is_complex and "local" in env_name.lower():
                 if await self._is_ollama_available():
                     return "ollama/mistral"  # Use local model for simple queries
 
@@ -258,10 +268,10 @@ class TWSLLMOptimizer:
                     model=model,
                     max_tokens=500 if template_key != "troubleshooting" else 1000,
                     # Pass settings-based configuration to take advantage of LiteLLM features
-                    api_base=getattr(settings, "LLM_ENDPOINT", None),
+                    api_base=settings.llm_endpoint,
                     api_key=(
-                        settings.LLM_API_KEY
-                        if settings.LLM_API_KEY != "your_default_api_key_here"
+                        _secret_value(settings.llm_api_key)
+                        if _secret_value(settings.llm_api_key) != "your_default_api_key_here"
                         else None
                     ),
                 )
@@ -338,10 +348,10 @@ class TWSLLMOptimizer:
                 stream=True,
                 max_tokens=1000,
                 temperature=0.7,
-                api_base=getattr(settings, "LLM_ENDPOINT", None),
+                api_base=settings.llm_endpoint,
                 api_key=(
-                    settings.LLM_API_KEY
-                    if settings.LLM_API_KEY != "your_default_api_key_here"
+                    _secret_value(settings.llm_api_key)
+                    if _secret_value(settings.llm_api_key) != "your_default_api_key_here"
                     else None
                 ),
             )

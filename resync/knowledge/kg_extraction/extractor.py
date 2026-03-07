@@ -4,7 +4,7 @@ Usage (from ingest):
     extractor = KGExtractor()
     result = await extractor.extract(doc_id=..., chunks=[...])
 
-By default, extraction is gated by env var KG_EXTRACTION_ENABLED.
+By default, extraction is gated by env var APP_KG_EXTRACTION_ENABLED.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ class KGExtractor:
 
         _s = get_settings()
 
-        self.enabled = enabled if enabled is not None else _s.KG_EXTRACTION_ENABLED
+        self.enabled = enabled if enabled is not None else _s.kg_extraction_enabled
         self.model = model or _s.KG_EXTRACTION_MODEL or (_s.llm_model or "gpt-4o")
         self.max_concepts_per_chunk = (
             max_concepts_per_chunk or _s.KG_EXTRACTION_MAX_CONCEPTS

@@ -387,7 +387,7 @@ Comandos úteis:
   - CLI:     {install_prefix}/bin/valkey-cli -a {password}
 
 Configure o .env:
-  VALKEY_URL=valkey://:{password}@{host}:{port}/{db}
+  APP_VALKEY_URL=valkey://:{password}@{host}:{port}/{db}
 """.format(
             host=VALKEY_HOST,
             port=VALKEY_PORT,

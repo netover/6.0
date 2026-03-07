@@ -15,6 +15,14 @@ from ..structured_logger import get_logger
 
 logger = get_logger(__name__)
 
+
+def _secret_value(secret: object | None) -> str | None:
+    if secret is None:
+        return None
+    if hasattr(secret, "get_secret_value"):
+        return secret.get_secret_value()  # type: ignore[no-any-return]
+    return str(secret)
+
 class LLMFactory:
     """Factory class for creating provider-specific LLM calls."""
 
@@ -46,7 +54,7 @@ class LLMFactory:
         start_time = time.time()
 
         # Use provided api_key or settings, handle default placeholder
-        effective_api_key = api_key or settings.LLM_API_KEY
+        effective_api_key = api_key or _secret_value(settings.llm_api_key)
         if effective_api_key == "your_default_api_key_here":
             effective_api_key = None
 
@@ -75,11 +83,11 @@ class LLMFactory:
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    api_base=api_base or getattr(settings, "LLM_ENDPOINT", None),
+                    api_base=api_base or settings.llm_endpoint,
                     api_key=effective_api_key,
                     # Additional LiteLLM features
                     metadata={
-                        "user_id": getattr(settings, "APP_NAME", "resync"),
+                        "user_id": settings.project_name,
                         "session_id": f"tws_{int(time.time())}",
                     },
                 ),
@@ -161,11 +169,9 @@ class LLMFactory:
             ) from exc
 
         # Determine effective configuration
-        effective_model = model or getattr(settings, "LLM_MODEL", "gpt-4o")
-        effective_api_key = kwargs.get("api_key") or settings.LLM_API_KEY
-        effective_api_base = kwargs.get("api_base") or getattr(
-            settings, "LLM_ENDPOINT", None
-        )
+        effective_model = model or settings.llm_model or "gpt-4o"
+        effective_api_key = kwargs.get("api_key") or _secret_value(settings.llm_api_key)
+        effective_api_base = kwargs.get("api_base") or settings.llm_endpoint
 
         # Handle placeholder keys
         if effective_api_key == "your_default_api_key_here":
@@ -250,4 +256,4 @@ class DefaultLLMProvider(LLMProvider):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.model = kwargs.get("model", "gpt-4o")
-        self.api_base = kwargs.get("api_base", getattr(settings, "LLM_ENDPOINT", None))
+        self.api_base = kwargs.get("api_base", settings.llm_endpoint)

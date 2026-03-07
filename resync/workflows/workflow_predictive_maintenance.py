@@ -72,7 +72,14 @@ logger = structlog.get_logger(__name__)
 
 _checkpointer_pool: Any = None
 _checkpointer_instance: Any = None
-_pool_lock = asyncio.Lock()
+_pool_lock: asyncio.Lock | None = None
+
+def _get_pool_lock() -> asyncio.Lock:
+    """Return checkpointer pool lock lazily bound to the active event loop."""
+    global _pool_lock
+    if _pool_lock is None:
+        _pool_lock = asyncio.Lock()
+    return _pool_lock
 
 async def get_checkpointer() -> Any | None:
     """
@@ -86,7 +93,7 @@ async def get_checkpointer() -> Any | None:
     if _checkpointer_instance is not None:
         return _checkpointer_instance
 
-    async with _pool_lock:
+    async with _get_pool_lock():
         if _checkpointer_instance is not None:
             return _checkpointer_instance
 

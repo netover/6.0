@@ -71,15 +71,18 @@ _shutdown_event: asyncio.Event | None = None
 
 
 async def _increment_sessions() -> None:
-    """Incrementa contador de sessões ativas (atomic in asyncio - no lock needed)."""
+    """Increment active session count consistently with shutdown draining."""
     global _active_sessions
-    _active_sessions += 1
+    async with _get_active_sessions_lock():
+        _active_sessions += 1
 
 
 async def _decrement_sessions() -> None:
-    """Decrementa contador de sessões ativas (atomic in asyncio - no lock needed)."""
+    """Decrement active session count consistently with shutdown draining."""
     global _active_sessions
-    _active_sessions -= 1
+    async with _get_active_sessions_lock():
+        if _active_sessions > 0:
+            _active_sessions -= 1
 
 
 def get_engine() -> AsyncEngine:

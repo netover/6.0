@@ -124,8 +124,10 @@ class UnifiedHealthService:
         self._is_monitoring = False
         if self._monitoring_task:
             self._monitoring_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            try:
                 await self._monitoring_task
+            except* asyncio.CancelledError:
+                pass
             self._monitoring_task = None
 
         logger.info("unified_health_monitoring_stopped")
@@ -182,6 +184,7 @@ class UnifiedHealthService:
 
             try:
                 async with asyncio.timeout(self.config.timeout_seconds):
+                    cancelled = False
                     try:
                         async with asyncio.TaskGroup() as tg:
                             tasks = {
@@ -192,11 +195,14 @@ class UnifiedHealthService:
                                 for name, checker in checkers.items()
                             }
                     except* asyncio.CancelledError:
-                        raise
+                        cancelled = True
                     except* Exception as eg:
                         # Results extracted from task.result() below
                         logger.debug("health_checker_group_error",
                                      count=len(eg.exceptions))
+
+                    if cancelled:
+                        return self._create_cancelled_result(start_time)
 
                     # Extração segura de resultados
                     for name, task in tasks.items():
@@ -289,6 +295,17 @@ class UnifiedHealthService:
                 alerts=[f"Health check failed: {e!s}"],
                 summary={"error": 1},
             )
+
+    def _create_cancelled_result(self, start_time: float) -> HealthCheckResult:
+        """Return a neutral result when shutdown cancels health monitoring."""
+        return HealthCheckResult(
+            overall_status=HealthStatus.UNKNOWN,
+            components={},
+            timestamp=datetime.now(UTC),
+            duration_ms=(time.time() - start_time) * 1000,
+            alerts=[],
+            summary={},
+        )
 
     async def _execute_check_with_timeout(
         self, checker: BaseHealthChecker, name: str

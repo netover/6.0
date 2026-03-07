@@ -831,8 +831,8 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
             timeout_seconds=startup_timeout,
             hint=f"Startup exceeded {startup_timeout}s. Check Valkey/DB/networking.",
             troubleshooting={
-                "valkey": "Verify VALKEY_URL and Valkey server status.",
-                "database": "Check DATABASE_URL and PostgreSQL availability.",
+                "valkey": "Verify APP_VALKEY_URL and Valkey server status.",
+                "database": "Check APP_DATABASE_URL and PostgreSQL availability.",
                 "network": "Ensure no firewalls block outbound TWS/LLM connections.",
             },
         )

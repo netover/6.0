@@ -261,12 +261,8 @@ def extract_validation_errors(
 def should_include_stack_trace() -> bool:
     """Determine if stack traces should be included in error responses."""
     # In development environment, include stack traces for debugging
-    if hasattr(settings, "APP_ENV") and settings.APP_ENV == "development":
+    if settings.is_development:
         return True
-
-    # Check specific error detail level setting
-    if hasattr(settings, "ERROR_DETAIL_LEVEL"):
-        return settings.ERROR_DETAIL_LEVEL == "detailed"
 
     # Default to not including stack traces in production
     return False

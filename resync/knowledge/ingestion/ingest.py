@@ -435,7 +435,7 @@ class IngestService:
 
                 logger.warning("multi_view_indexing_failed", error=str(mv_e))
         try:
-            if self._settings.KG_EXTRACTION_ENABLED and self.kg_extractor and self.kg_store:
+            if self._settings.kg_extraction_enabled and self.kg_extractor and self.kg_store:
                 chunk_payloads = [
                     {
                         "chunk_id": ids[i] if i < len(ids) else f"{doc_id}#c{i:06d}",

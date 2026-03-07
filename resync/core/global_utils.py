@@ -33,7 +33,7 @@ def get_environment_tags() -> dict[str, str]:
         with _global_lock:
             if _global_environment_tags is None:
                 _global_environment_tags = {
-                    "environment": os.getenv("ENVIRONMENT", "development"),
+                    "environment": os.getenv("APP_ENVIRONMENT", "development"),
                     "version": os.getenv("APP_VERSION", "6.0.0"),
                     "platform": platform.system(),
                     "python_version": platform.python_version(),

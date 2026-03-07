@@ -9,7 +9,7 @@ Supports PostgreSQL extensions:
 All operations are async-only (no psycopg2 sync driver).
 
 Environment Variables:
-- DATABASE_URL: Full PostgreSQL connection string
+- APP_DATABASE_URL: PostgreSQL connection string
 - DATABASE_HOST: PostgreSQL host (default: localhost)
 - DATABASE_PORT: PostgreSQL port (default: 5432)
 - DATABASE_NAME: Database name (default: resync)
@@ -106,8 +106,7 @@ def get_database_config() -> DatabaseConfig:
     Returns:
         DatabaseConfig: Configured database settings
     """
-    # Check for full DATABASE_URL first
-    url = os.getenv("APP_DATABASE_URL")
+    url = get_effective_database_url()
 
     if url:
         _validate_database_url_security(url)
@@ -123,8 +122,7 @@ def get_database_config() -> DatabaseConfig:
             password=os.getenv("APP_DATABASE_PASSWORD", ""),
         )
 
-    # Always override pool settings from specific environment variables if present
-    # This ensures consistency even if DATABASE_URL is used.
+    # Always override pool settings from specific environment variables if present.
     # We enforce a minimum of 2 for pool_size as requested.
     env_pool_size = os.getenv("APP_DATABASE_POOL_SIZE")
     if env_pool_size:
@@ -142,6 +140,11 @@ def get_database_config() -> DatabaseConfig:
     config.ssl_mode = os.getenv("DATABASE_SSL_MODE", config.ssl_mode)
 
     return config
+
+
+def get_effective_database_url() -> str | None:
+    """Return the single source of truth for database URL configuration."""
+    return os.getenv("APP_DATABASE_URL")
 
 def _parse_database_url(url: str) -> DatabaseConfig:
     """
@@ -173,19 +176,13 @@ def _is_production_env() -> bool:
     """
     Best-effort env detection without importing Settings (avoid circular deps).
     """
-    raw = (
-        os.getenv("APP_ENVIRONMENT")
-        or os.getenv("ENVIRONMENT")
-        or os.getenv("RESYNC_ENVIRONMENT")
-        or os.getenv("ENV")
-        or ""
-    )
+    raw = os.getenv("APP_ENVIRONMENT") or ""
     v = raw.strip().lower()
     return v in {"prod", "production"}
 
 def _validate_database_url_security(url: str) -> None:
     """
-    Block obviously insecure DATABASE_URL credentials in production.
+    Block obviously insecure APP_DATABASE_URL credentials in production.
     We do NOT require a password (some deployments use IAM/certs), but if one
     is present, it must not be a common/default password.
     """
@@ -215,7 +212,7 @@ def _validate_database_url_security(url: str) -> None:
     }
     if password.strip().lower() in insecure:
         raise ValueError(
-            "DATABASE_URL contains an insecure database password; set a strong password/secret in production"
+            "APP_DATABASE_URL contains an insecure database password; set a strong password/secret in production"
         )
 
 # Singleton config instance

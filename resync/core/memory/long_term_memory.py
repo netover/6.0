@@ -612,12 +612,18 @@ class ValkeyLongTermStore(LongTermMemoryStore):
 
                     valkey_url = getattr(settings, "valkey_url", "valkey://localhost:6379")
 
-                self._valkey = await aioredis.from_url(
+                if hasattr(valkey_url, "get_secret_value"):
+                    valkey_url = valkey_url.get_secret_value()
+
+                self._valkey = aioredis.from_url(
                     valkey_url,
                     encoding="utf-8",
                     decode_responses=True,
                 )
                 logger.info("Valkey long-term memory store connected")
+            except ImportError as e:
+                logger.error("Valkey client library not available: %s", e)
+                raise RuntimeError("valkey-py not installed") from e
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error

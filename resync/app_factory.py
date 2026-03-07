@@ -142,7 +142,7 @@ class CachedStaticFiles(StarletteStaticFiles):
         # All fields are guaranteed to exist with validated defaults from Pydantic.
         settings = _get_settings()
         self._cache_max_age = settings.static_cache_max_age
-        self._etag_hash_length = settings.ETAG_HASH_LENGTH
+        self._etag_hash_length = settings.etag_hash_length
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """Return response with cache-friendly headers."""
@@ -273,8 +273,8 @@ class ApplicationFactory:
         # Production-specific validations
         if self.settings.is_production:
             # [P2-05 FIX] Direct field access - Pydantic ensures defaults exist
-            min_pw_len = self.settings.MIN_ADMIN_PASSWORD_LENGTH
-            min_sk_len = self.settings.MIN_SECRET_KEY_LENGTH
+            min_pw_len = self.settings.min_admin_password_length
+            min_sk_len = self.settings.min_secret_key_length
 
             # Admin credentials
             admin_pw = (
@@ -339,7 +339,7 @@ class ApplicationFactory:
             return
 
         # Create Jinja2 environment with security settings
-        # [P2-05 FIX] JINJA2_TEMPLATE_CACHE_SIZE is a computed @property in Settings
+        # Production enables template caching; development keeps reload-friendly zero cache.
         self.template_env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
             autoescape=select_autoescape(
@@ -348,9 +348,7 @@ class ApplicationFactory:
                 default=True,
             ),
             auto_reload=self.settings.is_development,
-            cache_size=self.settings.JINJA2_TEMPLATE_CACHE_SIZE
-            if self.settings.is_production
-            else 0,
+            cache_size=400 if self.settings.is_production else 0,
             # extensions=['resync.core.csp_jinja_extension.CSPNonceExtension']
         )
 

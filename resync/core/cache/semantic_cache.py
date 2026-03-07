@@ -186,12 +186,18 @@ class SemanticCache:
             stack_info = await check_valkey_stack_available()
             self._valkey_stack_available = stack_info.get("search", False)  # type: ignore[assignment]
 
-            if self._valkey_stack_available:
+            if self._valkey_stack_available and self.index is not None:
                 self.index.set_client(valkey_client)
 
                 if not await self.index.exists():
                     await self.index.create(overwrite=False)
                     logger.info("Created new Valkey index: %s", self.index.name)
+            elif self._valkey_stack_available:
+                logger.warning(
+                    "Valkey search available but no SearchIndex is configured; "
+                    "semantic cache will use fallback mode"
+                )
+                self._valkey_stack_available = False
             else:
                 logger.info(
                     "Valkey Stack not available. Using fallback mode (brute force)."

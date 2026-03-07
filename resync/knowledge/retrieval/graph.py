@@ -137,12 +137,19 @@ class KnowledgeGraphWrapper:
 # =============================================================================
 
 _wrapper: KnowledgeGraphWrapper | None = None
-_wrapper_lock = asyncio.Lock()
+_wrapper_lock: asyncio.Lock | None = None
+
+def _get_wrapper_lock() -> asyncio.Lock:
+    """Return graph wrapper lock lazily bound to the active event loop."""
+    global _wrapper_lock
+    if _wrapper_lock is None:
+        _wrapper_lock = asyncio.Lock()
+    return _wrapper_lock
 
 async def get_knowledge_graph() -> KnowledgeGraphWrapper:
     """Get the knowledge graph wrapper (singleton)."""
     global _wrapper
-    async with _wrapper_lock:
+    async with _get_wrapper_lock():
         if _wrapper is None:
             _wrapper = KnowledgeGraphWrapper()
         return _wrapper

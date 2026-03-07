@@ -54,12 +54,12 @@ async def get_cors_config(request: Request) -> CorsConfigResponse:
     Retrieves the current CORS configuration of the application.
     """
     return CorsConfigResponse(
-        allow_origins=settings.CORS_ALLOW_ORIGINS,
-        allow_methods=settings.CORS_ALLOW_METHODS,
-        allow_headers=settings.CORS_ALLOW_HEADERS,
-        allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-        expose_headers=settings.CORS_EXPOSE_HEADERS,
-        max_age=settings.CORS_MAX_AGE,
+        allow_origins=settings.cors_allowed_origins,
+        allow_methods=settings.cors_allow_methods,
+        allow_headers=settings.cors_allow_headers,
+        allow_credentials=settings.cors_allow_credentials,
+        expose_headers=[],
+        max_age=600,
     )
 
 @cors_monitor_router.post(
@@ -72,12 +72,12 @@ async def test_cors_policy(
     Tests if a given request would be allowed by the current CORS policy.
     """
     origin_allowed = (
-        "*" in settings.CORS_ALLOW_ORIGINS
-        or params.origin in settings.CORS_ALLOW_ORIGINS
+        "*" in settings.cors_allowed_origins
+        or params.origin in settings.cors_allowed_origins
     )
     method_allowed = (
-        "*" in settings.CORS_ALLOW_METHODS
-        or params.method in settings.CORS_ALLOW_METHODS
+        "*" in settings.cors_allow_methods
+        or params.method in settings.cors_allow_methods
     )
     is_allowed = origin_allowed and method_allowed
 
@@ -99,18 +99,18 @@ async def validate_origins(
     Validates a list of origins against the current policy.
     """
     validated_origins = {}
-    is_production = settings.ENV_FOR_DYNACONF == "production"
+    is_production = settings.environment.value == "production"
 
     for origin in request.origins:
         if origin == "*" and is_production:
             validated_origins[origin] = "invalid_in_production"
             continue
 
-        if "*" in settings.CORS_ALLOW_ORIGINS:
+        if "*" in settings.cors_allowed_origins:
             validated_origins[origin] = "valid"
             continue
 
-        if origin in settings.CORS_ALLOW_ORIGINS:
+        if origin in settings.cors_allowed_origins:
             validated_origins[origin] = "valid"
         else:
             validated_origins[origin] = "invalid"

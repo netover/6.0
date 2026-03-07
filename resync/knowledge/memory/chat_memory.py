@@ -292,14 +292,18 @@ class ChatMemoryStore:
 _chat_memory_store: ChatMemoryStore | None = None
 _global_chat_lock: asyncio.Lock | None = None
 
-async def get_chat_memory_store_async() -> ChatMemoryStore:
-    """Get or cria singleton do ChatMemoryStore de forma assíncrona."""
-    global _chat_memory_store, _global_chat_lock
+def _get_global_chat_lock() -> asyncio.Lock:
+    """Return chat memory singleton lock lazily bound to the active event loop."""
+    global _global_chat_lock
     if _global_chat_lock is None:
         _global_chat_lock = asyncio.Lock()
-        
+    return _global_chat_lock
+
+async def get_chat_memory_store_async() -> ChatMemoryStore:
+    """Get or cria singleton do ChatMemoryStore de forma assíncrona."""
+    global _chat_memory_store
     if _chat_memory_store is None:
-        async with _global_chat_lock:
+        async with _get_global_chat_lock():
             if _chat_memory_store is None:
                 _chat_memory_store = ChatMemoryStore()
     return _chat_memory_store

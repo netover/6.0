@@ -54,8 +54,7 @@ class ValkeyConfig:
     """
 
     def __init__(self) -> None:
-        # v5.9.7: Prefer consolidated app settings (supports APP_VALKEY_URL + legacy VALKEY_URL).
-        # Environment variables still take precedence for backwards compatibility.
+        # v5.9.7: Prefer consolidated app settings with APP_VALKEY_URL as source of truth.
         try:
             from resync.settings import settings as app_settings
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):  # pragma: no cover

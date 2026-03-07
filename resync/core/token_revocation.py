@@ -24,8 +24,12 @@ _PREFIX = os.getenv("TOKEN_REVOCATION_PREFIX", "revoked:jti:")
 def _enabled() -> bool:
     env = os.getenv("TOKEN_REVOCATION_ENABLED")
     if env is None:
-        # default: enabled in prod, disabled in dev is risky, so enable if ENV says prod
-        return os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod", "staging"}
+        # default: enabled in prod, disabled in dev is risky, so enable if APP_ENVIRONMENT says prod
+        return os.getenv("APP_ENVIRONMENT", "development").lower() in {
+            "production",
+            "prod",
+            "staging",
+        }
     return env.lower() in {"1", "true", "yes", "on"}
 
 async def is_jti_revoked(jti: str) -> bool:

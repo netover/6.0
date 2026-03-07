@@ -59,9 +59,18 @@ class ValkeyHealthMonitor:
                 )
 
             # Test actual Valkey connectivity
-            import valkey.asyncio as valkey_async
-            from valkey.exceptions import ValkeyError
-            from valkey.exceptions import TimeoutError as ValkeyTimeoutError
+            try:
+                import valkey.asyncio as valkey_async
+                from valkey.exceptions import ValkeyError
+                from valkey.exceptions import TimeoutError as ValkeyTimeoutError
+            except ImportError:
+                return ComponentHealth(
+                    name="valkey",
+                    component_type=ComponentType.VALKEY,
+                    status=HealthStatus.UNKNOWN,
+                    message="valkey-py not installed",
+                    last_check=datetime.now(timezone.utc),
+                )
 
             try:
                 valkey_client = valkey_async.from_url(settings.valkey_url.get_secret_value())

@@ -82,7 +82,14 @@ class BookCreate(BaseModel):
     )
 
 # Thread-safe lock para operações em _books_db
-_books_lock = asyncio.Lock()
+_books_lock: asyncio.Lock | None = None
+
+def _get_books_lock() -> asyncio.Lock:
+    """Return books lock lazily bound to the active event loop."""
+    global _books_lock
+    if _books_lock is None:
+        _books_lock = asyncio.Lock()
+    return _books_lock
 
 # Simulação de banco de dados em memória
 _books_db: list[Book] = [
@@ -148,7 +155,7 @@ async def list_books(
     """Lista livros com paginação e HATEOAS."""
 
     # Cópia defensiva thread-safe
-    async with _books_lock:
+    async with _get_books_lock():
         books = list(_books_db)
     
     # Filtrar livros (fora do lock para não bloquear operações)
@@ -244,7 +251,7 @@ async def get_book(book_id: str):
     """Obtém livro por ID com links HATEOAS."""
 
     # Buscar livro (cópia defensiva thread-safe)
-    async with _books_lock:
+    async with _get_books_lock():
         book = next((b for b in _books_db if b.id == book_id), None)
 
     if not book:
@@ -345,7 +352,7 @@ async def create_book(book_data: BookCreate):
     )
 
     # Adicionar ao banco thread-safe
-    async with _books_lock:
+    async with _get_books_lock():
         _books_db.append(book)
 
     # Adicionar links HATEOAS
@@ -386,7 +393,7 @@ async def delete_book(book_id: str):
     """Deleta um livro."""
 
     # Buscar e remover livro thread-safe
-    async with _books_lock:
+    async with _get_books_lock():
         index = next((i for i, b in enumerate(_books_db) if b.id == book_id), None)
         
         if index is None:

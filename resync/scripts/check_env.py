@@ -24,19 +24,13 @@ def get_required_vars() -> list[tuple[str, str]]:
     Return list of (variable_name, description) tuples.
     These are CRITICAL variables that must be present for the app to start.
 
-    Note: Settings.py uses APP_ prefix, but we check both with and without prefix
-    for flexibility in different environments.
+    Note: canonical configuration uses APP_ prefixes.
     """
     return [
         ("SECRET_KEY", "JWT signing key (use SecretStr in production)"),
         ("APP_SECRET_KEY", "JWT signing key (alternative - with APP_ prefix)"),
-        ("VALKEY_URL", "Valkey connection string (valkey://host:port/db)"),
-        ("APP_VALKEY_URL", "Valkey connection string (alternative - with APP_ prefix)"),
-        ("DATABASE_URL", "PostgreSQL connection string"),
-        (
-            "APP_DATABASE_URL",
-            "PostgreSQL connection string (alternative - with APP_ prefix)",
-        ),
+        ("APP_VALKEY_URL", "Valkey connection string (valkey://host:port/db)"),
+        ("APP_DATABASE_URL", "PostgreSQL connection string"),
     ]
 
 def get_optional_warn_vars() -> list[tuple[str, str]]:
@@ -68,21 +62,20 @@ def check_required_vars() -> tuple[bool, list[str]]:
     Check all required environment variables.
     Returns (success, list_of_errors).
 
-    For each variable, we check both with and without APP_ prefix.
+    Canonical variables only; no alias fallback.
     """
     errors = []
 
-    # Group variables by their base name (with or without APP_ prefix)
     var_groups = {
-        "SECRET_KEY": ["SECRET_KEY", "APP_SECRET_KEY"],
-        "VALKEY_URL": ["VALKEY_URL", "APP_VALKEY_URL"],
-        "DATABASE_URL": ["DATABASE_URL", "APP_DATABASE_URL"],
+        "APP_SECRET_KEY": ["APP_SECRET_KEY"],
+        "APP_VALKEY_URL": ["APP_VALKEY_URL"],
+        "APP_DATABASE_URL": ["APP_DATABASE_URL"],
     }
 
     descriptions = {
-        "SECRET_KEY": "JWT signing key (use SecretStr in production)",
-        "VALKEY_URL": "Valkey connection string (valkey://host:port/db)",
-        "DATABASE_URL": "PostgreSQL connection string",
+        "APP_SECRET_KEY": "JWT signing key (use SecretStr in production)",
+        "APP_VALKEY_URL": "Valkey connection string (valkey://host:port/db)",
+        "APP_DATABASE_URL": "PostgreSQL connection string",
     }
 
     for base_name, alt_names in var_groups.items():

@@ -58,5 +58,5 @@ class ConnectorRepository(BaseRepository[Connector]):
             connector_id, 
             status=status, 
             error_message=error_message,
-            last_check=datetime.now(datetime.UTC)
+            last_check=datetime.now(timezone.utc)
         )

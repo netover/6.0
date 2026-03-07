@@ -557,18 +557,23 @@ _store_instance: "PgVectorStore | None" = None
 _store_lock: asyncio.Lock | None = None
 _store_sync_lock = threading.Lock()
 
+def _get_store_lock() -> asyncio.Lock:
+    """Return singleton lock lazily bound to the active event loop."""
+    global _store_lock
+    if _store_lock is None:
+        asyncio.get_running_loop()
+        _store_lock = asyncio.Lock()
+    return _store_lock
+
 async def get_vector_store() -> "PgVectorStore":
     """Get singleton vector store instance (double-checked async-safe locking)."""
-    global _store_instance, _store_lock
+    global _store_instance
 
     # Fast path — no lock needed once initialised
     if _store_instance is not None:
         return _store_instance
 
-    if _store_lock is None:
-        _store_lock = asyncio.Lock()
-
-    async with _store_lock:
+    async with _get_store_lock():
         # Double-check after acquiring lock
         if _store_instance is None:
             _store_instance = PgVectorStore()

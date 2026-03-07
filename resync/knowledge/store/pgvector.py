@@ -316,19 +316,23 @@ _pool = None
 _vector_service: PgVectorService | None = None
 _vector_service_lock: asyncio.Lock | None = None
 
+def _get_vector_service_lock() -> asyncio.Lock:
+    """Return singleton lock lazily bound to the active event loop."""
+    global _vector_service_lock
+    if _vector_service_lock is None:
+        asyncio.get_running_loop()
+        _vector_service_lock = asyncio.Lock()
+    return _vector_service_lock
+
 async def get_vector_service() -> PgVectorService:
     """Get singleton vector service instance (thread-safe double-checked locking)."""
-    global _pool, _vector_service, _vector_service_lock
+    global _pool, _vector_service
 
     # Fast path: already initialised, no lock needed
     if _vector_service is not None:
         return _vector_service
 
-    # Lazy lock initialization to avoid RuntimeError: no running event loop
-    if _vector_service_lock is None:
-        _vector_service_lock = asyncio.Lock()
-
-    async with _vector_service_lock:
+    async with _get_vector_service_lock():
         # Double-check after acquiring lock to prevent redundant init
         if _vector_service is not None:
             return _vector_service
@@ -357,7 +361,7 @@ async def close_vector_service() -> None:
     """Close singleton vector service instance and pool connection."""
     global _pool, _vector_service
 
-    async with _vector_service_lock:
+    async with _get_vector_service_lock():
         if _pool is not None:
             await _pool.close()
             _pool = None

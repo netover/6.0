@@ -123,7 +123,7 @@ class ConfigManager:
             # Valkey Configuration
             "valkey.url": {
                 "default": "valkey://localhost:6379",
-                "env_var": "VALKEY_URL",
+                "env_var": "APP_VALKEY_URL",
                 "restart": RestartRequirement.GRACEFUL,
                 "description": "Valkey connection URL",
             },
@@ -208,7 +208,7 @@ class ConfigManager:
             # System Settings
             "system.environment": {
                 "default": "production",
-                "env_var": "ENVIRONMENT",
+                "env_var": "APP_ENVIRONMENT",
                 "restart": RestartRequirement.IMMEDIATE,
                 "description": "Deployment environment",
             },

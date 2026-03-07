@@ -238,21 +238,21 @@ class SettingsValidators:
         """
         val = v.get_secret_value() if isinstance(v, SecretStr) else v
         if not val:
-            raise ValueError("DATABASE_URL must not be empty")
+            raise ValueError("APP_DATABASE_URL must not be empty")
         if not val.startswith(("postgresql://", "postgresql+asyncpg://")):
             raise ValueError(
-                "DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'."
+                "APP_DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'."
             )
         try:
             parsed = urlparse(val)
             if not parsed.scheme:
-                raise ValueError("DATABASE_URL missing scheme")
+                raise ValueError("APP_DATABASE_URL missing scheme")
             # Accept URLs without hostname only for unix sockets; otherwise require hostname
             if parsed.hostname is None and not parsed.path:
-                raise ValueError("DATABASE_URL missing hostname")
+                raise ValueError("APP_DATABASE_URL missing hostname")
         except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
             redacted = _redact_sensitive(val)
-            raise ValueError(f"Invalid DATABASE_URL format: {redacted}") from e
+            raise ValueError(f"Invalid APP_DATABASE_URL format: {redacted}") from e
 
         return v
 
@@ -739,21 +739,21 @@ class SettingsValidators:
         if env == Environment.PRODUCTION:  # [P1-10 FIX] Was: if env == "production"
             # Secret key length must meet minimum
             secret_key = getattr(self, "secret_key")
-            min_len = getattr(self, "MIN_SECRET_KEY_LENGTH", 32)
+            min_len = getattr(self, "min_secret_key_length", 32)
             if secret_key is None:
                 errors.append("secret_key (SECRET_KEY) must be set in production")
             elif len(secret_key.get_secret_value()) < min_len:
                 errors.append(
                     f"secret_key length ({len(secret_key.get_secret_value())}) "
-                    f"< MIN_SECRET_KEY_LENGTH ({min_len})"
+                    f"< min_secret_key_length ({min_len})"
                 )
 
             # Admin password length must meet minimum
             admin_pw = getattr(self, "admin_password", None)
-            min_pw_len = getattr(self, "MIN_ADMIN_PASSWORD_LENGTH", 8)
+            min_pw_len = getattr(self, "min_admin_password_length", 8)
             if admin_pw and len(admin_pw.get_secret_value()) < min_pw_len:
                 errors.append(
-                    f"admin_password length < MIN_ADMIN_PASSWORD_LENGTH ({min_pw_len})"
+                    f"admin_password length < min_admin_password_length ({min_pw_len})"
                 )
 
 
@@ -762,9 +762,9 @@ class SettingsValidators:
                 db_url = getattr(self, "database_url")
                 raw_db = db_url.get_secret_value() if isinstance(db_url, SecretStr) else str(db_url)
                 if "localhost" in raw_db or "127.0.0.1" in raw_db:
-                    errors.append("database_url (DATABASE_URL) must not use localhost in production")
+                    errors.append("database_url (APP_DATABASE_URL) must not use localhost in production")
                 if "resync:resync@" in raw_db:
-                    errors.append("database_url (DATABASE_URL) must not use default credentials in production")
+                    errors.append("database_url (APP_DATABASE_URL) must not use default credentials in production")
 
                 metrics_hash = getattr(self, "metrics_api_key_hash", None)
                 if not metrics_hash or not metrics_hash.get_secret_value():

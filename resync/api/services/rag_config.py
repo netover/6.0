@@ -7,20 +7,21 @@ Configures the RAG system including:
 - Chunking parameters
 
 SECURITY (v5.4.1):
-- DATABASE_URL has no default password
+- APP_DATABASE_URL has no default password
 - Production requires explicit configuration
 """
 
 import logging
 import os
-from urllib.parse import unquote, urlparse
 from dataclasses import dataclass, field
+
+from resync.core.database.config import get_effective_database_url
 
 logger = logging.getLogger(__name__)
 
 def _get_secure_database_url() -> str:
     """
-    Get DATABASE_URL with security validation.
+    Get APP_DATABASE_URL with security validation.
 
     - Production: MUST be set via environment variable
     - Development: Falls back to localhost (no password)
@@ -28,48 +29,15 @@ def _get_secure_database_url() -> str:
     Extra hardening:
         - Warn (dev) / fail (prod) on weak or default passwords
     """
-    url = os.getenv("APP_DATABASE_URL")
+    url = get_effective_database_url()
     env = os.getenv("APP_ENVIRONMENT", "development").lower()
 
     if url:
-        # Minimal parsing to detect embedded credentials
-        try:
-            parsed = urlparse(url)
-            password = parsed.password
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
-            password = None
-
-        weak_passwords = {
-            "password",
-            "password@",
-            "admin",
-            "123456",
-            "postgres",
-            "resync",
-        }
-
-        if password:
-            pwd = unquote(password)
-            if pwd in weak_passwords:
-                msg = "DATABASE_URL contains a weak/default password"
-                if env == "production":
-                    raise ValueError(msg)
-                logger.warning(
-                    "insecure_database_url_detected",
-                    extra={"hint": msg},
-                )
-        elif env == "production":
-            # In production we require explicit credentials (or a secret manager URL)
-            logger.warning(
-                "database_url_has_no_password",
-                extra={"hint": "Set DATABASE_URL with strong credentials in production"},
-            )
-
         return url
 
     if env == "production":
         raise ValueError(
-            "DATABASE_URL must be set in production. Example: postgresql://user:pass@host:5432/dbname"
+            "APP_DATABASE_URL must be set in production. Example: postgresql://user:pass@host:5432/dbname"
         )
 
     return "postgresql://localhost:5432/resync"

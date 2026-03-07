@@ -595,21 +595,6 @@ class Settings(BaseSettings, SettingsValidators):
     )
 
     @property
-    def WS_POOL_MAX_SIZE(self) -> int:
-        """Uppercase alias for backward compat with websocket_pool_manager."""
-        return self.ws_pool_max_size
-
-    @property
-    def WS_POOL_CLEANUP_INTERVAL(self) -> float:
-        """Uppercase alias for backward compat with websocket_pool_manager."""
-        return self.ws_pool_cleanup_interval
-
-    @property
-    def WS_CONNECTION_TIMEOUT(self) -> float:
-        """Uppercase alias for backward compat with websocket_pool_manager."""
-        return self.ws_connection_timeout
-
-    @property
     def WS_MAX_CONNECTION_DURATION(self) -> float:
         """Uppercase alias for backward compat with websocket_pool_manager."""
         return self.ws_max_connection_duration
@@ -1269,74 +1254,6 @@ class Settings(BaseSettings, SettingsValidators):
 
     # pylint
     @property
-    def RAG_SERVICE_URL(self) -> str:
-        """Legacy alias for rag_service_url."""
-        return self.rag_service_url
-
-    @property
-    def BASE_DIR(self) -> Path:
-        """Legacy alias for base_dir."""
-        return self.base_dir
-
-    @property
-    def PROJECT_NAME(self) -> str:
-        """Legacy alias for project_name."""
-        return self.project_name
-
-    @property
-    def PROJECT_VERSION(self) -> str:
-        """Legacy alias for project_version."""
-        return self.project_version
-
-    @property
-    def DESCRIPTION(self) -> str:
-        """Legacy alias for description."""
-        return self.description
-
-    @property
-    def LOG_LEVEL(self) -> str:
-        """Legacy alias for log_level."""
-        return self.log_level
-
-    @property
-    def ENVIRONMENT(self) -> str:
-        """Legacy alias for environment."""
-        env = self.environment
-        return env.value if hasattr(env, "value") else str(env)
-
-    @property
-    def DEBUG(self) -> bool:
-        """Legacy alias for the `debug` flag.
-
-        Historically this returned True when environment==DEVELOPMENT, ignoring the
-        explicit `debug` setting. For clarity and configurability, this now mirrors
-        `self.debug`.
-        """
-        return self.debug
-
-    @property
-    def VALKEY_URL(self) -> str:
-        """Legacy alias for valkey_url (DEPRECATED).
-
-        This returns the Valkey URL in plaintext for backward compatibility.
-        Prefer accessing `settings.valkey_url` (SecretStr) and calling
-        `.get_secret_value()` explicitly.
-
-        .. deprecated:: 6.3.0
-            Use settings.valkey_url.get_secret_value() instead.
-            Will be removed in v7.0.
-        """
-        import warnings
-
-        warnings.warn(
-            "settings.VALKEY_URL exposes credentials in plaintext and is deprecated. "
-            "Use settings.valkey_url.get_secret_value() explicitly.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.valkey_url.get_secret_value()
-
-    @property
     def valkey_url_secret(self) -> SecretStr:
         """Safe access to the Valkey URL without automatic SecretStr unwrap.
 
@@ -1346,248 +1263,6 @@ class Settings(BaseSettings, SettingsValidators):
         import warnings
         warnings.warn("Use settings.valkey_url directly", DeprecationWarning, stacklevel=2)
         return self.valkey_url
-
-    @property
-    def LLM_ENDPOINT(self) -> str | None:
-        """Legacy alias for llm_endpoint."""
-        return self.llm_endpoint
-
-    @property
-    def LLM_API_KEY(self) -> SecretStr | None:
-        """Legacy alias for llm_api_key."""
-        return self.llm_api_key
-
-    @property
-    def LLM_TIMEOUT(self) -> float:
-        """Legacy alias for llm_timeout."""
-        return self.llm_timeout
-
-    @property
-    def ADMIN_USERNAME(self) -> str:
-        """Legacy alias for admin_username."""
-        return self.admin_username
-
-    @property
-    def ADMIN_PASSWORD(self) -> Any:
-        """Legacy alias for admin_password."""
-        return self.admin_password
-
-    @property
-    def TWS_MOCK_MODE(self) -> bool:
-        """Legacy alias for tws_mock_mode."""
-        return self.tws_mock_mode
-
-    @property
-    def TWS_HOST(self) -> str | None:
-        """Legacy alias for tws_host."""
-        return self.tws_host
-
-    @property
-    def TWS_PORT(self) -> int | None:
-        """Legacy alias for tws_port."""
-        return self.tws_port
-
-    @property
-    def TWS_USER(self) -> str | None:
-        """Legacy alias for tws_user."""
-        return self.tws_user
-
-    @property
-    def TWS_PASSWORD(self) -> Any:
-        """Legacy alias for tws_password."""
-        return self.tws_password
-
-    @property
-    def SERVER_HOST(self) -> str:
-        """Legacy alias for server_host."""
-        return self.server_host
-
-    @property
-    def SERVER_PORT(self) -> int:
-        """Legacy alias for server_port."""
-        return self.server_port
-
-    @property
-    def CORS_ALLOWED_ORIGINS(self) -> list[str]:
-        """Legacy alias for cors_allowed_origins."""
-        return self.cors_allowed_origins
-
-    @property
-    def CORS_ALLOW_CREDENTIALS(self) -> bool:
-        """Legacy alias for cors_allow_credentials."""
-        return self.cors_allow_credentials
-
-    @property
-    def CORS_ALLOW_METHODS(self) -> list[str]:
-        """Legacy alias for cors_allow_methods."""
-        return self.cors_allow_methods
-
-    @property
-    def CORS_ALLOW_HEADERS(self) -> list[str]:
-        """Legacy alias for cors_allow_headers."""
-        return self.cors_allow_headers
-
-    @property
-    def ROMA_ORCHESTRATION_ENABLED(self) -> bool:
-        """Legacy alias for enable_roma_orchestration."""
-        return self.enable_roma_orchestration
-
-    @property
-    def STATIC_CACHE_MAX_AGE(self) -> int:
-        """Legacy alias for static_cache_max_age."""
-        return self.static_cache_max_age
-
-    @property
-    def JINJA2_TEMPLATE_CACHE_SIZE(self) -> int:
-        """Legacy alias derived from environment."""
-        env = self.environment
-        return 400 if env == Environment.PRODUCTION else 0
-
-    @cached_property
-    def AGENT_CONFIG_PATH(self) -> Path:
-        """Legacy alias computed from base_dir."""
-        return self.base_dir / "config" / "agents.json"
-
-    @property
-    def MAX_CONCURRENT_AGENT_CREATIONS(self) -> int:
-        """Legacy constant for compatibility."""
-        return 5
-
-    @property
-    def TWS_ENGINE_NAME(self) -> str:
-        """Legacy uppercase alias for tws_engine_name."""
-        return self.tws_engine_name
-
-    @property
-    def TWS_ENGINE_OWNER(self) -> str:
-        """Legacy constant for compatibility."""
-        return "twsuser"
-
-    @property
-    def TWS_REQUEST_TIMEOUT(self) -> float:
-        """Legacy alias for tws_request_timeout."""
-        return self.tws_request_timeout
-
-    @property
-    def AUDITOR_MODEL_NAME(self) -> str:
-        """Legacy alias for auditor_model_name."""
-        return self.auditor_model_name
-
-    @property
-    def AGENT_MODEL_NAME(self) -> str:
-        """Legacy alias for agent_model_name."""
-        return self.agent_model_name
-
-    @cached_property
-    def CACHE_HIERARCHY(self) -> CacheHierarchyConfig:
-        """Legacy alias exposing cache hierarchy configuration object."""
-        return CacheHierarchyConfig(
-            l1_max_size=self.cache_hierarchy_l1_max_size,
-            l2_ttl_seconds=self.cache_hierarchy_l2_ttl,
-            l2_cleanup_interval=self.cache_hierarchy_l2_cleanup_interval,
-            num_shards=self.cache_hierarchy_num_shards,
-            max_workers=self.cache_hierarchy_max_workers,
-        )
-
-    @property
-    def DB_POOL_MIN_SIZE(self) -> int:
-        """Legacy alias for db_pool_min_size."""
-        return self.db_pool_min_size
-
-    @property
-    def DB_POOL_MAX_SIZE(self) -> int:
-        """Legacy alias for db_pool_max_size."""
-        return self.db_pool_max_size
-
-    @property
-    def DB_POOL_IDLE_TIMEOUT(self) -> int:
-        """Legacy alias for db_pool_idle_timeout."""
-        return self.db_pool_idle_timeout
-
-    @property
-    def DB_POOL_CONNECT_TIMEOUT(self) -> int:
-        """Legacy alias for db_pool_connect_timeout."""
-        return self.db_pool_connect_timeout
-
-    @property
-    def DB_POOL_HEALTH_CHECK_INTERVAL(self) -> int:
-        """Legacy alias for db_pool_health_check_interval."""
-        return self.db_pool_health_check_interval
-
-    @property
-    def DB_POOL_MAX_LIFETIME(self) -> int:
-        """Legacy alias for db_pool_max_lifetime."""
-        return self.db_pool_max_lifetime
-
-    @property
-    def VALKEY_POOL_MIN_SIZE(self) -> int:
-        """Legacy alias for valkey_pool_min_size (DEPRECATED)."""
-        return self.valkey_pool_min_size
-
-    @property
-    def VALKEY_POOL_MAX_SIZE(self) -> int:
-        """Legacy alias for valkey_pool_max_size (DEPRECATED)."""
-        return self.valkey_pool_max_size
-
-    @property
-    def VALKEY_POOL_IDLE_TIMEOUT(self) -> int:
-        """Legacy alias for valkey_pool_idle_timeout (DEPRECATED)."""
-        return self.valkey_pool_idle_timeout
-
-    @property
-    def VALKEY_POOL_CONNECT_TIMEOUT(self) -> int:
-        """Legacy alias for valkey_pool_connect_timeout (DEPRECATED)."""
-        return self.valkey_pool_connect_timeout
-
-    @property
-    def VALKEY_POOL_HEALTH_CHECK_INTERVAL(self) -> int:
-        """Legacy alias for valkey_pool_health_check_interval (DEPRECATED)."""
-        return self.valkey_pool_health_check_interval
-
-    @property
-    def VALKEY_POOL_MAX_LIFETIME(self) -> int:
-        """Legacy alias for valkey_pool_max_lifetime (DEPRECATED)."""
-        return self.valkey_pool_max_lifetime
-
-    @property
-    def HTTP_POOL_MIN_SIZE(self) -> int:
-        """Legacy alias for http_pool_min_size."""
-        return self.http_pool_min_size
-
-    @property
-    def HTTP_POOL_MAX_SIZE(self) -> int:
-        """Legacy alias for http_pool_max_size."""
-        return self.http_pool_max_size
-
-    @property
-    def HTTP_POOL_IDLE_TIMEOUT(self) -> int:
-        """Legacy alias for http_pool_idle_timeout."""
-        return self.http_pool_idle_timeout
-
-    @property
-    def HTTP_POOL_CONNECT_TIMEOUT(self) -> int:
-        """Legacy alias for http_pool_connect_timeout."""
-        return self.http_pool_connect_timeout
-
-    @property
-    def HTTP_POOL_HEALTH_CHECK_INTERVAL(self) -> int:
-        """Legacy alias for http_pool_health_check_interval."""
-        return self.http_pool_health_check_interval
-
-    @property
-    def HTTP_POOL_MAX_LIFETIME(self) -> int:
-        """Legacy alias for http_pool_max_lifetime."""
-        return self.http_pool_max_lifetime
-
-    @property
-    def KNOWLEDGE_BASE_DIRS(self) -> list[Path]:
-        """Legacy alias for knowledge_base_dirs."""
-        return self.knowledge_base_dirs
-
-    @property
-    def PROTECTED_DIRECTORIES(self) -> list[Path]:
-        """Legacy alias for protected_directories."""
-        return self.protected_directories
 
     # pylint
 
@@ -1624,7 +1299,7 @@ class Settings(BaseSettings, SettingsValidators):
         ),
     )
 
-    KG_EXTRACTION_ENABLED: bool = Field(
+    kg_extraction_enabled: bool = Field(
         default=False,
         description="Habilitar extração de grafo de conhecimento na ingestão de documentos",
     )
@@ -1708,16 +1383,16 @@ class Settings(BaseSettings, SettingsValidators):
         default=5.0,
         description="Timeout in seconds for cancelling background tasks during shutdown",
     )
-    ETAG_HASH_LENGTH: int = Field(
+    etag_hash_length: int = Field(
         default=16,
         description="Number of hex characters from SHA-256 used for static file ETag (16 = 64-bit)",
     )
-    MIN_ADMIN_PASSWORD_LENGTH: int = Field(
+    min_admin_password_length: int = Field(
         ge=1,
         default=8,
         description="Minimum length for admin password in production",
     )
-    MIN_SECRET_KEY_LENGTH: int = Field(
+    min_secret_key_length: int = Field(
         ge=1,
         default=32,
         description="Minimum length for SECRET_KEY in production",
@@ -1896,13 +1571,6 @@ class _SettingsProxy:
         return dir(get_settings())
 
 settings = _SettingsProxy()
-
-# -----------------------------------------------------------------------------
-# Backward helper retained
-# -----------------------------------------------------------------------------
-def load_settings() -> Settings:
-    """Load application settings (backward-compat shim)."""
-    return get_settings()
 
 # =============================================================================
 # TEAMS OUTGOING WEBHOOK CONFIGURATION

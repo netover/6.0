@@ -705,6 +705,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     if not token:
         # Reject before handshake — saves resources and prevents any data leak.
+        await websocket.accept()
         await websocket.close(code=4001, reason="Unauthorized: token required")
         return
 
@@ -715,9 +716,11 @@ async def websocket_endpoint(websocket: WebSocket):
         payload = decode_access_token(token)
         role = (payload or {}).get("role", "")
         if role not in ("admin", "superadmin"):
+            await websocket.accept()
             await websocket.close(code=4001, reason="Unauthorized: admin required")
             return
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError):
+        await websocket.accept()
         await websocket.close(code=4001, reason="Unauthorized: invalid token")
         return
     # ── End auth ──────────────────────────────────────────────────────────────
@@ -729,6 +732,7 @@ async def websocket_endpoint(websocket: WebSocket):
     client_ip = getattr(getattr(websocket, 'client', None), 'host', None) or 'unknown'
     allowed, retry_after = await ws_allow_connect(client_ip)
     if not allowed:
+        await websocket.accept()
         await websocket.close(code=1013, reason=f'Rate limited. Retry after ~{retry_after}s')
         return
     await websocket.accept()

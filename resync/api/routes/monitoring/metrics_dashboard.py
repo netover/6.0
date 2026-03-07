@@ -683,6 +683,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     connected = await manager.connect(websocket)
     if not connected:
+        await websocket.accept()
         await websocket.close(
             code=status.WS_1013_TRY_AGAIN_LATER,
             reason="Connection limit reached",

@@ -109,7 +109,14 @@ class WebSocketHub:
 _metrics_history: list[dict[str, Any]] = []
 _start_time = time.time()
 _stats = RequestStats()
-_stats_lock = asyncio.Lock()
+_stats_lock: asyncio.Lock | None = None
+
+def _get_stats_lock() -> asyncio.Lock:
+    """Return stats lock lazily bound to the active event loop."""
+    global _stats_lock
+    if _stats_lock is None:
+        _stats_lock = asyncio.Lock()
+    return _stats_lock
 
 def _load_ws_runtime_config() -> WebSocketRuntimeConfig:
     """Load websocket runtime parameters from environment."""
@@ -199,7 +206,7 @@ async def _collect_active_alerts() -> list[dict[str, Any]]:
 
 async def _collect_application_metrics() -> ApplicationMetrics:
     """Collect application metrics from in-memory counters."""
-    async with _stats_lock:
+    async with _get_stats_lock():
         now = time.time()
         recent_requests = [t for t in _stats.request_times_seconds if t > now - 60]
         rpm = len(recent_requests)
@@ -299,6 +306,7 @@ async def get_metrics_history(
 async def monitoring_websocket(websocket: WebSocket) -> None:
     """Push monitoring updates to authenticated admins."""
     if not _verify_ws_admin(websocket):
+        await websocket.accept()
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="Admin authentication required",
@@ -306,6 +314,7 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
         return
 
     if not await _WS_HUB.connect(websocket):
+        await websocket.accept()
         await websocket.close(
             code=status.WS_1013_TRY_AGAIN_LATER,
             reason="Connection limit reached",
@@ -370,7 +379,7 @@ async def record_request(
     is_error: bool = Query(default=False),
 ) -> dict[str, bool]:
     """Record synthetic request telemetry for dashboard counters."""
-    async with _stats_lock:
+    async with _get_stats_lock():
         _stats.request_times_seconds.append(response_time_ms / 1000)
         _stats.total_requests += 1
         if is_error:

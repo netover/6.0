@@ -250,6 +250,9 @@ class ValkeyMemoryStore(MemoryStore):
                 )
                 logger.info("Valkey memory store connected")
 
+            except ImportError as e:
+                logger.error("Valkey client library not available: %s", e)
+                raise RuntimeError("valkey-py not installed") from e
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error

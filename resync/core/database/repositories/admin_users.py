@@ -135,7 +135,7 @@ class AdminUserRepository(BaseRepository[AdminUser]):
             return None
 
         # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.now(datetime.UTC):
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
             logger.warning("Account locked: %s", username)
             return None
 
@@ -161,7 +161,7 @@ class AdminUserRepository(BaseRepository[AdminUser]):
 
             # Lock account if max attempts exceeded
             if new_attempts >= MAX_FAILED_ATTEMPTS:
-                updates["locked_until"] = datetime.now(datetime.UTC) + timedelta(
+                updates["locked_until"] = datetime.now(timezone.utc) + timedelta(
                     minutes=LOCKOUT_DURATION_MINUTES
                 )
                 logger.warning(
@@ -182,7 +182,7 @@ class AdminUserRepository(BaseRepository[AdminUser]):
                 .values(
                     failed_login_attempts=0,
                     locked_until=None,
-                    last_login=datetime.now(datetime.UTC),
+                    last_login=datetime.now(timezone.utc),
                 )
             )
             await session.commit()

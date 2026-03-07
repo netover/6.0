@@ -140,7 +140,7 @@ class WebSocketPoolManager:
         """Periodic cleanup loop for WebSocket connections."""
         while not self._shutdown:
             try:
-                await asyncio.sleep(_get_settings().WS_POOL_CLEANUP_INTERVAL)
+                await asyncio.sleep(_get_settings().ws_pool_cleanup_interval)
                 await self._cleanup_connections()
                 await self._recompute_health_snapshot()
             except asyncio.CancelledError:
@@ -165,7 +165,7 @@ class WebSocketPoolManager:
                 time_since_activity = (
                     current_time - conn_info.last_activity
                 ).total_seconds()
-                if time_since_activity > _get_settings().WS_CONNECTION_TIMEOUT:
+                if time_since_activity > _get_settings().ws_connection_timeout:
                     connections_to_remove.append(client_id)
                     logger.warning("Removing stale WebSocket connection: %s", client_id)
 
@@ -184,7 +184,7 @@ class WebSocketPoolManager:
                             current_time - conn_info.connected_at
                         ).total_seconds()
                         max_duration = getattr(
-                            _get_settings(), "WS_MAX_CONNECTION_DURATION", 3600
+                            _get_settings(), "ws_max_connection_duration", 3600
                         )  # Default 1 hour
                         if connection_duration > max_duration:
                             connections_to_remove.append(client_id)
@@ -268,7 +268,7 @@ class WebSocketPoolManager:
         if self._shutdown:
             raise RuntimeError("WebSocket pool manager is shutdown")
 
-        max_size: int = _get_settings().WS_POOL_MAX_SIZE
+        max_size: int = _get_settings().ws_pool_max_size
 
         # P1-05 (improved): reserve capacity BEFORE calling accept().
         # This prevents accept/close storms (and temporary over-capacity) when
@@ -743,15 +743,21 @@ class WebSocketPoolManager:
 
 # Global WebSocket pool manager instance
 _websocket_pool_manager: WebSocketPoolManager | None = None
-# P0-04 fix: Module-level lock is safe on Python 3.10+ (no longer bound to loop)
-_global_lock: asyncio.Lock = asyncio.Lock()
+_global_lock: asyncio.Lock | None = None
+
+def _get_global_lock() -> asyncio.Lock:
+    """Return pool manager singleton lock lazily bound to the active event loop."""
+    global _global_lock
+    if _global_lock is None:
+        _global_lock = asyncio.Lock()
+    return _global_lock
 
 async def get_websocket_pool_manager() -> WebSocketPoolManager:
     """Get the global WebSocket pool manager instance."""
     global _websocket_pool_manager
 
     if _websocket_pool_manager is None:
-        async with _global_lock:
+        async with _get_global_lock():
             if _websocket_pool_manager is None:
                 _websocket_pool_manager = WebSocketPoolManager()
                 await _websocket_pool_manager.initialize()

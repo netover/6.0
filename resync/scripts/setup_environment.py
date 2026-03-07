@@ -186,16 +186,14 @@ def create_env_file() -> None:
 # =============================================================================
 # DATABASE
 # =============================================================================
-DATABASE_URL=postgresql+asyncpg://resync:resync_password@localhost:5432/resync
-DATABASE_POOL_SIZE=5
-DATABASE_MAX_OVERFLOW=10
+APP_DATABASE_URL=postgresql+asyncpg://resync:resync_password@localhost:5432/resync
+APP_DATABASE_POOL_SIZE=5
+APP_DATABASE_MAX_OVERFLOW=10
 
 # =============================================================================
 # VALKEY
 # =============================================================================
-VALKEY_URL=valkey://localhost:6379/0
-# Legacy fallback (deprecated)
-VALKEY_URL=valkey://localhost:6379/0
+APP_VALKEY_URL=valkey://localhost:6379/0
 VALKEY_CACHE_URL=valkey://localhost:6379/1
 
 # =============================================================================
@@ -224,7 +222,7 @@ LANGGRAPH_REQUIRE_APPROVAL=true
 # =============================================================================
 # ENVIRONMENT
 # =============================================================================
-ENVIRONMENT=development
+APP_ENVIRONMENT=development
 DEBUG=true
 LOG_LEVEL=INFO
 

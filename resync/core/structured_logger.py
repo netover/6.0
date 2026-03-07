@@ -97,9 +97,9 @@ def add_service_context(
 ) -> EventDict:
     from resync.settings import settings
 
-    event_dict["service_name"] = settings.PROJECT_NAME
+    event_dict["service_name"] = settings.project_name
     event_dict["environment"] = settings.environment.value
-    event_dict["version"] = settings.PROJECT_VERSION
+    event_dict["version"] = settings.project_version
     return event_dict
 
 def add_timestamp(

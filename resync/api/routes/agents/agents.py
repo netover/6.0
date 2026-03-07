@@ -54,7 +54,14 @@ router = APIRouter(tags=["Agents"])
 _AGENT_CACHE: dict[str, Any] | None = None
 _AGENT_CACHE_TIMESTAMP: float = 0
 _AGENT_CACHE_TTL: int = 300  # 5 minutes
-_AGENT_CACHE_LOCK = asyncio.Lock()
+_AGENT_CACHE_LOCK: asyncio.Lock | None = None
+
+def _get_agent_cache_lock() -> asyncio.Lock:
+    """Return agent cache lock lazily bound to the active event loop."""
+    global _AGENT_CACHE_LOCK
+    if _AGENT_CACHE_LOCK is None:
+        _AGENT_CACHE_LOCK = asyncio.Lock()
+    return _AGENT_CACHE_LOCK
 
 async def _load_agents_config() -> dict[str, Any]:
     """
@@ -62,7 +69,7 @@ async def _load_agents_config() -> dict[str, Any]:
     """
     global _AGENT_CACHE, _AGENT_CACHE_TIMESTAMP
 
-    async with _AGENT_CACHE_LOCK:
+    async with _get_agent_cache_lock():
         # Check cache
         now = time.time()
         if _AGENT_CACHE and (now - _AGENT_CACHE_TIMESTAMP < _AGENT_CACHE_TTL):
@@ -321,7 +328,7 @@ async def execute_roma_agent(
             detail="Set use_roma=true to call this endpoint",
         )
 
-    if not settings.ROMA_ORCHESTRATION_ENABLED:
+    if not settings.enable_roma_orchestration:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="ROMA orchestration disabled",

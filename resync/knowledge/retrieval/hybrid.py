@@ -1180,12 +1180,19 @@ Provide ONLY the variations, one per line, without numbering or explanation."""
 # =============================================================================
 
 _hybrid_rag: HybridRAG | None = None
-_hybrid_rag_lock = asyncio.Lock()
+_hybrid_rag_lock: asyncio.Lock | None = None
+
+def _get_hybrid_rag_lock() -> asyncio.Lock:
+    """Return HybridRAG singleton lock lazily bound to the active event loop."""
+    global _hybrid_rag_lock
+    if _hybrid_rag_lock is None:
+        _hybrid_rag_lock = asyncio.Lock()
+    return _hybrid_rag_lock
 
 async def get_hybrid_rag() -> HybridRAG:
     """Get or create the singleton HybridRAG instance."""
     global _hybrid_rag
-    async with _hybrid_rag_lock:
+    async with _get_hybrid_rag_lock():
         if _hybrid_rag is None:
             _hybrid_rag = HybridRAG()
         return _hybrid_rag

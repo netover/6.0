@@ -200,7 +200,7 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         description="Allowed CORS origins (comma-separated)",
         default_value="*",
     ),
-    # Cache (Valkey - Valkey Alternative)
+    # Cache
     "VALKEY_HOST": EnvironmentVariable(
         name="VALKEY_HOST",
         category=VariableCategory.CACHE,
@@ -224,33 +224,6 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         name="VALKEY_DB",
         category=VariableCategory.CACHE,
         description="Valkey database number",
-        default_value="0",
-        validation_pattern=r"^\d+$",
-    ),
-    # Legacy Valkey variables (for backward compatibility)
-    "VALKEY_HOST": EnvironmentVariable(
-        name="VALKEY_HOST",
-        category=VariableCategory.CACHE,
-        description="Valkey server hostname (legacy alias)",
-        default_value="localhost",
-    ),
-    "VALKEY_PORT": EnvironmentVariable(
-        name="VALKEY_PORT",
-        category=VariableCategory.CACHE,
-        description="Valkey server port (legacy alias)",
-        default_value="6379",
-        validation_pattern=r"^\d+$",
-    ),
-    "VALKEY_PASSWORD": EnvironmentVariable(
-        name="VALKEY_PASSWORD",
-        category=VariableCategory.CACHE,
-        description="Valkey password (legacy alias)",
-        is_sensitive=True,
-    ),
-    "VALKEY_DB": EnvironmentVariable(
-        name="VALKEY_DB",
-        category=VariableCategory.CACHE,
-        description="Valkey database number (legacy alias)",
         default_value="0",
         validation_pattern=r"^\d+$",
     ),
@@ -292,7 +265,7 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         default_value="30",
         validation_pattern=r"^\d+$",
     ),
-    # RAG/pgvector (uses DATABASE_URL for PostgreSQL connection)
+    # RAG/pgvector (uses APP_DATABASE_URL for PostgreSQL connection)
     "RAG_COLLECTION": EnvironmentVariable(
         name="RAG_COLLECTION",
         category=VariableCategory.RAG,
@@ -379,8 +352,8 @@ ENVIRONMENT_SCHEMA: dict[str, EnvironmentVariable] = {
         description="Logging level (DEBUG, INFO, WARNING, ERROR)",
         default_value="INFO",
     ),
-    "ENVIRONMENT": EnvironmentVariable(
-        name="ENVIRONMENT",
+    "APP_ENVIRONMENT": EnvironmentVariable(
+        name="APP_ENVIRONMENT",
         category=VariableCategory.SYSTEM,
         description="Environment name (development, staging, production)",
         default_value="production",

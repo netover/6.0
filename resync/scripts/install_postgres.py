@@ -705,7 +705,7 @@ Host: {DB_HOST}
 Port: {DB_PORT}
 
 Configure o arquivo .env:
-    DATABASE_URL=postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}
+    APP_DATABASE_URL=postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}
 """)
 
 def run_migrations() -> None:

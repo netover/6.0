@@ -19,7 +19,7 @@ T = TypeVar("T", bound=BaseModel)
 
 @circuit_breaker(failure_threshold=3, recovery_timeout=60, name="llm_service")
 @retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0, jitter=True)
-@with_timeout(settings.LLM_TIMEOUT)
+@with_timeout(settings.llm_timeout)
 @retry_on_exception(
     max_retries=3,
     delay=1.0,

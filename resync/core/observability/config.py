@@ -70,7 +70,7 @@ class ObservabilityConfig:
 
     # General settings
     environment: str = field(
-        default_factory=lambda: os.getenv("ENVIRONMENT", "development")
+        default_factory=lambda: os.getenv("APP_ENVIRONMENT", "development")
     )
     service_name: str = "resync"
     service_version: str = "5.3.8"

@@ -20,8 +20,14 @@ from resync.core.utils.async_bridge import fire_and_forget
 
 logger = logging.getLogger(__name__)
 
-# Lock for thread-safe counter updates
-_counter_lock = asyncio.Lock()
+_counter_lock: asyncio.Lock | None = None
+
+def _get_counter_lock() -> asyncio.Lock:
+    """Return middleware counter lock lazily bound to the active event loop."""
+    global _counter_lock
+    if _counter_lock is None:
+        _counter_lock = asyncio.Lock()
+    return _counter_lock
 
 class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -79,7 +85,7 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
         if not self.enabled:
             return await call_next(request)
 
-        async with _counter_lock:
+        async with _get_counter_lock():
             self.total_requests += 1
 
         try:
@@ -129,7 +135,7 @@ class DatabaseSecurityMiddleware(BaseHTTPMiddleware):
                     _log_violation(), logger=logger, name="sql_injection_audit"
                 )
 
-                async with _counter_lock:
+                async with _get_counter_lock():
                     self.blocked_requests += 1
                 logger.warning(
                     "sql_injection_blocked",

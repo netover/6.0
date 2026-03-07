@@ -108,7 +108,7 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 
         from fastapi.templating import Jinja2Templates
 
-        templates_dir = Path(settings.BASE_DIR) / "templates"
+        templates_dir = settings.base_dir / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
         return templates.TemplateResponse(request, "admin.html")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -141,7 +141,7 @@ async def api_keys_admin_page(request: Request) -> HTMLResponse:
 
         from fastapi.templating import Jinja2Templates
 
-        templates_dir = Path(settings.BASE_DIR) / "templates"
+        templates_dir = settings.base_dir / "templates"
         templates = Jinja2Templates(directory=str(templates_dir))
         return templates.TemplateResponse(request, "api_keys_admin.html")
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -190,19 +190,19 @@ async def get_admin_config(
 
         # Get TWS configuration (simplified)
         tws_config = {
-            "host": getattr(settings, "TWS_HOST", None),
-            "port": getattr(settings, "TWS_PORT", None),
-            "user": getattr(settings, "TWS_USER", None),
-            "mock_mode": getattr(settings, "TWS_MOCK_MODE", False),
-            "monitored_instances": getattr(settings, "MONITORED_TWS_INSTANCES", []),
+            "host": settings.tws_host,
+            "port": settings.tws_port,
+            "user": settings.tws_user,
+            "mock_mode": settings.tws_mock_mode,
+            "monitored_instances": [],
         }
 
         # Get system configuration - P0-A5 FIX: Don't expose sensitive credentials
         system_config = {
             "llm_endpoint": getattr(settings, "llm_endpoint", None),
             # admin_username removed - should never be exposed in API responses
-            "debug": getattr(settings, "DEBUG", False),
-            "environment": getattr(settings, "APP_ENV", "development"),
+            "debug": settings.debug,
+            "environment": settings.environment.value,
         }
 
         return AdminConfigResponse(
@@ -257,7 +257,7 @@ async def update_teams_config(
         # Persist configuration to file
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
+        config_file = settings.base_dir / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("teams", update_fields)
 
@@ -280,19 +280,19 @@ async def update_teams_config(
 
         # Get other configuration sections
         tws_config = {
-            "host": getattr(settings, "TWS_HOST", None),
-            "port": getattr(settings, "TWS_PORT", None),
-            "user": getattr(settings, "TWS_USER", None),
-            "mock_mode": getattr(settings, "TWS_MOCK_MODE", False),
-            "monitored_instances": getattr(settings, "MONITORED_TWS_INSTANCES", []),
+            "host": settings.tws_host,
+            "port": settings.tws_port,
+            "user": settings.tws_user,
+            "mock_mode": settings.tws_mock_mode,
+            "monitored_instances": [],
         }
 
         # P0-A5 FIX: Don't expose sensitive credentials
         system_config = {
             "llm_endpoint": getattr(settings, "llm_endpoint", None),
             # admin_username removed - should never be exposed in API responses
-            "debug": getattr(settings, "DEBUG", False),
-            "environment": getattr(settings, "APP_ENV", "development"),
+            "debug": settings.debug,
+            "environment": settings.environment.value,
         }
 
         return AdminConfigResponse(
@@ -448,15 +448,15 @@ async def get_admin_status(
             "system": {
                 "status": "operational",
                 "timestamp": datetime.now(UTC).isoformat(),
-                "environment": getattr(settings, "APP_ENV", "development"),
-                "debug": getattr(settings, "DEBUG", False),
+                "environment": settings.environment.value,
+                "debug": settings.debug,
             },
             "tws": {
                 "status": tws_status,
-                "host": getattr(settings, "TWS_HOST", "not_configured"),
+                "host": settings.tws_host or "not_configured",
             },
             "teams": teams_health,
-            "version": getattr(settings, "PROJECT_VERSION", "unknown"),
+            "version": settings.project_version,
         }
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -533,7 +533,7 @@ async def update_tws_config(
         update_fields = config_update.model_dump(exclude_unset=True)
 
         # Persist configuration to file
-        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
+        config_file = settings.base_dir / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("tws", update_fields)
 
@@ -590,7 +590,7 @@ async def update_system_config(
         update_fields = config_update.model_dump(exclude_unset=True)
 
         # Persist configuration to file
-        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
+        config_file = settings.base_dir / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         await persistence.save_config("system", update_fields)
 
@@ -642,7 +642,7 @@ async def get_system_logs(
     """Retrieve system logs with filtering options."""
     try:
         lines = min(lines, 1000)
-        log_file = settings.BASE_DIR / "logs" / "resync.log"
+        log_file = settings.base_dir / "logs" / "resync.log"
 
         def _read_and_filter_logs(
             file_path: Path,
@@ -797,7 +797,7 @@ async def create_backup(request: Request) -> dict[str, Any]:
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
+        config_file = settings.base_dir / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         # Create backup
@@ -842,7 +842,7 @@ async def list_backups(request: Request) -> dict[str, Any]:
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
+        config_file = settings.base_dir / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
 
         backups = await persistence.list_backups()
@@ -893,7 +893,7 @@ async def restore_backup(request: Request, backup_filename: str) -> dict[str, An
     try:
         from resync.core.config_persistence import ConfigPersistenceManager
 
-        config_file = settings.BASE_DIR / PRODUCTION_SETTINGS_FILE
+        config_file = settings.base_dir / PRODUCTION_SETTINGS_FILE
         persistence = ConfigPersistenceManager(config_file)
         # Enforce strict filename policy and allow-list against actual backups.
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", backup_filename):
@@ -1128,11 +1128,11 @@ async def get_system_health(request: Request) -> SystemHealthResponse:
             except ImportError:
                 pass
             # Fallback to RAG service URL
-            rag_url = getattr(settings, "RAG_SERVICE_URL", None)
+            rag_url = settings.rag_service_url
             if not rag_url:
                 return ComponentHealth(
                     status="degraded",
-                    message="RAG not configured (pgvector or RAG_SERVICE_URL)",
+                    message="RAG not configured (pgvector or rag_service_url)",
                 )
             
             # P2-C11 FIX: Validate URL against SSRF protection

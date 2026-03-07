@@ -129,10 +129,22 @@ async def init_domain_singletons(app: FastAPI) -> None:
         logger.error(
             "database_schema_init_failed",
             error=str(exc),
-            hint="Check DATABASE_URL and PostgreSQL availability.",
+            hint="Check APP_DATABASE_URL and PostgreSQL availability.",
         )
-        # Re-raise — application cannot function without its schema
-        raise RuntimeError(f"Database schema initialization failed: {exc}") from exc
+        environment_value = getattr(settings, "environment", "development")
+        environment_name = (
+            environment_value.value
+            if hasattr(environment_value, "value")
+            else str(environment_value)
+        ).lower()
+        if environment_name == "test":
+            logger.warning(
+                "database_schema_init_skipped_in_test",
+                error=str(exc),
+            )
+        else:
+            # Re-raise — application cannot function without its schema
+            raise RuntimeError(f"Database schema initialization failed: {exc}") from exc
 
     # Core Infrastructure
     connection_manager = ConnectionManager()

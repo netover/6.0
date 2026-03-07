@@ -19,30 +19,28 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-async def _verify_ws_auth(websocket: WebSocket, token: str | None = None) -> str | None:
+async def _verify_ws_auth(websocket: WebSocket) -> str | None:
     """Verify WebSocket authentication and return user_id.
 
     Args:
         websocket: The WebSocket connection
-        token: Optional JWT token from query parameter
 
     Returns:
         User ID if authenticated, None otherwise
     """
     try:
-        # Check for token in query parameter
-        if token:
-            from resync.api.auth.service import get_auth_service
-
-            auth_service = get_auth_service()
-            payload = auth_service.verify_token(token)
-            if payload:
-                return str(payload.sub)
-
         # Check for token in Authorization header
         auth_header = websocket.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
+            from resync.api.security import decode_token
+
+            payload = decode_token(token)
+            if payload and "sub" in payload:
+                return str(payload["sub"])
+
+        token = websocket.cookies.get("access_token")
+        if token:
             from resync.api.security import decode_token
 
             payload = decode_token(token)
@@ -250,18 +248,15 @@ async def _generate_llm_response(agent_id: str, content: str, *, conversation_id
             "O sistema Resync TWS está funcionando perfeitamente. Como posso ajudar?"
         )
 
-async def websocket_handler(
-    websocket: WebSocket, agent_id: str, token: str | None = None
-):
+async def websocket_handler(websocket: WebSocket, agent_id: str):
     """Handle WebSocket connections for chat agents.
 
     Args:
         websocket: The WebSocket connection
         agent_id: The agent ID to connect to
-        token: Optional JWT token for authentication
     """
     # Authenticate before accepting connection - fail closed (deny by default)
-    user_id = await _verify_ws_auth(websocket, token)
+    user_id = await _verify_ws_auth(websocket)
     if not user_id:
         logger.warning("WebSocket auth failed for agent %s", agent_id)
         # Starlette requires accept() before close() in newer versions.

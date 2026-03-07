@@ -1007,8 +1007,14 @@ class LLMService:
 # =============================================================================
 
 _llm_service_instance: LLMService | None = None
-# Eagerly initialised — never None — eliminates TOCTOU race on lock init
-_llm_service_lock: asyncio.Lock = asyncio.Lock()
+_llm_service_lock: asyncio.Lock | None = None
+
+def _get_llm_service_lock() -> asyncio.Lock:
+    """Return singleton lock lazily bound to the active event loop."""
+    global _llm_service_lock
+    if _llm_service_lock is None:
+        _llm_service_lock = asyncio.Lock()
+    return _llm_service_lock
 
 async def get_llm_service() -> LLMService:
     """
@@ -1020,7 +1026,7 @@ async def get_llm_service() -> LLMService:
     global _llm_service_instance
 
     if _llm_service_instance is None:
-        async with _llm_service_lock:
+        async with _get_llm_service_lock():
             if _llm_service_instance is None:
                 _llm_service_instance = LLMService()
 

@@ -337,7 +337,7 @@ def _create_mock_tws_client() -> Any:
 
             for i in range(self._randint(20, 50)):
                 job_status = self._choice(statuses)
-                start_time = datetime.now(datetime.UTC) - timedelta(
+                start_time = datetime.now(timezone.utc) - timedelta(
                     minutes=self._randint(5, 120)
                 )
 

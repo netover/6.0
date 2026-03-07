@@ -364,7 +364,7 @@ class RuntimeMetricsCollector:
 
         self.recent_decisions.append(
             {
-                "timestamp": datetime.now(datetime.UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "mode": mode,
                 "intent": intent,
                 "confidence": confidence,

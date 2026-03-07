@@ -308,7 +308,14 @@ class ValkeyCacheManager:
 
 # P0-14 fix: Thread-safe initialization with asyncio.Lock
 valkey_manager: ValkeyCacheManager | None = None
-_valkey_manager_lock = asyncio.Lock()
+_valkey_manager_lock: asyncio.Lock | None = None
+
+def _get_valkey_manager_lock() -> asyncio.Lock:
+    """Return Valkey manager lock lazily bound to the active event loop."""
+    global _valkey_manager_lock
+    if _valkey_manager_lock is None:
+        _valkey_manager_lock = asyncio.Lock()
+    return _valkey_manager_lock
 
 async def _get_or_create_valkey_manager() -> ValkeyCacheManager | None:
     """
@@ -325,7 +332,7 @@ async def _get_or_create_valkey_manager() -> ValkeyCacheManager | None:
         return valkey_manager
     
     # Acquire lock for initialization
-    async with _valkey_manager_lock:
+    async with _get_valkey_manager_lock():
         # Double-check after acquiring lock
         if valkey_manager is not None:
             return valkey_manager
@@ -381,8 +388,8 @@ async def verify_admin_credentials(
         HTTPException: Lança um erro 401 Unauthorized se as credenciais
                        forem inválidas.
     """
-    admin_user = settings.ADMIN_USERNAME
-    admin_pass = settings.ADMIN_PASSWORD
+    admin_user = settings.admin_username
+    admin_pass = settings.admin_password
 
     if not admin_user or not admin_pass:
         logger.error("Admin credentials not configured on the server")

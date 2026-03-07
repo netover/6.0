@@ -152,10 +152,10 @@ class SmokeTestRunner:
         self.verbose = verbose
         self.suite = SmokeTestSuite()
         # Ensure critical env vars are set for tests
-        os.environ.setdefault("VALKEY_URL", "valkey://localhost:6379/0")
+        os.environ.setdefault("APP_VALKEY_URL", "valkey://localhost:6379/0")
         os.environ.setdefault("RESYNC_VALKEY_LAZY_INIT", "1")
         os.environ.setdefault(
-            "DATABASE_URL", "postgresql+asyncpg://resync:resync@localhost:5432/resync"
+            "APP_DATABASE_URL", "postgresql+asyncpg://resync:resync@localhost:5432/resync"
         )
 
     async def _run_async_test(
@@ -467,11 +467,11 @@ class SmokeTestRunner:
     def _test_environment_variables(self) -> None:
         """Test required environment variables."""
         required_vars = [
-            "VALKEY_URL",
+            "APP_VALKEY_URL",
         ]
 
         recommended_vars = [
-            "DATABASE_URL",
+            "APP_DATABASE_URL",
             "LLM_API_KEY",
             "OPENROUTER_API_KEY",
         ]

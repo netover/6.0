@@ -62,7 +62,14 @@ _AUDITOR_QUEUE_MAXSIZE = 256
 _AUDITOR_WORKERS = 2
 _auditor_queue: asyncio.Queue[None] | None = None
 _auditor_workers: set[asyncio.Task[Any]] = set()
-_auditor_init_lock = asyncio.Lock()
+_auditor_init_lock: asyncio.Lock | None = None
+
+def _get_auditor_init_lock() -> asyncio.Lock:
+    """Return auditor init lock lazily bound to the active event loop."""
+    global _auditor_init_lock
+    if _auditor_init_lock is None:
+        _auditor_init_lock = asyncio.Lock()
+    return _auditor_init_lock
 
 
 INFRA_ERRORS = (
@@ -190,7 +197,7 @@ async def _auditor_worker() -> None:
 async def _ensure_auditor_workers() -> None:
     """Initialize bounded auditor worker pool lazily and safely."""
     global _auditor_queue
-    async with _auditor_init_lock:
+    async with _get_auditor_init_lock():
         if _auditor_queue is None:
             _auditor_queue = asyncio.Queue(maxsize=_AUDITOR_QUEUE_MAXSIZE)
         if _auditor_workers:

@@ -136,16 +136,20 @@ class AuditQueue:
 _instance: AuditQueue | None = None
 _instance_lock: asyncio.Lock | None = None
 
+def _get_instance_lock() -> asyncio.Lock:
+    """Return singleton lock lazily bound to the active event loop."""
+    global _instance_lock
+    if _instance_lock is None:
+        _instance_lock = asyncio.Lock()
+    return _instance_lock
+
 
 async def get_audit_queue() -> AuditQueue:
     """Get the singleton AuditQueue instance (thread-safe)."""
-    global _instance, _instance_lock
-
-    if _instance_lock is None:
-        _instance_lock = asyncio.Lock()
+    global _instance
 
     if _instance is None:
-        async with _instance_lock:
+        async with _get_instance_lock():
             if _instance is None:
                 _instance = AuditQueue()
                 await asyncio.to_thread(_instance.initialize)

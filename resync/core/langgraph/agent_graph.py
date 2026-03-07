@@ -218,6 +218,14 @@ _router_cache_instance: SemanticCache | None = None
 _router_cache_lock: asyncio.Lock | None = None
 _router_cache_sync_lock: _threading_module.Lock = _threading_module.Lock()  # FIX P2-09: shared module-level lock
 
+def _get_router_cache_lock() -> asyncio.Lock:
+    """Return router cache lock lazily bound to the active event loop."""
+    global _router_cache_lock
+    if _router_cache_lock is None:
+        asyncio.get_running_loop()
+        _router_cache_lock = asyncio.Lock()
+    return _router_cache_lock
+
 def _get_sync_init_lock() -> _threading_module.Lock:
     """Return the module-level threading.Lock for sync-context initialization."""
     return _router_cache_sync_lock
@@ -239,6 +247,7 @@ def _get_router_cache() -> SemanticCache | None:
 
     # Initialize lock on first use (lazy initialization)
     if _router_cache_lock is None:
+        asyncio.get_running_loop()
         _router_cache_lock = asyncio.Lock()
 
     # Double-checked locking: first check without lock, then acquire lock
@@ -306,11 +315,8 @@ async def async_init_router_cache() -> SemanticCache | None:
         return _router_cache_instance
 
     # Initialize lock on first use
-    if _router_cache_lock is None:
-        _router_cache_lock = asyncio.Lock()
-
     # Acquire lock for thread-safe initialization
-    async with _router_cache_lock:
+    async with _get_router_cache_lock():
         # Double-check after acquiring lock
         if _router_cache_instance is None:
             try:

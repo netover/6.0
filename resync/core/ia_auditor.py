@@ -105,7 +105,7 @@ async def _get_llm_analysis(
         # Increased max_tokens from 200 to 500 to allow for more detailed analysis
         # and comprehensive reasoning in the auditor's evaluation of agent responses
         result = await call_llm(
-            prompt, model=settings.AUDITOR_MODEL_NAME, max_tokens=500
+            prompt, model=settings.auditor_model_name, max_tokens=500
         )
         if not result:
             return None

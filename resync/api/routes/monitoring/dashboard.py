@@ -443,8 +443,22 @@ class DashboardMetricsStore:
 # Singleton do store
 _metrics_store: DashboardMetricsStore | None = None
 _collector_task: asyncio.Task | None = None
-# P1 fix: Module-level lock prevents TOCTOU race (safe on Python 3.10+)
-_collector_lock: asyncio.Lock = asyncio.Lock()
+_collector_lock: asyncio.Lock | None = None
+_clients_lock: asyncio.Lock | None = None
+
+def _get_collector_lock() -> asyncio.Lock:
+    """Return collector lock lazily bound to the active event loop."""
+    global _collector_lock
+    if _collector_lock is None:
+        _collector_lock = asyncio.Lock()
+    return _collector_lock
+
+def _get_clients_lock() -> asyncio.Lock:
+    """Return websocket client lock lazily bound to the active event loop."""
+    global _clients_lock
+    if _clients_lock is None:
+        _clients_lock = asyncio.Lock()
+    return _clients_lock
 
 def get_metrics_store() -> DashboardMetricsStore:
     """Obtém o store singleton."""
@@ -596,10 +610,13 @@ async def metrics_collector_loop():
 async def _start_metrics_collector_async() -> None:
     """Start collector under lock to avoid duplicate background tasks."""
     global _collector_task
+    from resync.core.task_tracker import create_tracked_task
 
-    async with _collector_lock:
+    async with _get_collector_lock():
         if _collector_task is None or _collector_task.done():
-            _collector_task = asyncio.create_task(metrics_collector_loop())
+            _collector_task = create_tracked_task(
+                metrics_collector_loop(), name="monitoring-dashboard-collector"
+            )
             logger.info("Dashboard metrics collector iniciado")
 
 def start_metrics_collector() -> None:
@@ -695,7 +712,6 @@ async def monitoring_health():
 MAX_WS_CONNECTIONS = 200
 # P1 fix: Use set for O(1) add/remove/membership instead of O(n) list
 connected_clients: set[WebSocket] = set()
-_clients_lock = asyncio.Lock()
 
 @router.websocket("/ws")
 async def websocket_metrics(websocket: WebSocket) -> None:
@@ -719,7 +735,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
         )
         return
 
-    async with _clients_lock:
+    async with _get_clients_lock():
         if len(connected_clients) >= MAX_WS_CONNECTIONS:
             await websocket.accept()
             await websocket.close(
@@ -728,7 +744,7 @@ async def websocket_metrics(websocket: WebSocket) -> None:
             )
             return
     await websocket.accept()
-    async with _clients_lock:
+    async with _get_clients_lock():
         connected_clients.add(websocket)
 
     try:
@@ -756,5 +772,5 @@ async def websocket_metrics(websocket: WebSocket) -> None:
         logger.error("WebSocket error: %s", e)
     finally:
         # P0-05: Guaranteed cleanup regardless of exit path
-        async with _clients_lock:
+        async with _get_clients_lock():
             connected_clients.discard(websocket)

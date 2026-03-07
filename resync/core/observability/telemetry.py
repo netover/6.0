@@ -95,7 +95,9 @@ def get_service_version() -> str:
 
 def get_environment() -> str:
     """Get environment name."""
-    return os.getenv("OTEL_ENVIRONMENT", os.getenv("ENVIRONMENT", "production"))
+    return os.getenv(
+        "OTEL_ENVIRONMENT", os.getenv("APP_ENVIRONMENT", "production")
+    )
 
 def get_hostname() -> str:
     """Get hostname for resource attributes."""

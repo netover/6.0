@@ -238,7 +238,7 @@ async def upload_rag_file(
             filename=safe_filename,
             status="processing",
             file_id=file_id,
-            upload_time=datetime.now(datetime.UTC).isoformat(),
+            upload_time=datetime.now(timezone.utc).isoformat(),
         )
         logger_instance.info(
             "rag_file_uploaded",

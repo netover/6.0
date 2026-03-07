@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urlparse
 from typing import Any, TYPE_CHECKING, Optional
 
 try:
@@ -26,11 +27,25 @@ class ValkeyClient:
         if aiovalkey is None:
             raise RuntimeError("valkey-py not installed")
 
+        raw_valkey_url = self.settings.valkey_url
+        valkey_url = (
+            raw_valkey_url.get_secret_value()
+            if hasattr(raw_valkey_url, "get_secret_value")
+            else str(raw_valkey_url)
+        )
+        parsed_url = urlparse(valkey_url)
+        db = 0
+        if parsed_url.path and parsed_url.path != "/":
+            try:
+                db = int(parsed_url.path.lstrip("/"))
+            except ValueError:
+                db = 0
+
         self._pool = aiovalkey.ConnectionPool(
-            host=self.settings.VALKEY_HOST if hasattr(self.settings, 'VALKEY_HOST') else 'localhost',
-            port=self.settings.VALKEY_PORT if hasattr(self.settings, 'VALKEY_PORT') else 6379,
-            db=self.settings.VALKEY_DB if hasattr(self.settings, 'VALKEY_DB') else 0,
-            password=self.settings.VALKEY_PASSWORD.get_secret_value() if hasattr(self.settings, 'VALKEY_PASSWORD') and self.settings.VALKEY_PASSWORD else None,
+            host=parsed_url.hostname or "localhost",
+            port=parsed_url.port or 6379,
+            db=db,
+            password=parsed_url.password,
             encoding="utf-8",
             decode_responses=True,
             max_connections=50,

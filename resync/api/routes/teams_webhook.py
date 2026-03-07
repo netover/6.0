@@ -23,7 +23,7 @@ from resync.core.teams_webhook_security import (
     extract_bearer_token,
     verify_teams_hmac_signature,
 )
-from resync.settings import settings
+from resync.settings import TEAMS_OUTGOING_WEBHOOK
 
 logger = structlog.get_logger(__name__)
 
@@ -119,7 +119,7 @@ async def teams_outgoing_webhook_endpoint(
     """
 
     # Verifica se webhook está habilitado
-    config = settings.TEAMS_OUTGOING_WEBHOOK
+    config = TEAMS_OUTGOING_WEBHOOK
 
     if not config.get("enabled", False):
         logger.warning("teams_webhook_disabled_attempted_access")
@@ -273,7 +273,7 @@ async def teams_webhook_health():
 
     Retorna status de configuração e disponibilidade.
     """
-    config = settings.TEAMS_OUTGOING_WEBHOOK
+    config = TEAMS_OUTGOING_WEBHOOK
 
     return {
         "status": "healthy" if config.get("enabled") else "disabled",

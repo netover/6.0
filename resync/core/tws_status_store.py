@@ -10,7 +10,7 @@ Migration Note:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from threading import Lock
 
@@ -73,10 +73,15 @@ class TWSStatusStore:
         return await self._store.get_job_status(job_name)
 
     async def get_job_history(
-        self, job_name: str, limit: int = 100
+        self, job_name: str, days: int | None = None, limit: int = 100
     ) -> list[TWSJobStatus]:
-        """Get job status history."""
-        return await self._store.get_job_history(job_name, limit)
+        """Get job status history with legacy days+limit compatibility."""
+        history = await self._store.get_job_history(job_name, limit)
+        if days is None:
+            return history
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        return [entry for entry in history if entry.timestamp and entry.timestamp >= cutoff]
 
     async def get_failed_jobs(
         self, hours: int = 24, limit: int = 100
@@ -125,10 +130,62 @@ class TWSStatusStore:
         return await self._store.events.get_all(limit=limit)
 
     async def get_events_in_range(
-        self, start: datetime, end: datetime, limit: int = 1000
+        self,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 1000,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        event_types: list[str] | None = None,
+        severity: str | None = None,
     ) -> list[TWSEvent]:
-        """Get events in time range."""
-        return await self._store.get_events_in_range(start, end, limit)
+        """Get events in time range with legacy monitoring-route compatibility."""
+        effective_start = start_time or start
+        effective_end = end_time or end
+        if effective_start is None or effective_end is None:
+            raise ValueError("start/end timestamps are required")
+
+        events = await self._store.get_events_in_range(effective_start, effective_end, limit)
+        if severity:
+            severity_lower = severity.lower()
+            events = [event for event in events if (event.severity or "").lower() == severity_lower]
+        if event_types:
+            allowed = {event_type.lower() for event_type in event_types}
+            events = [event for event in events if (event.event_type or "").lower() in allowed]
+        return events
+
+    async def search_events(self, query: str, limit: int = 50) -> list[TWSEvent]:
+        """Best-effort text search compatible with legacy monitoring routes."""
+        needle = query.lower()
+        events = await self._store.events.get_all(limit=max(limit * 4, 200))
+        matches = [
+            event
+            for event in events
+            if needle in (event.message or "").lower()
+            or needle in (event.event_type or "").lower()
+            or needle in (event.job_name or "").lower()
+        ]
+        return matches[:limit]
+
+    async def get_daily_summary(self, target_date: datetime) -> dict[str, Any]:
+        """Build daily summary compatible with legacy monitoring endpoint."""
+        start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        end = start + timedelta(days=1)
+
+        events = await self._store.get_events_in_range(start, end, limit=5000)
+        jobs = await self._store.jobs.find({}, limit=5000, order_by="timestamp", desc=True)
+        jobs = [job for job in jobs if job.timestamp and start <= job.timestamp < end]
+
+        return {
+            "date": start.date().isoformat(),
+            "total_jobs": len(jobs),
+            "failed_jobs": sum(1 for job in jobs if (job.status or "").upper() in {"FAILED", "ERROR", "ABEND"}),
+            "completed_jobs": sum(1 for job in jobs if (job.status or "").upper() in {"COMPLETED", "SUCC", "SUCCESS"}),
+            "events_count": len(events),
+        }
 
     async def get_unacknowledged_events(self, limit: int = 100) -> list[TWSEvent]:
         """Get unacknowledged events."""
@@ -145,10 +202,24 @@ class TWSStatusStore:
         return await self._store.detect_pattern(pattern)
 
     async def get_patterns(
-        self, job_name: str | None = None, min_confidence: float = 0.5
+        self,
+        pattern_type: str | None = None,
+        min_confidence: float = 0.5,
     ) -> list[TWSPattern]:
-        """Get active patterns."""
-        return await self._store.get_patterns(job_name, min_confidence)
+        """Get active patterns with legacy pattern_type filtering."""
+        patterns = await self._store.get_patterns(None, min_confidence)
+        if pattern_type:
+            pattern_type_lower = pattern_type.lower()
+            patterns = [
+                pattern
+                for pattern in patterns
+                if (pattern.pattern_type or "").lower() == pattern_type_lower
+            ]
+        return patterns
+
+    async def detect_patterns(self) -> list[TWSPattern]:
+        """Legacy compatibility shim for manual pattern detection endpoint."""
+        return await self.get_patterns()
 
     async def add_solution(
         self,
@@ -167,10 +238,11 @@ class TWSStatusStore:
         )
 
     async def find_solution(
-        self, problem_type: str, job_name: str | None = None
+        self, problem_type: str, error_message: str | None = None
     ) -> TWSProblemSolution | None:
-        """Find a solution for a problem."""
-        return await self._store.find_solution(problem_type, job_name)
+        """Find a solution for a problem using legacy route signature."""
+        _ = error_message
+        return await self._store.find_solution(problem_type, None)
 
     async def record_solution_outcome(
         self, solution_id: int, success: bool
@@ -178,12 +250,39 @@ class TWSStatusStore:
         """Record whether a solution worked."""
         return await self._store.solutions.record_outcome(solution_id, success)
 
+    async def record_solution_result(
+        self, problem_id: int, success: bool
+    ) -> TWSProblemSolution | None:
+        """Legacy alias expected by monitoring routes."""
+        return await self.record_solution_outcome(problem_id, success)
+
     async def cleanup_old_data(self, days: int = 30) -> dict[str, int]:
         """Clean up old data."""
         return await self._store.cleanup_old_data(days)
 
+    async def get_database_stats(self) -> dict[str, Any]:
+        """Compatibility stats payload for monitoring routes."""
+        summary = await self.get_status_summary()
+        recent_events = await self._store.events.get_all(limit=1000)
+        active_patterns = await self.get_patterns()
+        solutions = await self._store.solutions.get_all(limit=1000)
+        return {
+            "job_status_summary": summary,
+            "events_count": len(recent_events),
+            "active_patterns": len(active_patterns),
+            "solutions_count": len(solutions),
+        }
+
 _instance: TWSStatusStore | None = None
 _init_lock: Lock = Lock()
+_async_init_lock: asyncio.Lock | None = None
+
+def _get_async_init_lock() -> asyncio.Lock:
+    """Return async init lock lazily bound to the active event loop."""
+    global _async_init_lock
+    if _async_init_lock is None:
+        _async_init_lock = asyncio.Lock()
+    return _async_init_lock
 
 def get_tws_status_store() -> TWSStatusStore:
     """Get the singleton TWSStatusStore instance."""
@@ -196,14 +295,8 @@ def get_tws_status_store() -> TWSStatusStore:
 
 async def initialize_tws_status_store() -> TWSStatusStore:
     """Initialize and return the TWSStatusStore safely with a lock."""
-    global _init_lock
-    import asyncio
-    
-    if _init_lock is None:
-        _init_lock = asyncio.Lock()
-        
     store = get_tws_status_store()
-    async with _init_lock:
+    async with _get_async_init_lock():
         if not store._initialized:
             await store.initialize()
     return store

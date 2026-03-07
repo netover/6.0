@@ -95,7 +95,7 @@ def validate_environment_variables() -> dict[str, str]:
                             validated_vars[var_name] = value
                     except ValueError:
                         invalid_vars.append(f"{var_name}={value} (must be integer)")
-                elif var_name in ["VALKEY_URL", "LLM_ENDPOINT"]:
+                elif var_name in ["APP_VALKEY_URL", "LLM_ENDPOINT"]:
                     # Use urllib.parse for flexible URL validation.
                     # Accept any scheme with scheme and netloc/path.
                     # Supports valkey+sentinel:// and other extended
@@ -180,7 +180,7 @@ async def validate_valkey_connection(max_retries: int = 3, timeout: float = 5.0)
 
     valkey_url = os.getenv("APP_VALKEY_URL")
     if not valkey_url:
-        raise ConfigurationValidationError("VALKEY_URL environment variable not set")
+        raise ConfigurationValidationError("APP_VALKEY_URL environment variable not set")
 
     for attempt in range(max_retries):
         start_time = time.time()
@@ -256,7 +256,7 @@ async def validate_valkey_connection(max_retries: int = 3, timeout: float = 5.0)
                 "valkey_unexpected_error",
                 error_type=type(e).__name__,
                 error_message=str(e)
-                if os.getenv("ENVIRONMENT") != "production"
+                if os.getenv("APP_ENVIRONMENT") != "production"
                 else None,
             )
             raise StartupError(
@@ -436,9 +436,9 @@ async def validate_all_settings() -> "Settings":
         await validate_valkey_connection()
 
         # Step 5: Load and return settings
-        from resync.settings import load_settings
+        from resync.settings import get_settings
 
-        settings = load_settings()
+        settings = get_settings()
 
         total_duration = time.time() - start_time
         startup_logger.info(
@@ -464,7 +464,9 @@ async def validate_all_settings() -> "Settings":
         startup_logger.error(
             "validation_unexpected_error",
             error_type=type(e).__name__,
-            error_message=str(e) if os.getenv("ENVIRONMENT") != "production" else None,
+            error_message=str(e)
+            if os.getenv("APP_ENVIRONMENT") != "production"
+            else None,
             partial_results=list(validation_results.keys()),
         )
         raise StartupError(

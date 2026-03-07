@@ -63,8 +63,14 @@ from resync.core.unified_config import get_config_manager
 # [P2-02] Single source of truth — avoids silent divergence if file is moved
 _BACKUP_DIR: Path = Path(__file__).parent.parent.parent / "config" / "backups"
 
-# [P1-04] Serialize concurrent reload_all_configs calls
-_reload_lock: asyncio.Lock = asyncio.Lock()
+_reload_lock: asyncio.Lock | None = None
+
+def _get_reload_lock() -> asyncio.Lock:
+    """Serialize reloads with a lock bound to the active event loop."""
+    global _reload_lock
+    if _reload_lock is None:
+        _reload_lock = asyncio.Lock()
+    return _reload_lock
 
 # [P1-03] slowapi already in requirements.txt>=0.1.9
 limiter = Limiter(key_func=get_remote_address)
@@ -241,7 +247,7 @@ async def reload_all_configs(
     _: dict[str, Any] = Depends(require_role(["admin"])),
 ) -> ConfigReloadResponse:
     """Force hot-reload for all tracked configs. Rate: 5/min per IP."""
-    async with _reload_lock:  # [P1-04]
+    async with _get_reload_lock():  # [P1-04]
         manager = await _get_manager()
         configs_loaded: list[str] = []
         errors: list[str] = []
