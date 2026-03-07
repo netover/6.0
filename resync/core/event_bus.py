@@ -116,7 +116,7 @@ class Subscriber:
     subscriber_id: str
     callback: collections.abc.Callable[..., Any]
     subscription_types: set[SubscriptionType]
-    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     events_received: int = 0
 
 @dataclass(slots=True)
@@ -126,7 +126,7 @@ class WebSocketClient:
     client_id: str
     websocket: WebSocketProtocol  # tipado via Protocol, não Any
     subscription_types: set[SubscriptionType]
-    connected_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    connected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     messages_sent: int = 0
     last_ping: datetime | None = None
 
@@ -377,7 +377,7 @@ class EventBus:
         message = {
             "type": "recent_events",
             "events": recent,
-            "timestamp": datetime.now(datetime.UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
@@ -434,7 +434,7 @@ class EventBus:
             event_data = {"data": str(event)}
 
         if "timestamp" not in event_data:
-            event_data["timestamp"] = datetime.now(datetime.UTC).isoformat()
+            event_data["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         queue = self._event_queue
 

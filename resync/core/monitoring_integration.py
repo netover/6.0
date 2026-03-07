@@ -178,9 +178,15 @@ def register_monitoring_routes(app: FastAPI) -> None:
         app: FastAPI instance
     """
     try:
+        from fastapi import Depends
+        from resync.api.routes.core.auth import verify_admin_credentials
         from resync.api.routes.monitoring.routes import monitoring_router
 
-        app.include_router(monitoring_router, tags=["Monitoring"])
+        app.include_router(
+            monitoring_router,
+            tags=["Monitoring"],
+            dependencies=[Depends(verify_admin_credentials)],
+        )
 
         logger.info("monitoring_routes_registered")
 

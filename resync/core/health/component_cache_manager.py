@@ -61,7 +61,7 @@ class ComponentCacheManager:
         async with self._cache_lock:
             health = self.component_cache.get(component_name)
             if health:
-                age = datetime.now(datetime.UTC) - health.last_check
+                age = datetime.now(timezone.utc) - health.last_check
                 if age < self.default_cache_expiry:
                     self._cache_hits += 1
                     logger.debug(
@@ -146,7 +146,7 @@ class ComponentCacheManager:
             valid_components = {}
 
             for name, health in self.component_cache.items():
-                age = datetime.now(datetime.UTC) - health.last_check
+                age = datetime.now(timezone.utc) - health.last_check
                 if age < self.default_cache_expiry:
                     valid_components[name] = health
                 else:
@@ -188,7 +188,7 @@ class ComponentCacheManager:
         """
         async with self._cache_lock:
             expired_components = []
-            current_time = datetime.now(datetime.UTC)
+            current_time = datetime.now(timezone.utc)
 
             for name, health in self.component_cache.items():
                 age = current_time - health.last_check
@@ -275,7 +275,7 @@ class ComponentCacheManager:
 
         async with self._cache_lock:
             stale_components = {}
-            current_time = datetime.now(datetime.UTC)
+            current_time = datetime.now(timezone.utc)
 
             for name, health in self.component_cache.items():
                 age = current_time - health.last_check
@@ -358,3 +358,4 @@ class ComponentCacheConfig:
             "enable_cache_warnings": self.enable_cache_warnings,
             "cache_warning_threshold_percent": self.cache_warning_threshold_percent,
         }
+

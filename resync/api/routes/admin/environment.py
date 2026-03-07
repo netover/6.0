@@ -11,6 +11,7 @@ SECURITY NOTES:
 - System restart may be required for some changes
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -476,7 +477,7 @@ async def get_environment_config():
     Sensitive values are masked for security.
     """
     # Load current values from environment and .env file
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
 
     result = {}
     for name, schema in ENVIRONMENT_SCHEMA.items():
@@ -514,7 +515,7 @@ async def get_environment_config():
 @router.get("/environment/category/{category}", tags=["Admin Environment"])
 async def get_environment_by_category(category: VariableCategory):
     """Get environment variables by category."""
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
 
     result = {}
     for name, schema in ENVIRONMENT_SCHEMA.items():
@@ -547,7 +548,7 @@ async def get_environment_variable(variable_name: str):
         )
 
     schema = ENVIRONMENT_SCHEMA[variable_name]
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
     value = (
         os.getenv(variable_name) or file_vars.get(variable_name) or schema.default_value
     )
@@ -597,14 +598,14 @@ async def update_environment_variable(
         )
 
     # Load current vars
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
 
     # Update value
     old_value = file_vars.get(variable_name)
     file_vars[variable_name] = update.value
 
     # Save to file
-    _save_env_file(file_vars)
+    await asyncio.to_thread(_save_env_file, file_vars)
 
     # Also set in current process environment
     os.environ[variable_name] = update.value
@@ -648,7 +649,7 @@ async def bulk_update_environment(updates: dict[str, str]):
 
     Useful for initial setup or configuration changes.
     """
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
     updated = []
     errors = []
 
@@ -670,7 +671,7 @@ async def bulk_update_environment(updates: dict[str, str]):
 
     # Save all changes
     if updated:
-        _save_env_file(file_vars)
+        await asyncio.to_thread(_save_env_file, file_vars)
 
     return {
         "success": len(errors) == 0,
@@ -702,7 +703,7 @@ async def delete_environment_variable(variable_name: str):
             detail=f"Unknown variable: {variable_name}",
         )
 
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
 
     if variable_name not in file_vars:
         raise HTTPException(
@@ -711,7 +712,7 @@ async def delete_environment_variable(variable_name: str):
         )
 
     del file_vars[variable_name]
-    _save_env_file(file_vars)
+    await asyncio.to_thread(_save_env_file, file_vars)
 
     # Remove from process environment
     if variable_name in os.environ:
@@ -740,7 +741,7 @@ async def get_raw_env_file():
         }
 
     async with aiofiles.open(ENV_FILE_PATH) as f:
-        content = f.read()
+        content = await f.read()
 
     return {
         "exists": True,
@@ -771,7 +772,7 @@ async def save_raw_env_file(content: dict[str, str]):
 
     # Write new content
     async with aiofiles.open(ENV_FILE_PATH, "w") as f:
-        f.write(content.get("content", ""))
+        await f.write(content.get("content", ""))
 
     logger.info("Raw .env file saved")
 
@@ -788,7 +789,7 @@ async def export_environment():
 
     Sensitive values are NOT masked in export.
     """
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
 
     lines = [
         "# Resync Environment Configuration",
@@ -826,7 +827,7 @@ async def validate_environment():
 
     Checks for required variables and validates formats.
     """
-    file_vars = _load_env_file()
+    file_vars = await asyncio.to_thread(_load_env_file)
     issues = []
     warnings = []
 
@@ -879,3 +880,4 @@ async def validate_environment():
             1 for name in ENVIRONMENT_SCHEMA if os.getenv(name) or file_vars.get(name)
         ),
     }
+

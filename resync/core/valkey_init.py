@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Valkey initialization and connection management (Valkey 9 migration).
 

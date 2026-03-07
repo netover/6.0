@@ -774,7 +774,7 @@ async def logout(request: Request) -> Response:
     response.delete_cookie(
         key="access_token",
         path="/",
-        samesite="strict",
+        samesite="lax",
     )
 
     return response
@@ -793,3 +793,4 @@ async def verify_token(
         Token verification status
     """
     return {"valid": True, "username": username, "message": "Token is valid"}
+

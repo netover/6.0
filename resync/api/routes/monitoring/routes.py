@@ -682,7 +682,7 @@ async def websocket_endpoint(websocket: WebSocket):
     WebSocket para eventos em tempo real.
 
     Protocolo:
-    - Cliente se conecta com token de admin (query param `token` ou header `Authorization`)
+    - Cliente se conecta com cookie HttpOnly ou header `Authorization`
     - Servidor valida credenciais ANTES de aceitar (fail-closed)
     - Servidor envia eventos recentes
     - Servidor envia novos eventos conforme ocorrem
@@ -697,13 +697,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
     # ── Auth: must verify BEFORE accept() ─────────────────────────────────────
     # WebSocket handshake headers are available before accept().
-    # We accept a Bearer token via the `token` query param (browsers can't set
-    # Upgrade headers) OR via the `Authorization` header (native clients).
-    token: str | None = websocket.query_params.get("token")
+    # Query-string tokens are rejected to avoid leaking credentials via logs/history.
+    raw_auth = websocket.headers.get("authorization", "")
+    token: str | None = raw_auth[7:] if raw_auth.lower().startswith("bearer ") else None
     if not token:
-        raw_auth = websocket.headers.get("authorization", "")
-        if raw_auth.lower().startswith("bearer "):
-            token = raw_auth[7:]
+        token = websocket.cookies.get("access_token")
 
     if not token:
         # Reject before handshake — saves resources and prevents any data leak.

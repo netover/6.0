@@ -53,14 +53,22 @@ class ValkeyHealthChecker(BaseHealthChecker):
                     component_type=self.component_type,
                     status=HealthStatus.UNKNOWN,
                     message="Valkey URL not configured",
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                 )
 
             # Test actual Valkey connectivity
-            from valkey.exceptions import ValkeyError as ValkeyError
-            from valkey.exceptions import TimeoutError as ValkeyTimeoutError
-
             from resync.core.valkey_init import get_valkey_client, is_valkey_available
+            try:
+                from valkey.exceptions import ValkeyError
+                from valkey.exceptions import TimeoutError as ValkeyTimeoutError
+            except ImportError:
+                return ComponentHealth(
+                    name=self.component_name,
+                    component_type=self.component_type,
+                    status=HealthStatus.UNKNOWN,
+                    message="valkey-py not installed",
+                    last_check=datetime.now(timezone.utc),
+                )
 
             try:
                 if not is_valkey_available():
@@ -69,7 +77,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                         component_type=self.component_type,
                         status=HealthStatus.UNKNOWN,
                         message="Valkey/Valkey library not available",
-                        last_check=datetime.now(datetime.UTC),
+                        last_check=datetime.now(timezone.utc),
                     )
                 # Use shared connection pool (prevents connection churn)
                 valkey_client = get_valkey_client()
@@ -96,7 +104,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                     status=HealthStatus.HEALTHY,
                     message="Valkey connectivity test successful",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     metadata={
                         "valkey_version": valkey_info.get("valkey_version"),
                         "connected_clients": valkey_info.get("connected_clients"),
@@ -115,7 +123,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                     status=HealthStatus.UNHEALTHY,
                     message=f"Valkey connectivity failed: {str(e)}",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     error_count=1,
                 )
             # No finally block needed as we don't close the shared pool
@@ -134,7 +142,7 @@ class ValkeyHealthChecker(BaseHealthChecker):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Valkey check failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 

@@ -93,14 +93,14 @@ def _get_settings():
 
     return get_settings()
 
-def _get_pipeline():
+async def _get_pipeline():
     """Lazy-load the pipeline to avoid importing heavy deps at module load."""
     from resync.knowledge.ingestion.pipeline import DocumentIngestionPipeline
     from resync.knowledge.ingestion.embedding_service import get_embedder
     from resync.knowledge.store import get_vector_store
 
     embedder = get_embedder()
-    store = get_vector_store()
+    store = await get_vector_store()
     return DocumentIngestionPipeline(embedder, store)
 
 # ── Endpoints ───────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ async def ingest_document(
             raise HTTPException(status_code=400, detail="Empty file")
 
         # Run pipeline
-        pipeline = _get_pipeline()
+        pipeline = await _get_pipeline()
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
 
         result = await pipeline.ingest_file(
@@ -202,7 +202,7 @@ async def ingest_batch(request: BatchIngestRequest):
 
     Useful for bulk ingestion of manuals and runbooks from a shared directory.
     """
-    pipeline = _get_pipeline()
+    pipeline = await _get_pipeline()
     results = []
     succeeded = 0
     failed = 0
@@ -214,7 +214,9 @@ async def ingest_batch(request: BatchIngestRequest):
     for fp in request.file_paths:
         path = Path(fp).resolve()
         # Security: guard against path traversal — reject paths outside docs root
-        if not str(path).startswith(str(_docs_root)):
+        try:
+            path.relative_to(_docs_root)
+        except ValueError:
             results.append(
                 IngestResponse(
                     status="error",
@@ -316,3 +318,4 @@ async def converter_status():
         table_extraction=docling_available,
         ocr_available=docling_available,
     )
+

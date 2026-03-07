@@ -487,7 +487,6 @@ async def _message_processing_loop(
 async def websocket_endpoint(
     websocket: WebSocket,
     agent_id: SafeAgentID,
-    token: str | None = None,
 ) -> None:
     """
     Main WebSocket endpoint for real-time chat with an agent.
@@ -497,18 +496,17 @@ async def websocket_endpoint(
     - Uses HybridRouter as single source of truth
     - Normalized payload per WebSocketMessage validation model
 
-    Authentication via query parameter: ws://host/ws/{agent_id}?token=JWT_TOKEN
+    Authentication via HttpOnly cookie or Authorization header.
     """
-    # Verify token before accepting connection - FAIL CLOSED
-    # Prefer Authorization header (avoids leaking tokens via query strings).
-    # Backward-compat: still accept `?token=` for older clients.
-    if token is None:
-        auth_header = websocket.headers.get("authorization")
-        if auth_header and auth_header.lower().startswith("bearer "):
-            token = auth_header.split(" ", 1)[1].strip() or None
-        
-        if not token:
-            token = websocket.cookies.get("access_token")
+    # Verify token before accepting connection - FAIL CLOSED.
+    # Query-string tokens are rejected to avoid leaking credentials via logs/history.
+    auth_header = websocket.headers.get("authorization")
+    token = None
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip() or None
+
+    if not token:
+        token = websocket.cookies.get("access_token")
     try:
         if not token:
             await websocket.close(code=1008, reason="Authentication required")
@@ -638,3 +636,5 @@ async def _validate_input(
         return {"is_valid": False}
 
     return {"is_valid": True}
+
+

@@ -59,7 +59,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                         component_type=self.component_type,
                         status=HealthStatus.UNKNOWN,
                         message="Database connection pool not available",
-                        last_check=datetime.now(datetime.UTC),
+                        last_check=datetime.now(timezone.utc),
                     )
 
                 # Test database connectivity
@@ -80,7 +80,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                     status=HealthStatus.UNHEALTHY,
                     message="Database pool statistics unavailable (empty/null)",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     metadata={"pool_stats": "empty or null"},
                 )
 
@@ -93,7 +93,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                     status=HealthStatus.UNHEALTHY,
                     message="Database pool statistics missing for 'database' pool",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     metadata={"database_pool": "missing"},
                 )
 
@@ -139,7 +139,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                 status=status,
                 message=message,
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 metadata=pool_metadata,
             )
 
@@ -154,7 +154,7 @@ class DatabaseHealthChecker(BaseHealthChecker):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Database connection failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 

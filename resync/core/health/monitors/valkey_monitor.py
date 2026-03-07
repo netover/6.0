@@ -55,7 +55,7 @@ class ValkeyHealthMonitor:
                     component_type=ComponentType.VALKEY,
                     status=HealthStatus.UNKNOWN,
                     message="Valkey URL not configured",
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                 )
 
             # Test actual Valkey connectivity
@@ -88,7 +88,7 @@ class ValkeyHealthMonitor:
                     status=HealthStatus.HEALTHY,
                     message="Valkey connectivity test successful",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     metadata={
                         "valkey_version": valkey_info.get("valkey_version"),
                         "connected_clients": valkey_info.get("connected_clients"),
@@ -101,7 +101,7 @@ class ValkeyHealthMonitor:
 
                 # Cache the result
                 self._cached_result = health
-                self._last_check = datetime.now(datetime.UTC)
+                self._last_check = datetime.now(timezone.utc)
 
                 return health
 
@@ -115,7 +115,7 @@ class ValkeyHealthMonitor:
                     status=HealthStatus.UNHEALTHY,
                     message=f"Valkey connectivity failed: {str(e)}",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     error_count=1,
                 )
             finally:
@@ -148,7 +148,7 @@ class ValkeyHealthMonitor:
                 status=HealthStatus.UNHEALTHY,
                 message=f"Valkey check failed: {secure_message}",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 
@@ -200,7 +200,7 @@ class ValkeyHealthMonitor:
             component_type=ComponentType.VALKEY,
             status=HealthStatus.UNKNOWN,
             message="Valkey health check failed after all retries",
-            last_check=datetime.now(datetime.UTC),
+            last_check=datetime.now(timezone.utc),
         )
 
     def get_cached_health(self) -> ComponentHealth | None:
@@ -212,7 +212,7 @@ class ValkeyHealthMonitor:
         """
         if self._cached_result:
             # Simple cache expiry check (5 minutes)
-            age = datetime.now(datetime.UTC) - self._last_check
+            age = datetime.now(timezone.utc) - self._last_check
             if age.total_seconds() < 300:
                 return self._cached_result
             # Cache expired
@@ -227,3 +227,4 @@ class ValkeyHealthMonitor:
 
 # Backward compat alias
 ValkeyMonitor = ValkeyHealthMonitor
+

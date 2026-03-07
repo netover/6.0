@@ -64,7 +64,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                     component_type=self.component_type,
                     status=HealthStatus.UNKNOWN,
                     message="TWS monitor not configured",
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                 )
 
             # Real connectivity test
@@ -81,7 +81,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                         component_type=self.component_type,
                         status=HealthStatus.UNHEALTHY,
                         message=f"TWS monitor URL blocked: {reason}",
-                        last_check=datetime.now(datetime.UTC),
+                        last_check=datetime.now(timezone.utc),
                     )
             
             try:
@@ -101,7 +101,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                 status=HealthStatus.HEALTHY,
                 message="TWS monitor connectivity test successful",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 metadata={
                     "tws_enabled": tws_config.get("enabled", False),
                     "tws_url": tws_url,
@@ -118,7 +118,7 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
                 status=HealthStatus.UNHEALTHY,
                 message=f"TWS monitor connectivity failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 
@@ -132,3 +132,4 @@ class TWSMonitorHealthChecker(BaseHealthChecker):
             "timeout_seconds": self.config.timeout_seconds,
             "retry_attempts": 1,
         }
+

@@ -182,7 +182,7 @@ class BaseAppException(Exception):
         self.details = details or {}
         self.correlation_id = correlation_id
         self.severity = severity
-        self.timestamp = datetime.now(datetime.UTC)
+        self.timestamp = datetime.now(timezone.utc)
         self.original_exception = original_exception
 
     def to_dict(self) -> dict[str, Any]:

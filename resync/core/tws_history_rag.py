@@ -36,63 +36,63 @@ class TWSHistoryRAG:
     TIME_PATTERNS = {
         # Português
         r"ontem": lambda: (
-            datetime.now(datetime.UTC) - timedelta(days=1),
-            datetime.now(datetime.UTC) - timedelta(days=1),
+            datetime.now(timezone.utc) - timedelta(days=1),
+            datetime.now(timezone.utc) - timedelta(days=1),
         ),
-        r"hoje": lambda: (datetime.now(datetime.UTC), datetime.now(datetime.UTC)),
+        r"hoje": lambda: (datetime.now(timezone.utc), datetime.now(timezone.utc)),
         r"essa semana|esta semana|semana atual": lambda: (
-            datetime.now(datetime.UTC)
-            - timedelta(days=datetime.now(datetime.UTC).weekday()),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc),
         ),
         r"semana passada|última semana": lambda: (
-            datetime.now(datetime.UTC)
-            - timedelta(days=datetime.now(datetime.UTC).weekday() + 7),
-            datetime.now(datetime.UTC)
-            - timedelta(days=datetime.now(datetime.UTC).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
         ),
         r"esse mês|este mês|mês atual": lambda: (
-            datetime.now(datetime.UTC).replace(day=1),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc).replace(day=1),
+            datetime.now(timezone.utc),
         ),
         r"mês passado|último mês": lambda: (
-            (datetime.now(datetime.UTC).replace(day=1) - timedelta(days=1)).replace(
+            (datetime.now(timezone.utc).replace(day=1) - timedelta(days=1)).replace(
                 day=1
             ),
-            datetime.now(datetime.UTC).replace(day=1) - timedelta(days=1),
+            datetime.now(timezone.utc).replace(day=1) - timedelta(days=1),
         ),
         r"últimos? (\d+) dias?": lambda m: (
-            datetime.now(datetime.UTC) - timedelta(days=int(m.group(1))),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc) - timedelta(days=int(m.group(1))),
+            datetime.now(timezone.utc),
         ),
         r"últimas? (\d+) horas?": lambda m: (
-            datetime.now(datetime.UTC) - timedelta(hours=int(m.group(1))),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc) - timedelta(hours=int(m.group(1))),
+            datetime.now(timezone.utc),
         ),
         # English
         r"yesterday": lambda: (
-            datetime.now(datetime.UTC) - timedelta(days=1),
-            datetime.now(datetime.UTC) - timedelta(days=1),
+            datetime.now(timezone.utc) - timedelta(days=1),
+            datetime.now(timezone.utc) - timedelta(days=1),
         ),
-        r"today": lambda: (datetime.now(datetime.UTC), datetime.now(datetime.UTC)),
+        r"today": lambda: (datetime.now(timezone.utc), datetime.now(timezone.utc)),
         r"this week": lambda: (
-            datetime.now(datetime.UTC)
-            - timedelta(days=datetime.now(datetime.UTC).weekday()),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
+            datetime.now(timezone.utc),
         ),
         r"last week": lambda: (
-            datetime.now(datetime.UTC)
-            - timedelta(days=datetime.now(datetime.UTC).weekday() + 7),
-            datetime.now(datetime.UTC)
-            - timedelta(days=datetime.now(datetime.UTC).weekday()),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday() + 7),
+            datetime.now(timezone.utc)
+            - timedelta(days=datetime.now(timezone.utc).weekday()),
         ),
         r"last (\d+) days?": lambda m: (
-            datetime.now(datetime.UTC) - timedelta(days=int(m.group(1))),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc) - timedelta(days=int(m.group(1))),
+            datetime.now(timezone.utc),
         ),
         r"last (\d+) hours?": lambda m: (
-            datetime.now(datetime.UTC) - timedelta(hours=int(m.group(1))),
-            datetime.now(datetime.UTC),
+            datetime.now(timezone.utc) - timedelta(hours=int(m.group(1))),
+            datetime.now(timezone.utc),
         ),
     }
 
@@ -210,7 +210,7 @@ class TWSHistoryRAG:
                     )
 
         # Default: últimas 24 horas
-        end = datetime.now(datetime.UTC)
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=24)
         return start, end
 
@@ -578,7 +578,7 @@ async def search_historical_incidents(
     from datetime import timezone
 
     results = []
-    cutoff_date = datetime.now(datetime.UTC) - timedelta(days=days_back)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
     # Try using the RAG instance
     rag = get_tws_history_rag()
@@ -690,7 +690,7 @@ async def log_incident_resolution(
                 "component": component,
                 "resolution": resolution,
                 "mttr": resolution_time_minutes,
-                "timestamp": datetime.now(datetime.UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -708,3 +708,4 @@ async def log_incident_resolution(
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
         logger.warning("incident_resolution_log_failed", error=str(e))
+

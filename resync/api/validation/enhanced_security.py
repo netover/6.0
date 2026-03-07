@@ -208,7 +208,7 @@ class AsyncSecurityContextManager:
         self.context = context
         self.start_time: float | None = None
 
-    async def __aenter__(self) -> AsyncSecurityContextManager:
+    async def __aenter__(self) -> "AsyncSecurityContextManager":
         """Enter the async context."""
         self.start_time = time.time()
         logger.info("security_context_entered", context=self.context.model_dump())

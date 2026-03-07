@@ -360,7 +360,7 @@ class ProactiveHealthMonitor:
     def _add_to_monitoring_history(self, results: dict[str, Any]) -> None:
         """Add proactive monitoring results to history."""
         self._monitoring_history.append(
-            {"timestamp": datetime.now(datetime.UTC), "results": results.copy()}
+            {"timestamp": datetime.now(timezone.utc), "results": results.copy()}
         )
 
         # Cleanup old entries if needed
@@ -382,7 +382,7 @@ class ProactiveHealthMonitor:
         Returns:
             List of monitoring history entries
         """
-        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         filtered_history = [
             entry
@@ -416,3 +416,4 @@ class ProactiveHealthMonitor:
             "history_size": len(self._monitoring_history),
             "max_history_entries": self._max_history_entries,
         }
+

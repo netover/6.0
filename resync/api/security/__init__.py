@@ -196,6 +196,12 @@ def decode_token(token: str, settings: Any = None) -> dict[str, Any]:
             token,
             secret_key,
             algorithms=[algorithm],
+            audience=(
+                settings.environment.value
+                if hasattr(settings.environment, "value")
+                else str(settings.environment)
+            ),
+            issuer=settings.project_name,
         )
 
         # Validate required claims
@@ -441,3 +447,4 @@ __all__ = [
     "TokenRequestWithValidation",
     "UserCreateWithValidation",
 ]
+

@@ -1,8 +1,15 @@
+from __future__ import annotations
+
 """
 Abstração de armazenamento para o sistema de idempotency.
 """
 
-from valkey.asyncio import Valkey
+from typing import Any
+
+try:
+    from valkey.asyncio import Valkey
+except ImportError:  # pragma: no cover - optional dependency
+    Valkey = Any  # type: ignore[assignment]
 
 from resync.core.idempotency.exceptions import IdempotencyStorageError
 from resync.core.idempotency.models import IdempotencyRecord

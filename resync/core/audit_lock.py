@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Distributed Audit Lock for Resync
 
@@ -12,8 +14,14 @@ from contextlib import asynccontextmanager
 from typing import Any, cast
 
 import structlog
-from valkey.asyncio import Valkey as AsyncValkey
-from valkey.exceptions import ValkeyError
+try:
+    from valkey.asyncio import Valkey as AsyncValkey
+    from valkey.exceptions import ValkeyError
+    VALKEY_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    AsyncValkey = Any  # type: ignore[assignment]
+    ValkeyError = Exception  # type: ignore[assignment]
+    VALKEY_AVAILABLE = False
 
 from resync.core.exceptions import AuditError, DatabaseError
 from resync.settings import settings
@@ -66,6 +74,8 @@ class DistributedAuditLock:
 
     async def connect(self) -> None:
         """Initialize Valkey connection."""
+        if not VALKEY_AVAILABLE:
+            raise RuntimeError("valkey-py not installed")
         if self.client is None:
             self.client = AsyncValkey.from_url(self.valkey_url)
             lua_script = (

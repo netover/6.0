@@ -39,7 +39,7 @@ async def ready() -> dict[str, str]:
     except Exception as e:
         raise HTTPException(
             status_code=503,
-            detail=f"Database readiness failed: {e}"
+            detail="Database readiness failed"
         ) from e
     
     # Valkey readiness: required if APP_VALKEY_URL is set in production
@@ -55,7 +55,7 @@ async def ready() -> dict[str, str]:
         except asyncio.TimeoutError as exc:
             raise HTTPException(status_code=503, detail="Valkey readiness timeout") from exc
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"Valkey connection failed: {e}") from e
+            raise HTTPException(status_code=503, detail="Valkey connection failed") from e
     
     return {"status": "ready", "ts": datetime.now(datetime.UTC).isoformat()}
 
@@ -84,5 +84,5 @@ async def llm_health(deep: bool = False) -> dict[str, str]:
         except asyncio.TimeoutError as exc:
             raise HTTPException(status_code=503, detail="LLM deep health timeout") from exc
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"LLM deep health failed: {e}") from e
+            raise HTTPException(status_code=503, detail="LLM deep health failed") from e
     return {"status": "ok", "ts": datetime.now(datetime.UTC).isoformat()}

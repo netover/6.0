@@ -284,7 +284,7 @@ class HealthCheckConfigurationManager:
         """Add configuration change to history."""
         self._config_history.append(
             {
-                "timestamp": datetime.now(datetime.UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "old_config": old_config,
                 "changes": changes,
             }
@@ -313,7 +313,7 @@ class HealthCheckConfigurationManager:
         config_dict = self.config.model_dump()  # type: ignore[attr-defined]
         return {
             "config": config_dict,
-            "exported_at": datetime.now(datetime.UTC).isoformat(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
             "validation_errors": self.validate_config(),
             "is_valid": len(self.validate_config()) == 0,
         }
@@ -474,3 +474,4 @@ class HealthCheckConfigurationManager:
         return component_configs.get(
             component_name, {"max_retries": 2, "backoff_multiplier": 2}
         )
+

@@ -26,6 +26,7 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from resync.api.dependencies import require_authentication
 from resync.api.dependencies_v2 import get_database
 from resync.core.database.engine import get_db_session
 from resync.core.database.repositories.orchestration_config_repo import (
@@ -43,12 +44,12 @@ router = APIRouter(prefix="/orchestration", tags=["Orchestration"])
 
 
 def _resolve_ws_user_id(websocket: WebSocket) -> str | None:
-    """Resolve authenticated user id from WS token (header/query)."""
-    token = websocket.query_params.get("token")
+    """Resolve authenticated user id from WS token (header/cookie)."""
+    auth_header = websocket.headers.get("authorization", "")
+    token = auth_header[7:] if auth_header.lower().startswith("bearer ") else None
+
     if not token:
-        auth_header = websocket.headers.get("authorization", "")
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:]
+        token = websocket.cookies.get("access_token")
 
     if not token:
         return None
@@ -156,12 +157,12 @@ async def get_config(config_id: UUID, db: AsyncSession = Depends(get_database)):
     return config
 
 # --- Execution Endpoints ---
-
 @router.post("/execute/{config_id}", status_code=status.HTTP_202_ACCEPTED)
 async def execute_workflow(
     config_id: UUID,
     input_data: dict,
     background_tasks: BackgroundTasks,
+    current_user: dict = Depends(require_authentication),
     runner: OrchestrationRunner = Depends(get_runner),
 ):
     """
@@ -169,12 +170,9 @@ async def execute_workflow(
     Returns trace_id immediately.
     """
     try:
-        # FIXME(P0-COMPLIANCE): Extract user_id from JWT token
-        # Current: All executions show as "api_user" (breaks audit trail)
-        # Fix: Add dependency `current_user = Depends(get_current_user)`
-        # Impact: GDPR/SOX compliance violation
+        user_id = str(current_user.get("user_id") or current_user.get("username") or "unknown")
         trace_id = await runner.start_execution(
-            config_id, input_data, user_id="api_user"
+            config_id, input_data, user_id=user_id
         )
         return {"trace_id": trace_id, "status": "accepted"}
     except ValueError as e:
@@ -331,3 +329,5 @@ async def websocket_execute(
                 "websocket_cleanup_skipped_no_subscription",
                 trace_id=trace_id if trace_id else "unknown",
             )
+
+

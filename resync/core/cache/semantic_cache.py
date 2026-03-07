@@ -29,13 +29,30 @@ from typing import Any, Optional
 SearchIndex = None  # type: ignore[assignment]
 VectorQuery = None  # type: ignore[assignment]
 VALKEYVL_AVAILABLE = False
+REDISVL_AVAILABLE = False
 
-import valkey.asyncio as valkey
-from valkey.exceptions import ConnectionError, ValkeyError as ValkeyError, TimeoutError
+try:
+    import valkey.asyncio as valkey
+    from valkey.exceptions import ConnectionError, ValkeyError, TimeoutError
+    VALKEY_AVAILABLE = True
+except ImportError:  # pragma: no cover - depends on optional runtime dependency
+    valkey = None  # type: ignore[assignment]
+
+    class ValkeyError(Exception):
+        """Fallback Valkey error when optional dependency is unavailable."""
+
+    class ConnectionError(ValkeyError):
+        """Fallback Valkey connection error."""
+
+    class TimeoutError(ValkeyError):
+        """Fallback Valkey timeout error."""
+
+    VALKEY_AVAILABLE = False
 
 from resync.models.cache import CacheEntry, CacheResult
 from .embedding_model import (
     cosine_distance,
+    generate_embedding,
 )
 from .valkey_config import (
     ValkeyDatabase,
@@ -51,6 +68,13 @@ from .reranker import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ResyncVectorizer:
+    """Compatibility vectorizer wrapper over local embedding generation."""
+
+    def embed(self, text: str) -> list[float]:
+        return generate_embedding(text)
 
 # Semantic cache schema (exact-match mode)
 SCHEMA: dict[str, Any] = {
@@ -102,7 +126,7 @@ class SemanticCache:
         self.enable_reranking = enable_reranking and is_reranker_available()
 
         # Vector semantic mode disabled; run exact-match cache only.
-        self.vectorizer = None
+        self.vectorizer = ResyncVectorizer()
         self.index = None
 
         self._initialized = False
@@ -117,7 +141,7 @@ class SemanticCache:
             "reranks": 0,
             "rerank_rejections": 0,
         }
-        self._memory_only = not VALKEYVL_AVAILABLE
+        self._memory_only = (not VALKEYVL_AVAILABLE) or (not VALKEY_AVAILABLE)
         self._memory_store: OrderedDict[str, tuple[CacheEntry, float, str | None]] = (
             OrderedDict()
         )
@@ -134,7 +158,7 @@ class SemanticCache:
         if self._initialized:
             return True
 
-        if not VALKEYVL_AVAILABLE:
+        if not VALKEYVL_AVAILABLE or not VALKEY_AVAILABLE:
             self._memory_only = True
             self._valkey_stack_available = False
             self._initialized = True
@@ -219,7 +243,7 @@ class SemanticCache:
             self._valkey_stack_available = bool(stack_info.get("search", False))
         except Exception:
             self._valkey_stack_available = False
-        self._memory_only = not VALKEYVL_AVAILABLE
+        self._memory_only = (not VALKEYVL_AVAILABLE) or (not VALKEY_AVAILABLE)
 
     async def _memory_cleanup_locked(self) -> None:
         now = time.monotonic()

@@ -664,13 +664,11 @@ class ApplicationFactory:
 
         # Register monitoring routers
         try:
-            from resync.api.routes.monitoring.routes import monitoring_router
             from resync.api.routes.monitoring.prometheus_exporter import (
                 router as prometheus_exporter_router,
             )
             from resync.core.monitoring_integration import register_dashboard_route
 
-            self.app.include_router(monitoring_router, tags=["Monitoring"])
             self.app.include_router(
                 prometheus_exporter_router,
                 tags=["Monitoring - Prometheus"],

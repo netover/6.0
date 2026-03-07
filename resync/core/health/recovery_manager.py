@@ -111,7 +111,7 @@ class HealthRecoveryManager:
                 success=success,
                 component_name=component_name,
                 recovery_type=recovery_type,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 message=message,
                 metadata=metadata,
                 recovery_time_ms=recovery_time_ms,
@@ -137,7 +137,7 @@ class HealthRecoveryManager:
                 success=False,
                 component_name=component_name,
                 recovery_type=recovery_type,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 message=error_message,
                 error_details=str(e),
                 recovery_time_ms=recovery_time_ms,
@@ -212,7 +212,7 @@ class HealthRecoveryManager:
                 success=success,
                 component_name=component_name,
                 recovery_type=recovery_type,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 message=message,
                 metadata=metadata,
                 recovery_time_ms=recovery_time_ms,
@@ -238,7 +238,7 @@ class HealthRecoveryManager:
                 success=False,
                 component_name=component_name,
                 recovery_type=recovery_type,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 message=error_message,
                 error_details=str(e),
                 recovery_time_ms=recovery_time_ms,
@@ -311,7 +311,7 @@ class HealthRecoveryManager:
                 success=success,
                 component_name=component_name,
                 recovery_type=recovery_type,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 message=message,
                 metadata=metadata,
                 recovery_time_ms=recovery_time_ms,
@@ -337,7 +337,7 @@ class HealthRecoveryManager:
                 success=False,
                 component_name=component_name,
                 recovery_type=recovery_type,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 message=error_message,
                 error_details=str(e),
                 recovery_time_ms=recovery_time_ms,
@@ -558,7 +558,7 @@ class HealthRecoveryManager:
         Returns:
             List of recovery results matching the criteria
         """
-        cutoff_time = datetime.now(datetime.UTC) - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         # Filter results
         filtered_results = [
@@ -616,3 +616,4 @@ class HealthRecoveryManager:
             "component_stats": component_stats,
             "history_size": len(self.recovery_history),
         }
+

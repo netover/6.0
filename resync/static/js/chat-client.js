@@ -65,28 +65,21 @@ class ChatClient {
     }
 
     getAuthToken() {
-        // Try to get token from localStorage first (set by admin login)
-        let token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-        
-        // If no token, check for admin_logged_in flag which implies cookie auth
-        if (!token && (localStorage.getItem('admin_logged_in') === '1' || sessionStorage.getItem('admin_logged_in') === '1')) {
+        if (localStorage.getItem('admin_logged_in') === '1' || sessionStorage.getItem('admin_logged_in') === '1') {
             console.log('[Chat] Using cookie-based auth (admin_logged_in flag present)');
-            return null; // Rely on cookie
+            return true;
         }
-        
-        return token;
+
+        return false;
     }
 
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         
-        // Try to get token from cookie or sessionStorage
-        const token = this.getAuthToken();
-        const wsUrl = token 
-            ? `${protocol}//${window.location.host}/ws/tws-general?token=${token}`
-            : `${protocol}//${window.location.host}/ws/tws-general`;
+        const hasCookieAuth = this.getAuthToken();
+        const wsUrl = `${protocol}//${window.location.host}/ws/tws-general`;
 
-        console.log('[Chat] WebSocket URL:', wsUrl.replace(token, '***'));
+        console.log('[Chat] WebSocket URL:', wsUrl, { hasCookieAuth });
 
         this.updateStatus('disconnected', 'Connecting...');
 
@@ -326,3 +319,4 @@ class ChatClient {
 document.addEventListener('DOMContentLoaded', () => {
     window.chatClient = new ChatClient();
 });
+

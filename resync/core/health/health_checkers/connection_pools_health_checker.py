@@ -55,7 +55,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                     component_type=self.component_type,
                     status=HealthStatus.UNKNOWN,
                     message="Connection pool manager not available",
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                 )
 
             # Check pool status
@@ -69,7 +69,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                     status=HealthStatus.UNHEALTHY,
                     message="Connection pools statistics unavailable (empty/null)",
                     response_time_ms=response_time,
-                    last_check=datetime.now(datetime.UTC),
+                    last_check=datetime.now(timezone.utc),
                     metadata={"pool_stats": "empty or null"},
                 )
 
@@ -77,6 +77,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
             # Analyze pool health with safe defaults
             total_connections = db_stats.get("size", 10) + db_stats.get("overflow", 0)
             active_connections = db_stats.get("checked_out", 0)
+            connection_usage_percent = 0.0
 
             if total_connections == 0:
                 status = HealthStatus.UNHEALTHY
@@ -86,7 +87,9 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 connection_usage_percent = active_connections / total_connections * 100
 
                 # Use database-specific threshold for database pool
-                threshold_percent = self.config.database_connection_threshold_percent
+                threshold_percent = getattr(
+                    self.config, "database_connection_threshold_percent", 90.0
+                )
 
                 if connection_usage_percent > threshold_percent:
                     status = HealthStatus.DEGRADED
@@ -112,8 +115,8 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 enhanced_metadata["connection_usage_percent"] = round(
                     connection_usage_percent, 1
                 )
-                enhanced_metadata["threshold_percent"] = (
-                    self.config.database_connection_threshold_percent
+                enhanced_metadata["threshold_percent"] = getattr(
+                    self.config, "database_connection_threshold_percent", 90.0
                 )
 
             return ComponentHealth(
@@ -122,7 +125,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 status=status,
                 message=message,
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 metadata=enhanced_metadata,
             )
 
@@ -140,7 +143,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Connection pools check failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 
@@ -153,7 +156,7 @@ class ConnectionPoolsHealthChecker(BaseHealthChecker):
         return {
             "timeout_seconds": self.config.timeout_seconds,
             "retry_attempts": 3,
-            "connection_threshold_percent": (
-                self.config.database_connection_threshold_percent
+            "connection_threshold_percent": getattr(
+                self.config, "database_connection_threshold_percent", 90.0
             ),
         }

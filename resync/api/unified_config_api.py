@@ -72,6 +72,7 @@ limiter = Limiter(key_func=get_remote_address)
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/admin/config-api", tags=["configuration"])
+admin_router = router
 
 # Strict identifier pattern reused across path params and field validators
 _SAFE_ID = re.compile(r"^[a-zA-Z0-9_-]+$")

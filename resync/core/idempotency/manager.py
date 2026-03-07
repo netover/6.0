@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # ruff: noqa: E501
 """
 Gerenciador principal de idempotency refatorado.
@@ -7,7 +9,10 @@ from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
 
-from valkey.asyncio import Valkey
+try:
+    from valkey.asyncio import Valkey
+except ImportError:  # pragma: no cover - optional dependency
+    Valkey = Any  # type: ignore[assignment]
 
 from resync.core.idempotency.config import config
 from resync.core.idempotency.exceptions import (

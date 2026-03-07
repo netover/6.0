@@ -31,7 +31,7 @@ class HealthMonitoringEvent:
         self.event_type = event_type
         self.component_name = component_name
         self.health_status = health_status
-        self.timestamp = timestamp or datetime.now(datetime.UTC)
+        self.timestamp = timestamp or datetime.now(timezone.utc)
         self.metadata = metadata or {}
 
 class HealthMonitorObserver(ABC):
@@ -248,7 +248,7 @@ class AlertingHealthObserver(HealthMonitorObserver):
         # Check if we should send alert (cooldown period)
         last_alert = self._last_alerts.get(component_name)
         if last_alert:
-            time_since_last_alert = datetime.now(datetime.UTC) - last_alert
+            time_since_last_alert = datetime.now(timezone.utc) - last_alert
             if time_since_last_alert.total_seconds() < (
                 self._alert_cooldown_minutes * 60
             ):
@@ -257,7 +257,7 @@ class AlertingHealthObserver(HealthMonitorObserver):
         # Send alert for unhealthy or degraded components
         if new_status in [HealthStatus.UNHEALTHY, HealthStatus.DEGRADED]:
             await self._send_alert(event)
-            self._last_alerts[component_name] = datetime.now(datetime.UTC)
+            self._last_alerts[component_name] = datetime.now(timezone.utc)
 
     async def on_component_check_completed(self, event: HealthMonitoringEvent) -> None:
         """Handle component check completion for alerting."""
@@ -364,3 +364,4 @@ class MetricsHealthObserver(HealthMonitorObserver):
                 self._system_summaries[-1] if self._system_summaries else None
             ),
         }
+

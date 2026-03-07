@@ -103,7 +103,7 @@ class BaseHealthChecker(ABC):
                 status=self._get_status_for_exception(e),
                 message=f"Health check failed: {str(e)}",
                 response_time_ms=response_time,
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 error_count=1,
             )
 
@@ -146,3 +146,4 @@ class BaseHealthChecker(ABC):
             errors.append(f"{self.component_name}: timeout_seconds must be positive")
 
         return errors
+

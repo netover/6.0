@@ -189,7 +189,7 @@ class HealthServiceFacade:
             # Create comprehensive result
             result = HealthCheckResult(
                 overall_status=overall_status,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 correlation_id=correlation_id,
                 components=all_components,
                 summary=summary,
@@ -226,7 +226,7 @@ class HealthServiceFacade:
             # Return error result
             return HealthCheckResult(
                 overall_status=HealthStatus.UNKNOWN,
-                timestamp=datetime.now(datetime.UTC),
+                timestamp=datetime.now(timezone.utc),
                 correlation_id=correlation_id,
                 components={},
                 summary={"error": str(e)},
@@ -417,3 +417,4 @@ class HealthServiceFacade:
 
                 logger.error("health_service_facade_shutdown_failed", error=str(e))
                 raise
+

@@ -73,7 +73,7 @@ class BackupInfo:
     filepath: str
     size_bytes: int = 0
     size_human: str = ""
-    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     duration_seconds: float = 0
     checksum_sha256: str = ""
@@ -111,7 +111,7 @@ class BackupSchedule:
     retention_days: int = 30
     last_run: datetime | None = None
     next_run: datetime | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(datetime.UTC))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -137,7 +137,7 @@ def _human_size(size_bytes: int) -> str:
 
 def _generate_backup_id() -> str:
     """Generate unique backup ID."""
-    timestamp = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     random_suffix = hashlib.sha256(os.urandom(8)).hexdigest()[:6]
     return f"{timestamp}_{random_suffix}"
 
@@ -273,7 +273,7 @@ class BackupService:
             data = {
                 "backups": [b.to_dict() for b in self._backups.values()],
                 "schedules": [s.to_dict() for s in self._schedules.values()],
-                "updated_at": datetime.now(datetime.UTC).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             with open(self._metadata_file, "w") as f:
@@ -313,7 +313,7 @@ class BackupService:
             BackupInfo with backup details
         """
         backup_id = _generate_backup_id()
-        timestamp = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
         # Get database configuration
         db_config = get_database_config()
@@ -333,7 +333,7 @@ class BackupService:
         )
         self._backups[backup_id] = backup
 
-        start_time = datetime.now(datetime.UTC)
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Build pg_dump command
@@ -403,7 +403,7 @@ class BackupService:
             backup.size_human = _human_size(stat.st_size)
             backup.checksum_sha256 = _calculate_sha256(str(filepath))
             backup.status = BackupStatus.COMPLETED
-            backup.completed_at = datetime.now(datetime.UTC)
+            backup.completed_at = datetime.now(timezone.utc)
             backup.duration_seconds = (backup.completed_at - start_time).total_seconds()
 
             logger.info(
@@ -421,7 +421,7 @@ class BackupService:
 
             backup.status = BackupStatus.FAILED
             backup.error = str(e)
-            backup.completed_at = datetime.now(datetime.UTC)
+            backup.completed_at = datetime.now(timezone.utc)
 
             logger.error("database_backup_failed", backup_id=backup_id, error=str(e))
 
@@ -454,7 +454,7 @@ class BackupService:
             BackupInfo with backup details
         """
         backup_id = _generate_backup_id()
-        timestamp = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
         filename = f"resync_config_{timestamp}.zip"
         filepath = self._config_backup_dir / filename
@@ -469,7 +469,7 @@ class BackupService:
         )
         self._backups[backup_id] = backup
 
-        start_time = datetime.now(datetime.UTC)
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Get project root
@@ -502,7 +502,7 @@ class BackupService:
                 # Add manifest
                 manifest = {
                     "backup_id": backup_id,
-                    "created_at": datetime.now(datetime.UTC).isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                     "files": files_added,
                     "description": description,
                 }
@@ -514,7 +514,7 @@ class BackupService:
             backup.size_human = _human_size(stat.st_size)
             backup.checksum_sha256 = _calculate_sha256(str(filepath))
             backup.status = BackupStatus.COMPLETED
-            backup.completed_at = datetime.now(datetime.UTC)
+            backup.completed_at = datetime.now(timezone.utc)
             backup.duration_seconds = (backup.completed_at - start_time).total_seconds()
             backup.metadata["files_count"] = len(files_added)
 
@@ -533,7 +533,7 @@ class BackupService:
 
             backup.status = BackupStatus.FAILED
             backup.error = str(e)
-            backup.completed_at = datetime.now(datetime.UTC)
+            backup.completed_at = datetime.now(timezone.utc)
 
             logger.error("config_backup_failed", backup_id=backup_id, error=str(e))
 
@@ -550,7 +550,7 @@ class BackupService:
         Creates both backups and packages them together.
         """
         backup_id = _generate_backup_id()
-        timestamp = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
         filename = f"resync_full_{timestamp}.zip"
         filepath = self._backup_dir / filename
@@ -565,7 +565,7 @@ class BackupService:
         )
         self._backups[backup_id] = backup
 
-        start_time = datetime.now(datetime.UTC)
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Create individual backups
@@ -588,7 +588,7 @@ class BackupService:
                 manifest = {
                     "backup_id": backup_id,
                     "type": "full",
-                    "created_at": datetime.now(datetime.UTC).isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                     "components": {
                         "database": db_backup.to_dict()
                         if db_backup.status == BackupStatus.COMPLETED
@@ -606,7 +606,7 @@ class BackupService:
             backup.size_human = _human_size(stat.st_size)
             backup.checksum_sha256 = _calculate_sha256(str(filepath))
             backup.status = BackupStatus.COMPLETED
-            backup.completed_at = datetime.now(datetime.UTC)
+            backup.completed_at = datetime.now(timezone.utc)
             backup.duration_seconds = (backup.completed_at - start_time).total_seconds()
             backup.metadata["db_backup_id"] = db_backup.id
             backup.metadata["config_backup_id"] = config_backup.id
@@ -625,7 +625,7 @@ class BackupService:
 
             backup.status = BackupStatus.FAILED
             backup.error = str(e)
-            backup.completed_at = datetime.now(datetime.UTC)
+            backup.completed_at = datetime.now(timezone.utc)
 
             logger.error("full_backup_failed", backup_id=backup_id, error=str(e))
 
@@ -747,7 +747,7 @@ class BackupService:
         Returns:
             Number of backups deleted
         """
-        cutoff = datetime.now(datetime.UTC) - timedelta(days=retention_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
         deleted = 0
 
         for backup_id, backup in list(self._backups.items()):
@@ -858,7 +858,7 @@ class BackupService:
 
             minute, hour, day, month, weekday = parts
 
-            now = datetime.now(datetime.UTC)
+            now = datetime.now(timezone.utc)
             next_run = now.replace(second=0, microsecond=0)
 
             # Set hour and minute
@@ -883,7 +883,7 @@ class BackupService:
             if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
                 raise
             # Default to 2 AM tomorrow
-            tomorrow = datetime.now(datetime.UTC) + timedelta(days=1)
+            tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
             return tomorrow.replace(hour=2, minute=0, second=0, microsecond=0)
 
     def start_scheduler(self, tg: asyncio.TaskGroup | None = None) -> None:
@@ -921,7 +921,7 @@ class BackupService:
         """Background task that checks and runs scheduled backups."""
         while True:
             try:
-                now = datetime.now(datetime.UTC)
+                now = datetime.now(timezone.utc)
 
                 for schedule in self._schedules.values():
                     if not schedule.enabled:
@@ -1025,7 +1025,7 @@ class BackupService:
         from resync.knowledge.retrieval.hybrid_retriever import INDEX_STORAGE_PATH
 
         backup_id = _generate_backup_id()
-        timestamp = datetime.now(datetime.UTC)
+        timestamp = datetime.now(timezone.utc)
 
         try:
             source_path = INDEX_STORAGE_PATH
@@ -1150,3 +1150,4 @@ def get_backup_service() -> BackupService:
     if _backup_service is None:
         _backup_service = BackupService()
     return _backup_service
+

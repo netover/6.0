@@ -74,7 +74,7 @@ class MemoryHealthChecker(BaseHealthChecker):
                 status=status,
                 message=message,
                 response_time_ms=response_time_ms(start_time),
-                last_check=datetime.now(datetime.UTC),
+                last_check=datetime.now(timezone.utc),
                 metadata={
                     "memory_usage_percent": memory_usage_percent,
                     "memory_available_gb": memory.available / (1024**3),
@@ -114,3 +114,4 @@ class MemoryHealthChecker(BaseHealthChecker):
             "warning_percent": 85,
             "critical_percent": 95,
         }
+

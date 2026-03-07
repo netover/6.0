@@ -64,7 +64,7 @@ class TWSClientConfig(BaseSettings):
     retry_max_delay: float = 10.0
 
     @classmethod
-    def from_settings(cls) -> TWSClientConfig:
+    def from_settings(cls) -> "TWSClientConfig":
         from resync.settings import settings
 
         password = getattr(settings, "tws_password", "")

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # pylint
 """CSP violation report validation utilities."""
 
@@ -106,7 +108,7 @@ class CSPReport:
     effective_directive: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> CSPReport | None:
+    def from_dict(cls, data: dict[str, Any]) -> "CSPReport | None":
         """Create CSPReport instance from dictionary data."""
         try:
             # Extract nested csp-report if present
