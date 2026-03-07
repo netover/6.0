@@ -1,4 +1,6 @@
 # pylint
+from __future__ import annotations
+
 """
 Unified Configuration Manager Service
 
@@ -13,6 +15,7 @@ Part of Admin Interface 2.0 - Resync v5.4.2
 """
 
 import builtins
+import asyncio
 import json
 import os
 from collections.abc import Callable
@@ -22,7 +25,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-import aiofiles
 import structlog
 import yaml
 
@@ -268,10 +270,11 @@ class ConfigManager:
         # Load admin config JSON
         if self._admin_config_path.exists():
             try:
-                async with aiofiles.open(self._admin_config_path) as f:
-                    content = await f.read()
-                    data = json.loads(content) if content.strip() else {}
-                    self._flatten_config(data, self._file_config, "")
+                content = await asyncio.to_thread(
+                    self._admin_config_path.read_text, "utf-8"
+                )
+                data = json.loads(content) if content.strip() else {}
+                self._flatten_config(data, self._file_config, "")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -283,11 +286,12 @@ class ConfigManager:
         # Load valkey strategy YAML
         if self._valkey_strategy_path.exists():
             try:
-                async with aiofiles.open(self._valkey_strategy_path) as f:
-                    content = await f.read()
-                    data = yaml.safe_load(content) if content.strip() else None
-                    if data:
-                        self._flatten_config(data, self._file_config, "valkey.")
+                content = await asyncio.to_thread(
+                    self._valkey_strategy_path.read_text, "utf-8"
+                )
+                data = yaml.safe_load(content) if content.strip() else None
+                if data:
+                    self._flatten_config(data, self._file_config, "valkey.")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -299,11 +303,12 @@ class ConfigManager:
         # Load agents config YAML
         if self._agents_config_path.exists():
             try:
-                async with aiofiles.open(self._agents_config_path) as f:
-                    content = await f.read()
-                    data = yaml.safe_load(content) if content.strip() else None
-                    if data:
-                        self._flatten_config(data, self._file_config, "agents.")
+                content = await asyncio.to_thread(
+                    self._agents_config_path.read_text, "utf-8"
+                )
+                data = yaml.safe_load(content) if content.strip() else None
+                if data:
+                    self._flatten_config(data, self._file_config, "agents.")
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -466,9 +471,10 @@ class ConfigManager:
         config = {}
         if self._admin_config_path.exists():
             try:
-                async with aiofiles.open(self._admin_config_path) as f:
-                    content = await f.read()
-                    config = json.loads(content) if content.strip() else {}
+                content = await asyncio.to_thread(
+                    self._admin_config_path.read_text, "utf-8"
+                )
+                config = json.loads(content) if content.strip() else {}
             except (OSError, json.JSONDecodeError) as exc:
                 logger.debug("suppressed_exception", error=str(exc))
 
@@ -483,8 +489,11 @@ class ConfigManager:
 
         # Save
         self._config_dir.mkdir(parents=True, exist_ok=True)
-        async with aiofiles.open(self._admin_config_path, "w") as f:
-            await f.write(json.dumps(config, indent=2, ensure_ascii=False))
+        await asyncio.to_thread(
+            self._admin_config_path.write_text,
+            json.dumps(config, indent=2, ensure_ascii=False),
+            "utf-8",
+        )
 
     def get_all(self) -> dict[str, ConfigValue]:
         """Get all configuration values"""

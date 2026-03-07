@@ -196,7 +196,7 @@ async def health_check() -> HealthCheckResponse:
             valkey_latency_ms=None,
             valkey_stack_available=False,
             embedding_model_status="error",
-            embedding_model_info={"error": str(e)},
+            embedding_model_info={"error": "health_check_failed"},
             timestamp=datetime.now(timezone.utc),
         )
 
@@ -210,7 +210,7 @@ async def update_threshold(request: ThresholdUpdateRequest) -> ThresholdUpdateRe
     try:
         cache = await get_semantic_cache()
         old_threshold = cache.threshold
-        await cache.update_threshold(request.threshold)
+        cache.update_threshold(request.threshold)
         logger.info(
             "Cache threshold updated: %s -> %s", old_threshold, request.threshold
         )

@@ -14,11 +14,8 @@ No Global State:
 """
 
 import asyncio
-import hashlib
-import inspect  # compatibility shim
 import importlib  # [P3-01] Modern Python 3 API for dynamic imports
 import os
-import warnings
 import json
 
 # Optional dependencies (kept optional to avoid startup failures in minimal installs)
@@ -51,24 +48,6 @@ from starlette.responses import (
 )  # [P3-01] FileResponse from starlette.responses
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 from starlette.types import Scope
-
-
-# Suppress known third-party warnings on Python 3.14+ that are outside repository code.
-warnings.filterwarnings(
-    "ignore",
-    message=r".*Core Pydantic V1 functionality isn't compatible with Python 3\.14.*",
-    category=UserWarning,
-)
-warnings.filterwarnings(
-    "ignore",
-    message=r".*asyncio\.iscoroutinefunction.*",
-    category=DeprecationWarning,
-)
-
-
-# Python 3.14 compatibility: avoid deprecated asyncio.iscoroutinefunction path used by slowapi.
-if hasattr(asyncio, "iscoroutinefunction"):
-    asyncio.iscoroutinefunction = inspect.iscoroutinefunction  # type: ignore[assignment]
 
 from resync.core.security.rate_limiter_v2 import RateLimitMiddleware
 from resync.core.structured_logger import configure_structured_logging, get_logger
@@ -130,7 +109,7 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
 
 
 class CachedStaticFiles(StarletteStaticFiles):
-    """Static files handler with ETag and Cache-Control headers.
+    """Static files handler with Cache-Control headers.
 
     [P3-03] Settings resolved once at instantiation time, not per request.
     """
@@ -142,7 +121,6 @@ class CachedStaticFiles(StarletteStaticFiles):
         # All fields are guaranteed to exist with validated defaults from Pydantic.
         settings = _get_settings()
         self._cache_max_age = settings.static_cache_max_age
-        self._etag_hash_length = settings.etag_hash_length
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """Return response with cache-friendly headers."""
@@ -150,26 +128,6 @@ class CachedStaticFiles(StarletteStaticFiles):
 
         if response.status_code == 200:
             response.headers["Cache-Control"] = f"public, max-age={self._cache_max_age}"
-
-            # Generate ETag from file metadata for cache validation
-            try:
-                # Reuse stat_result from FileResponse if available (avoid double I/O)
-                if isinstance(response, FileResponse) and getattr(response, "stat_result", None):
-                    st = response.stat_result
-                    file_metadata = f"{st.st_size}-{int(st.st_mtime)}"
-                else:
-                    # Fallback: file stat not available, use path hash
-                    file_metadata = None
-
-                if file_metadata is not None:
-                    digest = hashlib.sha256(file_metadata.encode()).hexdigest()[
-                        : self._etag_hash_length
-                    ]
-                    response.headers["ETag"] = f'"{digest}"'
-            except OSError as exc:
-                logger.warning("failed_to_generate_etag", error=str(exc))
-                # Don't generate ETag if we can't get file metadata
-                # This prevents serving stale content indefinitely
 
         return response
 
@@ -385,35 +343,9 @@ class ApplicationFactory:
         #   TRUSTED_HOSTS="api.example.com,*.example.com"
         #   PROXY_TRUSTED_HOSTS="10.0.0.0/8,192.168.0.0/16"  (or "*" ONLY in dev)
         try:
-            if self.settings.is_production:
-                trusted_hosts_env = os.getenv("TRUSTED_HOSTS", "").strip()
-                if trusted_hosts_env:
-                    from fastapi.middleware.trustedhost import TrustedHostMiddleware
-
-                    allowed_hosts = [h.strip() for h in trusted_hosts_env.split(",") if h.strip()]
-                    self.app.add_middleware(
-                        TrustedHostMiddleware,
-                        allowed_hosts=allowed_hosts,
-                    )
-
-                proxy_enabled = os.getenv("PROXY_HEADERS", "false").lower() in {
-                    "1",
-                    "true",
-                    "yes",
-                    "on",
-                }
-                if proxy_enabled:
-                    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-
-                    # Comma-separated list of proxy IPs/CIDRs. Defaults to FORWARDED_ALLOW_IPS.
-                    proxy_trusted = os.getenv(
-                        "PROXY_TRUSTED_HOSTS",
-                        os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1"),
-                    )
-                    self.app.add_middleware(
-                        ProxyHeadersMiddleware,
-                        trusted_hosts=proxy_trusted,
-                    )
+            trusted_hosts = self.settings.trusted_hosts
+            proxy_enabled = self.settings.proxy_headers_enabled
+            proxy_trusted = ",".join(self.settings.proxy_trusted_hosts)
         except (
             OSError,
             ValueError,
@@ -520,6 +452,44 @@ class ApplicationFactory:
 
         self.app.add_middleware(CorrelationIdMiddleware, header_name="X-Correlation-ID")
 
+        # 6) Reverse-proxy hardening MUST wrap rate limiting/CORS to restore real client IP first.
+        try:
+            if self.settings.is_production and trusted_hosts:
+                from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+                self.app.add_middleware(
+                    TrustedHostMiddleware,
+                    allowed_hosts=trusted_hosts,
+                )
+
+            if self.settings.is_production and proxy_enabled:
+                from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+                self.app.add_middleware(
+                    ProxyHeadersMiddleware,
+                    trusted_hosts=proxy_trusted,
+                )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            TimeoutError,
+            ConnectionError,
+        ) as e:
+            import sys as _sys
+            from resync.core.exception_guard import maybe_reraise_programming_error
+
+            _exc_type, _exc, _tb = _sys.exc_info()
+            maybe_reraise_programming_error(_exc, _tb)
+
+            if self.settings.is_production:
+                logger.critical("proxy_middleware_setup_failed_prod", error=str(e))
+                raise
+            logger.warning("proxy_middleware_setup_failed", error=str(e))
+
         logger.info("middleware_configured")
 
     def _configure_exception_handlers(self) -> None:
@@ -572,6 +542,17 @@ class ApplicationFactory:
                 router = getattr(mod, router_name)
                 self.app.include_router(router)
             except ImportError as e:
+                if (
+                    module_path == "resync.api.unified_config_api"
+                    and not self.settings.is_production
+                ):
+                    logger.warning(
+                        "essential_router_skipped_nonprod",
+                        module=module_path,
+                        router=router_name,
+                        error=str(e),
+                    )
+                    continue
                 logger.critical(
                     "essential_router_import_failed",
                     module=module_path,

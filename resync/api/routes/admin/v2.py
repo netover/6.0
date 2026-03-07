@@ -233,7 +233,7 @@ async def get_realtime_health():
             ServiceHealth(
                 name="valkey",
                 status=HealthStatus.UNKNOWN,
-                message=str(e),
+                message="health_check_failed",
                 last_check=datetime.now(timezone.utc),
             )
         )
@@ -272,7 +272,7 @@ async def get_realtime_health():
             ServiceHealth(
                 name="database",
                 status=HealthStatus.UNKNOWN,
-                message=str(e),
+                message="health_check_failed",
                 last_check=datetime.now(timezone.utc),
             )
         )
@@ -309,7 +309,7 @@ async def get_realtime_health():
             ServiceHealth(
                 name="tws",
                 status=HealthStatus.UNKNOWN,
-                message=str(e),
+                message="health_check_failed",
                 last_check=datetime.now(timezone.utc),
             )
         )
@@ -350,7 +350,7 @@ async def get_realtime_health():
             ServiceHealth(
                 name="llm",
                 status=HealthStatus.UNKNOWN,
-                message=str(e),
+                message="health_check_failed",
                 last_check=datetime.now(timezone.utc),
             )
         )
@@ -412,7 +412,10 @@ async def get_resilience_status():
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.warning("Failed to get valkey strategy", extra={"error": str(e)})
-        response["valkey_strategy"] = {"enabled": False, "error": str(e)}
+        response["valkey_strategy"] = {
+            "enabled": False,
+            "error": "valkey_strategy_unavailable",
+        }
     return response
 
 @router.get("/resilience/breakers", response_model=CircuitBreakerListResponse)
@@ -820,7 +823,7 @@ async def check_restart_required():
 
         if isinstance(e, (TypeError, KeyError, AttributeError, IndexError)):
             raise
-        return {"restart_required": False, "error": str(e)}
+        return {"restart_required": False, "error": "restart_status_unavailable"}
 
 @router.get("/logs/stream")
 async def stream_logs(file: str = "app.log", lines: int = 100):
@@ -829,8 +832,15 @@ async def stream_logs(file: str = "app.log", lines: int = 100):
 
     Provides real-time log updates similar to `tail -f`
     """
-    logs_dir = Path(__file__).parent.parent.parent.parent.parent / "logs"
-    log_path = logs_dir / file
+    logs_dir = (Path(__file__).parent.parent.parent.parent.parent / "logs").resolve()
+    try:
+        log_path = (logs_dir / file).resolve()
+        log_path.relative_to(logs_dir)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid log file path",
+        ) from None
     if not log_path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found"
@@ -859,7 +869,7 @@ async def stream_logs(file: str = "app.log", lines: int = 100):
             _exc_type, _exc, _tb = _sys.exc_info()
             maybe_reraise_programming_error(_exc, _tb)
 
-            yield f"data: Error: {e}\n\n"
+            yield "data: Error: log stream failed\n\n"
 
     return StreamingResponse(
         log_generator(),

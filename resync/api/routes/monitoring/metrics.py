@@ -8,6 +8,7 @@ Provides:
 - System health metrics
 """
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -212,10 +213,12 @@ async def get_dashboard_data(
         )
 
         # System metrics
-        process = psutil.Process()
+        process = await asyncio.to_thread(psutil.Process)
+        memory_info = await asyncio.to_thread(process.memory_info)
+        cpu_percent = await asyncio.to_thread(process.cpu_percent, 0.1)
         system = {
-            "memory_mb": round(process.memory_info().rss / 1024 / 1024, 1),
-            "cpu_percent": process.cpu_percent(interval=0.1),
+            "memory_mb": round(memory_info.rss / 1024 / 1024, 1),
+            "cpu_percent": cpu_percent,
             "db_records": summary.get("storage", {}).get("raw_records", 0)
             + summary.get("storage", {}).get("aggregated_records", 0),
         }
@@ -428,7 +431,7 @@ async def metrics_health():
             raise
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "metrics_health_check_failed",
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 

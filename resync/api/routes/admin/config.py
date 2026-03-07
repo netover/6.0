@@ -22,6 +22,7 @@ main application (see ``main.py``).
 """
 
 import datetime
+import asyncio
 import json
 import logging
 from datetime import timezone
@@ -320,11 +321,14 @@ async def get_logs(file: str = "app.log", lines: int = 100) -> dict[str, Any]:
             status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found"
         )
     try:
-        with log_path.open("r", encoding="utf-8", errors="ignore") as f:
-            from collections import deque
+        def _read_log_tail() -> str:
+            with log_path.open("r", encoding="utf-8", errors="ignore") as f:
+                from collections import deque
 
-            dq = deque(f, maxlen=lines)
-            content = "".join(dq)
+                dq = deque(f, maxlen=lines)
+                return "".join(dq)
+
+        content = await asyncio.to_thread(_read_log_tail)
         return {"file": file, "content": content}
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as exc:
         import sys as _sys
@@ -451,7 +455,7 @@ async def get_audit_logs(limit: int = 50) -> dict[str, Any]:
         maybe_reraise_programming_error(_exc, _tb)
 
         logger.error("audit_query_failed", exc_info=True, extra={"error": str(exc)})
-        return {"records": [], "error": str(exc)}
+        return {"records": [], "error": "audit_query_failed"}
 
 @router.get("/health", tags=["Admin"])
 async def get_health() -> dict[str, Any]:

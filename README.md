@@ -177,7 +177,7 @@ Para execução **direta na VM** (sem Nginx) recomendamos **Gunicorn + UvicornWo
 
 ```bash
 gunicorn resync.main:app \
-  -k uvicorn.workers.UvicornWorker \
+  -k uvicorn_worker.UvicornWorker \
   -w 2 \
   --bind 0.0.0.0:8000 \
   --graceful-timeout 30 \

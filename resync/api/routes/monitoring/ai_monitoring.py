@@ -14,6 +14,7 @@ Version: 5.2.3.29
 """
 
 import contextlib
+import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,12 +23,18 @@ from typing import Any
 import structlog
 from resync.core.io_utils import read_text, write_text
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+
+from resync.api.routes.core.auth import verify_admin_credentials
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/ai", tags=["Admin - AI Configuration"])
+router = APIRouter(
+    prefix="/ai",
+    tags=["Admin - AI Configuration"],
+    dependencies=[Depends(verify_admin_credentials)],
+)
 
 # ============================================================================
 # CONFIGURATION FILE PATH
@@ -330,6 +337,18 @@ def _save_config(config: dict[str, Any], updated_by: str = "admin") -> None:
 
     logger.info("config_saved", path=str(CONFIG_PATH), updated_by=updated_by)
 
+
+async def _load_config_async() -> dict[str, Any]:
+    """Load configuration without blocking the event loop."""
+    return await asyncio.to_thread(_load_config)
+
+
+async def _save_config_async(
+    config: dict[str, Any], updated_by: str = "admin"
+) -> None:
+    """Persist configuration without blocking the event loop."""
+    await asyncio.to_thread(_save_config, config, updated_by)
+
 def _deep_merge(base: dict, override: dict) -> dict:
     """Deep merge two dictionaries."""
     result = base.copy()
@@ -363,7 +382,7 @@ def _get_monitoring_service():
 )
 async def get_ai_config() -> dict[str, Any]:
     """Get current AI configuration."""
-    return _load_config()
+    return await _load_config_async()
 
 @router.put(
     "/config",
@@ -378,12 +397,12 @@ async def update_ai_config(
     """Update AI configuration."""
     try:
         config_dict = config.model_dump()
-        _save_config(config_dict)
+        await _save_config_async(config_dict)
 
         # Reload services in background
         background_tasks.add_task(_reload_services, config_dict)
 
-        return _load_config()
+        return await _load_config_async()
 
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
         import sys as _sys
@@ -410,9 +429,9 @@ async def update_specialists_config(
     specialists: SpecialistsConfig,
 ) -> dict[str, Any]:
     """Update specialists configuration."""
-    config = _load_config()
+    config = await _load_config_async()
     config["specialists"] = specialists.model_dump()
-    _save_config(config)
+    await _save_config_async(config)
     return config["specialists"]
 
 @router.patch(
@@ -426,9 +445,9 @@ async def update_monitoring_config(
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Update monitoring configuration."""
-    config = _load_config()
+    config = await _load_config_async()
     config["monitoring"] = monitoring.model_dump()
-    _save_config(config)
+    await _save_config_async(config)
 
     # Restart monitoring service with new config
     background_tasks.add_task(_restart_monitoring, config["monitoring"])
@@ -446,7 +465,7 @@ async def update_monitoring_config(
 )
 async def get_specialists_status() -> dict[str, Any]:
     """Get status of specialist agents."""
-    config = _load_config()
+    config = await _load_config_async()
     specialists_config = config.get("specialists", {})
 
     specialists = [
@@ -500,13 +519,13 @@ async def toggle_specialist(
             detail=f"Invalid specialist type. Must be one of: {valid_types}",
         )
 
-    config = _load_config()
+    config = await _load_config_async()
     if specialist_type in config["specialists"]:
         config["specialists"][specialist_type]["enabled"] = enabled
     else:
         config["specialists"][specialist_type] = {"enabled": enabled}
 
-    _save_config(config)
+    await _save_config_async(config)
 
     return {
         "specialist": specialist_type,
@@ -535,7 +554,7 @@ async def get_monitoring_status() -> dict[str, Any]:
         return service.get_status()
 
     # Return default status if service not initialized
-    config = _load_config()
+    config = await _load_config_async()
     return {
         "enabled": config.get("monitoring", {}).get("enabled", False),
         "running": False,
@@ -558,9 +577,9 @@ async def toggle_monitoring(
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Toggle monitoring service on/off."""
-    config = _load_config()
+    config = await _load_config_async()
     config["monitoring"]["enabled"] = enabled
-    _save_config(config)
+    await _save_config_async(config)
 
     # Start/stop service
     background_tasks.add_task(_toggle_monitoring_service, enabled)
@@ -651,7 +670,7 @@ async def list_monitoring_reports(
     limit: int = 10,
 ) -> dict[str, Any]:
     """List available monitoring reports."""
-    config = _load_config()
+    config = await _load_config_async()
     reports_path = Path(
         config.get("monitoring", {}).get("reports_path", "data/evidently_reports")
     )
@@ -786,7 +805,7 @@ async def _toggle_monitoring_service(enabled: bool) -> None:
         service = get_monitoring_service()
 
         if enabled and not service:
-            config = _load_config()
+            config = await _load_config_async()
             from resync.core.monitoring import MonitoringConfig
 
             monitoring_config = MonitoringConfig(**config.get("monitoring", {}))

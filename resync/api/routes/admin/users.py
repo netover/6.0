@@ -100,7 +100,11 @@ async def create_user(user: AdminUserCreate) -> AdminUserResponse:
         )
         return _to_admin_response(created)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.warning("admin_user_create_invalid", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid user data",
+        ) from exc
 
 
 @router.get("/users/{user_id}", response_model=AdminUserResponse, tags=["Admin Users"])

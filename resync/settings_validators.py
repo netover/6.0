@@ -164,19 +164,10 @@ class SettingsValidators:
                 f"Path: {resolved_path}. Error: {e}"
             ) from e
         
-        # [P0-09 FIX] Check read permission atomically
-        try:
-            # Attempt to list directory (requires read + execute)
-            list(resolved_path.iterdir())
-        except PermissionError as e:
+        if not os.access(resolved_path, os.R_OK | os.X_OK):
             raise ValueError(
                 f"PERMISSION DENIED: base_dir (BASE_DIR) is not readable: {resolved_path}"
-            ) from e
-        except OSError as e:
-            # Other OS errors (unmounted, network issues, etc.)
-            raise ValueError(
-                f"OS ERROR: Cannot access base_dir (BASE_DIR): {resolved_path}. Error: {e}"
-            ) from e
+            )
         
         return resolved_path
 
@@ -494,25 +485,17 @@ class SettingsValidators:
                 stacklevel=2,
             )
 
-        # [P0-09 FIX] Atomic directory creation + permission check
-        # Prevents TOCTOU by doing one operation instead of check-then-act
         try:
-            # Ensure directory exists (atomic operation)
             v.mkdir(parents=True, exist_ok=True)
-            
-            # Verify write permission by attempting to create a temp file
-            test_file = v / ".write_test_temp"
-            try:
-                test_file.touch(exist_ok=True)
-                test_file.unlink()  # Clean up
-            except OSError as e:
-                raise ValueError(
-                    f"PERMISSION DENIED: upload_dir (UPLOAD_DIR) is not writable: {v}"
-                ) from e
         except OSError as e:
             raise ValueError(
                 f"PERMISSION DENIED: Cannot create/access upload_dir (UPLOAD_DIR): {v}. Error: {e}"
             ) from e
+
+        if not os.access(v, os.W_OK | os.X_OK):
+            raise ValueError(
+                f"PERMISSION DENIED: upload_dir (UPLOAD_DIR) is not writable: {v}"
+            )
 
         return v
 
@@ -527,6 +510,17 @@ class SettingsValidators:
                 return []
             if raw == "*":
                 return ["*"]
+            return [part.strip() for part in raw.split(",") if part.strip()]
+        return v
+
+    @field_validator("trusted_hosts", "proxy_trusted_hosts", mode="before")
+    @classmethod
+    def parse_csv_lists(cls, v: Any) -> list[str] | Any:
+        """Accept comma-separated env strings for host/IP allowlists."""
+        if isinstance(v, str):
+            raw = v.strip()
+            if not raw:
+                return []
             return [part.strip() for part in raw.split(",") if part.strip()]
         return v
 

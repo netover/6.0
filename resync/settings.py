@@ -930,6 +930,25 @@ class Settings(BaseSettings, SettingsValidators):
     cors_allow_credentials: bool = Field(default=False)
     cors_allow_methods: list[str] = Field(default=["*"])
     cors_allow_headers: list[str] = Field(default=["*"])
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default=[],
+        validation_alias=AliasChoices("APP_TRUSTED_HOSTS", "TRUSTED_HOSTS"),
+        description="Trusted Host header allowlist (comma-separated)",
+    )
+    proxy_headers_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("APP_PROXY_HEADERS", "PROXY_HEADERS"),
+        description="Enable ProxyHeadersMiddleware behind trusted reverse proxies",
+    )
+    proxy_trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default=["127.0.0.1"],
+        validation_alias=AliasChoices(
+            "APP_PROXY_TRUSTED_HOSTS",
+            "PROXY_TRUSTED_HOSTS",
+            "FORWARDED_ALLOW_IPS",
+        ),
+        description="Trusted proxy IPs/CIDRs (comma-separated)",
+    )
 
     # Static Files
     static_cache_max_age: int = Field(default=3600, ge=0)
@@ -1110,11 +1129,11 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # File Ingestion Settings
     knowledge_base_dirs: list[Path] = Field(
-        default_factory=lambda: [Path.cwd() / "resync/RAG"],
+        default_factory=lambda: [Path(__file__).resolve().parent / "RAG"],
         description="Directories included in the knowledge base",
     )
     protected_directories: list[Path] = Field(
-        default_factory=lambda: [Path.cwd() / "resync/RAG/BASE"],
+        default_factory=lambda: [Path(__file__).resolve().parent / "RAG" / "BASE"],
         description="Protected directories that should not be modified",
     )
 
