@@ -41,6 +41,7 @@ from resync.api.routes.core.ip_utils import (
 )
 from resync.core.async_utils import classify_exception, with_timeout
 from resync.core.exception_guard import maybe_reraise_programming_error
+from resync.core.security_main import InputSanitizer
 from resync.core.jwt_utils import unwrap_secret
 from resync.core.security.rate_limiter_v2 import rate_limit_auth
 from resync.core.structured_logger import get_logger
@@ -113,6 +114,14 @@ def _get_configured_secret_key() -> str | None:
     if key is None:
         return None
     return unwrap_secret(key)
+
+
+def _safe_log_username(username: str) -> str:
+    """Return a sanitized, non-identifying username representation for logs."""
+    clean = InputSanitizer.sanitize_string(username, max_length=32, strip_dangerous=True)
+    clean = clean.replace("\r", "").replace("\n", "").replace("\t", " ").strip()
+    prefix = clean[:3] if clean else "unk"
+    return f"{prefix}***"
 
 def get_jwt_secret_key() -> str:
     """Resolve JWT secret key.
@@ -515,43 +524,7 @@ async def verify_admin_credentials(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Decode & validate JWT - specific exception handling (TASK-006)
-        try:
-            # Import JWT exceptions for specific handling
-            from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
-
-            payload = jwt_security.decode_access_token(token)
-
-        except ExpiredSignatureError:
-            # Log without token
-            logger.info(
-                "token_expired",
-                extra={
-                    "has_token": has_token,
-                    "ip": request.client.host if request.client else "unknown",
-                },
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from None
-
-        except InvalidTokenError as e:
-            # Log error type only (no token in message)
-            logger.warning(
-                "token_invalid",
-                extra={
-                    "error_type": type(e).__name__,
-                    "has_token": has_token,
-                    "ip": request.client.host if request.client else "unknown",
-                },
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from e
+        payload = await jwt_security.verify_token_async(token)
 
         if not payload:
             raise HTTPException(
@@ -681,7 +654,7 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
     if not is_valid:
         logger.warning(
             "login_failed",
-            extra={"ip": client_ip, "username": login_data.username[:3] + "***"},
+            extra={"ip": client_ip, "username": _safe_log_username(login_data.username)},
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -696,7 +669,8 @@ async def login(request: Request, login_data: LoginRequest) -> Response:
     )
 
     logger.info(
-        "login_successful", extra={"ip": client_ip, "username": login_data.username}
+        "login_successful",
+        extra={"ip": client_ip, "username": _safe_log_username(login_data.username)},
     )
 
     # Return JSON response with SameSite cookie (CSRF protection - TASK-005)

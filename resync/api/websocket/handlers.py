@@ -381,10 +381,13 @@ async def websocket_handler(websocket: WebSocket, agent_id: str):
 
                     # Generate AI response
                     try:
-                        ai_response = await _generate_llm_response(
-                            agent_id,
-                            content,
-                            conversation_id=conversation_id,
+                        ai_response = await asyncio.wait_for(
+                            _generate_llm_response(
+                                agent_id,
+                                content,
+                                conversation_id=conversation_id,
+                            ),
+                            timeout=float(os.getenv("WS_LLM_TIMEOUT_SECONDS", "30")),
                         )
                     except Exception:
                         # Ensure clients waiting for streaming get a terminal event.

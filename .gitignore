@@ -63,4 +63,7 @@ MYPY_REMEDIATION_PLAN.md
 *.key
 *.crt
 *.p12
+dump.rdb
+*.rdb
+appendonly.aof
 data/audit_logs/.master_key

@@ -39,6 +39,7 @@ class Base(DeclarativeBase):
 _engine = None
 _session_factory = None
 _engine_lock = threading.Lock()  # Sync lock guards one-time lazy init only
+_session_factory_lock = threading.Lock()
 
 # v5.9.4: Contador de sessões ativas para graceful shutdown
 _active_sessions = 0
@@ -140,14 +141,16 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     global _session_factory
 
     if _session_factory is None:
-        engine = get_engine()
-        _session_factory = async_sessionmaker(
-            engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-            autocommit=False,
-            autoflush=False,
-        )
+        with _session_factory_lock:
+            if _session_factory is None:
+                engine = get_engine()
+                _session_factory = async_sessionmaker(
+                    engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False,
+                    autocommit=False,
+                    autoflush=False,
+                )
 
     return _session_factory
 

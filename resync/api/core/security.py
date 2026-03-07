@@ -1,14 +1,15 @@
-from datetime import datetime, timedelta, timezone
-from typing import Any, cast
 import bcrypt
+import asyncio
 import logging
 import uuid
-import asyncio
+from datetime import datetime, timedelta, timezone
+from typing import Any, cast
+
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import ValidationError
 
-from resync.core.jwt_utils import JWTError, create_token, decode_token
+from resync.core.exception_guard import maybe_reraise_programming_error
+from resync.core.jwt_utils import JWTError, create_token, decode_token, unwrap_secret
 from resync.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -74,26 +75,6 @@ def create_access_token(subject: Any, expires_delta: timedelta | None = None) ->
         "iat": int(now.timestamp()),
         "jti": uuid.uuid4().hex,
         "iss": settings.project_name,
-        "aud": settings.environment.value,
-    }
-from resync.core.jwt_utils import create_token, decode_token, unwrap_secret
-
-def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
-    """Generate a JWT access token with iss/aud claims."""
-    settings = get_settings()
-    now = datetime.now(timezone.utc)
-
-    if expires_delta:
-        expire = now + expires_delta
-    else:
-        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
-
-    payload: dict[str, Any] = {
-        "sub": str(subject),
-        "exp": int(expire.timestamp()),
-        "iat": int(now.timestamp()),
-        "jti": uuid.uuid4().hex,
-        "iss": settings.project_name,
         "aud": settings.environment.value if hasattr(settings.environment, "value") else str(settings.environment),
     }
 
@@ -126,8 +107,12 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
             },
         )
         return payload
-    except Exception:
+    except JWTError:
         return None
+    except (OSError, ValueError, TypeError, RuntimeError, ConnectionError) as exc:
+        maybe_reraise_programming_error(exc, exc.__traceback__)
+        logger.error("decode_access_token_failed", exc_info=exc)
+        raise
 
 
 verify_token = decode_access_token
