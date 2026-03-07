@@ -1353,8 +1353,9 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # GRAPHRAG
     # ============================================================================
-    GRAPHRAG_ENABLED: bool = Field(
+    graphrag_enabled: bool = Field(
         default=False,
+        validation_alias=AliasChoices("APP_GRAPHRAG_ENABLED", "GRAPHRAG_ENABLED"),
         description="Habilitar inicialização do GraphRAG (subgraph retrieval + auto-discovery)",
     )
 
@@ -1366,9 +1367,13 @@ class Settings(BaseSettings, SettingsValidators):
         default=3.0,
         description="Timeout in seconds for TCP reachability checks (TWS, etc.)",
     )
-    STARTUP_LLM_HEALTH_TIMEOUT: float = Field(
+    startup_llm_health_timeout: float = Field(
         gt=0,
         default=5.0,
+        validation_alias=AliasChoices(
+            "APP_STARTUP_LLM_HEALTH_TIMEOUT",
+            "STARTUP_LLM_HEALTH_TIMEOUT",
+        ),
         description="Timeout in seconds for LLM service health check HTTP request",
     )
     STARTUP_VALKEY_HEALTH_RETRIES: int = Field(
@@ -1397,9 +1402,13 @@ class Settings(BaseSettings, SettingsValidators):
     # ============================================================================
     # APP FACTORY & LIFESPAN
     # ============================================================================
-    SHUTDOWN_TASK_CANCEL_TIMEOUT: float = Field(
+    shutdown_task_cancel_timeout: float = Field(
         gt=0,
         default=5.0,
+        validation_alias=AliasChoices(
+            "APP_SHUTDOWN_TASK_CANCEL_TIMEOUT",
+            "SHUTDOWN_TASK_CANCEL_TIMEOUT",
+        ),
         description="Timeout in seconds for cancelling background tasks during shutdown",
     )
     etag_hash_length: int = Field(
@@ -1416,6 +1425,21 @@ class Settings(BaseSettings, SettingsValidators):
         default=32,
         description="Minimum length for SECRET_KEY in production",
     )
+
+    @property
+    def GRAPHRAG_ENABLED(self) -> bool:
+        """Legacy uppercase compatibility accessor."""
+        return self.graphrag_enabled
+
+    @property
+    def STARTUP_LLM_HEALTH_TIMEOUT(self) -> float:
+        """Legacy uppercase compatibility accessor."""
+        return self.startup_llm_health_timeout
+
+    @property
+    def SHUTDOWN_TASK_CANCEL_TIMEOUT(self) -> float:
+        """Legacy uppercase compatibility accessor."""
+        return self.shutdown_task_cancel_timeout
 
     smtp_enabled: bool = Field(
         default=False,

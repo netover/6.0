@@ -229,12 +229,7 @@ async def _check_llm(
 ) -> StartupCheck:
     start = time.monotonic()
     endpoint = getattr(settings, "llm_endpoint", None)
-    timeout = float(
-        os.getenv(
-            "STARTUP_LLM_HEALTH_TIMEOUT",
-            str(getattr(settings, "startup_llm_health_timeout", 5.0)),
-        )
-    )
+    timeout = float(settings.startup_llm_health_timeout)
 
     if not endpoint:
         status: Status = "fail" if critical else "skipped"
@@ -721,11 +716,11 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
             set_startup_time()
 
             from resync.core.bg_tasks import ManagedTaskGroup
-            async with asyncio.TaskGroup() as _tg:
-                bg_tasks = ManagedTaskGroup(_tg)
-                # FIX (Bug #10): assign before any optional service accesses it.
-                app.state.bg_tasks = bg_tasks
+            bg_tasks = ManagedTaskGroup()
+            # FIX (Bug #10): assign before any optional service accesses it.
+            app.state.bg_tasks = bg_tasks
 
+            async with bg_tasks:
                 await get_tws_monitor(st.tws_client, tg=bg_tasks)
                 setup_dependencies(st.tws_client, st.agent_manager, st.knowledge_graph)
 
@@ -813,9 +808,7 @@ async def lifespan(app: "FastAPI") -> AsyncIterator[None]:
                         )
                 finally:
                     # Ensure background tasks are cancelled on shutdown.
-                    shutdown_timeout = float(
-                        getattr(settings, "graceful_shutdown_timeout_seconds", 10.0)
-                    )
+                    shutdown_timeout = float(settings.shutdown_task_cancel_timeout)
                     try:
                         async with asyncio.timeout(shutdown_timeout):
                             await bg_tasks.cancel_all()
@@ -914,9 +907,7 @@ async def _init_graphrag(app: "FastAPI") -> None:
             async with asyncio.timeout(15):
                 await app.state.singletons_ready_event.wait()
                 settings = get_settings()
-                # FIX-07: snake_case consistent with rest of Settings access.
-                graphrag_enabled = getattr(settings, "graphrag_enabled", False)
-                if not graphrag_enabled:
+                if not settings.graphrag_enabled:
                     return
                 from resync.core.graphrag_integration import initialize_graphrag
                 from resync.core.valkey_init import get_valkey_client, is_valkey_available

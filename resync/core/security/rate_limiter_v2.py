@@ -107,8 +107,7 @@ class SlidingWindowLimiter:
 
     async def _cleanup_loop(self) -> None:
         """Evict stale limiter keys to avoid unbounded memory growth."""
-        from resync.core.loop_utils import run_resilient_loop
-        async def _step():
+        while True:
             await asyncio.sleep(self._cleanup_interval_seconds)
             now = time.monotonic()
             stale_cutoff = now - float(self._stale_after_seconds)
