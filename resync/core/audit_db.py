@@ -11,7 +11,6 @@ from datetime import datetime
 
 from resync.core.database.models import AuditEntry
 from resync.core.database.repositories import AuditEntryRepository
-from resync.core.task_tracker import track_task
 from resync.core.utils.async_bridge import run_sync
 
 logger = logging.getLogger(__name__)
@@ -211,11 +210,9 @@ def get_db_connection() -> None:
 def add_audit_records_batch(records: list) -> int:
     """Add multiple audit records in batch (synchronous wrapper).
 
-    This helper detects whether an event loop is already running in the
-    current thread. If so, it schedules the asynchronous insertion via
-    ``asyncio.create_task`` and returns immediately with the expected count.
-    Otherwise it runs the asynchronous insertion to completion using
-    ``asyncio.run``.
+    This helper is intentionally sync-only. If called from async code, it
+    raises to prevent "fire-and-forget" audit writes that would weaken
+    durability guarantees for compliance data.
 
     Args:
         records: List of record dictionaries with action and optional metadata.
@@ -241,8 +238,10 @@ def add_audit_records_batch(records: list) -> int:
         asyncio.get_running_loop()
     except RuntimeError:
         return run_sync(_batch_insert_async(records))
-    track_task(_batch_insert_async(records), name="batch_insert_async")
-    return len(records)
+    raise RuntimeError(
+        "add_audit_records_batch() called from async context. "
+        "Use await add_audit_records_batch_async() to guarantee durability."
+    )
 
 async def add_audit_records_batch_async(records: list) -> int:
     """Asynchronously insert multiple audit records.

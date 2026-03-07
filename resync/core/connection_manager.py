@@ -134,7 +134,7 @@ class ConnectionManager:
                 )
             else:
                 logger.error("Runtime error sending to client %s: %s", client_id, e)
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, TimeoutError, ConnectionError) as e:
             import sys as _sys
             from resync.core.exception_guard import maybe_reraise_programming_error
             _exc_type, _exc, _tb = _sys.exc_info()
@@ -162,24 +162,23 @@ class ConnectionManager:
             if not self.active_connections:
                 logger.info("Broadcast requested, but no active connections.")
                 return
-            # Create a copy of the connections to iterate safely
-            connections = list(self.active_connections.values())
+            # Snapshot ids + sockets to allow targeted cleanup on send failure.
+            connections = list(self.active_connections.items())
 
         logger.info("broadcasting_message client_count=%d", len(connections))
-        # HARDENING [P0]: asyncio.TaskGroup previne HoL blocking
-        # e garante concorrência estruturada.
-        # Um cliente lento ou com erro de rede não atrasa o envio para os demais.
-        try:
-            async with asyncio.TaskGroup() as tg:
-                for idx, connection in enumerate(connections):
-                    tg.create_task(
-                        connection.send_text(message), name=f"broadcast_text_{idx}"
-                    )
-        except* asyncio.CancelledError:
-            raise
-        except* Exception as eg:
-            for exc in eg.exceptions:
-                logger.warning("broadcast_connection_error error=%s", exc)
+        results = await asyncio.gather(
+            *(connection.send_text(message) for _client_id, connection in connections),
+            return_exceptions=True,
+        )
+        failed_client_ids: list[str] = []
+        for (client_id, _connection), result in zip(connections, results, strict=False):
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+            if isinstance(result, Exception):
+                logger.warning("broadcast_connection_error client_id=%s error=%s", client_id, result)
+                failed_client_ids.append(client_id)
+        for client_id in failed_client_ids:
+            await self.disconnect(client_id)
 
     async def broadcast_json(self, data: dict[str, Any]) -> None:
         """
@@ -202,23 +201,26 @@ class ConnectionManager:
             if not self.active_connections:
                 logger.info("JSON broadcast requested, but no active connections.")
                 return
-            # Create a copy of the connections to iterate safely
-            connections = list(self.active_connections.values())
+            connections = list(self.active_connections.items())
 
         logger.info("Broadcasting JSON data to %d clients.", len(connections))
-        # HARDENING [P0]: TaskGroup para concorrência real
-        # e isolamento de falhas estruturado
-        try:
-            async with asyncio.TaskGroup() as tg:
-                for idx, connection in enumerate(connections):
-                    tg.create_task(
-                        connection.send_json(data), name=f"broadcast_json_{idx}"
-                    )
-        except* asyncio.CancelledError:
-            raise
-        except* Exception as eg:
-            for exc in eg.exceptions:
-                logger.warning("json_broadcast_connection_error error=%s", exc)
+        results = await asyncio.gather(
+            *(connection.send_json(data) for _client_id, connection in connections),
+            return_exceptions=True,
+        )
+        failed_client_ids: list[str] = []
+        for (client_id, _connection), result in zip(connections, results, strict=False):
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+            if isinstance(result, Exception):
+                logger.warning(
+                    "json_broadcast_connection_error client_id=%s error=%s",
+                    client_id,
+                    result,
+                )
+                failed_client_ids.append(client_id)
+        for client_id in failed_client_ids:
+            await self.disconnect(client_id)
 
     def get_connection_stats(self) -> dict[str, Any]:
         """

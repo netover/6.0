@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # pylint
 """
 SIEM (Security Information and Event Management) Integration System.
@@ -21,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -105,7 +107,7 @@ class SIEMEvent:
         # CEF extension fields
         extensions = []
         if self.user_id:
-            extensions.append(f"src={self.user_id}")
+            extensions.append(f"suser={self.user_id}")
         if self.ip_address:
             extensions.append(f"src={self.ip_address}")
         if self.resource_id:
@@ -152,7 +154,9 @@ class SIEMEvent:
             {
                 "event_id": self.event_id,
                 "timestamp": self.timestamp,
-                "@timestamp": datetime.fromtimestamp(self.timestamp).isoformat(),
+                "@timestamp": datetime.fromtimestamp(
+                    self.timestamp, tz=timezone.utc
+                ).isoformat(),
                 "source": self.source,
                 "event_type": self.event_type,
                 "severity": self.severity,
@@ -222,23 +226,23 @@ class SIEMConnector(ABC):
         self.last_event_sent = 0
 
     @abstractmethod
-    def connect(self) -> bool:
+    async def connect(self) -> bool:
         """Establish connection to SIEM."""
 
     @abstractmethod
-    def disconnect(self) -> None:
+    async def disconnect(self) -> None:
         """Disconnect from SIEM."""
 
     @abstractmethod
-    def send_event(self, event: SIEMEvent) -> bool:
+    async def send_event(self, event: SIEMEvent) -> bool:
         """Send single event to SIEM."""
 
     @abstractmethod
-    def send_events_batch(self, events: list[SIEMEvent]) -> int:
+    async def send_events_batch(self, events: list[SIEMEvent]) -> int:
         """Send batch of events to SIEM. Returns number of events sent successfully."""
 
     @abstractmethod
-    def health_check(self) -> dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform health check on SIEM connection."""
 
     def is_connected(self) -> bool:
@@ -812,7 +816,6 @@ class SIEMIntegrator:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -841,7 +844,6 @@ class SIEMIntegrator:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -926,7 +928,6 @@ class SIEMIntegrator:
 
             except asyncio.CancelledError:
                 raise
-                break
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
                 import sys as _sys
                 from resync.core.exception_guard import maybe_reraise_programming_error
@@ -1075,13 +1076,14 @@ def get_siem_integrator_sync() -> "SIEMIntegrator":
 
 class _LazySIEMIntegratorProxy:
     def __getattr__(self, item):
-        return getattr(get_siem_integrator(), item)
+        return getattr(get_siem_integrator_sync(), item)
 
 # Backward-compatible module-level symbol (lazy proxy)
 siem_integrator = _LazySIEMIntegratorProxy()
 
 async def get_siem_integrator() -> SIEMIntegrator:
     """Get the global SIEM integrator instance."""
-    if not siem_integrator._running:
-        siem_integrator.start()
-    return siem_integrator
+    instance = get_siem_integrator_sync()
+    if not instance._running:
+        instance.start()
+    return instance

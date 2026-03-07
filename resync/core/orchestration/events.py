@@ -145,7 +145,7 @@ class EventBus:
         """Publish an event to all subscribers."""
         # Notify specific subscribers
         if event.type in self._subscribers:
-            for subscription in self._subscribers[event.type]:
+            for subscription in list(self._subscribers[event.type]):
                 try:
                     await self._invoke_callback(subscription.callback, event)
                 except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:
@@ -159,7 +159,7 @@ class EventBus:
                     )
 
         # Notify global subscribers
-        for subscription in self._global_subscribers.values():
+        for subscription in list(self._global_subscribers.values()):
             try:
                 await self._invoke_callback(subscription.callback, event)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, TimeoutError, ConnectionError) as e:

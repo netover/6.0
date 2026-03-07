@@ -181,12 +181,13 @@ def create_token(
     with guard_programming_errors():
         secret_key = unwrap_secret(secret_key)
 
+    if expires_in is None or expires_in <= 0:
+        raise ValueError("expires_in must be a positive int")
+
     # Add timing claims (only if not already set by caller)
     now = time.time()
     to_encode.setdefault("iat", int(now))
-
-    if expires_in is not None:
-        to_encode.setdefault("exp", int(now + expires_in))
+    to_encode.setdefault("exp", int(now + expires_in))
 
     jwt_module = jwt
     if jwt_module is None:
@@ -246,10 +247,10 @@ def verify_token(
         error_msg = str(e).lower()
         if "expired" in error_msg or "expir" in error_msg:
             return False, "Token has expired"
-        return False, f"Invalid token: {str(e)}"
+        return False, "Invalid token"
     except (OSError, ValueError, RuntimeError, TimeoutError, ConnectionError) as e:
         get_logger("resync.jwt").warning("token_verification_failed", error=str(e))
-        return False, f"Token verification failed: {str(e)}"
+        return False, "Token verification failed"
 
 # =============================================================================
 # EXPORTS
@@ -270,4 +271,4 @@ __all__ = [
 # Alias for backward compat
 def decode_access_token(token: str, secret_key: str = "", algorithm: str = "HS256"):
     """Alias for decode_token — backward compatibility."""
-    return decode_token(token, secret_key=secret_key, algorithm=algorithm)
+    return decode_token(token, secret_key=secret_key, algorithms=[algorithm])

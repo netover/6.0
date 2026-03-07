@@ -101,7 +101,7 @@ def create_access_token(subject: Any, expires_delta: timedelta | None = None) ->
         payload,
         secret_key=unwrap_secret(settings.secret_key),
         algorithm=_get_algorithm(),
-        expires_in=None,
+        expires_in=max(1, int(expire.timestamp() - now.timestamp())),
     )
 
 

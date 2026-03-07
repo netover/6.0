@@ -230,7 +230,14 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
 
         # LRU Cache using OrderedDict
         self._intent_cache: OrderedDict[str, QueryIntent] = OrderedDict()
-        self._cache_lock = asyncio.Lock()
+        self._cache_lock: asyncio.Lock | None = None
+
+    def _get_cache_lock(self) -> asyncio.Lock:
+        """Return cache lock lazily bound to the current running loop."""
+        if self._cache_lock is None:
+            asyncio.get_running_loop()
+            self._cache_lock = asyncio.Lock()
+        return self._cache_lock
 
     def _normalize_for_cache(self, query: str) -> str:
         """
@@ -246,7 +253,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
 
     async def _get_from_cache(self, key: str) -> QueryIntent | None:
         """Get from LRU cache and update access order."""
-        async with self._cache_lock:
+        async with self._get_cache_lock():
             if key in self._intent_cache:
                 # Move to end (most recently used)
                 self._intent_cache.move_to_end(key)
@@ -255,7 +262,7 @@ Respond with ONLY the category name (e.g., "DEPENDENCY_CHAIN"). No explanation."
 
     async def _add_to_cache(self, key: str, intent: QueryIntent) -> None:
         """Add to LRU cache with eviction."""
-        async with self._cache_lock:
+        async with self._get_cache_lock():
             if key in self._intent_cache:
                 # Update existing and move to end
                 self._intent_cache.move_to_end(key)

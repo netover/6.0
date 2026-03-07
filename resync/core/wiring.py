@@ -151,7 +151,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     knowledge_graph = ContextStore()
 
     # TWS Client (Mock vs Real)
-    if getattr(settings, "TWS_MOCK_MODE", False):
+    if settings.tws_mock_mode:
         from resync.services.mock_tws_service import MockTWSClient
 
         tws: ITWSClient = MockTWSClient()
@@ -265,7 +265,7 @@ async def init_domain_singletons(app: FastAPI) -> None:
     logger.info(
         "domain_singletons_initialized",
         singletons=list(_REQUIRED_SINGLETONS),
-        tws_mode="mock" if getattr(settings, "TWS_MOCK_MODE", False) else "optimized",
+        tws_mode="mock" if settings.tws_mock_mode else "optimized",
     )
 
 # -----------------------------------------------------------------------------
@@ -415,12 +415,16 @@ async def shutdown_domain_singletons(app: FastAPI) -> None:
             "cache_hierarchy_close_error", error=type(exc).__name__, detail=str(exc)
         )
 
-    # 10. Valkey client: close last (infrastructure)
+    # 10. Valkey infrastructure: close initializer first, then raw client alias.
     try:
-        from resync.core.valkey_init import close_valkey_client
+        from resync.core.valkey_init import (
+            close_valkey_client,
+            close_valkey_initializer,
+        )
 
+        await close_valkey_initializer()
         await close_valkey_client()
-        logger.info("valkey_client_closed")
+        logger.info("valkey_infrastructure_closed")
     except (OSError, RuntimeError, TimeoutError, ConnectionError) as exc:
         logger.warning(
             "valkey_client_close_error", error=type(exc).__name__, detail=str(exc)

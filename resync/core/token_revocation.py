@@ -19,7 +19,8 @@ from resync.core.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-_PREFIX = os.getenv("TOKEN_REVOCATION_PREFIX", "revoked:jti:")
+_ENV = os.getenv("APP_ENVIRONMENT", "development").lower()
+_PREFIX = os.getenv("TOKEN_REVOCATION_PREFIX", f"revoked:{_ENV}:jti:")
 
 def _enabled() -> bool:
     env = os.getenv("TOKEN_REVOCATION_ENABLED")
@@ -33,6 +34,8 @@ def _enabled() -> bool:
     return env.lower() in {"1", "true", "yes", "on"}
 
 async def is_jti_revoked(jti: str) -> bool:
+    if not jti or not jti.strip():
+        return False
     if not _enabled():
         return False
     try:
@@ -56,6 +59,8 @@ async def is_jti_revoked(jti: str) -> bool:
 
 async def revoke_jti(jti: str, exp_unix: int | None = None) -> None:
     """Revoke a token by its JTI until expiration."""
+    if not jti or not jti.strip():
+        return
     if not _enabled():
         return
     try:

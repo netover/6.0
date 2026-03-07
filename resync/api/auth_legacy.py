@@ -308,7 +308,10 @@ def create_access_token(
 
     to_encode.update({"exp": expire})
     return create_token(
-        to_encode, _get_secret_key(), algorithm=ALGORITHM, expires_in=None
+        to_encode,
+        _get_secret_key(),
+        algorithm=ALGORITHM,
+        expires_in=max(1, int((expire - datetime.now(timezone.utc)).total_seconds())),
     )
 
 async def authenticate_admin(username: str, password: str) -> bool:

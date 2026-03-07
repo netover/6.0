@@ -143,13 +143,7 @@ def get_valkey_client() -> "valkey.Valkey":  # type: ignore
         # concurrent calls may happen (e.g., via threadpool). Guard with a lock.
         with _VALKEY_CLIENT_INIT_LOCK:
             if _VALKEY_CLIENT is None:
-                lazy_valkey = os.getenv("RESYNC_VALKEY_LAZY_INIT")
-                lazy_valkey_compat = os.getenv("RESYNC_VALKEY_LAZY_INIT", "0")
-                lazy = lazy_valkey.strip().lower() in {
-                    "1",
-                    "true",
-                    "yes",
-                }
+                lazy = _env_flag("RESYNC_VALKEY_LAZY_INIT")
                 if not lazy:
                     raise RuntimeError(
                         "Valkey client not initialized. Ensure "
@@ -224,24 +218,25 @@ class ValkeyInitializer:
     """
 
     UNLOCK_SCRIPT = """
-    if valkey.call("get", KEYS[1]) == ARGV[1] then
-      return valkey.call("del", KEYS[1])
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("del", KEYS[1])
     else
       return 0
     end
     """
 
     def __init__(self) -> None:
-        # P0 fix: Initialize lock eagerly to prevent race condition
-        # Lock is still lazily bound to event loop but with proper initialization
-        self._lock: asyncio.Lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
         self._initialized = False
         self._client: valkey.Valkey | None = None  # type: ignore
         self._health_task: asyncio.Task[Any] | None = None
 
     @property
     def lock(self) -> asyncio.Lock:
-        """Return the async lock (eagerly initialized)."""
+        """Return the async lock bound to the current running loop."""
+        if self._lock is None:
+            asyncio.get_running_loop()
+            self._lock = asyncio.Lock()
         return self._lock
 
     @property
@@ -257,6 +252,7 @@ class ValkeyInitializer:
         health_check_interval: int = 5,
         fatal_on_fail: bool = False,  # pylint
         valkey_url: str | None = None,
+        _skip_health_task: bool = False,
     ) -> "valkey.Valkey":  # type: ignore
         """
         Inicializa cliente Valkey com:
@@ -279,7 +275,9 @@ class ValkeyInitializer:
                     logger.warning("Existing Valkey connection lost, reinitializing")
                     self._initialized = False
 
-            lock_key = "resync:init:lock"
+            environment = getattr(settings, "environment", "default")
+            env_name = environment.value if hasattr(environment, "value") else str(environment)
+            lock_key = f"resync:{env_name}:init:lock"
             lock_val = f"instance-{os.getpid()}"
             lock_timeout = 30  # seconds
 
@@ -351,13 +349,14 @@ class ValkeyInitializer:
                         )
 
                         # Health check (encerra se já houver uma task antiga)
-                        if self._health_task and not self._health_task.done():
-                            self._health_task.cancel()
-                            with suppress(asyncio.CancelledError):
-                                await self._health_task
-                        self._health_task = create_tracked_task(
-                            self._health_check_loop(health_check_interval)
-                        )
+                        if not _skip_health_task:
+                            if self._health_task and not self._health_task.done():
+                                self._health_task.cancel()
+                                with suppress(asyncio.CancelledError):
+                                    await self._health_task
+                            self._health_task = create_tracked_task(
+                                self._health_check_loop(health_check_interval)
+                            )
 
                         return valkey_client
 
@@ -376,6 +375,20 @@ class ValkeyInitializer:
                     msg = f"Valkey authentication failed: {e}"
                     logger.critical(msg)
                     raise ValkeyInitError(msg) from e
+
+                except (ValkeyConnError, ValkeyTimeoutError, BusyLoadingError) as e:
+                    if attempt + 1 >= max_retries:
+                        raise ValkeyInitError(f"Valkey connection failed after retries: {e}") from e
+                    backoff = min(base_backoff * (2**attempt), max_backoff)
+                    logger.warning(
+                        "valkey_init_retry attempt=%d max_retries=%d backoff=%.2f error=%s",
+                        attempt + 1,
+                        max_retries,
+                        backoff,
+                        type(e).__name__,
+                    )
+                    await asyncio.sleep(backoff)
+                    continue
 
                 except (
                     OSError,
@@ -448,7 +461,12 @@ class ValkeyInitializer:
                 logger.error("Valkey health check failed - attempting reconnect", exc_info=True)
                 self._initialized = False
                 try:
-                    await self.initialize(max_retries=2, fatal_on_fail=False)
+                    await self.initialize(
+                        max_retries=2,
+                        fatal_on_fail=False,
+                        health_check_interval=interval,
+                        _skip_health_task=True,
+                    )
                     logger.info("Valkey health-check reconnect succeeded")
                     continue
                 except ValkeyInitError:
@@ -459,16 +477,21 @@ class ValkeyInitializer:
 
     async def close(self) -> None:
         """Close the Valkey initializer and cleanup resources."""
+        global _IDEMPOTENCY_MANAGER, _VALKEY_CLIENT  # pylint
         self._initialized = False
         if self._health_task and not self._health_task.done():
             self._health_task.cancel()
             with suppress(asyncio.CancelledError):
                 await self._health_task
+        self._health_task = None
         if self._client:
             with suppress(ValkeyError, ConnectionError):
                 await self._client.close()
             with suppress(ValkeyError, ConnectionError):
                 await self._client.connection_pool.disconnect()
+        self._client = None
+        _VALKEY_CLIENT = None
+        _IDEMPOTENCY_MANAGER = None
 
 
 # Global Valkey initializer instance - lazy initialization
@@ -487,6 +510,16 @@ def get_valkey_initializer() -> ValkeyInitializer:
             if _valkey_initializer is None:
                 _valkey_initializer = ValkeyInitializer()
     return _valkey_initializer
+
+
+async def close_valkey_initializer() -> None:
+    """Close the global Valkey initializer if it exists."""
+    global _valkey_initializer  # pylint
+    initializer = _valkey_initializer
+    if initializer is None:
+        return
+    await initializer.close()
+    _valkey_initializer = None
 
 # Legacy aliases for backward compatibility
 ValkeyInitializer = ValkeyInitializer

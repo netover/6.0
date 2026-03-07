@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -74,15 +75,18 @@ class EnhancedCacheManager:
         Args:
             valkey_client: Cliente Valkey (se None, obtém do valkey_init)
         """
-        if valkey_client is None:
-            from resync.core.valkey_init import get_valkey_client
-
-            self.valkey = get_valkey_client()
-        else:
-            self.valkey = valkey_client
-
+        self._explicit_valkey = valkey_client
         self.stats = CacheStats()
         self.warming_config = CacheWarmingConfig()
+
+    @property
+    def valkey(self):
+        """Resolve the Valkey client lazily to avoid import-time startup crashes."""
+        if self._explicit_valkey is not None:
+            return self._explicit_valkey
+        from resync.core.valkey_init import get_valkey_client
+
+        return get_valkey_client()
 
     async def warm_cache(self, warmers: dict[str, Callable] | None = None):
         """
@@ -119,7 +123,7 @@ class EnhancedCacheManager:
         successes = sum(1 for r in results if not isinstance(r, Exception))
         failures = len(results) - successes
 
-        self.stats.last_warmup = datetime.now(datetime.UTC)
+        self.stats.last_warmup = datetime.now(timezone.utc)
 
         logger.info(
             "Cache warming complete: "
@@ -145,7 +149,12 @@ class EnhancedCacheManager:
             import json
     
             # Atomic write: only set if not exists (NX) with TTL (EX).
-            ok = await self.valkey.set(key, json.dumps(data), ex=3600, nx=True)
+            ok = await self.valkey.set(
+                key,
+                json.dumps(data, default=str),
+                ex=3600,
+                nx=True,
+            )
             if not ok:
                 logger.debug("Cache key already existed, skipping: %s", key)
                 return
@@ -314,12 +323,15 @@ class EnhancedCacheManager:
 # =============================================================================
 
 _cache_manager: EnhancedCacheManager | None = None
+_cache_manager_lock = threading.Lock()
 
 def get_cache_manager() -> EnhancedCacheManager:
     """Obtém instância global do cache manager."""
     global _cache_manager
     if _cache_manager is None:
-        _cache_manager = EnhancedCacheManager()
+        with _cache_manager_lock:
+            if _cache_manager is None:
+                _cache_manager = EnhancedCacheManager()
     return _cache_manager
 
 # =============================================================================

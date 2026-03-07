@@ -33,7 +33,7 @@ import logging
 import os
 import re
 import unicodedata
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias, Union
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
 from fastapi import Path
 from pydantic import Field
@@ -48,15 +48,14 @@ if TYPE_CHECKING:
 
 # [P2-04] type statement (PEP 695) suporta recursão nativa em Python 3.12+
 # Em Python 3.14 é a forma canônica e resolve corretamente em runtime
-# [P2-04] SanitizedValue type alias (Python 3.10+ compatible)
-SanitizedValue: TypeAlias = Union[
-    str,
-    int,
-    float,
-    bool,
-    dict[str, "SanitizedValue"],
-    list["SanitizedValue"],
-]
+type SanitizedValue = (
+    str
+    | int
+    | float
+    | bool
+    | dict[str, SanitizedValue]
+    | list[SanitizedValue]
+)
 # =============================================================================
 # CUSTOM EXCEPTIONS (v6.1.0 — agora integradas ao fluxo via raise_on_error)
 # =============================================================================
@@ -137,20 +136,20 @@ DANGEROUS_CHARS_PATTERN: re.Pattern[str] = re.compile(r"[<>]")
 # [P2-06] \# removido — # não precisa de escape em character class sem re.VERBOSE
 # [P3]    re.UNICODE removido — redundante para str patterns em Python 3
 SAFE_STRING_PATTERN: re.Pattern[str] = re.compile(
-    r"^[\w\s.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]*$"
+    r"^[\w \t.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]*$"
 )
 
 SAFE_CHARS_ONLY: re.Pattern[str] = re.compile(
-    r"[\w\s.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]"
+    r"[\w \t.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]"
 )
 
 # Padrão ASCII-only para allow_unicode=False (P0-01 fix)
 ASCII_SAFE_STRING_PATTERN: re.Pattern[str] = re.compile(
-    r"^[A-Za-z0-9_\s.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]*$"
+    r"^[A-Za-z0-9_ \t.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]*$"
 )
 
 ASCII_SAFE_CHARS_ONLY: re.Pattern[str] = re.compile(
-    r"[A-Za-z0-9_\s.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]"
+    r"[A-Za-z0-9_ \t.,!?'\"()\-:;@&/+=#%\[\]{}|~`*\\]"
 )
 
 # Stricter pattern for IDs, usernames, slugs
@@ -822,30 +821,30 @@ class InputSanitizer:
             return {}
 
         sanitized: dict[str, SanitizedValue] = {}
-        for key, value in data.items():
-            clean_key = InputSanitizer.sanitize_string(str(key), 100)
+        sanitize_string = InputSanitizer.sanitize_string
+        sanitize_string_strict = InputSanitizer.sanitize_string_strict
+        sanitize_dict = InputSanitizer.sanitize_dict
+        sanitize_list = InputSanitizer.sanitize_list
+        for idx, (key, value) in enumerate(data.items()):
+            clean_key = sanitize_string_strict(str(key), 100)
 
             if not clean_key:
                 InputSanitizer._get_logger().warning(
-                    "sanitize_dict: key %r sanitized to empty string, skipping",
+                    "sanitize_dict: key %r sanitized to fallback name",
                     str(key)[:50],
                 )
-                continue
+                clean_key = f"_key_{idx}"
 
             if isinstance(value, str):
-                sanitized[clean_key] = InputSanitizer.sanitize_string(value)
+                sanitized[clean_key] = sanitize_string(value)
             elif isinstance(value, dict):
-                sanitized[clean_key] = InputSanitizer.sanitize_dict(
-                    value, max_depth, current_depth + 1
-                )
+                sanitized[clean_key] = sanitize_dict(value, max_depth, current_depth + 1)
             elif isinstance(value, list):
-                sanitized[clean_key] = InputSanitizer.sanitize_list(
-                    value, max_depth, current_depth + 1
-                )
+                sanitized[clean_key] = sanitize_list(value, max_depth, current_depth + 1)
             elif isinstance(value, (int, float, bool)):
                 sanitized[clean_key] = value
             else:
-                sanitized[clean_key] = InputSanitizer.sanitize_string(str(value))
+                sanitized[clean_key] = sanitize_string(str(value))
 
         return sanitized
 
@@ -877,21 +876,20 @@ class InputSanitizer:
             return []
 
         sanitized: list[SanitizedValue] = []
+        sanitize_string = InputSanitizer.sanitize_string
+        sanitize_dict = InputSanitizer.sanitize_dict
+        sanitize_list = InputSanitizer.sanitize_list
         for item in data:
             if isinstance(item, str):
-                sanitized.append(InputSanitizer.sanitize_string(item))
+                sanitized.append(sanitize_string(item))
             elif isinstance(item, dict):
-                sanitized.append(
-                    InputSanitizer.sanitize_dict(item, max_depth, current_depth + 1)
-                )
+                sanitized.append(sanitize_dict(item, max_depth, current_depth + 1))
             elif isinstance(item, list):
-                sanitized.append(
-                    InputSanitizer.sanitize_list(item, max_depth, current_depth + 1)
-                )
+                sanitized.append(sanitize_list(item, max_depth, current_depth + 1))
             elif isinstance(item, (int, float, bool)):
                 sanitized.append(item)
             else:
-                sanitized.append(InputSanitizer.sanitize_string(str(item)))
+                sanitized.append(sanitize_string(str(item)))
 
         return sanitized
 
